@@ -157,7 +157,7 @@ textarea:focus-visible {
 }
 
 .sync-banner--saved {
-  color: var(--success);
+  color: var(--teal);
   border-color: rgba(67, 198, 172, 0.2);
 }
 
@@ -450,6 +450,7 @@ textarea:focus-visible {
   gap: 8px;
   font-weight: 900;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .primary-button {
@@ -480,6 +481,135 @@ textarea:focus-visible {
 
 .stretch-button {
   width: 100%;
+}
+
+.setup-screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.setup-card {
+  width: min(100%, 520px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(159, 36, 76, 0.22), rgba(255, 255, 255, 0.035)),
+    var(--panel);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.setup-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.setup-brand img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+}
+
+.setup-brand strong,
+.setup-brand small {
+  display: block;
+}
+
+.setup-brand strong {
+  font-size: 20px;
+  text-transform: uppercase;
+}
+
+.setup-brand small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.setup-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.setup-steps span {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.setup-steps span.complete {
+  color: var(--teal);
+  border-color: rgba(67, 198, 172, 0.28);
+  background: rgba(67, 198, 172, 0.08);
+}
+
+.setup-steps span.ready {
+  color: var(--gold);
+  border-color: rgba(244, 193, 111, 0.3);
+  background: rgba(244, 193, 111, 0.08);
+}
+
+.setup-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+[data-theme="light"] .setup-panel {
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.setup-panel h1 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.setup-panel p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.setup-panel label {
+  display: grid;
+  gap: 6px;
+}
+
+.setup-panel label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.setup-panel input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  padding: 9px 10px;
+  outline: 0;
+}
+
+[data-theme="light"] .setup-panel input {
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .page-stack {

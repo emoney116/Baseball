@@ -32,6 +32,7 @@ export const organizations = pgTable("organizations", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   slug: text("slug").notNull(),
+  bootstrapCompletedAt: timestamp("bootstrap_completed_at", { withTimezone: true }),
   ...timestamps,
 }, (table) => ({
   slugUnique: uniqueIndex("organizations_slug_key").on(table.slug),

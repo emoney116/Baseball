@@ -42,6 +42,19 @@ export type AuthState =
   | { status: "anonymous" }
   | { status: "not-configured"; message: string };
 
+export type BootstrapStatus = {
+  ok: boolean;
+  configured: boolean;
+  foundationReady?: boolean;
+  hasAdmin?: boolean;
+  bootstrapClosed?: boolean;
+  email?: string | null;
+  authorized?: boolean;
+  authorizationMessage?: string | null;
+  requiresSetupCode?: boolean;
+  message?: string;
+};
+
 export class PersistenceError extends Error {
   code: "not-configured" | "auth-required" | "membership-required" | "load-failed" | "save-failed";
 
@@ -74,15 +87,46 @@ export const authRepository = {
     if (error) throw new PersistenceError("auth-required", error.message);
   },
 
+  async signUp(email: string, password: string) {
+    const supabase = createClient();
+    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/setup` : undefined;
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: redirectTo },
+    });
+    if (error) throw new PersistenceError("auth-required", error.message);
+  },
+
   async signOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
   },
 
-  async claimInitialAdmin() {
-    const supabase = createClient();
-    const { error } = await supabase.rpc("claim_initial_metrolina_admin");
-    if (error) throw new PersistenceError("membership-required", error.message);
+  async getBootstrapStatus(): Promise<BootstrapStatus> {
+    const response = await fetch("/api/setup/status", { credentials: "include" });
+    const payload = (await response.json().catch(() => ({}))) as BootstrapStatus;
+    if (!response.ok) {
+      return {
+        ok: false,
+        configured: false,
+        message: payload.message ?? "Setup status is unavailable.",
+      };
+    }
+    return payload;
+  },
+
+  async initializeOrganization(input: { displayName?: string; setupCode?: string }) {
+    const response = await fetch("/api/setup/bootstrap", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { message?: string };
+    if (!response.ok) {
+      throw new PersistenceError("membership-required", payload.message ?? "Unable to initialize Metrolina Baseball.");
+    }
   },
 };
 

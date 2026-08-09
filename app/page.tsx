@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import Link from "next/link";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { BaseballField, DonutChart, Heatmap, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
@@ -536,7 +537,6 @@ export default function MetrolinaBaseballApp() {
         authState={authState}
         error={loadError}
         onSignedIn={() => loadApplicationData()}
-        onClaimed={() => loadApplicationData()}
       />
     );
   }
@@ -822,12 +822,10 @@ function AuthGate({
   authState,
   error,
   onSignedIn,
-  onClaimed,
 }: {
   authState: AuthState;
   error: Error | null;
   onSignedIn: () => void;
-  onClaimed: () => void;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -843,19 +841,6 @@ function AuthGate({
       onSignedIn();
     } catch (signInError) {
       setMessage(signInError instanceof Error ? signInError.message : "Unable to sign in.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function claimAdmin() {
-    setBusy(true);
-    setMessage(null);
-    try {
-      await authRepository.claimInitialAdmin();
-      onClaimed();
-    } catch (claimError) {
-      setMessage(claimError instanceof Error ? claimError.message : "Unable to claim initial admin access.");
     } finally {
       setBusy(false);
     }
@@ -894,9 +879,9 @@ function AuthGate({
       )}
 
       {authState.status === "authenticated" && needsMembership && (
-        <button className="primary-button" type="button" onClick={() => void claimAdmin()} disabled={busy}>
-          {busy ? "Claiming..." : "Claim Initial Admin Access"}
-        </button>
+        <Link className="primary-button" href="/setup">
+          Open First-Run Setup
+        </Link>
       )}
     </main>
   );

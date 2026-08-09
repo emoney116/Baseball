@@ -22,6 +22,16 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 ```
 
+These server-only values are required for the first-run bootstrap API. They must be configured only as encrypted Vercel environment variables or local uncommitted `.env.local` values:
+
+```bash
+SUPABASE_SERVICE_ROLE_KEY=
+METROLINA_SETUP_EMAILS=
+METROLINA_SETUP_CODE=
+```
+
+`METROLINA_SETUP_EMAILS` is a comma-separated allowlist for the first coach/admin setup account. `METROLINA_SETUP_CODE` is optional but recommended for first-run setup.
+
 For server-side Drizzle scripts only, set one of these locally when needed:
 
 ```bash
@@ -29,7 +39,7 @@ DATABASE_URL=
 SUPABASE_DB_URL=
 ```
 
-Do not commit `.env`, `.env.local`, service-role keys, database passwords, or Supabase access tokens.
+Do not commit `.env`, `.env.local`, service-role keys, database passwords, setup codes, or Supabase access tokens.
 
 ## Database Migrations
 
@@ -69,27 +79,34 @@ It also:
 
 It does not seed fake players, fake practices, fake games, fake weight-room data, or demo statistics.
 
-## Applying The Supabase Migration
+## Automated Supabase Migrations
 
-Use the Supabase SQL editor or Supabase CLI after linking the project.
+Database administration is automated and version controlled. The workflow at `.github/workflows/supabase-migrations.yml` runs on pushes to `main` when Supabase migration/config files change, and it also supports manual dispatch.
 
-CLI flow:
+Configure these encrypted GitHub repository secrets:
 
 ```bash
-supabase login
-supabase link --project-ref <your-project-ref>
-supabase db push
+SUPABASE_ACCESS_TOKEN
+SUPABASE_DB_PASSWORD
+SUPABASE_PROJECT_ID
 ```
 
-If you prefer SQL editor, paste and run the migration SQL from `supabase/migrations/20260809000000_metrolina_baseball_foundation.sql`.
+The workflow installs the official Supabase CLI with `supabase/setup-cli@v1`, links non-interactively, then runs `supabase db push --linked`. Production migration runs are serialized with GitHub Actions concurrency.
+
+Do not use the Supabase Dashboard SQL editor for routine schema changes. Add SQL files under `supabase/migrations` and let GitHub Actions apply them from `main`.
 
 ## Initial Coach/Admin Setup
 
-1. Create the first coach/admin user in Supabase Auth. Do not put that password in this repository.
-2. Sign in to the app with that account.
-3. If no Metrolina organization membership exists yet, click `Claim Initial Admin Access`.
+No Supabase Dashboard user creation is required for first-run setup.
 
-The helper function `public.claim_initial_metrolina_admin()` only works while the Metrolina organization has no active memberships. After the first claim, future staff should be added by an ADMIN/COACH through controlled membership management.
+1. Configure the Vercel server-only bootstrap environment variables listed above.
+2. Open `/setup`.
+3. Create or sign into the first coach account using an allowlisted email.
+4. Run `Initialize Organization`.
+
+The setup page calls a server route, not a browser-callable admin RPC. The server route validates the allowlisted setup user and then calls the private database function `public.bootstrap_metrolina_admin(...)` with the service role. That function uses a transaction-level advisory lock, creates/links the profile and organization membership atomically, sets `organizations.bootstrap_completed_at`, and refuses future bootstrap attempts after the first admin is created.
+
+Future coach invitations should be handled inside the app by an admin. Player accounts are intentionally not implemented yet.
 
 ## Security Model
 
