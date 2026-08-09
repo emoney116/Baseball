@@ -97,7 +97,7 @@ Do not use the Supabase Dashboard SQL editor for routine schema changes. Add SQL
 
 ## Remote Supabase Verification
 
-The workflow at `.github/workflows/supabase-remote-verify.yml` verifies the real remote database from GitHub Actions. It uses `SUPABASE_ACCESS_TOKEN` to fetch the project's Supabase pooler metadata, then runs `psql` through the IPv4-compatible pooler instead of the direct IPv6-only `db.<project-ref>.supabase.co` endpoint.
+The workflow at `.github/workflows/supabase-remote-verify.yml` verifies the real remote database from GitHub Actions. It runs manually, when verifier files change, and after a successful `Supabase Migrations` workflow. It uses `SUPABASE_ACCESS_TOKEN` to fetch the project's Supabase pooler metadata, then runs `psql` through the IPv4-compatible pooler instead of the direct IPv6-only `db.<project-ref>.supabase.co` endpoint.
 
 It uses these encrypted GitHub repository secrets:
 

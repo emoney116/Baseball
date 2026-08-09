@@ -8,6 +8,14 @@ on:
       - ".github/workflows/supabase-remote-verify.yml"
       - "scripts/verify-remote-supabase.sql"
       - "scripts/smoke-remote-supabase.sql"
+      - "scripts/run-supabase-pooler-psql.mjs"
+  workflow_run:
+    workflows:
+      - Supabase Migrations
+    branches:
+      - main
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -20,6 +28,7 @@ concurrency:
 jobs:
   verify:
     name: Verify remote Supabase
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
