@@ -3,11 +3,9 @@
 
 \echo Remote Supabase write/read smoke verification
 
-select set_config('app.smoke_marker', :'smoke_marker', false);
-
 do $$
 declare
-  v_marker text := current_setting('app.smoke_marker');
+  v_marker text := __SMOKE_MARKER_SQL_LITERAL__;
   v_now_value timestamptz := now();
   v_org_id uuid;
   v_team_id uuid;
@@ -139,5 +137,4 @@ begin
   delete from public.players where id = v_player_id;
 end $$;
 
-select 'remote write/read smoke test' as check_name, 'pass' as result, current_setting('app.smoke_marker') as marker;
-
+select 'remote write/read smoke test' as check_name, 'pass' as result, __SMOKE_MARKER_SQL_LITERAL__ as marker;

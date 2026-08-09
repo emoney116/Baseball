@@ -95,6 +95,26 @@ The workflow installs the official Supabase CLI with `supabase/setup-cli@v1`, li
 
 Do not use the Supabase Dashboard SQL editor for routine schema changes. Add SQL files under `supabase/migrations` and let GitHub Actions apply them from `main`.
 
+## Remote Supabase Verification
+
+The workflow at `.github/workflows/supabase-remote-verify.yml` verifies the real remote database from GitHub Actions. It uses `SUPABASE_ACCESS_TOKEN` to fetch the project's Supabase pooler metadata, then runs `psql` through the IPv4-compatible pooler instead of the direct IPv6-only `db.<project-ref>.supabase.co` endpoint.
+
+It uses these encrypted GitHub repository secrets:
+
+```bash
+SUPABASE_ACCESS_TOKEN
+SUPABASE_DB_PASSWORD
+SUPABASE_PROJECT_ID
+```
+
+Optional fallback only, if pooler metadata cannot be fetched by the access token:
+
+```bash
+SUPABASE_DB_URL
+```
+
+`SUPABASE_DB_URL` should be the Session pooler connection string from Supabase's Connect panel. Keep it as a GitHub repository secret only; do not add it to Vercel or frontend environment variables.
+
 ## Initial Coach/Admin Setup
 
 No Supabase Dashboard user creation is required for first-run setup.
