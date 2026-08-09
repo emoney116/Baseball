@@ -91,7 +91,7 @@ SUPABASE_DB_PASSWORD
 SUPABASE_PROJECT_ID
 ```
 
-The workflow installs the official Supabase CLI with `supabase/setup-cli@v1`, links non-interactively, then runs `supabase db push --linked`. Production migration runs are serialized with GitHub Actions concurrency.
+The workflow installs the official Supabase CLI with `supabase/setup-cli@v2`, links non-interactively, then runs `supabase db push --linked`. Production migration runs are serialized with GitHub Actions concurrency.
 
 Do not use the Supabase Dashboard SQL editor for routine schema changes. Add SQL files under `supabase/migrations` and let GitHub Actions apply them from `main`.
 
