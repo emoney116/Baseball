@@ -28,7 +28,8 @@ import type { LucideIcon } from "lucide-react";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { BaseballField, DonutChart, Heatmap, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
-import { createId, gameRepository, localPracticeRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
+import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
+import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
 import {
   activePractice,
   buildHittingLeaders,
@@ -50,6 +51,7 @@ import {
 import type {
   AppData,
   BattedBallType,
+  DefenseEvent,
   DefenseOutcome,
   DefenseStation,
   Direction,
@@ -62,6 +64,7 @@ import type {
   HittingSession,
   ID,
   PitchOutcome,
+  PitchEvent,
   PitchType,
   PitchingSession,
   Player,
@@ -106,6 +109,10 @@ const PITCH_MIX_COLORS = ["#f4c16f", "#9f244c", "#8b96a5", "#43c6ac", "#f97316",
 export default function MetrolinaBaseballApp() {
   const [data, setData] = useState<AppData | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [authState, setAuthState] = useState<AuthState>({ status: "anonymous" });
+  const [loadError, setLoadError] = useState<PersistenceError | Error | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [view, setView] = useState<ViewKey>("home");
   const [globalQuery, setGlobalQuery] = useState("");
   const [selectedPlayerId, setSelectedPlayerId] = useState<ID>("p-jackson-smith");
@@ -137,30 +144,7 @@ export default function MetrolinaBaseballApp() {
 
   useEffect(() => {
     let cancelled = false;
-    queueMicrotask(() => {
-      if (cancelled) return;
-      const loaded = localPracticeRepository.load();
-      const params = new URLSearchParams(window.location.search);
-      const requestedView = params.get("view") as ViewKey | null;
-      const requestedPlayer = params.get("player");
-
-      setData(loaded);
-      setHydrated(true);
-      document.documentElement.dataset.theme = loaded.settings.theme;
-
-      const active = activePractice(loaded);
-      const firstPlayer = loaded.settings.recentPlayerIds[0] ?? active?.playerIds[0] ?? loaded.players[0]?.id ?? "";
-      const firstGame = loaded.games.find((game) => !game.result)?.id ?? loaded.games[0]?.id ?? "";
-
-      setSelectedPlayerId(requestedPlayer && loaded.players.some((player) => player.id === requestedPlayer) ? requestedPlayer : firstPlayer);
-      setPracticePlayerId(firstPlayer);
-      setSelectedWeightPlayerId(firstPlayer);
-      setSelectedGameId(firstGame);
-
-      if (requestedView && [...NAV_ITEMS.map((item) => item.key), "profile"].includes(requestedView)) {
-        setView(requestedView);
-      }
-    });
+    void loadApplicationData(() => cancelled);
 
     return () => {
       cancelled = true;
@@ -169,7 +153,6 @@ export default function MetrolinaBaseballApp() {
 
   useEffect(() => {
     if (!hydrated || !data) return;
-    localPracticeRepository.save(data);
     document.documentElement.dataset.theme = data.settings.theme;
   }, [data, hydrated]);
 
@@ -206,8 +189,71 @@ export default function MetrolinaBaseballApp() {
   const weeklyMvp = useMemo(() => (data ? buildWeeklyMvp(data) : undefined), [data]);
   const weightLeader = useMemo(() => (data ? buildWeightLeader(data) : undefined), [data]);
 
+  async function loadApplicationData(isCancelled: () => boolean = () => false) {
+    setHydrated(false);
+    setLoadError(null);
+    setSaveError(null);
+
+    const auth = await authRepository.getState();
+    if (isCancelled()) return;
+    setAuthState(auth);
+
+    if (auth.status !== "authenticated") {
+      setData(null);
+      setHydrated(true);
+      return;
+    }
+
+    try {
+      const loaded = await supabaseAppRepository.load();
+      if (isCancelled()) return;
+      const params = new URLSearchParams(window.location.search);
+      const requestedView = params.get("view") as ViewKey | null;
+      const requestedPlayer = params.get("player");
+
+      setData(loaded);
+      setHydrated(true);
+      document.documentElement.dataset.theme = loaded.settings.theme;
+
+      const active = activePractice(loaded);
+      const firstPlayer = loaded.settings.recentPlayerIds[0] ?? active?.playerIds[0] ?? loaded.players[0]?.id ?? "";
+      const firstGame = loaded.games.find((game) => !game.result)?.id ?? loaded.games[0]?.id ?? "";
+
+      setSelectedPlayerId(requestedPlayer && loaded.players.some((player) => player.id === requestedPlayer) ? requestedPlayer : firstPlayer);
+      setPracticePlayerId(firstPlayer);
+      setSelectedWeightPlayerId(firstPlayer);
+      setSelectedGameId(firstGame);
+
+      if (requestedView && [...NAV_ITEMS.map((item) => item.key), "profile"].includes(requestedView)) {
+        setView(requestedView);
+      }
+    } catch (error) {
+      if (isCancelled()) return;
+      setLoadError(error instanceof Error ? error : new Error("Unable to load Metrolina Baseball data."));
+      setData(null);
+      setHydrated(true);
+    }
+  }
+
   function commit(updater: (current: AppData) => AppData) {
-    setData((current) => (current ? updater(current) : current));
+    setData((current) => {
+      if (!current) return current;
+      const next = updater(current);
+      void persistChange(current, next);
+      return next;
+    });
+  }
+
+  async function persistChange(previous: AppData, next: AppData) {
+    setSaveStatus("saving");
+    setSaveError(null);
+    try {
+      await supabaseAppRepository.sync(previous, next);
+      setSaveStatus("saved");
+    } catch (error) {
+      setSaveStatus("error");
+      setSaveError(error instanceof Error ? error.message : "Unable to save to Supabase.");
+    }
   }
 
   function openPlayer(playerId: ID) {
@@ -280,7 +326,7 @@ export default function MetrolinaBaseballApp() {
       const isStrike = outcome !== "Ball" && outcome !== "HBP";
       const countBefore = last?.countAfter ?? { balls: 0, strikes: 0 };
       const countAfter = nextCount(countBefore, outcome);
-      const event = {
+      const event: PitchEvent = {
         id: createId("pe"),
         practiceId: practice.id,
         sessionId: session.id,
@@ -316,7 +362,7 @@ export default function MetrolinaBaseballApp() {
       const next = ensureDefenseSession(current, practice, practicePlayer.id, defenseStation);
       const session = next.session;
       const eventNumber = next.data.defenseEvents.filter((event) => event.sessionId === session.id).length + 1;
-      const event = {
+      const event: DefenseEvent = {
         id: createId("de"),
         practiceId: practice.id,
         sessionId: session.id,
@@ -403,8 +449,9 @@ export default function MetrolinaBaseballApp() {
     if (!player) return;
     const date = new Date().toISOString().slice(0, 10);
     const weekOf = weekStart(date);
+    const existingSession = data.workoutSessions.find((item) => item.playerId === player.id && item.date === date);
     const session: WorkoutSession = {
-      id: `ws-${player.id}-${date}`,
+      id: existingSession?.id ?? createId("ws"),
       playerId: player.id,
       date,
       weekOf,
@@ -412,7 +459,7 @@ export default function MetrolinaBaseballApp() {
       completed: true,
       effortScore: Number(weightForm.effort) || 8,
       bodyWeight: player.weight,
-      createdAt: new Date().toISOString(),
+      createdAt: existingSession?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     const entry = {
@@ -472,13 +519,34 @@ export default function MetrolinaBaseballApp() {
     );
   }
 
-  if (!data || !selectedPlayer || !practicePlayer) {
+  if (!hydrated) {
     return (
       <main className="loading-screen">
         <img src="/brand/metrolina-baseball-cutout.png" alt="" />
         <img className="asset-preload" src="/brand/metrolina-warriors-alpha.png" alt="" aria-hidden="true" />
         <strong>Metrolina Baseball</strong>
         <span>Loading Metrolina Fall Ball development console...</span>
+      </main>
+    );
+  }
+
+  if (authState.status !== "authenticated" || loadError) {
+    return (
+      <AuthGate
+        authState={authState}
+        error={loadError}
+        onSignedIn={() => loadApplicationData()}
+        onClaimed={() => loadApplicationData()}
+      />
+    );
+  }
+
+  if (!data) {
+    return (
+      <main className="loading-screen">
+        <img src="/brand/metrolina-baseball-cutout.png" alt="" />
+        <strong>Metrolina Baseball</strong>
+        <span>Database is connected, but no app data was returned.</span>
       </main>
     );
   }
@@ -524,6 +592,8 @@ export default function MetrolinaBaseballApp() {
           onView={setView}
         />
 
+        <SyncStatusBanner status={saveStatus} error={saveError} />
+
         {view === "home" && (
           <HomeDashboard
             data={data}
@@ -562,7 +632,7 @@ export default function MetrolinaBaseballApp() {
           />
         )}
 
-        {view === "practice" && (
+        {view === "practice" && practicePlayer && (
           <PracticeConsole
             data={data}
             practice={practice}
@@ -596,6 +666,19 @@ export default function MetrolinaBaseballApp() {
             onUndo={undoPracticeEvent}
             onEndSession={openSessionSummary}
             onStartPractice={() => setStartPracticeOpen(true)}
+          />
+        )}
+
+        {view === "practice" && !practicePlayer && (
+          <EmptyActionPanel
+            eyebrow="Practice"
+            title="Add a player before tracking reps"
+            body="Supabase is connected and ready. Create the first roster player, then practice tracking will unlock."
+            action="Add Player"
+            onAction={() => {
+              setEditingPlayerId(undefined);
+              setPlayerEditorOpen(true);
+            }}
           />
         )}
 
@@ -732,6 +815,127 @@ export default function MetrolinaBaseballApp() {
         />
       )}
     </main>
+  );
+}
+
+function AuthGate({
+  authState,
+  error,
+  onSignedIn,
+  onClaimed,
+}: {
+  authState: AuthState;
+  error: Error | null;
+  onSignedIn: () => void;
+  onClaimed: () => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const needsMembership = error instanceof PersistenceError && error.code === "membership-required";
+
+  async function signIn() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await authRepository.signIn(email, password);
+      onSignedIn();
+    } catch (signInError) {
+      setMessage(signInError instanceof Error ? signInError.message : "Unable to sign in.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function claimAdmin() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await authRepository.claimInitialAdmin();
+      onClaimed();
+    } catch (claimError) {
+      setMessage(claimError instanceof Error ? claimError.message : "Unable to claim initial admin access.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="loading-screen auth-screen">
+      <img src="/brand/metrolina-baseball-cutout.png" alt="" />
+      <strong>Metrolina Baseball</strong>
+      <span>Coach sign-in is required for Supabase-backed program data.</span>
+
+      {authState.status === "not-configured" && <p className="auth-message">{authState.message}</p>}
+      {error && <p className="auth-message">{error.message}</p>}
+      {message && <p className="auth-message">{message}</p>}
+
+      {authState.status === "anonymous" && (
+        <form
+          className="auth-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void signIn();
+          }}
+        >
+          <label>
+            <span>Email</span>
+            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
+          </label>
+          <label>
+            <span>Password</span>
+            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
+          </label>
+          <button className="primary-button stretch-button" type="submit" disabled={busy || !email || !password}>
+            {busy ? "Signing in..." : "Sign In"}
+          </button>
+        </form>
+      )}
+
+      {authState.status === "authenticated" && needsMembership && (
+        <button className="primary-button" type="button" onClick={() => void claimAdmin()} disabled={busy}>
+          {busy ? "Claiming..." : "Claim Initial Admin Access"}
+        </button>
+      )}
+    </main>
+  );
+}
+
+function SyncStatusBanner({ status, error }: { status: "idle" | "saving" | "saved" | "error"; error: string | null }) {
+  if (status === "idle") return null;
+  return (
+    <div className={`sync-banner sync-banner--${status}`} role={status === "error" ? "alert" : "status"}>
+      {status === "saving" && "Saving to Supabase..."}
+      {status === "saved" && "Saved to Supabase"}
+      {status === "error" && `Save failed: ${error ?? "Check your connection and permissions."}`}
+    </div>
+  );
+}
+
+function EmptyActionPanel({
+  eyebrow,
+  title,
+  body,
+  action,
+  onAction,
+}: {
+  eyebrow: string;
+  title: string;
+  body: string;
+  action: string;
+  onAction: () => void;
+}) {
+  return (
+    <article className="panel empty-action-panel">
+      <span>{eyebrow}</span>
+      <h2>{title}</h2>
+      <p>{body}</p>
+      <button className="primary-button" type="button" onClick={onAction}>
+        <Plus size={16} aria-hidden="true" />
+        {action}
+      </button>
+    </article>
   );
 }
 
@@ -1890,7 +2094,9 @@ function SessionSummaryModal({ data, summary, note, onNote, onSave, onClose }: {
         <span>{summary.type}</span>
         <h2>{details.title}</h2>
         <div className="mini-stat-grid">
-          {details.stats.map((item) => <StatTile key={item.label} label={item.label} value={item.value} sub={item.sub} />)}
+          {details.stats.map((item) => (
+            <StatTile key={item.label} label={item.label} value={item.value} sub={"sub" in item ? String(item.sub) : undefined} />
+          ))}
         </div>
       </div>
       <label className="wide note-field">
@@ -1981,7 +2187,7 @@ function WeightLeaderCard({ leader, onOpenPlayer }: { leader?: WeightLeaderResul
   );
 }
 
-function LeaderList({ title, leaders, metricKey, fallback, onOpenPlayer }: { title: string; leaders: Array<{ playerId: ID; name: string; value: number; sample: number; meta?: Record<string, unknown> }>; metricKey: string; fallback: string; onOpenPlayer: (playerId: ID) => void }) {
+function LeaderList({ title, leaders, metricKey, fallback, onOpenPlayer }: { title: string; leaders: Array<{ playerId: ID; name: string; value: number; sample: number; meta?: unknown }>; metricKey: string; fallback: string; onOpenPlayer: (playerId: ID) => void }) {
   return (
     <div className="compact-leader-list">
       <h3>{title}</h3>

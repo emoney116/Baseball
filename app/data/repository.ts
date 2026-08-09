@@ -132,10 +132,11 @@ export const workoutRepository: WorkoutRepository = {
 
 export function createId(prefix: string): ID {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return `${prefix}-${crypto.randomUUID()}`;
+    return crypto.randomUUID();
   }
 
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  void prefix;
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
 export function touchRecentPlayers(data: AppData, playerId: ID): AppData {

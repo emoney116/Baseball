@@ -105,6 +105,82 @@ textarea:focus-visible {
   color: var(--muted);
 }
 
+.auth-screen {
+  width: min(100%, 440px);
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.auth-form {
+  width: 100%;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.auth-form label {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+}
+
+.auth-form label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.auth-message {
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(244, 193, 111, 0.28);
+  border-radius: var(--radius);
+  background: rgba(244, 193, 111, 0.08);
+  color: var(--text);
+}
+
+.sync-banner {
+  margin: -2px 0 14px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sync-banner--saved {
+  color: var(--success);
+  border-color: rgba(67, 198, 172, 0.2);
+}
+
+.sync-banner--error {
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.empty-action-panel {
+  min-height: 260px;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 12px;
+}
+
+.empty-action-panel p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 560px;
+}
+
 .ops-shell {
   min-height: 100dvh;
   display: grid;

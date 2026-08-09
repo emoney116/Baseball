@@ -1,0 +1,1012 @@
+"use client";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import type {
+  AppData,
+  CoachNote,
+  DefenseEvent,
+  DefenseSession,
+  DevelopmentGoal,
+  Game,
+  GameEvent,
+  HittingEvent,
+  HittingSession,
+  ID,
+  PitchEvent,
+  PitchingSession,
+  PlateAppearance,
+  Player,
+  Practice,
+  PracticeAttendance,
+  RosterStatus,
+  WorkoutEntry,
+  WorkoutSession,
+} from "../types";
+import { createClient } from "../lib/supabase/client";
+
+const ORGANIZATION_SLUG = "metrolina-christian-academy";
+const TEAM_NAME = "Baseball";
+const SEASON_NAME = "Fall 2026";
+
+type SupabaseClient = ReturnType<typeof createClient>;
+
+type Foundation = {
+  organizationId: string;
+  teamId: string;
+  seasonId: string;
+};
+
+export type AuthState =
+  | { status: "authenticated"; email?: string }
+  | { status: "anonymous" }
+  | { status: "not-configured"; message: string };
+
+export class PersistenceError extends Error {
+  code: "not-configured" | "auth-required" | "membership-required" | "load-failed" | "save-failed";
+
+  constructor(code: PersistenceError["code"], message: string) {
+    super(message);
+    this.code = code;
+  }
+}
+
+export const authRepository = {
+  async getState(): Promise<AuthState> {
+    let supabase: SupabaseClient;
+    try {
+      supabase = createClient();
+    } catch (error) {
+      return {
+        status: "not-configured",
+        message: error instanceof Error ? error.message : "Supabase is not configured.",
+      };
+    }
+
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) return { status: "anonymous" };
+    return { status: "authenticated", email: data.user.email ?? undefined };
+  },
+
+  async signIn(email: string, password: string) {
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new PersistenceError("auth-required", error.message);
+  },
+
+  async signOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+  },
+
+  async claimInitialAdmin() {
+    const supabase = createClient();
+    const { error } = await supabase.rpc("claim_initial_metrolina_admin");
+    if (error) throw new PersistenceError("membership-required", error.message);
+  },
+};
+
+export const supabaseAppRepository = {
+  async load(): Promise<AppData> {
+    const supabase = createClient();
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      throw new PersistenceError("auth-required", "Sign in with your coach account to load Metrolina Baseball data.");
+    }
+
+    const foundation = await loadFoundation(supabase);
+    return loadAppData(supabase, foundation);
+  },
+
+  async sync(previous: AppData, next: AppData): Promise<void> {
+    const supabase = createClient();
+    const foundation = await loadFoundation(supabase);
+    await syncDeletedEvents(supabase, previous, next);
+    await syncPlayers(supabase, foundation, next.players);
+    await syncPractices(supabase, foundation, next.practices);
+    await syncAttendance(supabase, next.attendance);
+    await syncPracticeSessions(supabase, next);
+    await syncPracticeEvents(supabase, next);
+    await syncWorkoutData(supabase, foundation, next);
+    await syncGames(supabase, foundation, next);
+    await syncNotesAndGoals(supabase, foundation, next);
+  },
+};
+
+async function loadFoundation(supabase: SupabaseClient): Promise<Foundation> {
+  const { data: organization, error: organizationError } = await supabase
+    .from("organizations")
+    .select("id")
+    .eq("slug", ORGANIZATION_SLUG)
+    .maybeSingle();
+
+  if (organizationError) throw new PersistenceError("load-failed", organizationError.message);
+  if (!organization) {
+    throw new PersistenceError(
+      "membership-required",
+      "Metrolina organization is unavailable or your account is not attached to it.",
+    );
+  }
+
+  const { data: team, error: teamError } = await supabase
+    .from("teams")
+    .select("id")
+    .eq("organization_id", organization.id)
+    .eq("name", TEAM_NAME)
+    .maybeSingle();
+
+  if (teamError) throw new PersistenceError("load-failed", teamError.message);
+  if (!team) throw new PersistenceError("load-failed", "Baseball team seed is missing.");
+
+  const { data: season, error: seasonError } = await supabase
+    .from("seasons")
+    .select("id")
+    .eq("team_id", team.id)
+    .eq("name", SEASON_NAME)
+    .maybeSingle();
+
+  if (seasonError) throw new PersistenceError("load-failed", seasonError.message);
+  if (!season) throw new PersistenceError("load-failed", "Fall 2026 season seed is missing.");
+
+  return { organizationId: organization.id, teamId: team.id, seasonId: season.id };
+}
+
+async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Promise<AppData> {
+  const [
+    playersResult,
+    membershipsResult,
+    practicesResult,
+    attendanceResult,
+    sessionsResult,
+    pitchEventsResult,
+    hittingEventsResult,
+    defenseEventsResult,
+    exercisesResult,
+    workoutSessionsResult,
+    workoutSetsResult,
+    gamesResult,
+    gameLineupsResult,
+    gameEventsResult,
+    plateAppearancesResult,
+    notesResult,
+    goalsResult,
+  ] = await Promise.all([
+    supabase.from("players").select("*").eq("organization_id", foundation.organizationId).order("jersey_number", { ascending: true }),
+    supabase.from("player_team_memberships").select("*").eq("team_id", foundation.teamId).eq("season_id", foundation.seasonId),
+    supabase.from("practices").select("*").eq("season_id", foundation.seasonId).order("practice_date", { ascending: false }),
+    supabase.from("practice_attendance").select("*"),
+    supabase.from("practice_sessions").select("*"),
+    supabase.from("pitch_events").select("*").order("created_at", { ascending: false }),
+    supabase.from("hitting_events").select("*").order("created_at", { ascending: false }),
+    supabase.from("defense_events").select("*").order("created_at", { ascending: false }),
+    supabase.from("exercises").select("*").eq("organization_id", foundation.organizationId),
+    supabase.from("workout_sessions").select("*").eq("season_id", foundation.seasonId).order("session_date", { ascending: false }),
+    supabase.from("workout_sets").select("*").order("created_at", { ascending: false }),
+    supabase.from("games").select("*").eq("season_id", foundation.seasonId).order("game_date", { ascending: false }),
+    supabase.from("game_lineups").select("*"),
+    supabase.from("game_pitch_events").select("*").order("created_at", { ascending: false }),
+    supabase.from("plate_appearances").select("*"),
+    supabase.from("player_notes").select("*").eq("organization_id", foundation.organizationId).order("created_at", { ascending: false }),
+    supabase.from("development_goals").select("*").eq("organization_id", foundation.organizationId).order("created_at", { ascending: false }),
+  ]);
+
+  const results = [
+    playersResult,
+    membershipsResult,
+    practicesResult,
+    attendanceResult,
+    sessionsResult,
+    pitchEventsResult,
+    hittingEventsResult,
+    defenseEventsResult,
+    exercisesResult,
+    workoutSessionsResult,
+    workoutSetsResult,
+    gamesResult,
+    gameLineupsResult,
+    gameEventsResult,
+    plateAppearancesResult,
+    notesResult,
+    goalsResult,
+  ];
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw new PersistenceError("load-failed", failed.error.message);
+
+  const memberships = membershipsResult.data ?? [];
+  const membershipByPlayer = new Map<string, any>(memberships.map((membership: any) => [membership.player_id, membership]));
+  const players = (playersResult.data ?? []).map((row: any) => mapPlayer(row, membershipByPlayer.get(row.id)));
+  const practices = (practicesResult.data ?? []).map((row: any) => mapPractice(row, attendanceResult.data ?? []));
+  const sessionRows = sessionsResult.data ?? [];
+  const exercisesById = new Map<string, any>((exercisesResult.data ?? []).map((exercise: any) => [exercise.id, exercise]));
+  const lineupRows = gameLineupsResult.data ?? [];
+
+  return {
+    players,
+    practices,
+    attendance: (attendanceResult.data ?? []).map(mapAttendance),
+    pitchingSessions: sessionRows.filter((row: any) => row.category === "pitching").map(mapPitchingSession),
+    pitchEvents: (pitchEventsResult.data ?? []).map(mapPitchEvent),
+    hittingSessions: sessionRows.filter((row: any) => row.category === "hitting").map(mapHittingSession),
+    hittingEvents: (hittingEventsResult.data ?? []).map(mapHittingEvent),
+    defenseSessions: sessionRows.filter((row: any) => row.category === "defense").map(mapDefenseSession),
+    defenseEvents: (defenseEventsResult.data ?? []).map(mapDefenseEvent),
+    workoutSessions: (workoutSessionsResult.data ?? []).map(mapWorkoutSession),
+    workoutEntries: (workoutSetsResult.data ?? []).map((row: any) => mapWorkoutEntry(row, exercisesById.get(row.exercise_id))),
+    games: (gamesResult.data ?? []).map((row: any) => mapGame(row, lineupRows)),
+    gameEvents: (gameEventsResult.data ?? []).map(mapGameEvent),
+    plateAppearances: (plateAppearancesResult.data ?? []).map(mapPlateAppearance),
+    coachNotes: (notesResult.data ?? []).map(mapCoachNote),
+    developmentGoals: (goalsResult.data ?? []).map(mapDevelopmentGoal),
+    settings: {
+      activePracticeId: practices.find((practice) => !practice.endedAt)?.id ?? practices[0]?.id,
+      theme: "dark",
+      rosterSeason: SEASON_NAME,
+      recentPlayerIds: players.slice(0, 8).map((player) => player.id),
+    },
+  };
+}
+
+async function syncDeletedEvents(supabase: SupabaseClient, previous: AppData, next: AppData) {
+  await deleteMissing(supabase, "hitting_events", previous.hittingEvents, next.hittingEvents);
+  await deleteMissing(supabase, "pitch_events", previous.pitchEvents, next.pitchEvents);
+  await deleteMissing(supabase, "defense_events", previous.defenseEvents, next.defenseEvents);
+  await deleteMissing(supabase, "workout_sets", previous.workoutEntries, next.workoutEntries);
+  await deleteMissing(supabase, "game_pitch_events", previous.gameEvents, next.gameEvents);
+}
+
+async function deleteMissing<T extends { id: ID }>(supabase: SupabaseClient, table: string, previous: T[], next: T[]) {
+  const nextIds = new Set(next.map((item) => item.id));
+  const removedIds = previous.map((item) => item.id).filter((id) => !nextIds.has(id));
+  if (removedIds.length === 0) return;
+  const { error } = await supabase.from(table).delete().in("id", removedIds);
+  if (error) throw new PersistenceError("save-failed", error.message);
+}
+
+async function syncPlayers(supabase: SupabaseClient, foundation: Foundation, players: Player[]) {
+  if (players.length === 0) return;
+  const playerRows = players.map((player) => {
+    const { firstName, lastName } = splitName(player.name);
+    return {
+      id: player.id,
+      organization_id: foundation.organizationId,
+      first_name: firstName,
+      last_name: lastName,
+      jersey_number: player.jerseyNumber,
+      graduation_year: player.graduationYear,
+      primary_position: player.primaryPosition,
+      secondary_position: player.secondaryPosition ?? null,
+      bats: player.bats,
+      throws: player.throws,
+      height: player.height ?? null,
+      weight: player.weight ?? null,
+      is_pitcher: player.isPitcher,
+      is_hitter: player.isHitter,
+      photo_url: player.imageUrl ?? null,
+      active: !player.archived,
+      metadata: { avatarColor: player.avatarColor, notes: player.notes ?? null },
+      created_at: player.createdAt,
+      updated_at: player.updatedAt,
+    };
+  });
+  const { error: playerError } = await supabase.from("players").upsert(playerRows, { onConflict: "id" });
+  if (playerError) throw new PersistenceError("save-failed", playerError.message);
+
+  const membershipRows = players.map((player) => ({
+    player_id: player.id,
+    team_id: foundation.teamId,
+    season_id: foundation.seasonId,
+    roster_status: player.rosterStatus ?? "Undecided",
+    active: !player.archived,
+  }));
+  const { error: membershipError } = await supabase
+    .from("player_team_memberships")
+    .upsert(membershipRows, { onConflict: "player_id,team_id,season_id" });
+  if (membershipError) throw new PersistenceError("save-failed", membershipError.message);
+}
+
+async function syncPractices(supabase: SupabaseClient, foundation: Foundation, practices: Practice[]) {
+  if (practices.length === 0) return;
+  const { error } = await supabase.from("practices").upsert(
+    practices.map((practice) => ({
+      id: practice.id,
+      organization_id: foundation.organizationId,
+      team_id: foundation.teamId,
+      season_id: foundation.seasonId,
+      practice_date: practice.date,
+      starts_at: practice.startedAt,
+      ended_at: practice.endedAt ?? null,
+      name: practice.name,
+      practice_type: practice.type,
+      location: practice.location,
+      notes: practice.notes ?? null,
+      status: practice.endedAt ? "completed" : "active",
+      created_at: practice.createdAt,
+      updated_at: practice.updatedAt,
+    })),
+    { onConflict: "id" },
+  );
+  if (error) throw new PersistenceError("save-failed", error.message);
+}
+
+async function syncAttendance(supabase: SupabaseClient, attendance: PracticeAttendance[]) {
+  if (attendance.length === 0) return;
+  const { error } = await supabase.from("practice_attendance").upsert(
+    attendance.map((item) => ({
+      id: item.id,
+      practice_id: item.practiceId,
+      player_id: item.playerId,
+      role: item.role,
+      checked_in_at: item.checkedInAt,
+    })),
+    { onConflict: "practice_id,player_id" },
+  );
+  if (error) throw new PersistenceError("save-failed", error.message);
+}
+
+async function syncPracticeSessions(supabase: SupabaseClient, data: AppData) {
+  const rows = [
+    ...data.hittingSessions.map((session) => ({
+      id: session.id,
+      practice_id: session.practiceId,
+      player_id: session.hitterId,
+      category: "hitting",
+      session_type: session.type,
+      started_at: session.startedAt,
+      ended_at: session.endedAt ?? null,
+      summary_note: session.summaryNote ?? null,
+      session_grade: session.sessionGrade ?? null,
+      metadata: {
+        machineVelocity: session.machineVelocity,
+        machinePitchType: session.machinePitchType,
+        machineLocation: session.machineLocation,
+        distance: session.distance,
+        machineType: session.machineType,
+        coachBpStyle: session.coachBpStyle,
+        roundGoals: session.roundGoals,
+        plannedReps: session.plannedReps,
+      },
+    })),
+    ...data.pitchingSessions.map((session) => ({
+      id: session.id,
+      practice_id: session.practiceId,
+      player_id: session.pitcherId,
+      category: "pitching",
+      session_type: session.type,
+      secondary_player_id: session.hitterId ?? session.catcherId ?? null,
+      started_at: session.startedAt,
+      ended_at: session.endedAt ?? null,
+      summary_note: session.summaryNote ?? null,
+      session_grade: session.sessionGrade ?? null,
+      metadata: {
+        catcherId: session.catcherId,
+        hitterId: session.hitterId,
+        focusTags: session.focusTags,
+        intendedFocus: session.intendedFocus,
+      },
+    })),
+    ...data.defenseSessions.map((session) => ({
+      id: session.id,
+      practice_id: session.practiceId,
+      player_id: session.playerId,
+      category: "defense",
+      session_type: session.station,
+      started_at: session.startedAt,
+      ended_at: session.endedAt ?? null,
+      summary_note: session.summaryNote ?? null,
+      metadata: { mode: session.mode, plannedReps: session.plannedReps },
+    })),
+  ];
+  if (rows.length === 0) return;
+  const { error } = await supabase.from("practice_sessions").upsert(rows, { onConflict: "id" });
+  if (error) throw new PersistenceError("save-failed", error.message);
+}
+
+async function syncPracticeEvents(supabase: SupabaseClient, data: AppData) {
+  await upsertRows(supabase, "pitch_events", data.pitchEvents.map(mapPitchEventToRow));
+  await upsertRows(supabase, "hitting_events", data.hittingEvents.map(mapHittingEventToRow));
+  await upsertRows(supabase, "defense_events", data.defenseEvents.map(mapDefenseEventToRow));
+}
+
+async function syncWorkoutData(supabase: SupabaseClient, foundation: Foundation, data: AppData) {
+  const exerciseNames = [...new Set(data.workoutEntries.map((entry) => entry.exercise))];
+  if (exerciseNames.length > 0) {
+    const exerciseRows = exerciseNames.map((name) => ({
+      organization_id: foundation.organizationId,
+      name,
+      kind: data.workoutEntries.find((entry) => entry.exercise === name)?.kind ?? "Custom",
+      unit: data.workoutEntries.find((entry) => entry.exercise === name)?.unit ?? "lb",
+      built_in: false,
+      active: true,
+    }));
+    const { error } = await supabase.from("exercises").upsert(exerciseRows, { onConflict: "organization_id,name" });
+    if (error) throw new PersistenceError("save-failed", error.message);
+  }
+
+  if (data.workoutSessions.length > 0) {
+    await upsertRows(
+      supabase,
+      "workout_sessions",
+      data.workoutSessions.map((session) => ({
+        id: session.id,
+        organization_id: foundation.organizationId,
+        team_id: foundation.teamId,
+        season_id: foundation.seasonId,
+        player_id: session.playerId,
+        session_date: session.date,
+        week_of: session.weekOf,
+        day_name: session.day,
+        completed: session.completed,
+        effort_score: session.effortScore,
+        body_weight: session.bodyWeight ?? null,
+        created_at: session.createdAt,
+        updated_at: session.updatedAt,
+      })),
+    );
+  }
+
+  if (data.workoutEntries.length === 0) return;
+  const { data: exercises, error: exerciseError } = await supabase
+    .from("exercises")
+    .select("id,name")
+    .eq("organization_id", foundation.organizationId);
+  if (exerciseError) throw new PersistenceError("save-failed", exerciseError.message);
+  const exerciseByName = new Map<string, string>((exercises ?? []).map((exercise: any) => [exercise.name, exercise.id]));
+
+  await upsertRows(
+    supabase,
+    "workout_sets",
+    data.workoutEntries.map((entry) => ({
+      id: entry.id,
+      workout_session_id: entry.sessionId,
+      player_id: entry.playerId,
+      exercise_id: exerciseByName.get(entry.exercise),
+      weight: entry.weight ?? null,
+      reps: entry.reps ?? null,
+      sets: entry.sets ?? null,
+      value: entry.value ?? null,
+      unit: entry.unit ?? null,
+      prior_value: entry.priorValue ?? null,
+      created_at: entry.createdAt,
+    })),
+  );
+}
+
+async function syncGames(supabase: SupabaseClient, foundation: Foundation, data: AppData) {
+  if (data.games.length > 0) {
+    await upsertRows(
+      supabase,
+      "games",
+      data.games.map((game) => ({
+        id: game.id,
+        organization_id: foundation.organizationId,
+        team_id: foundation.teamId,
+        season_id: foundation.seasonId,
+        opponent: game.opponent,
+        game_date: game.date,
+        starts_at: `${game.date}T12:00:00.000Z`,
+        home_away: game.homeAway,
+        location: game.location,
+        game_type: game.type,
+        status: game.result ? "final" : "active",
+        our_score: game.metrolinaScore,
+        opponent_score: game.opponentScore,
+        inning: game.inning,
+        half: game.half,
+        outs: game.outs,
+        balls: game.balls,
+        strikes: game.strikes,
+        runners: game.runners,
+        result: game.result ?? null,
+        current_pitcher_id: game.currentPitcherId ?? game.startingPitcherId ?? null,
+        current_batter_id: game.currentBatterId ?? null,
+        created_at: game.createdAt,
+        updated_at: game.updatedAt,
+      })),
+    );
+  }
+
+  const lineups = data.games.flatMap((game) =>
+    game.lineup.map((playerId, index) => ({
+      game_id: game.id,
+      player_id: playerId,
+      batting_order: index + 1,
+      position: findPosition(game, playerId),
+      is_starting_pitcher: game.startingPitcherId === playerId,
+    })),
+  );
+  if (lineups.length > 0) {
+    const { error } = await supabase.from("game_lineups").upsert(lineups, { onConflict: "game_id,player_id" });
+    if (error) throw new PersistenceError("save-failed", error.message);
+  }
+
+  await upsertRows(supabase, "game_pitch_events", data.gameEvents.map(mapGameEventToRow));
+  await upsertRows(supabase, "plate_appearances", data.plateAppearances.map(mapPlateAppearanceToRow));
+}
+
+async function syncNotesAndGoals(supabase: SupabaseClient, foundation: Foundation, data: AppData) {
+  await upsertRows(
+    supabase,
+    "player_notes",
+    data.coachNotes.map((note) => {
+      const scope = note.scope;
+      return {
+        id: note.id,
+        organization_id: foundation.organizationId,
+        player_id: "playerId" in scope ? scope.playerId : null,
+        practice_id: "practiceId" in scope ? scope.practiceId : null,
+        session_id: "sessionId" in scope ? scope.sessionId : null,
+        visibility: "coach_only",
+        tags: note.tags,
+        note: note.text,
+        created_at: note.createdAt,
+        updated_at: note.updatedAt,
+      };
+    }),
+  );
+  await upsertRows(
+    supabase,
+    "development_goals",
+    data.developmentGoals.map((goal) => ({
+      id: goal.id,
+      organization_id: foundation.organizationId,
+      player_id: goal.playerId,
+      title: goal.title,
+      tags: goal.tags,
+      completed: goal.completed ?? false,
+      created_at: goal.createdAt,
+      updated_at: goal.updatedAt,
+    })),
+  );
+}
+
+async function upsertRows(supabase: SupabaseClient, table: string, rows: Array<Record<string, unknown>>) {
+  if (rows.length === 0) return;
+  const { error } = await supabase.from(table).upsert(rows, { onConflict: "id" });
+  if (error) throw new PersistenceError("save-failed", error.message);
+}
+
+function mapPlayer(row: any, membership?: any): Player {
+  const metadata = row.metadata ?? {};
+  return {
+    id: row.id,
+    name: `${row.first_name} ${row.last_name}`.trim(),
+    jerseyNumber: row.jersey_number ?? 0,
+    primaryPosition: row.primary_position,
+    secondaryPosition: row.secondary_position ?? undefined,
+    bats: row.bats,
+    throws: row.throws,
+    graduationYear: row.graduation_year ?? new Date().getFullYear(),
+    rosterStatus: (membership?.roster_status ?? "Undecided") as RosterStatus,
+    programLevel: membership?.roster_status === "JV" ? "JV" : membership?.roster_status === "Varsity" ? "Varsity" : "Development",
+    height: row.height ?? undefined,
+    weight: row.weight ?? undefined,
+    avatarColor: metadata.avatarColor ?? "#9f244c",
+    imageUrl: row.photo_url ?? undefined,
+    isPitcher: row.is_pitcher,
+    isHitter: row.is_hitter,
+    notes: metadata.notes ?? undefined,
+    archived: !row.active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapPractice(row: any, attendanceRows: any[]): Practice {
+  const attendance = attendanceRows.filter((item) => item.practice_id === row.id);
+  const pitcherIds = attendance.filter((item) => ["Pitcher", "Two-way"].includes(item.role)).map((item) => item.player_id);
+  const hitterIds = attendance.filter((item) => ["Hitter", "Two-way"].includes(item.role)).map((item) => item.player_id);
+  return {
+    id: row.id,
+    date: row.practice_date,
+    name: row.name,
+    type: row.practice_type,
+    location: row.location ?? "",
+    notes: row.notes ?? undefined,
+    playerIds: attendance.map((item) => item.player_id),
+    pitcherIds,
+    hitterIds,
+    startedAt: row.starts_at ?? `${row.practice_date}T12:00:00.000Z`,
+    endedAt: row.ended_at ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapAttendance(row: any): PracticeAttendance {
+  return {
+    id: row.id,
+    practiceId: row.practice_id,
+    playerId: row.player_id,
+    role: row.role,
+    checkedInAt: row.checked_in_at,
+  };
+}
+
+function mapHittingSession(row: any): HittingSession {
+  const metadata = row.metadata ?? {};
+  return {
+    id: row.id,
+    practiceId: row.practice_id,
+    hitterId: row.player_id,
+    type: row.session_type,
+    machineVelocity: metadata.machineVelocity,
+    machinePitchType: metadata.machinePitchType,
+    machineLocation: metadata.machineLocation,
+    distance: metadata.distance,
+    machineType: metadata.machineType,
+    coachBpStyle: metadata.coachBpStyle,
+    roundGoals: metadata.roundGoals ?? [],
+    plannedReps: metadata.plannedReps,
+    startedAt: row.started_at,
+    endedAt: row.ended_at ?? undefined,
+    summaryNote: row.summary_note ?? undefined,
+    sessionGrade: row.session_grade ?? undefined,
+  };
+}
+
+function mapPitchingSession(row: any): PitchingSession {
+  const metadata = row.metadata ?? {};
+  return {
+    id: row.id,
+    practiceId: row.practice_id,
+    pitcherId: row.player_id,
+    type: row.session_type,
+    catcherId: metadata.catcherId,
+    hitterId: metadata.hitterId ?? row.secondary_player_id ?? undefined,
+    focusTags: metadata.focusTags ?? [],
+    intendedFocus: metadata.intendedFocus,
+    startedAt: row.started_at,
+    endedAt: row.ended_at ?? undefined,
+    summaryNote: row.summary_note ?? undefined,
+    sessionGrade: row.session_grade ?? undefined,
+  };
+}
+
+function mapDefenseSession(row: any): DefenseSession {
+  const metadata = row.metadata ?? {};
+  return {
+    id: row.id,
+    practiceId: row.practice_id,
+    playerId: row.player_id,
+    station: row.session_type,
+    mode: metadata.mode ?? "Quick Practice",
+    startedAt: row.started_at,
+    endedAt: row.ended_at ?? undefined,
+    plannedReps: metadata.plannedReps,
+    summaryNote: row.summary_note ?? undefined,
+  };
+}
+
+function mapPitchEvent(row: any): PitchEvent {
+  return {
+    id: row.id,
+    practiceId: row.practice_id,
+    sessionId: row.session_id,
+    pitcherId: row.pitcher_id,
+    hitterId: row.hitter_id ?? undefined,
+    plateAppearanceId: row.plate_appearance_id ?? undefined,
+    pitchNumber: row.pitch_number,
+    pitchType: row.pitch_type,
+    outcome: row.outcome,
+    isStrike: row.is_strike,
+    isSwing: row.is_swing,
+    isZone: row.is_zone,
+    isChase: row.is_chase ?? undefined,
+    isWhiff: row.is_whiff ?? undefined,
+    isCalledStrike: row.is_called_strike ?? undefined,
+    isBallInPlay: row.is_ball_in_play ?? undefined,
+    battedBall: row.batted_ball ?? undefined,
+    contactQuality: row.contact_quality ?? undefined,
+    velocity: toNumber(row.velocity),
+    qualityRating: row.quality_rating ?? undefined,
+    missedIntendedLocation: row.missed_intended_location ?? undefined,
+    intendedTarget: row.intended_target ?? undefined,
+    location: row.location ?? undefined,
+    countBefore: row.count_before ?? undefined,
+    countAfter: row.count_after ?? undefined,
+    mechanicalNote: row.mechanical_note ?? undefined,
+    coachNote: row.coach_note ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
+function mapHittingEvent(row: any): HittingEvent {
+  return {
+    id: row.id,
+    practiceId: row.practice_id,
+    sessionId: row.session_id,
+    hitterId: row.hitter_id,
+    pitcherId: row.pitcher_id ?? undefined,
+    plateAppearanceId: row.plate_appearance_id ?? undefined,
+    eventNumber: row.event_number,
+    action: row.action,
+    contactResult: row.contact_result ?? undefined,
+    contactQuality: row.contact_quality ?? undefined,
+    direction: row.direction ?? undefined,
+    fieldLocation: row.field_location ?? undefined,
+    pitchType: row.pitch_type ?? undefined,
+    velocity: toNumber(row.velocity),
+    isLiveBp: row.is_live_bp,
+    createdAt: row.created_at,
+  };
+}
+
+function mapDefenseEvent(row: any): DefenseEvent {
+  return {
+    id: row.id,
+    practiceId: row.practice_id,
+    sessionId: row.session_id,
+    playerId: row.player_id,
+    station: row.station,
+    eventNumber: row.event_number,
+    outcome: row.outcome,
+    throwQuality: row.throw_quality ?? undefined,
+    footwork: row.footwork ?? undefined,
+    decision: row.decision ?? undefined,
+    range: row.range ?? undefined,
+    errorType: row.error_type ?? undefined,
+    coachNote: row.coach_note ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
+function mapWorkoutSession(row: any): WorkoutSession {
+  return {
+    id: row.id,
+    playerId: row.player_id,
+    date: row.session_date,
+    weekOf: row.week_of,
+    day: row.day_name,
+    completed: row.completed,
+    effortScore: row.effort_score ?? 0,
+    bodyWeight: toNumber(row.body_weight),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapWorkoutEntry(row: any, exercise?: any): WorkoutEntry {
+  return {
+    id: row.id,
+    sessionId: row.workout_session_id,
+    playerId: row.player_id,
+    exercise: exercise?.name ?? "Custom Exercise",
+    kind: exercise?.kind ?? "Custom",
+    weight: toNumber(row.weight),
+    reps: row.reps ?? undefined,
+    sets: row.sets ?? undefined,
+    value: toNumber(row.value),
+    unit: row.unit ?? exercise?.unit ?? undefined,
+    priorValue: toNumber(row.prior_value),
+    createdAt: row.created_at,
+  };
+}
+
+function mapGame(row: any, lineupRows: any[]): Game {
+  const gameLineups = lineupRows.filter((lineup) => lineup.game_id === row.id).sort((a, b) => (a.batting_order ?? 99) - (b.batting_order ?? 99));
+  const positions: Game["positions"] = {};
+  gameLineups.forEach((lineup) => {
+    if (lineup.position) positions[lineup.position as keyof Game["positions"]] = lineup.player_id;
+  });
+  return {
+    id: row.id,
+    date: row.game_date,
+    opponent: row.opponent,
+    homeAway: row.home_away,
+    location: row.location ?? "",
+    type: row.game_type,
+    result: row.result ?? undefined,
+    metrolinaScore: row.our_score,
+    opponentScore: row.opponent_score,
+    inning: row.inning,
+    half: row.half,
+    outs: row.outs,
+    balls: row.balls,
+    strikes: row.strikes,
+    runners: row.runners ?? {},
+    lineup: gameLineups.map((lineup) => lineup.player_id),
+    positions,
+    startingPitcherId: gameLineups.find((lineup) => lineup.is_starting_pitcher)?.player_id ?? row.current_pitcher_id ?? undefined,
+    currentPitcherId: row.current_pitcher_id ?? undefined,
+    currentBatterId: row.current_batter_id ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapGameEvent(row: any): GameEvent {
+  return {
+    id: row.id,
+    gameId: row.game_id,
+    inning: row.inning,
+    half: row.half,
+    pitcherId: row.pitcher_id ?? undefined,
+    batterId: row.batter_id ?? undefined,
+    pitchType: row.pitch_type ?? undefined,
+    pitchOutcome: row.pitch_outcome ?? undefined,
+    ballInPlayOutcome: row.ball_in_play_outcome ?? undefined,
+    velocity: toNumber(row.velocity),
+    location: row.location ?? undefined,
+    outsBefore: row.outs_before,
+    outsAfter: row.outs_after,
+    metrolinaRunsBefore: row.our_runs_before,
+    metrolinaRunsAfter: row.our_runs_after,
+    opponentRunsBefore: row.opponent_runs_before,
+    opponentRunsAfter: row.opponent_runs_after,
+    situations: row.situations ?? [],
+    createdAt: row.created_at,
+  };
+}
+
+function mapPlateAppearance(row: any): PlateAppearance {
+  return {
+    id: row.id,
+    practiceId: row.practice_id,
+    pitcherId: row.pitcher_id,
+    hitterId: row.hitter_id,
+    startedAt: row.started_at,
+    endedAt: row.ended_at ?? undefined,
+    outcome: row.outcome ?? undefined,
+    balls: row.balls,
+    strikes: row.strikes,
+  };
+}
+
+function mapCoachNote(row: any): CoachNote {
+  const scope = row.player_id
+    ? { type: "Player" as const, playerId: row.player_id }
+    : row.practice_id
+      ? { type: "Practice" as const, practiceId: row.practice_id }
+      : { type: "PitchingSession" as const, sessionId: row.session_id, playerId: row.player_id };
+  return {
+    id: row.id,
+    scope,
+    tags: row.tags ?? [],
+    text: row.note,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapDevelopmentGoal(row: any): DevelopmentGoal {
+  return {
+    id: row.id,
+    playerId: row.player_id,
+    title: row.title,
+    tags: row.tags ?? [],
+    completed: row.completed,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapPitchEventToRow(event: PitchEvent) {
+  return {
+    id: event.id,
+    practice_id: event.practiceId,
+    session_id: event.sessionId,
+    pitcher_id: event.pitcherId,
+    hitter_id: event.hitterId ?? null,
+    plate_appearance_id: event.plateAppearanceId ?? null,
+    pitch_number: event.pitchNumber,
+    pitch_type: event.pitchType,
+    outcome: event.outcome,
+    velocity: event.velocity ?? null,
+    is_strike: event.isStrike,
+    is_swing: event.isSwing,
+    is_zone: event.isZone,
+    is_chase: event.isChase ?? null,
+    is_whiff: event.isWhiff ?? null,
+    is_called_strike: event.isCalledStrike ?? null,
+    is_ball_in_play: event.isBallInPlay ?? null,
+    batted_ball: event.battedBall ?? null,
+    contact_quality: event.contactQuality ?? null,
+    quality_rating: event.qualityRating ?? null,
+    missed_intended_location: event.missedIntendedLocation ?? null,
+    intended_target: event.intendedTarget ?? null,
+    location: event.location ?? null,
+    count_before: event.countBefore ?? null,
+    count_after: event.countAfter ?? null,
+    mechanical_note: event.mechanicalNote ?? null,
+    coach_note: event.coachNote ?? null,
+    context: event.practiceId ? "practice" : "game",
+    created_at: event.createdAt,
+  };
+}
+
+function mapHittingEventToRow(event: HittingEvent) {
+  return {
+    id: event.id,
+    practice_id: event.practiceId,
+    session_id: event.sessionId,
+    hitter_id: event.hitterId,
+    pitcher_id: event.pitcherId ?? null,
+    plate_appearance_id: event.plateAppearanceId ?? null,
+    event_number: event.eventNumber,
+    action: event.action,
+    contact_result: event.contactResult ?? null,
+    contact_quality: event.contactQuality ?? null,
+    direction: event.direction ?? null,
+    field_location: event.fieldLocation ?? null,
+    pitch_type: event.pitchType ?? null,
+    velocity: event.velocity ?? null,
+    is_live_bp: event.isLiveBp ?? false,
+    context: event.isLiveBp ? "live_bp" : "practice",
+    created_at: event.createdAt,
+  };
+}
+
+function mapDefenseEventToRow(event: DefenseEvent) {
+  return {
+    id: event.id,
+    practice_id: event.practiceId,
+    session_id: event.sessionId,
+    player_id: event.playerId,
+    station: event.station,
+    event_number: event.eventNumber,
+    outcome: event.outcome,
+    throw_quality: event.throwQuality ?? null,
+    footwork: event.footwork ?? null,
+    decision: event.decision ?? null,
+    range: event.range ?? null,
+    error_type: event.errorType ?? null,
+    coach_note: event.coachNote ?? null,
+    created_at: event.createdAt,
+  };
+}
+
+function mapGameEventToRow(event: GameEvent) {
+  return {
+    id: event.id,
+    game_id: event.gameId,
+    inning: event.inning,
+    half: event.half,
+    pitcher_id: event.pitcherId ?? null,
+    batter_id: event.batterId ?? null,
+    pitch_type: event.pitchType ?? null,
+    pitch_outcome: event.pitchOutcome ?? null,
+    ball_in_play_outcome: event.ballInPlayOutcome ?? null,
+    velocity: event.velocity ?? null,
+    location: event.location ?? null,
+    outs_before: event.outsBefore,
+    outs_after: event.outsAfter,
+    our_runs_before: event.metrolinaRunsBefore,
+    our_runs_after: event.metrolinaRunsAfter,
+    opponent_runs_before: event.opponentRunsBefore,
+    opponent_runs_after: event.opponentRunsAfter,
+    situations: event.situations,
+    created_at: event.createdAt,
+  };
+}
+
+function mapPlateAppearanceToRow(plateAppearance: PlateAppearance) {
+  return {
+    id: plateAppearance.id,
+    practice_id: plateAppearance.practiceId,
+    pitcher_id: plateAppearance.pitcherId,
+    hitter_id: plateAppearance.hitterId,
+    started_at: plateAppearance.startedAt,
+    ended_at: plateAppearance.endedAt ?? null,
+    outcome: plateAppearance.outcome ?? null,
+    balls: plateAppearance.balls,
+    strikes: plateAppearance.strikes,
+    context: "live_bp",
+  };
+}
+
+function splitName(name: string) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0] || "Player", lastName: "" };
+  return { firstName: parts.slice(0, -1).join(" "), lastName: parts.at(-1) ?? "" };
+}
+
+function toNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : undefined;
+}
+
+function findPosition(game: Game, playerId: ID) {
+  const entry = Object.entries(game.positions).find(([, id]) => id === playerId);
+  return entry?.[0] ?? null;
+}

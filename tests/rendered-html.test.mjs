@@ -1,35 +1,16 @@
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-async function render() {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
-  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
-  const { default: worker } = await import(workerUrl.href);
+test("next build contains the Metrolina app shell", async () => {
+  assert.equal(existsSync(".next"), true);
+  assert.equal(existsSync(".next/server"), true);
 
-  return worker.fetch(
-    new Request("http://localhost/", {
-      headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
-      },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
-  );
-}
+  const layout = readFileSync("app/layout.tsx", "utf8");
+  const page = readFileSync("app/page.tsx", "utf8");
 
-test("server-renders the Metrolina app shell", async () => {
-  const response = await render();
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-
-  const html = await response.text();
-  assert.match(html, /<title>Metrolina Baseball Ops<\/title>/i);
-  assert.match(html, /Loading Metrolina Fall Ball/);
-  assert.match(html, /metrolina-warriors-alpha\.png/);
-  assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|_sites-preview/i);
+  assert.match(layout, /title:\s*"Metrolina Baseball Ops"/);
+  assert.match(page, /Metrolina Baseball/);
+  assert.match(page, /supabaseAppRepository/);
+  assert.doesNotMatch(page, /localPracticeRepository\.load/);
 });

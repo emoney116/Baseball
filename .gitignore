@@ -42,3 +42,6 @@ yarn-error.log*
 /.wrangler/
 /outputs/
 /work/
+
+# local Supabase CLI state
+/supabase/.temp/
