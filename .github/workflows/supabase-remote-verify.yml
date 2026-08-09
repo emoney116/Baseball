@@ -1,0 +1,69 @@
+name: Supabase Remote Verify
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/supabase-remote-verify.yml"
+      - "scripts/verify-remote-supabase.sql"
+      - "scripts/smoke-remote-supabase.sql"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-production-remote-verify
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify remote Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      PGSSLMODE: require
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check required secrets
+        shell: bash
+        run: |
+          missing=0
+          for name in SUPABASE_DB_PASSWORD SUPABASE_PROJECT_ID; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name repository secret is required for remote Supabase verification."
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Verify migrations, tables, RLS, functions, and seed data
+        shell: bash
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          psql \
+            "host=db.${SUPABASE_PROJECT_ID}.supabase.co port=5432 dbname=postgres user=postgres sslmode=require" \
+            --file scripts/verify-remote-supabase.sql
+
+      - name: Verify remote write/read persistence
+        shell: bash
+        env:
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SMOKE_MARKER: codex-remote-verify-${{ github.run_id }}
+        run: |
+          psql \
+            "host=db.${SUPABASE_PROJECT_ID}.supabase.co port=5432 dbname=postgres user=postgres sslmode=require" \
+            --set=smoke_marker="$SMOKE_MARKER" \
+            --file scripts/smoke-remote-supabase.sql
