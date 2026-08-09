@@ -3,21 +3,21 @@ import type React from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Metrolina Fall Ball Lab",
-  description: "A local-first practice tracking console for Metrolina baseball coaches.",
+  title: "Metrolina Baseball Ops",
+  description: "A local-first player development, practice, weight room, and game operations console for Metrolina baseball coaches.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
   },
   openGraph: {
-    title: "Metrolina Fall Ball Lab",
-    description: "Track bullpens, BP rounds, Live BP reps, player notes, and fall baseball trends.",
+    title: "Metrolina Baseball Ops",
+    description: "Track player development, practices, weights, games, notes, and fall baseball trends.",
     images: ["/og.png"],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Metrolina Fall Ball Lab",
-    description: "A coach-first Metrolina baseball practice tracker.",
+    title: "Metrolina Baseball Ops",
+    description: "A coach-first Metrolina baseball operations console.",
     images: ["/og.png"],
   },
 };

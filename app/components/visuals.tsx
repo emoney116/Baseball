@@ -269,7 +269,7 @@ export function EmptyState({
 }) {
   return (
     <div className="empty-state">
-      <img src="/brand/metrolina-baseball-alpha.png" alt="" />
+      <img src="/brand/metrolina-baseball-cutout.png" alt="" />
       <strong>{title}</strong>
       <p>{body}</p>
       {action}

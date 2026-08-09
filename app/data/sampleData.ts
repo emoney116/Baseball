@@ -1,8 +1,12 @@
 import type {
   AppData,
   CoachNote,
+  DefenseEvent,
+  DefenseSession,
   DevelopmentGoal,
   Direction,
+  Game,
+  GameEvent,
   HittingContactQuality,
   HittingEvent,
   HittingSession,
@@ -15,6 +19,8 @@ import type {
   Practice,
   PracticeAttendance,
   RoundGoal,
+  WorkoutEntry,
+  WorkoutSession,
   ZonePoint,
 } from "../types";
 
@@ -409,6 +415,257 @@ export const hittingEvents: HittingEvent[] = hittingSessions.flatMap((session, s
   generateHittingEvents(session, sessionIndex),
 );
 
+export const defenseSessions: DefenseSession[] = [
+  {
+    id: "ds-aug8-caleb",
+    practiceId: "practice-aug8",
+    playerId: "p-caleb-martin",
+    station: "Infield",
+    mode: "Drill",
+    plannedReps: 20,
+    startedAt: "2026-08-08T14:42:00.000Z",
+    summaryNote: "Clean rhythm through routine balls. Best exchange was on slow rollers.",
+  },
+  {
+    id: "ds-aug8-noah",
+    practiceId: "practice-aug8",
+    playerId: "p-noah-carter",
+    station: "Outfield",
+    mode: "Quick Practice",
+    plannedReps: 16,
+    startedAt: "2026-08-08T14:48:00.000Z",
+    summaryNote: "Routes were direct and throws stayed online.",
+  },
+  {
+    id: "ds-aug6-ethan",
+    practiceId: "practice-aug6",
+    playerId: "p-ethan-brooks",
+    station: "Catching",
+    mode: "Drill",
+    plannedReps: 18,
+    startedAt: "2026-08-06T22:36:00.000Z",
+    endedAt: "2026-08-06T23:02:00.000Z",
+    summaryNote: "Receiving presentation improved late in the block.",
+  },
+];
+
+export const defenseEvents: DefenseEvent[] = defenseSessions.flatMap((session, sessionIndex) =>
+  generateDefenseEvents(session, sessionIndex),
+);
+
+const workoutDays: Array<{ day: WorkoutSession["day"]; date: string }> = [
+  { day: "Mon", date: "2026-08-03" },
+  { day: "Tue", date: "2026-08-04" },
+  { day: "Thu", date: "2026-08-06" },
+  { day: "Fri", date: "2026-08-07" },
+];
+
+export const workoutSessions: WorkoutSession[] = allPlayerIds.slice(0, 14).flatMap((playerId, playerIndex) =>
+  workoutDays.map((day, dayIndex) => {
+    const completed = (playerIndex + dayIndex) % 9 !== 0;
+    return {
+      id: `ws-${playerId}-${day.day.toLowerCase()}`,
+      playerId,
+      date: day.date,
+      weekOf: "2026-08-03",
+      day: day.day,
+      completed,
+      effortScore: completed ? 7 + ((playerIndex + dayIndex) % 4) : 0,
+      bodyWeight: 156 + playerIndex * 5 + (playerIndex % 3) * 3,
+      createdAt: `${day.date}T13:00:00.000Z`,
+      updatedAt: `${day.date}T13:00:00.000Z`,
+    };
+  }),
+);
+
+export const workoutEntries: WorkoutEntry[] = workoutSessions.flatMap((session, sessionIndex) => {
+  if (!session.completed) return [];
+  const playerIndex = allPlayerIds.indexOf(session.playerId);
+  const squat = 185 + playerIndex * 8 + (sessionIndex % 4) * 5;
+  const bench = 135 + playerIndex * 5 + (sessionIndex % 3) * 5;
+  const trap = 255 + playerIndex * 10 + (sessionIndex % 4) * 10;
+  const vertical = 25 + (playerIndex % 7) * 0.8 + (sessionIndex % 3) * 0.4;
+
+  return [
+    {
+      id: `we-${session.id}-squat`,
+      sessionId: session.id,
+      playerId: session.playerId,
+      exercise: "Back Squat",
+      kind: "Lift",
+      weight: squat,
+      reps: 5,
+      sets: 3,
+      priorValue: squat - 15 - (playerIndex % 4) * 5,
+      createdAt: `${session.date}T13:15:00.000Z`,
+    },
+    {
+      id: `we-${session.id}-bench`,
+      sessionId: session.id,
+      playerId: session.playerId,
+      exercise: "Bench Press",
+      kind: "Lift",
+      weight: bench,
+      reps: 5,
+      sets: 3,
+      priorValue: bench - 10 - (playerIndex % 3) * 5,
+      createdAt: `${session.date}T13:38:00.000Z`,
+    },
+    {
+      id: `we-${session.id}-trap`,
+      sessionId: session.id,
+      playerId: session.playerId,
+      exercise: "Trap Bar Deadlift",
+      kind: "Lift",
+      weight: trap,
+      reps: 3,
+      sets: 3,
+      priorValue: trap - 20 - (playerIndex % 5) * 5,
+      createdAt: `${session.date}T14:02:00.000Z`,
+    },
+    ...(session.day === "Thu"
+      ? [
+          {
+            id: `we-${session.id}-vertical`,
+            sessionId: session.id,
+            playerId: session.playerId,
+            exercise: "Vertical Jump",
+            kind: "Jump" as const,
+            value: Number(vertical.toFixed(1)),
+            unit: "in" as const,
+            priorValue: Number((vertical - 1.2 - (playerIndex % 3) * 0.4).toFixed(1)),
+            createdAt: `${session.date}T14:18:00.000Z`,
+          },
+        ]
+      : []),
+  ];
+});
+
+export const games: Game[] = [
+  {
+    id: "game-aug7-charlotte",
+    date: "2026-08-07",
+    opponent: "Charlotte Christian",
+    homeAway: "Home",
+    location: "Metrolina Varsity Field",
+    type: "Fall Game",
+    result: "W",
+    metrolinaScore: 7,
+    opponentScore: 3,
+    inning: 7,
+    half: "Bottom",
+    outs: 3,
+    balls: 0,
+    strikes: 0,
+    runners: {},
+    lineup: allPlayerIds.slice(0, 9),
+    positions: {
+      P: "p-jackson-smith",
+      C: "p-ethan-brooks",
+      "1B": "p-mason-lee",
+      "2B": "p-tyler-adams",
+      "3B": "p-will-davis",
+      SS: "p-caleb-martin",
+      LF: "p-ben-parker",
+      CF: "p-noah-carter",
+      RF: "p-daniel-moore",
+    },
+    startingPitcherId: "p-jackson-smith",
+    currentPitcherId: "p-jackson-smith",
+    currentBatterId: "p-ethan-brooks",
+    createdAt: "2026-08-07T22:00:00.000Z",
+    updatedAt: "2026-08-07T23:58:00.000Z",
+  },
+  {
+    id: "game-aug14-covenant",
+    date: "2026-08-14",
+    opponent: "Covenant Day",
+    homeAway: "Away",
+    location: "Covenant Day",
+    type: "Scrimmage",
+    metrolinaScore: 0,
+    opponentScore: 0,
+    inning: 1,
+    half: "Top",
+    outs: 0,
+    balls: 0,
+    strikes: 0,
+    runners: {},
+    lineup: allPlayerIds.slice(0, 9),
+    positions: {
+      P: "p-luke-johnson",
+      C: "p-ethan-brooks",
+      "1B": "p-levi-turner",
+      "2B": "p-tyler-adams",
+      "3B": "p-will-davis",
+      SS: "p-caleb-martin",
+      LF: "p-ben-parker",
+      CF: "p-noah-carter",
+      RF: "p-daniel-moore",
+    },
+    startingPitcherId: "p-luke-johnson",
+    currentPitcherId: "p-luke-johnson",
+    currentBatterId: "p-caleb-martin",
+    createdAt: "2026-08-08T12:30:00.000Z",
+    updatedAt: "2026-08-08T12:30:00.000Z",
+  },
+];
+
+export const gameEvents: GameEvent[] = [
+  {
+    id: "ge-aug7-1",
+    gameId: "game-aug7-charlotte",
+    inning: 1,
+    half: "Bottom",
+    pitcherId: "p-jackson-smith",
+    batterId: "p-caleb-martin",
+    pitchOutcome: "Called Strike",
+    outsBefore: 0,
+    outsAfter: 0,
+    metrolinaRunsBefore: 0,
+    metrolinaRunsAfter: 0,
+    opponentRunsBefore: 0,
+    opponentRunsAfter: 0,
+    situations: ["Leadoff", "First-pitch strike"],
+    createdAt: "2026-08-07T22:08:00.000Z",
+  },
+  {
+    id: "ge-aug7-2",
+    gameId: "game-aug7-charlotte",
+    inning: 3,
+    half: "Bottom",
+    pitcherId: "p-jackson-smith",
+    batterId: "p-ethan-brooks",
+    pitchOutcome: "In Play",
+    ballInPlayOutcome: "Double",
+    outsBefore: 1,
+    outsAfter: 1,
+    metrolinaRunsBefore: 2,
+    metrolinaRunsAfter: 4,
+    opponentRunsBefore: 1,
+    opponentRunsAfter: 1,
+    situations: ["RISP", "Quality AB", "2-out hitting"],
+    createdAt: "2026-08-07T22:54:00.000Z",
+  },
+  {
+    id: "ge-aug7-3",
+    gameId: "game-aug7-charlotte",
+    inning: 6,
+    half: "Top",
+    pitcherId: "p-luke-johnson",
+    batterId: "p-ben-parker",
+    pitchOutcome: "Swinging Strike",
+    outsBefore: 2,
+    outsAfter: 3,
+    metrolinaRunsBefore: 7,
+    metrolinaRunsAfter: 7,
+    opponentRunsBefore: 3,
+    opponentRunsAfter: 3,
+    situations: ["Shutdown inning", "Two-out pitching"],
+    createdAt: "2026-08-07T23:37:00.000Z",
+  },
+];
+
 export const coachNotes: CoachNote[] = [
   {
     id: "note-jackson-command",
@@ -462,6 +719,12 @@ export const sampleData: AppData = {
   pitchEvents,
   hittingSessions,
   hittingEvents,
+  defenseSessions,
+  defenseEvents,
+  workoutSessions,
+  workoutEntries,
+  games,
+  gameEvents,
   plateAppearances: [],
   coachNotes,
   developmentGoals,
@@ -538,6 +801,32 @@ function makeGoal(id: string, playerId: string, title: string, tags: Development
     createdAt,
     updatedAt: createdAt,
   };
+}
+
+function generateDefenseEvents(session: DefenseSession, sessionIndex: number): DefenseEvent[] {
+  const outcomes: DefenseEvent["outcome"][] = ["Clean", "Good Play", "Clean", "Great Play", "Clean", "Error"];
+  const count = session.plannedReps ?? 14;
+
+  return Array.from({ length: count }, (_, index) => {
+    const outcome = outcomes[(index + sessionIndex) % outcomes.length];
+    const isError = outcome === "Error";
+
+    return {
+      id: `${session.id}-def-${index + 1}`,
+      practiceId: session.practiceId,
+      sessionId: session.id,
+      playerId: session.playerId,
+      station: session.station,
+      eventNumber: index + 1,
+      outcome,
+      throwQuality: index % 5 === 0 ? "Plus" : index % 4 === 0 ? "Average" : "Good",
+      footwork: index % 6 === 0 ? "Plus" : index % 5 === 0 ? "Needs work" : "Solid",
+      decision: index % 7 === 0 ? "Advanced" : "Correct",
+      range: outcome === "Great Play" ? "Plus" : outcome === "Good Play" ? "Difficult" : "Routine",
+      errorType: isError ? (index % 2 === 0 ? "Fielding" : "Throwing") : undefined,
+      createdAt: addMinutes(session.startedAt, index + sessionIndex * 2),
+    };
+  });
 }
 
 function generatePitchEvents(session: PitchingSession, sessionIndex: number): PitchEvent[] {

@@ -12,6 +12,10 @@
 
 # testing
 /coverage
+/qa-*/
+.chrome-cdp*.txt
+.chrome-cdp.pid
+.server.pid
 
 # next.js
 /.next/

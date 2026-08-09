@@ -25,14 +25,24 @@ export type Position =
 
 export type Handedness = "R" | "L" | "S";
 export type Throws = "R" | "L";
+export type RosterStatus = "Varsity" | "JV" | "Undecided" | "Cut";
+export type ProgramLevel = "Varsity" | "JV" | "Development";
 
 export type PracticeStation =
   | "Bullpen"
   | "Live BP"
+  | "Flat ground"
+  | "Pitch design"
   | "Machine"
   | "Coach BP"
   | "Front Toss"
-  | "Tee";
+  | "Tee"
+  | "Infield"
+  | "Outfield"
+  | "Catching"
+  | "PFP"
+  | "Situational defense"
+  | "Team defense";
 
 export type PitchType =
   | "4-Seam"
@@ -113,6 +123,46 @@ export type NoteTag =
   | "Strength"
   | "Development Goal";
 
+export type DefenseStation =
+  | "Infield"
+  | "Outfield"
+  | "Catching"
+  | "PFP"
+  | "Situational defense"
+  | "Team defense";
+
+export type DefenseOutcome = "Clean" | "Error" | "Good Play" | "Great Play";
+export type ThrowQuality = "Poor" | "Average" | "Good" | "Plus";
+export type ExerciseKind = "Lift" | "Test" | "Speed" | "Jump" | "Custom";
+export type GameType =
+  | "Fall Game"
+  | "Scrimmage"
+  | "Showcase"
+  | "Regular Season"
+  | "Tournament"
+  | "Other";
+
+export type GamePitchOutcome =
+  | "Ball"
+  | "Called Strike"
+  | "Swinging Strike"
+  | "Foul"
+  | "In Play";
+
+export type GameBallInPlayOutcome =
+  | "Single"
+  | "Double"
+  | "Triple"
+  | "Home Run"
+  | "Ground Out"
+  | "Fly Out"
+  | "Line Out"
+  | "Pop Out"
+  | "Error"
+  | "Fielder's Choice"
+  | "Sac Fly"
+  | "Sac Bunt";
+
 export interface Player {
   id: ID;
   name: string;
@@ -122,6 +172,10 @@ export interface Player {
   bats: Handedness;
   throws: Throws;
   graduationYear: number;
+  rosterStatus?: RosterStatus;
+  programLevel?: ProgramLevel;
+  height?: string;
+  weight?: number;
   avatarColor: string;
   imageUrl?: string;
   isPitcher: boolean;
@@ -240,6 +294,114 @@ export interface HittingEvent {
   createdAt: string;
 }
 
+export interface DefenseSession {
+  id: ID;
+  practiceId: ID;
+  playerId: ID;
+  station: DefenseStation;
+  mode: "Quick Practice" | "Drill";
+  startedAt: string;
+  endedAt?: string;
+  plannedReps?: number;
+  summaryNote?: string;
+}
+
+export interface DefenseEvent {
+  id: ID;
+  practiceId: ID;
+  sessionId: ID;
+  playerId: ID;
+  station: DefenseStation;
+  eventNumber: number;
+  outcome: DefenseOutcome;
+  throwQuality?: ThrowQuality;
+  footwork?: "Needs work" | "Solid" | "Plus";
+  decision?: "Late" | "Correct" | "Advanced";
+  range?: "Routine" | "Difficult" | "Plus";
+  errorType?: "Fielding" | "Throwing" | "Decision";
+  coachNote?: string;
+  createdAt: string;
+}
+
+export interface WorkoutSession {
+  id: ID;
+  playerId: ID;
+  date: string;
+  weekOf: string;
+  day: "Mon" | "Tue" | "Wed" | "Thu" | "Fri" | "Sat" | "Sun";
+  completed: boolean;
+  effortScore: number;
+  bodyWeight?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkoutEntry {
+  id: ID;
+  sessionId: ID;
+  playerId: ID;
+  exercise: string;
+  kind: ExerciseKind;
+  weight?: number;
+  reps?: number;
+  sets?: number;
+  value?: number;
+  unit?: "lb" | "in" | "sec" | "mph" | "reps";
+  priorValue?: number;
+  createdAt: string;
+}
+
+export interface Game {
+  id: ID;
+  date: string;
+  opponent: string;
+  homeAway: "Home" | "Away";
+  location: string;
+  type: GameType;
+  result?: "W" | "L" | "T";
+  metrolinaScore: number;
+  opponentScore: number;
+  inning: number;
+  half: "Top" | "Bottom";
+  outs: number;
+  balls: number;
+  strikes: number;
+  runners: {
+    first?: ID;
+    second?: ID;
+    third?: ID;
+  };
+  lineup: ID[];
+  positions: Partial<Record<Position, ID>>;
+  startingPitcherId?: ID;
+  currentPitcherId?: ID;
+  currentBatterId?: ID;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GameEvent {
+  id: ID;
+  gameId: ID;
+  inning: number;
+  half: "Top" | "Bottom";
+  pitcherId?: ID;
+  batterId?: ID;
+  pitchType?: PitchType;
+  pitchOutcome?: GamePitchOutcome;
+  ballInPlayOutcome?: GameBallInPlayOutcome;
+  velocity?: number;
+  location?: ZonePoint;
+  outsBefore: number;
+  outsAfter: number;
+  metrolinaRunsBefore: number;
+  metrolinaRunsAfter: number;
+  opponentRunsBefore: number;
+  opponentRunsAfter: number;
+  situations: string[];
+  createdAt: string;
+}
+
 export interface PlateAppearance {
   id: ID;
   practiceId: ID;
@@ -316,6 +478,12 @@ export interface AppData {
   pitchEvents: PitchEvent[];
   hittingSessions: HittingSession[];
   hittingEvents: HittingEvent[];
+  defenseSessions: DefenseSession[];
+  defenseEvents: DefenseEvent[];
+  workoutSessions: WorkoutSession[];
+  workoutEntries: WorkoutEntry[];
+  games: Game[];
+  gameEvents: GameEvent[];
   plateAppearances: PlateAppearance[];
   coachNotes: CoachNote[];
   developmentGoals: DevelopmentGoal[];

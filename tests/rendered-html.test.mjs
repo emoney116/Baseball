@@ -28,7 +28,7 @@ test("server-renders the Metrolina app shell", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>Metrolina Fall Ball Lab<\/title>/i);
+  assert.match(html, /<title>Metrolina Baseball Ops<\/title>/i);
   assert.match(html, /Loading Metrolina Fall Ball/);
   assert.match(html, /metrolina-warriors-alpha\.png/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|_sites-preview/i);
