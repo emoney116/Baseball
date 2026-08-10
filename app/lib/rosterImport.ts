@@ -39,9 +39,14 @@ export interface ParsedRosterFile {
   fileType: RosterImportFileType;
   rows: ParsedRosterRow[];
   staff: ParsedRosterStaff[];
+  detectedSchoolName?: string;
   detectedTeamName?: string;
   detectedSeasonName?: string;
   parseWarnings: string[];
+  parseStatus?: "parsing" | "ready" | "error";
+  parseError?: string;
+  parseStage?: string;
+  fileSize?: number;
 }
 
 export interface RosterImportAssignment {
@@ -188,6 +193,8 @@ export function parseRosterCsv(text: string, options: { sourceId: ID; fileName: 
     rows: parsedRows,
     staff: [],
     parseWarnings,
+    parseStatus: parsedRows.length > 0 ? "ready" : "error",
+    parseError: parsedRows.length > 0 ? undefined : "No roster rows were found in this CSV.",
   };
 }
 
@@ -195,6 +202,7 @@ export function parseMaxPrepsPdfText(text: string, options: { sourceId: ID; file
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const parseWarnings: string[] = [];
   const detectedSeasonName = detectSeasonName(lines) ?? options.fallbackSeasonName;
+  const detectedSchoolName = detectSchoolName(lines);
   const detectedTeamName = detectTeamName(lines);
   let rows: ParsedRosterRow[] = [];
   const staff: ParsedRosterStaff[] = parseMaxPrepsStaffCells(lines);
@@ -237,9 +245,12 @@ export function parseMaxPrepsPdfText(text: string, options: { sourceId: ID; file
     fileType: "pdf",
     rows,
     staff,
+    detectedSchoolName,
     detectedTeamName,
     detectedSeasonName,
     parseWarnings,
+    parseStatus: rows.length > 0 ? "ready" : "error",
+    parseError: rows.length > 0 ? undefined : "No roster rows were detected in this PDF.",
   };
 }
 
@@ -482,7 +493,16 @@ export function importModeLabel(mode: RosterImportMode) {
 }
 
 function emptyParsedFile(sourceId: ID, fileName: string, fileType: RosterImportFileType, parseWarnings: string[]): ParsedRosterFile {
-  return { id: sourceId, fileName, fileType, rows: [], staff: [], parseWarnings };
+  return {
+    id: sourceId,
+    fileName,
+    fileType,
+    rows: [],
+    staff: [],
+    parseWarnings,
+    parseStatus: "error",
+    parseError: parseWarnings[0] ?? "No roster rows were found.",
+  };
 }
 
 function parseCsvRecords(text: string): string[][] {
@@ -582,10 +602,12 @@ function parseMaxPrepsTableCells(lines: string[], sourceId: ID, fileName: string
 }
 
 function parseMaxPrepsStaffCells(lines: string[]): ParsedRosterStaff[] {
-  const start = lines.findIndex((line, index) => /^staff$/i.test(line) && /^position$/i.test(lines[index + 1] ?? ""));
+  const splitHeader = lines.findIndex((line, index) => /^staff$/i.test(line) && /^position$/i.test(lines[index + 1] ?? ""));
+  const combinedHeader = lines.findIndex((line) => /^staff\s+position$/i.test(line));
+  const start = splitHeader >= 0 ? splitHeader + 2 : combinedHeader >= 0 ? combinedHeader + 1 : -1;
   if (start < 0) return [];
   const staff: ParsedRosterStaff[] = [];
-  for (let index = start + 2; index < lines.length - 1; index += 2) {
+  for (let index = start; index < lines.length - 1; index += 2) {
     const name = lines[index];
     const role = lines[index + 1];
     if (/^powered by$/i.test(name) || /^https?:\/\//i.test(name)) break;
@@ -664,6 +686,11 @@ function detectTeamName(lines: string[]) {
   if (match) return `Metrolina ${match[1].replace("Junior Varsity", "JV")}`;
   const level = lines.find((item) => /^(Varsity|JV|Junior Varsity|Freshman|Travel)$/i.test(item));
   return level ? `Metrolina ${level.replace("Junior Varsity", "JV")}` : undefined;
+}
+
+function detectSchoolName(lines: string[]) {
+  const ignored = /^(address|#|name|pos\.?|gr\.?|ht\.?|wt\.?|staff|position|varsity|jv|junior varsity|freshman|travel|baseball|roster|powered by|\d{1,2}\/\d{1,2}\/\d{2,4}|\d{2}[-\u2013]\d{2})$/i;
+  return lines.find((line) => !ignored.test(line) && /academy|school|christian|baseball|metrolina/i.test(line));
 }
 
 function splitPositions(value: string) {

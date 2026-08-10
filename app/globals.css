@@ -1762,6 +1762,41 @@ textarea:focus-visible {
   color: var(--warning);
 }
 
+.import-file-card em.danger {
+  color: var(--danger);
+}
+
+.import-file-card.is-parsing {
+  opacity: 0.82;
+}
+
+.import-file-card.is-error {
+  border-color: color-mix(in srgb, var(--danger) 44%, var(--line));
+}
+
+.import-file-meta {
+  min-width: 0;
+}
+
+.import-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.import-file-actions .secondary-button,
+.import-file-actions .ghost-button,
+.import-remove-button {
+  min-height: 32px;
+  padding-inline: 10px;
+  font-size: 12px;
+}
+
+.import-remove-button {
+  margin-top: 10px;
+}
+
 .import-assignment-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

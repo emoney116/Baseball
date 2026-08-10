@@ -43,6 +43,8 @@ import {
   parseRosterCsv,
   rosterStatusForTeam,
   type ParsedRosterFile,
+  type ParsedRosterRow,
+  type ParsedRosterStaff,
   type RosterImportDecision,
   type RosterImportMode,
   type RosterImportPlan,
@@ -3127,6 +3129,23 @@ function PlayerEditorModal({ player, onClose, onSave, onArchive }: { player?: Pl
   );
 }
 
+type PdfRosterParseResponse = {
+  ok?: boolean;
+  fileName?: string;
+  fileType?: "pdf";
+  fileSize?: number;
+  players?: ParsedRosterRow[];
+  staff?: ParsedRosterStaff[];
+  detectedSchool?: string;
+  detectedTeam?: string;
+  detectedSeason?: string;
+  warnings?: string[];
+  stage?: string;
+  code?: string;
+  message?: string;
+  text?: string;
+};
+
 function RosterImportModal({
   data,
   onClose,
@@ -3140,6 +3159,7 @@ function RosterImportModal({
 }) {
   const [step, setStep] = useState<"upload" | "assign" | "preview">("upload");
   const [files, setFiles] = useState<ParsedRosterFile[]>([]);
+  const [sourceFiles, setSourceFiles] = useState<Record<ID, File>>({});
   const [busy, setBusy] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [assignments, setAssignments] = useState<Record<ID, { teamId: ID; mode: RosterImportMode; defaultRosterStatus: RosterStatus; replaceConfirmed: boolean }>>({});
@@ -3147,7 +3167,9 @@ function RosterImportModal({
   const [resolutions, setResolutions] = useState<Record<string, { decision: RosterImportDecision; matchedPlayerId?: ID }>>({});
   const availableTeams = data.teamContext?.availableTeams ?? [];
   const fallbackTeam = data.teamContext?.currentTeam ?? availableTeams[0];
-  const configuredAssignments = files
+  const validFiles = files.filter((file) => file.parseStatus !== "error" && file.parseStatus !== "parsing" && file.rows.length > 0);
+  const hasUnresolvedFiles = files.some((file) => file.parseStatus === "error" || file.parseStatus === "parsing" || file.rows.length === 0);
+  const configuredAssignments = validFiles
     .map((file) => {
       const config = assignments[file.id];
       if (config?.teamId === CREATE_TEAM_VALUE) return undefined;
@@ -3180,7 +3202,7 @@ function RosterImportModal({
   const totalRows = plan?.files.reduce((sum, file) => sum + file.rows.length, 0) ?? 0;
   const readyRows = plan?.files.reduce((sum, file) => sum + file.rows.filter((row) => row.status !== "error" && row.decision !== "skip").length, 0) ?? 0;
   const errorRows = plan?.files.reduce((sum, file) => sum + file.rows.filter((row) => row.status === "error").length, 0) ?? 0;
-  const allFilesAssigned = files.length > 0 && configuredAssignments.length === files.length;
+  const allFilesAssigned = validFiles.length > 0 && configuredAssignments.length === validFiles.length && !hasUnresolvedFiles;
   const needsReplaceConfirmation = plan?.files.some((file) => file.mode === "replace" && !assignments[file.sourceId]?.replaceConfirmed) ?? false;
 
   async function handleFiles(fileList: FileList | File[]) {
@@ -3188,12 +3210,36 @@ function RosterImportModal({
     if (!selected.length) return;
     setBusy(true);
     setUploadError("");
+    const queued = selected.map((file) => ({
+      sourceId: crypto.randomUUID(),
+      file,
+    }));
+    setSourceFiles((current) => {
+      const next = { ...current };
+      queued.forEach((item) => {
+        next[item.sourceId] = item.file;
+      });
+      return next;
+    });
+    setFiles((current) => [
+      ...current,
+      ...queued.map(({ sourceId, file }) => parsingRosterFile(sourceId, file)),
+    ]);
+    setStep("assign");
     try {
-      const parsed = await Promise.all(selected.map(parseImportFile));
-      setFiles((current) => [...current, ...parsed]);
+      const parsed = await Promise.all(
+        queued.map(async ({ sourceId, file }) => {
+          try {
+            return await parseImportFile(file, sourceId);
+          } catch (error) {
+            return failedRosterFile(sourceId, file, error);
+          }
+        }),
+      );
+      setFiles((current) => current.map((file) => parsed.find((item) => item.id === file.id) ?? file));
       setAssignments((current) => {
         const next = { ...current };
-        parsed.forEach((file) => {
+        parsed.filter((file) => file.parseStatus !== "error" && file.rows.length > 0).forEach((file) => {
           const suggested = suggestTeamForFile(file, availableTeams, fallbackTeam);
           if (suggested) {
             next[file.id] = {
@@ -3206,7 +3252,6 @@ function RosterImportModal({
         });
         return next;
       });
-      setStep("assign");
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Unable to parse roster file.");
     } finally {
@@ -3214,24 +3259,94 @@ function RosterImportModal({
     }
   }
 
-  async function parseImportFile(file: File): Promise<ParsedRosterFile> {
-    const sourceId = crypto.randomUUID();
+  async function retryFile(sourceId: ID) {
+    const file = sourceFiles[sourceId];
+    if (!file) return;
+    setUploadError("");
+    setFiles((current) => current.map((item) => (item.id === sourceId ? parsingRosterFile(sourceId, file) : item)));
+    try {
+      const parsed = await parseImportFile(file, sourceId);
+      setFiles((current) => current.map((item) => (item.id === sourceId ? parsed : item)));
+      if (parsed.parseStatus !== "error" && parsed.rows.length > 0) {
+        setAssignments((current) => {
+          const suggested = suggestTeamForFile(parsed, availableTeams, fallbackTeam);
+          if (!suggested) return current;
+          return {
+            ...current,
+            [sourceId]: current[sourceId] ?? {
+              teamId: suggested.teamId,
+              mode: "add",
+              defaultRosterStatus: rosterStatusForTeam(suggested),
+              replaceConfirmed: false,
+            },
+          };
+        });
+      }
+    } catch (error) {
+      setFiles((current) => current.map((item) => (item.id === sourceId ? failedRosterFile(sourceId, file, error) : item)));
+    }
+  }
+
+  function removeFile(sourceId: ID) {
+    setFiles((current) => current.filter((file) => file.id !== sourceId));
+    setSourceFiles((current) => {
+      const next = { ...current };
+      delete next[sourceId];
+      return next;
+    });
+    setAssignments((current) => {
+      const next = { ...current };
+      delete next[sourceId];
+      return next;
+    });
+    setTeamDrafts((current) => {
+      const next = { ...current };
+      delete next[sourceId];
+      return next;
+    });
+    setResolutions((current) => Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${sourceId}:`))));
+  }
+
+  async function parseImportFile(file: File, sourceId: ID): Promise<ParsedRosterFile> {
     const lowerName = file.name.toLowerCase();
     const seasonName = fallbackTeam?.seasonName ?? data.settings.rosterSeason;
     if (lowerName.endsWith(".pdf") || file.type === "application/pdf") {
       const body = new FormData();
       body.append("file", file);
+      body.append("sourceId", sourceId);
+      if (seasonName) body.append("fallbackSeasonName", seasonName);
       const response = await fetch("/api/roster/parse-pdf", { method: "POST", body });
-      const payload = (await response.json().catch(() => ({}))) as { text?: string; warnings?: string[]; message?: string };
-      if (!response.ok && !payload.text) throw new Error(payload.message ?? "Unable to read PDF text.");
-      const parsed = parseMaxPrepsPdfText(payload.text ?? "", { sourceId, fileName: file.name, fallbackSeasonName: seasonName });
-      return { ...parsed, parseWarnings: [...parsed.parseWarnings, ...(payload.warnings ?? [])] };
+      const payload = (await response.json().catch(() => ({}))) as PdfRosterParseResponse;
+      if (response.ok && payload.ok && Array.isArray(payload.players)) {
+        return {
+          id: sourceId,
+          fileName: payload.fileName ?? file.name,
+          fileType: "pdf",
+          rows: payload.players,
+          staff: payload.staff ?? [],
+          detectedSchoolName: payload.detectedSchool,
+          detectedTeamName: payload.detectedTeam,
+          detectedSeasonName: payload.detectedSeason,
+          parseWarnings: payload.warnings ?? [],
+          parseStatus: payload.players.length > 0 ? "ready" : "error",
+          parseError: payload.players.length > 0 ? undefined : "No roster players were detected in this PDF.",
+          parseStage: payload.stage,
+          fileSize: payload.fileSize ?? file.size,
+        };
+      }
+      if (response.ok && payload.text) {
+        const parsed = parseMaxPrepsPdfText(payload.text, { sourceId, fileName: file.name, fallbackSeasonName: seasonName });
+        return { ...parsed, fileSize: file.size, parseWarnings: [...parsed.parseWarnings, ...(payload.warnings ?? [])] };
+      }
+      const details = [payload.stage, payload.code].filter(Boolean).join(" / ");
+      throw new Error(`${payload.message ?? "Unable to read PDF text."}${details ? ` (${details})` : ""}`);
     }
     if (!lowerName.endsWith(".csv") && file.type && !file.type.includes("csv")) {
       throw new Error(`${file.name} is not a supported CSV or PDF file.`);
     }
     const text = await file.text();
-    return parseRosterCsv(text, { sourceId, fileName: file.name, seasonName });
+    const parsed = parseRosterCsv(text, { sourceId, fileName: file.name, seasonName });
+    return { ...parsed, fileSize: file.size };
   }
 
   return (
@@ -3296,97 +3411,125 @@ function RosterImportModal({
             const isCreatingTeam = config?.teamId === CREATE_TEAM_VALUE;
             const selectedTeam = isCreatingTeam ? undefined : availableTeams.find((team) => team.teamId === config?.teamId) ?? fallbackTeam;
             const effectiveTeam = selectedTeam ?? fallbackTeam;
+            const isParsing = file.parseStatus === "parsing";
+            const isError = file.parseStatus === "error" || (!isParsing && file.rows.length === 0);
+            const isReady = !isParsing && !isError;
             const draft = teamDrafts[file.id] ?? {
               teamName: file.detectedTeamName ?? "",
               teamLevel: teamLevelFromName(file.detectedTeamName ?? ""),
               seasonName: file.detectedSeasonName ?? fallbackTeam?.seasonName ?? data.settings.rosterSeason,
             };
             return (
-              <article key={file.id} className="import-file-card panel">
-                <div>
+              <article key={file.id} className={`import-file-card panel is-${file.parseStatus ?? "ready"}`}>
+                <div className="import-file-meta">
                   <strong>{file.fileName}</strong>
-                  <small>{file.fileType.toUpperCase()} - {file.rows.length} players{file.staff.length ? ` - ${file.staff.length} staff detected` : ""}</small>
+                  <small>
+                    {isParsing
+                      ? `${file.fileType.toUpperCase()} - Parsing...`
+                      : isError
+                        ? `${file.fileType.toUpperCase()} - Could not read roster`
+                        : `${file.fileType.toUpperCase()} - ${file.rows.length} players found${file.staff.length ? ` - ${file.staff.length} staff detected` : ""}`}
+                  </small>
+                  {file.detectedSchoolName && <em>{file.detectedSchoolName}</em>}
                   {file.detectedTeamName && <em>Detected: {file.detectedTeamName}{file.detectedSeasonName ? ` - ${file.detectedSeasonName}` : ""}</em>}
+                  {file.parseError && <em className="danger">{file.parseError}</em>}
                   {file.parseWarnings.map((warning) => <em key={warning} className="warn">{warning}</em>)}
+                  {isError && (
+                    <div className="import-file-actions">
+                      <button className="secondary-button" type="button" onClick={() => void retryFile(file.id)} disabled={!sourceFiles[file.id]}>
+                        Retry
+                      </button>
+                      <button className="ghost-button" type="button" onClick={() => removeFile(file.id)}>
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                  {isReady && (
+                    <button className="ghost-button import-remove-button" type="button" onClick={() => removeFile(file.id)}>
+                      Remove
+                    </button>
+                  )}
                 </div>
-                <div className="import-assignment-grid">
-                  <label>
-                    <span>Team</span>
-                    <select
-                      value={config?.teamId ?? selectedTeam?.teamId ?? ""}
-                      onChange={(event) => {
-                        if (event.target.value === CREATE_TEAM_VALUE) {
+                {isReady && (
+                  <div className="import-assignment-grid">
+                    <label>
+                      <span>Team</span>
+                      <select
+                        value={config?.teamId ?? selectedTeam?.teamId ?? ""}
+                        onChange={(event) => {
+                          if (event.target.value === CREATE_TEAM_VALUE) {
+                            setAssignments((current) => ({
+                              ...current,
+                              [file.id]: {
+                                teamId: CREATE_TEAM_VALUE,
+                                mode: current[file.id]?.mode ?? "add",
+                                defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(undefined),
+                                replaceConfirmed: false,
+                              },
+                            }));
+                            setTeamDrafts((current) => ({
+                              ...current,
+                              [file.id]: current[file.id] ?? draft,
+                            }));
+                            return;
+                          }
+                          const team = availableTeams.find((item) => item.teamId === event.target.value);
                           setAssignments((current) => ({
                             ...current,
                             [file.id]: {
-                              teamId: CREATE_TEAM_VALUE,
+                              teamId: event.target.value,
                               mode: current[file.id]?.mode ?? "add",
-                              defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(undefined),
+                              defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(team),
                               replaceConfirmed: false,
                             },
                           }));
-                          setTeamDrafts((current) => ({
-                            ...current,
-                            [file.id]: current[file.id] ?? draft,
-                          }));
-                          return;
-                        }
-                        const team = availableTeams.find((item) => item.teamId === event.target.value);
-                        setAssignments((current) => ({
+                        }}
+                      >
+                        {availableTeams.map((team) => (
+                          <option key={teamValue(team)} value={team.teamId}>{team.teamName} - {team.seasonName ?? "Current season"}</option>
+                        ))}
+                        <option value={CREATE_TEAM_VALUE}>Create New Team...</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Import Mode</span>
+                      <select
+                        value={config?.mode ?? "add"}
+                        onChange={(event) => setAssignments((current) => ({
                           ...current,
                           [file.id]: {
-                            teamId: event.target.value,
-                            mode: current[file.id]?.mode ?? "add",
-                            defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(team),
+                            teamId: current[file.id]?.teamId ?? selectedTeam?.teamId ?? "",
+                            mode: event.target.value as RosterImportMode,
+                            defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(effectiveTeam),
                             replaceConfirmed: false,
                           },
-                        }));
-                      }}
-                    >
-                      {availableTeams.map((team) => (
-                        <option key={teamValue(team)} value={team.teamId}>{team.teamName} - {team.seasonName ?? "Current season"}</option>
-                      ))}
-                      <option value={CREATE_TEAM_VALUE}>Create New Team...</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Import Mode</span>
-                    <select
-                      value={config?.mode ?? "add"}
-                      onChange={(event) => setAssignments((current) => ({
-                        ...current,
-                        [file.id]: {
-                          teamId: current[file.id]?.teamId ?? selectedTeam?.teamId ?? "",
-                          mode: event.target.value as RosterImportMode,
-                          defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(effectiveTeam),
-                          replaceConfirmed: false,
-                        },
-                      }))}
-                    >
-                      <option value="add">Keep Current Roster + Add Players</option>
-                      <option value="replace">Replace This Team&apos;s Roster</option>
-                      <option value="update">Update Existing Players Only</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Default Status</span>
-                    <select
-                      value={config?.defaultRosterStatus ?? rosterStatusForTeam(effectiveTeam)}
-                      onChange={(event) => setAssignments((current) => ({
-                        ...current,
-                        [file.id]: {
-                          teamId: current[file.id]?.teamId ?? selectedTeam?.teamId ?? "",
-                          mode: current[file.id]?.mode ?? "add",
-                          defaultRosterStatus: event.target.value as RosterStatus,
-                          replaceConfirmed: current[file.id]?.replaceConfirmed ?? false,
-                        },
-                      }))}
-                    >
-                      {ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}
-                    </select>
-                  </label>
-                </div>
-                {isCreatingTeam && (
+                        }))}
+                      >
+                        <option value="add">Keep Current Roster + Add Players</option>
+                        <option value="replace">Replace This Team&apos;s Roster</option>
+                        <option value="update">Update Existing Players Only</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Default Status</span>
+                      <select
+                        value={config?.defaultRosterStatus ?? rosterStatusForTeam(effectiveTeam)}
+                        onChange={(event) => setAssignments((current) => ({
+                          ...current,
+                          [file.id]: {
+                            teamId: current[file.id]?.teamId ?? selectedTeam?.teamId ?? "",
+                            mode: current[file.id]?.mode ?? "add",
+                            defaultRosterStatus: event.target.value as RosterStatus,
+                            replaceConfirmed: current[file.id]?.replaceConfirmed ?? false,
+                          },
+                        }))}
+                      >
+                        {ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                )}
+                {isReady && isCreatingTeam && (
                   <div className="import-create-team-form">
                     <label>
                       <span>Team Name</span>
@@ -3459,7 +3602,7 @@ function RosterImportModal({
                     {draft.error && <em className="warn">{draft.error}</em>}
                   </div>
                 )}
-                {config?.mode === "replace" && (
+                {isReady && config?.mode === "replace" && (
                   <label className="import-warning-check">
                     <input
                       type="checkbox"
@@ -3574,7 +3717,7 @@ function RosterImportModal({
         <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
         {step !== "upload" && <button className="secondary-button" type="button" onClick={() => setStep(step === "preview" ? "assign" : "upload")}>Back</button>}
         {step !== "preview" ? (
-          <button className="primary-button" type="button" onClick={() => setStep(files.length ? "preview" : "upload")} disabled={!allFilesAssigned || busy}>
+          <button className="primary-button" type="button" onClick={() => setStep(validFiles.length ? "preview" : "upload")} disabled={!allFilesAssigned || busy}>
             Preview Import
           </button>
         ) : (
@@ -3585,6 +3728,34 @@ function RosterImportModal({
       </div>
     </ModalFrame>
   );
+}
+
+function parsingRosterFile(sourceId: ID, file: File): ParsedRosterFile {
+  return {
+    id: sourceId,
+    fileName: file.name,
+    fileType: file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf" ? "pdf" : "csv",
+    rows: [],
+    staff: [],
+    parseWarnings: [],
+    parseStatus: "parsing",
+    fileSize: file.size,
+  };
+}
+
+function failedRosterFile(sourceId: ID, file: File, error: unknown): ParsedRosterFile {
+  const message = error instanceof Error ? error.message : "Unable to parse roster file.";
+  return {
+    id: sourceId,
+    fileName: file.name,
+    fileType: file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf" ? "pdf" : "csv",
+    rows: [],
+    staff: [],
+    parseWarnings: [],
+    parseStatus: "error",
+    parseError: message,
+    fileSize: file.size,
+  };
 }
 
 function SessionSummaryModal({ data, summary, note, onNote, onSave, onClose }: { data: AppData; summary: { type: "Hitting" | "Pitching" | "Defense"; sessionId: ID }; note: string; onNote: (note: string) => void; onSave: () => void; onClose: () => void }) {
