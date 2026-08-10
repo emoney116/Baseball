@@ -6,7 +6,7 @@
 do $$
 declare
   expected_tables text[] := array[
-    'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships',
+    'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',
     'players', 'player_team_memberships', 'practices', 'practice_attendance',
     'practice_sessions', 'pitch_events', 'hitting_events', 'defense_events',
     'exercises', 'workouts', 'workout_sessions', 'workout_sets',
@@ -19,7 +19,10 @@ declare
     'public.is_org_member(uuid)',
     'public.is_org_staff(uuid)',
     'public.is_org_admin(uuid)',
+    'public.is_team_member(uuid)',
     'public.is_team_staff(uuid)',
+    'public.is_team_admin(uuid)',
+    'public.is_org_team_staff(uuid)',
     'public.is_season_staff(uuid)',
     'public.is_player_staff(uuid)',
     'public.is_practice_staff(uuid)',
@@ -33,7 +36,9 @@ declare
   missing_functions text[];
   foundation_applied boolean;
   secure_bootstrap_applied boolean;
+  multi_team_applied boolean;
   seeded_foundation boolean;
+  seeded_team_views boolean;
   bootstrap_completed_at timestamptz;
   bootstrap_reopen_blocked boolean := false;
 begin
@@ -55,6 +60,16 @@ begin
 
   if not secure_bootstrap_applied then
     raise exception 'Secure bootstrap migration 20260809010000 is not applied.';
+  end if;
+
+  select exists (
+    select 1
+    from supabase_migrations.schema_migrations
+    where version = '20260810000000'
+  ) into multi_team_applied;
+
+  if not multi_team_applied then
+    raise exception 'Multi-team membership migration 20260810000000 is not applied.';
   end if;
 
   select array_agg(table_name order by table_name)
@@ -97,6 +112,20 @@ begin
     raise exception 'Seeded Metrolina organization/team/season was not found.';
   end if;
 
+  select exists (
+    select 1
+    from public.organizations org
+    join public.teams varsity on varsity.organization_id = org.id and varsity.name = 'Metrolina Varsity'
+    join public.seasons varsity_season on varsity_season.team_id = varsity.id and varsity_season.name = 'Fall 2026'
+    join public.teams jv on jv.organization_id = org.id and jv.name = 'Metrolina JV'
+    join public.seasons jv_season on jv_season.team_id = jv.id and jv_season.name = 'Fall 2026'
+    where org.slug = 'metrolina-christian-academy'
+  ) into seeded_team_views;
+
+  if not seeded_team_views then
+    raise exception 'Seeded Metrolina Varsity/JV Fall 2026 teams were not found.';
+  end if;
+
   select org.bootstrap_completed_at
   into bootstrap_completed_at
   from public.organizations org
@@ -124,9 +153,10 @@ end $$;
 
 select 'foundation migration applied' as check_name, 'pass' as result;
 select 'secure bootstrap migration applied' as check_name, 'pass' as result;
+select 'multi-team membership migration applied' as check_name, 'pass' as result;
 select 'expected tables exist' as check_name, count(*)::text as verified_count
 from unnest(array[
-  'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships',
+  'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',
   'players', 'player_team_memberships', 'practices', 'practice_attendance',
   'practice_sessions', 'pitch_events', 'hitting_events', 'defense_events',
   'exercises', 'workouts', 'workout_sessions', 'workout_sets',
@@ -138,7 +168,7 @@ from pg_class c
 join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'public'
   and c.relname = any(array[
-    'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships',
+    'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',
     'players', 'player_team_memberships', 'practices', 'practice_attendance',
     'practice_sessions', 'pitch_events', 'hitting_events', 'defense_events',
     'exercises', 'workouts', 'workout_sessions', 'workout_sets',
@@ -151,4 +181,3 @@ select 'bootstrap status' as check_name,
   bootstrap_completed_at
 from public.organizations
 where slug = 'metrolina-christian-academy';
-

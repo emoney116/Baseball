@@ -27,6 +27,7 @@ export type Handedness = "R" | "L" | "S";
 export type Throws = "R" | "L";
 export type RosterStatus = "Varsity" | "JV" | "Undecided" | "Cut";
 export type ProgramLevel = "Varsity" | "JV" | "Development";
+export type TeamMembershipRole = "OWNER" | "ADMIN" | "HEAD_COACH" | "ASSISTANT_COACH" | "STAFF" | "COACH" | "PLAYER";
 
 export type PracticeStation =
   | "Bullpen"
@@ -184,6 +185,48 @@ export interface Player {
   archived?: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PlayerTeamMembership {
+  id: ID;
+  playerId: ID;
+  teamId: ID;
+  seasonId?: ID;
+  rosterStatus: RosterStatus;
+  jerseyNumber?: number;
+  rosterRole?: string;
+  active: boolean;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface AppProfile {
+  id: ID;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
+  avatarUrl?: string;
+  role?: string;
+}
+
+export interface TeamOption {
+  organizationId: ID;
+  organizationName: string;
+  teamId: ID;
+  teamName: string;
+  teamLevel?: string;
+  seasonId?: ID;
+  seasonName?: string;
+  role: TeamMembershipRole;
+  title?: string;
+  active: boolean;
+}
+
+export interface TeamContext {
+  profile?: AppProfile;
+  availableTeams: TeamOption[];
+  currentTeam?: TeamOption;
 }
 
 export interface Practice {
@@ -468,10 +511,14 @@ export interface AppSettings {
   theme: "dark" | "light";
   rosterSeason: string;
   recentPlayerIds: ID[];
+  selectedTeamId?: ID;
+  selectedSeasonId?: ID;
 }
 
 export interface AppData {
+  teamContext?: TeamContext;
   players: Player[];
+  playerTeamMemberships?: PlayerTeamMembership[];
   practices: Practice[];
   attendance: PracticeAttendance[];
   pitchingSessions: PitchingSession[];

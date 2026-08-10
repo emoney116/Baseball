@@ -50,8 +50,8 @@ begin
     true, true, jsonb_build_object('remoteVerification', v_marker), v_now_value, v_now_value
   );
 
-  insert into public.player_team_memberships (player_id, team_id, season_id, roster_status)
-  values (v_player_id, v_team_id, v_season_id, 'Undecided');
+  insert into public.player_team_memberships (player_id, team_id, season_id, roster_status, jersey_number)
+  values (v_player_id, v_team_id, v_season_id, 'Undecided', 99);
 
   update public.player_team_memberships
   set roster_status = 'Varsity'
@@ -111,7 +111,7 @@ begin
 
   perform 1
   from public.players p
-  join public.player_team_memberships ptm on ptm.player_id = p.id and ptm.roster_status = 'Varsity'
+  join public.player_team_memberships ptm on ptm.player_id = p.id and ptm.roster_status = 'Varsity' and ptm.jersey_number = 99
   join public.practices pr on pr.id = v_practice_id
   join public.practice_attendance pa on pa.practice_id = pr.id and pa.player_id = p.id
   join public.practice_sessions ps on ps.id = v_session_id and ps.player_id = p.id

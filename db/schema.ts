@@ -68,6 +68,10 @@ export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(),
   email: text("email"),
   displayName: text("display_name"),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  avatarUrl: text("avatar_url"),
+  preferredTeamId: uuid("preferred_team_id").references(() => teams.id, { onDelete: "set null" }),
   role: membershipRole("role").default("COACH").notNull(),
   ...timestamps,
 });
@@ -82,6 +86,22 @@ export const organizationMemberships = pgTable("organization_memberships", {
 }, (table) => ({
   uniqueMember: uniqueIndex("organization_memberships_org_profile_key").on(table.organizationId, table.profileId),
   profileIdx: index("organization_memberships_profile_id_idx").on(table.profileId),
+}));
+
+export const profileTeamMemberships = pgTable("profile_team_memberships", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  seasonId: uuid("season_id").references(() => seasons.id, { onDelete: "set null" }),
+  role: text("role").default("STAFF").notNull(),
+  title: text("title"),
+  permissions: jsonb("permissions").default({}).notNull(),
+  active: boolean("active").default(true).notNull(),
+  ...timestamps,
+}, (table) => ({
+  profileIdx: index("profile_team_memberships_profile_id_idx").on(table.profileId),
+  teamIdx: index("profile_team_memberships_team_id_idx").on(table.teamId),
+  seasonIdx: index("profile_team_memberships_season_id_idx").on(table.seasonId),
 }));
 
 export const players = pgTable("players", {
@@ -113,6 +133,11 @@ export const playerTeamMemberships = pgTable("player_team_memberships", {
   teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
   seasonId: uuid("season_id").notNull().references(() => seasons.id, { onDelete: "cascade" }),
   rosterStatus: rosterStatus("roster_status").default("Undecided").notNull(),
+  jerseyNumber: integer("jersey_number"),
+  rosterRole: text("roster_role"),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  metadata: jsonb("metadata").default({}).notNull(),
   active: boolean("active").default(true).notNull(),
   ...timestamps,
 }, (table) => ({
@@ -405,6 +430,8 @@ export const gamePitchEvents = pgTable("game_pitch_events", {
 export const playerNotes = pgTable("player_notes", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
+  seasonId: uuid("season_id").references(() => seasons.id, { onDelete: "set null" }),
   playerId: uuid("player_id").references(() => players.id, { onDelete: "cascade" }),
   practiceId: uuid("practice_id").references(() => practices.id, { onDelete: "cascade" }),
   sessionId: uuid("session_id").references(() => practiceSessions.id, { onDelete: "cascade" }),
@@ -418,6 +445,8 @@ export const playerNotes = pgTable("player_notes", {
 export const developmentGoals = pgTable("development_goals", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
+  seasonId: uuid("season_id").references(() => seasons.id, { onDelete: "set null" }),
   playerId: uuid("player_id").notNull().references(() => players.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
   tags: jsonb("tags").default([]).notNull(),

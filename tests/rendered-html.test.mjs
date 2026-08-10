@@ -16,9 +16,11 @@ test("next build contains the Metrolina app shell", async () => {
   assert.match(page, /Metrolina Baseball/);
   assert.match(page, /supabaseAppRepository/);
   assert.doesNotMatch(page, /localPracticeRepository\.load/);
-  assert.match(page, /\/setup/);
+  assert.match(page, /Create Account/);
+  assert.match(page, /TeamSwitcher/);
+  assert.match(page, /Your account is ready/);
   assert.doesNotMatch(repository, /claim_initial_metrolina_admin/);
-  assert.match(workflow, /supabase\/setup-cli@v1/);
+  assert.match(workflow, /supabase\/setup-cli@v2/);
   assert.match(workflow, /SUPABASE_ACCESS_TOKEN/);
   assert.match(workflow, /SUPABASE_DB_PASSWORD/);
   assert.match(workflow, /SUPABASE_PROJECT_ID/);

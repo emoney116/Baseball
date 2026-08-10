@@ -3,13 +3,16 @@
 import {
   Archive,
   BarChart3,
+  Building2,
   Check,
+  ChevronDown,
   ChevronRight,
   ClipboardList,
   Dumbbell,
   Edit3,
   Gauge,
   Home,
+  LogOut,
   MapPin,
   Moon,
   Play,
@@ -20,12 +23,12 @@ import {
   Sun,
   Trophy,
   Undo2,
+  User,
   UserPlus,
   Users,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import Link from "next/link";
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { BaseballField, DonutChart, Heatmap, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
@@ -73,11 +76,13 @@ import type {
   Practice,
   PracticeType,
   RosterStatus,
+  TeamContext,
+  TeamOption,
   WorkoutSession,
   ZonePoint,
 } from "./types";
 
-type ViewKey = "home" | "roster" | "practice" | "weights" | "games" | "analytics" | "profile";
+type ViewKey = "home" | "roster" | "practice" | "weights" | "games" | "analytics" | "profile" | "account" | "teams";
 type PracticeMode = "Hitting" | "Pitching" | "Defense";
 type RosterFilter = "All" | RosterStatus;
 type ProfileTab = "overview" | "practice" | "games" | "pitching" | "hitting" | "defense" | "weights" | "notes";
@@ -137,6 +142,7 @@ export default function MetrolinaBaseballApp() {
   const [startPracticeOpen, setStartPracticeOpen] = useState(false);
   const [startGameOpen, setStartGameOpen] = useState(false);
   const [playerEditorOpen, setPlayerEditorOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<ID | undefined>();
   const [sessionSummary, setSessionSummary] = useState<{ type: "Hitting" | "Pitching" | "Defense"; sessionId: ID } | null>(null);
   const [summaryNote, setSummaryNote] = useState("");
@@ -190,7 +196,11 @@ export default function MetrolinaBaseballApp() {
   const weeklyMvp = useMemo(() => (data ? buildWeeklyMvp(data) : undefined), [data]);
   const weightLeader = useMemo(() => (data ? buildWeightLeader(data) : undefined), [data]);
 
-  async function loadApplicationData(isCancelled: () => boolean = () => false) {
+  async function loadApplicationData(
+    isCancelled: () => boolean = () => false,
+    selectedTeamId?: ID,
+    selectedSeasonId?: ID,
+  ) {
     setHydrated(false);
     setLoadError(null);
     setSaveError(null);
@@ -206,7 +216,7 @@ export default function MetrolinaBaseballApp() {
     }
 
     try {
-      const loaded = await supabaseAppRepository.load();
+      const loaded = await supabaseAppRepository.load(selectedTeamId, selectedSeasonId);
       if (isCancelled()) return;
       const params = new URLSearchParams(window.location.search);
       const requestedView = params.get("view") as ViewKey | null;
@@ -225,7 +235,7 @@ export default function MetrolinaBaseballApp() {
       setSelectedWeightPlayerId(firstPlayer);
       setSelectedGameId(firstGame);
 
-      if (requestedView && [...NAV_ITEMS.map((item) => item.key), "profile"].includes(requestedView)) {
+      if (requestedView && [...NAV_ITEMS.map((item) => item.key), "profile", "account", "teams"].includes(requestedView)) {
         setView(requestedView);
       }
     } catch (error) {
@@ -286,6 +296,20 @@ export default function MetrolinaBaseballApp() {
         theme: current.settings.theme === "dark" ? "light" : "dark",
       },
     }));
+  }
+
+  async function switchTeam(team: TeamOption) {
+    setAccountMenuOpen(false);
+    await loadApplicationData(() => false, team.teamId, team.seasonId);
+    setView("home");
+  }
+
+  async function signOut() {
+    setAccountMenuOpen(false);
+    await authRepository.signOut();
+    setData(null);
+    setAuthState({ status: "anonymous" });
+    setView("home");
   }
 
   function logHitting(action: HittingEvent["action"], contactResult?: BattedBallType, contactQuality?: HittingContactQuality, direction: Direction = hitDirection) {
@@ -554,13 +578,16 @@ export default function MetrolinaBaseballApp() {
   return (
     <main className="ops-shell">
       <aside className="ops-sidebar" aria-label="Primary navigation">
-        <button className="brand-lockup" type="button" onClick={() => setView("home")}>
-        <img src="/brand/metrolina-baseball-cutout.png" alt="" />
-          <span>
-            <strong>Metrolina</strong>
-            <small>Baseball Ops</small>
-          </span>
-        </button>
+        <div className="sidebar-brand">
+          <button className="brand-lockup" type="button" onClick={() => setView("home")}>
+            <img src="/brand/metrolina-baseball-cutout.png" alt="" />
+            <span>
+              <strong>Metrolina</strong>
+              <small>Baseball Ops</small>
+            </span>
+          </button>
+          <TeamSwitcher context={data.teamContext} onSwitch={switchTeam} compact />
+        </div>
 
         <nav className="rail-nav">
           {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
@@ -584,12 +611,16 @@ export default function MetrolinaBaseballApp() {
           practice={practice}
           globalQuery={globalQuery}
           globalResults={globalResults}
+          accountMenuOpen={accountMenuOpen}
           onQuery={setGlobalQuery}
           onOpenPlayer={openPlayer}
           onStartPractice={() => setStartPracticeOpen(true)}
           onStartGame={() => setStartGameOpen(true)}
           onToggleTheme={toggleTheme}
           onView={setView}
+          onTeamSwitch={switchTeam}
+          onAccountMenu={setAccountMenuOpen}
+          onSignOut={signOut}
         />
 
         <SyncStatusBanner status={saveStatus} error={saveError} />
@@ -615,6 +646,7 @@ export default function MetrolinaBaseballApp() {
         {view === "roster" && (
           <RosterView
             players={rosterPlayers}
+            team={data.teamContext?.currentTeam}
             filter={rosterFilter}
             query={rosterQuery}
             onFilter={setRosterFilter}
@@ -724,12 +756,21 @@ export default function MetrolinaBaseballApp() {
           />
         )}
 
+        {view === "account" && (
+          <AccountProfileView context={data.teamContext} onView={setView} onSignOut={signOut} />
+        )}
+
+        {view === "teams" && (
+          <TeamsView context={data.teamContext} onSwitch={switchTeam} />
+        )}
+
         {view === "profile" && selectedPlayer && (
           <PlayerProfile
             data={data}
             player={selectedPlayer}
             tab={profileTab}
             onTab={setProfileTab}
+            onTeamSwitch={switchTeam}
             onEdit={() => {
               setEditingPlayerId(selectedPlayer.id);
               setPlayerEditorOpen(true);
@@ -827,8 +868,12 @@ function AuthGate({
   error: Error | null;
   onSignedIn: () => void;
 }) {
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const needsMembership = error instanceof PersistenceError && error.code === "membership-required";
@@ -846,42 +891,96 @@ function AuthGate({
     }
   }
 
+  async function createAccount() {
+    if (password !== confirmPassword) {
+      setMessage("Passwords do not match.");
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      await authRepository.signUp({ email, password, firstName, lastName });
+      setMessage("Account created. Sign in to continue if you are not signed in automatically.");
+      await onSignedIn();
+    } catch (signUpError) {
+      setMessage(signUpError instanceof Error ? signUpError.message : "Unable to create account.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function signOut() {
+    setBusy(true);
+    await authRepository.signOut();
+    window.location.reload();
+  }
+
   return (
     <main className="loading-screen auth-screen">
       <img src="/brand/metrolina-baseball-cutout.png" alt="" />
       <strong>Metrolina Baseball</strong>
-      <span>Coach sign-in is required for Supabase-backed program data.</span>
+      <span>Player Development + Practice + Game Operations</span>
 
       {authState.status === "not-configured" && <p className="auth-message">{authState.message}</p>}
-      {error && <p className="auth-message">{error.message}</p>}
+      {error && !needsMembership && <p className="auth-message">{error.message}</p>}
       {message && <p className="auth-message">{message}</p>}
 
       {authState.status === "anonymous" && (
-        <form
-          className="auth-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void signIn();
-          }}
-        >
-          <label>
-            <span>Email</span>
-            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
-          </label>
-          <label>
-            <span>Password</span>
-            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" />
-          </label>
-          <button className="primary-button stretch-button" type="submit" disabled={busy || !email || !password}>
-            {busy ? "Signing in..." : "Sign In"}
-          </button>
-        </form>
+        <>
+          <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
+            <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Log In</button>
+            <button type="button" className={mode === "signup" ? "active" : ""} onClick={() => setMode("signup")}>Create Account</button>
+          </div>
+          <form
+            className="auth-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void (mode === "login" ? signIn() : createAccount());
+            }}
+          >
+            {mode === "signup" && (
+              <div className="auth-name-grid">
+                <label>
+                  <span>First name</span>
+                  <input value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" />
+                </label>
+                <label>
+                  <span>Last name</span>
+                  <input value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" />
+                </label>
+              </div>
+            )}
+            <label>
+              <span>Email</span>
+              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
+            </label>
+            <label>
+              <span>Password</span>
+              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} />
+            </label>
+            {mode === "signup" && (
+              <label>
+                <span>Confirm password</span>
+                <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" />
+              </label>
+            )}
+            <button className="primary-button stretch-button" type="submit" disabled={busy || !email || !password || (mode === "signup" && (!firstName || !lastName || !confirmPassword))}>
+              {busy ? "Working..." : mode === "login" ? "Sign In" : "Create Account"}
+            </button>
+          </form>
+        </>
       )}
 
       {authState.status === "authenticated" && needsMembership && (
-        <Link className="primary-button" href="/setup">
-          Open First-Run Setup
-        </Link>
+        <section className="auth-form no-team-card">
+          <span>Welcome to Metrolina Baseball</span>
+          <h1>Your account is ready.</h1>
+          <p>You are not connected to a team yet. Team invitations will appear here once a coach/admin grants access.</p>
+          <button className="secondary-button stretch-button" type="button" onClick={() => void signOut()} disabled={busy}>
+            <LogOut size={16} aria-hidden="true" />
+            Sign Out
+          </button>
+        </section>
       )}
     </main>
   );
@@ -929,24 +1028,33 @@ function TopCommand({
   practice,
   globalQuery,
   globalResults,
+  accountMenuOpen,
   onQuery,
   onOpenPlayer,
   onStartPractice,
   onStartGame,
   onToggleTheme,
   onView,
+  onTeamSwitch,
+  onAccountMenu,
+  onSignOut,
 }: {
   data: AppData;
   practice?: Practice;
   globalQuery: string;
   globalResults: Player[];
+  accountMenuOpen: boolean;
   onQuery: (value: string) => void;
   onOpenPlayer: (playerId: ID) => void;
   onStartPractice: () => void;
   onStartGame: () => void;
   onToggleTheme: () => void;
   onView: (view: ViewKey) => void;
+  onTeamSwitch: (team: TeamOption) => void | Promise<void>;
+  onAccountMenu: (open: boolean) => void;
+  onSignOut: () => void | Promise<void>;
 }) {
+  const currentTeam = data.teamContext?.currentTeam;
   return (
     <header className="top-command">
       <div className="top-command__identity">
@@ -954,11 +1062,13 @@ function TopCommand({
           <img src="/brand/metrolina-baseball-cutout.png" alt="" />
         </button>
         <div>
-          <span>{data.settings.rosterSeason}</span>
-          <h1>Metrolina Baseball</h1>
+          <span>{currentTeam?.seasonName ?? data.settings.rosterSeason}</span>
+          <h1>{currentTeam?.teamName ?? "Metrolina Baseball"}</h1>
           <small>{practice ? `${weekdayLong(practice.date)}, ${fullDate(practice.date)} - ${practice.location}` : "Player Development + Practice + Game Operations"}</small>
         </div>
       </div>
+
+      <TeamSwitcher context={data.teamContext} onSwitch={onTeamSwitch} />
 
       <div className="global-search">
         <Search size={16} aria-hidden="true" />
@@ -988,9 +1098,209 @@ function TopCommand({
           <Plus size={16} aria-hidden="true" />
           Start Practice
         </button>
+        <ProfileMenu
+          context={data.teamContext}
+          open={accountMenuOpen}
+          onOpen={onAccountMenu}
+          onView={onView}
+          onSignOut={onSignOut}
+        />
       </div>
     </header>
   );
+}
+
+function TeamSwitcher({
+  context,
+  onSwitch,
+  compact = false,
+}: {
+  context?: TeamContext;
+  onSwitch: (team: TeamOption) => void | Promise<void>;
+  compact?: boolean;
+}) {
+  const teams = context?.availableTeams ?? [];
+  const current = context?.currentTeam;
+  if (!current) return null;
+
+  const selectedValue = teamValue(current);
+
+  return (
+    <label className={`team-switcher ${compact ? "team-switcher--compact" : ""}`}>
+      <Building2 size={16} aria-hidden="true" />
+      <span>
+        <small>{current.organizationName}</small>
+        {teams.length > 1 ? (
+          <select
+            value={selectedValue}
+            aria-label="Current team"
+            onChange={(event) => {
+              const next = teams.find((team) => teamValue(team) === event.target.value);
+              if (next) void onSwitch(next);
+            }}
+          >
+            {teams.map((team) => (
+              <option key={teamValue(team)} value={teamValue(team)}>
+                {team.teamName}{team.seasonName ? ` - ${team.seasonName}` : ""}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <strong>{current.teamName}</strong>
+        )}
+      </span>
+      {teams.length > 1 && <ChevronDown size={14} aria-hidden="true" />}
+    </label>
+  );
+}
+
+function ProfileMenu({
+  context,
+  open,
+  onOpen,
+  onView,
+  onSignOut,
+}: {
+  context?: TeamContext;
+  open: boolean;
+  onOpen: (open: boolean) => void;
+  onView: (view: ViewKey) => void;
+  onSignOut: () => void | Promise<void>;
+}) {
+  const profile = context?.profile;
+  const initials = profileInitials(context);
+  return (
+    <div className="profile-menu">
+      <button className="profile-menu__button" type="button" onClick={() => onOpen(!open)} aria-label="Open profile menu" aria-expanded={open}>
+        {profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" /> : <span>{initials}</span>}
+      </button>
+      {open && (
+        <div className="profile-menu__panel">
+          <div>
+            <strong>{profileDisplayName(context)}</strong>
+            <small>{profile?.email ?? "Coach account"}</small>
+          </div>
+          <button type="button" onClick={() => { onOpen(false); onView("account"); }}>
+            <User size={15} aria-hidden="true" />
+            My Profile
+          </button>
+          <button type="button" onClick={() => { onOpen(false); onView("teams"); }}>
+            <Users size={15} aria-hidden="true" />
+            Teams
+          </button>
+          <button type="button" onClick={() => { onOpen(false); onView("account"); }}>
+            <Shield size={15} aria-hidden="true" />
+            Settings
+          </button>
+          <button type="button" onClick={() => void onSignOut()}>
+            <LogOut size={15} aria-hidden="true" />
+            Sign Out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AccountProfileView({
+  context,
+  onView,
+  onSignOut,
+}: {
+  context?: TeamContext;
+  onView: (view: ViewKey) => void;
+  onSignOut: () => void | Promise<void>;
+}) {
+  const profile = context?.profile;
+  return (
+    <div className="page-stack">
+      <SectionHeader
+        eyebrow="Account"
+        title="My Profile"
+        body="Your login can belong to one team, several teams, and different seasons without creating separate accounts."
+        action={
+          <button className="secondary-button" type="button" onClick={() => void onSignOut()}>
+            <LogOut size={16} aria-hidden="true" />
+            Sign Out
+          </button>
+        }
+      />
+      <section className="account-grid">
+        <article className="panel account-card">
+          <div className="account-avatar">{profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" /> : <span>{profileInitials(context)}</span>}</div>
+          <div>
+            <span>Coach Profile</span>
+            <h2>{profileDisplayName(context)}</h2>
+            <p>{profile?.email ?? "No email available"}</p>
+          </div>
+          <div className="profile-fields">
+            <FieldLine label="First name" value={profile?.firstName ?? "--"} />
+            <FieldLine label="Last name" value={profile?.lastName ?? "--"} />
+            <FieldLine label="Program role" value={profile?.role ?? "COACH"} />
+          </div>
+        </article>
+        <article className="panel">
+          <div className="panel-heading tight">
+            <div><span>Teams</span><h2>Access</h2></div>
+            <button type="button" className="text-button" onClick={() => onView("teams")}>Manage</button>
+          </div>
+          <TeamAccessList context={context} />
+        </article>
+      </section>
+    </div>
+  );
+}
+
+function TeamsView({
+  context,
+  onSwitch,
+}: {
+  context?: TeamContext;
+  onSwitch: (team: TeamOption) => void | Promise<void>;
+}) {
+  return (
+    <div className="page-stack">
+      <SectionHeader
+        eyebrow="Team Context"
+        title="Teams"
+        body="Select the team and season that should drive roster, practice, game, weight-room, and analytics screens."
+      />
+      <section className="team-list">
+        {(context?.availableTeams ?? []).map((team) => (
+          <article className={`panel team-row ${teamValue(team) === teamValue(context?.currentTeam) ? "active" : ""}`} key={teamValue(team)}>
+            <div>
+              <span>{team.organizationName}</span>
+              <h2>{team.teamName}</h2>
+              <small>{team.seasonName ?? "All seasons"} - {roleLabel(team.role)}{team.title ? ` - ${team.title}` : ""}</small>
+            </div>
+            <button className={teamValue(team) === teamValue(context?.currentTeam) ? "secondary-button" : "primary-button"} type="button" onClick={() => void onSwitch(team)}>
+              {teamValue(team) === teamValue(context?.currentTeam) ? "Current" : "Switch"}
+            </button>
+          </article>
+        ))}
+      </section>
+    </div>
+  );
+}
+
+function TeamAccessList({ context }: { context?: TeamContext }) {
+  const teams = context?.availableTeams ?? [];
+  if (teams.length === 0) return <CompactEmpty title="No team memberships yet" />;
+  return (
+    <div className="team-access-list">
+      {teams.map((team) => (
+        <div key={teamValue(team)}>
+          <strong>{team.teamName}</strong>
+          <span>{roleLabel(team.role)}</span>
+          <small>{team.seasonName ?? "All seasons"}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FieldLine({ label, value }: { label: string; value: string }) {
+  return <div className="field-line"><span>{label}</span><strong>{value}</strong></div>;
 }
 
 function HomeDashboard({
@@ -1126,6 +1436,7 @@ function HomeDashboard({
 
 function RosterView({
   players,
+  team,
   filter,
   query,
   onFilter,
@@ -1136,6 +1447,7 @@ function RosterView({
   onStatus,
 }: {
   players: Player[];
+  team?: TeamOption;
   filter: RosterFilter;
   query: string;
   onFilter: (filter: RosterFilter) => void;
@@ -1154,8 +1466,8 @@ function RosterView({
     <div className="page-stack">
       <SectionHeader
         eyebrow="Roster Management"
-        title="Program Roster"
-        body="Update player status, role, and profile details in one compact view."
+        title={team?.teamName ?? "Program Roster"}
+        body={`Team-specific roster status and jersey numbers for ${team?.seasonName ?? "the selected season"}.`}
         action={
           <button className="primary-button" type="button" onClick={onAddPlayer}>
             <UserPlus size={16} aria-hidden="true" />
@@ -1772,6 +2084,7 @@ function PlayerProfile({
   player,
   tab,
   onTab,
+  onTeamSwitch,
   onEdit,
   onStatus,
 }: {
@@ -1779,6 +2092,7 @@ function PlayerProfile({
   player: Player;
   tab: ProfileTab;
   onTab: (tab: ProfileTab) => void;
+  onTeamSwitch: (team: TeamOption) => void | Promise<void>;
   onEdit: () => void;
   onStatus: (playerId: ID, status: RosterStatus) => void;
 }) {
@@ -1800,6 +2114,9 @@ function PlayerProfile({
           <span>{player.rosterStatus}</span>
           <h2>#{player.jerseyNumber} {player.name}</h2>
           <small>{positionLine(player)} - {player.graduationYear} - {player.bats}/{player.throws} - {player.height} - {player.weight} lb</small>
+          <div className="profile-context-row">
+            <TeamSwitcher context={data.teamContext} onSwitch={onTeamSwitch} compact />
+          </div>
         </div>
         <div className="status-toggle">
           {ROSTER_STATUSES.map((status) => (
@@ -2662,6 +2979,35 @@ function weekStart(dateString: string) {
 function weekdayName(dateString: string): WorkoutSession["day"] {
   const names: WorkoutSession["day"][] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   return names[new Date(`${dateString}T12:00:00`).getDay()] ?? "Mon";
+}
+
+function teamValue(team?: TeamOption) {
+  return team ? `${team.teamId}:${team.seasonId ?? "all"}` : "";
+}
+
+function roleLabel(role?: string) {
+  return (role ?? "STAFF")
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function profileDisplayName(context?: TeamContext) {
+  const profile = context?.profile;
+  return [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() || profile?.displayName || profile?.email || "Coach";
+}
+
+function profileInitials(context?: TeamContext) {
+  const profile = context?.profile;
+  const base = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() || profile?.displayName || profile?.email || "CO";
+  return base
+    .split(/\s|@/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 }
 
 function gradeSession(note: string) {

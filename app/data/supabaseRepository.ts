@@ -13,28 +13,37 @@ import type {
   HittingEvent,
   HittingSession,
   ID,
+  AppProfile,
   PitchEvent,
   PitchingSession,
   PlateAppearance,
   Player,
+  PlayerTeamMembership,
   Practice,
   PracticeAttendance,
   RosterStatus,
+  TeamContext,
+  TeamMembershipRole,
+  TeamOption,
   WorkoutEntry,
   WorkoutSession,
 } from "../types";
 import { createClient } from "../lib/supabase/client";
 
 const ORGANIZATION_SLUG = "metrolina-christian-academy";
-const TEAM_NAME = "Baseball";
 const SEASON_NAME = "Fall 2026";
+const SELECTED_TEAM_STORAGE_KEY = "metrolina-current-team-v2";
 
 type SupabaseClient = ReturnType<typeof createClient>;
 
 type Foundation = {
   organizationId: string;
+  organizationName: string;
   teamId: string;
+  teamName: string;
   seasonId: string;
+  seasonName: string;
+  teamContext: TeamContext;
 };
 
 export type AuthState =
@@ -87,15 +96,39 @@ export const authRepository = {
     if (error) throw new PersistenceError("auth-required", error.message);
   },
 
-  async signUp(email: string, password: string) {
+  async signUp(
+    emailOrInput:
+      | string
+      | {
+          email: string;
+          password: string;
+          firstName?: string;
+          lastName?: string;
+        },
+    maybePassword?: string,
+  ) {
+    const input =
+      typeof emailOrInput === "string"
+        ? { email: emailOrInput, password: maybePassword ?? "" }
+        : emailOrInput;
     const supabase = createClient();
-    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/setup` : undefined;
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
+    const displayName = [input.firstName, input.lastName].filter(Boolean).join(" ").trim() || input.email;
+    const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
+    const { data, error } = await supabase.auth.signUp({
+      email: input.email,
+      password: input.password,
       options: { emailRedirectTo: redirectTo },
     });
     if (error) throw new PersistenceError("auth-required", error.message);
+    if (data.user) {
+      await ensureOwnProfile(supabase, {
+        id: data.user.id,
+        email: input.email,
+        firstName: input.firstName,
+        lastName: input.lastName,
+        displayName,
+      }).catch(() => undefined);
+    }
   },
 
   async signOut() {
@@ -131,20 +164,25 @@ export const authRepository = {
 };
 
 export const supabaseAppRepository = {
-  async load(): Promise<AppData> {
+  async load(selectedTeamId?: string, selectedSeasonId?: string): Promise<AppData> {
     const supabase = createClient();
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) {
       throw new PersistenceError("auth-required", "Sign in with your coach account to load Metrolina Baseball data.");
     }
 
-    const foundation = await loadFoundation(supabase);
+    const foundation = await loadFoundation(supabase, userData.user, selectedTeamId, selectedSeasonId);
     return loadAppData(supabase, foundation);
   },
 
   async sync(previous: AppData, next: AppData): Promise<void> {
     const supabase = createClient();
-    const foundation = await loadFoundation(supabase);
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      throw new PersistenceError("auth-required", "Sign in with your coach account to save Metrolina Baseball data.");
+    }
+    const requestedTeam = next.teamContext?.currentTeam;
+    const foundation = await loadFoundation(supabase, userData.user, requestedTeam?.teamId, requestedTeam?.seasonId);
     await syncDeletedEvents(supabase, previous, next);
     await syncPlayers(supabase, foundation, next.players);
     await syncPractices(supabase, foundation, next.practices);
@@ -157,10 +195,15 @@ export const supabaseAppRepository = {
   },
 };
 
-async function loadFoundation(supabase: SupabaseClient): Promise<Foundation> {
+async function loadFoundation(
+  supabase: SupabaseClient,
+  user: { id: string; email?: string },
+  requestedTeamId?: string,
+  requestedSeasonId?: string,
+): Promise<Foundation> {
   const { data: organization, error: organizationError } = await supabase
     .from("organizations")
-    .select("id")
+    .select("id,name")
     .eq("slug", ORGANIZATION_SLUG)
     .maybeSingle();
 
@@ -172,71 +215,256 @@ async function loadFoundation(supabase: SupabaseClient): Promise<Foundation> {
     );
   }
 
-  const { data: team, error: teamError } = await supabase
-    .from("teams")
-    .select("id")
-    .eq("organization_id", organization.id)
-    .eq("name", TEAM_NAME)
+  const profile = await ensureOwnProfile(supabase, {
+    id: user.id,
+    email: user.email,
+    displayName: user.email,
+  });
+  const teamContext = await loadTeamContext(supabase, profile, organization.id, organization.name, requestedTeamId, requestedSeasonId);
+  const currentTeam = teamContext.currentTeam;
+
+  if (!currentTeam?.seasonId) {
+    throw new PersistenceError(
+      "membership-required",
+      "Your account is ready. You are not connected to an active team season yet.",
+    );
+  }
+
+  persistSelectedTeam(currentTeam);
+
+  return {
+    organizationId: organization.id,
+    organizationName: organization.name,
+    teamId: currentTeam.teamId,
+    teamName: currentTeam.teamName,
+    seasonId: currentTeam.seasonId,
+    seasonName: currentTeam.seasonName ?? SEASON_NAME,
+    teamContext,
+  };
+}
+
+async function ensureOwnProfile(
+  supabase: SupabaseClient,
+  input: {
+    id: string;
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    displayName?: string;
+  },
+): Promise<AppProfile> {
+  const displayName =
+    input.displayName ??
+    [input.firstName, input.lastName].filter(Boolean).join(" ").trim() ??
+    input.email ??
+    "Coach";
+  const row = {
+    id: input.id,
+    email: input.email ? input.email.toLowerCase() : null,
+    first_name: input.firstName ?? null,
+    last_name: input.lastName ?? null,
+    display_name: displayName,
+  };
+
+  const { error: upsertError } = await supabase.from("profiles").upsert(row, { onConflict: "id" });
+  if (upsertError) throw new PersistenceError("load-failed", upsertError.message);
+
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id,email,first_name,last_name,display_name,avatar_url,role")
+    .eq("id", input.id)
     .maybeSingle();
 
-  if (teamError) throw new PersistenceError("load-failed", teamError.message);
-  if (!team) throw new PersistenceError("load-failed", "Baseball team seed is missing.");
+  if (error) throw new PersistenceError("load-failed", error.message);
+  return mapProfile(data ?? row);
+}
 
-  const { data: season, error: seasonError } = await supabase
-    .from("seasons")
-    .select("id")
-    .eq("team_id", team.id)
-    .eq("name", SEASON_NAME)
-    .maybeSingle();
+async function loadTeamContext(
+  supabase: SupabaseClient,
+  profile: AppProfile,
+  organizationId: string,
+  organizationName: string,
+  requestedTeamId?: string,
+  requestedSeasonId?: string,
+): Promise<TeamContext> {
+  const { data: memberships, error: membershipError } = await supabase
+    .from("profile_team_memberships")
+    .select("id,profile_id,team_id,season_id,role,title,active")
+    .eq("profile_id", profile.id)
+    .eq("active", true);
 
-  if (seasonError) throw new PersistenceError("load-failed", seasonError.message);
-  if (!season) throw new PersistenceError("load-failed", "Fall 2026 season seed is missing.");
+  if (membershipError) throw new PersistenceError("load-failed", membershipError.message);
 
-  return { organizationId: organization.id, teamId: team.id, seasonId: season.id };
+  const rows = memberships ?? [];
+  if (rows.length === 0) {
+    return { profile, availableTeams: [] };
+  }
+
+  const teamIds = [...new Set(rows.map((row: any) => row.team_id).filter(Boolean))];
+  const seasonIds = [...new Set(rows.map((row: any) => row.season_id).filter(Boolean))];
+
+  const [teamsResult, seasonsResult] = await Promise.all([
+    supabase.from("teams").select("id,organization_id,name,level,active").in("id", teamIds),
+    seasonIds.length
+      ? supabase.from("seasons").select("id,team_id,name,active").in("id", seasonIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (teamsResult.error) throw new PersistenceError("load-failed", teamsResult.error.message);
+  if (seasonsResult.error) throw new PersistenceError("load-failed", seasonsResult.error.message);
+
+  const teamsById = new Map<string, any>((teamsResult.data ?? []).map((team: any) => [team.id, team]));
+  const seasonsById = new Map<string, any>((seasonsResult.data ?? []).map((season: any) => [season.id, season]));
+  const stored = readSelectedTeam();
+
+  const availableTeams = rows
+    .map((membership: any): TeamOption | null => {
+      const team = teamsById.get(membership.team_id);
+      if (!team || team.organization_id !== organizationId) return null;
+      const season = membership.season_id ? seasonsById.get(membership.season_id) : undefined;
+      return {
+        organizationId,
+        organizationName,
+        teamId: team.id,
+        teamName: team.name,
+        teamLevel: team.level ?? undefined,
+        seasonId: season?.id ?? membership.season_id ?? undefined,
+        seasonName: season?.name ?? undefined,
+        role: normalizeTeamRole(membership.role),
+        title: membership.title ?? undefined,
+        active: Boolean(membership.active),
+      };
+    })
+    .filter((option): option is TeamOption => Boolean(option))
+    .sort(compareTeamOptions);
+
+  const currentTeam =
+    availableTeams.find(
+      (option) =>
+        option.teamId === requestedTeamId &&
+        (!requestedSeasonId || option.seasonId === requestedSeasonId),
+    ) ??
+    availableTeams.find(
+      (option) =>
+        option.teamId === stored?.teamId &&
+        (!stored?.seasonId || option.seasonId === stored.seasonId),
+    ) ??
+    availableTeams.find((option) => option.teamName.toLowerCase().includes("varsity")) ??
+    availableTeams[0];
+
+  return { profile, availableTeams, currentTeam };
+}
+
+function readSelectedTeam(): { teamId?: string; seasonId?: string } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return JSON.parse(window.localStorage.getItem(SELECTED_TEAM_STORAGE_KEY) ?? "null") as { teamId?: string; seasonId?: string } | null;
+  } catch {
+    return null;
+  }
+}
+
+function persistSelectedTeam(team: TeamOption) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    SELECTED_TEAM_STORAGE_KEY,
+    JSON.stringify({ teamId: team.teamId, seasonId: team.seasonId }),
+  );
+}
+
+function compareTeamOptions(a: TeamOption, b: TeamOption) {
+  const rank = (team: TeamOption) => {
+    const name = `${team.teamName} ${team.teamLevel ?? ""}`.toLowerCase();
+    if (name.includes("varsity")) return 0;
+    if (name.includes("jv")) return 1;
+    if (name.includes("program") || name === "baseball") return 2;
+    return 3;
+  };
+  return rank(a) - rank(b) || a.teamName.localeCompare(b.teamName);
+}
+
+function normalizeTeamRole(role: unknown): TeamMembershipRole {
+  const value = String(role ?? "STAFF") as TeamMembershipRole;
+  return (["OWNER", "ADMIN", "HEAD_COACH", "ASSISTANT_COACH", "STAFF", "COACH", "PLAYER"] as TeamMembershipRole[]).includes(value)
+    ? value
+    : "STAFF";
 }
 
 async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Promise<AppData> {
+  const membershipsResult = await supabase
+    .from("player_team_memberships")
+    .select("*")
+    .eq("team_id", foundation.teamId)
+    .eq("season_id", foundation.seasonId);
+
+  if (membershipsResult.error) throw new PersistenceError("load-failed", membershipsResult.error.message);
+
+  const memberships = membershipsResult.data ?? [];
+  const playerIds = [...new Set(memberships.map((membership: any) => membership.player_id).filter(Boolean))];
+  const playerIdsSet = new Set(playerIds);
+
+  const playersResult =
+    playerIds.length > 0
+      ? await supabase.from("players").select("*").in("id", playerIds)
+      : { data: [], error: null };
+
   const [
-    playersResult,
-    membershipsResult,
     practicesResult,
+    exercisesResult,
+    workoutSessionsResult,
+    gamesResult,
+    notesResult,
+    goalsResult,
+  ] = await Promise.all([
+    supabase.from("practices").select("*").eq("season_id", foundation.seasonId).order("practice_date", { ascending: false }),
+    supabase.from("exercises").select("*").eq("organization_id", foundation.organizationId),
+    supabase.from("workout_sessions").select("*").eq("season_id", foundation.seasonId).order("session_date", { ascending: false }),
+    supabase.from("games").select("*").eq("season_id", foundation.seasonId).order("game_date", { ascending: false }),
+    supabase
+      .from("player_notes")
+      .select("*")
+      .eq("organization_id", foundation.organizationId)
+      .or(`team_id.eq.${foundation.teamId},team_id.is.null`)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("development_goals")
+      .select("*")
+      .eq("organization_id", foundation.organizationId)
+      .or(`team_id.eq.${foundation.teamId},team_id.is.null`)
+      .order("created_at", { ascending: false }),
+  ]);
+
+  const practiceRows = practicesResult.data ?? [];
+  const practiceIds = new Set<string>(practiceRows.map((practice: any) => practice.id));
+  const workoutSessionRows = workoutSessionsResult.data ?? [];
+  const workoutSessionIds = new Set<string>(workoutSessionRows.map((session: any) => session.id));
+  const gameRows = gamesResult.data ?? [];
+  const gameIds = new Set<string>(gameRows.map((game: any) => game.id));
+
+  const [
     attendanceResult,
     sessionsResult,
     pitchEventsResult,
     hittingEventsResult,
     defenseEventsResult,
-    exercisesResult,
-    workoutSessionsResult,
     workoutSetsResult,
-    gamesResult,
     gameLineupsResult,
     gameEventsResult,
     plateAppearancesResult,
-    notesResult,
-    goalsResult,
   ] = await Promise.all([
-    supabase.from("players").select("*").eq("organization_id", foundation.organizationId).order("jersey_number", { ascending: true }),
-    supabase.from("player_team_memberships").select("*").eq("team_id", foundation.teamId).eq("season_id", foundation.seasonId),
-    supabase.from("practices").select("*").eq("season_id", foundation.seasonId).order("practice_date", { ascending: false }),
     supabase.from("practice_attendance").select("*"),
     supabase.from("practice_sessions").select("*"),
     supabase.from("pitch_events").select("*").order("created_at", { ascending: false }),
     supabase.from("hitting_events").select("*").order("created_at", { ascending: false }),
     supabase.from("defense_events").select("*").order("created_at", { ascending: false }),
-    supabase.from("exercises").select("*").eq("organization_id", foundation.organizationId),
-    supabase.from("workout_sessions").select("*").eq("season_id", foundation.seasonId).order("session_date", { ascending: false }),
     supabase.from("workout_sets").select("*").order("created_at", { ascending: false }),
-    supabase.from("games").select("*").eq("season_id", foundation.seasonId).order("game_date", { ascending: false }),
     supabase.from("game_lineups").select("*"),
     supabase.from("game_pitch_events").select("*").order("created_at", { ascending: false }),
     supabase.from("plate_appearances").select("*"),
-    supabase.from("player_notes").select("*").eq("organization_id", foundation.organizationId).order("created_at", { ascending: false }),
-    supabase.from("development_goals").select("*").eq("organization_id", foundation.organizationId).order("created_at", { ascending: false }),
   ]);
 
   const results = [
     playersResult,
-    membershipsResult,
     practicesResult,
     attendanceResult,
     sessionsResult,
@@ -256,36 +484,53 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
   const failed = results.find((result) => result.error);
   if (failed?.error) throw new PersistenceError("load-failed", failed.error.message);
 
-  const memberships = membershipsResult.data ?? [];
   const membershipByPlayer = new Map<string, any>(memberships.map((membership: any) => [membership.player_id, membership]));
-  const players = (playersResult.data ?? []).map((row: any) => mapPlayer(row, membershipByPlayer.get(row.id)));
-  const practices = (practicesResult.data ?? []).map((row: any) => mapPractice(row, attendanceResult.data ?? []));
-  const sessionRows = sessionsResult.data ?? [];
+  const players = (playersResult.data ?? [])
+    .map((row: any) => mapPlayer(row, membershipByPlayer.get(row.id)))
+    .sort((a, b) => a.jerseyNumber - b.jerseyNumber || a.name.localeCompare(b.name));
+  const attendanceRows = (attendanceResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && playerIdsSet.has(row.player_id));
+  const practices = practiceRows.map((row: any) => mapPractice(row, attendanceRows));
+  const sessionRows = (sessionsResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && playerIdsSet.has(row.player_id));
+  const sessionIds = new Set<string>(sessionRows.map((session: any) => session.id));
   const exercisesById = new Map<string, any>((exercisesResult.data ?? []).map((exercise: any) => [exercise.id, exercise]));
-  const lineupRows = gameLineupsResult.data ?? [];
+  const lineupRows = (gameLineupsResult.data ?? []).filter((row: any) => gameIds.has(row.game_id) && playerIdsSet.has(row.player_id));
+  const notesRows = (notesResult.data ?? []).filter((row: any) =>
+    (!row.player_id || playerIdsSet.has(row.player_id)) &&
+    (!row.practice_id || practiceIds.has(row.practice_id)) &&
+    (!row.session_id || sessionIds.has(row.session_id)),
+  );
+  const goalsRows = (goalsResult.data ?? []).filter((row: any) => playerIdsSet.has(row.player_id));
 
   return {
+    teamContext: foundation.teamContext,
     players,
+    playerTeamMemberships: memberships.map(mapPlayerTeamMembership),
     practices,
-    attendance: (attendanceResult.data ?? []).map(mapAttendance),
+    attendance: attendanceRows.map(mapAttendance),
     pitchingSessions: sessionRows.filter((row: any) => row.category === "pitching").map(mapPitchingSession),
-    pitchEvents: (pitchEventsResult.data ?? []).map(mapPitchEvent),
+    pitchEvents: (pitchEventsResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && sessionIds.has(row.session_id)).map(mapPitchEvent),
     hittingSessions: sessionRows.filter((row: any) => row.category === "hitting").map(mapHittingSession),
-    hittingEvents: (hittingEventsResult.data ?? []).map(mapHittingEvent),
+    hittingEvents: (hittingEventsResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && sessionIds.has(row.session_id)).map(mapHittingEvent),
     defenseSessions: sessionRows.filter((row: any) => row.category === "defense").map(mapDefenseSession),
-    defenseEvents: (defenseEventsResult.data ?? []).map(mapDefenseEvent),
-    workoutSessions: (workoutSessionsResult.data ?? []).map(mapWorkoutSession),
-    workoutEntries: (workoutSetsResult.data ?? []).map((row: any) => mapWorkoutEntry(row, exercisesById.get(row.exercise_id))),
-    games: (gamesResult.data ?? []).map((row: any) => mapGame(row, lineupRows)),
-    gameEvents: (gameEventsResult.data ?? []).map(mapGameEvent),
-    plateAppearances: (plateAppearancesResult.data ?? []).map(mapPlateAppearance),
-    coachNotes: (notesResult.data ?? []).map(mapCoachNote),
-    developmentGoals: (goalsResult.data ?? []).map(mapDevelopmentGoal),
+    defenseEvents: (defenseEventsResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && sessionIds.has(row.session_id)).map(mapDefenseEvent),
+    workoutSessions: workoutSessionRows.filter((row: any) => playerIdsSet.has(row.player_id)).map(mapWorkoutSession),
+    workoutEntries: (workoutSetsResult.data ?? [])
+      .filter((row: any) => workoutSessionIds.has(row.workout_session_id) && playerIdsSet.has(row.player_id))
+      .map((row: any) => mapWorkoutEntry(row, exercisesById.get(row.exercise_id))),
+    games: gameRows.map((row: any) => mapGame(row, lineupRows)),
+    gameEvents: (gameEventsResult.data ?? []).filter((row: any) => gameIds.has(row.game_id)).map(mapGameEvent),
+    plateAppearances: (plateAppearancesResult.data ?? [])
+      .filter((row: any) => (row.practice_id && practiceIds.has(row.practice_id)) || (row.game_id && gameIds.has(row.game_id)))
+      .map(mapPlateAppearance),
+    coachNotes: notesRows.map(mapCoachNote),
+    developmentGoals: goalsRows.map(mapDevelopmentGoal),
     settings: {
       activePracticeId: practices.find((practice) => !practice.endedAt)?.id ?? practices[0]?.id,
       theme: "dark",
-      rosterSeason: SEASON_NAME,
+      rosterSeason: foundation.seasonName,
       recentPlayerIds: players.slice(0, 8).map((player) => player.id),
+      selectedTeamId: foundation.teamId,
+      selectedSeasonId: foundation.seasonId,
     },
   };
 }
@@ -315,7 +560,6 @@ async function syncPlayers(supabase: SupabaseClient, foundation: Foundation, pla
       organization_id: foundation.organizationId,
       first_name: firstName,
       last_name: lastName,
-      jersey_number: player.jerseyNumber,
       graduation_year: player.graduationYear,
       primary_position: player.primaryPosition,
       secondary_position: player.secondaryPosition ?? null,
@@ -340,6 +584,8 @@ async function syncPlayers(supabase: SupabaseClient, foundation: Foundation, pla
     team_id: foundation.teamId,
     season_id: foundation.seasonId,
     roster_status: player.rosterStatus ?? "Undecided",
+    jersey_number: player.jerseyNumber || null,
+    roster_role: player.programLevel ?? null,
     active: !player.archived,
   }));
   const { error: membershipError } = await supabase
@@ -576,6 +822,8 @@ async function syncNotesAndGoals(supabase: SupabaseClient, foundation: Foundatio
       return {
         id: note.id,
         organization_id: foundation.organizationId,
+        team_id: foundation.teamId,
+        season_id: foundation.seasonId,
         player_id: "playerId" in scope ? scope.playerId : null,
         practice_id: "practiceId" in scope ? scope.practiceId : null,
         session_id: "sessionId" in scope ? scope.sessionId : null,
@@ -593,6 +841,8 @@ async function syncNotesAndGoals(supabase: SupabaseClient, foundation: Foundatio
     data.developmentGoals.map((goal) => ({
       id: goal.id,
       organization_id: foundation.organizationId,
+      team_id: foundation.teamId,
+      season_id: foundation.seasonId,
       player_id: goal.playerId,
       title: goal.title,
       tags: goal.tags,
@@ -614,7 +864,7 @@ function mapPlayer(row: any, membership?: any): Player {
   return {
     id: row.id,
     name: `${row.first_name} ${row.last_name}`.trim(),
-    jerseyNumber: row.jersey_number ?? 0,
+    jerseyNumber: membership?.jersey_number ?? row.jersey_number ?? 0,
     primaryPosition: row.primary_position,
     secondaryPosition: row.secondary_position ?? undefined,
     bats: row.bats,
@@ -632,6 +882,33 @@ function mapPlayer(row: any, membership?: any): Player {
     archived: !row.active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function mapProfile(row: any): AppProfile {
+  return {
+    id: row.id,
+    email: row.email ?? undefined,
+    firstName: row.first_name ?? undefined,
+    lastName: row.last_name ?? undefined,
+    displayName: row.display_name ?? undefined,
+    avatarUrl: row.avatar_url ?? undefined,
+    role: row.role ?? undefined,
+  };
+}
+
+function mapPlayerTeamMembership(row: any): PlayerTeamMembership {
+  return {
+    id: row.id,
+    playerId: row.player_id,
+    teamId: row.team_id,
+    seasonId: row.season_id ?? undefined,
+    rosterStatus: (row.roster_status ?? "Undecided") as RosterStatus,
+    jerseyNumber: row.jersey_number ?? undefined,
+    rosterRole: row.roster_role ?? undefined,
+    active: Boolean(row.active),
+    startDate: row.start_date ?? undefined,
+    endDate: row.end_date ?? undefined,
   };
 }
 
