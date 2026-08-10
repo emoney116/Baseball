@@ -1,6 +1,6 @@
 "use client";
 
-import type { AppData, Game, GameEvent, ID, Player, RosterStatus, WorkoutEntry, WorkoutSession } from "../types";
+import type { AppData, Game, GameEvent, ID, Player, PlayerTeamMembership, RosterStatus, WorkoutEntry, WorkoutSession } from "../types";
 import { sampleData } from "./sampleData";
 
 const STORAGE_KEY = "metrolina-fall-practice-store-v1";
@@ -62,14 +62,28 @@ export const localPracticeRepository: PracticeRepository = {
 export const playerRepository: PlayerRepository = {
   upsert(data, player) {
     const exists = data.players.some((item) => item.id === player.id);
+    const membership = buildCurrentPlayerMembership(data, player);
     return {
       ...data,
       players: exists
         ? data.players.map((item) => (item.id === player.id ? { ...player, updatedAt: new Date().toISOString() } : item))
         : [{ ...player, createdAt: player.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() }, ...data.players],
+      playerTeamMemberships: upsertMembership(data.playerTeamMemberships ?? [], membership),
     };
   },
   updateRosterStatus(data, playerId, status) {
+    const now = new Date().toISOString();
+    const existingPlayer = data.players.find((player) => player.id === playerId);
+    const programLevel = status === "JV" ? "JV" : status === "Varsity" ? "Varsity" : "Development";
+    const membership = existingPlayer
+      ? buildCurrentPlayerMembership(data, {
+          ...existingPlayer,
+          rosterStatus: status,
+          programLevel,
+          updatedAt: now,
+        })
+      : undefined;
+
     return {
       ...data,
       players: data.players.map((player) =>
@@ -77,11 +91,14 @@ export const playerRepository: PlayerRepository = {
           ? {
               ...player,
               rosterStatus: status,
-              programLevel: status === "JV" ? "JV" : status === "Varsity" ? "Varsity" : "Development",
-              updatedAt: new Date().toISOString(),
+              programLevel,
+              updatedAt: now,
             }
           : player,
       ),
+      playerTeamMemberships: membership
+        ? upsertMembership(data.playerTeamMemberships ?? [], membership)
+        : data.playerTeamMemberships,
     };
   },
   archive(data, playerId) {
@@ -93,6 +110,33 @@ export const playerRepository: PlayerRepository = {
     };
   },
 };
+
+function buildCurrentPlayerMembership(data: AppData, player: Player): PlayerTeamMembership {
+  const existing = (data.playerTeamMemberships ?? []).find(
+    (membership) =>
+      membership.playerId === player.id &&
+      membership.teamId === data.settings.selectedTeamId &&
+      membership.seasonId === data.settings.selectedSeasonId,
+  );
+  return {
+    id: existing?.id ?? createId("ptm"),
+    playerId: player.id,
+    teamId: data.settings.selectedTeamId ?? "",
+    seasonId: data.settings.selectedSeasonId,
+    rosterStatus: player.rosterStatus ?? "Undecided",
+    jerseyNumber: player.jerseyNumber,
+    rosterRole: player.programLevel,
+    active: !player.archived,
+  };
+}
+
+function upsertMembership<T extends { id: ID; playerId: ID; teamId: ID; seasonId?: ID }>(memberships: T[], membership: T) {
+  if (!membership.teamId) return memberships;
+  const exists = memberships.some((item) => item.playerId === membership.playerId && item.teamId === membership.teamId && item.seasonId === membership.seasonId);
+  return exists
+    ? memberships.map((item) => item.playerId === membership.playerId && item.teamId === membership.teamId && item.seasonId === membership.seasonId ? membership : item)
+    : [membership, ...memberships];
+}
 
 export const gameRepository: GameRepository = {
   upsert(data, game) {

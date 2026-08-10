@@ -15,6 +15,7 @@ import {
   LogOut,
   MapPin,
   Moon,
+  MoreHorizontal,
   Play,
   Plus,
   Save,
@@ -23,6 +24,7 @@ import {
   Sun,
   Trophy,
   Undo2,
+  Upload,
   User,
   UserPlus,
   Users,
@@ -85,9 +87,30 @@ import type {
 type ViewKey = "home" | "roster" | "practice" | "weights" | "games" | "analytics" | "profile" | "account" | "teams";
 type PracticeMode = "Hitting" | "Pitching" | "Defense";
 type RosterFilter = "All" | RosterStatus;
+type RosterPositionFilter = "All" | Position;
+type RosterYearFilter = "All" | string;
 type ProfileTab = "overview" | "practice" | "games" | "pitching" | "hitting" | "defense" | "weights" | "notes";
 type AnalyticsContext = "All" | "Practice" | "Game" | "Live BP" | "Weight Room";
 type DateFilter = "Last Week" | "Last 30 Days" | "Fall";
+type CsvImportDecision = "create" | "update" | "skip";
+
+interface RosterCsvPreviewRow {
+  id: ID;
+  rowNumber: number;
+  firstName: string;
+  lastName: string;
+  jerseyNumber: number;
+  graduationYear: number;
+  primaryPosition: Position;
+  secondaryPosition?: Position;
+  bats: Player["bats"];
+  throws: Player["throws"];
+  teamName?: string;
+  rosterStatus: RosterStatus;
+  errors: string[];
+  duplicatePlayerId?: ID;
+  decision: CsvImportDecision;
+}
 
 const NAV_ITEMS: Array<{ key: ViewKey; label: string; shortLabel: string; icon: LucideIcon }> = [
   { key: "home", label: "Home", shortLabel: "Home", icon: Home },
@@ -97,6 +120,14 @@ const NAV_ITEMS: Array<{ key: ViewKey; label: string; shortLabel: string; icon: 
   { key: "games", label: "Games", shortLabel: "Games", icon: Gauge },
   { key: "analytics", label: "Analytics", shortLabel: "Analytics", icon: BarChart3 },
 ];
+const MOBILE_NAV_ITEMS: Array<{ key: ViewKey | "more"; label: string; shortLabel: string; icon: LucideIcon }> = [
+  { key: "home", label: "Home", shortLabel: "Home", icon: Home },
+  { key: "roster", label: "Roster", shortLabel: "Roster", icon: Users },
+  { key: "practice", label: "Practice", shortLabel: "Practice", icon: ClipboardList },
+  { key: "games", label: "Games", shortLabel: "Games", icon: Gauge },
+  { key: "more", label: "More", shortLabel: "More", icon: MoreHorizontal },
+];
+const MORE_VIEWS: ViewKey[] = ["weights", "analytics", "account", "teams"];
 
 const ROSTER_STATUSES: RosterStatus[] = ["Varsity", "JV", "Undecided", "Cut"];
 const ROSTER_FILTERS: RosterFilter[] = ["All", ...ROSTER_STATUSES];
@@ -111,6 +142,11 @@ const GAME_PITCH_BUTTONS: GamePitchOutcome[] = ["Ball", "Called Strike", "Swingi
 const BIP_OUTCOMES: GameBallInPlayOutcome[] = ["Single", "Double", "Triple", "Home Run", "Ground Out", "Fly Out", "Line Out", "Pop Out", "Error", "Fielder's Choice", "Sac Fly", "Sac Bunt"];
 const EXERCISES = ["Back Squat", "Front Squat", "Bench Press", "Incline Bench", "Deadlift", "Trap Bar Deadlift", "Power Clean", "Hang Clean", "Push Press", "Pull Ups", "DB Bench", "Bulgarian Split Squat", "Sprint", "Broad Jump", "Vertical Jump"];
 const PITCH_MIX_COLORS = ["#f4c16f", "#9f244c", "#8b96a5", "#43c6ac", "#f97316", "#a78bfa", "#e2e8f0", "#38bdf8"];
+const ROSTER_CSV_TEMPLATE = [
+  "First Name,Last Name,Jersey Number,Graduation Year,Primary Position,Secondary Position,Bats,Throws,Team,Roster Status",
+  "Jackson,Smith,12,2027,SS,P,R,R,Metrolina Varsity,Varsity",
+  "Mason,Lee,17,2026,P,1B,R,R,Metrolina Varsity,Varsity",
+].join("\n");
 
 export default function MetrolinaBaseballApp() {
   const [data, setData] = useState<AppData | null>(null);
@@ -123,6 +159,8 @@ export default function MetrolinaBaseballApp() {
   const [globalQuery, setGlobalQuery] = useState("");
   const [selectedPlayerId, setSelectedPlayerId] = useState<ID>("p-jackson-smith");
   const [rosterFilter, setRosterFilter] = useState<RosterFilter>("All");
+  const [rosterPositionFilter, setRosterPositionFilter] = useState<RosterPositionFilter>("All");
+  const [rosterYearFilter, setRosterYearFilter] = useState<RosterYearFilter>("All");
   const [rosterQuery, setRosterQuery] = useState("");
   const [profileTab, setProfileTab] = useState<ProfileTab>("overview");
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("Hitting");
@@ -142,7 +180,9 @@ export default function MetrolinaBaseballApp() {
   const [startPracticeOpen, setStartPracticeOpen] = useState(false);
   const [startGameOpen, setStartGameOpen] = useState(false);
   const [playerEditorOpen, setPlayerEditorOpen] = useState(false);
+  const [rosterImportOpen, setRosterImportOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<ID | undefined>();
   const [sessionSummary, setSessionSummary] = useState<{ type: "Hitting" | "Pitching" | "Defense"; sessionId: ID } | null>(null);
   const [summaryNote, setSummaryNote] = useState("");
@@ -286,6 +326,82 @@ export default function MetrolinaBaseballApp() {
 
   function updateRosterStatus(playerId: ID, status: RosterStatus) {
     commit((current) => playerRepository.updateRosterStatus(current, playerId, status));
+  }
+
+  function importRosterRows(rows: RosterCsvPreviewRow[]) {
+    const accepted = rows.filter((row) => row.errors.length === 0 && row.decision !== "skip");
+    if (accepted.length === 0) return;
+
+    commit((current) => {
+      const now = new Date().toISOString();
+      const existingById = new Map(current.players.map((player) => [player.id, player]));
+      const nextPlayers = [...current.players];
+      const nextMemberships = [...(current.playerTeamMemberships ?? [])];
+
+      accepted.forEach((row) => {
+        const existing = row.duplicatePlayerId ? existingById.get(row.duplicatePlayerId) : undefined;
+        const playerId = existing?.id ?? row.id;
+        const player: Player = {
+          id: playerId,
+          name: `${row.firstName} ${row.lastName}`.trim(),
+          jerseyNumber: row.jerseyNumber,
+          primaryPosition: row.primaryPosition,
+          secondaryPosition: row.secondaryPosition,
+          bats: row.bats,
+          throws: row.throws,
+          graduationYear: row.graduationYear,
+          rosterStatus: row.rosterStatus,
+          programLevel: row.rosterStatus === "JV" ? "JV" : row.rosterStatus === "Varsity" ? "Varsity" : "Development",
+          height: existing?.height,
+          weight: existing?.weight,
+          avatarColor: existing?.avatarColor ?? colorForName(`${row.firstName} ${row.lastName}`),
+          imageUrl: existing?.imageUrl,
+          isPitcher: existing?.isPitcher ?? [row.primaryPosition, row.secondaryPosition].includes("P"),
+          isHitter: existing?.isHitter ?? true,
+          notes: existing?.notes,
+          archived: false,
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        };
+
+        const index = nextPlayers.findIndex((item) => item.id === player.id);
+        if (index >= 0) nextPlayers[index] = player;
+        else nextPlayers.unshift(player);
+        const membershipIndex = nextMemberships.findIndex((membership) =>
+          membership.playerId === playerId &&
+          membership.teamId === current.settings.selectedTeamId &&
+          membership.seasonId === current.settings.selectedSeasonId,
+        );
+        const membership = {
+          id: nextMemberships[membershipIndex]?.id ?? createId("ptm"),
+          playerId,
+          teamId: current.settings.selectedTeamId ?? "",
+          seasonId: current.settings.selectedSeasonId,
+          rosterStatus: row.rosterStatus,
+          jerseyNumber: row.jerseyNumber,
+          rosterRole: player.programLevel,
+          active: true,
+        };
+        if (membership.teamId) {
+          if (membershipIndex >= 0) nextMemberships[membershipIndex] = membership;
+          else nextMemberships.unshift(membership);
+        }
+        existingById.set(player.id, player);
+      });
+
+      return {
+        ...current,
+        players: nextPlayers,
+        playerTeamMemberships: nextMemberships,
+        settings: {
+          ...current.settings,
+          recentPlayerIds: [
+            ...accepted.map((row) => row.duplicatePlayerId ?? row.id),
+            ...current.settings.recentPlayerIds,
+          ].filter((id, index, ids) => ids.indexOf(id) === index).slice(0, 8),
+        },
+      };
+    });
   }
 
   function toggleTheme() {
@@ -647,10 +763,16 @@ export default function MetrolinaBaseballApp() {
           <RosterView
             players={rosterPlayers}
             team={data.teamContext?.currentTeam}
+            teamContext={data.teamContext}
             filter={rosterFilter}
+            positionFilter={rosterPositionFilter}
+            yearFilter={rosterYearFilter}
             query={rosterQuery}
             onFilter={setRosterFilter}
+            onPositionFilter={setRosterPositionFilter}
+            onYearFilter={setRosterYearFilter}
             onQuery={setRosterQuery}
+            onSwitchTeam={switchTeam}
             onOpenPlayer={openPlayer}
             onEditPlayer={(playerId) => {
               setEditingPlayerId(playerId);
@@ -660,6 +782,7 @@ export default function MetrolinaBaseballApp() {
               setEditingPlayerId(undefined);
               setPlayerEditorOpen(true);
             }}
+            onImport={() => setRosterImportOpen(true)}
             onStatus={updateRosterStatus}
           />
         )}
@@ -781,13 +904,46 @@ export default function MetrolinaBaseballApp() {
       </section>
 
       <nav className="bottom-nav" aria-label="Mobile navigation">
-        {NAV_ITEMS.map(({ key, shortLabel, icon: Icon }) => (
-          <button key={key} type="button" className={view === key ? "active" : ""} onClick={() => setView(key)}>
+        {MOBILE_NAV_ITEMS.map(({ key, shortLabel, icon: Icon }) => (
+          <button
+            key={key}
+            type="button"
+            className={(key === "more" ? MORE_VIEWS.includes(view) : view === key) ? "active" : ""}
+            onClick={() => {
+              if (key === "more") {
+                setMobileMoreOpen((open) => !open);
+                return;
+              }
+              setMobileMoreOpen(false);
+              setView(key);
+            }}
+          >
             <Icon size={19} aria-hidden="true" />
             <span>{shortLabel}</span>
           </button>
         ))}
       </nav>
+
+      {mobileMoreOpen && (
+        <section className="mobile-more-sheet" aria-label="More navigation">
+          <button type="button" onClick={() => { setView("weights"); setMobileMoreOpen(false); }}>
+            <Dumbbell size={17} aria-hidden="true" />
+            Weight Room
+          </button>
+          <button type="button" onClick={() => { setView("analytics"); setMobileMoreOpen(false); }}>
+            <BarChart3 size={17} aria-hidden="true" />
+            Analytics
+          </button>
+          <button type="button" onClick={() => { setView("account"); setMobileMoreOpen(false); }}>
+            <User size={17} aria-hidden="true" />
+            My Profile
+          </button>
+          <button type="button" onClick={() => { setView("teams"); setMobileMoreOpen(false); }}>
+            <Building2 size={17} aria-hidden="true" />
+            Teams
+          </button>
+        </section>
+      )}
 
       {startPracticeOpen && (
         <StartPracticeModal
@@ -841,6 +997,17 @@ export default function MetrolinaBaseballApp() {
           onArchive={(playerId) => {
             commit((current) => playerRepository.archive(current, playerId));
             setPlayerEditorOpen(false);
+          }}
+        />
+      )}
+
+      {rosterImportOpen && (
+        <RosterImportModal
+          data={data}
+          onClose={() => setRosterImportOpen(false)}
+          onImport={(rows) => {
+            importRosterRows(rows);
+            setRosterImportOpen(false);
           }}
         />
       )}
@@ -1303,6 +1470,16 @@ function FieldLine({ label, value }: { label: string; value: string }) {
   return <div className="field-line"><span>{label}</span><strong>{value}</strong></div>;
 }
 
+function FormSnapshot({ title, primary, secondary }: { title: string; primary: string; secondary: string }) {
+  return (
+    <div className="form-snapshot">
+      <span>{title}</span>
+      <strong>{primary}</strong>
+      <small>{secondary}</small>
+    </div>
+  );
+}
+
 function HomeDashboard({
   data,
   practice,
@@ -1437,56 +1614,111 @@ function HomeDashboard({
 function RosterView({
   players,
   team,
+  teamContext,
   filter,
+  positionFilter,
+  yearFilter,
   query,
   onFilter,
+  onPositionFilter,
+  onYearFilter,
   onQuery,
+  onSwitchTeam,
   onOpenPlayer,
   onEditPlayer,
   onAddPlayer,
+  onImport,
   onStatus,
 }: {
   players: Player[];
   team?: TeamOption;
+  teamContext?: TeamContext;
   filter: RosterFilter;
+  positionFilter: RosterPositionFilter;
+  yearFilter: RosterYearFilter;
   query: string;
   onFilter: (filter: RosterFilter) => void;
+  onPositionFilter: (filter: RosterPositionFilter) => void;
+  onYearFilter: (filter: RosterYearFilter) => void;
   onQuery: (value: string) => void;
+  onSwitchTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPlayer: (playerId: ID) => void;
   onEditPlayer: (playerId: ID) => void;
   onAddPlayer: () => void;
+  onImport: () => void;
   onStatus: (playerId: ID, status: RosterStatus) => void;
 }) {
+  const gradYears = Array.from(new Set(players.map((player) => String(player.graduationYear)))).sort();
+  const counts = rosterSnapshot(players);
   const filtered = players
     .filter((player) => filter === "All" || player.rosterStatus === filter)
-    .filter((player) => `${player.name} ${player.jerseyNumber} ${player.primaryPosition} ${player.secondaryPosition ?? ""}`.toLowerCase().includes(query.toLowerCase()))
-    .sort((a, b) => a.jerseyNumber - b.jerseyNumber);
+    .filter((player) => positionFilter === "All" || player.primaryPosition === positionFilter || player.secondaryPosition === positionFilter)
+    .filter((player) => yearFilter === "All" || String(player.graduationYear) === yearFilter)
+    .filter((player) => `${player.name} ${player.jerseyNumber} ${player.primaryPosition} ${player.secondaryPosition ?? ""} ${player.graduationYear}`.toLowerCase().includes(query.toLowerCase()))
+    .sort((a, b) => a.jerseyNumber - b.jerseyNumber || a.name.localeCompare(b.name));
 
   return (
-    <div className="page-stack">
+    <div className="page-stack roster-page">
       <SectionHeader
         eyebrow="Roster Management"
-        title={team?.teamName ?? "Program Roster"}
+        title="Roster"
         body={`Team-specific roster status and jersey numbers for ${team?.seasonName ?? "the selected season"}.`}
         action={
-          <button className="primary-button" type="button" onClick={onAddPlayer}>
-            <UserPlus size={16} aria-hidden="true" />
-            Add Player
-          </button>
+          <div className="section-actions">
+            <button className="secondary-button" type="button" onClick={onImport}>
+              <Upload size={16} aria-hidden="true" />
+              Import CSV
+            </button>
+            <button className="primary-button" type="button" onClick={onAddPlayer}>
+              <UserPlus size={16} aria-hidden="true" />
+              Add Player
+            </button>
+          </div>
         }
       />
 
-      <section className="toolbar-panel">
+      <section className="roster-command panel">
+        <div>
+          <span>Current Team</span>
+          <h2>{team?.teamName ?? "Metrolina Baseball"}</h2>
+          <small>{team?.seasonName ?? "Current season"} - jersey/status lives on this roster membership</small>
+        </div>
+        <TeamSwitcher context={teamContext} onSwitch={onSwitchTeam} />
+        <div className="roster-count-strip">
+          {ROSTER_STATUSES.map((status) => (
+            <button key={status} type="button" className={filter === status ? "active" : ""} onClick={() => onFilter(status)}>
+              <strong>{counts[status]}</strong>
+              <span>{status}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="toolbar-panel roster-toolbar">
         <SegmentedControl values={ROSTER_FILTERS} active={filter} onChange={onFilter} />
         <label className="search-pill">
           <Search size={15} aria-hidden="true" />
-          <input value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Search roster" />
+          <input value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Search name or number" />
+        </label>
+        <label className="filter-select">
+          <span>Position</span>
+          <select value={positionFilter} onChange={(event) => onPositionFilter(event.target.value as RosterPositionFilter)}>
+            <option>All</option>
+            {POSITIONS.map((position) => <option key={position}>{position}</option>)}
+          </select>
+        </label>
+        <label className="filter-select">
+          <span>Class</span>
+          <select value={yearFilter} onChange={(event) => onYearFilter(event.target.value)}>
+            <option>All</option>
+            {gradYears.map((year) => <option key={year}>{year}</option>)}
+          </select>
         </label>
       </section>
 
       <section className="roster-list">
-        {filtered.map((player) => (
-          <article className="roster-row" key={player.id}>
+        {filtered.length ? filtered.map((player) => (
+          <article className="roster-row roster-row--premium" key={player.id}>
             <button type="button" className="roster-row__identity" onClick={() => onOpenPlayer(player.id)}>
               <span className="jersey-number">{player.jerseyNumber}</span>
               <PlayerAvatar player={player} size="sm" compact />
@@ -1495,18 +1727,23 @@ function RosterView({
                 <small>{positionLine(player)} - {player.graduationYear} - {player.bats}/{player.throws}</small>
               </span>
             </button>
-            <div className="status-toggle" aria-label={`Roster status for ${player.name}`}>
-              {ROSTER_STATUSES.map((status) => (
-                <button key={status} type="button" className={player.rosterStatus === status ? "active" : ""} onClick={() => onStatus(player.id, status)}>
-                  {status}
-                </button>
-              ))}
+            <div className="roster-row__metrics">
+              <span>{player.isPitcher ? "Pitcher" : "Position"}</span>
+              <strong>{player.isHitter ? "Hitter" : "Defense"}</strong>
+            </div>
+            <div className="status-select-wrap">
+              <span>Status</span>
+              <select value={player.rosterStatus ?? "Undecided"} onChange={(event) => onStatus(player.id, event.target.value as RosterStatus)} aria-label={`Roster status for ${player.name}`}>
+                {ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}
+              </select>
             </div>
             <button className="ghost-button" type="button" onClick={() => onEditPlayer(player.id)} aria-label={`Edit ${player.name}`}>
               <Edit3 size={16} aria-hidden="true" />
             </button>
           </article>
-        ))}
+        )) : (
+          <CompactEmpty title="No players match these filters" action={<button className="secondary-button" type="button" onClick={() => { onFilter("All"); onPositionFilter("All"); onYearFilter("All"); onQuery(""); }}>Clear Filters</button>} />
+        )}
       </section>
     </div>
   );
@@ -2105,6 +2342,9 @@ function PlayerProfile({
   const notes = data.coachNotes.filter((note) => note.scope.type === "Player" && note.scope.playerId === player.id);
   const goals = data.developmentGoals.filter((goal) => goal.playerId === player.id);
   const attendance = new Set(data.attendance.filter((item) => item.playerId === player.id).map((item) => item.practiceId)).size;
+  const recentActivity = buildPlayerRecentActivity(data, player).slice(0, 6);
+  const memberships = buildPlayerMembershipCards(data, player);
+  const gameStats = buildPlayerGameSnapshot(data, player);
 
   return (
     <div className="page-stack profile-page">
@@ -2132,21 +2372,58 @@ function PlayerProfile({
       <SegmentedControl values={["overview", "practice", "games", "pitching", "hitting", "defense", "weights", "notes"] as ProfileTab[]} active={tab} onChange={onTab} />
 
       {tab === "overview" && (
-        <section className="profile-grid">
-          <article className="panel">
-            <div className="panel-heading tight"><div><span>Overview</span><h2>Fall Record</h2></div></div>
+        <section className="profile-overview-grid">
+          <article className="panel profile-overview-main">
+            <div className="panel-heading tight"><div><span>Overview</span><h2>Development Record</h2></div></div>
             <div className="mini-stat-grid">
-              <StatTile label="Attendance" value={attendance} sub="practices" />
-              <StatTile label="Swings" value={hitStats.totalSwings} sub={formatPct(hitStats.hardHitPct) + " hard hit"} />
-              <StatTile label="Pitches" value={pitchStats.totalPitches} sub={formatPct(pitchStats.strikePct) + " strikes"} />
-              <StatTile label="Development" value={workoutMetrics?.score ?? "--"} sub="weight score" accent />
+              <StatTile label="Games" value={gameStats.games} sub={gameStats.games ? `${formatDecimal(gameStats.avg)} AVG` : "no official games"} />
+              <StatTile label="Practice" value={attendance} sub="sessions attended" />
+              <StatTile label="Attendance" value={data.practices.length ? formatPct(pct(attendance, data.practices.length)) : "--"} sub={`${attendance}/${data.practices.length} practices`} />
+              <StatTile label="Development" value={workoutMetrics?.score || "--"} sub={workoutMetrics?.score ? "weight score" : "no weight data"} accent />
             </div>
-            <MiniLineChart values={trendByPractice(data.practices, hittingEvents, (events) => calculateHittingStats(events).hardHitPct).map((item) => item.value)} />
+            <div className="recent-form-grid">
+              <FormSnapshot title="Hitting" primary={hitStats.totalSwings ? formatPct(hitStats.hardHitPct) : "--"} secondary={hitStats.totalSwings ? `${formatPct(hitStats.contactPct)} contact` : "No tracked swings"} />
+              <FormSnapshot title="Pitching" primary={pitchStats.totalPitches ? formatPct(pitchStats.strikePct) : "--"} secondary={pitchStats.totalPitches ? `${formatPct(pitchStats.cswPct)} CSW` : "No tracked pitches"} />
+              <FormSnapshot title="Weight Room" primary={workoutMetrics?.score ? String(workoutMetrics.score) : "--"} secondary={workoutMetrics?.score ? `${workoutMetrics.trend.length} logged entries` : "No workouts yet"} />
+            </div>
+            {hitStats.totalSwings > 0 && (
+              <MiniLineChart values={trendByPractice(data.practices, hittingEvents, (events) => calculateHittingStats(events).hardHitPct).map((item) => item.value)} />
+            )}
           </article>
+
+          <article className="panel">
+            <div className="panel-heading tight"><div><span>Memberships</span><h2>Teams</h2></div></div>
+            <div className="membership-list">
+              {memberships.length ? memberships.map((membership) => (
+                <div key={membership.key}>
+                  <strong>{membership.team}</strong>
+                  <span>#{membership.number ?? "--"} - {membership.status}</span>
+                  <small>{membership.season}</small>
+                </div>
+              )) : <CompactEmpty title="No team memberships visible" />}
+            </div>
+          </article>
+
+          <article className="panel">
+            <div className="panel-heading tight"><div><span>Recent Activity</span><h2>Last Touches</h2></div></div>
+            <div className="entry-list">
+              {recentActivity.length ? recentActivity.map((activity) => (
+                <div key={activity.key}><span>{activity.type}</span><strong>{activity.title}</strong><small>{activity.meta}</small></div>
+              )) : <CompactEmpty title="No activity for this context yet" />}
+            </div>
+          </article>
+
           <article className="panel">
             <div className="panel-heading tight"><div><span>Development Focus</span><h2>Current Goals</h2></div></div>
             <div className="goal-list">
-              {goals.map((goal, index) => <div key={goal.id}><strong>{index + 1}. {goal.title}</strong><small>{goal.tags.join(", ")}</small></div>)}
+              {goals.length ? goals.map((goal, index) => <div key={goal.id}><strong>{index + 1}. {goal.title}</strong><small>{goal.tags.join(", ")}</small></div>) : <CompactEmpty title="No development goals yet" />}
+            </div>
+          </article>
+
+          <article className="panel">
+            <div className="panel-heading tight"><div><span>Coach Notes</span><h2>Recent Notes</h2></div></div>
+            <div className="note-list compact">
+              {notes.length ? notes.slice(0, 3).map((note) => <div key={note.id}><strong>{note.tags.join(", ") || "Note"}</strong><p>{note.text}</p><small>{fullDate(note.createdAt.slice(0, 10))}</small></div>) : <CompactEmpty title="No coach notes yet" />}
             </div>
           </article>
         </section>
@@ -2383,6 +2660,113 @@ function PlayerEditorModal({ player, onClose, onSave, onArchive }: { player?: Pl
       <div className="modal-actions">
         {player && <button className="secondary-button" type="button" onClick={() => onArchive(player.id)}><Archive size={16} aria-hidden="true" />Archive</button>}
         <button className="primary-button" type="button" onClick={() => onSave({ ...form, updatedAt: new Date().toISOString() })}><Save size={16} aria-hidden="true" />Save Player</button>
+      </div>
+    </ModalFrame>
+  );
+}
+
+function RosterImportModal({
+  data,
+  onClose,
+  onImport,
+}: {
+  data: AppData;
+  onClose: () => void;
+  onImport: (rows: RosterCsvPreviewRow[]) => void;
+}) {
+  const [csvText, setCsvText] = useState("");
+  const [rows, setRows] = useState<RosterCsvPreviewRow[]>([]);
+  const currentTeam = data.teamContext?.currentTeam;
+  const validRows = rows.filter((row) => row.errors.length === 0 && row.decision !== "skip");
+  const problemRows = rows.filter((row) => row.errors.length > 0);
+  const duplicateRows = rows.filter((row) => row.duplicatePlayerId && row.errors.length === 0);
+
+  function parse(text: string) {
+    setCsvText(text);
+    setRows(parseRosterCsv(text, data));
+  }
+
+  return (
+    <ModalFrame title="Import Roster CSV" onClose={onClose}>
+      <section className="import-intro">
+        <div>
+          <span>Current Team</span>
+          <h2>{currentTeam?.teamName ?? "Selected team"}</h2>
+          <p>Rows import into the selected team/season. Matching players update the existing athlete identity instead of creating duplicates.</p>
+        </div>
+        <button className="secondary-button" type="button" onClick={() => parse(ROSTER_CSV_TEMPLATE)}>
+          Use Template
+        </button>
+      </section>
+
+      <label className="file-drop">
+        <Upload size={18} aria-hidden="true" />
+        <span>Upload CSV</span>
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            void file.text().then(parse);
+          }}
+        />
+      </label>
+
+      <label className="wide note-field">
+        <span>Paste CSV</span>
+        <textarea value={csvText} onChange={(event) => parse(event.target.value)} placeholder={ROSTER_CSV_TEMPLATE} />
+      </label>
+
+      <div className="import-summary">
+        <StatTile label="Rows" value={rows.length} />
+        <StatTile label="Ready" value={validRows.length} accent />
+        <StatTile label="Duplicates" value={duplicateRows.length} />
+        <StatTile label="Problems" value={problemRows.length} />
+      </div>
+
+      {rows.length > 0 && (
+        <section className="import-preview" aria-label="CSV import preview">
+          <div className="import-preview__head">
+            <span>Row</span>
+            <span>Player</span>
+            <span>Roster</span>
+            <span>Decision</span>
+          </div>
+          {rows.map((row) => (
+            <article className={`import-row ${row.errors.length ? "has-error" : ""}`} key={`${row.rowNumber}-${row.id}`}>
+              <span>{row.rowNumber}</span>
+              <div>
+                <strong>{row.firstName || "First"} {row.lastName || "Last"}</strong>
+                <small>#{row.jerseyNumber || "--"} - {row.primaryPosition || "--"}{row.secondaryPosition ? ` / ${row.secondaryPosition}` : ""} - {row.graduationYear || "Grad year"}</small>
+                {row.errors.map((error) => <em key={error}>{error}</em>)}
+                {row.duplicatePlayerId && !row.errors.length && <em className="soft">Matches existing player identity</em>}
+              </div>
+              <div>
+                <strong>{row.rosterStatus}</strong>
+                <small>{row.teamName || currentTeam?.teamName || "Current team"}</small>
+              </div>
+              <select
+                value={row.decision}
+                onChange={(event) => {
+                  const decision = event.target.value as CsvImportDecision;
+                  setRows((current) => current.map((item) => item.id === row.id && item.rowNumber === row.rowNumber ? { ...item, decision } : item));
+                }}
+                disabled={row.errors.length > 0}
+              >
+                <option value={row.duplicatePlayerId ? "update" : "create"}>{row.duplicatePlayerId ? "Update" : "Create"}</option>
+                <option value="skip">Skip</option>
+              </select>
+            </article>
+          ))}
+        </section>
+      )}
+
+      <div className="modal-actions">
+        <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
+        <button className="primary-button" type="button" onClick={() => onImport(rows)} disabled={validRows.length === 0}>
+          Import {validRows.length} Player{validRows.length === 1 ? "" : "s"}
+        </button>
       </div>
     </ModalFrame>
   );
@@ -2637,12 +3021,14 @@ function buildWeeklyMvp(data: AppData): AwardResult | undefined {
   const recentPracticeIds = new Set(data.practices.filter((practice) => new Date(`${practice.date}T12:00:00`) >= start).map((practice) => practice.id));
 
   const awards = data.players.filter((player) => !player.archived).map((player) => {
-    const hittingStats = calculateHittingStats(data.hittingEvents.filter((event) => event.hitterId === player.id && recentPracticeIds.has(event.practiceId)));
+    const recentHittingEvents = data.hittingEvents.filter((event) => event.hitterId === player.id && recentPracticeIds.has(event.practiceId));
+    const hittingStats = calculateHittingStats(recentHittingEvents);
     const pitchingStats = calculatePitchingStats(data.pitchEvents.filter((event) => event.pitcherId === player.id && recentPracticeIds.has(event.practiceId)));
     const defenseEvents = data.defenseEvents.filter((event) => event.playerId === player.id && recentPracticeIds.has(event.practiceId));
     const gameEvents = data.gameEvents.filter((event) => event.batterId === player.id || event.pitcherId === player.id);
     const attendance = data.attendance.filter((item) => item.playerId === player.id && recentPracticeIds.has(item.practiceId)).length;
     const defenseScore = pct(defenseEvents.filter((event) => event.outcome !== "Error").length, defenseEvents.length);
+    const liveAtBats = recentHittingEvents.filter((event) => event.isLiveBp && event.action !== "Took pitch").length;
     const score =
       hittingStats.hardHitPct * 0.22 +
       hittingStats.contactPct * 0.18 +
@@ -2657,11 +3043,11 @@ function buildWeeklyMvp(data: AppData): AwardResult | undefined {
       player,
       score,
       reasons: [
-        `${formatPct(hittingStats.liveBpAvg * 100, 0)} Live BP AVG`,
-        `${Math.round(hittingStats.barrelPct)}% barrel rate`,
-        `${Math.round(hittingStats.hardHitPct)}% hard contact`,
+        liveAtBats ? `${formatPct(hittingStats.liveBpAvg * 100, 0)} Live BP AVG` : undefined,
+        hittingStats.ballsInPlay ? `${Math.round(hittingStats.barrelPct)}% barrel rate` : undefined,
+        hittingStats.ballsInPlay ? `${Math.round(hittingStats.hardHitPct)}% hard contact` : undefined,
         pitchingStats.totalPitches ? `${Math.round(pitchingStats.strikePct)}% strike rate` : `${attendance} practices attended`,
-      ].filter((reason) => !reason.startsWith("0% Live BP AVG") || hittingStats.totalSwings > 0),
+      ].filter((reason): reason is string => Boolean(reason)),
     };
   });
 
@@ -2721,7 +3107,7 @@ function buildWeightMetrics(data: AppData, playerId: ID) {
     bench: bench?.weight ? `${bench.weight}` : "--",
     benchDelta: bench?.priorValue && bench.weight ? `+${bench.weight - bench.priorValue} lb` : "baseline",
     score,
-    trend: trend.length ? trend : [65, 72, 78, 84, 91],
+    trend,
   };
 }
 
@@ -2740,6 +3126,118 @@ function buildWeeklyWorkoutRow(data: AppData, player: Player) {
     return { day, completed: Boolean(session?.completed) };
   });
   return { player, days, completion: pct(days.filter((day) => day.completed).length, days.length) };
+}
+
+function buildPlayerRecentActivity(data: AppData, player: Player) {
+  const practicesById = new Map(data.practices.map((practice) => [practice.id, practice]));
+  const activities = [
+    ...data.hittingSessions
+      .filter((session) => session.hitterId === player.id)
+      .map((session) => {
+        const practice = practicesById.get(session.practiceId);
+        const swings = data.hittingEvents.filter((event) => event.sessionId === session.id).length;
+        return {
+          key: `hit-${session.id}`,
+          date: practice?.date ?? session.startedAt,
+          type: "Practice",
+          title: `${session.type} hitting`,
+          meta: `${shortDate(practice?.date ?? session.startedAt.slice(0, 10))} - ${swings} swing${swings === 1 ? "" : "s"}`,
+        };
+      }),
+    ...data.pitchingSessions
+      .filter((session) => session.pitcherId === player.id)
+      .map((session) => {
+        const practice = practicesById.get(session.practiceId);
+        const pitches = data.pitchEvents.filter((event) => event.sessionId === session.id).length;
+        return {
+          key: `pitch-${session.id}`,
+          date: practice?.date ?? session.startedAt,
+          type: "Pitching",
+          title: `${session.type} session`,
+          meta: `${shortDate(practice?.date ?? session.startedAt.slice(0, 10))} - ${pitches} pitch${pitches === 1 ? "" : "es"}`,
+        };
+      }),
+    ...data.defenseSessions
+      .filter((session) => session.playerId === player.id)
+      .map((session) => {
+        const practice = practicesById.get(session.practiceId);
+        const reps = data.defenseEvents.filter((event) => event.sessionId === session.id).length;
+        return {
+          key: `def-${session.id}`,
+          date: practice?.date ?? session.startedAt,
+          type: "Defense",
+          title: session.station,
+          meta: `${shortDate(practice?.date ?? session.startedAt.slice(0, 10))} - ${reps} rep${reps === 1 ? "" : "s"}`,
+        };
+      }),
+    ...data.workoutSessions
+      .filter((session) => session.playerId === player.id)
+      .map((session) => ({
+        key: `weight-${session.id}`,
+        date: session.date,
+        type: "Weight Room",
+        title: `${session.day} lift`,
+        meta: `${shortDate(session.date)} - ${session.completed ? "completed" : "in progress"}`,
+      })),
+    ...data.games
+      .filter((game) => game.lineup.includes(player.id) || game.currentPitcherId === player.id || game.currentBatterId === player.id || game.startingPitcherId === player.id)
+      .map((game) => ({
+        key: `game-${game.id}`,
+        date: game.date,
+        type: "Game",
+        title: `vs ${game.opponent}`,
+        meta: `${shortDate(game.date)} - ${game.result ?? "not final"} ${game.metrolinaScore}-${game.opponentScore}`,
+      })),
+  ];
+
+  return activities.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function buildPlayerMembershipCards(data: AppData, player: Player) {
+  const teamById = new Map((data.teamContext?.availableTeams ?? []).map((team) => [team.teamId, team]));
+  const memberships = (data.playerTeamMemberships ?? []).filter((membership) => membership.playerId === player.id);
+
+  if (!memberships.length && data.teamContext?.currentTeam) {
+    const team = data.teamContext.currentTeam;
+    return [{
+      key: `${team.teamId}-${team.seasonId ?? "season"}`,
+      team: team.teamName,
+      season: team.seasonName ?? data.settings.rosterSeason,
+      status: player.rosterStatus ?? "Undecided",
+      number: player.jerseyNumber,
+    }];
+  }
+
+  return memberships
+    .filter((membership) => membership.active)
+    .map((membership) => {
+      const team = teamById.get(membership.teamId);
+      return {
+        key: membership.id,
+        team: team?.teamName ?? "Team membership",
+        season: team?.seasonName ?? data.settings.rosterSeason,
+        status: membership.rosterStatus,
+        number: membership.jerseyNumber ?? player.jerseyNumber,
+      };
+    });
+}
+
+function buildPlayerGameSnapshot(data: AppData, player: Player) {
+  const games = data.games.filter(
+    (game) => game.lineup.includes(player.id) || game.currentPitcherId === player.id || game.currentBatterId === player.id || game.startingPitcherId === player.id,
+  );
+  const events = data.gameEvents.filter((event) => event.batterId === player.id);
+  const hitOutcomes: GameBallInPlayOutcome[] = ["Single", "Double", "Triple", "Home Run"];
+  const atBatOutcomes: GameBallInPlayOutcome[] = ["Single", "Double", "Triple", "Home Run", "Ground Out", "Fly Out", "Line Out", "Pop Out", "Error", "Fielder's Choice"];
+  const hits = events.filter((event) => event.ballInPlayOutcome && hitOutcomes.includes(event.ballInPlayOutcome)).length;
+  const atBats = events.filter((event) => event.ballInPlayOutcome && atBatOutcomes.includes(event.ballInPlayOutcome)).length;
+
+  return {
+    games: games.length,
+    hits,
+    atBats,
+    avg: atBats ? hits / atBats : 0,
+  };
 }
 
 function buildSessionSummary(data: AppData, summary: { type: "Hitting" | "Pitching" | "Defense"; sessionId: ID }) {
@@ -2979,6 +3477,131 @@ function weekStart(dateString: string) {
 function weekdayName(dateString: string): WorkoutSession["day"] {
   const names: WorkoutSession["day"][] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   return names[new Date(`${dateString}T12:00:00`).getDay()] ?? "Mon";
+}
+
+function parseRosterCsv(text: string, data: AppData): RosterCsvPreviewRow[] {
+  const parsed = parseCsvRows(text).filter((row) => row.some((cell) => cell.trim()));
+  if (parsed.length < 2) return [];
+  const headers = parsed[0].map(normalizeHeader);
+  const currentTeamName = data.teamContext?.currentTeam?.teamName?.toLowerCase();
+  const existingByKey = new Map(
+    data.players.map((player) => [playerIdentityKey(player.name, player.graduationYear), player]),
+  );
+
+  return parsed.slice(1).map((values, index) => {
+    const get = (label: string) => values[headers.indexOf(normalizeHeader(label))]?.trim() ?? "";
+    const firstName = get("First Name");
+    const lastName = get("Last Name");
+    const jerseyNumber = Number(get("Jersey Number"));
+    const graduationYear = Number(get("Graduation Year"));
+    const primaryPosition = normalizePosition(get("Primary Position"));
+    const secondaryPosition = normalizePosition(get("Secondary Position"));
+    const bats = normalizeBats(get("Bats"));
+    const throws = normalizeThrows(get("Throws"));
+    const rosterStatus = normalizeRosterStatus(get("Roster Status"));
+    const teamName = get("Team");
+    const errors: string[] = [];
+
+    if (!firstName) errors.push("First Name is required.");
+    if (!lastName) errors.push("Last Name is required.");
+    if (!Number.isFinite(jerseyNumber) || jerseyNumber < 0) errors.push("Jersey Number must be numeric.");
+    if (!Number.isFinite(graduationYear) || graduationYear < 2020 || graduationYear > 2040) errors.push("Graduation Year must be four digits.");
+    if (!primaryPosition) errors.push("Primary Position must match a baseball position.");
+    if (get("Secondary Position") && !secondaryPosition) errors.push("Secondary Position must match a baseball position.");
+    if (!bats) errors.push("Bats must be R, L, or S.");
+    if (!throws) errors.push("Throws must be R or L.");
+    if (!rosterStatus) errors.push("Roster Status must be Varsity, JV, Undecided, or Cut.");
+    if (teamName && currentTeamName && !teamName.toLowerCase().includes(currentTeamName) && !currentTeamName.includes(teamName.toLowerCase())) {
+      errors.push("Team column does not match the current team. Switch teams before importing this row.");
+    }
+
+    const duplicate = existingByKey.get(playerIdentityKey(`${firstName} ${lastName}`, graduationYear));
+
+    return {
+      id: duplicate?.id ?? createId("p"),
+      rowNumber: index + 2,
+      firstName,
+      lastName,
+      jerseyNumber: Number.isFinite(jerseyNumber) ? jerseyNumber : 0,
+      graduationYear: Number.isFinite(graduationYear) ? graduationYear : 0,
+      primaryPosition: primaryPosition ?? "P",
+      secondaryPosition: secondaryPosition ?? undefined,
+      bats: bats ?? "R",
+      throws: throws ?? "R",
+      teamName: teamName || undefined,
+      rosterStatus: rosterStatus ?? "Undecided",
+      errors,
+      duplicatePlayerId: duplicate?.id,
+      decision: duplicate ? "update" : "create",
+    };
+  });
+}
+
+function parseCsvRows(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let quoted = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      cell += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      row.push(cell);
+      cell = "";
+    } else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = "";
+    } else {
+      cell += char;
+    }
+  }
+
+  row.push(cell);
+  rows.push(row);
+  return rows;
+}
+
+function normalizeHeader(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function normalizePosition(value: string): Position | undefined {
+  const normalized = value.trim().toUpperCase();
+  return POSITIONS.find((position) => position === normalized);
+}
+
+function normalizeBats(value: string): Player["bats"] | undefined {
+  const normalized = value.trim().toUpperCase();
+  return normalized === "R" || normalized === "L" || normalized === "S" ? normalized : undefined;
+}
+
+function normalizeThrows(value: string): Player["throws"] | undefined {
+  const normalized = value.trim().toUpperCase();
+  return normalized === "R" || normalized === "L" ? normalized : undefined;
+}
+
+function normalizeRosterStatus(value: string): RosterStatus | undefined {
+  const normalized = value.trim().toLowerCase();
+  return ROSTER_STATUSES.find((status) => status.toLowerCase() === normalized);
+}
+
+function playerIdentityKey(name: string, graduationYear: number) {
+  return `${name.trim().toLowerCase().replace(/\s+/g, " ")}:${graduationYear}`;
+}
+
+function colorForName(name: string) {
+  const colors = ["#9b234a", "#2d6cdf", "#2f855a", "#7c3aed", "#c05621", "#0f766e"];
+  const score = name.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return colors[score % colors.length];
 }
 
 function teamValue(team?: TeamOption) {
