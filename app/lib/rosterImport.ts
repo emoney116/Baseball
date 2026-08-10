@@ -26,6 +26,7 @@ export interface ParsedRosterRow {
   throws: Player["throws"];
   rawGrade?: string;
   graduationYear?: number;
+  rosterStatus?: RosterStatus;
   height?: string;
   weight?: number;
   isCaptain?: boolean;
@@ -150,6 +151,7 @@ export function parseRosterCsv(text: string, options: { sourceId: ID; fileName: 
     const positions = normalizePositions(rawPositions);
     const classValue = get("graduationYear").trim();
     const interpretedGraduationYear = interpretGraduationYear(classValue, options.seasonName);
+    const rosterStatus = normalizeRosterStatus(get("rosterStatus")) ?? options.defaultRosterStatus;
     const height = normalizeHeight(get("height")) ?? normalizeHeightFromParts(get("heightFeet"), get("heightInches"));
     const weight = parseInteger(get("weight"));
     const throws = normalizeThrows(get("throws")) ?? throwsFromPositions(rawPositions) ?? "R";
@@ -159,7 +161,7 @@ export function parseRosterCsv(text: string, options: { sourceId: ID; fileName: 
     if (!firstName) errors.push("First name is required.");
     if (!lastName) errors.push("Last name is required.");
     if (!interpretedGraduationYear) errors.push("Graduation year or grade is required.");
-    if (rawPositions.length === 0) warnings.push("No position found; defaulted to UTL.");
+    if (rawPositions.length === 0) warnings.push("No position found; defaulted to UTIL.");
     if (classValue && interpretedGraduationYear && String(interpretedGraduationYear) !== classValue) {
       warnings.push(`${classValue} interpreted as class of ${interpretedGraduationYear}.`);
     }
@@ -179,6 +181,7 @@ export function parseRosterCsv(text: string, options: { sourceId: ID; fileName: 
       throws,
       rawGrade: classValue || undefined,
       graduationYear: interpretedGraduationYear,
+      rosterStatus,
       height,
       weight,
       isCaptain: parseBoolean(get("isCaptain")),
@@ -311,7 +314,7 @@ export function buildRosterImportPlan(data: AppData, assignments: RosterImportAs
         seasonId: assignment.seasonId,
         seasonName: assignment.seasonName,
         mode: assignment.mode,
-        rosterStatus: assignment.defaultRosterStatus,
+        rosterStatus: row.rosterStatus ?? assignment.defaultRosterStatus,
         matchedPlayerId,
         matchedPlayerName: matchedPlayerName ?? data.players.find((player) => player.id === matchedPlayerId)?.name,
         duplicateSourcePlayerId,
@@ -703,16 +706,15 @@ function splitPositions(value: string) {
 function normalizePositions(rawPositions: string[]): [Position, Position?] {
   const mapped = rawPositions.map(mapPosition).filter((position): position is Position => Boolean(position));
   const unique = mapped.filter((position, index) => mapped.indexOf(position) === index);
-  if (unique.length === 0) return ["UTL"];
+  if (unique.length === 0) return ["UTIL"];
   return [unique[0], unique[1]];
 }
 
 function mapPosition(value: string): Position | undefined {
   const normalized = value.toUpperCase();
-  if (normalized === "RHP" || normalized === "LHP" || normalized === "P") return "P";
-  if (normalized === "OF") return "CF";
-  if (normalized === "INF") return "UTL";
-  if (["C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "UTL", "DH"].includes(normalized)) return normalized as Position;
+  if (normalized === "UTIL") return "UTIL";
+  if (normalized === "UT") return "UTIL";
+  if (["P", "RHP", "LHP", "C", "1B", "2B", "3B", "SS", "INF", "LF", "CF", "RF", "OF", "UTL", "UTIL", "DH"].includes(normalized)) return normalized as Position;
   return undefined;
 }
 
@@ -797,6 +799,16 @@ function parseInteger(value: string) {
 
 function parseBoolean(value: string) {
   return /^(true|yes|y|1)$/i.test(value.trim());
+}
+
+function normalizeRosterStatus(value: string): RosterStatus | undefined {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (normalized === "varsity" || normalized === "v") return "Varsity";
+  if (normalized === "jv" || normalized === "junior varsity") return "JV";
+  if (normalized === "undecided" || normalized === "development" || normalized === "pending") return "Undecided";
+  if (normalized === "cut" || normalized === "inactive") return "Cut";
+  return undefined;
 }
 
 function findPlayerCandidates(players: Player[], row: ParsedRosterRow) {

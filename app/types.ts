@@ -12,15 +12,20 @@ export type PracticeType =
 
 export type Position =
   | "P"
+  | "RHP"
+  | "LHP"
   | "C"
   | "1B"
   | "2B"
   | "3B"
   | "SS"
+  | "INF"
   | "LF"
   | "CF"
   | "RF"
+  | "OF"
   | "UTL"
+  | "UTIL"
   | "DH";
 
 export type Handedness = "R" | "L" | "S";

@@ -130,7 +130,8 @@ const CREATE_TEAM_VALUE = "__create_team__";
 
 const ROSTER_STATUSES: RosterStatus[] = ["Varsity", "JV", "Undecided", "Cut"];
 const ROSTER_FILTERS: RosterFilter[] = ["All", ...ROSTER_STATUSES];
-const POSITIONS: Position[] = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "UTL", "DH"];
+const POSITIONS: Position[] = ["P", "RHP", "LHP", "C", "1B", "2B", "3B", "SS", "INF", "LF", "CF", "RF", "OF", "UTIL", "DH"];
+const SECONDARY_POSITIONS: Array<Position | ""> = ["", ...POSITIONS];
 const PRACTICE_TYPES: PracticeType[] = ["Full Practice", "Bullpen Day", "Live BP", "Hitting Day", "Scrimmage", "Pitcher Development", "Hitter Development", "Custom"];
 const PITCH_TYPES: PitchType[] = ["4-Seam", "2-Seam", "Sinker", "Cutter", "Slider", "Curveball", "Changeup", "Splitter", "Other"];
 const PITCH_TYPE_LABELS: Record<PitchType, string> = {
@@ -3080,14 +3081,100 @@ function StartGameModal({ data, onClose, onCreate }: { data: AppData; onClose: (
   );
 }
 
+function NumberStepper({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+}: {
+  label: string;
+  value?: number;
+  onChange: (value: number | undefined) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+}) {
+  const safeValue = typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  const adjust = (delta: number) => {
+    const base = safeValue ?? min ?? 0;
+    const next = base + delta;
+    onChange(Math.max(min ?? next, Math.min(max ?? next, next)));
+  };
+  return (
+    <div className="field-control">
+      <span>{label}</span>
+      <div className="number-stepper">
+        <button type="button" onClick={() => adjust(-step)} aria-label={`Decrease ${label}`}>-</button>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={min}
+          max={max}
+          value={safeValue ?? ""}
+          onChange={(event) => {
+            if (event.target.value === "") {
+              onChange(undefined);
+              return;
+            }
+            const next = Number(event.target.value);
+            onChange(Number.isFinite(next) ? next : undefined);
+          }}
+        />
+        <button type="button" onClick={() => adjust(step)} aria-label={`Increase ${label}`}>+</button>
+      </div>
+    </div>
+  );
+}
+
+function HeightStepper({ value, onChange }: { value?: string; onChange: (value: string | undefined) => void }) {
+  const inches = heightToInches(value);
+  return (
+    <div className="field-control">
+      <span>Height</span>
+      <div className="number-stepper">
+        <button type="button" onClick={() => onChange(formatHeightFromInches(inches - 1))} aria-label="Decrease height">-</button>
+        <input value={value ?? ""} onChange={(event) => onChange(event.target.value || undefined)} placeholder="6-0" />
+        <button type="button" onClick={() => onChange(formatHeightFromInches(inches + 1))} aria-label="Increase height">+</button>
+      </div>
+    </div>
+  );
+}
+
+function HandednessControl({
+  label,
+  value,
+  values,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  values: string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="field-control">
+      <span>{label}</span>
+      <div className="segmented-mini">
+        {values.map((item) => (
+          <button key={item} type="button" className={item === value ? "active" : ""} onClick={() => onChange(item)}>
+            {item}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PlayerEditorModal({ player, onClose, onSave, onArchive }: { player?: Player; onClose: () => void; onSave: (player: Player) => void; onArchive: (playerId: ID) => void }) {
   const [form, setForm] = useState<Player>(
     player ?? {
       id: createId("p"),
       name: "",
       jerseyNumber: 0,
-      primaryPosition: "P",
-      secondaryPosition: "SS",
+      primaryPosition: "SS",
+      secondaryPosition: undefined,
       bats: "R",
       throws: "R",
       graduationYear: 2027,
@@ -3096,34 +3183,37 @@ function PlayerEditorModal({ player, onClose, onSave, onArchive }: { player?: Pl
       height: "6-0",
       weight: 175,
       avatarColor: "#9f244c",
-      isPitcher: true,
+      isPitcher: false,
       isHitter: true,
       notes: "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     },
   );
+  const roleFlags = derivePlayerRoleFlags(form.primaryPosition, form.secondaryPosition);
 
   return (
     <ModalFrame title={player ? "Edit Player" : "Add Player"} onClose={onClose}>
-      <div className="form-grid">
+      <div className="form-grid player-editor-grid">
         <label><span>Name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
-        <label><span>Number</span><input inputMode="numeric" value={form.jerseyNumber} onChange={(event) => setForm({ ...form, jerseyNumber: Number(event.target.value) || 0 })} /></label>
-        <label><span>Graduation</span><input inputMode="numeric" value={form.graduationYear} onChange={(event) => setForm({ ...form, graduationYear: Number(event.target.value) || 2027 })} /></label>
+        <NumberStepper label="Number" value={form.jerseyNumber || undefined} min={0} max={99} onChange={(value) => setForm({ ...form, jerseyNumber: value ?? 0 })} />
+        <NumberStepper label="Graduation" value={form.graduationYear} min={2020} max={2045} onChange={(value) => setForm({ ...form, graduationYear: value ?? 2027 })} />
         <label><span>Primary</span><select value={form.primaryPosition} onChange={(event) => setForm({ ...form, primaryPosition: event.target.value as Position })}>{POSITIONS.map((position) => <option key={position}>{position}</option>)}</select></label>
-        <label><span>Secondary</span><select value={form.secondaryPosition} onChange={(event) => setForm({ ...form, secondaryPosition: event.target.value as Position })}>{POSITIONS.map((position) => <option key={position}>{position}</option>)}</select></label>
-        <label><span>Bats</span><select value={form.bats} onChange={(event) => setForm({ ...form, bats: event.target.value as Player["bats"] })}><option>R</option><option>L</option><option>S</option></select></label>
-        <label><span>Throws</span><select value={form.throws} onChange={(event) => setForm({ ...form, throws: event.target.value as Player["throws"] })}><option>R</option><option>L</option></select></label>
+        <label><span>Secondary</span><select value={form.secondaryPosition ?? ""} onChange={(event) => setForm({ ...form, secondaryPosition: event.target.value ? event.target.value as Position : undefined })}>{SECONDARY_POSITIONS.map((position) => <option key={position || "none"} value={position}>{position || "None"}</option>)}</select></label>
+        <HandednessControl label="Bats" value={form.bats} values={["R", "L", "S"]} onChange={(value) => setForm({ ...form, bats: value as Player["bats"] })} />
+        <HandednessControl label="Throws" value={form.throws} values={["R", "L"]} onChange={(value) => setForm({ ...form, throws: value as Player["throws"] })} />
         <label><span>Status</span><select value={form.rosterStatus} onChange={(event) => setForm({ ...form, rosterStatus: event.target.value as RosterStatus })}>{ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></label>
-        <label><span>Height</span><input value={form.height ?? ""} onChange={(event) => setForm({ ...form, height: event.target.value })} /></label>
-        <label><span>Weight</span><input inputMode="numeric" value={form.weight ?? ""} onChange={(event) => setForm({ ...form, weight: Number(event.target.value) || undefined })} /></label>
-        <label className="checkbox-row"><input type="checkbox" checked={form.isPitcher} onChange={(event) => setForm({ ...form, isPitcher: event.target.checked })} />Pitcher</label>
-        <label className="checkbox-row"><input type="checkbox" checked={form.isHitter} onChange={(event) => setForm({ ...form, isHitter: event.target.checked })} />Hitter</label>
+        <HeightStepper value={form.height} onChange={(height) => setForm({ ...form, height })} />
+        <NumberStepper label="Weight" value={form.weight} min={80} max={320} step={5} onChange={(weight) => setForm({ ...form, weight })} />
+        <div className="role-derived wide">
+          <span>Roster role is inferred from positions.</span>
+          <strong>{roleFlags.isPitcher ? "Pitcher / Hitter" : "Hitter"}</strong>
+        </div>
         <label className="wide"><span>Notes</span><textarea value={form.notes ?? ""} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
       </div>
       <div className="modal-actions">
         {player && <button className="secondary-button" type="button" onClick={() => onArchive(player.id)}><Archive size={16} aria-hidden="true" />Archive</button>}
-        <button className="primary-button" type="button" onClick={() => onSave({ ...form, updatedAt: new Date().toISOString() })}><Save size={16} aria-hidden="true" />Save Player</button>
+        <button className="primary-button" type="button" onClick={() => onSave({ ...form, ...roleFlags, updatedAt: new Date().toISOString() })}><Save size={16} aria-hidden="true" />Save Player</button>
       </div>
     </ModalFrame>
   );
@@ -3146,6 +3236,22 @@ type PdfRosterParseResponse = {
   text?: string;
 };
 
+type RosterBuilderMode = "upload" | "manual";
+type ManualRosterRow = {
+  id: ID;
+  jerseyNumber: string;
+  firstName: string;
+  lastName: string;
+  graduationYear: string;
+  primaryPosition: Position | "";
+  secondaryPosition: Position | "";
+  bats: Player["bats"];
+  throws: Player["throws"];
+  heightInches: string;
+  weight: string;
+  rosterStatus: RosterStatus;
+};
+
 function RosterImportModal({
   data,
   onClose,
@@ -3158,8 +3264,11 @@ function RosterImportModal({
   onImport: (plan: RosterImportPlan) => void;
 }) {
   const [step, setStep] = useState<"upload" | "assign" | "preview">("upload");
+  const [builderMode, setBuilderMode] = useState<RosterBuilderMode>("upload");
   const [files, setFiles] = useState<ParsedRosterFile[]>([]);
   const [sourceFiles, setSourceFiles] = useState<Record<ID, File>>({});
+  const [manualRows, setManualRows] = useState<ManualRosterRow[]>(() => createManualRosterRows(12, "Undecided"));
+  const [manualError, setManualError] = useState("");
   const [busy, setBusy] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [assignments, setAssignments] = useState<Record<ID, { teamId: ID; mode: RosterImportMode; defaultRosterStatus: RosterStatus; replaceConfirmed: boolean }>>({});
@@ -3167,6 +3276,10 @@ function RosterImportModal({
   const [resolutions, setResolutions] = useState<Record<string, { decision: RosterImportDecision; matchedPlayerId?: ID }>>({});
   const availableTeams = data.teamContext?.availableTeams ?? [];
   const fallbackTeam = data.teamContext?.currentTeam ?? availableTeams[0];
+  const manualDefaultStatus = rosterStatusForTeam(fallbackTeam);
+  useEffect(() => {
+    setManualRows((current) => current.map((row) => (manualRowHasContent(row) ? row : { ...row, rosterStatus: manualDefaultStatus })));
+  }, [manualDefaultStatus]);
   const validFiles = files.filter((file) => file.parseStatus !== "error" && file.parseStatus !== "parsing" && file.rows.length > 0);
   const hasUnresolvedFiles = files.some((file) => file.parseStatus === "error" || file.parseStatus === "parsing" || file.rows.length === 0);
   const configuredAssignments = validFiles
@@ -3307,6 +3420,62 @@ function RosterImportModal({
     setResolutions((current) => Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${sourceId}:`))));
   }
 
+  function updateManualRow(rowId: ID, patch: Partial<ManualRosterRow>) {
+    setManualRows((current) => current.map((row) => (row.id === rowId ? { ...row, ...patch } : row)));
+    setManualError("");
+  }
+
+  function addManualRows(count: number) {
+    setManualRows((current) => [...current, ...createManualRosterRows(count, manualDefaultStatus)]);
+  }
+
+  function removeManualRow(rowId: ID) {
+    setManualRows((current) => current.length > 1 ? current.filter((row) => row.id !== rowId) : current);
+  }
+
+  function reviewManualRows() {
+    const filledRows = manualRows.filter(manualRowHasContent);
+    const problemRows = filledRows.filter((row) => manualRowProblems(row).length > 0);
+    if (!filledRows.length) {
+      setManualError("Enter at least one player before previewing.");
+      return;
+    }
+    if (problemRows.length) {
+      setManualError("Resolve the highlighted rows before continuing.");
+      return;
+    }
+
+    const sourceId = `manual-${createId("manual")}`;
+    const parsed = parseRosterCsv(manualRowsToCsv(filledRows), {
+      sourceId,
+      fileName: "Manual Roster Entry",
+      seasonName: fallbackTeam?.seasonName ?? data.settings.rosterSeason,
+      defaultRosterStatus: manualDefaultStatus,
+    });
+    const readyFile: ParsedRosterFile = {
+      ...parsed,
+      fileName: `Manual Roster Entry (${filledRows.length})`,
+      parseWarnings: ["Entered manually in Roster Builder."],
+      parseStatus: parsed.rows.length > 0 && parsed.rows.every((row) => row.errors.length === 0) ? "ready" : "error",
+      parseError: parsed.rows.some((row) => row.errors.length > 0) ? "Some manual rows need review." : parsed.parseError,
+    };
+    setFiles((current) => [...current.filter((file) => !file.id.startsWith("manual-")), readyFile]);
+    setAssignments((current) => {
+      if (!fallbackTeam) return current;
+      return {
+        ...current,
+        [sourceId]: {
+          teamId: fallbackTeam.teamId,
+          mode: "add",
+          defaultRosterStatus: manualDefaultStatus,
+          replaceConfirmed: false,
+        },
+      };
+    });
+    setManualError("");
+    setStep("assign");
+  }
+
   async function parseImportFile(file: File, sourceId: ID): Promise<ParsedRosterFile> {
     const lowerName = file.name.toLowerCase();
     const seasonName = fallbackTeam?.seasonName ?? data.settings.rosterSeason;
@@ -3359,7 +3528,7 @@ function RosterImportModal({
 
       <section className="import-intro">
         <div>
-          <h2>Bring in CSV or MaxPreps PDF rosters</h2>
+          <h2>Build a roster fast</h2>
           <p>Players stay as one athlete identity. Jersey numbers, roster status, captain tags, team, and season live on the team membership.</p>
         </div>
         <button
@@ -3382,27 +3551,51 @@ function RosterImportModal({
         </button>
       </section>
 
-      <label
-        className="file-drop import-drop"
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={(event) => {
-          event.preventDefault();
-          void handleFiles(event.dataTransfer.files);
-        }}
-      >
-        <Upload size={20} aria-hidden="true" />
-        <span>{busy ? "Parsing roster files..." : "Drop CSV/PDF files here or choose files"}</span>
-        <small>Supports MaxPreps CSV, generic CSV, and text-based MaxPreps PDF rosters. Multiple files are okay.</small>
-        <input
-          type="file"
-          accept=".csv,text/csv,.pdf,application/pdf"
-          multiple
-          onChange={(event) => {
-            if (event.target.files) void handleFiles(event.target.files);
-          }}
+      <section className="builder-mode-row" aria-label="Roster import method">
+        <button type="button" className={builderMode === "upload" ? "active" : ""} onClick={() => setBuilderMode("upload")}>
+          <Upload size={16} aria-hidden="true" />
+          Upload File
+        </button>
+        <button type="button" className={builderMode === "manual" ? "active" : ""} onClick={() => setBuilderMode("manual")}>
+          <Users size={16} aria-hidden="true" />
+          Enter Manually
+        </button>
+      </section>
+
+      {builderMode === "upload" ? (
+        <>
+          <label
+            className="file-drop import-drop"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              void handleFiles(event.dataTransfer.files);
+            }}
+          >
+            <Upload size={20} aria-hidden="true" />
+            <span>{busy ? "Parsing roster files..." : "Drop CSV/PDF files here or choose files"}</span>
+            <small>Supports MaxPreps CSV, generic CSV, and text-based MaxPreps PDF rosters. Multiple files are okay.</small>
+            <input
+              type="file"
+              accept=".csv,text/csv,.pdf,application/pdf"
+              multiple
+              onChange={(event) => {
+                if (event.target.files) void handleFiles(event.target.files);
+              }}
+            />
+          </label>
+          {uploadError && <p className="form-error">{uploadError}</p>}
+        </>
+      ) : (
+        <ManualRosterBuilder
+          rows={manualRows}
+          error={manualError}
+          onChangeRow={updateManualRow}
+          onAddRows={addManualRows}
+          onRemoveRow={removeManualRow}
+          onReview={reviewManualRows}
         />
-      </label>
-      {uploadError && <p className="form-error">{uploadError}</p>}
+      )}
 
       {files.length > 0 && (
         <section className="import-file-list">
@@ -3756,6 +3949,231 @@ function failedRosterFile(sourceId: ID, file: File, error: unknown): ParsedRoste
     parseError: message,
     fileSize: file.size,
   };
+}
+
+function ManualRosterBuilder({
+  rows,
+  error,
+  onChangeRow,
+  onAddRows,
+  onRemoveRow,
+  onReview,
+}: {
+  rows: ManualRosterRow[];
+  error?: string;
+  onChangeRow: (rowId: ID, patch: Partial<ManualRosterRow>) => void;
+  onAddRows: (count: number) => void;
+  onRemoveRow: (rowId: ID) => void;
+  onReview: () => void;
+}) {
+  const enteredCount = rows.filter(manualRowHasContent).length;
+  return (
+    <section className="manual-roster-builder">
+      <div className="manual-builder-toolbar">
+        <div>
+          <strong>Manual Roster Entry</strong>
+          <small>{enteredCount ? `${enteredCount} player${enteredCount === 1 ? "" : "s"} entered` : "Enter players directly. Blank rows are ignored."}</small>
+        </div>
+        <div>
+          <button className="secondary-button" type="button" onClick={() => onAddRows(1)}>Add Row</button>
+          <button className="secondary-button" type="button" onClick={() => onAddRows(5)}>Add 5 Rows</button>
+        </div>
+      </div>
+
+      <div className="manual-roster-scroll">
+        <div className="manual-roster-table">
+          <div className="manual-roster-head" aria-hidden="true">
+            <span>#</span>
+            <span>First</span>
+            <span>Last</span>
+            <span>Class</span>
+            <span>Primary</span>
+            <span>Secondary</span>
+            <span>B/T</span>
+            <span>Ht</span>
+            <span>Wt</span>
+            <span>Status</span>
+            <span />
+          </div>
+          {rows.map((row) => {
+            const problems = manualRowProblems(row);
+            return (
+              <div key={row.id} className={`manual-roster-row ${problems.length ? "has-error" : ""}`}>
+                <input
+                  aria-label="Jersey number"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={99}
+                  value={row.jerseyNumber}
+                  onChange={(event) => onChangeRow(row.id, { jerseyNumber: event.target.value })}
+                />
+                <input
+                  aria-label="First name"
+                  value={row.firstName}
+                  onChange={(event) => onChangeRow(row.id, { firstName: event.target.value })}
+                />
+                <input
+                  aria-label="Last name"
+                  value={row.lastName}
+                  onChange={(event) => onChangeRow(row.id, { lastName: event.target.value })}
+                />
+                <input
+                  aria-label="Graduation year"
+                  type="number"
+                  inputMode="numeric"
+                  min={2020}
+                  max={2045}
+                  value={row.graduationYear}
+                  onChange={(event) => onChangeRow(row.id, { graduationYear: event.target.value })}
+                />
+                <select aria-label="Primary position" value={row.primaryPosition} onChange={(event) => onChangeRow(row.id, { primaryPosition: event.target.value as Position | "" })}>
+                  <option value="">-</option>
+                  {POSITIONS.map((position) => <option key={position}>{position}</option>)}
+                </select>
+                <select aria-label="Secondary position" value={row.secondaryPosition} onChange={(event) => onChangeRow(row.id, { secondaryPosition: event.target.value as Position | "" })}>
+                  <option value="">-</option>
+                  {POSITIONS.map((position) => <option key={position}>{position}</option>)}
+                </select>
+                <div className="bt-mini-cell">
+                  <select aria-label="Bats" value={row.bats} onChange={(event) => onChangeRow(row.id, { bats: event.target.value as Player["bats"] })}>
+                    <option>R</option>
+                    <option>L</option>
+                    <option>S</option>
+                  </select>
+                  <select aria-label="Throws" value={row.throws} onChange={(event) => onChangeRow(row.id, { throws: event.target.value as Player["throws"] })}>
+                    <option>R</option>
+                    <option>L</option>
+                  </select>
+                </div>
+                <label className="height-cell">
+                  <input
+                    aria-label="Height in inches"
+                    type="number"
+                    inputMode="numeric"
+                    min={48}
+                    max={90}
+                    value={row.heightInches}
+                    placeholder="72"
+                    onChange={(event) => onChangeRow(row.id, { heightInches: event.target.value })}
+                  />
+                  <span>{row.heightInches ? formatHeightFromInches(Number(row.heightInches)) : "--"}</span>
+                </label>
+                <input
+                  aria-label="Weight"
+                  type="number"
+                  inputMode="numeric"
+                  min={80}
+                  max={320}
+                  value={row.weight}
+                  onChange={(event) => onChangeRow(row.id, { weight: event.target.value })}
+                />
+                <select aria-label="Roster status" value={row.rosterStatus} onChange={(event) => onChangeRow(row.id, { rosterStatus: event.target.value as RosterStatus })}>
+                  {ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}
+                </select>
+                <button className="row-menu-button" type="button" onClick={() => onRemoveRow(row.id)} aria-label="Remove row">
+                  <X size={15} aria-hidden="true" />
+                </button>
+                {problems.length > 0 && <small className="manual-row-error">{problems.join(" ")}</small>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {error && <p className="form-error">{error}</p>}
+      <div className="manual-builder-actions">
+        <button className="primary-button" type="button" onClick={onReview}>
+          Review Roster
+          <ChevronRight size={16} aria-hidden="true" />
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function createManualRosterRows(count: number, rosterStatus: RosterStatus) {
+  return Array.from({ length: count }, () => createManualRosterRow(rosterStatus));
+}
+
+function createManualRosterRow(rosterStatus: RosterStatus): ManualRosterRow {
+  return {
+    id: `manual-row-${createId("row")}`,
+    jerseyNumber: "",
+    firstName: "",
+    lastName: "",
+    graduationYear: "",
+    primaryPosition: "",
+    secondaryPosition: "",
+    bats: "R",
+    throws: "R",
+    heightInches: "",
+    weight: "",
+    rosterStatus,
+  };
+}
+
+function manualRowHasContent(row: ManualRosterRow) {
+  return Boolean(
+    row.jerseyNumber.trim() ||
+    row.firstName.trim() ||
+    row.lastName.trim() ||
+    row.graduationYear.trim() ||
+    row.primaryPosition ||
+    row.secondaryPosition ||
+    row.heightInches.trim() ||
+    row.weight.trim(),
+  );
+}
+
+function manualRowProblems(row: ManualRosterRow) {
+  if (!manualRowHasContent(row)) return [];
+  const problems: string[] = [];
+  const grad = Number(row.graduationYear);
+  const height = Number(row.heightInches);
+  const weight = Number(row.weight);
+  if (!row.firstName.trim()) problems.push("First name required.");
+  if (!row.lastName.trim()) problems.push("Last name required.");
+  if (!Number.isInteger(grad) || grad < 2020 || grad > 2045) problems.push("Class year required.");
+  if (!row.primaryPosition) problems.push("Primary position required.");
+  if (row.heightInches && (!Number.isInteger(height) || height < 48 || height > 90)) problems.push("Height must be inches.");
+  if (row.weight && (!Number.isInteger(weight) || weight < 80 || weight > 320)) problems.push("Weight out of range.");
+  return problems;
+}
+
+function manualRowsToCsv(rows: ManualRosterRow[]) {
+  const headers = [
+    "First Name",
+    "Last Name",
+    "Jersey Number",
+    "Graduation Year",
+    "Primary Position",
+    "Secondary Position",
+    "Bats",
+    "Throws",
+    "Height",
+    "Weight",
+    "Roster Status",
+  ];
+  const values = rows.map((row) => [
+    row.firstName.trim(),
+    row.lastName.trim(),
+    row.jerseyNumber.trim(),
+    row.graduationYear.trim(),
+    row.primaryPosition,
+    row.secondaryPosition,
+    row.bats,
+    row.throws,
+    row.heightInches ? formatHeightFromInches(Number(row.heightInches)) : "",
+    row.weight.trim(),
+    row.rosterStatus,
+  ]);
+  return [headers, ...values].map((row) => row.map(escapeCsvCell).join(",")).join("\n");
+}
+
+function escapeCsvCell(value: string | number | undefined) {
+  const text = String(value ?? "");
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, "\"\"")}"` : text;
 }
 
 function SessionSummaryModal({ data, summary, note, onNote, onSave, onClose }: { data: AppData; summary: { type: "Hitting" | "Pitching" | "Defense"; sessionId: ID }; note: string; onNote: (note: string) => void; onSave: () => void; onClose: () => void }) {
@@ -4694,6 +5112,28 @@ function baseLine(game: Game) {
 
 function positionLine(player: Player) {
   return player.secondaryPosition ? `${player.primaryPosition} / ${player.secondaryPosition}` : player.primaryPosition;
+}
+
+function derivePlayerRoleFlags(primaryPosition?: Position, secondaryPosition?: Position) {
+  const positions = [primaryPosition, secondaryPosition].filter(Boolean);
+  return {
+    isPitcher: positions.some((position) => position === "P" || position === "RHP" || position === "LHP"),
+    isHitter: true,
+  };
+}
+
+function heightToInches(value?: string) {
+  if (!value) return 72;
+  const feetInches = value.match(/^(\d+)\s*['-]\s*(\d{1,2})/);
+  if (feetInches) return Number(feetInches[1]) * 12 + Number(feetInches[2]);
+  const totalInches = value.match(/^(\d{2,3})$/);
+  if (totalInches) return Number(totalInches[1]);
+  return 72;
+}
+
+function formatHeightFromInches(value: number) {
+  const safeValue = Math.max(48, Math.min(90, Math.round(value)));
+  return `${Math.floor(safeValue / 12)}-${safeValue % 12}`;
 }
 
 function teamPracticeAttendancePct(data: AppData, activeRosterCount: number) {

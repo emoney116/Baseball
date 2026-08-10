@@ -566,6 +566,76 @@ textarea:focus-visible {
   color: var(--burgundy-strong);
 }
 
+.field-control {
+  display: grid;
+  gap: 5px;
+}
+
+.field-control > span,
+.role-derived span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.number-stepper {
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.number-stepper button {
+  border: 0;
+  background: var(--panel-soft);
+  color: var(--text);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.number-stepper input {
+  min-width: 0;
+  border: 0;
+  border-inline: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: center;
+}
+
+.segmented-mini {
+  min-height: 40px;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.segmented-mini button {
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.segmented-mini button:last-child {
+  border-right: 0;
+}
+
+.segmented-mini button.active {
+  background: var(--burgundy);
+  color: #ffffff;
+}
+
 .team-switcher {
   min-height: 42px;
   min-width: 0;
@@ -1719,6 +1789,35 @@ textarea:focus-visible {
   color: var(--text);
 }
 
+.builder-mode-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--panel-soft) 74%, transparent);
+  padding: 6px;
+}
+
+.builder-mode-row button {
+  min-height: 42px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 820;
+  cursor: pointer;
+}
+
+.builder-mode-row button.active {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: var(--shadow-soft);
+}
+
 .import-drop {
   min-height: 112px;
   padding: 16px;
@@ -1742,6 +1841,7 @@ textarea:focus-visible {
   grid-template-columns: minmax(210px, 0.8fr) minmax(360px, 1fr);
   gap: 12px;
   align-items: start;
+  box-shadow: none;
 }
 
 .import-file-card strong,
@@ -1815,6 +1915,28 @@ textarea:focus-visible {
   font-weight: 760;
 }
 
+.import-assignment-grid select,
+.import-create-team-form input,
+.import-create-team-form select,
+.manual-roster-row input,
+.manual-roster-row select {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text);
+  padding: 0 9px;
+  outline: 0;
+}
+
+[data-theme="light"] .import-assignment-grid select,
+[data-theme="light"] .import-create-team-form input,
+[data-theme="light"] .import-create-team-form select,
+[data-theme="light"] .manual-roster-row input,
+[data-theme="light"] .manual-roster-row select {
+  background: rgba(255, 255, 255, 0.82);
+}
+
 .import-create-team-form {
   grid-column: 1 / -1;
   display: grid;
@@ -1842,6 +1964,107 @@ textarea:focus-visible {
   color: var(--danger);
   font-size: 12px;
   font-style: normal;
+}
+
+.manual-roster-builder {
+  display: grid;
+  gap: 12px;
+}
+
+.manual-builder-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  padding: 12px;
+}
+
+.manual-builder-toolbar strong,
+.manual-builder-toolbar small {
+  display: block;
+}
+
+.manual-builder-toolbar small {
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.manual-builder-toolbar > div:last-child {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.manual-roster-scroll {
+  overflow-x: auto;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.manual-roster-table {
+  min-width: 1040px;
+  display: grid;
+}
+
+.manual-roster-head,
+.manual-roster-row {
+  display: grid;
+  grid-template-columns: 62px minmax(120px, 1fr) minmax(130px, 1fr) 86px 112px 112px 116px 82px 82px 128px 40px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.manual-roster-head {
+  min-height: 36px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.manual-roster-row {
+  position: relative;
+}
+
+.manual-roster-row:last-child {
+  border-bottom: 0;
+}
+
+.manual-roster-row.has-error {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+
+.bt-mini-cell {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.height-cell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+}
+
+.height-cell span {
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.manual-row-error {
+  grid-column: 2 / -2;
+  color: var(--danger);
+  font-size: 11px;
+}
+
+.manual-builder-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .import-warning-check {
@@ -2634,6 +2857,10 @@ textarea:focus-visible {
   gap: 10px;
 }
 
+.player-editor-grid {
+  align-items: end;
+}
+
 .form-grid label,
 .note-field {
   display: grid;
@@ -2654,10 +2881,22 @@ textarea:focus-visible {
   outline: 0;
 }
 
+.form-grid .number-stepper input {
+  min-height: auto;
+  border: 0;
+  border-inline: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  padding: 0 6px;
+  text-align: center;
+}
+
 [data-theme="light"] .form-grid input,
 [data-theme="light"] .form-grid select,
 [data-theme="light"] .form-grid textarea,
-[data-theme="light"] .note-field textarea {
+[data-theme="light"] .note-field textarea,
+[data-theme="light"] .number-stepper,
+[data-theme="light"] .segmented-mini {
   background: rgba(255, 255, 255, 0.72);
 }
 
@@ -2682,6 +2921,22 @@ textarea:focus-visible {
   align-items: center;
   gap: 8px;
   font-weight: 900;
+}
+
+.role-derived {
+  min-height: 42px;
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  padding: 9px 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.role-derived strong {
+  color: var(--text);
+  font-size: 13px;
 }
 
 .entry-list {
@@ -3804,6 +4059,7 @@ textarea:focus-visible {
   .section-actions,
   .practice-command__actions,
   .import-intro,
+  .builder-mode-row,
   .import-file-card,
   .import-assignment-grid,
   .import-create-team-form {
@@ -3817,8 +4073,22 @@ textarea:focus-visible {
   .section-actions .primary-button,
   .section-actions .secondary-button,
   .import-intro .secondary-button,
-  .import-create-team-form .secondary-button {
+  .import-create-team-form .secondary-button,
+  .manual-builder-actions .primary-button {
     width: 100%;
+  }
+
+  .manual-builder-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .manual-builder-toolbar > div:last-child {
+    justify-content: stretch;
+  }
+
+  .manual-builder-toolbar .secondary-button {
+    flex: 1 1 120px;
   }
 
   .search-pill {

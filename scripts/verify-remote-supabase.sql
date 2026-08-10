@@ -30,7 +30,14 @@ declare
     'public.is_session_staff(uuid)',
     'public.is_game_staff(uuid)',
     'public.is_workout_session_staff(uuid)',
-    'public.bootstrap_metrolina_admin(uuid,text,text)'
+    'public.bootstrap_metrolina_admin(uuid,text,text)',
+    'public.current_profile_can_read_team(uuid)',
+    'public.current_profile_can_manage_team(uuid)',
+    'public.current_profile_can_admin_team(uuid)',
+    'public.current_profile_can_access_org(uuid)',
+    'public.current_profile_can_manage_org(uuid)',
+    'public.player_matches_team_context(uuid,uuid,uuid)',
+    'public.current_profile_can_read_player(uuid)'
   ];
   missing_tables text[];
   rls_disabled text[];
@@ -39,6 +46,7 @@ declare
   secure_bootstrap_applied boolean;
   multi_team_applied boolean;
   roster_import_history_applied boolean;
+  player_membership_rls_applied boolean;
   seeded_foundation boolean;
   seeded_team_views boolean;
   bootstrap_completed_at timestamptz;
@@ -82,6 +90,16 @@ begin
 
   if not roster_import_history_applied then
     raise exception 'Roster import history migration 20260810010000 is not applied.';
+  end if;
+
+  select exists (
+    select 1
+    from supabase_migrations.schema_migrations
+    where version = '20260810020000'
+  ) into player_membership_rls_applied;
+
+  if not player_membership_rls_applied then
+    raise exception 'Player membership RLS recursion fix migration 20260810020000 is not applied.';
   end if;
 
   select array_agg(table_name order by table_name)
@@ -167,6 +185,7 @@ select 'foundation migration applied' as check_name, 'pass' as result;
 select 'secure bootstrap migration applied' as check_name, 'pass' as result;
 select 'multi-team membership migration applied' as check_name, 'pass' as result;
 select 'roster import history migration applied' as check_name, 'pass' as result;
+select 'player membership RLS recursion fix migration applied' as check_name, 'pass' as result;
 select 'expected tables exist' as check_name, count(*)::text as verified_count
 from unnest(array[
   'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',
