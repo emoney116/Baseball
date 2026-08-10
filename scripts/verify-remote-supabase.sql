@@ -50,10 +50,12 @@ declare
   player_membership_rls_applied boolean;
   player_identity_write_rls_applied boolean;
   admin_membership_repair_applied boolean;
+  staff_title_authorization_applied boolean;
   seeded_foundation boolean;
   seeded_team_views boolean;
   admin_profiles_without_org_membership integer;
   admin_profiles_without_team_membership integer;
+  program_admin_title_role_mismatches integer;
   bootstrap_completed_at timestamptz;
   bootstrap_reopen_blocked boolean := false;
 begin
@@ -125,6 +127,16 @@ begin
 
   if not admin_membership_repair_applied then
     raise exception 'Metrolina admin membership repair migration 20260810040000 is not applied.';
+  end if;
+
+  select exists (
+    select 1
+    from supabase_migrations.schema_migrations
+    where version = '20260810050000'
+  ) into staff_title_authorization_applied;
+
+  if not staff_title_authorization_applied then
+    raise exception 'Staff title authorization normalization migration 20260810050000 is not applied.';
   end if;
 
   select array_agg(table_name order by table_name)
@@ -216,6 +228,20 @@ begin
     raise exception 'Metrolina admin profiles missing staff team membership: %', admin_profiles_without_team_membership;
   end if;
 
+  select count(*)
+  into program_admin_title_role_mismatches
+  from public.profile_team_memberships ptm
+  join public.teams team on team.id = ptm.team_id
+  join public.organizations org on org.id = team.organization_id
+  where org.slug = 'metrolina-christian-academy'
+    and ptm.active = true
+    and upper(coalesce(ptm.title, '')) = 'PROGRAM ADMIN'
+    and ptm.role <> 'ADMIN';
+
+  if program_admin_title_role_mismatches <> 0 then
+    raise exception 'Metrolina Program Admin memberships with non-admin role: %', program_admin_title_role_mismatches;
+  end if;
+
   select org.bootstrap_completed_at
   into bootstrap_completed_at
   from public.organizations org
@@ -248,6 +274,7 @@ select 'roster import history migration applied' as check_name, 'pass' as result
 select 'player membership RLS recursion fix migration applied' as check_name, 'pass' as result;
 select 'player identity staff write RLS migration applied' as check_name, 'pass' as result;
 select 'Metrolina admin membership repair migration applied' as check_name, 'pass' as result;
+select 'staff title authorization normalization migration applied' as check_name, 'pass' as result;
 select 'expected tables exist' as check_name, count(*)::text as verified_count
 from unnest(array[
   'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',

@@ -15,12 +15,13 @@ select
   org.id as organization_id,
   team.id as team_id,
   season.id as season_id,
-  staff.profile_id as staff_profile_id
+  staff.profile_id as staff_profile_id,
+  staff.staff_membership_id as staff_membership_id
 from public.organizations org
 join public.teams team on team.organization_id = org.id
 join public.seasons season on season.team_id = team.id and season.name = 'Fall 2026'
 join lateral (
-  select ptm.profile_id
+  select ptm.profile_id, ptm.id as staff_membership_id
   from public.profile_team_memberships ptm
   where ptm.team_id = team.id
     and ptm.active = true
@@ -72,6 +73,22 @@ select
   now(),
   now()
 from rls_membership_fixture;
+
+update public.profile_team_memberships ptm
+set role = 'PLAYER',
+    title = 'Program Admin'
+from rls_membership_fixture fixture
+join public.teams team on team.organization_id = fixture.organization_id
+where ptm.profile_id = fixture.staff_profile_id
+  and ptm.team_id = team.id
+  and ptm.active = true;
+
+update public.organization_memberships om
+set role = 'PLAYER'
+from rls_membership_fixture fixture
+where om.profile_id = fixture.staff_profile_id
+  and om.organization_id = fixture.organization_id
+  and om.active = true;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', staff_profile_id::text, true)
