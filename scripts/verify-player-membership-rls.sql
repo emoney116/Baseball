@@ -46,16 +46,6 @@ end $$;
 
 grant select on rls_membership_fixture to authenticated, anon;
 
-insert into public.profiles (id, email, display_name, first_name, last_name, role)
-select
-  unauthorized_profile_id,
-  'rls-unauthorized-' || unauthorized_profile_id || '@example.test',
-  'RLS Unauthorized',
-  'RLS',
-  'Unauthorized',
-  'COACH'
-from rls_membership_fixture;
-
 insert into public.players (
   id, organization_id, first_name, last_name, jersey_number, graduation_year,
   primary_position, secondary_position, bats, throws, height, weight,
