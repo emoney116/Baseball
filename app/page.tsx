@@ -3205,10 +3205,6 @@ function PlayerEditorModal({ player, onClose, onSave, onArchive }: { player?: Pl
         <label><span>Status</span><select value={form.rosterStatus} onChange={(event) => setForm({ ...form, rosterStatus: event.target.value as RosterStatus })}>{ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></label>
         <HeightStepper value={form.height} onChange={(height) => setForm({ ...form, height })} />
         <NumberStepper label="Weight" value={form.weight} min={80} max={320} step={5} onChange={(weight) => setForm({ ...form, weight })} />
-        <div className="role-derived wide">
-          <span>Roster role is inferred from positions.</span>
-          <strong>{roleFlags.isPitcher ? "Pitcher / Hitter" : "Hitter"}</strong>
-        </div>
         <label className="wide"><span>Notes</span><textarea value={form.notes ?? ""} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
       </div>
       <div className="modal-actions">

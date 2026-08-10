@@ -571,8 +571,7 @@ textarea:focus-visible {
   gap: 5px;
 }
 
-.field-control > span,
-.role-derived span {
+.field-control > span {
   color: var(--muted);
   font-size: 11px;
   font-weight: 760;
@@ -2921,22 +2920,6 @@ textarea:focus-visible {
   align-items: center;
   gap: 8px;
   font-weight: 900;
-}
-
-.role-derived {
-  min-height: 42px;
-  border-radius: var(--radius);
-  background: var(--panel-soft);
-  padding: 9px 11px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.role-derived strong {
-  color: var(--text);
-  font-size: 13px;
 }
 
 .entry-list {
