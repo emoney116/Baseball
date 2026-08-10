@@ -13,10 +13,8 @@ import {
   Gauge,
   Home,
   LogOut,
-  MapPin,
   Moon,
   MoreHorizontal,
-  Play,
   Plus,
   Save,
   Search,
@@ -901,7 +899,7 @@ export default function MetrolinaBaseballApp() {
             <img src="/brand/metrolina-baseball-cutout.png" alt="" />
             <span>
               <strong>Metrolina</strong>
-              <small>Baseball Ops</small>
+              <small>Baseball</small>
             </span>
           </button>
           <TeamSwitcher context={data.teamContext} onSwitch={switchTeam} compact />
@@ -916,12 +914,6 @@ export default function MetrolinaBaseballApp() {
           ))}
         </nav>
 
-        <div className="rail-card">
-          <span>Active Practice</span>
-          <strong>{practice?.name ?? "No active practice"}</strong>
-          <small>{practice ? `${activeTotals.players} players active` : "Start a practice to begin"}</small>
-        </div>
-
         <div className="sidebar-footer">
           <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label="Toggle light or dark theme">
             {data.settings.theme === "dark" ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
@@ -933,13 +925,13 @@ export default function MetrolinaBaseballApp() {
             onOpen={setAccountMenuOpen}
             onView={setView}
             onSignOut={signOut}
+            variant="card"
           />
         </div>
       </aside>
 
       <section className="ops-main">
         <TopCommand
-          data={data}
           globalQuery={globalQuery}
           globalResults={globalResults}
           onQuery={setGlobalQuery}
@@ -947,7 +939,10 @@ export default function MetrolinaBaseballApp() {
           onStartPractice={() => setStartPracticeOpen(true)}
           onStartGame={() => setStartGameOpen(true)}
           onView={setView}
-          onTeamSwitch={switchTeam}
+          context={data.teamContext}
+          accountMenuOpen={accountMenuOpen}
+          onAccountMenu={setAccountMenuOpen}
+          onSignOut={signOut}
         />
 
         <SyncStatusBanner status={saveStatus} error={saveError} />
@@ -956,17 +951,12 @@ export default function MetrolinaBaseballApp() {
           <HomeDashboard
             data={data}
             practice={practice}
-            activeTotals={activeTotals}
             weeklyMvp={weeklyMvp}
             weightLeader={weightLeader}
             onView={setView}
             onOpenPlayer={openPlayer}
             onStartPractice={() => setStartPracticeOpen(true)}
             onStartGame={() => setStartGameOpen(true)}
-            onAddPlayer={() => {
-              setEditingPlayerId(undefined);
-              setPlayerEditorOpen(true);
-            }}
           />
         )}
 
@@ -974,7 +964,6 @@ export default function MetrolinaBaseballApp() {
           <RosterView
             players={rosterPlayers}
             team={data.teamContext?.currentTeam}
-            teamContext={data.teamContext}
             filter={rosterFilter}
             positionFilter={rosterPositionFilter}
             yearFilter={rosterYearFilter}
@@ -983,7 +972,6 @@ export default function MetrolinaBaseballApp() {
             onPositionFilter={setRosterPositionFilter}
             onYearFilter={setRosterYearFilter}
             onQuery={setRosterQuery}
-            onSwitchTeam={switchTeam}
             onOpenPlayer={openPlayer}
             onEditPlayer={(playerId) => {
               setEditingPlayerId(playerId);
@@ -1445,7 +1433,6 @@ function EmptyActionPanel({
 }
 
 function TopCommand({
-  data,
   globalQuery,
   globalResults,
   onQuery,
@@ -1453,9 +1440,11 @@ function TopCommand({
   onStartPractice,
   onStartGame,
   onView,
-  onTeamSwitch,
+  context,
+  accountMenuOpen,
+  onAccountMenu,
+  onSignOut,
 }: {
-  data: AppData;
   globalQuery: string;
   globalResults: Player[];
   onQuery: (value: string) => void;
@@ -1463,7 +1452,10 @@ function TopCommand({
   onStartPractice: () => void;
   onStartGame: () => void;
   onView: (view: ViewKey) => void;
-  onTeamSwitch: (team: TeamOption) => void | Promise<void>;
+  context?: TeamContext;
+  accountMenuOpen: boolean;
+  onAccountMenu: (open: boolean) => void;
+  onSignOut: () => void | Promise<void>;
 }) {
   return (
     <header className="top-command">
@@ -1471,7 +1463,7 @@ function TopCommand({
         <button type="button" className="mobile-brand" onClick={() => onView("home")}>
           <img src="/brand/metrolina-baseball-cutout.png" alt="" />
         </button>
-        <TeamSwitcher context={data.teamContext} onSwitch={onTeamSwitch} />
+        <strong>Metrolina</strong>
       </div>
 
       <div className="global-search">
@@ -1491,14 +1483,21 @@ function TopCommand({
       </div>
 
       <div className="top-command__actions">
-        <button type="button" className="secondary-button" onClick={onStartGame}>
-          <Play size={16} aria-hidden="true" />
-          Game
-        </button>
         <button type="button" className="primary-button" onClick={onStartPractice}>
           <Plus size={16} aria-hidden="true" />
           Practice
         </button>
+        <button type="button" className="secondary-button" onClick={onStartGame}>
+          <Plus size={16} aria-hidden="true" />
+          Game
+        </button>
+        <ProfileMenu
+          context={context}
+          open={accountMenuOpen}
+          onOpen={onAccountMenu}
+          onView={onView}
+          onSignOut={onSignOut}
+        />
       </div>
     </header>
   );
@@ -1554,24 +1553,34 @@ function ProfileMenu({
   onOpen,
   onView,
   onSignOut,
+  variant = "icon",
 }: {
   context?: TeamContext;
   open: boolean;
   onOpen: (open: boolean) => void;
   onView: (view: ViewKey) => void;
   onSignOut: () => void | Promise<void>;
+  variant?: "icon" | "card";
 }) {
   const profile = context?.profile;
   const initials = profileInitials(context);
+  const profileName = profileDisplayName(context);
+  const role = context?.currentTeam?.title ?? roleLabel(context?.currentTeam?.role) ?? profile?.role ?? "Coach";
   return (
-    <div className="profile-menu">
+    <div className={`profile-menu profile-menu--${variant}`}>
       <button className="profile-menu__button" type="button" onClick={() => onOpen(!open)} aria-label="Open profile menu" aria-expanded={open}>
-        {profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" /> : <span>{initials}</span>}
+        <span className="profile-menu__avatar">{profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" /> : <span>{initials}</span>}</span>
+        {variant === "card" && (
+          <span className="profile-menu__identity">
+            <strong>{profileName}</strong>
+            <small>{role}</small>
+          </span>
+        )}
       </button>
       {open && (
         <div className="profile-menu__panel">
           <div>
-            <strong>{profileDisplayName(context)}</strong>
+            <strong>{profileName}</strong>
             <small>{profile?.email ?? "Coach account"}</small>
           </div>
           <button type="button" onClick={() => { onOpen(false); onView("account"); }}>
@@ -1610,7 +1619,7 @@ function AccountProfileView({
     <div className="page-stack">
       <SectionHeader
         title="My Profile"
-        context={context?.currentTeam ? `${context.currentTeam.teamName} · ${context.currentTeam.seasonName ?? "Current season"}` : undefined}
+        context={context?.currentTeam ? `${context.currentTeam.teamName} - ${context.currentTeam.seasonName ?? "Current season"}` : undefined}
         action={
           <button className="secondary-button" type="button" onClick={() => void onSignOut()}>
             <LogOut size={16} aria-hidden="true" />
@@ -1707,129 +1716,74 @@ function FormSnapshot({ title, primary, secondary }: { title: string; primary: s
 function HomeDashboard({
   data,
   practice,
-  activeTotals,
   weeklyMvp,
   weightLeader,
   onView,
   onOpenPlayer,
   onStartPractice,
   onStartGame,
-  onAddPlayer,
 }: {
   data: AppData;
   practice?: Practice;
-  activeTotals: { pitches: number; swings: number; defenseReps: number; defenders: number; players: number; pitchers: number; hitters: number };
   weeklyMvp?: AwardResult;
   weightLeader?: WeightLeaderResult;
   onView: (view: ViewKey) => void;
   onOpenPlayer: (playerId: ID) => void;
   onStartPractice: () => void;
   onStartGame: () => void;
-  onAddPlayer: () => void;
 }) {
-  const hittingLeaders = buildHittingLeaders(data, "hardHitPct", 10).slice(0, 3);
-  const pitchingLeaders = buildPitchingLeaders(data, "strikePct", 16).slice(0, 3);
-  const latestGame = data.games.find((game) => game.result);
-  const upcomingPractice = data.practices.find((item) => item.id !== practice?.id);
   const upcomingGame = data.games.find((game) => !game.result);
-  const rosterCounts = rosterSnapshot(data.players);
+  const activeRoster = data.players.filter((player) => !player.archived && player.rosterStatus !== "Cut");
+  const rosterPitchers = activeRoster.filter((player) => player.isPitcher).length;
+  const rosterHitters = activeRoster.filter((player) => player.isHitter).length;
+  const attendancePct = teamPracticeAttendancePct(data, activeRoster.length);
+  const repsThisWeek = weeklyRepCount(data);
+  const currentTeam = data.teamContext?.currentTeam;
 
   return (
     <div className="page-stack home-dashboard">
-      <SectionHeader title="Home" context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} · ${data.teamContext.currentTeam.seasonName ?? data.settings.rosterSeason}` : data.settings.rosterSeason} />
-      <section className="quick-actions">
-        <ActionCard icon={ClipboardList} label="Practice" detail="Start" onClick={onStartPractice} />
-        <ActionCard icon={Gauge} label="Game" detail="Start" onClick={onStartGame} />
-        <ActionCard icon={UserPlus} label="Player" detail="Add" onClick={onAddPlayer} />
-        <ActionCard icon={Dumbbell} label="Workout" detail="Enter" onClick={() => onView("weights")} />
+      <SectionHeader title="Home" body="Good morning, Coach" />
+      <section className="home-ops-grid">
+        <HomeInfoCard
+          icon={ClipboardList}
+          title="Today's Practice"
+          primary={practice ? formatTime(practice.startedAt) : "No practice scheduled"}
+          meta={practice ? practice.location : "Start practice when coaches arrive"}
+          onClick={practice ? () => onView("practice") : onStartPractice}
+          cta={practice ? "Open" : "Start"}
+        />
+        <HomeInfoCard
+          icon={Gauge}
+          title="Next Game"
+          primary={upcomingGame ? `${upcomingGame.homeAway === "Home" ? "vs" : "at"} ${upcomingGame.opponent}` : "No game scheduled"}
+          meta={upcomingGame ? `${shortDate(upcomingGame.date)} - ${upcomingGame.location}` : "Create the next game when ready"}
+          onClick={upcomingGame ? () => onView("games") : onStartGame}
+        />
+        <HomeInfoCard
+          icon={Users}
+          title="Roster"
+          primary={`${activeRoster.length} Players`}
+          meta={`${rosterPitchers} Pitchers - ${rosterHitters} Hitters`}
+          onClick={() => onView("roster")}
+        />
       </section>
 
-      <section className="dashboard-grid">
-        <article className="panel today-panel">
-          <div className="today-panel__title">
-            <div>
-              <h2>{practice ? "Today's Practice" : "No Practice Scheduled"}</h2>
-              <strong>{practice?.name ?? "Start a session when coaches arrive"}</strong>
-            </div>
-            <span className="time-chip">6:00 PM</span>
-          </div>
-          <div className="venue-row">
-            <MapPin size={15} aria-hidden="true" />
-            {practice?.location ?? "Varsity Field"}
-          </div>
-          <div className="mini-stat-grid">
-            <StatTile label="Players" value={activeTotals.players} sub="active today" />
-            <StatTile label="Pitchers" value={activeTotals.pitchers} sub="throwing" />
-            <StatTile label="Hitters" value={activeTotals.hitters} sub="taking reps" />
-            <StatTile label="Reps" value={activeTotals.pitches + activeTotals.swings + activeTotals.defenseReps} sub={`${activeTotals.pitches} pitches / ${activeTotals.swings} swings / ${activeTotals.defenseReps} defense`} accent />
-          </div>
-          <button className="primary-button stretch-button" type="button" onClick={() => onView("practice")}>
-            Open Practice
-            <ChevronRight size={16} aria-hidden="true" />
-          </button>
-        </article>
-
+      <section className="home-secondary-grid">
         <AwardCard title="Player of the Week" award={weeklyMvp} onOpenPlayer={onOpenPlayer} icon={Trophy} />
         <WeightLeaderCard leader={weightLeader} onOpenPlayer={onOpenPlayer} />
-
-        <article className="panel recent-performance">
-          <div className="panel-heading">
-            <div>
-              <h2>Practice Leaders</h2>
-            </div>
-            <button type="button" className="text-button" onClick={() => onView("analytics")}>
-              Analytics
-            </button>
-          </div>
-          <div className="leader-columns">
-            <LeaderList title="Top Hitters" leaders={hittingLeaders} metricKey="hardHitPct" fallback="No hitters past the minimum sample yet." onOpenPlayer={onOpenPlayer} />
-            <LeaderList title="Top Pitchers" leaders={pitchingLeaders} metricKey="strikePct" fallback="No pitchers past the minimum sample yet." onOpenPlayer={onOpenPlayer} />
-          </div>
-        </article>
-
-        <article className="panel game-card">
-          <h2>Recent Game</h2>
-          {latestGame ? (
-            <>
-              <div className="score-line">
-                <div>
-                  <span>Metrolina</span>
-                  <strong>{latestGame.metrolinaScore}</strong>
-                </div>
-                <div>
-                  <span>{latestGame.opponent}</span>
-                  <strong>{latestGame.opponentScore}</strong>
-                </div>
-                <b>{latestGame.result}</b>
-              </div>
-              <p>Key performers: {gamePerformerLine(data, latestGame)}</p>
-              <button className="secondary-button stretch-button" type="button" onClick={() => onView("games")}>
-                Open Games
-              </button>
-            </>
-          ) : (
-            <CompactEmpty title="No games scored yet" action={<button className="secondary-button" type="button" onClick={onStartGame}>Start Game</button>} />
-          )}
-        </article>
-
-        <article className="panel upcoming-card">
-          <h2>Upcoming</h2>
-          <ScheduleRow title="Next practice" primary={upcomingPractice?.name ?? "Team practice"} meta={upcomingPractice ? `${shortDate(upcomingPractice.date)} - ${upcomingPractice.location}` : "Not scheduled"} />
-          <ScheduleRow title="Next game" primary={upcomingGame ? `${upcomingGame.homeAway === "Home" ? "vs" : "at"} ${upcomingGame.opponent}` : "No game scheduled"} meta={upcomingGame ? `${shortDate(upcomingGame.date)} - ${upcomingGame.location}` : "Create the next game when ready"} />
-        </article>
-
-        <article className="panel roster-snapshot">
-          <h2>Roster</h2>
-          <div className="snapshot-grid">
-            {ROSTER_STATUSES.map((status) => (
-              <button key={status} type="button" onClick={() => onView("roster")} className={`status-mini status-${status.toLowerCase()}`}>
-                <strong>{rosterCounts[status] ?? 0}</strong>
-                <span>{status}</span>
-              </button>
-            ))}
-          </div>
-        </article>
+        <RecentActivityCard activities={buildTeamRecentActivity(data).slice(0, 5)} onOpenPlayer={onOpenPlayer} />
       </section>
+
+      <TeamSnapshotBar
+        team={currentTeam?.teamName ?? "Team Snapshot"}
+        stats={[
+          { label: "Players", value: activeRoster.length },
+          { label: "Pitchers", value: rosterPitchers },
+          { label: "Hitters", value: rosterHitters },
+          { label: "Practice Attendance", value: data.practices.length ? formatPct(attendancePct) : "--", progress: attendancePct },
+          { label: "Total Reps This Week", value: formatCompactNumber(repsThisWeek) },
+        ]}
+      />
     </div>
   );
 }
@@ -1837,7 +1791,6 @@ function HomeDashboard({
 function RosterView({
   players,
   team,
-  teamContext,
   filter,
   positionFilter,
   yearFilter,
@@ -1846,7 +1799,6 @@ function RosterView({
   onPositionFilter,
   onYearFilter,
   onQuery,
-  onSwitchTeam,
   onOpenPlayer,
   onEditPlayer,
   onAddPlayer,
@@ -1855,7 +1807,6 @@ function RosterView({
 }: {
   players: Player[];
   team?: TeamOption;
-  teamContext?: TeamContext;
   filter: RosterFilter;
   positionFilter: RosterPositionFilter;
   yearFilter: RosterYearFilter;
@@ -1864,7 +1815,6 @@ function RosterView({
   onPositionFilter: (filter: RosterPositionFilter) => void;
   onYearFilter: (filter: RosterYearFilter) => void;
   onQuery: (value: string) => void;
-  onSwitchTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPlayer: (playerId: ID) => void;
   onEditPlayer: (playerId: ID) => void;
   onAddPlayer: () => void;
@@ -1872,7 +1822,6 @@ function RosterView({
   onStatus: (playerId: ID, status: RosterStatus) => void;
 }) {
   const gradYears = Array.from(new Set(players.map((player) => String(player.graduationYear)))).sort();
-  const counts = rosterSnapshot(players);
   const filtered = players
     .filter((player) => filter === "All" || player.rosterStatus === filter)
     .filter((player) => positionFilter === "All" || player.primaryPosition === positionFilter || player.secondaryPosition === positionFilter)
@@ -1884,7 +1833,7 @@ function RosterView({
     <div className="page-stack roster-page">
       <SectionHeader
         title="Roster"
-        context={team ? `${team.teamName} · ${team.seasonName ?? "Current season"}` : undefined}
+        context={team ? `${team.teamName} - ${team.seasonName ?? "Current season"}` : undefined}
         action={
           <div className="section-actions">
             <button className="secondary-button" type="button" onClick={onImport}>
@@ -1899,23 +1848,14 @@ function RosterView({
         }
       />
 
-      <section className="roster-command">
-        <TeamSwitcher context={teamContext} onSwitch={onSwitchTeam} />
-        <div className="roster-count-strip">
-          {ROSTER_STATUSES.map((status) => (
-            <button key={status} type="button" className={filter === status ? "active" : ""} onClick={() => onFilter(status)}>
-              <strong>{counts[status]}</strong>
-              <span>{status}</span>
-            </button>
-          ))}
-        </div>
+      <section className="roster-status-row">
+        <SegmentedControl values={ROSTER_FILTERS} active={filter} onChange={onFilter} />
       </section>
 
       <section className="toolbar-panel roster-toolbar">
-        <SegmentedControl values={ROSTER_FILTERS} active={filter} onChange={onFilter} />
         <label className="search-pill">
           <Search size={15} aria-hidden="true" />
-          <input value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Search name or number" />
+          <input value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Search by name or number..." />
         </label>
         <label className="filter-select">
           <span>Position</span>
@@ -1933,29 +1873,43 @@ function RosterView({
         </label>
       </section>
 
-      <section className="roster-list">
+      <section className="roster-table-shell">
+        <div className="roster-table__head" aria-hidden="true">
+          <span>#</span>
+          <span>Player</span>
+          <span>Pos</span>
+          <span>B/T</span>
+          <span>Class</span>
+          <span>Status</span>
+          <span>Team Number</span>
+          <span />
+        </div>
         {filtered.length ? filtered.map((player) => (
-          <article className="roster-row roster-row--premium" key={player.id}>
-            <button type="button" className="roster-row__identity" onClick={() => onOpenPlayer(player.id)}>
-              <span className="jersey-number">{player.jerseyNumber}</span>
+          <article className="roster-table-row" key={player.id}>
+            <button type="button" className="roster-number-cell" onClick={() => onOpenPlayer(player.id)}>
+              {player.jerseyNumber}
+            </button>
+            <button type="button" className="roster-player-cell" onClick={() => onOpenPlayer(player.id)}>
               <PlayerAvatar player={player} size="sm" compact />
               <span>
                 <strong>{player.name}</strong>
-                <small>{positionLine(player)} - {player.graduationYear} - {player.bats}/{player.throws}</small>
+                <small>{positionLine(player)}</small>
               </span>
             </button>
-            <div className="roster-row__metrics">
-              <span>{player.isPitcher ? "Pitcher" : "Position"}</span>
-              <strong>{player.isHitter ? "Hitter" : "Defense"}</strong>
-            </div>
-            <div className="status-select-wrap">
-              <span>Status</span>
+            <span className="roster-mobile-label">Pos</span>
+            <span className="roster-pos-cell">{positionLine(player)}</span>
+            <span className="roster-mobile-label">B/T</span>
+            <span className="roster-bt-cell">{player.bats}/{player.throws}</span>
+            <span className="roster-mobile-label">Class</span>
+            <span className="roster-class-cell">{player.graduationYear}</span>
+            <label className={`status-select-wrap status-select-wrap--${(player.rosterStatus ?? "Undecided").toLowerCase()}`}>
               <select value={player.rosterStatus ?? "Undecided"} onChange={(event) => onStatus(player.id, event.target.value as RosterStatus)} aria-label={`Roster status for ${player.name}`}>
                 {ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}
               </select>
-            </div>
-            <button className="ghost-button" type="button" onClick={() => onEditPlayer(player.id)} aria-label={`Edit ${player.name}`}>
-              <Edit3 size={16} aria-hidden="true" />
+            </label>
+            <span className="team-number-cell">{player.jerseyNumber}</span>
+            <button className="row-menu-button" type="button" onClick={() => onEditPlayer(player.id)} aria-label={`Edit ${player.name}`}>
+              <MoreHorizontal size={16} aria-hidden="true" />
             </button>
           </article>
         )) : (
@@ -1991,7 +1945,7 @@ function PracticeHome({
 
   return (
     <div className="page-stack practice-home">
-      <SectionHeader title="Practice" context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} · ${data.teamContext.currentTeam.seasonName ?? data.settings.rosterSeason}` : data.settings.rosterSeason} />
+      <SectionHeader title="Practice" context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} - ${data.teamContext.currentTeam.seasonName ?? data.settings.rosterSeason}` : data.settings.rosterSeason} />
       <section className="practice-command panel">
         <div className="practice-command__main">
           <h2>{practice?.name ?? "Ready when practice starts"}</h2>
@@ -2560,7 +2514,7 @@ function WeightRoomView({
 
   return (
     <div className="page-stack weights-page">
-      <SectionHeader title="Weight Room" context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} · ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined} />
+      <SectionHeader title="Weight Room" context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} - ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined} />
       <section className="weights-grid">
         <WeightLeaderCard leader={leader} onOpenPlayer={onOpenPlayer} />
         <article className="panel workout-entry">
@@ -2702,7 +2656,7 @@ function GamesView({
     <div className="page-stack games-page">
       <SectionHeader
         title="Games"
-        context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} · ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined}
+        context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} - ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined}
         action={<button className="primary-button" type="button" onClick={onStartGame}><Plus size={16} aria-hidden="true" />Start Game</button>}
       />
 
@@ -2809,7 +2763,7 @@ function AnalyticsView({
 
   return (
     <div className="page-stack">
-      <SectionHeader title="Analytics" context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} · ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined} />
+      <SectionHeader title="Analytics" context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} - ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined} />
       <section className="toolbar-panel">
         <SegmentedControl values={["All", "Practice", "Game", "Live BP", "Weight Room"] as AnalyticsContext[]} active={context} onChange={onContext} />
         <SegmentedControl values={["Last Week", "Last 30 Days", "Fall"] as DateFilter[]} active={dateFilter} onChange={onDateFilter} />
@@ -3427,13 +3381,89 @@ function SectionHeader({ eyebrow, title, body, context, action }: { eyebrow?: st
   );
 }
 
-function ActionCard({ icon: Icon, label, detail, onClick }: { icon: LucideIcon; label: string; detail: string; onClick: () => void }) {
+function HomeInfoCard({
+  icon: Icon,
+  title,
+  primary,
+  meta,
+  onClick,
+  cta,
+}: {
+  icon: LucideIcon;
+  title: string;
+  primary: string;
+  meta: string;
+  onClick: () => void;
+  cta?: string;
+}) {
   return (
-    <button className="action-card" type="button" onClick={onClick}>
-      <Icon size={18} aria-hidden="true" />
-      <span><strong>{label}</strong><small>{detail}</small></span>
-      <ChevronRight size={16} aria-hidden="true" />
+    <button className="home-info-card panel" type="button" onClick={onClick}>
+      <span className="home-info-card__icon"><Icon size={20} aria-hidden="true" /></span>
+      <span>
+        <small>{title}</small>
+        <strong>{primary}</strong>
+        <em>{meta}</em>
+      </span>
+      {cta && <b>{cta}</b>}
     </button>
+  );
+}
+
+function RecentActivityCard({
+  activities,
+  onOpenPlayer,
+}: {
+  activities: TeamActivity[];
+  onOpenPlayer: (playerId: ID) => void;
+}) {
+  return (
+    <article className="panel recent-activity-card">
+      <h2>Recent Activity</h2>
+      <div className="activity-feed">
+        {activities.length ? activities.map((activity) => (
+          <button
+            key={activity.key}
+            type="button"
+            onClick={() => activity.playerId && onOpenPlayer(activity.playerId)}
+            disabled={!activity.playerId}
+          >
+            {activity.player ? (
+              <PlayerAvatar player={activity.player} size="sm" compact />
+            ) : (
+              <span className={`activity-feed__icon activity-feed__icon--${activity.kind}`} />
+            )}
+            <span>
+              <strong>{activity.title}</strong>
+              <small>{activity.meta}</small>
+            </span>
+            <time>{shortDate(activity.date)}</time>
+          </button>
+        )) : <CompactEmpty title="No recent activity yet" />}
+      </div>
+    </article>
+  );
+}
+
+function TeamSnapshotBar({
+  team,
+  stats,
+}: {
+  team: string;
+  stats: Array<{ label: string; value: string | number; progress?: number }>;
+}) {
+  return (
+    <section className="panel team-snapshot-bar" aria-label={`${team} snapshot`}>
+      <h2>Team Snapshot</h2>
+      <div>
+        {stats.map((stat) => (
+          <span key={stat.label} className="snapshot-stat">
+            <strong>{stat.value}</strong>
+            <small>{stat.label}</small>
+            {typeof stat.progress === "number" && <i style={{ width: `${Math.max(0, Math.min(100, stat.progress))}%` }} />}
+          </span>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -3493,21 +3523,6 @@ function WeightLeaderCard({ leader, onOpenPlayer }: { leader?: WeightLeaderResul
   );
 }
 
-function LeaderList({ title, leaders, metricKey, fallback, onOpenPlayer }: { title: string; leaders: Array<{ playerId: ID; name: string; value: number; sample: number; meta?: unknown }>; metricKey: string; fallback: string; onOpenPlayer: (playerId: ID) => void }) {
-  return (
-    <div className="compact-leader-list">
-      <h3>{title}</h3>
-      {leaders.length ? leaders.map((leader) => (
-        <button key={leader.playerId} type="button" onClick={() => onOpenPlayer(leader.playerId)}>
-          <span>{leader.name}</span>
-          <strong>{metricKey === "avgVelocity" ? `${formatNumber(leader.value, 1)} mph` : formatPct(leader.value)}</strong>
-          <small>{leader.sample} reps</small>
-        </button>
-      )) : <p>{fallback}</p>}
-    </div>
-  );
-}
-
 function LeaderRows({ leaders, format, onOpenPlayer }: { leaders: Array<{ playerId: ID; name: string; value: number; sample: number }>; format: (value: number) => string; onOpenPlayer: (playerId: ID) => void }) {
   return (
     <div className="leader-rows">
@@ -3551,10 +3566,6 @@ function PlayerGameChip({ label, player, onOpen }: { label: string; player?: Pla
       {player && <small>{positionLine(player)}</small>}
     </button>
   );
-}
-
-function ScheduleRow({ title, primary, meta }: { title: string; primary: string; meta: string }) {
-  return <div className="schedule-row"><span>{title}</span><strong>{primary}</strong><small>{meta}</small></div>;
 }
 
 function CompactEmpty({ title, action }: { title: string; action?: React.ReactNode }) {
@@ -3632,6 +3643,16 @@ interface WeightLeaderResult {
   player: Player;
   score: number;
   reasons: string[];
+}
+
+interface TeamActivity {
+  key: string;
+  kind: "practice" | "game" | "weights" | "hitting" | "pitching" | "defense";
+  title: string;
+  meta: string;
+  date: string;
+  playerId?: ID;
+  player?: Player;
 }
 
 function buildWeeklyMvp(data: AppData): AwardResult | undefined {
@@ -3871,6 +3892,76 @@ function buildPlayerRecentActivity(data: AppData, player: Player) {
         summaryType: undefined,
         sessionId: undefined,
       })),
+  ];
+
+  return activities.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function buildTeamRecentActivity(data: AppData): TeamActivity[] {
+  const playerById = new Map(data.players.map((player) => [player.id, player]));
+  const practiceById = new Map(data.practices.map((practice) => [practice.id, practice]));
+  const activities: TeamActivity[] = [
+    ...data.hittingSessions.map((session) => {
+      const practice = practiceById.get(session.practiceId);
+      const player = playerById.get(session.hitterId);
+      const stats = calculateHittingStats(data.hittingEvents.filter((event) => event.sessionId === session.id));
+      return {
+        key: `team-hit-${session.id}`,
+        kind: "hitting" as const,
+        title: session.type,
+        meta: `${player?.name ?? "Hitter"} - ${stats.totalSwings} swings`,
+        date: practice?.date ?? session.startedAt.slice(0, 10),
+        playerId: player?.id,
+        player,
+      };
+    }),
+    ...data.pitchingSessions.map((session) => {
+      const practice = practiceById.get(session.practiceId);
+      const player = playerById.get(session.pitcherId);
+      const stats = calculatePitchingStats(data.pitchEvents.filter((event) => event.sessionId === session.id));
+      return {
+        key: `team-pitch-${session.id}`,
+        kind: "pitching" as const,
+        title: session.type,
+        meta: `${player?.name ?? "Pitcher"} - ${stats.totalPitches} pitches`,
+        date: practice?.date ?? session.startedAt.slice(0, 10),
+        playerId: player?.id,
+        player,
+      };
+    }),
+    ...data.defenseSessions.map((session) => {
+      const practice = practiceById.get(session.practiceId);
+      const player = playerById.get(session.playerId);
+      const reps = data.defenseEvents.filter((event) => event.sessionId === session.id);
+      return {
+        key: `team-defense-${session.id}`,
+        kind: "defense" as const,
+        title: session.station,
+        meta: `${player?.name ?? "Defender"} - ${reps.length} reps`,
+        date: practice?.date ?? session.startedAt.slice(0, 10),
+        playerId: player?.id,
+        player,
+      };
+    }),
+    ...data.workoutSessions.map((session) => {
+      const player = playerById.get(session.playerId);
+      return {
+        key: `team-weight-${session.id}`,
+        kind: "weights" as const,
+        title: "Weights",
+        meta: `${player?.name ?? "Player"} - ${session.completed ? "completed" : "in progress"}`,
+        date: session.date,
+        playerId: player?.id,
+        player,
+      };
+    }),
+    ...data.games.map((game) => ({
+      key: `team-game-${game.id}`,
+      kind: "game" as const,
+      title: `${game.homeAway === "Home" ? "vs" : "at"} ${game.opponent}`,
+      meta: game.result ? `${game.result} ${game.metrolinaScore}-${game.opponentScore}` : game.location,
+      date: game.date,
+    })),
   ];
 
   return activities.sort((a, b) => b.date.localeCompare(a.date));
@@ -4138,14 +4229,31 @@ function positionLine(player: Player) {
   return player.secondaryPosition ? `${player.primaryPosition} / ${player.secondaryPosition}` : player.primaryPosition;
 }
 
-function rosterSnapshot(players: Player[]) {
-  return players.reduce<Record<RosterStatus, number>>(
-    (counts, player) => {
-      if (!player.archived && player.rosterStatus) counts[player.rosterStatus] += 1;
-      return counts;
-    },
-    { Varsity: 0, JV: 0, Undecided: 0, Cut: 0 },
-  );
+function teamPracticeAttendancePct(data: AppData, activeRosterCount: number) {
+  if (!data.practices.length || !activeRosterCount) return 0;
+  const attended = data.practices.reduce((total, practice) => total + new Set(practice.playerIds).size, 0);
+  return pct(attended, data.practices.length * activeRosterCount);
+}
+
+function weeklyRepCount(data: AppData) {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const cutoff = sevenDaysAgo.toISOString().slice(0, 10);
+  return data.hittingEvents.filter((event) => event.createdAt.slice(0, 10) >= cutoff).length
+    + data.pitchEvents.filter((event) => event.createdAt.slice(0, 10) >= cutoff).length
+    + data.defenseEvents.filter((event) => event.createdAt.slice(0, 10) >= cutoff).length
+    + data.workoutSessions.filter((session) => session.date >= cutoff).length;
+}
+
+function formatCompactNumber(value: number) {
+  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: value >= 1000 ? 1 : 0 }).format(value);
+}
+
+function formatTime(value?: string) {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
 function sortPlayersByRecent(players: Player[], recentIds: ID[]) {
@@ -4155,16 +4263,6 @@ function sortPlayersByRecent(players: Player[], recentIds: ID[]) {
     if (recentA !== recentB) return (recentA === -1 ? 999 : recentA) - (recentB === -1 ? 999 : recentB);
     return a.jerseyNumber - b.jerseyNumber;
   });
-}
-
-function gamePerformerLine(data: AppData, game: Game) {
-  const events = data.gameEvents.filter((event) => event.gameId === game.id);
-  const names = events
-    .flatMap((event) => [event.batterId, event.pitcherId])
-    .filter(Boolean)
-    .map((playerId) => data.players.find((player) => player.id === playerId)?.name)
-    .filter(Boolean);
-  return Array.from(new Set(names)).slice(0, 3).join(", ") || "Scorebook summary pending";
 }
 
 function formatSegment(value: string) {

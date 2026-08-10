@@ -100,7 +100,7 @@ export function MiniLineChart({ values, labels }: { values: number[]; labels?: s
       <svg viewBox={`0 0 ${width} ${height}`} role="img">
         <defs>
           <linearGradient id="lineFill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#f4c16f" stopOpacity="0.42" />
+            <stop offset="0%" stopColor="#36b79c" stopOpacity="0.34" />
             <stop offset="100%" stopColor="#9f244c" stopOpacity="0.02" />
           </linearGradient>
         </defs>
