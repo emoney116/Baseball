@@ -1,6 +1,6 @@
-# Metrolina Baseball Ops
+# Metrolina Baseball
 
-Metrolina Baseball Ops is a coach-facing player development, practice, game, and weight-room tracking application. The UI is built with React/Next.js App Router and deploys from `main` through Vercel.
+Metrolina Baseball is a coach-facing player development, practice, game, and weight-room tracking application. The UI is built with React/Next.js App Router and deploys from `main` through Vercel.
 
 ## Runtime
 
