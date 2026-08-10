@@ -588,6 +588,26 @@ async function deleteMissing<T extends { id: ID }>(supabase: SupabaseClient, tab
 
 async function syncPlayers(supabase: SupabaseClient, foundation: Foundation, players: Player[], memberships?: PlayerTeamMembership[]) {
   if (players.length === 0) return;
+  if (typeof window !== "undefined") {
+    const response = await fetch("/api/roster/sync", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        organizationId: foundation.organizationId,
+        teamId: foundation.teamId,
+        seasonId: foundation.seasonId,
+        players,
+        memberships: memberships ?? [],
+      }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { message?: string };
+    if (!response.ok) {
+      throw new PersistenceError("save-failed", payload.message ?? "Unable to save roster changes.");
+    }
+    return;
+  }
+
   const playerRows = players.map((player) => {
     const { firstName, lastName } = splitName(player.name);
     return {
