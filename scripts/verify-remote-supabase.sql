@@ -36,6 +36,7 @@ declare
     'public.current_profile_can_admin_team(uuid)',
     'public.current_profile_can_access_org(uuid)',
     'public.current_profile_can_manage_org(uuid)',
+    'public.current_profile_can_write_player_org(uuid)',
     'public.player_matches_team_context(uuid,uuid,uuid)',
     'public.current_profile_can_read_player(uuid)'
   ];
@@ -47,6 +48,7 @@ declare
   multi_team_applied boolean;
   roster_import_history_applied boolean;
   player_membership_rls_applied boolean;
+  player_identity_write_rls_applied boolean;
   seeded_foundation boolean;
   seeded_team_views boolean;
   bootstrap_completed_at timestamptz;
@@ -100,6 +102,16 @@ begin
 
   if not player_membership_rls_applied then
     raise exception 'Player membership RLS recursion fix migration 20260810020000 is not applied.';
+  end if;
+
+  select exists (
+    select 1
+    from supabase_migrations.schema_migrations
+    where version = '20260810030000'
+  ) into player_identity_write_rls_applied;
+
+  if not player_identity_write_rls_applied then
+    raise exception 'Player identity staff write RLS migration 20260810030000 is not applied.';
   end if;
 
   select array_agg(table_name order by table_name)
@@ -186,6 +198,7 @@ select 'secure bootstrap migration applied' as check_name, 'pass' as result;
 select 'multi-team membership migration applied' as check_name, 'pass' as result;
 select 'roster import history migration applied' as check_name, 'pass' as result;
 select 'player membership RLS recursion fix migration applied' as check_name, 'pass' as result;
+select 'player identity staff write RLS migration applied' as check_name, 'pass' as result;
 select 'expected tables exist' as check_name, count(*)::text as verified_count
 from unnest(array[
   'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',

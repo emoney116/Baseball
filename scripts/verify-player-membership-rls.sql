@@ -9,6 +9,8 @@ create temp table rls_membership_fixture as
 select
   gen_random_uuid() as authorized_player_id,
   gen_random_uuid() as blocked_player_id,
+  gen_random_uuid() as unauthorized_player_id,
+  gen_random_uuid() as anon_player_id,
   gen_random_uuid() as unauthorized_profile_id,
   org.id as organization_id,
   team.id as team_id,
@@ -52,26 +54,6 @@ insert into public.players (
   is_pitcher, is_hitter, metadata, created_at, updated_at
 )
 select
-  authorized_player_id,
-  organization_id,
-  'RLS',
-  'Membership',
-  98,
-  2027,
-  'SS',
-  'RHP',
-  'R',
-  'R',
-  '6-0',
-  180,
-  true,
-  true,
-  jsonb_build_object('rlsRegression', true),
-  now(),
-  now()
-from rls_membership_fixture
-union all
-select
   blocked_player_id,
   organization_id,
   'RLS',
@@ -95,6 +77,45 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', staff_profile_id::text, true)
 from rls_membership_fixture;
 select set_config('request.jwt.claim.role', 'authenticated', true);
+
+insert into public.players (
+  id, organization_id, first_name, last_name, jersey_number, graduation_year,
+  primary_position, secondary_position, bats, throws, height, weight,
+  is_pitcher, is_hitter, metadata, created_at, updated_at
+)
+select
+  authorized_player_id,
+  organization_id,
+  'RLS',
+  'Membership',
+  98,
+  2027,
+  'SS',
+  'RHP',
+  'R',
+  'R',
+  '6-0',
+  180,
+  true,
+  true,
+  jsonb_build_object('rlsRegression', true),
+  now(),
+  now()
+from rls_membership_fixture;
+
+do $$
+declare
+  inserted_count integer;
+begin
+  select count(*)
+  into inserted_count
+  from public.players p
+  join rls_membership_fixture fixture on fixture.authorized_player_id = p.id;
+
+  if inserted_count <> 1 then
+    raise exception 'Authorized staff could not insert/read a player identity through RLS.';
+  end if;
+end $$;
 
 do $$
 declare
@@ -184,6 +205,48 @@ begin
   end if;
 
   begin
+    insert into public.players (
+      id, organization_id, first_name, last_name, jersey_number, graduation_year,
+      primary_position, secondary_position, bats, throws, height, weight,
+      is_pitcher, is_hitter, metadata, created_at, updated_at
+    )
+    select
+      unauthorized_player_id,
+      organization_id,
+      'RLS',
+      'Unauthorized',
+      96,
+      2027,
+      'SS',
+      null,
+      'R',
+      'R',
+      '6-0',
+      180,
+      false,
+      true,
+      jsonb_build_object('rlsRegression', true),
+      now(),
+      now()
+    from rls_membership_fixture;
+
+    raise exception 'Unauthorized player INSERT unexpectedly succeeded.';
+  exception
+    when insufficient_privilege or check_violation then
+      null;
+  end;
+
+  update public.players p
+  set jersey_number = 1
+  from rls_membership_fixture fixture
+  where p.id = fixture.authorized_player_id;
+
+  get diagnostics touched_count = row_count;
+  if touched_count <> 0 then
+    raise exception 'Unauthorized player UPDATE unexpectedly touched rows.';
+  end if;
+
+  begin
     insert into public.player_team_memberships (player_id, team_id, season_id, roster_status, jersey_number)
     select blocked_player_id, team_id, season_id, 'Undecided', 97
     from rls_membership_fixture;
@@ -232,6 +295,38 @@ begin
   if visible_count <> 0 then
     raise exception 'Anonymous user could read player_team_memberships.';
   end if;
+
+  begin
+    insert into public.players (
+      id, organization_id, first_name, last_name, jersey_number, graduation_year,
+      primary_position, secondary_position, bats, throws, height, weight,
+      is_pitcher, is_hitter, metadata, created_at, updated_at
+    )
+    select
+      anon_player_id,
+      organization_id,
+      'RLS',
+      'Anonymous',
+      95,
+      2027,
+      'OF',
+      null,
+      'R',
+      'R',
+      '5-11',
+      175,
+      false,
+      true,
+      jsonb_build_object('rlsRegression', true),
+      now(),
+      now()
+    from rls_membership_fixture;
+
+    raise exception 'Anonymous player INSERT unexpectedly succeeded.';
+  exception
+    when insufficient_privilege or check_violation then
+      null;
+  end;
 
   begin
     insert into public.player_team_memberships (player_id, team_id, season_id, roster_status, jersey_number)
