@@ -158,7 +158,7 @@ const GAME_PITCH_BUTTONS: GamePitchOutcome[] = ["Ball", "Called Strike", "Swingi
 const BIP_OUTCOMES: GameBallInPlayOutcome[] = ["Single", "Double", "Triple", "Home Run", "Ground Out", "Fly Out", "Line Out", "Pop Out", "Error", "Fielder's Choice", "Sac Fly", "Sac Bunt"];
 const LIVE_BP_OUTCOMES: LiveBpOutcomeLabel[] = ["K", "BB", "HBP", "1B", "2B", "3B", "HR", "Out", "Error", "FC"];
 const EXERCISES = ["Back Squat", "Front Squat", "Bench Press", "Incline Bench", "Deadlift", "Trap Bar Deadlift", "Power Clean", "Hang Clean", "Push Press", "Pull Ups", "DB Bench", "Bulgarian Split Squat", "Sprint", "Broad Jump", "Vertical Jump"];
-const PITCH_MIX_COLORS = ["#f4c16f", "#9f244c", "#8b96a5", "#43c6ac", "#f97316", "#a78bfa", "#e2e8f0", "#38bdf8"];
+const PITCH_MIX_COLORS = ["#9f244c", "#43c6ac", "#8b96a5", "#38bdf8", "#f97316", "#a78bfa", "#e2e8f0", "#22c55e"];
 const ROSTER_CSV_TEMPLATE = [
   "First Name,Last Name,Jersey Number,Graduation Year,Primary Position,Secondary Position,Bats,Throws,Team,Roster Status",
   "Jackson,Smith,12,2027,SS,P,R,R,Metrolina Varsity,Varsity",
@@ -921,24 +921,33 @@ export default function MetrolinaBaseballApp() {
           <strong>{practice?.name ?? "No active practice"}</strong>
           <small>{practice ? `${activeTotals.players} players active` : "Start a practice to begin"}</small>
         </div>
+
+        <div className="sidebar-footer">
+          <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label="Toggle light or dark theme">
+            {data.settings.theme === "dark" ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
+            <span>{data.settings.theme === "dark" ? "Light" : "Dark"}</span>
+          </button>
+          <ProfileMenu
+            context={data.teamContext}
+            open={accountMenuOpen}
+            onOpen={setAccountMenuOpen}
+            onView={setView}
+            onSignOut={signOut}
+          />
+        </div>
       </aside>
 
       <section className="ops-main">
         <TopCommand
           data={data}
-          practice={practice}
           globalQuery={globalQuery}
           globalResults={globalResults}
-          accountMenuOpen={accountMenuOpen}
           onQuery={setGlobalQuery}
           onOpenPlayer={openPlayer}
           onStartPractice={() => setStartPracticeOpen(true)}
           onStartGame={() => setStartGameOpen(true)}
-          onToggleTheme={toggleTheme}
           onView={setView}
           onTeamSwitch={switchTeam}
-          onAccountMenu={setAccountMenuOpen}
-          onSignOut={signOut}
         />
 
         <SyncStatusBanner status={saveStatus} error={saveError} />
@@ -1168,6 +1177,10 @@ export default function MetrolinaBaseballApp() {
             <Building2 size={17} aria-hidden="true" />
             Teams
           </button>
+          <button type="button" onClick={() => { toggleTheme(); setMobileMoreOpen(false); }}>
+            {data.settings.theme === "dark" ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
+            {data.settings.theme === "dark" ? "Light" : "Dark"}
+          </button>
         </section>
       )}
 
@@ -1327,7 +1340,7 @@ function AuthGate({
     <main className="loading-screen auth-screen">
       <img src="/brand/metrolina-baseball-cutout.png" alt="" />
       <strong>Metrolina Baseball</strong>
-      <span>Player Development + Practice + Game Operations</span>
+      <span>Baseball operations</span>
 
       {authState.status === "not-configured" && <p className="auth-message">{authState.message}</p>}
       {error && !needsMembership && <p className="auth-message">{error.message}</p>}
@@ -1433,50 +1446,33 @@ function EmptyActionPanel({
 
 function TopCommand({
   data,
-  practice,
   globalQuery,
   globalResults,
-  accountMenuOpen,
   onQuery,
   onOpenPlayer,
   onStartPractice,
   onStartGame,
-  onToggleTheme,
   onView,
   onTeamSwitch,
-  onAccountMenu,
-  onSignOut,
 }: {
   data: AppData;
-  practice?: Practice;
   globalQuery: string;
   globalResults: Player[];
-  accountMenuOpen: boolean;
   onQuery: (value: string) => void;
   onOpenPlayer: (playerId: ID) => void;
   onStartPractice: () => void;
   onStartGame: () => void;
-  onToggleTheme: () => void;
   onView: (view: ViewKey) => void;
   onTeamSwitch: (team: TeamOption) => void | Promise<void>;
-  onAccountMenu: (open: boolean) => void;
-  onSignOut: () => void | Promise<void>;
 }) {
-  const currentTeam = data.teamContext?.currentTeam;
   return (
     <header className="top-command">
       <div className="top-command__identity">
         <button type="button" className="mobile-brand" onClick={() => onView("home")}>
           <img src="/brand/metrolina-baseball-cutout.png" alt="" />
         </button>
-        <div>
-          <span>{currentTeam?.seasonName ?? data.settings.rosterSeason}</span>
-          <h1>{currentTeam?.teamName ?? "Metrolina Baseball"}</h1>
-          <small>{practice ? `${weekdayLong(practice.date)}, ${fullDate(practice.date)} - ${practice.location}` : "Player Development + Practice + Game Operations"}</small>
-        </div>
+        <TeamSwitcher context={data.teamContext} onSwitch={onTeamSwitch} />
       </div>
-
-      <TeamSwitcher context={data.teamContext} onSwitch={onTeamSwitch} />
 
       <div className="global-search">
         <Search size={16} aria-hidden="true" />
@@ -1495,24 +1491,14 @@ function TopCommand({
       </div>
 
       <div className="top-command__actions">
-        <button type="button" className="ghost-button" onClick={onToggleTheme} aria-label="Toggle light or dark theme">
-          {data.settings.theme === "dark" ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
-        </button>
         <button type="button" className="secondary-button" onClick={onStartGame}>
           <Play size={16} aria-hidden="true" />
-          Start Game
+          Game
         </button>
         <button type="button" className="primary-button" onClick={onStartPractice}>
           <Plus size={16} aria-hidden="true" />
-          Start Practice
+          Practice
         </button>
-        <ProfileMenu
-          context={data.teamContext}
-          open={accountMenuOpen}
-          onOpen={onAccountMenu}
-          onView={onView}
-          onSignOut={onSignOut}
-        />
       </div>
     </header>
   );
@@ -1537,7 +1523,7 @@ function TeamSwitcher({
     <label className={`team-switcher ${compact ? "team-switcher--compact" : ""}`}>
       <Building2 size={16} aria-hidden="true" />
       <span>
-        <small>{current.organizationName}</small>
+        <small>{current.seasonName ?? "Current season"}</small>
         {teams.length > 1 ? (
           <select
             value={selectedValue}
@@ -1549,7 +1535,7 @@ function TeamSwitcher({
           >
             {teams.map((team) => (
               <option key={teamValue(team)} value={teamValue(team)}>
-                {team.teamName}{team.seasonName ? ` - ${team.seasonName}` : ""}
+                {team.teamName}
               </option>
             ))}
           </select>
@@ -1623,9 +1609,8 @@ function AccountProfileView({
   return (
     <div className="page-stack">
       <SectionHeader
-        eyebrow="Account"
         title="My Profile"
-        body="Your login can belong to one team, several teams, and different seasons without creating separate accounts."
+        context={context?.currentTeam ? `${context.currentTeam.teamName} · ${context.currentTeam.seasonName ?? "Current season"}` : undefined}
         action={
           <button className="secondary-button" type="button" onClick={() => void onSignOut()}>
             <LogOut size={16} aria-hidden="true" />
@@ -1669,9 +1654,7 @@ function TeamsView({
   return (
     <div className="page-stack">
       <SectionHeader
-        eyebrow="Team Context"
         title="Teams"
-        body="Select the team and season that should drive roster, practice, game, weight-room, and analytics screens."
       />
       <section className="team-list">
         {(context?.availableTeams ?? []).map((team) => (
@@ -1753,16 +1736,16 @@ function HomeDashboard({
 
   return (
     <div className="page-stack home-dashboard">
+      <SectionHeader title="Home" context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} · ${data.teamContext.currentTeam.seasonName ?? data.settings.rosterSeason}` : data.settings.rosterSeason} />
       <section className="quick-actions">
-        <ActionCard icon={ClipboardList} label="Start Practice" detail="Hitting, pitching, defense" onClick={onStartPractice} />
-        <ActionCard icon={Gauge} label="Start Game" detail="Lineup and pitch scoring" onClick={onStartGame} />
-        <ActionCard icon={UserPlus} label="Add Player" detail="Roster status and profile" onClick={onAddPlayer} />
-        <ActionCard icon={Dumbbell} label="Enter Weight Room" detail="Weekly lifting grid" onClick={() => onView("weights")} />
+        <ActionCard icon={ClipboardList} label="Practice" detail="Start" onClick={onStartPractice} />
+        <ActionCard icon={Gauge} label="Game" detail="Start" onClick={onStartGame} />
+        <ActionCard icon={UserPlus} label="Player" detail="Add" onClick={onAddPlayer} />
+        <ActionCard icon={Dumbbell} label="Workout" detail="Enter" onClick={() => onView("weights")} />
       </section>
 
       <section className="dashboard-grid">
         <article className="panel today-panel">
-          <div className="section-kicker">Today</div>
           <div className="today-panel__title">
             <div>
               <h2>{practice ? "Today's Practice" : "No Practice Scheduled"}</h2>
@@ -1792,7 +1775,6 @@ function HomeDashboard({
         <article className="panel recent-performance">
           <div className="panel-heading">
             <div>
-              <span>Recent Performance</span>
               <h2>Practice Leaders</h2>
             </div>
             <button type="button" className="text-button" onClick={() => onView("analytics")}>
@@ -1806,7 +1788,7 @@ function HomeDashboard({
         </article>
 
         <article className="panel game-card">
-          <div className="section-kicker">Recent Game</div>
+          <h2>Recent Game</h2>
           {latestGame ? (
             <>
               <div className="score-line">
@@ -1831,13 +1813,13 @@ function HomeDashboard({
         </article>
 
         <article className="panel upcoming-card">
-          <div className="section-kicker">Upcoming</div>
+          <h2>Upcoming</h2>
           <ScheduleRow title="Next practice" primary={upcomingPractice?.name ?? "Team practice"} meta={upcomingPractice ? `${shortDate(upcomingPractice.date)} - ${upcomingPractice.location}` : "Not scheduled"} />
           <ScheduleRow title="Next game" primary={upcomingGame ? `${upcomingGame.homeAway === "Home" ? "vs" : "at"} ${upcomingGame.opponent}` : "No game scheduled"} meta={upcomingGame ? `${shortDate(upcomingGame.date)} - ${upcomingGame.location}` : "Create the next game when ready"} />
         </article>
 
         <article className="panel roster-snapshot">
-          <div className="section-kicker">Roster Snapshot</div>
+          <h2>Roster</h2>
           <div className="snapshot-grid">
             {ROSTER_STATUSES.map((status) => (
               <button key={status} type="button" onClick={() => onView("roster")} className={`status-mini status-${status.toLowerCase()}`}>
@@ -1901,9 +1883,8 @@ function RosterView({
   return (
     <div className="page-stack roster-page">
       <SectionHeader
-        eyebrow="Roster Management"
         title="Roster"
-        body={`Team-specific roster status and jersey numbers for ${team?.seasonName ?? "the selected season"}.`}
+        context={team ? `${team.teamName} · ${team.seasonName ?? "Current season"}` : undefined}
         action={
           <div className="section-actions">
             <button className="secondary-button" type="button" onClick={onImport}>
@@ -1918,12 +1899,7 @@ function RosterView({
         }
       />
 
-      <section className="roster-command panel">
-        <div>
-          <span>Current Team</span>
-          <h2>{team?.teamName ?? "Metrolina Baseball"}</h2>
-          <small>{team?.seasonName ?? "Current season"} - jersey/status lives on this roster membership</small>
-        </div>
+      <section className="roster-command">
         <TeamSwitcher context={teamContext} onSwitch={onSwitchTeam} />
         <div className="roster-count-strip">
           {ROSTER_STATUSES.map((status) => (
@@ -2015,9 +1991,9 @@ function PracticeHome({
 
   return (
     <div className="page-stack practice-home">
+      <SectionHeader title="Practice" context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} · ${data.teamContext.currentTeam.seasonName ?? data.settings.rosterSeason}` : data.settings.rosterSeason} />
       <section className="practice-command panel">
         <div className="practice-command__main">
-          <span>Today&apos;s Practice</span>
           <h2>{practice?.name ?? "Ready when practice starts"}</h2>
           <small>{practice ? `${fullDate(practice.date)} - ${practice.location} - ${practiceElapsed(practice)}` : "Start a practice, choose the roster preset, and log reps from one screen."}</small>
         </div>
@@ -2041,7 +2017,6 @@ function PracticeHome({
             <article className="panel practice-live-card">
               <div className="panel-heading tight">
                 <div>
-                  <span>Active Session</span>
                   <h2>{practice.type}</h2>
                 </div>
                 <small>{activeTotals.players} players</small>
@@ -2065,7 +2040,6 @@ function PracticeHome({
             <article className="panel station-console-card">
               <div className="panel-heading tight">
                 <div>
-                  <span>Quick Stations</span>
                   <h2>One Tap Entry</h2>
                 </div>
               </div>
@@ -2097,7 +2071,6 @@ function PracticeHome({
           <section className="panel recent-practices-card">
             <div className="panel-heading tight">
               <div>
-                <span>Recent Practices</span>
                 <h2>Practice Timeline</h2>
               </div>
             </div>
@@ -2371,7 +2344,7 @@ function PracticeConsole({
                   <button type="button" onClick={() => onLogHitting("Ball in play", "Ground ball", "Solid")}>GB</button>
                   <button type="button" onClick={() => onLogHitting("Ball in play", "Line drive", "Hard")}>LD</button>
                   <button type="button" onClick={() => onLogHitting("Ball in play", "Fly ball", "Solid")}>FB</button>
-                  <button type="button" className="gold" onClick={() => onLogHitting("Ball in play", "Line drive", "Barrel")}>Barrel</button>
+                  <button type="button" className="impact" onClick={() => onLogHitting("Ball in play", "Line drive", "Barrel")}>Barrel</button>
                 </div>
                 <div className="direction-row">
                   {(["Pull", "Middle", "Opposite"] as Direction[]).map((direction) => (
@@ -2414,7 +2387,7 @@ function PracticeConsole({
                 <div className="quick-pad quick-pad--pitching">
                   <button type="button" onClick={() => onLogPitch("Ball")}>Ball</button>
                   <button type="button" onClick={() => onLogPitch("Called Strike")}>Called Strike</button>
-                  <button type="button" className="gold" onClick={() => onLogPitch("Whiff")}>Whiff</button>
+                  <button type="button" className="impact" onClick={() => onLogPitch("Whiff")}>Whiff</button>
                   <button type="button" onClick={() => onLogPitch("Foul")}>Foul</button>
                   <button type="button" onClick={() => onLogPitch("Ball in play", "Ground ball")}>GB</button>
                   <button type="button" onClick={() => onLogPitch("Ball in play", "Line drive")}>LD</button>
@@ -2448,7 +2421,7 @@ function PracticeConsole({
                   <button type="button" onClick={() => onLogDefense("Clean")}>Clean</button>
                   <button type="button" onClick={() => onLogDefense("Error")}>Error</button>
                   <button type="button" onClick={() => onLogDefense("Good Play")}>Good Play</button>
-                  <button type="button" className="gold" onClick={() => onLogDefense("Great Play")}>Great Play</button>
+                  <button type="button" className="impact" onClick={() => onLogDefense("Great Play")}>Great Play</button>
                 </div>
                 <div className="direction-row">
                   <button type="button" onClick={() => onLogDefense("Error", "Fielding")}>Fielding Error</button>
@@ -2530,7 +2503,7 @@ function PracticeConsole({
                 <div className="quick-pad quick-pad--pitching">
                   <button type="button" onClick={() => onLogLiveBpPitch("Ball")}>Ball</button>
                   <button type="button" onClick={() => onLogLiveBpPitch("Called Strike")}>Called Strike</button>
-                  <button type="button" className="gold" onClick={() => onLogLiveBpPitch("Whiff")}>Whiff</button>
+                  <button type="button" className="impact" onClick={() => onLogLiveBpPitch("Whiff")}>Whiff</button>
                   <button type="button" onClick={() => onLogLiveBpPitch("Foul")}>Foul</button>
                   <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Ground ball")}>GB</button>
                   <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Line drive")}>LD</button>
@@ -2587,7 +2560,7 @@ function WeightRoomView({
 
   return (
     <div className="page-stack weights-page">
-      <SectionHeader eyebrow="Weight Room" title="Development Scoreboard" body="Weekly completion, improvement, consistency, and effort without overvaluing absolute size." />
+      <SectionHeader title="Weight Room" context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} · ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined} />
       <section className="weights-grid">
         <WeightLeaderCard leader={leader} onOpenPlayer={onOpenPlayer} />
         <article className="panel workout-entry">
@@ -2728,9 +2701,8 @@ function GamesView({
   return (
     <div className="page-stack games-page">
       <SectionHeader
-        eyebrow="Game Time"
-        title="Official Game Operations"
-        body="Separate game stats from practice and Live BP while preserving pitch-by-pitch context."
+        title="Games"
+        context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} · ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined}
         action={<button className="primary-button" type="button" onClick={onStartGame}><Plus size={16} aria-hidden="true" />Start Game</button>}
       />
 
@@ -2785,7 +2757,7 @@ function GamesView({
                 </label>
                 <div className="quick-pad quick-pad--game">
                   {GAME_PITCH_BUTTONS.map((outcome) => (
-                    <button key={outcome} type="button" className={outcome === "In Play" ? "gold" : ""} onClick={() => outcome === "In Play" ? undefined : onLogPitch(outcome)}>
+                    <button key={outcome} type="button" className={outcome === "In Play" ? "impact" : ""} onClick={() => outcome === "In Play" ? undefined : onLogPitch(outcome)}>
                       {outcome}
                     </button>
                   ))}
@@ -2837,7 +2809,7 @@ function AnalyticsView({
 
   return (
     <div className="page-stack">
-      <SectionHeader eyebrow="Analytics" title="Whole Player Trends" body="Practice, game, Live BP, and weight-room context stay separate but comparable." />
+      <SectionHeader title="Analytics" context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} · ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined} />
       <section className="toolbar-panel">
         <SegmentedControl values={["All", "Practice", "Game", "Live BP", "Weight Room"] as AnalyticsContext[]} active={context} onChange={onContext} />
         <SegmentedControl values={["Last Week", "Last 30 Days", "Fall"] as DateFilter[]} active={dateFilter} onChange={onDateFilter} />
@@ -3283,7 +3255,7 @@ function RosterImportModal({
     <ModalFrame title="Import Roster CSV" onClose={onClose}>
       <section className="import-intro">
         <div>
-          <span>Current Team</span>
+          <span>Team</span>
           <h2>{currentTeam?.teamName ?? "Selected team"}</h2>
           <p>Rows import into the selected team/season. Matching players update the existing athlete identity instead of creating duplicates.</p>
         </div>
@@ -3441,12 +3413,13 @@ function PracticeSummaryModal({
   );
 }
 
-function SectionHeader({ eyebrow, title, body, action }: { eyebrow: string; title: string; body?: string; action?: React.ReactNode }) {
+function SectionHeader({ eyebrow, title, body, context, action }: { eyebrow?: string; title: string; body?: string; context?: string; action?: React.ReactNode }) {
   return (
     <section className="section-header">
       <div>
-        <span>{eyebrow}</span>
+        {eyebrow && <span>{eyebrow}</span>}
         <h2>{title}</h2>
+        {context && <small>{context}</small>}
         {body && <p>{body}</p>}
       </div>
       {action}
@@ -4192,10 +4165,6 @@ function gamePerformerLine(data: AppData, game: Game) {
     .map((playerId) => data.players.find((player) => player.id === playerId)?.name)
     .filter(Boolean);
   return Array.from(new Set(names)).slice(0, 3).join(", ") || "Scorebook summary pending";
-}
-
-function weekdayLong(date: string) {
-  return new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(new Date(`${date}T12:00:00`));
 }
 
 function formatSegment(value: string) {
