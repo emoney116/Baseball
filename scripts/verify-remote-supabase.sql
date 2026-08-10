@@ -51,6 +51,7 @@ declare
   player_identity_write_rls_applied boolean;
   admin_membership_repair_applied boolean;
   staff_title_authorization_applied boolean;
+  profile_role_team_authorization_applied boolean;
   seeded_foundation boolean;
   seeded_team_views boolean;
   admin_profiles_without_org_membership integer;
@@ -137,6 +138,16 @@ begin
 
   if not staff_title_authorization_applied then
     raise exception 'Staff title authorization normalization migration 20260810050000 is not applied.';
+  end if;
+
+  select exists (
+    select 1
+    from supabase_migrations.schema_migrations
+    where version = '20260810060000'
+  ) into profile_role_team_authorization_applied;
+
+  if not profile_role_team_authorization_applied then
+    raise exception 'Profile role plus team membership authorization migration 20260810060000 is not applied.';
   end if;
 
   select array_agg(table_name order by table_name)
@@ -275,6 +286,7 @@ select 'player membership RLS recursion fix migration applied' as check_name, 'p
 select 'player identity staff write RLS migration applied' as check_name, 'pass' as result;
 select 'Metrolina admin membership repair migration applied' as check_name, 'pass' as result;
 select 'staff title authorization normalization migration applied' as check_name, 'pass' as result;
+select 'profile role plus team membership authorization migration applied' as check_name, 'pass' as result;
 select 'expected tables exist' as check_name, count(*)::text as verified_count
 from unnest(array[
   'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',

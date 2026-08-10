@@ -23,9 +23,11 @@ join public.seasons season on season.team_id = team.id and season.name = 'Fall 2
 join lateral (
   select ptm.profile_id, ptm.id as staff_membership_id
   from public.profile_team_memberships ptm
+  join public.profiles profile on profile.id = ptm.profile_id
   where ptm.team_id = team.id
     and ptm.active = true
     and ptm.role in ('OWNER', 'ADMIN', 'HEAD_COACH', 'ASSISTANT_COACH', 'STAFF', 'COACH')
+    and profile.role in ('ADMIN', 'COACH')
   order by
     case ptm.role
       when 'OWNER' then 0
@@ -76,7 +78,7 @@ from rls_membership_fixture;
 
 update public.profile_team_memberships ptm
 set role = 'PLAYER',
-    title = 'Program Admin'
+    title = null
 from rls_membership_fixture fixture
 join public.teams team on team.organization_id = fixture.organization_id
 where ptm.profile_id = fixture.staff_profile_id
