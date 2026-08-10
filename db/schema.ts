@@ -146,6 +146,30 @@ export const playerTeamMemberships = pgTable("player_team_memberships", {
   seasonIdx: index("player_team_memberships_season_id_idx").on(table.seasonId),
 }));
 
+export const rosterImports = pgTable("roster_imports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  seasonId: uuid("season_id").references(() => seasons.id, { onDelete: "set null" }),
+  importedBy: uuid("imported_by").references(() => profiles.id, { onDelete: "set null" }),
+  fileNames: jsonb("file_names").default([]).notNull(),
+  teams: jsonb("teams").default([]).notNull(),
+  modes: jsonb("modes").default([]).notNull(),
+  rowsProcessed: integer("rows_processed").default(0).notNull(),
+  playersCreated: integer("players_created").default(0).notNull(),
+  playersUpdated: integer("players_updated").default(0).notNull(),
+  membershipsAdded: integer("memberships_added").default(0).notNull(),
+  membershipsUpdated: integer("memberships_updated").default(0).notNull(),
+  membershipsRemoved: integer("memberships_removed").default(0).notNull(),
+  rowsSkipped: integer("rows_skipped").default(0).notNull(),
+  summary: jsonb("summary").default({}).notNull(),
+  ...timestamps,
+}, (table) => ({
+  teamIdx: index("roster_imports_team_id_idx").on(table.teamId),
+  seasonIdx: index("roster_imports_season_id_idx").on(table.seasonId),
+  importedByIdx: index("roster_imports_imported_by_idx").on(table.importedBy),
+}));
+
 export const practices = pgTable("practices", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),

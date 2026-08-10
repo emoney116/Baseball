@@ -36,6 +36,18 @@ import { BaseballField, DonutChart, Heatmap, MetricBar, MiniLineChart, PlayerAva
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
 import {
+  applyRosterImportPlan,
+  buildRosterImportPlan,
+  importModeLabel,
+  parseMaxPrepsPdfText,
+  parseRosterCsv,
+  rosterStatusForTeam,
+  type ParsedRosterFile,
+  type RosterImportDecision,
+  type RosterImportMode,
+  type RosterImportPlan,
+} from "./lib/rosterImport";
+import {
   activePractice,
   buildHittingLeaders,
   buildPitchingLeaders,
@@ -93,27 +105,8 @@ type RosterYearFilter = "All" | string;
 type ProfileTab = "overview" | "practice" | "games" | "pitching" | "hitting" | "defense" | "weights" | "notes";
 type AnalyticsContext = "All" | "Practice" | "Game" | "Live BP" | "Weight Room";
 type DateFilter = "Last Week" | "Last 30 Days" | "Fall";
-type CsvImportDecision = "create" | "update" | "skip";
 type PracticeRosterPreset = "All" | "Varsity" | "JV" | "Custom";
 type LiveBpOutcomeLabel = "K" | "BB" | "HBP" | "1B" | "2B" | "3B" | "HR" | "Out" | "Error" | "FC";
-
-interface RosterCsvPreviewRow {
-  id: ID;
-  rowNumber: number;
-  firstName: string;
-  lastName: string;
-  jerseyNumber: number;
-  graduationYear: number;
-  primaryPosition: Position;
-  secondaryPosition?: Position;
-  bats: Player["bats"];
-  throws: Player["throws"];
-  teamName?: string;
-  rosterStatus: RosterStatus;
-  errors: string[];
-  duplicatePlayerId?: ID;
-  decision: CsvImportDecision;
-}
 
 const NAV_ITEMS: Array<{ key: ViewKey; label: string; shortLabel: string; icon: LucideIcon }> = [
   { key: "home", label: "Home", shortLabel: "Home", icon: Home },
@@ -131,6 +124,7 @@ const MOBILE_NAV_ITEMS: Array<{ key: ViewKey | "more"; label: string; shortLabel
   { key: "more", label: "More", shortLabel: "More", icon: MoreHorizontal },
 ];
 const MORE_VIEWS: ViewKey[] = ["weights", "analytics", "account", "teams"];
+const CREATE_TEAM_VALUE = "__create_team__";
 
 const ROSTER_STATUSES: RosterStatus[] = ["Varsity", "JV", "Undecided", "Cut"];
 const ROSTER_FILTERS: RosterFilter[] = ["All", ...ROSTER_STATUSES];
@@ -367,80 +361,29 @@ export default function MetrolinaBaseballApp() {
     setPracticeTrackingOpen(true);
   }
 
-  function importRosterRows(rows: RosterCsvPreviewRow[]) {
-    const accepted = rows.filter((row) => row.errors.length === 0 && row.decision !== "skip");
-    if (accepted.length === 0) return;
+  function importRosterPlan(plan: RosterImportPlan) {
+    commit((current) => applyRosterImportPlan(current, plan).data);
+  }
 
-    commit((current) => {
-      const now = new Date().toISOString();
-      const existingById = new Map(current.players.map((player) => [player.id, player]));
-      const nextPlayers = [...current.players];
-      const nextMemberships = [...(current.playerTeamMemberships ?? [])];
-
-      accepted.forEach((row) => {
-        const existing = row.duplicatePlayerId ? existingById.get(row.duplicatePlayerId) : undefined;
-        const playerId = existing?.id ?? row.id;
-        const player: Player = {
-          id: playerId,
-          name: `${row.firstName} ${row.lastName}`.trim(),
-          jerseyNumber: row.jerseyNumber,
-          primaryPosition: row.primaryPosition,
-          secondaryPosition: row.secondaryPosition,
-          bats: row.bats,
-          throws: row.throws,
-          graduationYear: row.graduationYear,
-          rosterStatus: row.rosterStatus,
-          programLevel: row.rosterStatus === "JV" ? "JV" : row.rosterStatus === "Varsity" ? "Varsity" : "Development",
-          height: existing?.height,
-          weight: existing?.weight,
-          avatarColor: existing?.avatarColor ?? colorForName(`${row.firstName} ${row.lastName}`),
-          imageUrl: existing?.imageUrl,
-          isPitcher: existing?.isPitcher ?? [row.primaryPosition, row.secondaryPosition].includes("P"),
-          isHitter: existing?.isHitter ?? true,
-          notes: existing?.notes,
-          archived: false,
-          createdAt: existing?.createdAt ?? now,
-          updatedAt: now,
-        };
-
-        const index = nextPlayers.findIndex((item) => item.id === player.id);
-        if (index >= 0) nextPlayers[index] = player;
-        else nextPlayers.unshift(player);
-        const membershipIndex = nextMemberships.findIndex((membership) =>
-          membership.playerId === playerId &&
-          membership.teamId === current.settings.selectedTeamId &&
-          membership.seasonId === current.settings.selectedSeasonId,
-        );
-        const membership = {
-          id: nextMemberships[membershipIndex]?.id ?? createId("ptm"),
-          playerId,
-          teamId: current.settings.selectedTeamId ?? "",
-          seasonId: current.settings.selectedSeasonId,
-          rosterStatus: row.rosterStatus,
-          jerseyNumber: row.jerseyNumber,
-          rosterRole: player.programLevel,
-          active: true,
-        };
-        if (membership.teamId) {
-          if (membershipIndex >= 0) nextMemberships[membershipIndex] = membership;
-          else nextMemberships.unshift(membership);
-        }
-        existingById.set(player.id, player);
-      });
-
+  async function createTeamForImport(input: { teamName: string; teamLevel?: string; seasonName: string }) {
+    const team = await supabaseAppRepository.createTeam(input);
+    setData((current) => {
+      if (!current) return current;
+      const context = current.teamContext;
+      const availableTeams = context?.availableTeams ?? [];
       return {
         ...current,
-        players: nextPlayers,
-        playerTeamMemberships: nextMemberships,
-        settings: {
-          ...current.settings,
-          recentPlayerIds: [
-            ...accepted.map((row) => row.duplicatePlayerId ?? row.id),
-            ...current.settings.recentPlayerIds,
-          ].filter((id, index, ids) => ids.indexOf(id) === index).slice(0, 8),
+        teamContext: {
+          profile: context?.profile,
+          currentTeam: context?.currentTeam ?? team,
+          availableTeams: [
+            team,
+            ...availableTeams.filter((item) => item.teamId !== team.teamId || item.seasonId !== team.seasonId),
+          ],
         },
       };
     });
+    return team;
   }
 
   function toggleTheme() {
@@ -1237,8 +1180,9 @@ export default function MetrolinaBaseballApp() {
         <RosterImportModal
           data={data}
           onClose={() => setRosterImportOpen(false)}
-          onImport={(rows) => {
-            importRosterRows(rows);
+          onCreateTeam={createTeamForImport}
+          onImport={(plan) => {
+            importRosterPlan(plan);
             setRosterImportOpen(false);
           }}
         />
@@ -1837,7 +1781,7 @@ function RosterView({
           <div className="section-actions">
             <button className="secondary-button" type="button" onClick={onImport}>
               <Upload size={16} aria-hidden="true" />
-              Import CSV
+              Import Roster
             </button>
             <button className="primary-button" type="button" onClick={onAddPlayer}>
               <UserPlus size={16} aria-hidden="true" />
@@ -3186,105 +3130,458 @@ function PlayerEditorModal({ player, onClose, onSave, onArchive }: { player?: Pl
 function RosterImportModal({
   data,
   onClose,
+  onCreateTeam,
   onImport,
 }: {
   data: AppData;
   onClose: () => void;
-  onImport: (rows: RosterCsvPreviewRow[]) => void;
+  onCreateTeam: (input: { teamName: string; teamLevel?: string; seasonName: string }) => Promise<TeamOption>;
+  onImport: (plan: RosterImportPlan) => void;
 }) {
-  const [csvText, setCsvText] = useState("");
-  const [rows, setRows] = useState<RosterCsvPreviewRow[]>([]);
-  const currentTeam = data.teamContext?.currentTeam;
-  const validRows = rows.filter((row) => row.errors.length === 0 && row.decision !== "skip");
-  const problemRows = rows.filter((row) => row.errors.length > 0);
-  const duplicateRows = rows.filter((row) => row.duplicatePlayerId && row.errors.length === 0);
+  const [step, setStep] = useState<"upload" | "assign" | "preview">("upload");
+  const [files, setFiles] = useState<ParsedRosterFile[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [assignments, setAssignments] = useState<Record<ID, { teamId: ID; mode: RosterImportMode; defaultRosterStatus: RosterStatus; replaceConfirmed: boolean }>>({});
+  const [teamDrafts, setTeamDrafts] = useState<Record<ID, { teamName: string; teamLevel: string; seasonName: string; busy?: boolean; error?: string }>>({});
+  const [resolutions, setResolutions] = useState<Record<string, { decision: RosterImportDecision; matchedPlayerId?: ID }>>({});
+  const availableTeams = data.teamContext?.availableTeams ?? [];
+  const fallbackTeam = data.teamContext?.currentTeam ?? availableTeams[0];
+  const configuredAssignments = files
+    .map((file) => {
+      const config = assignments[file.id];
+      if (config?.teamId === CREATE_TEAM_VALUE) return undefined;
+      const team = availableTeams.find((item) => item.teamId === config?.teamId) ?? fallbackTeam;
+      if (!team) return undefined;
+      return {
+        source: file,
+        teamId: team.teamId,
+        teamName: team.teamName,
+        seasonId: team.seasonId,
+        seasonName: team.seasonName,
+        mode: config?.mode ?? "add",
+        defaultRosterStatus: config?.defaultRosterStatus ?? rosterStatusForTeam(team),
+      };
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const basePlan = configuredAssignments.length ? buildRosterImportPlan(data, configuredAssignments) : undefined;
+  const plan = basePlan
+    ? {
+        ...basePlan,
+        files: basePlan.files.map((file) => ({
+          ...file,
+          rows: file.rows.map((row) => {
+            const resolution = resolutions[`${file.sourceId}:${row.id}`];
+            return resolution ? { ...row, decision: resolution.decision, matchedPlayerId: resolution.matchedPlayerId ?? row.matchedPlayerId } : row;
+          }),
+        })),
+      }
+    : undefined;
+  const totalRows = plan?.files.reduce((sum, file) => sum + file.rows.length, 0) ?? 0;
+  const readyRows = plan?.files.reduce((sum, file) => sum + file.rows.filter((row) => row.status !== "error" && row.decision !== "skip").length, 0) ?? 0;
+  const errorRows = plan?.files.reduce((sum, file) => sum + file.rows.filter((row) => row.status === "error").length, 0) ?? 0;
+  const allFilesAssigned = files.length > 0 && configuredAssignments.length === files.length;
+  const needsReplaceConfirmation = plan?.files.some((file) => file.mode === "replace" && !assignments[file.sourceId]?.replaceConfirmed) ?? false;
 
-  function parse(text: string) {
-    setCsvText(text);
-    setRows(parseRosterCsv(text, data));
+  async function handleFiles(fileList: FileList | File[]) {
+    const selected = Array.from(fileList);
+    if (!selected.length) return;
+    setBusy(true);
+    setUploadError("");
+    try {
+      const parsed = await Promise.all(selected.map(parseImportFile));
+      setFiles((current) => [...current, ...parsed]);
+      setAssignments((current) => {
+        const next = { ...current };
+        parsed.forEach((file) => {
+          const suggested = suggestTeamForFile(file, availableTeams, fallbackTeam);
+          if (suggested) {
+            next[file.id] = {
+              teamId: suggested.teamId,
+              mode: "add",
+              defaultRosterStatus: rosterStatusForTeam(suggested),
+              replaceConfirmed: false,
+            };
+          }
+        });
+        return next;
+      });
+      setStep("assign");
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Unable to parse roster file.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function parseImportFile(file: File): Promise<ParsedRosterFile> {
+    const sourceId = crypto.randomUUID();
+    const lowerName = file.name.toLowerCase();
+    const seasonName = fallbackTeam?.seasonName ?? data.settings.rosterSeason;
+    if (lowerName.endsWith(".pdf") || file.type === "application/pdf") {
+      const body = new FormData();
+      body.append("file", file);
+      const response = await fetch("/api/roster/parse-pdf", { method: "POST", body });
+      const payload = (await response.json().catch(() => ({}))) as { text?: string; warnings?: string[]; message?: string };
+      if (!response.ok && !payload.text) throw new Error(payload.message ?? "Unable to read PDF text.");
+      const parsed = parseMaxPrepsPdfText(payload.text ?? "", { sourceId, fileName: file.name, fallbackSeasonName: seasonName });
+      return { ...parsed, parseWarnings: [...parsed.parseWarnings, ...(payload.warnings ?? [])] };
+    }
+    if (!lowerName.endsWith(".csv") && file.type && !file.type.includes("csv")) {
+      throw new Error(`${file.name} is not a supported CSV or PDF file.`);
+    }
+    const text = await file.text();
+    return parseRosterCsv(text, { sourceId, fileName: file.name, seasonName });
   }
 
   return (
-    <ModalFrame title="Import Roster CSV" onClose={onClose}>
+    <ModalFrame title="Import Roster" onClose={onClose}>
+      <section className="import-wizard-steps" aria-label="Import progress">
+        {["Upload", "Assign Team", "Preview"].map((label, index) => (
+          <span key={label} className={index <= ["upload", "assign", "preview"].indexOf(step) ? "active" : ""}>{index + 1}. {label}</span>
+        ))}
+      </section>
+
       <section className="import-intro">
         <div>
-          <span>Team</span>
-          <h2>{currentTeam?.teamName ?? "Selected team"}</h2>
-          <p>Rows import into the selected team/season. Matching players update the existing athlete identity instead of creating duplicates.</p>
+          <h2>Bring in CSV or MaxPreps PDF rosters</h2>
+          <p>Players stay as one athlete identity. Jersey numbers, roster status, captain tags, team, and season live on the team membership.</p>
         </div>
-        <button className="secondary-button" type="button" onClick={() => parse(ROSTER_CSV_TEMPLATE)}>
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={() => {
+            const sourceId = crypto.randomUUID();
+            const file = parseRosterCsv(ROSTER_CSV_TEMPLATE, { sourceId, fileName: "Template.csv", seasonName: fallbackTeam?.seasonName ?? data.settings.rosterSeason });
+            setFiles((current) => [...current, file]);
+            if (fallbackTeam) {
+              setAssignments((current) => ({
+                ...current,
+                [sourceId]: { teamId: fallbackTeam.teamId, mode: "add", defaultRosterStatus: rosterStatusForTeam(fallbackTeam), replaceConfirmed: false },
+              }));
+            }
+            setStep("assign");
+          }}
+        >
           Use Template
         </button>
       </section>
 
-      <label className="file-drop">
-        <Upload size={18} aria-hidden="true" />
-        <span>Upload CSV</span>
+      <label
+        className="file-drop import-drop"
+        onDragOver={(event) => event.preventDefault()}
+        onDrop={(event) => {
+          event.preventDefault();
+          void handleFiles(event.dataTransfer.files);
+        }}
+      >
+        <Upload size={20} aria-hidden="true" />
+        <span>{busy ? "Parsing roster files..." : "Drop CSV/PDF files here or choose files"}</span>
+        <small>Supports MaxPreps CSV, generic CSV, and text-based MaxPreps PDF rosters. Multiple files are okay.</small>
         <input
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,text/csv,.pdf,application/pdf"
+          multiple
           onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            void file.text().then(parse);
+            if (event.target.files) void handleFiles(event.target.files);
           }}
         />
       </label>
+      {uploadError && <p className="form-error">{uploadError}</p>}
 
-      <label className="wide note-field">
-        <span>Paste CSV</span>
-        <textarea value={csvText} onChange={(event) => parse(event.target.value)} placeholder={ROSTER_CSV_TEMPLATE} />
-      </label>
-
-      <div className="import-summary">
-        <StatTile label="Rows" value={rows.length} />
-        <StatTile label="Ready" value={validRows.length} accent />
-        <StatTile label="Duplicates" value={duplicateRows.length} />
-        <StatTile label="Problems" value={problemRows.length} />
-      </div>
-
-      {rows.length > 0 && (
-        <section className="import-preview" aria-label="CSV import preview">
-          <div className="import-preview__head">
-            <span>Row</span>
-            <span>Player</span>
-            <span>Roster</span>
-            <span>Decision</span>
-          </div>
-          {rows.map((row) => (
-            <article className={`import-row ${row.errors.length ? "has-error" : ""}`} key={`${row.rowNumber}-${row.id}`}>
-              <span>{row.rowNumber}</span>
-              <div>
-                <strong>{row.firstName || "First"} {row.lastName || "Last"}</strong>
-                <small>#{row.jerseyNumber || "--"} - {row.primaryPosition || "--"}{row.secondaryPosition ? ` / ${row.secondaryPosition}` : ""} - {row.graduationYear || "Grad year"}</small>
-                {row.errors.map((error) => <em key={error}>{error}</em>)}
-                {row.duplicatePlayerId && !row.errors.length && <em className="soft">Matches existing player identity</em>}
-              </div>
-              <div>
-                <strong>{row.rosterStatus}</strong>
-                <small>{row.teamName || currentTeam?.teamName || "Current team"}</small>
-              </div>
-              <select
-                value={row.decision}
-                onChange={(event) => {
-                  const decision = event.target.value as CsvImportDecision;
-                  setRows((current) => current.map((item) => item.id === row.id && item.rowNumber === row.rowNumber ? { ...item, decision } : item));
-                }}
-                disabled={row.errors.length > 0}
-              >
-                <option value={row.duplicatePlayerId ? "update" : "create"}>{row.duplicatePlayerId ? "Update" : "Create"}</option>
-                <option value="skip">Skip</option>
-              </select>
-            </article>
-          ))}
+      {files.length > 0 && (
+        <section className="import-file-list">
+          {files.map((file) => {
+            const config = assignments[file.id];
+            const isCreatingTeam = config?.teamId === CREATE_TEAM_VALUE;
+            const selectedTeam = isCreatingTeam ? undefined : availableTeams.find((team) => team.teamId === config?.teamId) ?? fallbackTeam;
+            const effectiveTeam = selectedTeam ?? fallbackTeam;
+            const draft = teamDrafts[file.id] ?? {
+              teamName: file.detectedTeamName ?? "",
+              teamLevel: teamLevelFromName(file.detectedTeamName ?? ""),
+              seasonName: file.detectedSeasonName ?? fallbackTeam?.seasonName ?? data.settings.rosterSeason,
+            };
+            return (
+              <article key={file.id} className="import-file-card panel">
+                <div>
+                  <strong>{file.fileName}</strong>
+                  <small>{file.fileType.toUpperCase()} - {file.rows.length} players{file.staff.length ? ` - ${file.staff.length} staff detected` : ""}</small>
+                  {file.detectedTeamName && <em>Detected: {file.detectedTeamName}{file.detectedSeasonName ? ` - ${file.detectedSeasonName}` : ""}</em>}
+                  {file.parseWarnings.map((warning) => <em key={warning} className="warn">{warning}</em>)}
+                </div>
+                <div className="import-assignment-grid">
+                  <label>
+                    <span>Team</span>
+                    <select
+                      value={config?.teamId ?? selectedTeam?.teamId ?? ""}
+                      onChange={(event) => {
+                        if (event.target.value === CREATE_TEAM_VALUE) {
+                          setAssignments((current) => ({
+                            ...current,
+                            [file.id]: {
+                              teamId: CREATE_TEAM_VALUE,
+                              mode: current[file.id]?.mode ?? "add",
+                              defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(undefined),
+                              replaceConfirmed: false,
+                            },
+                          }));
+                          setTeamDrafts((current) => ({
+                            ...current,
+                            [file.id]: current[file.id] ?? draft,
+                          }));
+                          return;
+                        }
+                        const team = availableTeams.find((item) => item.teamId === event.target.value);
+                        setAssignments((current) => ({
+                          ...current,
+                          [file.id]: {
+                            teamId: event.target.value,
+                            mode: current[file.id]?.mode ?? "add",
+                            defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(team),
+                            replaceConfirmed: false,
+                          },
+                        }));
+                      }}
+                    >
+                      {availableTeams.map((team) => (
+                        <option key={teamValue(team)} value={team.teamId}>{team.teamName} - {team.seasonName ?? "Current season"}</option>
+                      ))}
+                      <option value={CREATE_TEAM_VALUE}>Create New Team...</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Import Mode</span>
+                    <select
+                      value={config?.mode ?? "add"}
+                      onChange={(event) => setAssignments((current) => ({
+                        ...current,
+                        [file.id]: {
+                          teamId: current[file.id]?.teamId ?? selectedTeam?.teamId ?? "",
+                          mode: event.target.value as RosterImportMode,
+                          defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(effectiveTeam),
+                          replaceConfirmed: false,
+                        },
+                      }))}
+                    >
+                      <option value="add">Keep Current Roster + Add Players</option>
+                      <option value="replace">Replace This Team&apos;s Roster</option>
+                      <option value="update">Update Existing Players Only</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Default Status</span>
+                    <select
+                      value={config?.defaultRosterStatus ?? rosterStatusForTeam(effectiveTeam)}
+                      onChange={(event) => setAssignments((current) => ({
+                        ...current,
+                        [file.id]: {
+                          teamId: current[file.id]?.teamId ?? selectedTeam?.teamId ?? "",
+                          mode: current[file.id]?.mode ?? "add",
+                          defaultRosterStatus: event.target.value as RosterStatus,
+                          replaceConfirmed: current[file.id]?.replaceConfirmed ?? false,
+                        },
+                      }))}
+                    >
+                      {ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}
+                    </select>
+                  </label>
+                </div>
+                {isCreatingTeam && (
+                  <div className="import-create-team-form">
+                    <label>
+                      <span>Team Name</span>
+                      <input
+                        value={draft.teamName}
+                        onChange={(event) => setTeamDrafts((current) => ({
+                          ...current,
+                          [file.id]: { ...draft, teamName: event.target.value, error: undefined },
+                        }))}
+                        placeholder="Metrolina Varsity"
+                      />
+                    </label>
+                    <label>
+                      <span>Level</span>
+                      <input
+                        value={draft.teamLevel}
+                        onChange={(event) => setTeamDrafts((current) => ({
+                          ...current,
+                          [file.id]: { ...draft, teamLevel: event.target.value, error: undefined },
+                        }))}
+                        placeholder="Varsity, JV, 17U..."
+                      />
+                    </label>
+                    <label>
+                      <span>Season</span>
+                      <input
+                        value={draft.seasonName}
+                        onChange={(event) => setTeamDrafts((current) => ({
+                          ...current,
+                          [file.id]: { ...draft, seasonName: event.target.value, error: undefined },
+                        }))}
+                        placeholder="Fall 2026"
+                      />
+                    </label>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      disabled={Boolean(draft.busy) || !draft.teamName.trim() || !draft.seasonName.trim()}
+                      onClick={async () => {
+                        setTeamDrafts((current) => ({ ...current, [file.id]: { ...draft, busy: true, error: undefined } }));
+                        try {
+                          const team = await onCreateTeam({
+                            teamName: draft.teamName,
+                            teamLevel: draft.teamLevel || undefined,
+                            seasonName: draft.seasonName,
+                          });
+                          setAssignments((current) => ({
+                            ...current,
+                            [file.id]: {
+                              teamId: team.teamId,
+                              mode: current[file.id]?.mode ?? "add",
+                              defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(team),
+                              replaceConfirmed: false,
+                            },
+                          }));
+                        } catch (error) {
+                          setTeamDrafts((current) => ({
+                            ...current,
+                            [file.id]: {
+                              ...draft,
+                              busy: false,
+                              error: error instanceof Error ? error.message : "Unable to create team.",
+                            },
+                          }));
+                        }
+                      }}
+                    >
+                      {draft.busy ? "Creating..." : "Create Team"}
+                    </button>
+                    {draft.error && <em className="warn">{draft.error}</em>}
+                  </div>
+                )}
+                {config?.mode === "replace" && (
+                  <label className="import-warning-check">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(config.replaceConfirmed)}
+                      onChange={(event) => {
+                        const team = effectiveTeam;
+                        setAssignments((current) => ({
+                          ...current,
+                          [file.id]: {
+                            teamId: current[file.id]?.teamId ?? team?.teamId ?? "",
+                            mode: current[file.id]?.mode ?? "replace",
+                            defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(team),
+                            replaceConfirmed: event.target.checked,
+                          },
+                        }));
+                      }}
+                    />
+                    <span>This replaces the current roster for {selectedTeam?.teamName ?? (draft.teamName || "this team")}. Player profiles and historical data will not be deleted.</span>
+                  </label>
+                )}
+              </article>
+            );
+          })}
         </section>
+      )}
+
+      {plan && step === "preview" && (
+        <>
+          <div className="import-summary">
+            <StatTile label="Rows" value={totalRows} />
+            <StatTile label="Ready" value={readyRows} accent />
+            <StatTile label="Problems" value={errorRows} />
+            <StatTile label="Files" value={plan.files.length} />
+          </div>
+          <section className="import-preview" aria-label="Roster import preview">
+            {plan.files.map((file) => (
+              <div key={file.sourceId} className="import-preview-file">
+                <div className="import-preview-title">
+                  <div>
+                    <strong>{file.teamName}</strong>
+                    <small>{importModeLabel(file.mode)} - {file.fileName}</small>
+                  </div>
+                  <div className="import-preview-counts">
+                    <span>Add {file.addCount}</span>
+                    <span>Update {file.updateCount}</span>
+                    <span>Keep {file.keepCount}</span>
+                    <span>Remove {file.removeCount}</span>
+                  </div>
+                </div>
+                {file.staff.length > 0 && (
+                  <div className="staff-detected">
+                    <strong>Staff detected</strong>
+                    <span>{file.staff.map((staff) => `${staff.name} - ${staff.role}`).join("; ")}</span>
+                  </div>
+                )}
+                <div className="import-preview__head import-preview__head--wide">
+                  <span>#</span>
+                  <span>Player</span>
+                  <span>Pos / Grade</span>
+                  <span>Ht / Wt</span>
+                  <span>Match</span>
+                  <span>Decision</span>
+                </div>
+                {file.rows.map((row) => (
+                  <article className={`import-row import-row--wide has-${row.status}`} key={`${file.sourceId}-${row.id}`}>
+                    <span>{row.jerseyNumber ?? "--"}</span>
+                    <div>
+                      <strong>{row.firstName || "First"} {row.lastName || "Last"}</strong>
+                      <small>{row.sourceType.toUpperCase()} row {row.rowNumber}</small>
+                      {row.errors.map((error) => <em key={error}>{error}</em>)}
+                      {row.warnings.map((warning) => <em key={warning} className="soft">{warning}</em>)}
+                    </div>
+                    <div>
+                      <strong>{row.rawPositions.join(" / ") || row.primaryPosition}</strong>
+                      <small>{row.rawGrade ?? "Grade"} - {row.graduationYear ?? "Grad year"} - {row.rosterStatus}</small>
+                    </div>
+                    <div>
+                      <strong>{row.height ?? "--"}</strong>
+                      <small>{row.weight ? `${row.weight} lb` : "Weight --"}{row.isCaptain ? " - Captain" : ""}</small>
+                    </div>
+                    <div>
+                      <strong>{row.matchedPlayerName ?? (row.duplicateSourcePlayerId ? "Same upload" : row.status === "possible-match" ? "Review" : "New")}</strong>
+                      <small>{row.candidatePlayerIds.length ? `${row.candidatePlayerIds.length} candidate${row.candidatePlayerIds.length === 1 ? "" : "s"}` : "No existing match"}</small>
+                    </div>
+                    <select
+                      value={row.decision}
+                      disabled={row.status === "error"}
+                      onChange={(event) => {
+                        const decision = event.target.value as RosterImportDecision;
+                        setResolutions((current) => ({
+                          ...current,
+                          [`${file.sourceId}:${row.id}`]: {
+                            decision,
+                            matchedPlayerId: decision === "use-existing" ? row.matchedPlayerId ?? row.candidatePlayerIds[0] : undefined,
+                          },
+                        }));
+                      }}
+                    >
+                      <option value="use-existing" disabled={!row.matchedPlayerId && row.candidatePlayerIds.length === 0}>Use Existing Player</option>
+                      <option value="create-new">Create New Player</option>
+                      <option value="skip">Skip</option>
+                    </select>
+                  </article>
+                ))}
+              </div>
+            ))}
+          </section>
+        </>
       )}
 
       <div className="modal-actions">
         <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
-        <button className="primary-button" type="button" onClick={() => onImport(rows)} disabled={validRows.length === 0}>
-          Import {validRows.length} Player{validRows.length === 1 ? "" : "s"}
-        </button>
+        {step !== "upload" && <button className="secondary-button" type="button" onClick={() => setStep(step === "preview" ? "assign" : "upload")}>Back</button>}
+        {step !== "preview" ? (
+          <button className="primary-button" type="button" onClick={() => setStep(files.length ? "preview" : "upload")} disabled={!allFilesAssigned || busy}>
+            Preview Import
+          </button>
+        ) : (
+          <button className="primary-button" type="button" onClick={() => plan && onImport(plan)} disabled={!plan || readyRows === 0 || errorRows > 0 || needsReplaceConfirmation}>
+            Import {readyRows} Player{readyRows === 1 ? "" : "s"}
+          </button>
+        )}
       </div>
     </ModalFrame>
   );
@@ -4289,129 +4586,21 @@ function weekdayName(dateString: string): WorkoutSession["day"] {
   return names[new Date(`${dateString}T12:00:00`).getDay()] ?? "Mon";
 }
 
-function parseRosterCsv(text: string, data: AppData): RosterCsvPreviewRow[] {
-  const parsed = parseCsvRows(text).filter((row) => row.some((cell) => cell.trim()));
-  if (parsed.length < 2) return [];
-  const headers = parsed[0].map(normalizeHeader);
-  const currentTeamName = data.teamContext?.currentTeam?.teamName?.toLowerCase();
-  const existingByKey = new Map(
-    data.players.map((player) => [playerIdentityKey(player.name, player.graduationYear), player]),
-  );
-
-  return parsed.slice(1).map((values, index) => {
-    const get = (label: string) => values[headers.indexOf(normalizeHeader(label))]?.trim() ?? "";
-    const firstName = get("First Name");
-    const lastName = get("Last Name");
-    const jerseyNumber = Number(get("Jersey Number"));
-    const graduationYear = Number(get("Graduation Year"));
-    const primaryPosition = normalizePosition(get("Primary Position"));
-    const secondaryPosition = normalizePosition(get("Secondary Position"));
-    const bats = normalizeBats(get("Bats"));
-    const throws = normalizeThrows(get("Throws"));
-    const rosterStatus = normalizeRosterStatus(get("Roster Status"));
-    const teamName = get("Team");
-    const errors: string[] = [];
-
-    if (!firstName) errors.push("First Name is required.");
-    if (!lastName) errors.push("Last Name is required.");
-    if (!Number.isFinite(jerseyNumber) || jerseyNumber < 0) errors.push("Jersey Number must be numeric.");
-    if (!Number.isFinite(graduationYear) || graduationYear < 2020 || graduationYear > 2040) errors.push("Graduation Year must be four digits.");
-    if (!primaryPosition) errors.push("Primary Position must match a baseball position.");
-    if (get("Secondary Position") && !secondaryPosition) errors.push("Secondary Position must match a baseball position.");
-    if (!bats) errors.push("Bats must be R, L, or S.");
-    if (!throws) errors.push("Throws must be R or L.");
-    if (!rosterStatus) errors.push("Roster Status must be Varsity, JV, Undecided, or Cut.");
-    if (teamName && currentTeamName && !teamName.toLowerCase().includes(currentTeamName) && !currentTeamName.includes(teamName.toLowerCase())) {
-      errors.push("Team column does not match the current team. Switch teams before importing this row.");
-    }
-
-    const duplicate = existingByKey.get(playerIdentityKey(`${firstName} ${lastName}`, graduationYear));
-
-    return {
-      id: duplicate?.id ?? createId("p"),
-      rowNumber: index + 2,
-      firstName,
-      lastName,
-      jerseyNumber: Number.isFinite(jerseyNumber) ? jerseyNumber : 0,
-      graduationYear: Number.isFinite(graduationYear) ? graduationYear : 0,
-      primaryPosition: primaryPosition ?? "P",
-      secondaryPosition: secondaryPosition ?? undefined,
-      bats: bats ?? "R",
-      throws: throws ?? "R",
-      teamName: teamName || undefined,
-      rosterStatus: rosterStatus ?? "Undecided",
-      errors,
-      duplicatePlayerId: duplicate?.id,
-      decision: duplicate ? "update" : "create",
-    };
-  });
+function suggestTeamForFile(file: ParsedRosterFile, teams: TeamOption[], fallback?: TeamOption) {
+  const haystack = `${file.fileName} ${file.detectedTeamName ?? ""}`.toLowerCase();
+  const direct = teams.find((team) => haystack.includes(team.teamName.toLowerCase()));
+  if (direct) return direct;
+  if (haystack.includes("varsity")) return teams.find((team) => /varsity/i.test(team.teamName)) ?? fallback;
+  if (/\bjv\b|junior varsity/.test(haystack)) return teams.find((team) => /\bjv\b|junior varsity/i.test(team.teamName)) ?? fallback;
+  return fallback;
 }
 
-function parseCsvRows(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = "";
-  let quoted = false;
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const next = text[index + 1];
-    if (char === '"' && quoted && next === '"') {
-      cell += '"';
-      index += 1;
-    } else if (char === '"') {
-      quoted = !quoted;
-    } else if (char === "," && !quoted) {
-      row.push(cell);
-      cell = "";
-    } else if ((char === "\n" || char === "\r") && !quoted) {
-      if (char === "\r" && next === "\n") index += 1;
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = "";
-    } else {
-      cell += char;
-    }
-  }
-
-  row.push(cell);
-  rows.push(row);
-  return rows;
-}
-
-function normalizeHeader(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function normalizePosition(value: string): Position | undefined {
-  const normalized = value.trim().toUpperCase();
-  return POSITIONS.find((position) => position === normalized);
-}
-
-function normalizeBats(value: string): Player["bats"] | undefined {
-  const normalized = value.trim().toUpperCase();
-  return normalized === "R" || normalized === "L" || normalized === "S" ? normalized : undefined;
-}
-
-function normalizeThrows(value: string): Player["throws"] | undefined {
-  const normalized = value.trim().toUpperCase();
-  return normalized === "R" || normalized === "L" ? normalized : undefined;
-}
-
-function normalizeRosterStatus(value: string): RosterStatus | undefined {
-  const normalized = value.trim().toLowerCase();
-  return ROSTER_STATUSES.find((status) => status.toLowerCase() === normalized);
-}
-
-function playerIdentityKey(name: string, graduationYear: number) {
-  return `${name.trim().toLowerCase().replace(/\s+/g, " ")}:${graduationYear}`;
-}
-
-function colorForName(name: string) {
-  const colors = ["#9b234a", "#2d6cdf", "#2f855a", "#7c3aed", "#c05621", "#0f766e"];
-  const score = name.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return colors[score % colors.length];
+function teamLevelFromName(teamName: string) {
+  const value = teamName.toLowerCase();
+  if (value.includes("varsity")) return "Varsity";
+  if (/\bjv\b|junior varsity/.test(value)) return "JV";
+  const travel = value.match(/\b(1[3-9]u)\b/i);
+  return travel ? travel[1].toUpperCase() : "";
 }
 
 function teamValue(team?: TeamOption) {

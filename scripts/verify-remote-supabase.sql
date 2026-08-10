@@ -8,6 +8,7 @@ declare
   expected_tables text[] := array[
     'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',
     'players', 'player_team_memberships', 'practices', 'practice_attendance',
+    'roster_imports',
     'practice_sessions', 'pitch_events', 'hitting_events', 'defense_events',
     'exercises', 'workouts', 'workout_sessions', 'workout_sets',
     'player_measurements', 'games', 'game_lineups', 'plate_appearances',
@@ -37,6 +38,7 @@ declare
   foundation_applied boolean;
   secure_bootstrap_applied boolean;
   multi_team_applied boolean;
+  roster_import_history_applied boolean;
   seeded_foundation boolean;
   seeded_team_views boolean;
   bootstrap_completed_at timestamptz;
@@ -70,6 +72,16 @@ begin
 
   if not multi_team_applied then
     raise exception 'Multi-team membership migration 20260810000000 is not applied.';
+  end if;
+
+  select exists (
+    select 1
+    from supabase_migrations.schema_migrations
+    where version = '20260810010000'
+  ) into roster_import_history_applied;
+
+  if not roster_import_history_applied then
+    raise exception 'Roster import history migration 20260810010000 is not applied.';
   end if;
 
   select array_agg(table_name order by table_name)
@@ -154,10 +166,12 @@ end $$;
 select 'foundation migration applied' as check_name, 'pass' as result;
 select 'secure bootstrap migration applied' as check_name, 'pass' as result;
 select 'multi-team membership migration applied' as check_name, 'pass' as result;
+select 'roster import history migration applied' as check_name, 'pass' as result;
 select 'expected tables exist' as check_name, count(*)::text as verified_count
 from unnest(array[
   'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',
   'players', 'player_team_memberships', 'practices', 'practice_attendance',
+  'roster_imports',
   'practice_sessions', 'pitch_events', 'hitting_events', 'defense_events',
   'exercises', 'workouts', 'workout_sessions', 'workout_sets',
   'player_measurements', 'games', 'game_lineups', 'plate_appearances',
@@ -170,6 +184,7 @@ where n.nspname = 'public'
   and c.relname = any(array[
     'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',
     'players', 'player_team_memberships', 'practices', 'practice_attendance',
+    'roster_imports',
     'practice_sessions', 'pitch_events', 'hitting_events', 'defense_events',
     'exercises', 'workouts', 'workout_sessions', 'workout_sets',
     'player_measurements', 'games', 'game_lineups', 'plate_appearances',

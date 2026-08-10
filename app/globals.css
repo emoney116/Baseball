@@ -1696,6 +1696,197 @@ textarea:focus-visible {
   background: rgba(255, 255, 255, 0.045);
 }
 
+.import-wizard-steps {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.import-wizard-steps span {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 10px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.import-wizard-steps span.active {
+  background: rgba(178, 36, 82, 0.18);
+  color: var(--text);
+}
+
+.import-drop {
+  min-height: 112px;
+  padding: 16px;
+  text-align: center;
+}
+
+.import-drop small {
+  max-width: 560px;
+  color: var(--muted);
+  font-weight: 620;
+}
+
+.import-file-list,
+.import-preview-file {
+  display: grid;
+  gap: 10px;
+}
+
+.import-file-card {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.8fr) minmax(360px, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.import-file-card strong,
+.import-file-card small,
+.import-file-card em {
+  display: block;
+}
+
+.import-file-card small,
+.import-file-card em {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.import-file-card em.warn {
+  color: var(--warning);
+}
+
+.import-assignment-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.import-assignment-grid label,
+.import-warning-check {
+  display: grid;
+  gap: 5px;
+}
+
+.import-assignment-grid span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.import-create-team-form {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(160px, 1.1fr) minmax(120px, 0.7fr) minmax(130px, 0.8fr) auto;
+  gap: 8px;
+  align-items: end;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  padding: 10px;
+}
+
+.import-create-team-form label {
+  display: grid;
+  gap: 5px;
+}
+
+.import-create-team-form span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.import-create-team-form .warn {
+  grid-column: 1 / -1;
+  color: var(--danger);
+  font-size: 12px;
+  font-style: normal;
+}
+
+.import-warning-check {
+  grid-column: 1 / -1;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: var(--radius);
+  padding: 9px;
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.import-preview {
+  display: grid;
+  gap: 14px;
+  border: 0;
+  overflow: visible;
+}
+
+.import-preview-title {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 6px;
+}
+
+.import-preview-title strong,
+.staff-detected strong {
+  display: block;
+  font-size: 15px;
+}
+
+.import-preview-title small,
+.staff-detected span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.import-preview-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.import-preview-counts span {
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: var(--panel-soft);
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.staff-detected {
+  border-radius: var(--radius);
+  padding: 10px;
+  background: var(--panel-soft);
+}
+
+.import-preview__head--wide,
+.import-row--wide {
+  grid-template-columns: 46px minmax(170px, 1.1fr) minmax(130px, 0.9fr) minmax(90px, 0.55fr) minmax(120px, 0.75fr) 128px;
+}
+
+.import-row.has-error {
+  background: rgba(240, 139, 139, 0.07);
+}
+
+.import-row.has-possible-match {
+  background: rgba(245, 158, 11, 0.07);
+}
+
+.import-row.has-ready {
+  background: rgba(47, 196, 154, 0.025);
+}
+
 .status-toggle {
   display: flex;
   flex-wrap: wrap;
@@ -3577,7 +3768,10 @@ textarea:focus-visible {
 
   .section-actions,
   .practice-command__actions,
-  .import-intro {
+  .import-intro,
+  .import-file-card,
+  .import-assignment-grid,
+  .import-create-team-form {
     grid-template-columns: 1fr;
   }
 
@@ -3587,7 +3781,8 @@ textarea:focus-visible {
 
   .section-actions .primary-button,
   .section-actions .secondary-button,
-  .import-intro .secondary-button {
+  .import-intro .secondary-button,
+  .import-create-team-form .secondary-button {
     width: 100%;
   }
 
@@ -3619,6 +3814,11 @@ textarea:focus-visible {
   .import-preview__head,
   .import-row {
     min-width: 620px;
+  }
+
+  .import-preview__head--wide,
+  .import-row--wide {
+    min-width: 880px;
   }
 
   .status-toggle {

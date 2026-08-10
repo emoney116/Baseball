@@ -195,9 +195,28 @@ export interface PlayerTeamMembership {
   rosterStatus: RosterStatus;
   jerseyNumber?: number;
   rosterRole?: string;
+  isCaptain?: boolean;
+  positionLabels?: string[];
   active: boolean;
   startDate?: string;
   endDate?: string;
+}
+
+export interface RosterImportRecord {
+  id: ID;
+  createdAt: string;
+  fileNames: string[];
+  teams: string[];
+  teamIds?: ID[];
+  seasonIds?: ID[];
+  modes: string[];
+  rowsProcessed: number;
+  playersCreated: number;
+  playersUpdated: number;
+  membershipsAdded: number;
+  membershipsUpdated: number;
+  membershipsRemoved: number;
+  rowsSkipped: number;
 }
 
 export interface AppProfile {
@@ -519,6 +538,7 @@ export interface AppData {
   teamContext?: TeamContext;
   players: Player[];
   playerTeamMemberships?: PlayerTeamMembership[];
+  rosterImports?: RosterImportRecord[];
   practices: Practice[];
   attendance: PracticeAttendance[];
   pitchingSessions: PitchingSession[];

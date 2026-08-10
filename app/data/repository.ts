@@ -211,6 +211,8 @@ function migrate(data: Partial<AppData>): AppData {
   return {
     ...merged,
     players: enrichPlayers(merged.players ?? sampleData.players),
+    playerTeamMemberships: merged.playerTeamMemberships ?? sampleData.playerTeamMemberships ?? [],
+    rosterImports: merged.rosterImports ?? sampleData.rosterImports ?? [],
     practices: merged.practices ?? sampleData.practices,
     attendance: merged.attendance ?? sampleData.attendance,
     pitchingSessions: merged.pitchingSessions ?? sampleData.pitchingSessions,

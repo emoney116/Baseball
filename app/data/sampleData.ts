@@ -713,6 +713,8 @@ export const developmentGoals: DevelopmentGoal[] = [
 
 export const sampleData: AppData = {
   players,
+  playerTeamMemberships: [],
+  rosterImports: [],
   practices,
   attendance,
   pitchingSessions,

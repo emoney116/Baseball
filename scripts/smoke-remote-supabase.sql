@@ -19,6 +19,7 @@ declare
   v_workout_session_id uuid := gen_random_uuid();
   v_workout_set_id uuid := gen_random_uuid();
   v_game_id uuid := gen_random_uuid();
+  v_roster_import_id uuid := gen_random_uuid();
 begin
   select org.id, team.id, season.id
   into v_org_id, v_team_id, v_season_id
@@ -52,6 +53,20 @@ begin
 
   insert into public.player_team_memberships (player_id, team_id, season_id, roster_status, jersey_number)
   values (v_player_id, v_team_id, v_season_id, 'Undecided', 99);
+
+  insert into public.roster_imports (
+    id, organization_id, team_id, season_id, file_names, teams, modes,
+    rows_processed, players_created, players_updated, memberships_added,
+    memberships_updated, memberships_removed, rows_skipped, summary,
+    created_at, updated_at
+  )
+  values (
+    v_roster_import_id, v_org_id, v_team_id, v_season_id,
+    jsonb_build_array(v_marker || '.csv'), jsonb_build_array('Baseball'), jsonb_build_array('add'),
+    1, 1, 0, 1, 0, 0, 0,
+    jsonb_build_object('remoteVerification', v_marker),
+    v_now_value, v_now_value
+  );
 
   update public.player_team_memberships
   set roster_status = 'Varsity'
@@ -119,6 +134,7 @@ begin
   join public.workout_sessions ws on ws.id = v_workout_session_id and ws.player_id = p.id
   join public.workout_sets wset on wset.id = v_workout_set_id and wset.player_id = p.id
   join public.games g on g.id = v_game_id and g.current_batter_id = p.id
+  join public.roster_imports ri on ri.id = v_roster_import_id and ri.summary ->> 'remoteVerification' = v_marker
   where p.id = v_player_id
     and p.metadata ->> 'remoteVerification' = v_marker;
 
@@ -127,6 +143,7 @@ begin
   end if;
 
   delete from public.games where id = v_game_id;
+  delete from public.roster_imports where id = v_roster_import_id;
   delete from public.workout_sets where id = v_workout_set_id;
   delete from public.workout_sessions where id = v_workout_session_id;
   delete from public.hitting_events where id = v_hitting_event_id;

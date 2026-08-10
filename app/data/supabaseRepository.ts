@@ -21,6 +21,7 @@ import type {
   PlayerTeamMembership,
   Practice,
   PracticeAttendance,
+  RosterImportRecord,
   RosterStatus,
   TeamContext,
   TeamMembershipRole,
@@ -184,7 +185,7 @@ export const supabaseAppRepository = {
     const requestedTeam = next.teamContext?.currentTeam;
     const foundation = await loadFoundation(supabase, userData.user, requestedTeam?.teamId, requestedTeam?.seasonId);
     await syncDeletedEvents(supabase, previous, next);
-    await syncPlayers(supabase, foundation, next.players);
+    await syncPlayers(supabase, foundation, next.players, next.playerTeamMemberships);
     await syncPractices(supabase, foundation, next.practices);
     await syncAttendance(supabase, next.attendance);
     await syncPracticeSessions(supabase, next);
@@ -192,6 +193,21 @@ export const supabaseAppRepository = {
     await syncWorkoutData(supabase, foundation, next);
     await syncGames(supabase, foundation, next);
     await syncNotesAndGoals(supabase, foundation, next);
+    await syncRosterImports(supabase, foundation, next.rosterImports ?? []);
+  },
+
+  async createTeam(input: { teamName: string; teamLevel?: string; seasonName: string }): Promise<TeamOption> {
+    const response = await fetch("/api/teams/create", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; message?: string; team?: TeamOption };
+    if (!response.ok || !payload.team) {
+      throw new PersistenceError("save-failed", payload.message ?? "Unable to create team.");
+    }
+    return payload.team;
   },
 };
 
@@ -500,6 +516,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     (!row.session_id || sessionIds.has(row.session_id)),
   );
   const goalsRows = (goalsResult.data ?? []).filter((row: any) => playerIdsSet.has(row.player_id));
+  const rosterImports = await loadRosterImports(supabase, foundation);
 
   return {
     teamContext: foundation.teamContext,
@@ -524,6 +541,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
       .map(mapPlateAppearance),
     coachNotes: notesRows.map(mapCoachNote),
     developmentGoals: goalsRows.map(mapDevelopmentGoal),
+    rosterImports,
     settings: {
       activePracticeId: practices.find((practice) => !practice.endedAt)?.id,
       theme: "dark",
@@ -533,6 +551,23 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
       selectedSeasonId: foundation.seasonId,
     },
   };
+}
+
+async function loadRosterImports(supabase: SupabaseClient, foundation: Foundation): Promise<RosterImportRecord[]> {
+  const { data, error } = await supabase
+    .from("roster_imports")
+    .select("*")
+    .eq("team_id", foundation.teamId)
+    .eq("season_id", foundation.seasonId)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (error) {
+    if (isMissingRosterImportsTable(error)) return [];
+    throw new PersistenceError("load-failed", error.message);
+  }
+
+  return (data ?? []).map(mapRosterImportRecord);
 }
 
 async function syncDeletedEvents(supabase: SupabaseClient, previous: AppData, next: AppData) {
@@ -551,7 +586,7 @@ async function deleteMissing<T extends { id: ID }>(supabase: SupabaseClient, tab
   if (error) throw new PersistenceError("save-failed", error.message);
 }
 
-async function syncPlayers(supabase: SupabaseClient, foundation: Foundation, players: Player[]) {
+async function syncPlayers(supabase: SupabaseClient, foundation: Foundation, players: Player[], memberships?: PlayerTeamMembership[]) {
   if (players.length === 0) return;
   const playerRows = players.map((player) => {
     const { firstName, lastName } = splitName(player.name);
@@ -579,15 +614,35 @@ async function syncPlayers(supabase: SupabaseClient, foundation: Foundation, pla
   const { error: playerError } = await supabase.from("players").upsert(playerRows, { onConflict: "id" });
   if (playerError) throw new PersistenceError("save-failed", playerError.message);
 
-  const membershipRows = players.map((player) => ({
-    player_id: player.id,
-    team_id: foundation.teamId,
-    season_id: foundation.seasonId,
-    roster_status: player.rosterStatus ?? "Undecided",
-    jersey_number: player.jerseyNumber || null,
-    roster_role: player.programLevel ?? null,
-    active: !player.archived,
-  }));
+  const membershipRows = (memberships && memberships.length > 0
+    ? memberships
+    : players.map((player) => ({
+        id: `membership-${player.id}-${foundation.teamId}-${foundation.seasonId}`,
+        playerId: player.id,
+        teamId: foundation.teamId,
+        seasonId: foundation.seasonId,
+        rosterStatus: player.rosterStatus ?? "Undecided",
+        jerseyNumber: player.jerseyNumber || undefined,
+        rosterRole: player.programLevel ?? undefined,
+        active: !player.archived,
+      } as PlayerTeamMembership)))
+    .filter((membership) => membership.teamId && membership.seasonId)
+    .map((membership) => ({
+      player_id: membership.playerId,
+      team_id: membership.teamId,
+      season_id: membership.seasonId,
+      roster_status: membership.rosterStatus ?? "Undecided",
+      jersey_number: membership.jerseyNumber || null,
+      roster_role: membership.rosterRole ?? null,
+      active: membership.active,
+      start_date: membership.startDate ?? null,
+      end_date: membership.endDate ?? null,
+      metadata: {
+        isCaptain: membership.isCaptain ?? false,
+        positionLabels: membership.positionLabels ?? [],
+      },
+    }));
+  if (membershipRows.length === 0) return;
   const { error: membershipError } = await supabase
     .from("player_team_memberships")
     .upsert(membershipRows, { onConflict: "player_id,team_id,season_id" });
@@ -853,6 +908,41 @@ async function syncNotesAndGoals(supabase: SupabaseClient, foundation: Foundatio
   );
 }
 
+async function syncRosterImports(supabase: SupabaseClient, foundation: Foundation, imports: RosterImportRecord[]) {
+  if (imports.length === 0) return;
+  const rows = imports.map((record) => {
+    const teamId = record.teamIds?.[0] ?? foundation.teamId;
+    const seasonId = record.seasonIds?.[0] ?? foundation.seasonId;
+    return {
+      id: record.id,
+      organization_id: foundation.organizationId,
+      team_id: teamId,
+      season_id: seasonId,
+      imported_by: foundation.teamContext.profile?.id ?? null,
+      file_names: record.fileNames,
+      teams: record.teams,
+      modes: record.modes,
+      rows_processed: record.rowsProcessed,
+      players_created: record.playersCreated,
+      players_updated: record.playersUpdated,
+      memberships_added: record.membershipsAdded,
+      memberships_updated: record.membershipsUpdated,
+      memberships_removed: record.membershipsRemoved,
+      rows_skipped: record.rowsSkipped,
+      summary: {
+        teamIds: record.teamIds ?? [teamId],
+        seasonIds: record.seasonIds ?? [seasonId],
+      },
+      created_at: record.createdAt,
+    };
+  });
+  const { error } = await supabase.from("roster_imports").upsert(rows, { onConflict: "id" });
+  if (error) {
+    if (isMissingRosterImportsTable(error)) return;
+    throw new PersistenceError("save-failed", error.message);
+  }
+}
+
 async function upsertRows(supabase: SupabaseClient, table: string, rows: Array<Record<string, unknown>>) {
   if (rows.length === 0) return;
   const { error } = await supabase.from(table).upsert(rows, { onConflict: "id" });
@@ -906,10 +996,40 @@ function mapPlayerTeamMembership(row: any): PlayerTeamMembership {
     rosterStatus: (row.roster_status ?? "Undecided") as RosterStatus,
     jerseyNumber: row.jersey_number ?? undefined,
     rosterRole: row.roster_role ?? undefined,
+    isCaptain: row.metadata?.isCaptain ?? undefined,
+    positionLabels: Array.isArray(row.metadata?.positionLabels) ? row.metadata.positionLabels : undefined,
     active: Boolean(row.active),
     startDate: row.start_date ?? undefined,
     endDate: row.end_date ?? undefined,
   };
+}
+
+function mapRosterImportRecord(row: any): RosterImportRecord {
+  const summary = row.summary ?? {};
+  return {
+    id: row.id,
+    createdAt: row.created_at,
+    fileNames: Array.isArray(row.file_names) ? row.file_names : [],
+    teams: Array.isArray(row.teams) ? row.teams : [],
+    teamIds: Array.isArray(summary.teamIds) ? summary.teamIds : row.team_id ? [row.team_id] : [],
+    seasonIds: Array.isArray(summary.seasonIds) ? summary.seasonIds : row.season_id ? [row.season_id] : [],
+    modes: Array.isArray(row.modes) ? row.modes : [],
+    rowsProcessed: row.rows_processed ?? 0,
+    playersCreated: row.players_created ?? 0,
+    playersUpdated: row.players_updated ?? 0,
+    membershipsAdded: row.memberships_added ?? 0,
+    membershipsUpdated: row.memberships_updated ?? 0,
+    membershipsRemoved: row.memberships_removed ?? 0,
+    rowsSkipped: row.rows_skipped ?? 0,
+  };
+}
+
+function isMissingRosterImportsTable(error: { code?: string; message?: string }) {
+  return (
+    error.code === "42P01" ||
+    error.code === "PGRST205" ||
+    /(relation|table).*roster_imports.*(does not exist|not found)|could not find.*roster_imports/i.test(error.message ?? "")
+  );
 }
 
 function mapPractice(row: any, attendanceRows: any[]): Practice {
