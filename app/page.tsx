@@ -1742,7 +1742,6 @@ function HomeDashboard({
 
   return (
     <div className="page-stack home-dashboard">
-      <SectionHeader title="Home" body="Good morning, Coach" />
       <section className="home-ops-grid">
         <HomeInfoCard
           icon={ClipboardList}
