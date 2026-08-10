@@ -22,6 +22,7 @@ import {
   Search,
   Shield,
   Sun,
+  Target,
   Trophy,
   Undo2,
   Upload,
@@ -57,6 +58,7 @@ import {
 import type {
   AppData,
   BattedBallType,
+  CountState,
   DefenseEvent,
   DefenseOutcome,
   DefenseStation,
@@ -73,6 +75,7 @@ import type {
   PitchEvent,
   PitchType,
   PitchingSession,
+  PlateAppearance,
   Player,
   Position,
   Practice,
@@ -85,7 +88,7 @@ import type {
 } from "./types";
 
 type ViewKey = "home" | "roster" | "practice" | "weights" | "games" | "analytics" | "profile" | "account" | "teams";
-type PracticeMode = "Hitting" | "Pitching" | "Defense";
+type PracticeMode = "Hitting" | "Pitching" | "Defense" | "Live BP";
 type RosterFilter = "All" | RosterStatus;
 type RosterPositionFilter = "All" | Position;
 type RosterYearFilter = "All" | string;
@@ -93,6 +96,8 @@ type ProfileTab = "overview" | "practice" | "games" | "pitching" | "hitting" | "
 type AnalyticsContext = "All" | "Practice" | "Game" | "Live BP" | "Weight Room";
 type DateFilter = "Last Week" | "Last 30 Days" | "Fall";
 type CsvImportDecision = "create" | "update" | "skip";
+type PracticeRosterPreset = "All" | "Varsity" | "JV" | "Custom";
+type LiveBpOutcomeLabel = "K" | "BB" | "HBP" | "1B" | "2B" | "3B" | "HR" | "Out" | "Error" | "FC";
 
 interface RosterCsvPreviewRow {
   id: ID;
@@ -134,12 +139,24 @@ const ROSTER_FILTERS: RosterFilter[] = ["All", ...ROSTER_STATUSES];
 const POSITIONS: Position[] = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "UTL", "DH"];
 const PRACTICE_TYPES: PracticeType[] = ["Full Practice", "Bullpen Day", "Live BP", "Hitting Day", "Scrimmage", "Pitcher Development", "Hitter Development", "Custom"];
 const PITCH_TYPES: PitchType[] = ["4-Seam", "2-Seam", "Sinker", "Cutter", "Slider", "Curveball", "Changeup", "Splitter", "Other"];
+const PITCH_TYPE_LABELS: Record<PitchType, string> = {
+  "4-Seam": "4S",
+  "2-Seam": "2S",
+  Sinker: "SI",
+  Cutter: "CT",
+  Slider: "SL",
+  Curveball: "CB",
+  Changeup: "CH",
+  Splitter: "SP",
+  Other: "OT",
+};
 const HITTING_STATIONS: HittingSession["type"][] = ["Tee", "Front Toss", "Machine", "Coach BP", "Live BP"];
 const PITCHING_STATIONS: PitchingSession["type"][] = ["Bullpen", "Live BP"];
 const DEFENSE_STATIONS: DefenseStation[] = ["Infield", "Outfield", "Catching", "PFP", "Situational defense", "Team defense"];
 const GAME_TYPES: GameType[] = ["Fall Game", "Scrimmage", "Showcase", "Regular Season", "Tournament", "Other"];
 const GAME_PITCH_BUTTONS: GamePitchOutcome[] = ["Ball", "Called Strike", "Swinging Strike", "Foul", "In Play"];
 const BIP_OUTCOMES: GameBallInPlayOutcome[] = ["Single", "Double", "Triple", "Home Run", "Ground Out", "Fly Out", "Line Out", "Pop Out", "Error", "Fielder's Choice", "Sac Fly", "Sac Bunt"];
+const LIVE_BP_OUTCOMES: LiveBpOutcomeLabel[] = ["K", "BB", "HBP", "1B", "2B", "3B", "HR", "Out", "Error", "FC"];
 const EXERCISES = ["Back Squat", "Front Squat", "Bench Press", "Incline Bench", "Deadlift", "Trap Bar Deadlift", "Power Clean", "Hang Clean", "Push Press", "Pull Ups", "DB Bench", "Bulgarian Split Squat", "Sprint", "Broad Jump", "Vertical Jump"];
 const PITCH_MIX_COLORS = ["#f4c16f", "#9f244c", "#8b96a5", "#43c6ac", "#f97316", "#a78bfa", "#e2e8f0", "#38bdf8"];
 const ROSTER_CSV_TEMPLATE = [
@@ -163,6 +180,7 @@ export default function MetrolinaBaseballApp() {
   const [rosterYearFilter, setRosterYearFilter] = useState<RosterYearFilter>("All");
   const [rosterQuery, setRosterQuery] = useState("");
   const [profileTab, setProfileTab] = useState<ProfileTab>("overview");
+  const [practiceTrackingOpen, setPracticeTrackingOpen] = useState(false);
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("Hitting");
   const [practicePlayerId, setPracticePlayerId] = useState<ID>("p-jackson-smith");
   const [hittingStation, setHittingStation] = useState<HittingSession["type"]>("Machine");
@@ -170,10 +188,14 @@ export default function MetrolinaBaseballApp() {
   const [defenseStation, setDefenseStation] = useState<DefenseStation>("Infield");
   const [selectedPitchType, setSelectedPitchType] = useState<PitchType>("4-Seam");
   const [velocity, setVelocity] = useState<string>("84");
-  const [pitchLocation, setPitchLocation] = useState<ZonePoint>({ x: 0.5, y: 0.5 });
-  const [targetLocation, setTargetLocation] = useState<ZonePoint>({ x: 0.42, y: 0.45 });
+  const [pitchLocation, setPitchLocation] = useState<ZonePoint | undefined>();
+  const [targetLocation, setTargetLocation] = useState<ZonePoint | undefined>();
   const [fieldLocation, setFieldLocation] = useState<ZonePoint>({ x: 0.5, y: 0.55 });
   const [hitDirection, setHitDirection] = useState<Direction>("Middle");
+  const [liveBpPitcherId, setLiveBpPitcherId] = useState<ID>("p-jackson-smith");
+  const [liveBpHitterId, setLiveBpHitterId] = useState<ID>("p-ethan-brooks");
+  const [liveBpCount, setLiveBpCount] = useState<CountState>({ balls: 0, strikes: 0 });
+  const [liveBpPaNumber, setLiveBpPaNumber] = useState(1);
   const [selectedGameId, setSelectedGameId] = useState<ID>("game-aug14-covenant");
   const [selectedWeightPlayerId, setSelectedWeightPlayerId] = useState<ID>("p-jackson-smith");
   const [weightForm, setWeightForm] = useState({ exercise: "Back Squat", weight: "225", reps: "5", sets: "3", effort: "8" });
@@ -185,6 +207,7 @@ export default function MetrolinaBaseballApp() {
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<ID | undefined>();
   const [sessionSummary, setSessionSummary] = useState<{ type: "Hitting" | "Pitching" | "Defense"; sessionId: ID } | null>(null);
+  const [practiceSummaryOpen, setPracticeSummaryOpen] = useState(false);
   const [summaryNote, setSummaryNote] = useState("");
   const [analyticsContext, setAnalyticsContext] = useState<AnalyticsContext>("All");
   const [dateFilter, setDateFilter] = useState<DateFilter>("Fall");
@@ -203,7 +226,7 @@ export default function MetrolinaBaseballApp() {
     document.documentElement.dataset.theme = data.settings.theme;
   }, [data, hydrated]);
 
-  const practice = data ? activePractice(data) ?? data.practices[0] : undefined;
+  const practice = data ? activePractice(data) : undefined;
   const selectedPlayer = data?.players.find((player) => player.id === selectedPlayerId) ?? data?.players[0];
   const practicePlayer = data?.players.find((player) => player.id === practicePlayerId) ?? selectedPlayer;
   const currentGame = data?.games.find((game) => game.id === selectedGameId) ?? data?.games[0];
@@ -219,13 +242,15 @@ export default function MetrolinaBaseballApp() {
   }, [data, globalQuery]);
 
   const activeTotals = useMemo(() => {
-    if (!data || !practice) return { pitches: 0, swings: 0, defenders: 0, players: 0, pitchers: 0, hitters: 0 };
+    if (!data || !practice) return { pitches: 0, swings: 0, defenseReps: 0, defenders: 0, players: 0, pitchers: 0, hitters: 0 };
     const pitching = data.pitchingSessions.filter((session) => session.practiceId === practice.id);
     const hitting = data.hittingSessions.filter((session) => session.practiceId === practice.id);
     const defense = data.defenseSessions.filter((session) => session.practiceId === practice.id);
+    const defenseReps = data.defenseEvents.filter((event) => event.practiceId === practice.id).length;
     return {
       pitches: practicePitchEvents(data, practice.id).length,
       swings: practiceHittingEvents(data, practice.id).filter((event) => event.action !== "Took pitch").length,
+      defenseReps,
       defenders: new Set(defense.map((session) => session.playerId)).size,
       players: practice.playerIds.length,
       pitchers: new Set(pitching.map((session) => session.pitcherId)).size || practice.pitcherIds.length,
@@ -274,6 +299,8 @@ export default function MetrolinaBaseballApp() {
       setPracticePlayerId(firstPlayer);
       setSelectedWeightPlayerId(firstPlayer);
       setSelectedGameId(firstGame);
+      setLiveBpPitcherId(loaded.players.find((player) => player.isPitcher && !player.archived)?.id ?? firstPlayer);
+      setLiveBpHitterId(loaded.players.find((player) => player.isHitter && !player.archived && player.id !== firstPlayer)?.id ?? firstPlayer);
 
       if (requestedView && [...NAV_ITEMS.map((item) => item.key), "profile", "account", "teams"].includes(requestedView)) {
         setView(requestedView);
@@ -326,6 +353,20 @@ export default function MetrolinaBaseballApp() {
 
   function updateRosterStatus(playerId: ID, status: RosterStatus) {
     commit((current) => playerRepository.updateRosterStatus(current, playerId, status));
+  }
+
+  function openPracticeStation(mode: PracticeMode) {
+    setPracticeMode(mode);
+    if (mode === "Live BP") {
+      setPitchingStation("Live BP");
+      setHittingStation("Live BP");
+      const pitcher = data?.players.find((player) => player.id === liveBpPitcherId) ?? data?.players.find((player) => player.isPitcher && !player.archived);
+      const hitter = data?.players.find((player) => player.id === liveBpHitterId) ?? data?.players.find((player) => player.isHitter && !player.archived && player.id !== pitcher?.id);
+      if (pitcher) setPracticePlayerId(pitcher.id);
+      if (pitcher) setLiveBpPitcherId(pitcher.id);
+      if (hitter) setLiveBpHitterId(hitter.id);
+    }
+    setPracticeTrackingOpen(true);
   }
 
   function importRosterRows(rows: RosterCsvPreviewRow[]) {
@@ -465,6 +506,7 @@ export default function MetrolinaBaseballApp() {
       const isBip = outcome === "Ball in play";
       const isSwing = ["Swing", "Whiff", "Foul", "Ball in play"].includes(outcome);
       const isStrike = outcome !== "Ball" && outcome !== "HBP";
+      const isZone = pitchLocation ? pitchLocation.x >= 0.22 && pitchLocation.x <= 0.78 && pitchLocation.y >= 0.18 && pitchLocation.y <= 0.82 : false;
       const countBefore = last?.countAfter ?? { balls: 0, strikes: 0 };
       const countAfter = nextCount(countBefore, outcome);
       const event: PitchEvent = {
@@ -477,8 +519,8 @@ export default function MetrolinaBaseballApp() {
         outcome,
         isStrike,
         isSwing,
-        isZone: pitchLocation.x >= 0.22 && pitchLocation.x <= 0.78 && pitchLocation.y >= 0.18 && pitchLocation.y <= 0.82,
-        isChase: isSwing && !(pitchLocation.x >= 0.22 && pitchLocation.x <= 0.78 && pitchLocation.y >= 0.18 && pitchLocation.y <= 0.82),
+        isZone,
+        isChase: pitchLocation ? isSwing && !isZone : undefined,
         isWhiff: outcome === "Whiff",
         isCalledStrike: outcome === "Called Strike",
         isBallInPlay: isBip,
@@ -486,7 +528,7 @@ export default function MetrolinaBaseballApp() {
         contactQuality: isBip ? (battedBall === "Line drive" ? "Hard contact" : "Medium contact") : undefined,
         velocity: velocity ? Number(velocity) : undefined,
         qualityRating: outcome === "Ball" ? 2 : outcome === "Whiff" || outcome === "Called Strike" ? 5 : 4,
-        missedIntendedLocation: distanceBetween(pitchLocation, targetLocation) > 0.18,
+        missedIntendedLocation: pitchLocation && targetLocation ? distanceBetween(pitchLocation, targetLocation) > 0.18 : undefined,
         intendedTarget: targetLocation,
         location: pitchLocation,
         countBefore,
@@ -497,7 +539,123 @@ export default function MetrolinaBaseballApp() {
     });
   }
 
-  function logDefense(outcome: DefenseOutcome) {
+  function logLiveBpPitch(outcome: PitchOutcome, battedBall?: BattedBallType) {
+    if (!practice || !data) return;
+    const pitcher = data.players.find((player) => player.id === liveBpPitcherId);
+    const hitter = data.players.find((player) => player.id === liveBpHitterId);
+    if (!pitcher || !hitter) return;
+
+    const countBefore = liveBpCount;
+    const countAfter = nextCount(countBefore, outcome);
+    const liveDisplayCountAfter = nextLiveBpDisplayCount(countBefore, outcome);
+    const isBip = outcome === "Ball in play";
+    const isSwing = ["Swing", "Whiff", "Foul", "Ball in play"].includes(outcome);
+    const isStrike = outcome !== "Ball" && outcome !== "HBP";
+    const isZone = pitchLocation ? pitchLocation.x >= 0.22 && pitchLocation.x <= 0.78 && pitchLocation.y >= 0.18 && pitchLocation.y <= 0.82 : false;
+
+    commit((current) => {
+      const pitchingNext = ensurePitchingSession(current, practice, pitcher.id, "Live BP");
+      const pitchingSession = pitchingNext.session;
+      const hittingNext = ensureHittingSession(pitchingNext.data, practice, hitter.id, "Live BP");
+      const hittingSession = hittingNext.session;
+      const pitchNumber = hittingNext.data.pitchEvents.filter((event) => event.sessionId === pitchingSession.id).length + 1;
+      const eventNumber = hittingNext.data.hittingEvents.filter((event) => event.sessionId === hittingSession.id).length + 1;
+      const pitchEvent: PitchEvent = {
+        id: createId("pe"),
+        practiceId: practice.id,
+        sessionId: pitchingSession.id,
+        pitcherId: pitcher.id,
+        hitterId: hitter.id,
+        pitchNumber,
+        pitchType: selectedPitchType,
+        outcome,
+        isStrike,
+        isSwing,
+        isZone,
+        isChase: pitchLocation ? isSwing && !isZone : undefined,
+        isWhiff: outcome === "Whiff",
+        isCalledStrike: outcome === "Called Strike",
+        isBallInPlay: isBip,
+        battedBall: isBip ? battedBall : undefined,
+        contactQuality: isBip ? (battedBall === "Line drive" ? "Hard contact" : "Medium contact") : undefined,
+        velocity: velocity ? Number(velocity) : undefined,
+        intendedTarget: targetLocation,
+        location: pitchLocation,
+        countBefore,
+        countAfter,
+        createdAt: new Date().toISOString(),
+      };
+      const hittingEvent: HittingEvent = {
+        id: createId("he"),
+        practiceId: practice.id,
+        sessionId: hittingSession.id,
+        hitterId: hitter.id,
+        pitcherId: pitcher.id,
+        eventNumber,
+        action: outcome === "Ball" || outcome === "Called Strike" ? "Took pitch" : outcome === "Whiff" ? "Miss" : outcome === "Foul" ? "Foul" : "Ball in play",
+        contactResult: isBip ? battedBall : undefined,
+        contactQuality: isBip ? (battedBall === "Line drive" ? "Hard" : "Solid") : undefined,
+        direction: isBip ? hitDirection : undefined,
+        fieldLocation: isBip ? fieldLocation : undefined,
+        pitchType: selectedPitchType,
+        velocity: velocity ? Number(velocity) : undefined,
+        isLiveBp: true,
+        createdAt: new Date().toISOString(),
+      };
+      return touchRecentPlayers(
+        touchRecentPlayers(
+          { ...hittingNext.data, pitchEvents: [pitchEvent, ...hittingNext.data.pitchEvents], hittingEvents: [hittingEvent, ...hittingNext.data.hittingEvents] },
+          pitcher.id,
+        ),
+        hitter.id,
+      );
+    });
+
+    setLiveBpCount(liveDisplayCountAfter);
+  }
+
+  function completeLiveBpPa(label: LiveBpOutcomeLabel) {
+    if (!practice || !data) return;
+    const pitcher = data.players.find((player) => player.id === liveBpPitcherId);
+    const hitter = data.players.find((player) => player.id === liveBpHitterId);
+    if (!pitcher || !hitter) return;
+
+    commit((current) => {
+      const pitchingNext = ensurePitchingSession(current, practice, pitcher.id, "Live BP");
+      const hittingNext = ensureHittingSession(pitchingNext.data, practice, hitter.id, "Live BP");
+      const plateAppearance: PlateAppearance = {
+        id: createId("pa"),
+        practiceId: practice.id,
+        pitchingSessionId: pitchingNext.session.id,
+        hittingSessionId: hittingNext.session.id,
+        pitcherId: pitcher.id,
+        hitterId: hitter.id,
+        startedAt: new Date().toISOString(),
+        endedAt: new Date().toISOString(),
+        outcome: mapLiveBpOutcome(label),
+        balls: liveBpCount.balls,
+        strikes: liveBpCount.strikes,
+      };
+      return touchRecentPlayers(
+        touchRecentPlayers({ ...hittingNext.data, plateAppearances: [plateAppearance, ...hittingNext.data.plateAppearances] }, pitcher.id),
+        hitter.id,
+      );
+    });
+    setLiveBpCount({ balls: 0, strikes: 0 });
+    setLiveBpPaNumber((value) => value + 1);
+    advanceLiveBpHitter();
+  }
+
+  function advanceLiveBpHitter() {
+    if (!data) return;
+    const hitters = data.players.filter((player) => !player.archived && player.isHitter && player.id !== liveBpPitcherId);
+    if (!hitters.length) return;
+    const currentIndex = hitters.findIndex((player) => player.id === liveBpHitterId);
+    const next = hitters[(currentIndex + 1) % hitters.length] ?? hitters[0];
+    setLiveBpHitterId(next.id);
+  }
+
+  function logDefense(outcome: DefenseOutcome, errorType?: DefenseEvent["errorType"]) {
     if (!practice || !practicePlayer) return;
     commit((current) => {
       const next = ensureDefenseSession(current, practice, practicePlayer.id, defenseStation);
@@ -515,7 +673,7 @@ export default function MetrolinaBaseballApp() {
         footwork: outcome === "Error" ? "Needs work" : outcome === "Great Play" ? "Plus" : "Solid",
         decision: outcome === "Great Play" ? "Advanced" : "Correct",
         range: outcome === "Great Play" ? "Plus" : outcome === "Good Play" ? "Difficult" : "Routine",
-        errorType: outcome === "Error" ? "Fielding" : undefined,
+        errorType: outcome === "Error" ? errorType ?? "Fielding" : undefined,
         createdAt: new Date().toISOString(),
       };
       return touchRecentPlayers({ ...next.data, defenseEvents: [event, ...next.data.defenseEvents] }, practicePlayer.id);
@@ -535,6 +693,15 @@ export default function MetrolinaBaseballApp() {
         if (index < 0) return current;
         return { ...current, pitchEvents: current.pitchEvents.filter((_, eventIndex) => eventIndex !== index) };
       }
+      if (practiceMode === "Live BP") {
+        const pitchIndex = current.pitchEvents.findIndex((event) => event.practiceId === practice.id && event.pitcherId === liveBpPitcherId && event.hitterId === liveBpHitterId);
+        const hitIndex = current.hittingEvents.findIndex((event) => event.practiceId === practice.id && event.hitterId === liveBpHitterId && event.pitcherId === liveBpPitcherId);
+        return {
+          ...current,
+          pitchEvents: pitchIndex >= 0 ? current.pitchEvents.filter((_, eventIndex) => eventIndex !== pitchIndex) : current.pitchEvents,
+          hittingEvents: hitIndex >= 0 ? current.hittingEvents.filter((_, eventIndex) => eventIndex !== hitIndex) : current.hittingEvents,
+        };
+      }
       const index = current.defenseEvents.findIndex((event) => event.practiceId === practice.id && event.playerId === practicePlayer.id);
       if (index < 0) return current;
       return { ...current, defenseEvents: current.defenseEvents.filter((_, eventIndex) => eventIndex !== index) };
@@ -543,15 +710,32 @@ export default function MetrolinaBaseballApp() {
 
   function openSessionSummary() {
     if (!data || !practice || !practicePlayer) return;
+    let summaryType: "Hitting" | "Pitching" | "Defense" = "Hitting";
     const session =
       practiceMode === "Hitting"
         ? data.hittingSessions.find((item) => item.practiceId === practice.id && item.hitterId === practicePlayer.id && item.type === hittingStation)
         : practiceMode === "Pitching"
           ? data.pitchingSessions.find((item) => item.practiceId === practice.id && item.pitcherId === practicePlayer.id && item.type === pitchingStation)
-          : data.defenseSessions.find((item) => item.practiceId === practice.id && item.playerId === practicePlayer.id && item.station === defenseStation);
+          : practiceMode === "Live BP"
+            ? data.pitchingSessions.find((item) => item.practiceId === practice.id && item.pitcherId === liveBpPitcherId && item.type === "Live BP")
+            : data.defenseSessions.find((item) => item.practiceId === practice.id && item.playerId === practicePlayer.id && item.station === defenseStation);
     if (!session) return;
+    if (practiceMode === "Pitching" || practiceMode === "Live BP") summaryType = "Pitching";
+    if (practiceMode === "Defense") summaryType = "Defense";
     setSummaryNote(session.summaryNote ?? "");
-    setSessionSummary({ type: practiceMode, sessionId: session.id });
+    setSessionSummary({ type: summaryType, sessionId: session.id });
+  }
+
+  function openExistingSessionSummary(type: "Hitting" | "Pitching" | "Defense", sessionId: ID) {
+    if (!data) return;
+    const session =
+      type === "Hitting"
+        ? data.hittingSessions.find((item) => item.id === sessionId)
+        : type === "Pitching"
+          ? data.pitchingSessions.find((item) => item.id === sessionId)
+          : data.defenseSessions.find((item) => item.id === sessionId);
+    setSummaryNote(session?.summaryNote ?? "");
+    setSessionSummary({ type, sessionId });
   }
 
   function saveSessionSummary() {
@@ -582,6 +766,24 @@ export default function MetrolinaBaseballApp() {
       };
     });
     setSessionSummary(null);
+  }
+
+  function endPractice() {
+    if (!practice) return;
+    setPracticeSummaryOpen(true);
+  }
+
+  function savePracticeSummary() {
+    if (!practice) return;
+    commit((current) => ({
+      ...current,
+      practices: current.practices.map((item) =>
+        item.id === practice.id ? { ...item, endedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : item,
+      ),
+      settings: { ...current.settings, activePracticeId: undefined },
+    }));
+    setPracticeTrackingOpen(false);
+    setPracticeSummaryOpen(false);
   }
 
   function addWorkoutEntry() {
@@ -787,7 +989,19 @@ export default function MetrolinaBaseballApp() {
           />
         )}
 
-        {view === "practice" && practicePlayer && (
+        {view === "practice" && practicePlayer && !practiceTrackingOpen && (
+          <PracticeHome
+            data={data}
+            practice={practice}
+            activeTotals={activeTotals}
+            onStartPractice={() => setStartPracticeOpen(true)}
+            onOpenStation={openPracticeStation}
+            onEndPractice={endPractice}
+            onOpenPlayer={openPlayer}
+          />
+        )}
+
+        {view === "practice" && practicePlayer && practiceTrackingOpen && (
           <PracticeConsole
             data={data}
             practice={practice}
@@ -803,6 +1017,10 @@ export default function MetrolinaBaseballApp() {
             targetLocation={targetLocation}
             fieldLocation={fieldLocation}
             hitDirection={hitDirection}
+            liveBpPitcher={data.players.find((item) => item.id === liveBpPitcherId)}
+            liveBpHitter={data.players.find((item) => item.id === liveBpHitterId)}
+            liveBpCount={liveBpCount}
+            liveBpPaNumber={liveBpPaNumber}
             onMode={setPracticeMode}
             onSelectPlayer={selectPracticePlayer}
             onOpenPlayer={openPlayer}
@@ -817,9 +1035,16 @@ export default function MetrolinaBaseballApp() {
             onHitDirection={setHitDirection}
             onLogHitting={logHitting}
             onLogPitch={logPitch}
+            onLiveBpPitcher={setLiveBpPitcherId}
+            onLiveBpHitter={setLiveBpHitterId}
+            onLogLiveBpPitch={logLiveBpPitch}
+            onCompleteLiveBpPa={completeLiveBpPa}
+            onNextLiveBpHitter={advanceLiveBpHitter}
             onLogDefense={logDefense}
             onUndo={undoPracticeEvent}
             onEndSession={openSessionSummary}
+            onExitTracking={() => setPracticeTrackingOpen(false)}
+            onEndPractice={endPractice}
             onStartPractice={() => setStartPracticeOpen(true)}
           />
         )}
@@ -899,6 +1124,7 @@ export default function MetrolinaBaseballApp() {
               setPlayerEditorOpen(true);
             }}
             onStatus={updateRosterStatus}
+            onOpenSessionSummary={openExistingSessionSummary}
           />
         )}
       </section>
@@ -967,6 +1193,11 @@ export default function MetrolinaBaseballApp() {
             }));
             setStartPracticeOpen(false);
             setView("practice");
+            setPracticeTrackingOpen(false);
+            if (practiceDraft.playerIds[0]) {
+              setPracticePlayerId(practiceDraft.playerIds[0]);
+              setSelectedPlayerId(practiceDraft.playerIds[0]);
+            }
           }}
         />
       )}
@@ -1020,6 +1251,16 @@ export default function MetrolinaBaseballApp() {
           onNote={setSummaryNote}
           onSave={saveSessionSummary}
           onClose={() => setSessionSummary(null)}
+        />
+      )}
+
+      {practiceSummaryOpen && practice && (
+        <PracticeSummaryModal
+          data={data}
+          practice={practice}
+          onClose={() => setPracticeSummaryOpen(false)}
+          onSave={savePracticeSummary}
+          onOpenPlayer={openPlayer}
         />
       )}
     </main>
@@ -1494,7 +1735,7 @@ function HomeDashboard({
 }: {
   data: AppData;
   practice?: Practice;
-  activeTotals: { pitches: number; swings: number; defenders: number; players: number; pitchers: number; hitters: number };
+  activeTotals: { pitches: number; swings: number; defenseReps: number; defenders: number; players: number; pitchers: number; hitters: number };
   weeklyMvp?: AwardResult;
   weightLeader?: WeightLeaderResult;
   onView: (view: ViewKey) => void;
@@ -1537,7 +1778,7 @@ function HomeDashboard({
             <StatTile label="Players" value={activeTotals.players} sub="active today" />
             <StatTile label="Pitchers" value={activeTotals.pitchers} sub="throwing" />
             <StatTile label="Hitters" value={activeTotals.hitters} sub="taking reps" />
-            <StatTile label="Reps" value={activeTotals.pitches + activeTotals.swings} sub={`${activeTotals.pitches} pitches / ${activeTotals.swings} swings`} accent />
+            <StatTile label="Reps" value={activeTotals.pitches + activeTotals.swings + activeTotals.defenseReps} sub={`${activeTotals.pitches} pitches / ${activeTotals.swings} swings / ${activeTotals.defenseReps} defense`} accent />
           </div>
           <button className="primary-button stretch-button" type="button" onClick={() => onView("practice")}>
             Open Practice
@@ -1749,6 +1990,148 @@ function RosterView({
   );
 }
 
+function PracticeHome({
+  data,
+  practice,
+  activeTotals,
+  onStartPractice,
+  onOpenStation,
+  onEndPractice,
+  onOpenPlayer,
+}: {
+  data: AppData;
+  practice?: Practice;
+  activeTotals: { pitches: number; swings: number; defenseReps: number; defenders: number; players: number; pitchers: number; hitters: number };
+  onStartPractice: () => void;
+  onOpenStation: (mode: PracticeMode) => void;
+  onEndPractice: () => void;
+  onOpenPlayer: (playerId: ID) => void;
+}) {
+  const recentPractices = data.practices.slice(0, 5);
+  const recentPlayers = sortPlayersByRecent(
+    data.players.filter((player) => !player.archived),
+    data.settings.recentPlayerIds,
+  ).slice(0, 8);
+
+  return (
+    <div className="page-stack practice-home">
+      <section className="practice-command panel">
+        <div className="practice-command__main">
+          <span>Today&apos;s Practice</span>
+          <h2>{practice?.name ?? "Ready when practice starts"}</h2>
+          <small>{practice ? `${fullDate(practice.date)} - ${practice.location} - ${practiceElapsed(practice)}` : "Start a practice, choose the roster preset, and log reps from one screen."}</small>
+        </div>
+        <div className="practice-command__actions">
+          <button className="primary-button" type="button" onClick={onStartPractice}>
+            <Plus size={16} aria-hidden="true" />
+            Start Practice
+          </button>
+          {practice && (
+            <button className="secondary-button" type="button" onClick={onEndPractice}>
+              <Save size={16} aria-hidden="true" />
+              End Practice
+            </button>
+          )}
+        </div>
+      </section>
+
+      {practice ? (
+        <>
+          <section className="practice-live-grid">
+            <article className="panel practice-live-card">
+              <div className="panel-heading tight">
+                <div>
+                  <span>Active Session</span>
+                  <h2>{practice.type}</h2>
+                </div>
+                <small>{activeTotals.players} players</small>
+              </div>
+              <div className="mini-stat-grid">
+                <StatTile label="Players" value={activeTotals.players} />
+                <StatTile label="Pitches" value={activeTotals.pitches} />
+                <StatTile label="Swings" value={activeTotals.swings} />
+                <StatTile label="Defense" value={activeTotals.defenseReps} accent />
+              </div>
+              <div className="recent-player-row" aria-label="Recently used players">
+                {recentPlayers.map((player) => (
+                  <button key={player.id} type="button" onClick={() => onOpenPlayer(player.id)}>
+                    <PlayerAvatar player={player} size="sm" compact />
+                    <span>{player.name.split(" ").slice(-1)[0]}</span>
+                  </button>
+                ))}
+              </div>
+            </article>
+
+            <article className="panel station-console-card">
+              <div className="panel-heading tight">
+                <div>
+                  <span>Quick Stations</span>
+                  <h2>One Tap Entry</h2>
+                </div>
+              </div>
+              <div className="station-grid">
+                <button type="button" onClick={() => onOpenStation("Hitting")}>
+                  <ClipboardList size={20} aria-hidden="true" />
+                  <strong>Hitting</strong>
+                  <small>Machine, coach BP, tee, toss</small>
+                </button>
+                <button type="button" onClick={() => onOpenStation("Pitching")}>
+                  <Target size={20} aria-hidden="true" />
+                  <strong>Pitching</strong>
+                  <small>Bullpens and pitch design</small>
+                </button>
+                <button type="button" onClick={() => onOpenStation("Defense")}>
+                  <Shield size={20} aria-hidden="true" />
+                  <strong>Defense</strong>
+                  <small>Clean reps, errors, great plays</small>
+                </button>
+                <button type="button" onClick={() => onOpenStation("Live BP")}>
+                  <Gauge size={20} aria-hidden="true" />
+                  <strong>Live BP</strong>
+                  <small>Pitcher vs hitter, count, PA</small>
+                </button>
+              </div>
+            </article>
+          </section>
+
+          <section className="panel recent-practices-card">
+            <div className="panel-heading tight">
+              <div>
+                <span>Recent Practices</span>
+                <h2>Practice Timeline</h2>
+              </div>
+            </div>
+            <div className="recent-practice-list">
+              {recentPractices.map((item) => {
+                const totals = practiceTotals(data, item.id);
+                return (
+                  <article key={item.id}>
+                    <div>
+                      <strong>{item.name}</strong>
+                      <small>{shortDate(item.date)} - {item.location}</small>
+                    </div>
+                    <span>{totals.pitches} pitches</span>
+                    <span>{totals.swings} swings</span>
+                    <span>{totals.defense} defense</span>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        </>
+      ) : (
+        <EmptyActionPanel
+          eyebrow="Practice"
+          title="No active practice yet"
+          body="Start practice, choose All, Varsity, JV, or Custom, then jump straight into hitting, pitching, defense, or Live BP."
+          action="Start Practice"
+          onAction={onStartPractice}
+        />
+      )}
+    </div>
+  );
+}
+
 function PracticeConsole({
   data,
   practice,
@@ -1764,6 +2147,10 @@ function PracticeConsole({
   targetLocation,
   fieldLocation,
   hitDirection,
+  liveBpPitcher,
+  liveBpHitter,
+  liveBpCount,
+  liveBpPaNumber,
   onMode,
   onSelectPlayer,
   onOpenPlayer,
@@ -1778,25 +2165,36 @@ function PracticeConsole({
   onHitDirection,
   onLogHitting,
   onLogPitch,
+  onLiveBpPitcher,
+  onLiveBpHitter,
+  onLogLiveBpPitch,
+  onCompleteLiveBpPa,
+  onNextLiveBpHitter,
   onLogDefense,
   onUndo,
   onEndSession,
+  onExitTracking,
+  onEndPractice,
   onStartPractice,
 }: {
   data: AppData;
   practice?: Practice;
   mode: PracticeMode;
   player: Player;
-  activeTotals: { pitches: number; swings: number; defenders: number; players: number; pitchers: number; hitters: number };
+  activeTotals: { pitches: number; swings: number; defenseReps: number; defenders: number; players: number; pitchers: number; hitters: number };
   hittingStation: HittingSession["type"];
   pitchingStation: PitchingSession["type"];
   defenseStation: DefenseStation;
   selectedPitchType: PitchType;
   velocity: string;
-  pitchLocation: ZonePoint;
-  targetLocation: ZonePoint;
+  pitchLocation?: ZonePoint;
+  targetLocation?: ZonePoint;
   fieldLocation: ZonePoint;
   hitDirection: Direction;
+  liveBpPitcher?: Player;
+  liveBpHitter?: Player;
+  liveBpCount: CountState;
+  liveBpPaNumber: number;
   onMode: (mode: PracticeMode) => void;
   onSelectPlayer: (playerId: ID) => void;
   onOpenPlayer: (playerId: ID) => void;
@@ -1805,27 +2203,70 @@ function PracticeConsole({
   onDefenseStation: (station: DefenseStation) => void;
   onPitchType: (pitchType: PitchType) => void;
   onVelocity: (value: string) => void;
-  onPitchLocation: (point: ZonePoint) => void;
-  onTargetLocation: (point: ZonePoint) => void;
+  onPitchLocation: (point: ZonePoint | undefined) => void;
+  onTargetLocation: (point: ZonePoint | undefined) => void;
   onFieldLocation: (point: ZonePoint) => void;
   onHitDirection: (direction: Direction) => void;
   onLogHitting: (action: HittingEvent["action"], contactResult?: BattedBallType, quality?: HittingContactQuality, direction?: Direction) => void;
   onLogPitch: (outcome: PitchOutcome, battedBall?: BattedBallType) => void;
-  onLogDefense: (outcome: DefenseOutcome) => void;
+  onLiveBpPitcher: (playerId: ID) => void;
+  onLiveBpHitter: (playerId: ID) => void;
+  onLogLiveBpPitch: (outcome: PitchOutcome, battedBall?: BattedBallType) => void;
+  onCompleteLiveBpPa: (outcome: LiveBpOutcomeLabel) => void;
+  onNextLiveBpHitter: () => void;
+  onLogDefense: (outcome: DefenseOutcome, errorType?: DefenseEvent["errorType"]) => void;
   onUndo: () => void;
   onEndSession: () => void;
+  onExitTracking: () => void;
+  onEndPractice: () => void;
   onStartPractice: () => void;
 }) {
+  const [switcherQuery, setSwitcherQuery] = useState("");
+  const [switcherFilter, setSwitcherFilter] = useState<RosterFilter>("All");
   const players = sortPlayersByRecent(
     data.players.filter((item) => !item.archived),
     data.settings.recentPlayerIds,
   );
-  const pitchEvents = playerPitchEvents(data, player.id).filter((event) => !practice || event.practiceId === practice.id);
-  const hittingEvents = playerHittingEvents(data, player.id).filter((event) => !practice || event.practiceId === practice.id);
-  const defenseEvents = data.defenseEvents.filter((event) => event.playerId === player.id && (!practice || event.practiceId === practice.id));
+  const playerPool = players
+    .filter((item) => mode !== "Pitching" || item.isPitcher)
+    .filter((item) => mode !== "Hitting" || item.isHitter)
+    .filter((item) => switcherFilter === "All" || item.rosterStatus === switcherFilter)
+    .filter((item) => `${item.name} ${item.jerseyNumber} ${item.primaryPosition} ${item.secondaryPosition ?? ""}`.toLowerCase().includes(switcherQuery.toLowerCase()));
+  const hittingSession = practice
+    ? data.hittingSessions.find((session) => session.practiceId === practice.id && session.hitterId === player.id && session.type === hittingStation && !session.endedAt)
+      ?? data.hittingSessions.find((session) => session.practiceId === practice.id && session.hitterId === player.id && session.type === hittingStation)
+    : undefined;
+  const pitchingSession = practice
+    ? data.pitchingSessions.find((session) => session.practiceId === practice.id && session.pitcherId === player.id && session.type === pitchingStation && !session.endedAt)
+      ?? data.pitchingSessions.find((session) => session.practiceId === practice.id && session.pitcherId === player.id && session.type === pitchingStation)
+    : undefined;
+  const defenseSession = practice
+    ? data.defenseSessions.find((session) => session.practiceId === practice.id && session.playerId === player.id && session.station === defenseStation && !session.endedAt)
+      ?? data.defenseSessions.find((session) => session.practiceId === practice.id && session.playerId === player.id && session.station === defenseStation)
+    : undefined;
+  const pitchEvents = data.pitchEvents.filter((event) => pitchingSession ? event.sessionId === pitchingSession.id : event.pitcherId === player.id && (!practice || event.practiceId === practice.id));
+  const hittingEvents = data.hittingEvents.filter((event) => hittingSession ? event.sessionId === hittingSession.id : event.hitterId === player.id && (!practice || event.practiceId === practice.id));
+  const defenseEvents = data.defenseEvents.filter((event) => defenseSession ? event.sessionId === defenseSession.id : event.playerId === player.id && (!practice || event.practiceId === practice.id));
+  const liveBpPitchEvents = data.pitchEvents.filter((event) => event.practiceId === practice?.id && event.pitcherId === liveBpPitcher?.id && event.hitterId === liveBpHitter?.id);
+  const liveBpHitEvents = data.hittingEvents.filter((event) => event.practiceId === practice?.id && event.hitterId === liveBpHitter?.id && event.pitcherId === liveBpPitcher?.id);
+  const liveBpPitchStats = calculatePitchingStats(liveBpPitchEvents);
   const pitchStats = calculatePitchingStats(pitchEvents);
   const hitStats = calculateHittingStats(hittingEvents);
   const defenseCleanPct = pct(defenseEvents.filter((event) => event.outcome !== "Error").length, defenseEvents.length);
+  const roundNumber = practice
+    ? Math.max(1, data.hittingSessions.filter((session) => session.practiceId === practice.id && session.hitterId === player.id && session.type === hittingStation).length || 1)
+    : 1;
+  const pitchers = players.filter((item) => item.isPitcher);
+  const hitters = players.filter((item) => item.isHitter && item.id !== liveBpPitcher?.id);
+
+  function changeMode(nextMode: PracticeMode) {
+    onMode(nextMode);
+    if (nextMode === "Live BP") {
+      onPitchingStation("Live BP");
+      onHittingStation("Live BP");
+      if (liveBpPitcher) onSelectPlayer(liveBpPitcher.id);
+    }
+  }
 
   return (
     <div className="page-stack practice-console">
@@ -1833,14 +2274,20 @@ function PracticeConsole({
         <div>
           <span>Metrolina Fall Ball</span>
           <h2>{practice?.name ?? "No Active Practice"}</h2>
-          <small>{practice ? `${fullDate(practice.date)} - ${practice.location}` : "Start a practice to unlock tracking"}</small>
+          <small>{practice ? `${fullDate(practice.date)} - ${practice.location} - ${practiceElapsed(practice)}` : "Start a practice to unlock tracking"}</small>
         </div>
         <div className="practice-header__metrics">
           <StatTile label="Pitches" value={activeTotals.pitches} />
           <StatTile label="Swings" value={activeTotals.swings} />
-          <StatTile label="Players" value={activeTotals.players} />
+          <StatTile label="Defense" value={activeTotals.defenseReps} />
+          <StatTile label="Players" value={activeTotals.players} accent />
         </div>
-        {!practice && (
+        {practice ? (
+          <div className="practice-header__buttons">
+            <button className="ghost-button" type="button" onClick={onExitTracking}>Practice Home</button>
+            <button className="secondary-button" type="button" onClick={onEndPractice}>End Practice</button>
+          </div>
+        ) : (
           <button className="primary-button" type="button" onClick={onStartPractice}>
             <Plus size={16} aria-hidden="true" />
             Start Practice
@@ -1866,20 +2313,26 @@ function PracticeConsole({
               <small>{positionLine(player)} - {player.rosterStatus}</small>
             </span>
           </button>
+          <label className="switcher-search">
+            <Search size={14} aria-hidden="true" />
+            <input value={switcherQuery} onChange={(event) => setSwitcherQuery(event.target.value)} placeholder="Switch player..." />
+          </label>
+          <SegmentedControl values={["All", "Varsity", "JV"] as RosterFilter[]} active={switcherFilter} onChange={setSwitcherFilter} />
           <div className="switcher-list">
-            {players.slice(0, 12).map((item) => (
+            {playerPool.slice(0, 14).map((item) => (
               <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => onSelectPlayer(item.id)}>
                 <PlayerAvatar player={item} size="sm" compact />
                 <span>{item.name.split(" ").slice(-1)[0]}</span>
                 <small>#{item.jerseyNumber}</small>
               </button>
             ))}
+            {!playerPool.length && <CompactEmpty title="No players found" />}
           </div>
         </aside>
 
         <section className="tracker-console panel">
           <div className="mode-row">
-            <SegmentedControl values={["Hitting", "Pitching", "Defense"] as PracticeMode[]} active={mode} onChange={onMode} />
+            <SegmentedControl values={["Hitting", "Pitching", "Defense", "Live BP"] as PracticeMode[]} active={mode} onChange={changeMode} />
             <div className="tracker-actions">
               <button className="ghost-button" type="button" onClick={onUndo}>
                 <Undo2 size={16} aria-hidden="true" />
@@ -1887,7 +2340,7 @@ function PracticeConsole({
               </button>
               <button className="secondary-button" type="button" onClick={onEndSession}>
                 <Save size={16} aria-hidden="true" />
-                End Session
+                {mode === "Hitting" ? "End Round" : mode === "Defense" ? "End Drill" : "End Session"}
               </button>
             </div>
           </div>
@@ -1895,13 +2348,21 @@ function PracticeConsole({
           {mode === "Hitting" && (
             <div className="tracking-layout">
               <div className="tracking-main">
-                <SegmentedControl values={HITTING_STATIONS} active={hittingStation} onChange={onHittingStation} />
+                <div className="session-context">
+                  <div>
+                    <span>{hittingStation}</span>
+                    <strong>Round {roundNumber}</strong>
+                    <small>{hittingEvents.length} reps logged</small>
+                  </div>
+                  <SegmentedControl values={HITTING_STATIONS} active={hittingStation} onChange={onHittingStation} />
+                </div>
                 <LiveMetrics
                   items={[
                     { label: "Swings", value: hitStats.totalSwings },
                     { label: "Contact", value: formatPct(hitStats.contactPct) },
                     { label: "Hard Hit", value: formatPct(hitStats.hardHitPct) },
                     { label: "Barrel", value: formatPct(hitStats.barrelPct) },
+                    { label: "LD %", value: formatPct(hitStats.lineDrivePct) },
                   ]}
                 />
                 <div className="quick-pad quick-pad--hitting">
@@ -1934,15 +2395,15 @@ function PracticeConsole({
                 <LiveMetrics
                   items={[
                     { label: "Pitches", value: pitchStats.totalPitches },
-                    { label: "Strikes", value: pitchStats.strikes },
                     { label: "Strike %", value: formatPct(pitchStats.strikePct) },
+                    { label: "CSW %", value: formatPct(pitchStats.cswPct) },
                     { label: "Avg Velo", value: formatNumber(pitchStats.avgVelocity, 1) },
                   ]}
                 />
                 <div className="pitch-type-row">
-                  {PITCH_TYPES.slice(0, 7).map((pitchType) => (
+                  {PITCH_TYPES.slice(0, 8).map((pitchType) => (
                     <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>
-                      {pitchType}
+                      {PITCH_TYPE_LABELS[pitchType]}
                     </button>
                   ))}
                 </div>
@@ -1963,8 +2424,10 @@ function PracticeConsole({
               <div className="tracking-visual zone-stack">
                 <span>Actual location</span>
                 <StrikeZone points={pitchEvents.map((event) => event.location).filter(isZonePoint)} activePoint={pitchLocation} onSelect={onPitchLocation} />
+                <button className="text-button" type="button" onClick={() => onPitchLocation(undefined)}>Skip actual location</button>
                 <span>Target location</span>
                 <StrikeZone compact activePoint={targetLocation} onSelect={onTargetLocation} />
+                <button className="text-button" type="button" onClick={() => onTargetLocation(undefined)}>Clear target</button>
               </div>
             </div>
           )}
@@ -1987,12 +2450,107 @@ function PracticeConsole({
                   <button type="button" onClick={() => onLogDefense("Good Play")}>Good Play</button>
                   <button type="button" className="gold" onClick={() => onLogDefense("Great Play")}>Great Play</button>
                 </div>
+                <div className="direction-row">
+                  <button type="button" onClick={() => onLogDefense("Error", "Fielding")}>Fielding Error</button>
+                  <button type="button" onClick={() => onLogDefense("Error", "Throwing")}>Throwing Error</button>
+                </div>
               </div>
               <div className="tracking-visual defense-visual">
                 <Shield size={42} aria-hidden="true" />
                 <h3>{defenseStation}</h3>
                 <MetricBar label="Clean rep rate" value={defenseCleanPct} />
                 <MetricBar label="Difficult plays made" value={pct(defenseEvents.filter((event) => event.outcome === "Great Play").length, defenseEvents.length)} />
+              </div>
+            </div>
+          )}
+
+          {mode === "Live BP" && (
+            <div className="tracking-layout live-bp-layout">
+              <div className="tracking-main">
+                <section className="live-bp-matchup">
+                  <div className="matchup-player">
+                    <span>Pitcher</span>
+                    <strong>{liveBpPitcher ? `#${liveBpPitcher.jerseyNumber} ${liveBpPitcher.name}` : "Select pitcher"}</strong>
+                    <small>{liveBpPitcher ? positionLine(liveBpPitcher) : "Live BP"}</small>
+                  </div>
+                  <div className="count-badge">
+                    <span>Count</span>
+                    <strong>{liveBpCount.balls}-{liveBpCount.strikes}</strong>
+                    <small>PA {liveBpPaNumber}</small>
+                  </div>
+                  <div className="matchup-player">
+                    <span>Hitter</span>
+                    <strong>{liveBpHitter ? `#${liveBpHitter.jerseyNumber} ${liveBpHitter.name}` : "Select hitter"}</strong>
+                    <small>{liveBpHitter ? positionLine(liveBpHitter) : "Live BP"}</small>
+                  </div>
+                </section>
+
+                <div className="matchup-switch-grid">
+                  <div>
+                    <span>Pitcher</span>
+                    <div className="mini-player-pills">
+                      {pitchers.slice(0, 8).map((item) => (
+                        <button key={item.id} type="button" className={item.id === liveBpPitcher?.id ? "active" : ""} onClick={() => { onLiveBpPitcher(item.id); onSelectPlayer(item.id); }}>
+                          #{item.jerseyNumber} {item.name.split(" ").slice(-1)[0]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span>Hitter</span>
+                    <div className="mini-player-pills">
+                      {hitters.slice(0, 8).map((item) => (
+                        <button key={item.id} type="button" className={item.id === liveBpHitter?.id ? "active" : ""} onClick={() => onLiveBpHitter(item.id)}>
+                          #{item.jerseyNumber} {item.name.split(" ").slice(-1)[0]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <LiveMetrics
+                  items={[
+                    { label: "Pitches", value: liveBpPitchStats.totalPitches },
+                    { label: "Strike %", value: formatPct(liveBpPitchStats.strikePct) },
+                    { label: "CSW %", value: formatPct(liveBpPitchStats.cswPct) },
+                    { label: "Avg Velo", value: formatNumber(liveBpPitchStats.avgVelocity, 1) },
+                  ]}
+                />
+                <div className="pitch-type-row">
+                  {PITCH_TYPES.slice(0, 8).map((pitchType) => (
+                    <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>
+                      {PITCH_TYPE_LABELS[pitchType]}
+                    </button>
+                  ))}
+                </div>
+                <label className="velo-input">
+                  <span>Velocity</span>
+                  <input inputMode="numeric" value={velocity} onChange={(event) => onVelocity(event.target.value.replace(/[^0-9.]/g, ""))} />
+                </label>
+                <div className="quick-pad quick-pad--pitching">
+                  <button type="button" onClick={() => onLogLiveBpPitch("Ball")}>Ball</button>
+                  <button type="button" onClick={() => onLogLiveBpPitch("Called Strike")}>Called Strike</button>
+                  <button type="button" className="gold" onClick={() => onLogLiveBpPitch("Whiff")}>Whiff</button>
+                  <button type="button" onClick={() => onLogLiveBpPitch("Foul")}>Foul</button>
+                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Ground ball")}>GB</button>
+                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Line drive")}>LD</button>
+                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Fly ball")}>FB</button>
+                </div>
+                <div className="pa-outcome-grid">
+                  {LIVE_BP_OUTCOMES.map((outcome) => (
+                    <button key={outcome} type="button" onClick={() => onCompleteLiveBpPa(outcome)}>{outcome}</button>
+                  ))}
+                  <button type="button" className="secondary-button" onClick={onNextLiveBpHitter}>Next Hitter</button>
+                </div>
+                <RoundStrip events={liveBpHitEvents} />
+              </div>
+              <div className="tracking-visual zone-stack">
+                <span>Actual location</span>
+                <StrikeZone points={liveBpPitchEvents.map((event) => event.location).filter(isZonePoint)} activePoint={pitchLocation} onSelect={onPitchLocation} />
+                <button className="text-button" type="button" onClick={() => onPitchLocation(undefined)}>Skip actual location</button>
+                <span>Target location</span>
+                <StrikeZone compact activePoint={targetLocation} onSelect={onTargetLocation} />
+                <button className="text-button" type="button" onClick={() => onTargetLocation(undefined)}>Clear target</button>
               </div>
             </div>
           )}
@@ -2152,11 +2710,11 @@ function GamesView({
   selectedGameId: ID;
   selectedPitchType: PitchType;
   velocity: string;
-  pitchLocation: ZonePoint;
+  pitchLocation?: ZonePoint;
   onGame: (gameId: ID) => void;
   onPitchType: (pitchType: PitchType) => void;
   onVelocity: (value: string) => void;
-  onPitchLocation: (point: ZonePoint) => void;
+  onPitchLocation: (point: ZonePoint | undefined) => void;
   onLogPitch: (outcome: GamePitchOutcome, ballInPlayOutcome?: GameBallInPlayOutcome) => void;
   onAdjust: (field: "metrolinaScore" | "opponentScore" | "outs", delta: number) => void;
   onOpenPlayer: (playerId: ID) => void;
@@ -2324,6 +2882,7 @@ function PlayerProfile({
   onTeamSwitch,
   onEdit,
   onStatus,
+  onOpenSessionSummary,
 }: {
   data: AppData;
   player: Player;
@@ -2332,6 +2891,7 @@ function PlayerProfile({
   onTeamSwitch: (team: TeamOption) => void | Promise<void>;
   onEdit: () => void;
   onStatus: (playerId: ID, status: RosterStatus) => void;
+  onOpenSessionSummary: (type: "Hitting" | "Pitching" | "Defense", sessionId: ID) => void;
 }) {
   const pitchEvents = playerPitchEvents(data, player.id);
   const hittingEvents = playerHittingEvents(data, player.id);
@@ -2408,7 +2968,15 @@ function PlayerProfile({
             <div className="panel-heading tight"><div><span>Recent Activity</span><h2>Last Touches</h2></div></div>
             <div className="entry-list">
               {recentActivity.length ? recentActivity.map((activity) => (
-                <div key={activity.key}><span>{activity.type}</span><strong>{activity.title}</strong><small>{activity.meta}</small></div>
+                activity.summaryType && activity.sessionId ? (
+                  <button key={activity.key} type="button" onClick={() => onOpenSessionSummary(activity.summaryType, activity.sessionId)}>
+                    <span>{activity.type}</span>
+                    <strong>{activity.title}</strong>
+                    <small>{activity.meta}</small>
+                  </button>
+                ) : (
+                  <div key={activity.key}><span>{activity.type}</span><strong>{activity.title}</strong><small>{activity.meta}</small></div>
+                )
               )) : <CompactEmpty title="No activity for this context yet" />}
             </div>
           </article>
@@ -2517,47 +3085,72 @@ function PlayerProfile({
 }
 
 function StartPracticeModal({ data, onClose, onCreate }: { data: AppData; onClose: () => void; onCreate: (practice: Practice) => void }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const availablePlayers = data.players.filter((player) => !player.archived);
   const [form, setForm] = useState({
-    date: "2026-08-08",
-    name: "Saturday Development Practice",
+    date: today,
+    time: "18:00",
+    name: `${data.teamContext?.currentTeam?.teamName ?? "Metrolina"} Practice`,
     type: "Full Practice" as PracticeType,
     location: "Metrolina Varsity Field",
     notes: "",
   });
-  const [attending, setAttending] = useState<ID[]>(data.players.filter((player) => !player.archived).map((player) => player.id));
-  const [pitchers, setPitchers] = useState<ID[]>(data.players.filter((player) => player.isPitcher && !player.archived).map((player) => player.id));
-  const [hitters, setHitters] = useState<ID[]>(data.players.filter((player) => player.isHitter && !player.archived).map((player) => player.id));
+  const [preset, setPreset] = useState<PracticeRosterPreset>("All");
+  const [attending, setAttending] = useState<ID[]>(availablePlayers.map((player) => player.id));
 
-  function toggle(list: ID[], id: ID, setter: (ids: ID[]) => void) {
-    setter(list.includes(id) ? list.filter((item) => item !== id) : [...list, id]);
+  function applyPreset(nextPreset: PracticeRosterPreset) {
+    setPreset(nextPreset);
+    if (nextPreset === "Custom") return;
+    const selected = availablePlayers
+      .filter((player) => nextPreset === "All" || player.rosterStatus === nextPreset)
+      .map((player) => player.id);
+    setAttending(selected);
+  }
+
+  function toggle(id: ID) {
+    setPreset("Custom");
+    setAttending((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  }
+
+  function createPractice() {
+    const selectedPlayers = availablePlayers.filter((player) => attending.includes(player.id));
+    const pitchers = selectedPlayers.filter((player) => player.isPitcher).map((player) => player.id);
+    const hitters = selectedPlayers.filter((player) => player.isHitter).map((player) => player.id);
+    onCreate({
+      id: createId("practice"),
+      date: form.date,
+      name: form.name,
+      type: form.type,
+      location: form.location,
+      notes: form.notes,
+      playerIds: attending,
+      pitcherIds: pitchers,
+      hitterIds: hitters,
+      startedAt: new Date(`${form.date}T${form.time || "18:00"}:00`).toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   return (
     <ModalFrame title="Start Practice" onClose={onClose}>
       <div className="form-grid">
         <label><span>Date</span><input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
+        <label><span>Time</span><input type="time" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} /></label>
         <label><span>Practice name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
         <label><span>Type</span><select value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as PracticeType })}>{PRACTICE_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label>
         <label><span>Location</span><input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} /></label>
         <label className="wide"><span>Notes</span><textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
       </div>
-      <RosterPicker title="Attending" players={data.players} selected={attending} onToggle={(id) => toggle(attending, id, setAttending)} />
-      <RosterPicker title="Pitchers Throwing" players={data.players.filter((player) => player.isPitcher)} selected={pitchers} onToggle={(id) => toggle(pitchers, id, setPitchers)} />
-      <RosterPicker title="Hitters Participating" players={data.players.filter((player) => player.isHitter)} selected={hitters} onToggle={(id) => toggle(hitters, id, setHitters)} />
-      <button className="primary-button stretch-button" type="button" onClick={() => onCreate({
-        id: createId("practice"),
-        date: form.date,
-        name: form.name,
-        type: form.type,
-        location: form.location,
-        notes: form.notes,
-        playerIds: attending,
-        pitcherIds: pitchers,
-        hitterIds: hitters,
-        startedAt: new Date(`${form.date}T18:00:00`).toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })}>
+      <section className="practice-preset-panel">
+        <div>
+          <span>Players Attending</span>
+          <strong>{attending.length} selected</strong>
+        </div>
+        <SegmentedControl values={["All", "Varsity", "JV", "Custom"] as PracticeRosterPreset[]} active={preset} onChange={applyPreset} />
+      </section>
+      <RosterPicker title="Quick Check / Uncheck" players={availablePlayers} selected={attending} onToggle={toggle} />
+      <button className="primary-button stretch-button" type="button" onClick={createPractice} disabled={attending.length === 0}>
         Enter Active Practice
       </button>
     </ModalFrame>
@@ -2790,6 +3383,60 @@ function SessionSummaryModal({ data, summary, note, onNote, onSave, onClose }: {
         <textarea value={note} onChange={(event) => onNote(event.target.value)} placeholder="Add what should carry into the next session..." />
       </label>
       <button className="primary-button stretch-button" type="button" onClick={onSave}>Save Summary</button>
+    </ModalFrame>
+  );
+}
+
+function PracticeSummaryModal({
+  data,
+  practice,
+  onClose,
+  onSave,
+  onOpenPlayer,
+}: {
+  data: AppData;
+  practice: Practice;
+  onClose: () => void;
+  onSave: () => void;
+  onOpenPlayer: (playerId: ID) => void;
+}) {
+  const totals = practiceTotals(data, practice.id);
+  const standouts = buildPracticeStandouts(data, practice.id);
+
+  return (
+    <ModalFrame title="Practice Summary" onClose={onClose}>
+      <div className="summary-hero">
+        <span>{shortDate(practice.date)}</span>
+        <h2>{practice.name}</h2>
+        <div className="mini-stat-grid">
+          <StatTile label="Players" value={practice.playerIds.length} />
+          <StatTile label="Total Reps" value={totals.pitches + totals.swings + totals.defense} accent />
+          <StatTile label="Hitting" value={totals.hittingSessions} sub={`${totals.swings} swings`} />
+          <StatTile label="Pitching" value={totals.pitchingSessions} sub={`${totals.pitches} pitches`} />
+        </div>
+      </div>
+      <section className="practice-standout-list">
+        <div className="panel-heading tight">
+          <div>
+            <span>Standouts</span>
+            <h2>Minimum samples applied</h2>
+          </div>
+        </div>
+        {standouts.length ? standouts.map((standout) => (
+          <button key={`${standout.label}-${standout.player.id}`} type="button" onClick={() => { onClose(); onOpenPlayer(standout.player.id); }}>
+            <PlayerAvatar player={standout.player} size="sm" compact />
+            <span>{standout.label}</span>
+            <strong>{standout.player.name}</strong>
+            <small>{standout.value}</small>
+          </button>
+        )) : (
+          <CompactEmpty title="No standouts yet. Add a few more reps before ranking players." />
+        )}
+      </section>
+      <div className="modal-actions">
+        <button className="secondary-button" type="button" onClick={onClose}>Keep Practice Open</button>
+        <button className="primary-button" type="button" onClick={onSave}>Save Practice Summary</button>
+      </div>
     </ModalFrame>
   );
 }
@@ -3128,6 +3775,59 @@ function buildWeeklyWorkoutRow(data: AppData, player: Player) {
   return { player, days, completion: pct(days.filter((day) => day.completed).length, days.length) };
 }
 
+function practiceElapsed(practice: Practice) {
+  const start = new Date(practice.startedAt).getTime();
+  const end = practice.endedAt ? new Date(practice.endedAt).getTime() : Date.now();
+  const minutes = Math.max(0, Math.round((end - start) / 60000));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return `${hours}h ${remainder}m`;
+}
+
+function practiceTotals(data: AppData, practiceId: ID) {
+  const pitchEvents = data.pitchEvents.filter((event) => event.practiceId === practiceId);
+  const hittingEvents = data.hittingEvents.filter((event) => event.practiceId === practiceId);
+  const defenseEvents = data.defenseEvents.filter((event) => event.practiceId === practiceId);
+  return {
+    pitches: pitchEvents.length,
+    swings: hittingEvents.filter((event) => event.action !== "Took pitch").length,
+    defense: defenseEvents.length,
+    hittingSessions: data.hittingSessions.filter((session) => session.practiceId === practiceId).length,
+    pitchingSessions: data.pitchingSessions.filter((session) => session.practiceId === practiceId).length,
+    defenseSessions: data.defenseSessions.filter((session) => session.practiceId === practiceId).length,
+  };
+}
+
+function buildPracticeStandouts(data: AppData, practiceId: ID) {
+  const players = data.players.filter((player) => !player.archived);
+  const hitterRows = players.map((player) => {
+    const stats = calculateHittingStats(data.hittingEvents.filter((event) => event.practiceId === practiceId && event.hitterId === player.id));
+    return { player, stats };
+  });
+  const pitcherRows = players.map((player) => {
+    const stats = calculatePitchingStats(data.pitchEvents.filter((event) => event.practiceId === practiceId && event.pitcherId === player.id));
+    return { player, stats };
+  });
+  const defenderRows = players.map((player) => {
+    const events = data.defenseEvents.filter((event) => event.practiceId === practiceId && event.playerId === player.id);
+    return { player, events, clean: events.filter((event) => event.outcome !== "Error").length };
+  });
+  const hardHit = hitterRows.filter((row) => row.stats.totalSwings >= 8).sort((a, b) => b.stats.hardHitPct - a.stats.hardHitPct)[0];
+  const barrel = hitterRows.filter((row) => row.stats.totalSwings >= 8).sort((a, b) => b.stats.barrelPct - a.stats.barrelPct)[0];
+  const strike = pitcherRows.filter((row) => row.stats.totalPitches >= 12).sort((a, b) => b.stats.strikePct - a.stats.strikePct)[0];
+  const command = pitcherRows.filter((row) => row.stats.totalPitches >= 12).sort((a, b) => b.stats.intendedTargetHitPct - a.stats.intendedTargetHitPct)[0];
+  const defense = defenderRows.filter((row) => row.events.length >= 6).sort((a, b) => b.clean - a.clean)[0];
+
+  return [
+    hardHit && { label: "Top Hard-Hit %", player: hardHit.player, value: `${formatPct(hardHit.stats.hardHitPct)} / ${hardHit.stats.totalSwings} swings` },
+    barrel && { label: "Top Barrel %", player: barrel.player, value: `${formatPct(barrel.stats.barrelPct)} / ${barrel.stats.totalSwings} swings` },
+    strike && { label: "Best Strike %", player: strike.player, value: `${formatPct(strike.stats.strikePct)} / ${strike.stats.totalPitches} pitches` },
+    command && command.stats.intendedTargetHitPct > 0 && { label: "Best Command %", player: command.player, value: `${formatPct(command.stats.intendedTargetHitPct)} target hit` },
+    defense && { label: "Clean Defensive Reps", player: defense.player, value: `${defense.clean}/${defense.events.length} clean` },
+  ].filter(Boolean) as Array<{ label: string; player: Player; value: string }>;
+}
+
 function buildPlayerRecentActivity(data: AppData, player: Player) {
   const practicesById = new Map(data.practices.map((practice) => [practice.id, practice]));
   const activities = [
@@ -3135,39 +3835,45 @@ function buildPlayerRecentActivity(data: AppData, player: Player) {
       .filter((session) => session.hitterId === player.id)
       .map((session) => {
         const practice = practicesById.get(session.practiceId);
-        const swings = data.hittingEvents.filter((event) => event.sessionId === session.id).length;
+        const stats = calculateHittingStats(data.hittingEvents.filter((event) => event.sessionId === session.id));
         return {
           key: `hit-${session.id}`,
           date: practice?.date ?? session.startedAt,
-          type: "Practice",
+          type: "Hitting",
           title: `${session.type} hitting`,
-          meta: `${shortDate(practice?.date ?? session.startedAt.slice(0, 10))} - ${swings} swing${swings === 1 ? "" : "s"}`,
+          meta: `${shortDate(practice?.date ?? session.startedAt.slice(0, 10))} - ${stats.totalSwings} swings - ${formatPct(stats.hardHitPct)} hard hit`,
+          summaryType: "Hitting" as const,
+          sessionId: session.id,
         };
       }),
     ...data.pitchingSessions
       .filter((session) => session.pitcherId === player.id)
       .map((session) => {
         const practice = practicesById.get(session.practiceId);
-        const pitches = data.pitchEvents.filter((event) => event.sessionId === session.id).length;
+        const stats = calculatePitchingStats(data.pitchEvents.filter((event) => event.sessionId === session.id));
         return {
           key: `pitch-${session.id}`,
           date: practice?.date ?? session.startedAt,
           type: "Pitching",
           title: `${session.type} session`,
-          meta: `${shortDate(practice?.date ?? session.startedAt.slice(0, 10))} - ${pitches} pitch${pitches === 1 ? "" : "es"}`,
+          meta: `${shortDate(practice?.date ?? session.startedAt.slice(0, 10))} - ${stats.totalPitches} pitches - ${formatPct(stats.strikePct)} strikes`,
+          summaryType: "Pitching" as const,
+          sessionId: session.id,
         };
       }),
     ...data.defenseSessions
       .filter((session) => session.playerId === player.id)
       .map((session) => {
         const practice = practicesById.get(session.practiceId);
-        const reps = data.defenseEvents.filter((event) => event.sessionId === session.id).length;
+        const reps = data.defenseEvents.filter((event) => event.sessionId === session.id);
         return {
           key: `def-${session.id}`,
           date: practice?.date ?? session.startedAt,
           type: "Defense",
           title: session.station,
-          meta: `${shortDate(practice?.date ?? session.startedAt.slice(0, 10))} - ${reps} rep${reps === 1 ? "" : "s"}`,
+          meta: `${shortDate(practice?.date ?? session.startedAt.slice(0, 10))} - ${reps.length} reps - ${formatPct(pct(reps.filter((event) => event.outcome !== "Error").length, reps.length))} clean`,
+          summaryType: "Defense" as const,
+          sessionId: session.id,
         };
       }),
     ...data.workoutSessions
@@ -3178,6 +3884,8 @@ function buildPlayerRecentActivity(data: AppData, player: Player) {
         type: "Weight Room",
         title: `${session.day} lift`,
         meta: `${shortDate(session.date)} - ${session.completed ? "completed" : "in progress"}`,
+        summaryType: undefined,
+        sessionId: undefined,
       })),
     ...data.games
       .filter((game) => game.lineup.includes(player.id) || game.currentPitcherId === player.id || game.currentBatterId === player.id || game.startingPitcherId === player.id)
@@ -3187,6 +3895,8 @@ function buildPlayerRecentActivity(data: AppData, player: Player) {
         type: "Game",
         title: `vs ${game.opponent}`,
         meta: `${shortDate(game.date)} - ${game.result ?? "not final"} ${game.metrolinaScore}-${game.opponentScore}`,
+        summaryType: undefined,
+        sessionId: undefined,
       })),
   ];
 
@@ -3252,20 +3962,28 @@ function buildSessionSummary(data: AppData, summary: { type: "Hitting" | "Pitchi
         { label: "Contact", value: formatPct(stats.contactPct) },
         { label: "Hard Hit", value: formatPct(stats.hardHitPct) },
         { label: "Barrel", value: formatPct(stats.barrelPct) },
+        { label: "Line Drive", value: formatPct(stats.lineDrivePct) },
       ],
     };
   }
   if (summary.type === "Pitching") {
     const session = data.pitchingSessions.find((item) => item.id === summary.sessionId);
     const player = data.players.find((item) => item.id === session?.pitcherId);
-    const stats = calculatePitchingStats(data.pitchEvents.filter((event) => event.sessionId === summary.sessionId));
+    const events = data.pitchEvents.filter((event) => event.sessionId === summary.sessionId);
+    const stats = calculatePitchingStats(events);
+    const mix = Object.values(stats.byPitchType)
+      .sort((a, b) => b.pitches - a.pitches)
+      .slice(0, 3)
+      .map((item) => `${PITCH_TYPE_LABELS[item.pitchType]} ${item.pitches}`)
+      .join(" / ");
     return {
       title: `${player?.name ?? "Pitcher"} - ${session?.type ?? "Pitching"}`,
       stats: [
         { label: "Pitches", value: stats.totalPitches },
-        { label: "Strikes", value: stats.strikes },
         { label: "Strike %", value: formatPct(stats.strikePct) },
+        { label: "CSW %", value: formatPct(stats.cswPct) },
         { label: "Avg Velo", value: formatNumber(stats.avgVelocity, 1) },
+        { label: "Max Velo", value: formatNumber(stats.maxVelocity, 1), sub: mix || `${events.length} tracked` },
       ],
     };
   }
@@ -3402,6 +4120,22 @@ function gameSituations(game: Game, outcome: GamePitchOutcome, bip?: GameBallInP
   return situations;
 }
 
+function mapLiveBpOutcome(label: LiveBpOutcomeLabel): NonNullable<PlateAppearance["outcome"]> {
+  const outcomes: Record<LiveBpOutcomeLabel, NonNullable<PlateAppearance["outcome"]>> = {
+    K: "Strikeout swinging",
+    BB: "Walk",
+    HBP: "HBP",
+    "1B": "Single",
+    "2B": "Double",
+    "3B": "Triple",
+    HR: "Home run",
+    Out: "Groundout",
+    Error: "Reached on error",
+    FC: "Fielder's choice",
+  };
+  return outcomes[label];
+}
+
 function nextCount(count: { balls: number; strikes: number }, outcome: PitchOutcome) {
   let balls = count.balls;
   let strikes = count.strikes;
@@ -3410,6 +4144,16 @@ function nextCount(count: { balls: number; strikes: number }, outcome: PitchOutc
   if (outcome === "Foul" && strikes < 2) strikes += 1;
   if (outcome === "Ball in play" || balls >= 4 || strikes >= 3) return { balls: 0, strikes: 0 };
   return { balls, strikes };
+}
+
+function nextLiveBpDisplayCount(count: CountState, outcome: PitchOutcome): CountState {
+  let balls = count.balls;
+  let strikes = count.strikes;
+  if (outcome === "Ball") balls += 1;
+  if (outcome === "Called Strike" || outcome === "Whiff") strikes += 1;
+  if (outcome === "Foul" && strikes < 2) strikes += 1;
+  if (outcome === "Ball in play" || outcome === "HBP") return count;
+  return { balls: Math.min(3, balls), strikes: Math.min(2, strikes) };
 }
 
 function baseLine(game: Game) {

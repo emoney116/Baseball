@@ -525,7 +525,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     coachNotes: notesRows.map(mapCoachNote),
     developmentGoals: goalsRows.map(mapDevelopmentGoal),
     settings: {
-      activePracticeId: practices.find((practice) => !practice.endedAt)?.id ?? practices[0]?.id,
+      activePracticeId: practices.find((practice) => !practice.endedAt)?.id,
       theme: "dark",
       rosterSeason: foundation.seasonName,
       recentPlayerIds: players.slice(0, 8).map((player) => player.id),
