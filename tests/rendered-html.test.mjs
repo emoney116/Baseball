@@ -12,7 +12,7 @@ test("next build contains the Metrolina app shell", async () => {
   const workflow = readFileSync(".github/workflows/supabase-migrations.yml", "utf8");
   const bootstrapRoute = readFileSync("app/api/setup/bootstrap/route.ts", "utf8");
 
-  assert.match(layout, /title:\s*"Metrolina Baseball Ops"/);
+  assert.match(layout, /title:\s*"Metrolina Baseball"/);
   assert.match(page, /Metrolina Baseball/);
   assert.match(page, /supabaseAppRepository/);
   assert.doesNotMatch(page, /localPracticeRepository\.load/);
