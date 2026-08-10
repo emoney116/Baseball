@@ -25,10 +25,12 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 These server-only values are required for the first-run bootstrap API. They must be configured only as encrypted Vercel environment variables or local uncommitted `.env.local` values:
 
 ```bash
-SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_SECRET_KEY=
 METROLINA_SETUP_EMAILS=
 METROLINA_SETUP_CODE=
 ```
+
+`SUPABASE_SECRET_KEY` is the current Supabase server-side key format (`sb_secret_...`) and is preferred for production. `SUPABASE_SERVICE_ROLE_KEY` remains supported as a legacy fallback only. Never prefix either value with `NEXT_PUBLIC_`.
 
 `METROLINA_SETUP_EMAILS` is a comma-separated allowlist for the first coach/admin setup account. `METROLINA_SETUP_CODE` is optional but recommended for first-run setup.
 
@@ -39,7 +41,7 @@ DATABASE_URL=
 SUPABASE_DB_URL=
 ```
 
-Do not commit `.env`, `.env.local`, service-role keys, database passwords, setup codes, or Supabase access tokens.
+Do not commit `.env`, `.env.local`, Supabase secret keys, service-role keys, database passwords, setup codes, or Supabase access tokens.
 
 ## Database Migrations
 
