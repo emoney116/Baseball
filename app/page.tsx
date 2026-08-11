@@ -3963,9 +3963,14 @@ function EditStaffModal({
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
-    const assignedTeams = selectedTeams
-      .map((key) => uniqueTeams.find((team) => teamSelectionKey(team) === key))
-      .filter((team): team is TeamOption => Boolean(team));
+    const membershipByKey = new Map(memberships.map((membership) => [`${membership.teamId}:${membership.seasonId ?? ""}`, membership]));
+    const assignedTeams: Array<{ teamId: ID; seasonId?: ID }> = selectedTeams
+      .flatMap((key) => {
+        const team = uniqueTeams.find((item) => teamSelectionKey(item) === key);
+        if (team) return [{ teamId: team.teamId, seasonId: team.seasonId }];
+        const existing = membershipByKey.get(key);
+        return existing ? [{ teamId: existing.teamId, seasonId: existing.seasonId }] : [];
+      });
     if (assignedTeams.length === 0) {
       setMessage("Choose at least one team.");
       return;
