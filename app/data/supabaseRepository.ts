@@ -18,6 +18,7 @@ import type {
   PitchingSession,
   PlateAppearance,
   Player,
+  ProfileFollow,
   PlayerTeamMembership,
   Practice,
   PracticeAttendance,
@@ -38,9 +39,8 @@ import { APP_NAME } from "../lib/branding";
 import { absoluteUrl, browserSiteUrl } from "../lib/siteUrl";
 import { createClient } from "../lib/supabase/client";
 
-const ORGANIZATION_SLUG = "metrolina-christian-academy";
 const SEASON_NAME = "Fall 2026";
-const SELECTED_TEAM_STORAGE_KEY = "metrolina-current-team-v2";
+const SELECTED_TEAM_STORAGE_KEY = "clubhouse9-current-team-v2";
 
 type SupabaseClient = ReturnType<typeof createClient>;
 
@@ -125,7 +125,14 @@ export const authRepository = {
     const { data, error } = await supabase.auth.signUp({
       email: input.email,
       password: input.password,
-      options: { emailRedirectTo: redirectTo },
+      options: {
+        emailRedirectTo: redirectTo,
+        data: {
+          first_name: input.firstName ?? null,
+          last_name: input.lastName ?? null,
+          display_name: displayName,
+        },
+      },
     });
     if (error) throw new PersistenceError("auth-required", error.message);
     if (data.user) {
@@ -149,6 +156,20 @@ export const authRepository = {
     const redirectTo = absoluteUrl("/", browserSiteUrl());
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     if (error) throw new PersistenceError("auth-required", error.message);
+  },
+
+  async updateProfile(input: { firstName?: string; lastName?: string; displayName?: string; avatarUrl?: string }) {
+    const response = await fetch("/api/profile", {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { profile?: AppProfile; message?: string };
+    if (!response.ok || !payload.profile) {
+      throw new PersistenceError("save-failed", payload.message ?? "Unable to update profile.");
+    }
+    return payload.profile;
   },
 
   async getBootstrapStatus(): Promise<BootstrapStatus> {
@@ -223,6 +244,46 @@ export const supabaseAppRepository = {
       throw new PersistenceError("save-failed", payload.message ?? "Unable to create team.");
     }
     return payload.team;
+  },
+
+  async toggleFollow(input: { organizationId?: string; teamId?: string; follow: boolean }) {
+    const supabase = createClient();
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      throw new PersistenceError("auth-required", "Sign in before following teams.");
+    }
+
+    if (!input.organizationId && !input.teamId) {
+      throw new PersistenceError("save-failed", "Choose an organization or team to follow.");
+    }
+
+    if (!input.follow) {
+      let query = supabase.from("profile_follows").delete().eq("profile_id", userData.user.id);
+      query = input.teamId ? query.eq("team_id", input.teamId) : query.is("team_id", null);
+      query = input.organizationId ? query.eq("organization_id", input.organizationId) : query.is("organization_id", null);
+      const { error } = await query;
+      if (error) throw new PersistenceError("save-failed", error.message);
+      return undefined;
+    }
+
+    let existingQuery = supabase.from("profile_follows").select("*").eq("profile_id", userData.user.id).limit(1);
+    existingQuery = input.teamId ? existingQuery.eq("team_id", input.teamId) : existingQuery.is("team_id", null);
+    existingQuery = input.organizationId ? existingQuery.eq("organization_id", input.organizationId) : existingQuery.is("organization_id", null);
+    const { data: existing, error: existingError } = await existingQuery.maybeSingle();
+    if (existingError) throw new PersistenceError("save-failed", existingError.message);
+    if (existing) return mapProfileFollow(existing);
+
+    const { data, error } = await supabase
+      .from("profile_follows")
+      .insert({
+        profile_id: userData.user.id,
+        organization_id: input.organizationId ?? null,
+        team_id: input.teamId ?? null,
+      })
+      .select("*")
+      .single();
+    if (error) throw new PersistenceError("save-failed", error.message);
+    return mapProfileFollow(data);
   },
 
   async inviteStaff(input: {
@@ -315,30 +376,19 @@ export const supabaseAppRepository = {
 
 async function loadFoundation(
   supabase: SupabaseClient,
-  user: { id: string; email?: string },
+  user: { id: string; email?: string; user_metadata?: Record<string, unknown> },
   requestedTeamId?: string,
   requestedSeasonId?: string,
 ): Promise<Foundation> {
-  const { data: organization, error: organizationError } = await supabase
-    .from("organizations")
-    .select("id,name")
-    .eq("slug", ORGANIZATION_SLUG)
-    .maybeSingle();
-
-  if (organizationError) throw new PersistenceError("load-failed", organizationError.message);
-  if (!organization) {
-    throw new PersistenceError(
-      "membership-required",
-      "Metrolina organization is unavailable or your account is not attached to it.",
-    );
-  }
-
+  const metadata = user.user_metadata ?? {};
   const profile = await ensureOwnProfile(supabase, {
     id: user.id,
     email: user.email,
-    displayName: user.email,
+    firstName: stringMetadata(metadata.first_name),
+    lastName: stringMetadata(metadata.last_name),
+    displayName: stringMetadata(metadata.display_name) ?? user.email,
   });
-  const teamContext = await loadTeamContext(supabase, profile, organization.id, organization.name, requestedTeamId, requestedSeasonId);
+  const teamContext = await loadTeamContext(supabase, profile, requestedTeamId, requestedSeasonId);
   const currentTeam = teamContext.currentTeam;
 
   if (!currentTeam?.seasonId) {
@@ -351,8 +401,8 @@ async function loadFoundation(
   persistSelectedTeam(currentTeam);
 
   return {
-    organizationId: organization.id,
-    organizationName: organization.name,
+    organizationId: currentTeam.organizationId,
+    organizationName: currentTeam.organizationName,
     teamId: currentTeam.teamId,
     teamName: currentTeam.teamName,
     seasonId: currentTeam.seasonId,
@@ -371,16 +421,28 @@ async function ensureOwnProfile(
     displayName?: string;
   },
 ): Promise<AppProfile> {
+  const { data: existing, error: existingError } = await supabase
+    .from("profiles")
+    .select("id,email,first_name,last_name,display_name,avatar_url,role")
+    .eq("id", input.id)
+    .maybeSingle();
+  if (existingError) throw new PersistenceError("load-failed", existingError.message);
+
+  const firstName = nonEmpty(input.firstName) ?? existing?.first_name ?? null;
+  const lastName = nonEmpty(input.lastName) ?? existing?.last_name ?? null;
+  const nameDisplay = [firstName, lastName].filter(Boolean).join(" ").trim();
+  const incomingDisplay = nonEmpty(input.displayName);
   const displayName =
-    input.displayName ??
-    [input.firstName, input.lastName].filter(Boolean).join(" ").trim() ??
-    input.email ??
-    "Coach";
+    existing?.display_name && existing.display_name !== existing.email
+      ? existing.display_name
+      : incomingDisplay && incomingDisplay !== input.email
+        ? incomingDisplay
+        : nameDisplay || existing?.display_name || input.email || "Coach";
   const row = {
     id: input.id,
     email: input.email ? input.email.toLowerCase() : null,
-    first_name: input.firstName ?? null,
-    last_name: input.lastName ?? null,
+    first_name: firstName,
+    last_name: lastName,
     display_name: displayName,
   };
 
@@ -397,11 +459,18 @@ async function ensureOwnProfile(
   return mapProfile(data ?? row);
 }
 
+function nonEmpty(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+}
+
+function stringMetadata(value: unknown) {
+  return typeof value === "string" ? nonEmpty(value) : undefined;
+}
+
 async function loadTeamContext(
   supabase: SupabaseClient,
   profile: AppProfile,
-  organizationId: string,
-  organizationName: string,
   requestedTeamId?: string,
   requestedSeasonId?: string,
 ): Promise<TeamContext> {
@@ -432,17 +501,24 @@ async function loadTeamContext(
   if (seasonsResult.error) throw new PersistenceError("load-failed", seasonsResult.error.message);
 
   const teamsById = new Map<string, any>((teamsResult.data ?? []).map((team: any) => [team.id, team]));
+  const organizationIds = [...new Set((teamsResult.data ?? []).map((team: any) => team.organization_id).filter(Boolean))];
+  const organizationsResult = organizationIds.length
+    ? await supabase.from("organizations").select("id,name").in("id", organizationIds)
+    : { data: [], error: null };
+  if (organizationsResult.error) throw new PersistenceError("load-failed", organizationsResult.error.message);
+  const organizationsById = new Map<string, any>((organizationsResult.data ?? []).map((organization: any) => [organization.id, organization]));
   const seasonsById = new Map<string, any>((seasonsResult.data ?? []).map((season: any) => [season.id, season]));
   const stored = readSelectedTeam();
 
   const availableTeams = rows
     .map((membership: any): TeamOption | null => {
       const team = teamsById.get(membership.team_id);
-      if (!team || team.organization_id !== organizationId) return null;
+      if (!team) return null;
+      const organization = organizationsById.get(team.organization_id);
       const season = membership.season_id ? seasonsById.get(membership.season_id) : undefined;
       return {
-        organizationId,
-        organizationName,
+        organizationId: team.organization_id,
+        organizationName: organization?.name ?? "Organization",
         teamId: team.id,
         teamName: team.name,
         teamLevel: team.level ?? undefined,
@@ -498,7 +574,7 @@ function compareTeamOptions(a: TeamOption, b: TeamOption) {
     if (name.includes("program") || name === "baseball") return 2;
     return 3;
   };
-  return rank(a) - rank(b) || a.teamName.localeCompare(b.teamName);
+  return a.organizationName.localeCompare(b.organizationName) || rank(a) - rank(b) || a.teamName.localeCompare(b.teamName);
 }
 
 function normalizeTeamRole(role: unknown): TeamMembershipRole {
@@ -603,9 +679,10 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
   if (failed?.error) throw new PersistenceError("load-failed", failed.error.message);
 
   const membershipByPlayer = new Map<string, any>(memberships.map((membership: any) => [membership.player_id, membership]));
-  const players = (playersResult.data ?? [])
+  const players = collapseDuplicateRosterPlayers((playersResult.data ?? [])
     .map((row: any) => mapPlayer(row, membershipByPlayer.get(row.id)))
-    .sort((a, b) => a.jerseyNumber - b.jerseyNumber || a.name.localeCompare(b.name));
+    .sort((a, b) => a.jerseyNumber - b.jerseyNumber || a.name.localeCompare(b.name)));
+  const visiblePlayerIdsSet = new Set(players.map((player) => player.id));
   const attendanceRows = (attendanceResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && playerIdsSet.has(row.player_id));
   const practices = practiceRows.map((row: any) => mapPractice(row, attendanceRows));
   const sessionRows = (sessionsResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && playerIdsSet.has(row.player_id));
@@ -620,14 +697,16 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
   const goalsRows = (goalsResult.data ?? []).filter((row: any) => playerIdsSet.has(row.player_id));
   const rosterImports = await loadRosterImports(supabase, foundation);
   const staffData = await loadStaffData(supabase, foundation);
+  const profileFollows = await loadProfileFollows(supabase, foundation.teamContext.profile?.id);
 
   return {
     teamContext: foundation.teamContext,
     players,
-    playerTeamMemberships: memberships.map(mapPlayerTeamMembership),
+    playerTeamMemberships: memberships.filter((membership: any) => visiblePlayerIdsSet.has(membership.player_id)).map(mapPlayerTeamMembership),
     staffMembers: staffData.staffMembers,
     staffTeamMemberships: staffData.staffTeamMemberships,
     staffInvitations: staffData.staffInvitations,
+    profileFollows,
     practices,
     attendance: attendanceRows.map(mapAttendance),
     pitchingSessions: sessionRows.filter((row: any) => row.category === "pitching").map(mapPitchingSession),
@@ -657,6 +736,47 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
       selectedSeasonId: foundation.seasonId,
     },
   };
+}
+
+function collapseDuplicateRosterPlayers(players: Player[]) {
+  const byIdentity = new Map<string, Player>();
+  for (const player of players) {
+    const key = `${normalizePlayerIdentity(player.name)}:${player.graduationYear}:${player.jerseyNumber || "no-number"}`;
+    const existing = byIdentity.get(key);
+    if (!existing || playerCompletenessScore(player) > playerCompletenessScore(existing)) {
+      byIdentity.set(key, player);
+    }
+  }
+  return [...byIdentity.values()];
+}
+
+function normalizePlayerIdentity(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function playerCompletenessScore(player: Player) {
+  return [
+    player.archived ? 0 : 20,
+    player.imageUrl ? 8 : 0,
+    player.height ? 4 : 0,
+    player.weight ? 4 : 0,
+    player.secondaryPosition ? 2 : 0,
+    player.updatedAt ? Date.parse(player.updatedAt) / 100000000000 : 0,
+  ].reduce((sum, value) => sum + value, 0);
+}
+
+async function loadProfileFollows(supabase: SupabaseClient, profileId?: string): Promise<ProfileFollow[]> {
+  if (!profileId) return [];
+  const { data, error } = await supabase
+    .from("profile_follows")
+    .select("*")
+    .eq("profile_id", profileId)
+    .order("created_at", { ascending: false });
+  if (error) {
+    if (isMissingProfileFollowsTable(error)) return [];
+    throw new PersistenceError("load-failed", error.message);
+  }
+  return (data ?? []).map(mapProfileFollow);
 }
 
 async function loadRosterImports(supabase: SupabaseClient, foundation: Foundation): Promise<RosterImportRecord[]> {
@@ -1261,6 +1381,16 @@ function mapPlayerTeamMembership(row: any): PlayerTeamMembership {
   };
 }
 
+function mapProfileFollow(row: any): ProfileFollow {
+  return {
+    id: row.id,
+    profileId: row.profile_id,
+    organizationId: row.organization_id ?? undefined,
+    teamId: row.team_id ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
 function mapRosterImportRecord(row: any): RosterImportRecord {
   const summary = row.summary ?? {};
   return {
@@ -1366,6 +1496,11 @@ function isMissingRosterImportsTable(error: { code?: string; message?: string })
     error.code === "PGRST205" ||
     /(relation|table).*roster_imports.*(does not exist|not found)|could not find.*roster_imports/i.test(error.message ?? "")
   );
+}
+
+function isMissingProfileFollowsTable(error: { code?: string; message?: string }) {
+  const message = String(error.message ?? "").toLowerCase();
+  return error.code === "42P01" || message.includes("profile_follows");
 }
 
 function isMissingStaffTables(error: { code?: string; message?: string }) {

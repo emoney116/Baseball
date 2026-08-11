@@ -313,6 +313,14 @@ export interface TeamContext {
   currentTeam?: TeamOption;
 }
 
+export interface ProfileFollow {
+  id: ID;
+  profileId: ID;
+  organizationId?: ID;
+  teamId?: ID;
+  createdAt: string;
+}
+
 export interface Practice {
   id: ID;
   date: string;
@@ -606,6 +614,7 @@ export interface AppData {
   staffMembers?: StaffMember[];
   staffTeamMemberships?: StaffTeamMembership[];
   staffInvitations?: StaffInvitation[];
+  profileFollows?: ProfileFollow[];
   rosterImports?: RosterImportRecord[];
   practices: Practice[];
   attendance: PracticeAttendance[];

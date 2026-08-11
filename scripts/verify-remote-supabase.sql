@@ -7,6 +7,7 @@ do $$
 declare
   expected_tables text[] := array[
     'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',
+    'profile_follows',
     'players', 'player_team_memberships', 'practices', 'practice_attendance',
     'roster_imports',
     'staff_members', 'staff_team_memberships', 'team_invitations', 'team_invitation_memberships',
