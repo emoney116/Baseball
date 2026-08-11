@@ -106,6 +106,8 @@ type PracticeMode = "Hitting" | "Pitching" | "Defense" | "Live BP";
 type RosterFilter = "All" | RosterStatus;
 type RosterPositionFilter = "All" | Position;
 type RosterYearFilter = "All" | string;
+type RosterSortKey = "number" | "player" | "pos" | "bt" | "class" | "height" | "weight" | "status";
+type SortDirection = "asc" | "desc";
 type ProfileTab = "overview" | "practice" | "games" | "pitching" | "hitting" | "defense" | "weights" | "notes";
 type AnalyticsContext = "All" | "Practice" | "Game" | "Live BP" | "Weight Room";
 type DateFilter = "Last Week" | "Last 30 Days" | "Fall";
@@ -164,6 +166,14 @@ const ROSTER_CSV_TEMPLATE = [
 
 function slugifyFilePart(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "current-season";
+}
+
+function currentRosterYear() {
+  return new Date().getFullYear();
+}
+
+function rosterFileSignature(file: File) {
+  return `${file.name.toLowerCase()}::${file.size}::${file.lastModified}`;
 }
 
 function teamFaviconHref(team?: TeamOption) {
@@ -1797,13 +1807,21 @@ function RosterView({
   onImport: () => void;
   onStatus: (playerId: ID, status: RosterStatus) => void;
 }) {
+  const [sortConfig, setSortConfig] = useState<{ key: RosterSortKey; direction: SortDirection }>({ key: "number", direction: "asc" });
   const gradYears = Array.from(new Set(players.map((player) => String(player.graduationYear)))).sort();
+  function changeSort(key: RosterSortKey) {
+    setSortConfig((current) => (
+      current.key === key
+        ? { key, direction: current.direction === "asc" ? "desc" : "asc" }
+        : { key, direction: "asc" }
+    ));
+  }
   const filtered = players
     .filter((player) => filter === "All" || player.rosterStatus === filter)
     .filter((player) => positionFilter === "All" || player.primaryPosition === positionFilter || player.secondaryPosition === positionFilter)
     .filter((player) => yearFilter === "All" || String(player.graduationYear) === yearFilter)
     .filter((player) => `${player.name} ${player.jerseyNumber} ${player.primaryPosition} ${player.secondaryPosition ?? ""} ${player.graduationYear}`.toLowerCase().includes(query.toLowerCase()))
-    .sort((a, b) => a.jerseyNumber - b.jerseyNumber || a.name.localeCompare(b.name));
+    .sort((a, b) => compareRosterPlayers(a, b, sortConfig.key, sortConfig.direction));
 
   return (
     <div className="page-stack roster-page">
@@ -1850,14 +1868,15 @@ function RosterView({
       </section>
 
       <section className="roster-table-shell">
-        <div className="roster-table__head" aria-hidden="true">
-          <span>#</span>
-          <span>Player</span>
-          <span>Pos</span>
-          <span>B/T</span>
-          <span>Class</span>
-          <span>Status</span>
-          <span>Team Number</span>
+        <div className="roster-table__head">
+          <RosterSortButton label="#" sortKey="number" active={sortConfig.key} direction={sortConfig.direction} onSort={changeSort} />
+          <RosterSortButton label="Player" sortKey="player" active={sortConfig.key} direction={sortConfig.direction} onSort={changeSort} />
+          <RosterSortButton label="Pos" sortKey="pos" active={sortConfig.key} direction={sortConfig.direction} onSort={changeSort} />
+          <RosterSortButton label="B/T" sortKey="bt" active={sortConfig.key} direction={sortConfig.direction} onSort={changeSort} />
+          <RosterSortButton label="Class" sortKey="class" active={sortConfig.key} direction={sortConfig.direction} onSort={changeSort} />
+          <RosterSortButton label="Height" sortKey="height" active={sortConfig.key} direction={sortConfig.direction} onSort={changeSort} />
+          <RosterSortButton label="Weight" sortKey="weight" active={sortConfig.key} direction={sortConfig.direction} onSort={changeSort} />
+          <RosterSortButton label="Status" sortKey="status" active={sortConfig.key} direction={sortConfig.direction} onSort={changeSort} />
           <span />
         </div>
         {filtered.length ? filtered.map((player) => (
@@ -1878,12 +1897,15 @@ function RosterView({
             <span className="roster-bt-cell">{player.bats}/{player.throws}</span>
             <span className="roster-mobile-label">Class</span>
             <span className="roster-class-cell">{player.graduationYear}</span>
+            <span className="roster-mobile-label">Height</span>
+            <span className="roster-height-cell">{player.height ?? "--"}</span>
+            <span className="roster-mobile-label">Weight</span>
+            <span className="roster-weight-cell">{player.weight ? `${player.weight}` : "--"}</span>
             <label className={`status-select-wrap status-select-wrap--${(player.rosterStatus ?? "Undecided").toLowerCase()}`}>
               <select value={player.rosterStatus ?? "Undecided"} onChange={(event) => onStatus(player.id, event.target.value as RosterStatus)} aria-label={`Roster status for ${player.name}`}>
                 {ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}
               </select>
             </label>
-            <span className="team-number-cell">{player.jerseyNumber}</span>
             <button className="row-menu-button" type="button" onClick={() => onEditPlayer(player.id)} aria-label={`Edit ${player.name}`}>
               <MoreHorizontal size={16} aria-hidden="true" />
             </button>
@@ -1894,6 +1916,47 @@ function RosterView({
       </section>
     </div>
   );
+}
+
+function RosterSortButton({
+  label,
+  sortKey,
+  active,
+  direction,
+  onSort,
+}: {
+  label: string;
+  sortKey: RosterSortKey;
+  active: RosterSortKey;
+  direction: SortDirection;
+  onSort: (key: RosterSortKey) => void;
+}) {
+  const isActive = active === sortKey;
+  return (
+    <button type="button" className={`roster-sort-button ${isActive ? "active" : ""}`} onClick={() => onSort(sortKey)} aria-label={`Sort roster by ${label}${isActive ? `, currently ${direction}` : ""}`}>
+      {label}
+      {isActive && (direction === "asc" ? <ChevronUp size={12} aria-hidden="true" /> : <ChevronDown size={12} aria-hidden="true" />)}
+    </button>
+  );
+}
+
+function compareRosterPlayers(a: Player, b: Player, key: RosterSortKey, direction: SortDirection) {
+  const multiplier = direction === "asc" ? 1 : -1;
+  const statusOrder = (status?: RosterStatus) => ROSTER_STATUSES.indexOf(status ?? "Undecided");
+  const compareText = (left: string, right: string) => left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
+  const compareNumber = (left: number, right: number) => left - right;
+  let result = 0;
+
+  if (key === "number") result = compareNumber(a.jerseyNumber ?? 0, b.jerseyNumber ?? 0);
+  if (key === "player") result = compareText(a.name, b.name);
+  if (key === "pos") result = compareText(positionLine(a), positionLine(b));
+  if (key === "bt") result = compareText(`${a.bats}/${a.throws}`, `${b.bats}/${b.throws}`);
+  if (key === "class") result = compareNumber(a.graduationYear ?? 0, b.graduationYear ?? 0);
+  if (key === "height") result = compareNumber(heightToInches(a.height), heightToInches(b.height));
+  if (key === "weight") result = compareNumber(a.weight ?? 0, b.weight ?? 0);
+  if (key === "status") result = compareNumber(statusOrder(a.rosterStatus), statusOrder(b.rosterStatus));
+
+  return (result || compareNumber(a.jerseyNumber ?? 0, b.jerseyNumber ?? 0) || compareText(a.name, b.name)) * multiplier;
 }
 
 function PracticeHome({
@@ -3111,92 +3174,6 @@ function StartGameModal({ data, onClose, onCreate }: { data: AppData; onClose: (
   );
 }
 
-function NumberStepper({
-  label,
-  value,
-  onChange,
-  min,
-  max,
-  step = 1,
-}: {
-  label: string;
-  value?: number;
-  onChange: (value: number | undefined) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-}) {
-  const safeValue = typeof value === "number" && Number.isFinite(value) ? value : undefined;
-  const adjust = (delta: number) => {
-    const base = safeValue ?? min ?? 0;
-    const next = base + delta;
-    onChange(Math.max(min ?? next, Math.min(max ?? next, next)));
-  };
-  return (
-    <div className="field-control">
-      <span>{label}</span>
-      <div className="number-stepper">
-        <button type="button" onClick={() => adjust(-step)} aria-label={`Decrease ${label}`}>-</button>
-        <input
-          type="number"
-          inputMode="numeric"
-          min={min}
-          max={max}
-          value={safeValue ?? ""}
-          onChange={(event) => {
-            if (event.target.value === "") {
-              onChange(undefined);
-              return;
-            }
-            const next = Number(event.target.value);
-            onChange(Number.isFinite(next) ? next : undefined);
-          }}
-        />
-        <button type="button" onClick={() => adjust(step)} aria-label={`Increase ${label}`}>+</button>
-      </div>
-    </div>
-  );
-}
-
-function HeightStepper({ value, onChange }: { value?: string; onChange: (value: string | undefined) => void }) {
-  const inches = heightToInches(value);
-  return (
-    <div className="field-control">
-      <span>Height</span>
-      <div className="number-stepper">
-        <button type="button" onClick={() => onChange(formatHeightFromInches(inches - 1))} aria-label="Decrease height">-</button>
-        <input value={value ?? ""} onChange={(event) => onChange(event.target.value || undefined)} placeholder="6-0" />
-        <button type="button" onClick={() => onChange(formatHeightFromInches(inches + 1))} aria-label="Increase height">+</button>
-      </div>
-    </div>
-  );
-}
-
-function HandednessControl({
-  label,
-  value,
-  values,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  values: string[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="field-control">
-      <span>{label}</span>
-      <div className="segmented-mini">
-        {values.map((item) => (
-          <button key={item} type="button" className={item === value ? "active" : ""} onClick={() => onChange(item)}>
-            {item}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function PlayerEditorModal({ player, onClose, onSave, onArchive }: { player?: Player; onClose: () => void; onSave: (player: Player) => void; onArchive: (playerId: ID) => void }) {
   const [form, setForm] = useState<Player>(
     player ?? {
@@ -3207,7 +3184,7 @@ function PlayerEditorModal({ player, onClose, onSave, onArchive }: { player?: Pl
       secondaryPosition: undefined,
       bats: "R",
       throws: "R",
-      graduationYear: 2027,
+      graduationYear: currentRosterYear(),
       rosterStatus: "Undecided",
       programLevel: "Development",
       height: "6-0",
@@ -3223,20 +3200,35 @@ function PlayerEditorModal({ player, onClose, onSave, onArchive }: { player?: Pl
   const roleFlags = derivePlayerRoleFlags(form.primaryPosition, form.secondaryPosition);
 
   return (
-    <ModalFrame title={player ? "Edit Player" : "Add Player"} onClose={onClose}>
-      <div className="form-grid player-editor-grid">
-        <label><span>Name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
-        <NumberStepper label="Number" value={form.jerseyNumber || undefined} min={0} max={99} onChange={(value) => setForm({ ...form, jerseyNumber: value ?? 0 })} />
-        <NumberStepper label="Graduation" value={form.graduationYear} min={2020} max={2045} onChange={(value) => setForm({ ...form, graduationYear: value ?? 2027 })} />
-        <label><span>Primary</span><select value={form.primaryPosition} onChange={(event) => setForm({ ...form, primaryPosition: event.target.value as Position })}>{POSITIONS.map((position) => <option key={position}>{position}</option>)}</select></label>
-        <label><span>Secondary</span><select value={form.secondaryPosition ?? ""} onChange={(event) => setForm({ ...form, secondaryPosition: event.target.value ? event.target.value as Position : undefined })}>{SECONDARY_POSITIONS.map((position) => <option key={position || "none"} value={position}>{position || "None"}</option>)}</select></label>
-        <HandednessControl label="Bats" value={form.bats} values={["R", "L", "S"]} onChange={(value) => setForm({ ...form, bats: value as Player["bats"] })} />
-        <HandednessControl label="Throws" value={form.throws} values={["R", "L"]} onChange={(value) => setForm({ ...form, throws: value as Player["throws"] })} />
-        <label><span>Status</span><select value={form.rosterStatus} onChange={(event) => setForm({ ...form, rosterStatus: event.target.value as RosterStatus })}>{ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}</select></label>
-        <HeightStepper value={form.height} onChange={(height) => setForm({ ...form, height })} />
-        <NumberStepper label="Weight" value={form.weight} min={80} max={320} step={5} onChange={(weight) => setForm({ ...form, weight })} />
-        <label className="wide"><span>Notes</span><textarea value={form.notes ?? ""} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
-      </div>
+    <ModalFrame title={player ? "Edit Player" : "Add Player"} onClose={onClose} panelClassName="modal-panel--player">
+      <section className="single-player-builder">
+        <div className="single-player-table">
+          <div className="single-player-head" aria-hidden="true">
+            <span>Name</span>
+            <span>#</span>
+            <span>Class</span>
+            <span>Primary</span>
+            <span>Secondary</span>
+            <span>Bats</span>
+            <span>Throws</span>
+            <span>Height</span>
+            <span>Weight</span>
+            <span>Status</span>
+          </div>
+          <div className="single-player-row">
+            <input aria-label="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+            <ManualNumberCell label="Number" value={form.jerseyNumber ? String(form.jerseyNumber) : ""} min={0} max={99} onChange={(value) => setForm({ ...form, jerseyNumber: Number(value) || 0 })} />
+            <ManualNumberCell label="Graduation" value={String(form.graduationYear || currentRosterYear())} min={2020} max={2045} onChange={(value) => setForm({ ...form, graduationYear: Number(value) || currentRosterYear() })} />
+            <select aria-label="Primary" value={form.primaryPosition} onChange={(event) => setForm({ ...form, primaryPosition: event.target.value as Position })}>{POSITIONS.map((position) => <option key={position}>{position}</option>)}</select>
+            <select aria-label="Secondary" value={form.secondaryPosition ?? ""} onChange={(event) => setForm({ ...form, secondaryPosition: event.target.value ? event.target.value as Position : undefined })}>{SECONDARY_POSITIONS.map((position) => <option key={position || "none"} value={position}>{position || "None"}</option>)}</select>
+            <select aria-label="Bats" value={form.bats} onChange={(event) => setForm({ ...form, bats: event.target.value as Player["bats"] })}><option>R</option><option>L</option><option>S</option></select>
+            <select aria-label="Throws" value={form.throws} onChange={(event) => setForm({ ...form, throws: event.target.value as Player["throws"] })}><option>R</option><option>L</option></select>
+            <ManualHeightCell value={String(heightToInches(form.height))} onChange={(heightInches) => setForm({ ...form, height: heightInches ? formatHeightFromInches(Number(heightInches)) : undefined })} />
+            <ManualNumberCell label="Weight" value={form.weight ? String(form.weight) : ""} min={80} max={320} step={5} onChange={(value) => setForm({ ...form, weight: Number(value) || undefined })} />
+            <select aria-label="Status" value={form.rosterStatus} onChange={(event) => setForm({ ...form, rosterStatus: event.target.value as RosterStatus })}>{ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}</select>
+          </div>
+        </div>
+      </section>
       <div className="modal-actions">
         {player && <button className="secondary-button" type="button" onClick={() => onArchive(player.id)}><Archive size={16} aria-hidden="true" />Archive</button>}
         <button className="primary-button" type="button" onClick={() => onSave({ ...form, ...roleFlags, updatedAt: new Date().toISOString() })}><Save size={16} aria-hidden="true" />Save Player</button>
@@ -3366,9 +3358,27 @@ function RosterImportModal({
   async function handleFiles(fileList: FileList | File[]) {
     const selected = Array.from(fileList);
     if (!selected.length) return;
-    setBusy(true);
     setUploadError("");
-    const queued = selected.map((file) => ({
+    const existingSignatures = new Set(Object.values(sourceFiles).map(rosterFileSignature));
+    const seenSignatures = new Set(existingSignatures);
+    const duplicateNames: string[] = [];
+    const uniqueFiles = selected.filter((file) => {
+      const signature = rosterFileSignature(file);
+      if (seenSignatures.has(signature)) {
+        duplicateNames.push(file.name);
+        return false;
+      }
+      seenSignatures.add(signature);
+      return true;
+    });
+
+    if (duplicateNames.length) {
+      setUploadError(`Skipped duplicate upload: ${Array.from(new Set(duplicateNames)).join(", ")}.`);
+    }
+    if (!uniqueFiles.length) return;
+
+    setBusy(true);
+    const queued = uniqueFiles.map((file) => ({
       sourceId: crypto.randomUUID(),
       file,
     }));
@@ -3620,6 +3630,7 @@ function RosterImportModal({
               multiple
               onChange={(event) => {
                 if (event.target.files) void handleFiles(event.target.files);
+                event.target.value = "";
               }}
             />
           </label>
@@ -4054,15 +4065,7 @@ function ManualRosterBuilder({
             const problems = manualRowProblems(row);
             return (
               <div key={row.id} className={`manual-roster-row ${problems.length ? "has-error" : ""}`}>
-                <input
-                  aria-label="Jersey number"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={99}
-                  value={row.jerseyNumber}
-                  onChange={(event) => onChangeRow(row.id, { jerseyNumber: event.target.value })}
-                />
+                <ManualNumberCell label="Jersey number" value={row.jerseyNumber} min={0} max={99} onChange={(jerseyNumber) => onChangeRow(row.id, { jerseyNumber })} />
                 <input
                   aria-label="First name"
                   value={row.firstName}
@@ -4073,15 +4076,7 @@ function ManualRosterBuilder({
                   value={row.lastName}
                   onChange={(event) => onChangeRow(row.id, { lastName: event.target.value })}
                 />
-                <input
-                  aria-label="Graduation year"
-                  type="number"
-                  inputMode="numeric"
-                  min={2020}
-                  max={2045}
-                  value={row.graduationYear}
-                  onChange={(event) => onChangeRow(row.id, { graduationYear: event.target.value })}
-                />
+                <ManualNumberCell label="Graduation year" value={row.graduationYear} min={2020} max={2045} onChange={(graduationYear) => onChangeRow(row.id, { graduationYear })} />
                 <select aria-label="Primary position" value={row.primaryPosition} onChange={(event) => onChangeRow(row.id, { primaryPosition: event.target.value as Position | "" })}>
                   <option value="">-</option>
                   {POSITIONS.map((position) => <option key={position}>{position}</option>)}
@@ -4100,15 +4095,7 @@ function ManualRosterBuilder({
                   <option>L</option>
                 </select>
                 <ManualHeightCell value={row.heightInches} onChange={(heightInches) => onChangeRow(row.id, { heightInches })} />
-                <input
-                  aria-label="Weight"
-                  type="number"
-                  inputMode="numeric"
-                  min={80}
-                  max={320}
-                  value={row.weight}
-                  onChange={(event) => onChangeRow(row.id, { weight: event.target.value })}
-                />
+                <ManualNumberCell label="Weight" value={row.weight} min={80} max={320} step={5} onChange={(weight) => onChangeRow(row.id, { weight })} />
                 <select aria-label="Roster status" value={row.rosterStatus} onChange={(event) => onChangeRow(row.id, { rosterStatus: event.target.value as RosterStatus })}>
                   {ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}
                 </select>
@@ -4128,6 +4115,50 @@ function ManualRosterBuilder({
 
       {error && <p className="form-error">{error}</p>}
     </section>
+  );
+}
+
+function ManualNumberCell({
+  label,
+  value,
+  onChange,
+  min,
+  max,
+  step = 1,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  min: number;
+  max: number;
+  step?: number;
+}) {
+  function clean(nextValue: string) {
+    return nextValue.replace(/\D/g, "").slice(0, String(max).length);
+  }
+
+  function adjust(delta: number) {
+    const current = Number(value);
+    const base = Number.isFinite(current) && value !== "" ? current : min;
+    const next = Math.max(min, Math.min(max, base + delta));
+    onChange(String(next));
+  }
+
+  return (
+    <div className="manual-number-cell">
+      <input
+        aria-label={label}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={value}
+        onChange={(event) => onChange(clean(event.target.value))}
+      />
+      <div className="manual-number-buttons" aria-label={`Adjust ${label}`}>
+        <button type="button" onClick={() => adjust(step)} aria-label={`Increase ${label}`}><Plus size={11} aria-hidden="true" /></button>
+        <button type="button" onClick={() => adjust(-step)} aria-label={`Decrease ${label}`}><span aria-hidden="true">-</span></button>
+      </div>
+    </div>
   );
 }
 
@@ -4219,7 +4250,7 @@ function createManualRosterRow(rosterStatus: RosterStatus): ManualRosterRow {
     jerseyNumber: "",
     firstName: "",
     lastName: "",
-    graduationYear: "",
+    graduationYear: String(currentRosterYear()),
     primaryPosition: "",
     secondaryPosition: "",
     bats: "R",
@@ -4235,7 +4266,6 @@ function manualRowHasContent(row: ManualRosterRow) {
     row.jerseyNumber.trim() ||
     row.firstName.trim() ||
     row.lastName.trim() ||
-    row.graduationYear.trim() ||
     row.primaryPosition ||
     row.secondaryPosition ||
     row.heightInches.trim() ||
