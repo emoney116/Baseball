@@ -64,6 +64,10 @@ jobs:
         shell: bash
         run: node scripts/run-supabase-pooler-psql.mjs scripts/verify-player-membership-rls.sql
 
+      - name: Verify staff invitation acceptance RPC
+        shell: bash
+        run: node scripts/run-supabase-pooler-psql.mjs scripts/verify-staff-invitation-acceptance.sql
+
       - name: Verify remote write/read persistence
         shell: bash
         env:

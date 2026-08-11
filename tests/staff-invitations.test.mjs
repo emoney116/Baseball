@@ -4,6 +4,9 @@ import test from "node:test";
 
 test("staff invitation migration keeps tokens hashed and authorization server-side", () => {
   const migration = readFileSync("supabase/migrations/20260811000000_staff_invitations.sql", "utf8");
+  const acceptanceFixMigration = readFileSync("supabase/migrations/20260811141000_fix_staff_invitation_acceptance.sql", "utf8");
+  const remoteVerifyWorkflow = readFileSync(".github/workflows/supabase-remote-verify.yml", "utf8");
+  const remoteAcceptanceRegression = readFileSync("scripts/verify-staff-invitation-acceptance.sql", "utf8");
   const createRoute = readFileSync("app/api/staff/invitations/route.ts", "utf8");
   const invitations = readFileSync("app/lib/invitations.ts", "utf8");
   const siteUrl = readFileSync("app/lib/siteUrl.ts", "utf8");
@@ -21,6 +24,17 @@ test("staff invitation migration keeps tokens hashed and authorization server-si
   assert.match(migration, /alter table public\.staff_members enable row level security/);
   assert.match(migration, /alter table public\.team_invitations enable row level security/);
   assert.match(migration, /current_profile_can_admin_team/);
+
+  assert.match(acceptanceFixMigration, /create or replace function public\.accept_staff_invitation\(invite_token_hash text\)/);
+  assert.match(acceptanceFixMigration, /security definer/);
+  assert.match(acceptanceFixMigration, /from public\.team_invitation_memberships as tim\s+where tim\.invitation_id = v_invitation\.id/);
+  assert.match(acceptanceFixMigration, /return query\s+select\s+v_invitation\.id::uuid,\s+v_linked_staff_member_id::uuid,\s+v_memberships_created::integer/s);
+  assert.doesNotMatch(acceptanceFixMigration, /from public\.team_invitation_memberships\s+where invitation_id =/);
+  assert.match(remoteVerifyWorkflow, /verify-staff-invitation-acceptance\.sql/);
+  assert.match(remoteAcceptanceRegression, /public\.accept_staff_invitation\(v_fixture\.token_hash\)/);
+  assert.match(remoteAcceptanceRegression, /ti\.status[\s\S]*ACCEPTED/);
+  assert.match(remoteAcceptanceRegression, /profile_team_memberships/);
+  assert.match(remoteAcceptanceRegression, /staff_team_memberships/);
 
   assert.match(createRoute, /createInviteToken/);
   assert.match(createRoute, /hashInviteToken\(token\)/);

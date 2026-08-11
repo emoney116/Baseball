@@ -9,6 +9,7 @@ declare
     'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',
     'players', 'player_team_memberships', 'practices', 'practice_attendance',
     'roster_imports',
+    'staff_members', 'staff_team_memberships', 'team_invitations', 'team_invitation_memberships',
     'practice_sessions', 'pitch_events', 'hitting_events', 'defense_events',
     'exercises', 'workouts', 'workout_sessions', 'workout_sets',
     'player_measurements', 'games', 'game_lineups', 'plate_appearances',
@@ -38,7 +39,14 @@ declare
     'public.current_profile_can_manage_org(uuid)',
     'public.current_profile_can_write_player_org(uuid)',
     'public.player_matches_team_context(uuid,uuid,uuid)',
-    'public.current_profile_can_read_player(uuid)'
+    'public.current_profile_can_read_player(uuid)',
+    'public.current_profile_can_admin_org(uuid)',
+    'public.current_profile_can_view_staff_member(uuid)',
+    'public.current_profile_can_admin_invitation(uuid)',
+    'public.create_staff_invitation(text,text,text,text,text,text,timestamp with time zone,uuid[],uuid[])',
+    'public.accept_staff_invitation(text)',
+    'public.revoke_staff_invitation(uuid)',
+    'public.refresh_staff_invitation(uuid,text,timestamp with time zone)'
   ];
   missing_tables text[];
   rls_disabled text[];
@@ -52,6 +60,8 @@ declare
   admin_membership_repair_applied boolean;
   staff_title_authorization_applied boolean;
   profile_role_team_authorization_applied boolean;
+  staff_invitations_applied boolean;
+  staff_invitation_acceptance_fix_applied boolean;
   seeded_foundation boolean;
   seeded_team_views boolean;
   admin_profiles_without_org_membership integer;
@@ -148,6 +158,26 @@ begin
 
   if not profile_role_team_authorization_applied then
     raise exception 'Profile role plus team membership authorization migration 20260810060000 is not applied.';
+  end if;
+
+  select exists (
+    select 1
+    from supabase_migrations.schema_migrations
+    where version = '20260811000000'
+  ) into staff_invitations_applied;
+
+  if not staff_invitations_applied then
+    raise exception 'Staff invitations migration 20260811000000 is not applied.';
+  end if;
+
+  select exists (
+    select 1
+    from supabase_migrations.schema_migrations
+    where version = '20260811141000'
+  ) into staff_invitation_acceptance_fix_applied;
+
+  if not staff_invitation_acceptance_fix_applied then
+    raise exception 'Staff invitation acceptance fix migration 20260811141000 is not applied.';
   end if;
 
   select array_agg(table_name order by table_name)
@@ -287,11 +317,14 @@ select 'player identity staff write RLS migration applied' as check_name, 'pass'
 select 'Metrolina admin membership repair migration applied' as check_name, 'pass' as result;
 select 'staff title authorization normalization migration applied' as check_name, 'pass' as result;
 select 'profile role plus team membership authorization migration applied' as check_name, 'pass' as result;
+select 'staff invitations migration applied' as check_name, 'pass' as result;
+select 'staff invitation acceptance fix migration applied' as check_name, 'pass' as result;
 select 'expected tables exist' as check_name, count(*)::text as verified_count
 from unnest(array[
   'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',
   'players', 'player_team_memberships', 'practices', 'practice_attendance',
   'roster_imports',
+  'staff_members', 'staff_team_memberships', 'team_invitations', 'team_invitation_memberships',
   'practice_sessions', 'pitch_events', 'hitting_events', 'defense_events',
   'exercises', 'workouts', 'workout_sessions', 'workout_sets',
   'player_measurements', 'games', 'game_lineups', 'plate_appearances',
@@ -305,6 +338,7 @@ where n.nspname = 'public'
     'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',
     'players', 'player_team_memberships', 'practices', 'practice_attendance',
     'roster_imports',
+    'staff_members', 'staff_team_memberships', 'team_invitations', 'team_invitation_memberships',
     'practice_sessions', 'pitch_events', 'hitting_events', 'defense_events',
     'exercises', 'workouts', 'workout_sessions', 'workout_sets',
     'player_measurements', 'games', 'game_lineups', 'plate_appearances',
