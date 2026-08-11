@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardList,
+  Download,
   Dumbbell,
   Edit3,
   Gauge,
@@ -160,6 +161,32 @@ const ROSTER_CSV_TEMPLATE = [
   "Mason,Lee,17,2026,P,1B,R,R,Metrolina Varsity,Varsity",
 ].join("\n");
 
+function slugifyFilePart(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "current-season";
+}
+
+function teamFaviconHref(team?: TeamOption) {
+  const teamWithLogo = team as (TeamOption & { logoUrl?: string; logo_url?: string }) | undefined;
+  const explicitLogo = teamWithLogo?.logoUrl ?? teamWithLogo?.logo_url;
+  if (explicitLogo) return explicitLogo;
+  if (team?.teamName.toLowerCase().includes("metrolina")) return "/brand/metrolina-baseball-alpha.png";
+  return "/favicon.svg";
+}
+
+function useTeamBrowserBrand(team?: TeamOption) {
+  const href = teamFaviconHref(team);
+  useEffect(() => {
+    const selectors = ["link[rel='icon']", "link[rel='shortcut icon']"];
+    const existing = selectors.flatMap((selector) => Array.from(document.querySelectorAll<HTMLLinkElement>(selector)));
+    const links = existing.length ? existing : [document.createElement("link")];
+    links.forEach((link) => {
+      link.rel = link.rel || "icon";
+      link.href = href;
+      if (!link.parentNode) document.head.appendChild(link);
+    });
+  }, [href]);
+}
+
 export default function MetrolinaBaseballApp() {
   const [data, setData] = useState<AppData | null>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -199,6 +226,8 @@ export default function MetrolinaBaseballApp() {
   const [playerEditorOpen, setPlayerEditorOpen] = useState(false);
   const [rosterImportOpen, setRosterImportOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+
+  useTeamBrowserBrand(data?.teamContext?.currentTeam);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<ID | undefined>();
   const [sessionSummary, setSessionSummary] = useState<{ type: "Hitting" | "Pitching" | "Defense"; sessionId: ID } | null>(null);
@@ -3263,7 +3292,7 @@ function RosterImportModal({
   const [builderMode, setBuilderMode] = useState<RosterBuilderMode>("upload");
   const [files, setFiles] = useState<ParsedRosterFile[]>([]);
   const [sourceFiles, setSourceFiles] = useState<Record<ID, File>>({});
-  const [manualRows, setManualRows] = useState<ManualRosterRow[]>(() => createManualRosterRows(12, "Undecided"));
+  const [manualRows, setManualRows] = useState<ManualRosterRow[]>(() => createManualRosterRows(9, "Undecided"));
   const [manualError, setManualError] = useState("");
   const [busy, setBusy] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -3313,6 +3342,25 @@ function RosterImportModal({
   const errorRows = plan?.files.reduce((sum, file) => sum + file.rows.filter((row) => row.status === "error").length, 0) ?? 0;
   const allFilesAssigned = validFiles.length > 0 && configuredAssignments.length === validFiles.length && !hasUnresolvedFiles;
   const needsReplaceConfirmation = plan?.files.some((file) => file.mode === "replace" && !assignments[file.sourceId]?.replaceConfirmed) ?? false;
+  const manualHasContent = manualRows.some(manualRowHasContent);
+  const hasImportProgress = files.length > 0 || manualHasContent || busy;
+
+  function requestClose() {
+    if (hasImportProgress && !window.confirm("Discard this roster import? Uploaded files and manual rows will be lost.")) return;
+    onClose();
+  }
+
+  function downloadRosterTemplate() {
+    const blob = new Blob([ROSTER_CSV_TEMPLATE], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `metrolina-roster-template-${slugifyFilePart(fallbackTeam?.seasonName ?? data.settings.rosterSeason)}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
 
   async function handleFiles(fileList: FileList | File[]) {
     const selected = Array.from(fileList);
@@ -3469,7 +3517,15 @@ function RosterImportModal({
       };
     });
     setManualError("");
-    setStep("assign");
+    setStep("preview");
+  }
+
+  function previewImport() {
+    if (builderMode === "manual") {
+      reviewManualRows();
+      return;
+    }
+    setStep(validFiles.length ? "preview" : "upload");
   }
 
   async function parseImportFile(file: File, sourceId: ID): Promise<ParsedRosterFile> {
@@ -3515,35 +3571,16 @@ function RosterImportModal({
   }
 
   return (
-    <ModalFrame title="Import Roster" onClose={onClose}>
-      <section className="import-wizard-steps" aria-label="Import progress">
-        {["Upload", "Assign Team", "Preview"].map((label, index) => (
-          <span key={label} className={index <= ["upload", "assign", "preview"].indexOf(step) ? "active" : ""}>{index + 1}. {label}</span>
-        ))}
-      </section>
-
-      <section className="import-intro">
-        <div>
-          <h2>Build a roster fast</h2>
-          <p>Players stay as one athlete identity. Jersey numbers, roster status, captain tags, team, and season live on the team membership.</p>
+    <ModalFrame title="Import Roster" onClose={requestClose} panelClassName="modal-panel--import">
+      <section className="import-wizard-top">
+        <div className="import-wizard-steps" aria-label="Import progress">
+          {["Upload", "Assign Team", "Preview"].map((label, index) => (
+            <span key={label} className={index <= ["upload", "assign", "preview"].indexOf(step) ? "active" : ""}>{index + 1}. {label}</span>
+          ))}
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          onClick={() => {
-            const sourceId = crypto.randomUUID();
-            const file = parseRosterCsv(ROSTER_CSV_TEMPLATE, { sourceId, fileName: "Template.csv", seasonName: fallbackTeam?.seasonName ?? data.settings.rosterSeason });
-            setFiles((current) => [...current, file]);
-            if (fallbackTeam) {
-              setAssignments((current) => ({
-                ...current,
-                [sourceId]: { teamId: fallbackTeam.teamId, mode: "add", defaultRosterStatus: rosterStatusForTeam(fallbackTeam), replaceConfirmed: false },
-              }));
-            }
-            setStep("assign");
-          }}
-        >
-          Use Template
+        <button className="secondary-button import-template-button" type="button" onClick={downloadRosterTemplate}>
+          <Download size={15} aria-hidden="true" />
+          Download Template
         </button>
       </section>
 
@@ -3589,7 +3626,6 @@ function RosterImportModal({
           onChangeRow={updateManualRow}
           onAddRows={addManualRows}
           onRemoveRow={removeManualRow}
-          onReview={reviewManualRows}
         />
       )}
 
@@ -3611,28 +3647,33 @@ function RosterImportModal({
             return (
               <article key={file.id} className={`import-file-card panel is-${file.parseStatus ?? "ready"}`}>
                 <div className="import-file-meta">
-                  <strong>{file.fileName}</strong>
-                  <small>
-                    {isParsing
-                      ? `${file.fileType.toUpperCase()} - Parsing...`
-                      : isError
-                        ? `${file.fileType.toUpperCase()} - Could not read roster`
-                        : `${file.fileType.toUpperCase()} - ${file.rows.length} players found${file.staff.length ? ` - ${file.staff.length} staff detected` : ""}`}
-                  </small>
-                  {file.detectedSchoolName && <em>{file.detectedSchoolName}</em>}
-                  {file.detectedTeamName && <em>Detected: {file.detectedTeamName}{file.detectedSeasonName ? ` - ${file.detectedSeasonName}` : ""}</em>}
-                  {file.parseError && <em className="danger">{file.parseError}</em>}
-                  {file.parseWarnings.map((warning) => <em key={warning} className="warn">{warning}</em>)}
-                  {isError && (
-                    <div className="import-file-actions">
-                      <button className="secondary-button" type="button" onClick={() => void retryFile(file.id)} disabled={!sourceFiles[file.id]}>
-                        Retry
-                      </button>
-                      <button className="ghost-button" type="button" onClick={() => removeFile(file.id)}>
-                        Remove
-                      </button>
-                    </div>
-                  )}
+                  <div>
+                    <strong title={file.fileName}>{file.fileName}</strong>
+                    <small>
+                      {isParsing
+                        ? `${file.fileType.toUpperCase()} - Parsing...`
+                        : isError
+                          ? `${file.fileType.toUpperCase()} - Could not read roster`
+                          : `${file.fileType.toUpperCase()} - ${file.rows.length} players${file.staff.length ? ` - ${file.staff.length} staff` : ""}`}
+                    </small>
+                    {(file.detectedSchoolName || file.detectedTeamName || file.detectedSeasonName) && (
+                      <em>
+                        {[file.detectedSchoolName, file.detectedTeamName, file.detectedSeasonName].filter(Boolean).join(" - ")}
+                      </em>
+                    )}
+                    {file.parseError && <em className="danger">{file.parseError}</em>}
+                    {file.parseWarnings.map((warning) => <em key={warning} className="warn">{warning}</em>)}
+                    {isError && (
+                      <div className="import-file-actions">
+                        <button className="secondary-button" type="button" onClick={() => void retryFile(file.id)} disabled={!sourceFiles[file.id]}>
+                          Retry
+                        </button>
+                        <button className="ghost-button" type="button" onClick={() => removeFile(file.id)}>
+                          Remove
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   {isReady && (
                     <button className="ghost-button import-remove-button" type="button" onClick={() => removeFile(file.id)}>
                       Remove
@@ -3694,9 +3735,9 @@ function RosterImportModal({
                           },
                         }))}
                       >
-                        <option value="add">Keep Current Roster + Add Players</option>
-                        <option value="replace">Replace This Team&apos;s Roster</option>
-                        <option value="update">Update Existing Players Only</option>
+                        <option value="add">Keep + Add</option>
+                        <option value="replace">Replace Team</option>
+                        <option value="update">Update Existing</option>
                       </select>
                     </label>
                     <label>
@@ -3903,10 +3944,10 @@ function RosterImportModal({
       )}
 
       <div className="modal-actions">
-        <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
+        <button className="secondary-button" type="button" onClick={requestClose}>Cancel</button>
         {step !== "upload" && <button className="secondary-button" type="button" onClick={() => setStep(step === "preview" ? "assign" : "upload")}>Back</button>}
         {step !== "preview" ? (
-          <button className="primary-button" type="button" onClick={() => setStep(validFiles.length ? "preview" : "upload")} disabled={!allFilesAssigned || busy}>
+          <button className="primary-button" type="button" onClick={previewImport} disabled={builderMode === "manual" ? !manualHasContent || busy : !allFilesAssigned || busy}>
             Preview Import
           </button>
         ) : (
@@ -3953,26 +3994,18 @@ function ManualRosterBuilder({
   onChangeRow,
   onAddRows,
   onRemoveRow,
-  onReview,
 }: {
   rows: ManualRosterRow[];
   error?: string;
   onChangeRow: (rowId: ID, patch: Partial<ManualRosterRow>) => void;
   onAddRows: (count: number) => void;
   onRemoveRow: (rowId: ID) => void;
-  onReview: () => void;
 }) {
-  const enteredCount = rows.filter(manualRowHasContent).length;
   return (
     <section className="manual-roster-builder">
       <div className="manual-builder-toolbar">
         <div>
           <strong>Manual Roster Entry</strong>
-          <small>{enteredCount ? `${enteredCount} player${enteredCount === 1 ? "" : "s"} entered` : "Enter players directly. Blank rows are ignored."}</small>
-        </div>
-        <div>
-          <button className="secondary-button" type="button" onClick={() => onAddRows(1)}>Add Row</button>
-          <button className="secondary-button" type="button" onClick={() => onAddRows(5)}>Add 5 Rows</button>
         </div>
       </div>
 
@@ -4074,16 +4107,14 @@ function ManualRosterBuilder({
               </div>
             );
           })}
+          <button className="manual-add-row-button" type="button" onClick={() => onAddRows(1)}>
+            <Plus size={15} aria-hidden="true" />
+            Add player row
+          </button>
         </div>
       </div>
 
       {error && <p className="form-error">{error}</p>}
-      <div className="manual-builder-actions">
-        <button className="primary-button" type="button" onClick={onReview}>
-          Review Roster
-          <ChevronRight size={16} aria-hidden="true" />
-        </button>
-      </div>
     </section>
   );
 }
@@ -4453,10 +4484,10 @@ function CompactEmpty({ title, action }: { title: string; action?: React.ReactNo
   return <div className="compact-empty"><span>{title}</span>{action}</div>;
 }
 
-function ModalFrame({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function ModalFrame({ title, onClose, children, panelClassName = "" }: { title: string; onClose: () => void; children: React.ReactNode; panelClassName?: string }) {
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="modal-panel">
+      <div className={`modal-panel ${panelClassName}`.trim()}>
         <div className="modal-title">
           <h2>{title}</h2>
           <button className="ghost-button" type="button" onClick={onClose} aria-label="Close dialog"><X size={18} aria-hidden="true" /></button>

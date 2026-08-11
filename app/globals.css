@@ -1478,7 +1478,6 @@ textarea:focus-visible {
 
 .filter-select span,
 .status-select-wrap span,
-.import-intro span,
 .roster-row__metrics span {
   color: var(--muted);
   font-size: 12px;
@@ -1653,27 +1652,6 @@ textarea:focus-visible {
   width: 100%;
 }
 
-.import-intro {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  border: 1px solid rgba(226, 232, 240, 0.075);
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.035);
-  padding: 12px;
-}
-
-.import-intro h2,
-.import-intro p {
-  margin: 3px 0 0;
-}
-
-.import-intro p {
-  color: var(--muted);
-  line-height: 1.45;
-}
-
 .file-drop {
   min-height: 74px;
   border: 1px dashed rgba(226, 232, 240, 0.2);
@@ -1765,6 +1743,13 @@ textarea:focus-visible {
   background: rgba(255, 255, 255, 0.045);
 }
 
+.import-wizard-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .import-wizard-steps {
   display: flex;
   gap: 8px;
@@ -1786,6 +1771,10 @@ textarea:focus-visible {
 .import-wizard-steps span.active {
   background: rgba(178, 36, 82, 0.18);
   color: var(--text);
+}
+
+.import-template-button {
+  white-space: nowrap;
 }
 
 .builder-mode-row {
@@ -1837,7 +1826,7 @@ textarea:focus-visible {
 
 .import-file-card {
   display: grid;
-  grid-template-columns: minmax(210px, 0.8fr) minmax(360px, 1fr);
+  grid-template-columns: 1fr;
   gap: 12px;
   align-items: start;
   box-shadow: none;
@@ -1875,6 +1864,17 @@ textarea:focus-visible {
 
 .import-file-meta {
   min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.import-file-meta strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .import-file-actions {
@@ -1893,19 +1893,26 @@ textarea:focus-visible {
 }
 
 .import-remove-button {
-  margin-top: 10px;
+  margin-top: 0;
 }
 
 .import-assignment-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 
 .import-assignment-grid label,
 .import-warning-check {
   display: grid;
   gap: 5px;
+}
+
+.import-assignment-grid label {
+  min-width: 0;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  padding: 9px;
 }
 
 .import-assignment-grid span {
@@ -1967,54 +1974,38 @@ textarea:focus-visible {
 
 .manual-roster-builder {
   display: grid;
-  gap: 12px;
+  gap: 10px;
 }
 
 .manual-builder-toolbar {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
   align-items: center;
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  padding: 12px;
+  min-height: 26px;
 }
 
-.manual-builder-toolbar strong,
-.manual-builder-toolbar small {
+.manual-builder-toolbar strong {
   display: block;
 }
 
-.manual-builder-toolbar small {
-  margin-top: 3px;
-  color: var(--muted);
-}
-
-.manual-builder-toolbar > div:last-child {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
 .manual-roster-scroll {
-  overflow-x: auto;
+  overflow-x: hidden;
   border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
 .manual-roster-table {
-  min-width: 1040px;
+  min-width: 0;
+  width: 100%;
   display: grid;
 }
 
 .manual-roster-head,
 .manual-roster-row {
   display: grid;
-  grid-template-columns: 62px minmax(120px, 1fr) minmax(130px, 1fr) 86px 112px 112px 116px 82px 82px 128px 40px;
-  gap: 8px;
+  grid-template-columns: 48px minmax(76px, 1fr) minmax(84px, 1.08fr) 66px 88px 92px 88px 74px 70px 104px 34px;
+  gap: 6px;
   align-items: center;
-  padding: 8px 10px;
+  padding: 8px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -2029,6 +2020,12 @@ textarea:focus-visible {
   position: relative;
 }
 
+.manual-roster-row input,
+.manual-roster-row select {
+  min-width: 0;
+  padding: 0 6px;
+}
+
 .manual-roster-row:last-child {
   border-bottom: 0;
 }
@@ -2040,7 +2037,8 @@ textarea:focus-visible {
 .bt-mini-cell {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 5px;
+  gap: 4px;
+  min-width: 0;
 }
 
 .height-cell {
@@ -2061,9 +2059,24 @@ textarea:focus-visible {
   font-size: 11px;
 }
 
-.manual-builder-actions {
-  display: flex;
-  justify-content: flex-end;
+.manual-add-row-button {
+  grid-column: 1 / -1;
+  min-height: 38px;
+  border: 1px dashed color-mix(in srgb, var(--burgundy) 42%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--burgundy) 8%, transparent);
+  color: var(--muted-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.manual-add-row-button:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--burgundy) 14%, transparent);
 }
 
 .import-warning-check {
@@ -3217,6 +3230,10 @@ textarea:focus-visible {
   gap: 14px;
 }
 
+.modal-panel--import {
+  width: min(1080px, calc(100vw - 32px));
+}
+
 .modal-title {
   display: flex;
   align-items: center;
@@ -3934,6 +3951,14 @@ textarea:focus-visible {
   .profile-header .status-toggle {
     justify-content: flex-start;
   }
+
+  .manual-roster-scroll {
+    overflow-x: auto;
+  }
+
+  .manual-roster-table {
+    min-width: 920px;
+  }
 }
 
 @media (max-width: 720px) {
@@ -3989,6 +4014,10 @@ textarea:focus-visible {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .modal-panel--import {
+    width: calc(100vw - 20px);
+  }
+
   .quick-actions,
   .dashboard-grid,
   .weights-grid,
@@ -4041,7 +4070,6 @@ textarea:focus-visible {
 
   .section-actions,
   .practice-command__actions,
-  .import-intro,
   .builder-mode-row,
   .import-file-card,
   .import-assignment-grid,
@@ -4055,23 +4083,17 @@ textarea:focus-visible {
 
   .section-actions .primary-button,
   .section-actions .secondary-button,
-  .import-intro .secondary-button,
-  .import-create-team-form .secondary-button,
-  .manual-builder-actions .primary-button {
+  .import-create-team-form .secondary-button {
     width: 100%;
   }
 
-  .manual-builder-toolbar {
+  .import-wizard-top {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .manual-builder-toolbar > div:last-child {
-    justify-content: stretch;
-  }
-
-  .manual-builder-toolbar .secondary-button {
-    flex: 1 1 120px;
+  .import-template-button {
+    justify-content: center;
   }
 
   .search-pill {
