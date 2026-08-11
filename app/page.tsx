@@ -4132,57 +4132,53 @@ function ManualRosterBuilder({
 }
 
 function ManualHeightCell({ value, onChange }: { value: string; onChange: (heightInches: string) => void }) {
-  const { feet, inches } = manualHeightParts(value);
+  const formattedHeight = formatManualHeight(value);
+  const [draft, setDraft] = useState(formattedHeight);
+  const [isFocused, setIsFocused] = useState(false);
 
-  function setFeet(nextFeet: string) {
-    if (!nextFeet.trim() && inches === "") {
+  function setHeightFromEntry(nextEntry: string) {
+    const digits = nextEntry.replace(/\D/g, "").slice(0, 3);
+    const nextDraft = formatHeightDigits(digits);
+    setDraft(nextDraft);
+
+    if (!digits) {
       onChange("");
       return;
     }
-    const parsedFeet = Number(nextFeet);
-    const parsedInches = Number(inches || 0);
+
+    const parsedFeet = Number(digits[0]);
+    const parsedInches = Math.max(0, Math.min(11, Number(digits.slice(1) || 0)));
     if (!Number.isFinite(parsedFeet)) return;
-    onChange(String((parsedFeet * 12) + parsedInches));
-  }
-
-  function setInches(nextInches: string) {
-    if (!nextInches.trim() && feet === "") {
-      onChange("");
-      return;
-    }
-    const parsedFeet = Number(feet || 0);
-    const parsedInches = Math.max(0, Math.min(11, Number(nextInches || 0)));
-    if (!Number.isFinite(parsedFeet) || !Number.isFinite(parsedInches)) return;
     onChange(String((parsedFeet * 12) + parsedInches));
   }
 
   function step(delta: number) {
     const current = Number(value) || 72;
     const next = Math.max(48, Math.min(90, current + delta));
-    onChange(String(next));
+    const nextValue = String(next);
+    onChange(nextValue);
+    setDraft(formatManualHeight(nextValue));
   }
 
   return (
     <div className="height-ft-in-cell">
       <input
-        aria-label="Height feet"
-        type="number"
+        aria-label="Height"
+        type="text"
         inputMode="numeric"
-        min={4}
-        max={7}
-        value={feet}
-        placeholder="ft"
-        onChange={(event) => setFeet(event.target.value)}
-      />
-      <input
-        aria-label="Height inches"
-        type="number"
-        inputMode="numeric"
-        min={0}
-        max={11}
-        value={inches}
-        placeholder="in"
-        onChange={(event) => setInches(event.target.value)}
+        maxLength={4}
+        pattern="[0-9]*"
+        value={isFocused ? draft : formattedHeight}
+        placeholder="6'1"
+        onFocus={() => {
+          setIsFocused(true);
+          setDraft(formatManualHeight(value));
+        }}
+        onBlur={() => {
+          setIsFocused(false);
+          setDraft(formatManualHeight(value));
+        }}
+        onChange={(event) => setHeightFromEntry(event.target.value)}
       />
       <div className="height-step-buttons" aria-label="Adjust height">
         <button type="button" onClick={() => step(1)} aria-label="Increase height by one inch"><ChevronUp size={12} aria-hidden="true" /></button>
@@ -4190,6 +4186,18 @@ function ManualHeightCell({ value, onChange }: { value: string; onChange: (heigh
       </div>
     </div>
   );
+}
+
+function formatHeightDigits(digits: string) {
+  if (!digits) return "";
+  if (digits.length === 1) return `${digits}'`;
+  return `${digits[0]}'${digits.slice(1)}`;
+}
+
+function formatManualHeight(value: string) {
+  const { feet, inches } = manualHeightParts(value);
+  if (!feet) return "";
+  return `${feet}'${inches || "0"}`;
 }
 
 function manualHeightParts(value: string) {

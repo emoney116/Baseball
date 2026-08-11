@@ -2064,7 +2064,7 @@ textarea:focus-visible {
 .manual-roster-head,
 .manual-roster-row {
   display: grid;
-  grid-template-columns: 44px minmax(76px, 1fr) minmax(84px, 1.06fr) 62px 82px 86px 56px 62px 104px 72px 102px 30px;
+  grid-template-columns: 50px minmax(76px, 1fr) minmax(84px, 1.06fr) 62px 82px 86px 56px 62px 72px 72px 102px 30px;
   gap: 6px;
   align-items: center;
   padding: 8px;
@@ -2089,6 +2089,23 @@ textarea:focus-visible {
   padding: 0 6px;
 }
 
+.manual-roster-row > input:first-child {
+  text-align: center;
+  padding: 0 4px;
+}
+
+.manual-roster-row input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.manual-roster-row input[type="number"]::-webkit-outer-spin-button,
+.manual-roster-row input[type="number"]::-webkit-inner-spin-button {
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 .manual-roster-row:last-child {
   border-bottom: 0;
 }
@@ -2099,37 +2116,41 @@ textarea:focus-visible {
 
 .height-ft-in-cell {
   min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 18px;
-  align-items: center;
-  gap: 4px;
+  position: relative;
+  display: block;
 }
 
 .height-ft-in-cell input {
-  padding: 0 5px;
+  width: 100%;
+  padding: 0 20px 0 7px;
   text-align: center;
-  appearance: textfield;
-  -moz-appearance: textfield;
-}
-
-.height-ft-in-cell input::-webkit-outer-spin-button,
-.height-ft-in-cell input::-webkit-inner-spin-button {
-  appearance: none;
-  -webkit-appearance: none;
-  margin: 0;
 }
 
 .height-step-buttons {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  bottom: 4px;
   display: grid;
+  width: 16px;
   gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.height-ft-in-cell:hover .height-step-buttons,
+.height-ft-in-cell:focus-within .height-step-buttons {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .height-step-buttons button {
-  width: 18px;
-  height: 17px;
+  width: 16px;
+  height: 13px;
   border: 1px solid var(--line);
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--surface-2) 86%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface-2) 92%, transparent);
   color: var(--muted-strong);
   display: grid;
   place-items: center;
