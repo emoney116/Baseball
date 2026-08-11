@@ -901,9 +901,8 @@ export default function MetrolinaBaseballApp() {
         </nav>
 
         <div className="sidebar-footer">
-          <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label="Toggle light or dark theme">
+          <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label={data.settings.theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}>
             {data.settings.theme === "dark" ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
-            <span>{data.settings.theme === "dark" ? "Light" : "Dark"}</span>
           </button>
           <ProfileMenu
             context={data.teamContext}
@@ -1386,8 +1385,8 @@ function SyncStatusBanner({ status, error }: { status: "idle" | "saving" | "save
   if (status === "idle") return null;
   return (
     <div className={`sync-banner sync-banner--${status}`} role={status === "error" ? "alert" : "status"}>
-      {status === "saving" && "Saving to Supabase..."}
-      {status === "saved" && "Saved to Supabase"}
+      {status === "saving" && "Saving..."}
+      {status === "saved" && "Saved"}
       {status === "error" && `Save failed: ${error ?? "Check your connection and permissions."}`}
     </div>
   );
@@ -3224,7 +3223,7 @@ function PlayerEditorModal({ player, onClose, onSave, onArchive }: { player?: Pl
             <select aria-label="Bats" value={form.bats} onChange={(event) => setForm({ ...form, bats: event.target.value as Player["bats"] })}><option>R</option><option>L</option><option>S</option></select>
             <select aria-label="Throws" value={form.throws} onChange={(event) => setForm({ ...form, throws: event.target.value as Player["throws"] })}><option>R</option><option>L</option></select>
             <ManualHeightCell value={String(heightToInches(form.height))} onChange={(heightInches) => setForm({ ...form, height: heightInches ? formatHeightFromInches(Number(heightInches)) : undefined })} />
-            <ManualNumberCell label="Weight" value={form.weight ? String(form.weight) : ""} min={80} max={320} step={5} onChange={(value) => setForm({ ...form, weight: Number(value) || undefined })} />
+            <ManualNumberCell label="Weight" value={form.weight ? String(form.weight) : ""} min={80} max={320} onChange={(value) => setForm({ ...form, weight: Number(value) || undefined })} />
             <select aria-label="Status" value={form.rosterStatus} onChange={(event) => setForm({ ...form, rosterStatus: event.target.value as RosterStatus })}>{ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}</select>
           </div>
         </div>
@@ -3292,6 +3291,7 @@ function RosterImportModal({
   const [assignments, setAssignments] = useState<Record<ID, { teamId: ID; mode: RosterImportMode; defaultRosterStatus: RosterStatus; replaceConfirmed: boolean }>>({});
   const [teamDrafts, setTeamDrafts] = useState<Record<ID, { teamName: string; teamLevel: string; seasonName: string; busy?: boolean; error?: string }>>({});
   const [resolutions, setResolutions] = useState<Record<string, { decision: RosterImportDecision; matchedPlayerId?: ID }>>({});
+  const [openImportChoice, setOpenImportChoice] = useState<string | null>(null);
   const availableTeams = data.teamContext?.availableTeams ?? [];
   const fallbackTeam = data.teamContext?.currentTeam ?? availableTeams[0];
   const manualDefaultStatus = rosterStatusForTeam(fallbackTeam);
@@ -3700,81 +3700,80 @@ function RosterImportModal({
                 </div>
                 {isReady && (
                   <div className="import-assignment-grid">
-                    <label>
-                      <span>Team</span>
-                      <select
-                        value={config?.teamId ?? selectedTeam?.teamId ?? ""}
-                        onChange={(event) => {
-                          if (event.target.value === CREATE_TEAM_VALUE) {
-                            setAssignments((current) => ({
-                              ...current,
-                              [file.id]: {
-                                teamId: CREATE_TEAM_VALUE,
-                                mode: current[file.id]?.mode ?? "add",
-                                defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(undefined),
-                                replaceConfirmed: false,
-                              },
-                            }));
-                            setTeamDrafts((current) => ({
-                              ...current,
-                              [file.id]: current[file.id] ?? draft,
-                            }));
-                            return;
-                          }
-                          const team = availableTeams.find((item) => item.teamId === event.target.value);
+                    <ImportChoiceField
+                      label="Team"
+                      value={config?.teamId ?? selectedTeam?.teamId ?? ""}
+                      options={[
+                        ...availableTeams.map((team) => ({ value: team.teamId, label: `${team.teamName} - ${team.seasonName ?? "Current season"}` })),
+                        { value: CREATE_TEAM_VALUE, label: "Create New Team..." },
+                      ]}
+                      open={openImportChoice === `${file.id}:team`}
+                      onOpen={(open) => setOpenImportChoice(open ? `${file.id}:team` : null)}
+                      onChange={(value) => {
+                        if (value === CREATE_TEAM_VALUE) {
                           setAssignments((current) => ({
                             ...current,
                             [file.id]: {
-                              teamId: event.target.value,
+                              teamId: CREATE_TEAM_VALUE,
                               mode: current[file.id]?.mode ?? "add",
-                              defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(team),
+                              defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(undefined),
                               replaceConfirmed: false,
                             },
                           }));
-                        }}
-                      >
-                        {availableTeams.map((team) => (
-                          <option key={teamValue(team)} value={team.teamId}>{team.teamName} - {team.seasonName ?? "Current season"}</option>
-                        ))}
-                        <option value={CREATE_TEAM_VALUE}>Create New Team...</option>
-                      </select>
-                    </label>
-                    <label>
-                      <span>Import Mode</span>
-                      <select
-                        value={config?.mode ?? "add"}
-                        onChange={(event) => setAssignments((current) => ({
+                          setTeamDrafts((current) => ({
+                            ...current,
+                            [file.id]: current[file.id] ?? draft,
+                          }));
+                          return;
+                        }
+                        const team = availableTeams.find((item) => item.teamId === value);
+                        setAssignments((current) => ({
                           ...current,
                           [file.id]: {
-                            teamId: current[file.id]?.teamId ?? selectedTeam?.teamId ?? "",
-                            mode: event.target.value as RosterImportMode,
-                            defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(effectiveTeam),
+                            teamId: value,
+                            mode: current[file.id]?.mode ?? "add",
+                            defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(team),
                             replaceConfirmed: false,
                           },
-                        }))}
-                      >
-                        <option value="add">Keep + Add</option>
-                        <option value="replace">Replace Team</option>
-                        <option value="update">Update Existing</option>
-                      </select>
-                    </label>
-                    <label>
-                      <span>Default Status</span>
-                      <select
-                        value={config?.defaultRosterStatus ?? rosterStatusForTeam(effectiveTeam)}
-                        onChange={(event) => setAssignments((current) => ({
-                          ...current,
-                          [file.id]: {
-                            teamId: current[file.id]?.teamId ?? selectedTeam?.teamId ?? "",
-                            mode: current[file.id]?.mode ?? "add",
-                            defaultRosterStatus: event.target.value as RosterStatus,
-                            replaceConfirmed: current[file.id]?.replaceConfirmed ?? false,
-                          },
-                        }))}
-                      >
-                        {ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}
-                      </select>
-                    </label>
+                        }));
+                      }}
+                    />
+                    <ImportChoiceField
+                      label="Import Mode"
+                      value={config?.mode ?? "add"}
+                      options={[
+                        { value: "add", label: "Keep + Add" },
+                        { value: "replace", label: "Replace Team" },
+                        { value: "update", label: "Update Existing" },
+                      ]}
+                      open={openImportChoice === `${file.id}:mode`}
+                      onOpen={(open) => setOpenImportChoice(open ? `${file.id}:mode` : null)}
+                      onChange={(value) => setAssignments((current) => ({
+                        ...current,
+                        [file.id]: {
+                          teamId: current[file.id]?.teamId ?? selectedTeam?.teamId ?? "",
+                          mode: value as RosterImportMode,
+                          defaultRosterStatus: current[file.id]?.defaultRosterStatus ?? rosterStatusForTeam(effectiveTeam),
+                          replaceConfirmed: false,
+                        },
+                      }))}
+                    />
+                    <ImportChoiceField
+                      label="Default Status"
+                      value={config?.defaultRosterStatus ?? rosterStatusForTeam(effectiveTeam)}
+                      options={ROSTER_STATUSES.map((status) => ({ value: status, label: status }))}
+                      open={openImportChoice === `${file.id}:status`}
+                      onOpen={(open) => setOpenImportChoice(open ? `${file.id}:status` : null)}
+                      onChange={(value) => setAssignments((current) => ({
+                        ...current,
+                        [file.id]: {
+                          teamId: current[file.id]?.teamId ?? selectedTeam?.teamId ?? "",
+                          mode: current[file.id]?.mode ?? "add",
+                          defaultRosterStatus: value as RosterStatus,
+                          replaceConfirmed: current[file.id]?.replaceConfirmed ?? false,
+                        },
+                      }))}
+                    />
                   </div>
                 )}
                 {isReady && isCreatingTeam && (
@@ -3978,6 +3977,52 @@ function RosterImportModal({
   );
 }
 
+function ImportChoiceField({
+  label,
+  value,
+  options,
+  open,
+  onOpen,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  open: boolean;
+  onOpen: (open: boolean) => void;
+  onChange: (value: string) => void;
+}) {
+  const selected = options.find((option) => option.value === value) ?? options[0];
+  return (
+    <div className={`import-choice ${open ? "open" : ""}`}>
+      <span>{label}</span>
+      <button type="button" className="import-choice__button" aria-expanded={open} onClick={() => onOpen(!open)}>
+        <strong>{selected?.label ?? "Select"}</strong>
+        <ChevronDown size={15} aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="import-choice__menu" role="listbox" aria-label={label}>
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={option.value === value ? "active" : ""}
+              role="option"
+              aria-selected={option.value === value}
+              onClick={() => {
+                onChange(option.value);
+                onOpen(false);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function parsingRosterFile(sourceId: ID, file: File): ParsedRosterFile {
   return {
     id: sourceId,
@@ -4095,7 +4140,7 @@ function ManualRosterBuilder({
                   <option>L</option>
                 </select>
                 <ManualHeightCell value={row.heightInches} onChange={(heightInches) => onChangeRow(row.id, { heightInches })} />
-                <ManualNumberCell label="Weight" value={row.weight} min={80} max={320} step={5} onChange={(weight) => onChangeRow(row.id, { weight })} />
+                <ManualNumberCell label="Weight" value={row.weight} min={80} max={320} onChange={(weight) => onChangeRow(row.id, { weight })} />
                 <select aria-label="Roster status" value={row.rosterStatus} onChange={(event) => onChangeRow(row.id, { rosterStatus: event.target.value as RosterStatus })}>
                   {ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}
                 </select>

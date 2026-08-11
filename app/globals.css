@@ -363,12 +363,14 @@ textarea:focus-visible {
 
 .sidebar-footer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 38px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
 }
 
 .theme-toggle {
+  width: 38px;
+  height: 38px;
   min-height: 38px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -377,8 +379,7 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 0 10px;
+  padding: 0;
   font-weight: 750;
   cursor: pointer;
 }
@@ -705,6 +706,9 @@ textarea:focus-visible {
   border-radius: 999px;
   background: var(--panel-soft);
   color: var(--text);
+  display: grid;
+  place-items: center;
+  padding: 0;
   font-weight: 820;
   cursor: pointer;
   overflow: hidden;
@@ -1915,6 +1919,91 @@ textarea:focus-visible {
   gap: 5px;
 }
 
+.import-choice {
+  min-width: 0;
+  position: relative;
+  display: grid;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-2) 76%, transparent);
+  padding: 10px;
+}
+
+.import-choice > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.import-choice__button {
+  min-width: 0;
+  min-height: 42px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 74%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 88%, #05070a);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 0 11px;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.import-choice__button strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.import-choice.open .import-choice__button,
+.import-choice__button:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy) 70%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 18%, transparent);
+}
+
+.import-choice__menu {
+  position: absolute;
+  z-index: 75;
+  top: calc(100% + 6px);
+  left: 10px;
+  right: 10px;
+  max-height: 190px;
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 78%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 96%, #020306);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+  padding: 5px;
+}
+
+.import-choice__menu button {
+  width: 100%;
+  min-height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  display: block;
+  padding: 0 9px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.import-choice__menu button:hover,
+.import-choice__menu button.active {
+  background: color-mix(in srgb, var(--burgundy) 22%, var(--surface-2));
+  color: #fff;
+}
+
 .import-assignment-grid label {
   min-width: 0;
   position: relative;
@@ -1992,6 +2081,16 @@ textarea:focus-visible {
 [data-theme="light"] .single-player-row input,
 [data-theme="light"] .single-player-row select {
   background: rgba(255, 255, 255, 0.82);
+}
+
+[data-theme="light"] .import-choice,
+[data-theme="light"] .import-choice__button,
+[data-theme="light"] .import-choice__menu {
+  background: #ffffff;
+}
+
+[data-theme="light"] .import-choice__menu button {
+  color: var(--text);
 }
 
 .import-create-team-form {
@@ -2108,7 +2207,7 @@ textarea:focus-visible {
 .manual-roster-head,
 .manual-roster-row {
   display: grid;
-  grid-template-columns: 50px minmax(76px, 1fr) minmax(84px, 1.06fr) 62px 82px 86px 56px 62px 72px 72px 102px 30px;
+  grid-template-columns: 50px minmax(76px, 1fr) minmax(84px, 1.06fr) 72px 82px 86px 56px 62px 72px 72px 102px 30px;
   gap: 6px;
   align-items: center;
   padding: 8px;
@@ -2140,7 +2239,7 @@ textarea:focus-visible {
 
 .manual-number-cell input {
   width: 100%;
-  padding: 0 20px 0 6px;
+  padding: 0 6px;
   text-align: center;
 }
 
@@ -2152,13 +2251,18 @@ textarea:focus-visible {
   display: grid;
   width: 16px;
   gap: 2px;
-  opacity: 0.72;
+  opacity: 0;
+  pointer-events: none;
   transition: opacity 140ms ease;
 }
 
-.manual-number-cell:hover .manual-number-buttons,
 .manual-number-cell:focus-within .manual-number-buttons {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.manual-number-cell:focus-within input {
+  padding-right: 20px;
 }
 
 .manual-number-buttons button {
@@ -2183,7 +2287,11 @@ textarea:focus-visible {
 
 .manual-roster-row > .manual-number-cell:first-child input {
   text-align: center;
-  padding: 0 18px 0 4px;
+  padding: 0 4px;
+}
+
+.manual-roster-row > .manual-number-cell:first-child:focus-within input {
+  padding-right: 18px;
 }
 
 .manual-roster-row input[type="number"] {
@@ -4636,14 +4744,17 @@ body {
 
 .sidebar-footer {
   margin-top: auto;
-  grid-template-columns: 1fr;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
   gap: 8px;
 }
 
 .theme-toggle {
-  width: 100%;
+  width: 38px;
+  min-width: 38px;
   min-height: 36px;
-  justify-content: space-between;
+  height: 38px;
+  justify-content: center;
   border-color: var(--line);
   background: var(--panel-soft);
   color: var(--muted-strong);
@@ -4677,11 +4788,13 @@ body {
 .profile-menu--icon .profile-menu__button {
   width: 38px;
   height: 38px;
+  min-width: 38px;
+  min-height: 38px;
 }
 
 .profile-menu__avatar {
-  width: 100%;
-  height: 100%;
+  width: 32px;
+  height: 32px;
   min-width: 30px;
   min-height: 30px;
   border-radius: 999px;
@@ -4695,6 +4808,15 @@ body {
 .profile-menu--card .profile-menu__avatar {
   width: 34px;
   height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+}
+
+.profile-menu--icon .profile-menu__avatar {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
 }
 
 .profile-menu__avatar img {
