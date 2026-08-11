@@ -34,6 +34,7 @@ import type {
   WorkoutEntry,
   WorkoutSession,
 } from "../types";
+import { APP_NAME } from "../lib/branding";
 import { createClient } from "../lib/supabase/client";
 
 const ORGANIZATION_SLUG = "metrolina-christian-academy";
@@ -164,7 +165,7 @@ export const authRepository = {
     });
     const payload = (await response.json().catch(() => ({}))) as { message?: string };
     if (!response.ok) {
-      throw new PersistenceError("membership-required", payload.message ?? "Unable to initialize Metrolina Baseball.");
+      throw new PersistenceError("membership-required", payload.message ?? `Unable to initialize ${APP_NAME}.`);
     }
   },
 };
@@ -174,7 +175,7 @@ export const supabaseAppRepository = {
     const supabase = createClient();
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) {
-      throw new PersistenceError("auth-required", "Sign in with your coach account to load Metrolina Baseball data.");
+      throw new PersistenceError("auth-required", `Sign in with your coach account to load ${APP_NAME} data.`);
     }
 
     const foundation = await loadFoundation(supabase, userData.user, selectedTeamId, selectedSeasonId);
@@ -185,7 +186,7 @@ export const supabaseAppRepository = {
     const supabase = createClient();
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) {
-      throw new PersistenceError("auth-required", "Sign in with your coach account to save Metrolina Baseball data.");
+      throw new PersistenceError("auth-required", `Sign in with your coach account to save ${APP_NAME} data.`);
     }
     const requestedTeam = next.teamContext?.currentTeam;
     const foundation = await loadFoundation(supabase, userData.user, requestedTeam?.teamId, requestedTeam?.seasonId);

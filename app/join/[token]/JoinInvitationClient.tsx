@@ -4,6 +4,7 @@ import { Check, LogOut } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { authRepository, type AuthState } from "../../data/supabaseRepository";
+import { APP_NAME, BRAND_ASSETS } from "../../lib/branding";
 
 type InvitationLookup = {
   id: string;
@@ -124,9 +125,9 @@ export default function JoinInvitationClient({ token }: { token: string }) {
 
   return (
     <main className="loading-screen auth-screen join-screen">
-      <img src="/brand/metrolina-baseball-cutout.png" alt="" />
-      <strong>Metrolina Baseball</strong>
-      <span>Staff invitation</span>
+      <img className="brand-wordmark" src={BRAND_ASSETS.wordmark} alt="" />
+      <strong>Staff invitation</strong>
+      <span>{APP_NAME}</span>
 
       {message && <p className="auth-message">{message}</p>}
 
@@ -210,7 +211,7 @@ export default function JoinInvitationClient({ token }: { token: string }) {
 
           {accepted && (
             <Link className="primary-button stretch-button join-open-app" href="/">
-              Open Metrolina Baseball
+              Open {APP_NAME}
             </Link>
           )}
         </section>

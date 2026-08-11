@@ -4,6 +4,7 @@ import { Check, LockKeyhole, Shield, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { authRepository, type AuthState, type BootstrapStatus } from "../data/supabaseRepository";
+import { APP_NAME, BRAND_ASSETS } from "../lib/branding";
 
 type SetupMode = "sign-in" | "sign-up";
 
@@ -59,10 +60,10 @@ export default function SetupPage() {
     setMessage(null);
     try {
       await authRepository.initializeOrganization({ displayName, setupCode });
-      setMessage("Metrolina Baseball is initialized. Opening the app...");
+      setMessage(`${APP_NAME} is initialized. Opening the app...`);
       window.location.href = "/";
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to initialize Metrolina Baseball.");
+      setMessage(error instanceof Error ? error.message : `Unable to initialize ${APP_NAME}.`);
     } finally {
       setBusy(false);
     }
@@ -72,9 +73,9 @@ export default function SetupPage() {
     <main className="setup-screen">
       <section className="setup-card">
         <div className="setup-brand">
-          <img src="/brand/metrolina-baseball-cutout.png" alt="" />
+          <img src={BRAND_ASSETS.mark} alt="" />
           <span>
-            <strong>Metrolina Baseball</strong>
+            <strong>{APP_NAME}</strong>
             <small>First-run setup</small>
           </span>
         </div>
@@ -93,7 +94,7 @@ export default function SetupPage() {
           <div className="setup-panel">
             <h1>Setup is closed</h1>
             <p>The Metrolina organization already has an admin. Future coaches should be invited from inside the app.</p>
-            <Link className="primary-button stretch-button" href="/">Open Metrolina Baseball</Link>
+            <Link className="primary-button stretch-button" href="/">Open {APP_NAME}</Link>
           </div>
         )}
 
@@ -142,7 +143,7 @@ export default function SetupPage() {
               void initialize();
             }}
           >
-            <h1>Initialize Metrolina Baseball</h1>
+            <h1>Initialize {APP_NAME}</h1>
             <p>This is a one-time operation. It creates your coach profile and admin membership atomically, then closes bootstrap permanently.</p>
             <label>
               <span>Display name</span>

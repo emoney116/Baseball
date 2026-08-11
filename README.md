@@ -1,6 +1,8 @@
-# Metrolina Baseball
+# Clubhouse 9
 
-Metrolina Baseball is a coach-facing player development, practice, game, and weight-room tracking application. The UI is built with React/Next.js App Router and deploys from `main` through Vercel.
+Clubhouse 9 is a coach-facing baseball operations platform for player development, practice, game, staff, roster, and weight-room tracking. The UI is built with React/Next.js App Router and deploys from `main` through Vercel.
+
+Metrolina Christian Academy is the seeded organization inside Clubhouse 9. Its existing Varsity/JV teams, seasons, players, staff, stats, and memberships remain organization/team data, not the product brand.
 
 ## Runtime
 
@@ -12,6 +14,18 @@ Metrolina Baseball is a coach-facing player development, practice, game, and wei
 - Drizzle Postgres schema mirror in `db/schema.ts`
 
 The Supabase SQL migration is the database source of truth because it contains RLS policies, helper functions, and seed data. The Drizzle schema mirrors the same tables for typed query development and future migration work.
+
+## Product Branding
+
+Product-facing branding is centralized in `app/lib/branding.ts`.
+
+Clubhouse 9 raster assets live in `public/brand/`:
+
+- full wordmark
+- compact C9 mark
+- favicon/app icon variants
+
+Metrolina logos and names remain organization/team-specific data inside the product.
 
 ## Required Environment Variables
 
@@ -32,7 +46,7 @@ METROLINA_SETUP_CODE=
 
 `SUPABASE_SECRET_KEY` is the current Supabase server-side key format (`sb_secret_...`) and is preferred for production. `SUPABASE_SERVICE_ROLE_KEY` remains supported as a legacy fallback only. Never prefix either value with `NEXT_PUBLIC_`.
 
-`METROLINA_SETUP_EMAILS` is a comma-separated allowlist for the first coach/admin setup account. `METROLINA_SETUP_CODE` is optional but recommended for first-run setup.
+`METROLINA_SETUP_EMAILS` is a comma-separated allowlist for the first coach/admin setup account for the seeded Metrolina organization. `METROLINA_SETUP_CODE` is optional but recommended for first-run setup.
 
 For server-side Drizzle scripts only, set one of these locally when needed:
 
@@ -211,4 +225,4 @@ The build command is:
 npm run build
 ```
 
-This project now uses real Next.js scripts instead of the former ChatGPT Sites/Vinext build scripts so Vercel renders the full Metrolina application.
+This project now uses real Next.js scripts instead of the former ChatGPT Sites/Vinext build scripts so Vercel renders the full Clubhouse 9 application.

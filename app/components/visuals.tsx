@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import type React from "react";
+import { BRAND_ASSETS } from "../lib/branding";
 import type { Player, ZonePoint } from "../types";
 
 export function PlayerAvatar({
@@ -269,7 +270,7 @@ export function EmptyState({
 }) {
   return (
     <div className="empty-state">
-      <img src="/brand/metrolina-baseball-cutout.png" alt="" />
+      <img src={BRAND_ASSETS.mark} alt="" />
       <strong>{title}</strong>
       <p>{body}</p>
       {action}

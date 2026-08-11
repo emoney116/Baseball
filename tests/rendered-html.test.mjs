@@ -2,18 +2,20 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-test("next build contains the Metrolina app shell", async () => {
+test("next build contains the Clubhouse 9 app shell", async () => {
   assert.equal(existsSync(".next"), true);
   assert.equal(existsSync(".next/server"), true);
 
   const layout = readFileSync("app/layout.tsx", "utf8");
   const page = readFileSync("app/page.tsx", "utf8");
+  const branding = readFileSync("app/lib/branding.ts", "utf8");
   const repository = readFileSync("app/data/supabaseRepository.ts", "utf8");
   const workflow = readFileSync(".github/workflows/supabase-migrations.yml", "utf8");
   const bootstrapRoute = readFileSync("app/api/setup/bootstrap/route.ts", "utf8");
 
-  assert.match(layout, /title:\s*"Metrolina Baseball"/);
-  assert.match(page, /Metrolina Baseball/);
+  assert.match(layout, /APP_NAME/);
+  assert.match(branding, /APP_NAME\s*=\s*"Clubhouse 9"/);
+  assert.match(page, /BRAND_ASSETS/);
   assert.match(page, /supabaseAppRepository/);
   assert.doesNotMatch(page, /localPracticeRepository\.load/);
   assert.match(page, /Create Account/);

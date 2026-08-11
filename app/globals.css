@@ -98,6 +98,12 @@ textarea:focus-visible {
   height: auto;
 }
 
+.loading-screen img.brand-wordmark {
+  width: min(300px, 78vw);
+  max-height: 96px;
+  object-fit: contain;
+}
+
 .asset-preload {
   display: none;
 }

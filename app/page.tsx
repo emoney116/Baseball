@@ -40,6 +40,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BaseballField, DonutChart, Heatmap, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
+import { APP_NAME, APP_SECONDARY_TAGLINE, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
 import {
   applyRosterImportPlan,
   buildRosterImportPlan,
@@ -203,8 +204,7 @@ function teamFaviconHref(team?: TeamOption) {
   const teamWithLogo = team as (TeamOption & { logoUrl?: string; logo_url?: string }) | undefined;
   const explicitLogo = teamWithLogo?.logoUrl ?? teamWithLogo?.logo_url;
   if (explicitLogo) return explicitLogo;
-  if (team?.teamName.toLowerCase().includes("metrolina")) return "/brand/metrolina-baseball-alpha.png";
-  return "/favicon.svg";
+  return BRAND_ASSETS.icon;
 }
 
 function useTeamBrowserBrand(team?: TeamOption) {
@@ -369,7 +369,7 @@ export default function MetrolinaBaseballApp() {
       }
     } catch (error) {
       if (isCancelled()) return;
-      setLoadError(error instanceof Error ? error : new Error("Unable to load Metrolina Baseball data."));
+      setLoadError(error instanceof Error ? error : new Error(`Unable to load ${APP_NAME} data.`));
       setData(null);
       setHydrated(true);
     }
@@ -931,10 +931,10 @@ export default function MetrolinaBaseballApp() {
   if (!hydrated) {
     return (
       <main className="loading-screen">
-        <img src="/brand/metrolina-baseball-cutout.png" alt="" />
+        <img className="brand-wordmark" src={BRAND_ASSETS.wordmark} alt="" />
         <img className="asset-preload" src="/brand/metrolina-warriors-alpha.png" alt="" aria-hidden="true" />
-        <strong>Metrolina Baseball</strong>
-        <span>Loading Metrolina Fall Ball development console...</span>
+        <strong>{APP_TAGLINE}</strong>
+        <span>{APP_SECONDARY_TAGLINE}</span>
       </main>
     );
   }
@@ -952,8 +952,8 @@ export default function MetrolinaBaseballApp() {
   if (!data) {
     return (
       <main className="loading-screen">
-        <img src="/brand/metrolina-baseball-cutout.png" alt="" />
-        <strong>Metrolina Baseball</strong>
+        <img className="brand-wordmark" src={BRAND_ASSETS.wordmark} alt="" />
+        <strong>{APP_NAME}</strong>
         <span>Database is connected, but no app data was returned.</span>
       </main>
     );
@@ -964,10 +964,10 @@ export default function MetrolinaBaseballApp() {
       <aside className="ops-sidebar" aria-label="Primary navigation">
         <div className="sidebar-brand">
           <button className="brand-lockup" type="button" onClick={() => setView("home")}>
-            <img src="/brand/metrolina-baseball-cutout.png" alt="" />
+            <img src={BRAND_ASSETS.mark} alt="" />
             <span>
-              <strong>Metrolina</strong>
-              <small>Baseball</small>
+              <strong>{APP_NAME}</strong>
+              <small>{APP_TAGLINE}</small>
             </span>
           </button>
           <TeamSwitcher context={data.teamContext} onSwitch={switchTeam} compact />
@@ -1422,9 +1422,9 @@ function AuthGate({
 
   return (
     <main className="loading-screen auth-screen">
-      <img src="/brand/metrolina-baseball-cutout.png" alt="" />
-      <strong>Metrolina Baseball</strong>
-      <span>Baseball operations</span>
+      <img className="brand-wordmark" src={BRAND_ASSETS.wordmark} alt="" />
+      <strong>{APP_TAGLINE}</strong>
+      <span>{APP_SECONDARY_TAGLINE}</span>
 
       {authState.status === "not-configured" && <p className="auth-message">{authState.message}</p>}
       {error && !needsMembership && <p className="auth-message">{error.message}</p>}
@@ -1478,7 +1478,7 @@ function AuthGate({
 
       {authState.status === "authenticated" && needsMembership && (
         <section className="auth-form no-team-card">
-          <span>Welcome to Metrolina Baseball</span>
+          <span>Welcome to {APP_NAME}</span>
           <h1>Your account is ready.</h1>
           <p>You are not connected to a team yet. Team invitations will appear here once a coach/admin grants access.</p>
           <button className="secondary-button stretch-button" type="button" onClick={() => void signOut()} disabled={busy}>
@@ -1557,9 +1557,9 @@ function TopCommand({
     <header className="top-command">
       <div className="top-command__identity">
         <button type="button" className="mobile-brand" onClick={() => onView("home")}>
-          <img src="/brand/metrolina-baseball-cutout.png" alt="" />
+          <img src={BRAND_ASSETS.mark} alt="" />
         </button>
-        <strong>Metrolina</strong>
+        <strong>{APP_NAME}</strong>
       </div>
 
       <div className="global-search">
@@ -2751,7 +2751,7 @@ function PracticeConsole({
     <div className="page-stack practice-console">
       <section className="practice-header panel">
         <div>
-          <span>Metrolina Fall Ball</span>
+          <span>Practice Console</span>
           <h2>{practice?.name ?? "No Active Practice"}</h2>
           <small>{practice ? `${fullDate(practice.date)} - ${practice.location} - ${practiceElapsed(practice)}` : "Start a practice to unlock tracking"}</small>
         </div>
@@ -4159,7 +4159,7 @@ function RosterImportModal({
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `metrolina-roster-template-${slugifyFilePart(fallbackTeam?.seasonName ?? data.settings.rosterSeason)}.csv`;
+    anchor.download = `clubhouse9-roster-template-${slugifyFilePart(fallbackTeam?.seasonName ?? data.settings.rosterSeason)}.csv`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();

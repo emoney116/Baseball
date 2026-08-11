@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { APP_NAME, BRAND_ASSETS } from "../branding";
 
 type StaffInviteEmailInput = {
   to: string;
@@ -36,10 +37,10 @@ export async function sendStaffInviteEmail(input: StaffInviteEmailInput): Promis
   const { data, error } = await resend.emails.send({
     from,
     to: input.to,
-    subject: "You're invited to Metrolina Baseball",
+    subject: `You're invited to ${APP_NAME}`,
     html: buildStaffInviteHtml({ ...input, teamsLabel: teams, expiresLabel: expires }),
     text: [
-      `You've been invited to join ${input.organizationName}.`,
+      `You've been invited to join ${input.organizationName} on ${APP_NAME}.`,
       `Role: ${input.staffRole}`,
       `Access: ${input.accessRole}`,
       `Teams: ${teams}`,
@@ -66,12 +67,13 @@ export async function sendStaffInviteEmail(input: StaffInviteEmailInput): Promis
 }
 
 function buildStaffInviteHtml(input: StaffInviteEmailInput & { teamsLabel: string; expiresLabel: string }) {
+  const wordmarkUrl = new URL(BRAND_ASSETS.wordmark, input.inviteUrl).toString();
   return `
     <div style="margin:0;padding:0;background:#f6f7f9;font-family:Arial,Helvetica,sans-serif;color:#15191f;">
       <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
         <div style="background:#ffffff;border:1px solid #e3e6eb;border-radius:14px;padding:28px;">
-          <div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#9f244c;">Metrolina Baseball</div>
-          <h1 style="margin:14px 0 10px;font-size:24px;line-height:1.2;">You're invited to join ${escapeHtml(input.organizationName)}.</h1>
+          <img src="${wordmarkUrl}" alt="${escapeHtml(APP_NAME)}" width="220" style="display:block;width:220px;max-width:100%;height:auto;margin:0 0 18px;" />
+          <h1 style="margin:14px 0 10px;font-size:24px;line-height:1.2;">You've been invited to join ${escapeHtml(input.organizationName)} on ${escapeHtml(APP_NAME)}.</h1>
           <p style="margin:0 0 22px;color:#4b5563;font-size:15px;line-height:1.5;">Accept the invitation to access the team workspace.</p>
           <div style="border-top:1px solid #edf0f3;border-bottom:1px solid #edf0f3;padding:16px 0;margin-bottom:22px;">
             <p style="margin:0 0 8px;"><strong>Role:</strong> ${escapeHtml(input.staffRole)}</p>
