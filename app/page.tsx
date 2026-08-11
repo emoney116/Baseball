@@ -1617,6 +1617,7 @@ function ChoiceSelect({
   return (
     <div
       className={["choice-select", open ? "open" : "", className].filter(Boolean).join(" ")}
+      data-label={ariaLabel ?? label}
       onBlur={(event) => {
         const nextFocus = event.relatedTarget instanceof Node ? event.relatedTarget : null;
         if (!nextFocus || !event.currentTarget.contains(nextFocus)) setOpen(false);
@@ -3707,15 +3708,15 @@ function PlayerEditorModal({ player, onClose, onSave }: { player?: Player; onClo
             <span>Status</span>
           </div>
           <div className="single-player-row">
-            <input aria-label="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-            <ManualNumberCell label="Number" value={form.jerseyNumber ? String(form.jerseyNumber) : ""} min={0} max={99} onChange={(value) => setForm({ ...form, jerseyNumber: Number(value) || 0 })} />
-            <ManualNumberCell label="Graduation" value={String(form.graduationYear || currentRosterYear())} min={2020} max={2045} onChange={(value) => setForm({ ...form, graduationYear: Number(value) || currentRosterYear() })} />
+            <input aria-label="Name" placeholder="Player name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+            <ManualNumberCell label="Number" placeholder="#" value={form.jerseyNumber ? String(form.jerseyNumber) : ""} min={0} max={99} onChange={(value) => setForm({ ...form, jerseyNumber: Number(value) || 0 })} />
+            <ManualNumberCell label="Graduation" placeholder="Class" value={String(form.graduationYear || currentRosterYear())} min={2020} max={2045} onChange={(value) => setForm({ ...form, graduationYear: Number(value) || currentRosterYear() })} />
             <ChoiceSelect aria-label="Primary" value={form.primaryPosition} className="manual-choice-cell" options={POSITIONS.map((position) => ({ value: position, label: position }))} onChange={(value) => setForm({ ...form, primaryPosition: value as Position })} />
             <ChoiceSelect aria-label="Secondary" value={form.secondaryPosition ?? ""} className="manual-choice-cell" options={SECONDARY_POSITIONS.map((position) => ({ value: position, label: position || "None" }))} onChange={(value) => setForm({ ...form, secondaryPosition: value ? value as Position : undefined })} />
             <ChoiceSelect aria-label="Bats" value={form.bats} className="manual-choice-cell" options={["R", "L", "S"].map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, bats: value as Player["bats"] })} />
             <ChoiceSelect aria-label="Throws" value={form.throws} className="manual-choice-cell" options={["R", "L"].map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, throws: value as Player["throws"] })} />
             <ManualHeightCell value={String(heightToInches(form.height))} onChange={(heightInches) => setForm({ ...form, height: heightInches ? formatHeightFromInches(Number(heightInches)) : undefined })} />
-            <ManualNumberCell label="Weight" value={form.weight ? String(form.weight) : ""} min={80} max={320} onChange={(value) => setForm({ ...form, weight: Number(value) || undefined })} />
+            <ManualNumberCell label="Weight" placeholder="Wt" value={form.weight ? String(form.weight) : ""} min={80} max={320} onChange={(value) => setForm({ ...form, weight: Number(value) || undefined })} />
             <ChoiceSelect aria-label="Status" value={form.rosterStatus ?? "Undecided"} className="manual-choice-cell" options={ROSTER_STATUSES.map((status) => ({ value: status, label: status }))} onChange={(value) => setForm({ ...form, rosterStatus: value as RosterStatus })} />
           </div>
         </div>
@@ -4938,18 +4939,20 @@ function ManualRosterBuilder({
             const problems = manualRowProblems(row);
             return (
               <div key={row.id} className={`manual-roster-row ${problems.length ? "has-error" : ""}`}>
-                <ManualNumberCell label="Jersey number" value={row.jerseyNumber} min={0} max={99} onChange={(jerseyNumber) => onChangeRow(row.id, { jerseyNumber })} />
+                <ManualNumberCell label="Jersey number" placeholder="#" value={row.jerseyNumber} min={0} max={99} onChange={(jerseyNumber) => onChangeRow(row.id, { jerseyNumber })} />
                 <input
                   aria-label="First name"
+                  placeholder="First"
                   value={row.firstName}
                   onChange={(event) => onChangeRow(row.id, { firstName: event.target.value })}
                 />
                 <input
                   aria-label="Last name"
+                  placeholder="Last"
                   value={row.lastName}
                   onChange={(event) => onChangeRow(row.id, { lastName: event.target.value })}
                 />
-                <ManualNumberCell label="Graduation year" value={row.graduationYear} min={2020} max={2045} onChange={(graduationYear) => onChangeRow(row.id, { graduationYear })} />
+                <ManualNumberCell label="Graduation year" placeholder="Class" value={row.graduationYear} min={2020} max={2045} onChange={(graduationYear) => onChangeRow(row.id, { graduationYear })} />
                 <ChoiceSelect
                   aria-label="Primary position"
                   value={row.primaryPosition}
@@ -4979,7 +4982,7 @@ function ManualRosterBuilder({
                   onChange={(value) => onChangeRow(row.id, { throws: value as Player["throws"] })}
                 />
                 <ManualHeightCell value={row.heightInches} onChange={(heightInches) => onChangeRow(row.id, { heightInches })} />
-                <ManualNumberCell label="Weight" value={row.weight} min={80} max={320} onChange={(weight) => onChangeRow(row.id, { weight })} />
+                <ManualNumberCell label="Weight" placeholder="Wt" value={row.weight} min={80} max={320} onChange={(weight) => onChangeRow(row.id, { weight })} />
                 <ChoiceSelect
                   aria-label="Roster status"
                   value={row.rosterStatus}
@@ -5013,6 +5016,7 @@ function ManualNumberCell({
   min,
   max,
   step = 1,
+  placeholder = "",
 }: {
   label: string;
   value: string;
@@ -5020,6 +5024,7 @@ function ManualNumberCell({
   min: number;
   max: number;
   step?: number;
+  placeholder?: string;
 }) {
   function clean(nextValue: string) {
     return nextValue.replace(/\D/g, "").slice(0, String(max).length);
@@ -5033,12 +5038,13 @@ function ManualNumberCell({
   }
 
   return (
-    <div className="manual-number-cell">
+    <div className="manual-number-cell" data-label={label}>
       <input
         aria-label={label}
         type="text"
         inputMode="numeric"
         pattern="[0-9]*"
+        placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(clean(event.target.value))}
       />
@@ -5080,7 +5086,7 @@ function ManualHeightCell({ value, onChange }: { value: string; onChange: (heigh
   }
 
   return (
-    <div className="height-ft-in-cell">
+    <div className="height-ft-in-cell" data-label="Height">
       <input
         aria-label="Height"
         type="text"

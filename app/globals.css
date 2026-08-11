@@ -6378,3 +6378,908 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* Dedicated responsive UX pass */
+html,
+body,
+.ops-shell {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+* {
+  min-width: 0;
+}
+
+.choice-select.open,
+.import-choice.open {
+  z-index: 160;
+}
+
+.choice-select__menu,
+.import-choice__menu {
+  color: var(--text);
+  background: var(--panel-strong);
+  border-color: var(--line-strong);
+  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.46);
+}
+
+.choice-select__menu button,
+.import-choice__menu button {
+  color: var(--text);
+}
+
+[data-theme="light"] .choice-select__menu,
+[data-theme="light"] .import-choice__menu {
+  background: #ffffff;
+  color: var(--text);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
+}
+
+[data-theme="light"] .choice-select__menu button,
+[data-theme="light"] .import-choice__menu button {
+  color: var(--text);
+}
+
+.roster-table-shell,
+.staff-roster-shell,
+.import-file-card {
+  overflow: visible;
+}
+
+.modal-title {
+  position: sticky;
+  top: -14px;
+  z-index: 95;
+  margin: -14px -14px 0;
+  padding: 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background: color-mix(in srgb, var(--panel-strong) 96%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.modal-panel {
+  align-content: start;
+}
+
+.modal-actions {
+  position: sticky;
+  bottom: -14px;
+  z-index: 94;
+  margin: 0 -14px -14px;
+  padding: 12px 14px 14px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background: color-mix(in srgb, var(--panel-strong) 96%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+[data-theme="light"] .modal-title,
+[data-theme="light"] .modal-actions {
+  background: rgba(255, 255, 255, 0.96);
+}
+
+@media (hover: none) and (pointer: coarse) {
+  button,
+  .primary-button,
+  .secondary-button,
+  .ghost-button,
+  .choice-select__button,
+  .import-choice__button,
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+  }
+
+  .row-action-button,
+  .row-menu-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (min-width: 981px) and (max-width: 1280px) {
+  .ops-shell {
+    grid-template-columns: 178px minmax(0, 1fr);
+  }
+
+  .ops-sidebar {
+    padding: 12px 10px;
+  }
+
+  .brand-lockup {
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .brand-lockup img {
+    width: 34px;
+    height: 34px;
+  }
+
+  .rail-nav button {
+    min-height: 40px;
+    padding-inline: 9px;
+    font-size: 12px;
+  }
+
+  .sidebar-footer {
+    gap: 8px;
+  }
+
+  .top-command {
+    grid-template-columns: minmax(260px, 1fr) auto;
+    gap: 10px;
+    padding-inline: 4px;
+  }
+
+  .global-search {
+    max-width: none;
+  }
+
+  .home-ops-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .home-secondary-grid,
+  .weights-grid,
+  .analytics-grid,
+  .profile-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .recent-activity-card,
+  .team-snapshot-bar,
+  .weekly-grid {
+    grid-column: 1 / -1;
+  }
+
+  .practice-live-grid,
+  .tracking-layout,
+  .live-bp-layout,
+  .game-input-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.72fr);
+  }
+
+  .quick-pad--hitting,
+  .quick-pad--pitching,
+  .quick-pad--game,
+  .quick-pad--defense {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 981px) and (max-width: 1080px) and (orientation: portrait) {
+  .ops-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-sidebar {
+    display: none;
+  }
+
+  .ops-main {
+    padding: 12px 14px calc(94px + env(safe-area-inset-bottom));
+  }
+
+  .top-command {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    grid-template-columns: auto minmax(280px, 1fr) auto;
+    align-items: center;
+    padding: 8px 2px 10px;
+    margin-bottom: 12px;
+    background: color-mix(in srgb, var(--bg) 90%, transparent);
+    backdrop-filter: blur(16px);
+  }
+
+  .top-command__identity {
+    display: flex;
+  }
+
+  .top-command__identity strong {
+    display: none;
+  }
+
+  .mobile-brand {
+    display: block;
+    width: 40px;
+    height: 40px;
+  }
+
+  .bottom-nav {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 60;
+    min-height: 62px;
+    border: 1px solid var(--line-strong);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
+    backdrop-filter: blur(18px);
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    box-shadow: var(--shadow);
+  }
+
+  [data-theme="light"] .bottom-nav {
+    background: rgba(255, 255, 255, 0.94);
+  }
+
+  .bottom-nav button {
+    min-height: 52px;
+    padding: 7px 3px;
+    display: grid;
+    place-items: center;
+    gap: 2px;
+    font-size: 10px;
+    font-weight: 840;
+  }
+
+  .mobile-more-sheet {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    z-index: 61;
+    border: 1px solid var(--line-strong);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--panel-strong) 96%, transparent);
+    backdrop-filter: blur(18px);
+    box-shadow: var(--shadow);
+    padding: 8px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  [data-theme="light"] .mobile-more-sheet {
+    background: rgba(255, 255, 255, 0.96);
+  }
+
+  .mobile-more-sheet button {
+    min-height: 52px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--surface) 84%, transparent);
+    color: var(--text);
+    display: grid;
+    place-items: center;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 820;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 980px) {
+  .ops-main {
+    padding: 12px 14px calc(94px + env(safe-area-inset-bottom));
+  }
+
+  .top-command {
+    grid-template-columns: auto minmax(260px, 1fr) auto;
+  }
+
+  .top-command__actions .primary-button,
+  .top-command__actions .secondary-button,
+  .profile-menu--icon .profile-menu__button {
+    width: 42px;
+    min-width: 42px;
+    height: 42px;
+    min-height: 42px;
+  }
+
+  .home-ops-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .home-secondary-grid,
+  .weights-grid,
+  .analytics-grid,
+  .profile-grid,
+  .account-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .recent-activity-card,
+  .team-snapshot-bar,
+  .weekly-grid,
+  .profile-overview-main {
+    grid-column: 1 / -1;
+  }
+
+  .practice-live-grid,
+  .tracking-layout,
+  .live-bp-layout,
+  .game-input-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-pad--hitting,
+  .quick-pad--pitching,
+  .quick-pad--game,
+  .quick-pad--defense {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .modal-backdrop {
+    padding: 10px;
+    align-items: stretch;
+  }
+
+  .modal-panel,
+  .modal-panel--import,
+  .modal-panel--player {
+    width: min(100%, calc(100vw - 20px));
+    max-height: calc(100dvh - 20px);
+    padding: 10px;
+  }
+
+  .modal-title {
+    top: -10px;
+    margin: -10px -10px 0;
+    padding: 12px 10px;
+  }
+
+  .modal-actions {
+    bottom: -10px;
+    margin: 0 -10px -10px;
+    padding: 10px;
+  }
+
+  .import-assignment-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .import-choice {
+    padding: 8px;
+  }
+
+  .import-choice__button {
+    min-height: 40px;
+    padding-inline: 9px;
+  }
+
+  .manual-roster-scroll,
+  .single-player-table {
+    overflow: visible;
+  }
+
+  .manual-roster-table,
+  .manual-roster-head,
+  .manual-roster-row,
+  .single-player-head,
+  .single-player-row {
+    min-width: 0;
+  }
+
+  .manual-roster-head,
+  .manual-roster-row {
+    grid-template-columns: 42px minmax(62px, 0.84fr) minmax(70px, 0.94fr) 54px 68px 70px 46px 48px 58px 58px 82px 24px;
+    gap: 4px;
+    padding: 6px;
+  }
+
+  .manual-roster-head {
+    font-size: 10px;
+  }
+
+  .manual-roster-row input,
+  .manual-roster-row .choice-select__button,
+  .height-ft-in-cell input,
+  .manual-number-cell input {
+    min-height: 38px;
+    font-size: 12px;
+  }
+
+  .manual-choice-cell .choice-select__button {
+    padding-inline: 6px;
+  }
+
+  .manual-choice-cell .choice-select__button strong {
+    font-size: 12px;
+  }
+
+  .manual-row-error {
+    grid-column: 2 / -1;
+  }
+
+  .single-player-head,
+  .single-player-row {
+    grid-template-columns: minmax(120px, 1.1fr) 48px 66px 78px 82px 52px 58px 62px 62px 92px;
+    gap: 4px;
+    padding: 6px;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 900px) {
+  .roster-table__head,
+  .roster-table-row {
+    grid-template-columns: 42px minmax(190px, 1fr) 86px 66px 112px 82px;
+    gap: 8px;
+  }
+
+  .roster-table__head > :nth-child(4),
+  .roster-table__head > :nth-child(6),
+  .roster-table__head > :nth-child(7),
+  .roster-table-row > .roster-mobile-label,
+  .roster-table-row > .roster-bt-cell,
+  .roster-table-row > .roster-height-cell,
+  .roster-table-row > .roster-weight-cell {
+    display: none;
+  }
+
+  .staff-table__head,
+  .staff-table-row {
+    grid-template-columns: minmax(210px, 1.2fr) 130px minmax(110px, 0.8fr) 118px 136px;
+    gap: 8px;
+  }
+
+  .staff-table__head > :nth-child(4),
+  .staff-table-row > .staff-access-badge {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .ops-main {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+
+  .bottom-nav {
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+  }
+
+  .mobile-more-sheet {
+    bottom: calc(82px + env(safe-area-inset-bottom));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .top-command {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .global-search {
+    height: 40px;
+  }
+
+  .section-header {
+    gap: 8px;
+  }
+
+  .section-header h2 {
+    font-size: 25px;
+  }
+
+  .home-ops-grid,
+  .home-secondary-grid,
+  .weights-grid,
+  .analytics-grid,
+  .profile-grid,
+  .account-grid,
+  .games-layout,
+  .practice-live-grid,
+  .tracking-layout,
+  .live-bp-layout,
+  .game-input-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .roster-table-row {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    min-height: 68px;
+    gap: 6px 9px;
+    padding: 9px;
+  }
+
+  .roster-number-cell {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: center;
+  }
+
+  .roster-player-cell {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .roster-class-cell {
+    display: block;
+    grid-column: 2;
+    grid-row: 2;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .roster-class-cell::before {
+    content: "Class ";
+  }
+
+  .status-select-wrap {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    min-width: 92px;
+  }
+
+  .row-action-group {
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  .staff-table-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .staff-table-row > span,
+  .staff-access-badge,
+  .staff-status-badge {
+    font-size: 12px;
+  }
+
+  .staff-actions-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .modal-backdrop {
+    align-items: stretch;
+    padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+  }
+
+  .modal-panel,
+  .modal-panel--import,
+  .modal-panel--player {
+    width: 100%;
+    max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .modal-title {
+    top: -10px;
+    margin: -10px -10px 0;
+    padding: 12px 10px;
+  }
+
+  .modal-title h2 {
+    font-size: 20px;
+  }
+
+  .modal-actions {
+    display: grid;
+    bottom: -10px;
+    margin: 0 -10px -10px;
+    padding: 10px;
+    grid-template-columns: 1fr;
+  }
+
+  .modal-actions .primary-button,
+  .modal-actions .secondary-button,
+  .modal-actions .ghost-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .import-wizard-top {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .import-wizard-steps {
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .builder-mode-row,
+  .import-assignment-grid,
+  .import-create-team-form,
+  .import-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .import-file-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .import-remove-button {
+    justify-self: start;
+  }
+
+  .manual-builder-toolbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .manual-status-apply {
+    justify-content: stretch;
+  }
+
+  .manual-status-chips {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .manual-status-chips button {
+    min-height: 38px;
+    padding-inline: 6px;
+  }
+
+  .manual-roster-scroll,
+  .single-player-table {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .manual-roster-table {
+    gap: 10px;
+  }
+
+  .manual-roster-head,
+  .single-player-head {
+    display: none;
+  }
+
+  .manual-roster-table,
+  .manual-roster-head,
+  .manual-roster-row,
+  .single-player-head,
+  .single-player-row {
+    min-width: 0;
+  }
+
+  .manual-roster-row,
+  .single-player-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+  }
+
+  .manual-roster-row > :nth-child(2),
+  .manual-roster-row > :nth-child(3),
+  .manual-roster-row > :nth-child(11),
+  .manual-roster-row > .manual-row-error,
+  .single-player-row > :nth-child(1),
+  .single-player-row > :nth-child(10) {
+    grid-column: 1 / -1;
+  }
+
+  .manual-roster-row > :nth-child(12) {
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .manual-roster-row input,
+  .manual-roster-row .choice-select__button,
+  .single-player-row input,
+  .single-player-row .choice-select__button,
+  .height-ft-in-cell input,
+  .manual-number-cell input {
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  .manual-number-cell,
+  .height-ft-in-cell,
+  .manual-roster-row .choice-select,
+  .single-player-row .choice-select {
+    display: grid;
+    gap: 4px;
+  }
+
+  .manual-number-cell::before,
+  .height-ft-in-cell::before,
+  .manual-roster-row .choice-select::before,
+  .single-player-row .choice-select::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 720;
+  }
+
+  .manual-number-buttons,
+  .height-step-buttons {
+    top: 26px;
+    bottom: 5px;
+  }
+
+  .height-ft-in-cell:hover .height-step-buttons {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .height-ft-in-cell:focus-within .height-step-buttons {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .manual-add-row-button {
+    min-height: 46px;
+  }
+
+  .import-preview {
+    overflow: visible;
+    border: 0;
+    display: grid;
+    gap: 8px;
+  }
+
+  .import-preview__head {
+    display: none;
+  }
+
+  .import-row,
+  .import-row--wide {
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+  }
+
+  .import-row > :nth-child(n + 3) {
+    grid-column: 2;
+  }
+
+  .profile-header {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+
+  .profile-tabs,
+  .tab-row,
+  .roster-mode-row,
+  .roster-status-row {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .profile-tabs::-webkit-scrollbar,
+  .tab-row::-webkit-scrollbar,
+  .roster-mode-row::-webkit-scrollbar,
+  .roster-status-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .workout-table {
+    display: grid;
+    gap: 8px;
+    overflow: visible;
+  }
+
+  .workout-table__header {
+    display: none;
+  }
+
+  .workout-row {
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) repeat(4, 34px) 62px;
+    gap: 6px;
+    min-height: 56px;
+    padding: 8px;
+  }
+
+  .game-state-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 430px) {
+  .ops-main {
+    padding-inline: 8px;
+    padding-bottom: calc(78px + env(safe-area-inset-bottom));
+  }
+
+  .top-command__actions .primary-button,
+  .top-command__actions .secondary-button,
+  .profile-menu--icon .profile-menu__button {
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
+    min-height: 38px;
+  }
+
+  .bottom-nav {
+    min-height: 56px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+
+  .bottom-nav button {
+    min-height: 50px;
+  }
+
+  .mobile-more-sheet {
+    bottom: calc(74px + env(safe-area-inset-bottom));
+  }
+
+  .home-info-card {
+    min-height: 72px;
+  }
+
+  .manual-status-chips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .manual-roster-row,
+  .single-player-row {
+    grid-template-columns: 1fr;
+  }
+
+  .manual-roster-row > :nth-child(12) {
+    grid-column: 1;
+  }
+
+  .workout-row {
+    grid-template-columns: minmax(0, 1fr) repeat(2, 34px);
+  }
+
+  .workout-row .check-cell:nth-of-type(n + 4),
+  .workout-row .miss-cell:nth-of-type(n + 4) {
+    display: none;
+  }
+
+  .quick-pad button {
+    min-height: 64px;
+  }
+}
+
+@media (max-width: 560px) {
+  .top-command {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .top-command__actions {
+    display: none;
+  }
+
+  .section-header {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .section-header .section-actions,
+  .roster-page > .section-header .section-actions {
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    justify-content: stretch;
+  }
+
+  .section-header .section-actions .primary-button,
+  .section-header .section-actions .secondary-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .practice-header__buttons,
+  .practice-command__actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .practice-header__buttons .primary-button,
+  .practice-header__buttons .secondary-button,
+  .practice-command__actions .primary-button,
+  .practice-command__actions .secondary-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
