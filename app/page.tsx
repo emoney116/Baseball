@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   ClipboardList,
   Download,
   Dumbbell,
@@ -3469,6 +3470,11 @@ function RosterImportModal({
     setManualError("");
   }
 
+  function applyManualStatus(status: RosterStatus) {
+    setManualRows((current) => current.map((row) => ({ ...row, rosterStatus: status })));
+    setManualError("");
+  }
+
   function addManualRows(count: number) {
     setManualRows((current) => [...current, ...createManualRosterRows(count, manualDefaultStatus)]);
   }
@@ -3624,6 +3630,7 @@ function RosterImportModal({
           rows={manualRows}
           error={manualError}
           onChangeRow={updateManualRow}
+          onApplyStatus={applyManualStatus}
           onAddRows={addManualRows}
           onRemoveRow={removeManualRow}
         />
@@ -3992,21 +3999,31 @@ function ManualRosterBuilder({
   rows,
   error,
   onChangeRow,
+  onApplyStatus,
   onAddRows,
   onRemoveRow,
 }: {
   rows: ManualRosterRow[];
   error?: string;
   onChangeRow: (rowId: ID, patch: Partial<ManualRosterRow>) => void;
+  onApplyStatus: (status: RosterStatus) => void;
   onAddRows: (count: number) => void;
   onRemoveRow: (rowId: ID) => void;
 }) {
+  const sharedStatus = rows.every((row) => row.rosterStatus === rows[0]?.rosterStatus) ? rows[0]?.rosterStatus ?? "Undecided" : "";
   return (
     <section className="manual-roster-builder">
       <div className="manual-builder-toolbar">
         <div>
           <strong>Manual Roster Entry</strong>
         </div>
+        <label className="manual-status-apply">
+          <span>All new players</span>
+          <select value={sharedStatus} onChange={(event) => event.target.value && onApplyStatus(event.target.value as RosterStatus)}>
+            {!sharedStatus && <option value="" disabled>Mixed</option>}
+            {ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}
+          </select>
+        </label>
       </div>
 
       <div className="manual-roster-scroll">
@@ -4018,9 +4035,10 @@ function ManualRosterBuilder({
             <span>Class</span>
             <span>Primary</span>
             <span>Secondary</span>
-            <span>B/T</span>
-            <span>Ht</span>
-            <span>Wt</span>
+            <span>Bats</span>
+            <span>Throws</span>
+            <span>Height</span>
+            <span>Weight</span>
             <span>Status</span>
             <span />
           </div>
@@ -4064,30 +4082,16 @@ function ManualRosterBuilder({
                   <option value="">-</option>
                   {POSITIONS.map((position) => <option key={position}>{position}</option>)}
                 </select>
-                <div className="bt-mini-cell">
-                  <select aria-label="Bats" value={row.bats} onChange={(event) => onChangeRow(row.id, { bats: event.target.value as Player["bats"] })}>
-                    <option>R</option>
-                    <option>L</option>
-                    <option>S</option>
-                  </select>
-                  <select aria-label="Throws" value={row.throws} onChange={(event) => onChangeRow(row.id, { throws: event.target.value as Player["throws"] })}>
-                    <option>R</option>
-                    <option>L</option>
-                  </select>
-                </div>
-                <label className="height-cell">
-                  <input
-                    aria-label="Height in inches"
-                    type="number"
-                    inputMode="numeric"
-                    min={48}
-                    max={90}
-                    value={row.heightInches}
-                    placeholder="72"
-                    onChange={(event) => onChangeRow(row.id, { heightInches: event.target.value })}
-                  />
-                  <span>{row.heightInches ? formatHeightFromInches(Number(row.heightInches)) : "--"}</span>
-                </label>
+                <select aria-label="Bats" value={row.bats} onChange={(event) => onChangeRow(row.id, { bats: event.target.value as Player["bats"] })}>
+                  <option>R</option>
+                  <option>L</option>
+                  <option>S</option>
+                </select>
+                <select aria-label="Throws" value={row.throws} onChange={(event) => onChangeRow(row.id, { throws: event.target.value as Player["throws"] })}>
+                  <option>R</option>
+                  <option>L</option>
+                </select>
+                <ManualHeightCell value={row.heightInches} onChange={(heightInches) => onChangeRow(row.id, { heightInches })} />
                 <input
                   aria-label="Weight"
                   type="number"
@@ -4117,6 +4121,78 @@ function ManualRosterBuilder({
       {error && <p className="form-error">{error}</p>}
     </section>
   );
+}
+
+function ManualHeightCell({ value, onChange }: { value: string; onChange: (heightInches: string) => void }) {
+  const { feet, inches } = manualHeightParts(value);
+
+  function setFeet(nextFeet: string) {
+    if (!nextFeet.trim() && inches === "") {
+      onChange("");
+      return;
+    }
+    const parsedFeet = Number(nextFeet);
+    const parsedInches = Number(inches || 0);
+    if (!Number.isFinite(parsedFeet)) return;
+    onChange(String((parsedFeet * 12) + parsedInches));
+  }
+
+  function setInches(nextInches: string) {
+    if (!nextInches.trim() && feet === "") {
+      onChange("");
+      return;
+    }
+    const parsedFeet = Number(feet || 0);
+    const parsedInches = Math.max(0, Math.min(11, Number(nextInches || 0)));
+    if (!Number.isFinite(parsedFeet) || !Number.isFinite(parsedInches)) return;
+    onChange(String((parsedFeet * 12) + parsedInches));
+  }
+
+  function step(delta: number) {
+    const current = Number(value) || 72;
+    const next = Math.max(48, Math.min(90, current + delta));
+    onChange(String(next));
+  }
+
+  return (
+    <div className="height-ft-in-cell">
+      <input
+        aria-label="Height feet"
+        type="number"
+        inputMode="numeric"
+        min={4}
+        max={7}
+        value={feet}
+        placeholder="ft"
+        onChange={(event) => setFeet(event.target.value)}
+      />
+      <span>&apos;</span>
+      <input
+        aria-label="Height inches"
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={11}
+        value={inches}
+        placeholder="in"
+        onChange={(event) => setInches(event.target.value)}
+      />
+      <span>&quot;</span>
+      <div className="height-step-buttons" aria-label="Adjust height">
+        <button type="button" onClick={() => step(1)} aria-label="Increase height by one inch"><ChevronUp size={12} aria-hidden="true" /></button>
+        <button type="button" onClick={() => step(-1)} aria-label="Decrease height by one inch"><ChevronDown size={12} aria-hidden="true" /></button>
+      </div>
+    </div>
+  );
+}
+
+function manualHeightParts(value: string) {
+  const total = Number(value);
+  if (!Number.isFinite(total) || total <= 0) return { feet: "", inches: "" };
+  return {
+    feet: String(Math.floor(total / 12)),
+    inches: String(total % 12),
+  };
 }
 
 function createManualRosterRows(count: number, rosterStatus: RosterStatus) {

@@ -1748,6 +1748,10 @@ textarea:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+  padding: 10px;
 }
 
 .import-wizard-steps {
@@ -1762,14 +1766,15 @@ textarea:focus-visible {
   align-items: center;
   border-radius: 999px;
   padding: 0 10px;
-  background: var(--panel-soft);
-  color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  color: var(--muted-strong);
   font-size: 12px;
   font-weight: 780;
 }
 
 .import-wizard-steps span.active {
-  background: rgba(178, 36, 82, 0.18);
+  background: color-mix(in srgb, var(--burgundy) 34%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--burgundy) 50%, transparent);
   color: var(--text);
 }
 
@@ -1782,8 +1787,9 @@ textarea:focus-visible {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   border-radius: var(--radius-lg);
-  background: color-mix(in srgb, var(--panel-soft) 74%, transparent);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
   padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
 }
 
 .builder-mode-row button {
@@ -1801,7 +1807,8 @@ textarea:focus-visible {
 }
 
 .builder-mode-row button.active {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--burgundy) 16%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, var(--burgundy) 42%, transparent);
   color: var(--text);
   box-shadow: var(--shadow-soft);
 }
@@ -1974,23 +1981,48 @@ textarea:focus-visible {
 
 .manual-roster-builder {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .manual-builder-toolbar {
   display: flex;
+  justify-content: space-between;
+  gap: 12px;
   align-items: center;
-  min-height: 26px;
+  min-height: 44px;
+  border: 1px solid color-mix(in srgb, var(--line) 62%, transparent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface-2) 78%, transparent);
+  padding: 9px 10px;
 }
 
 .manual-builder-toolbar strong {
   display: block;
 }
 
+.manual-status-apply {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.manual-status-apply select {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  color: var(--text);
+  padding: 0 8px;
+}
+
 .manual-roster-scroll {
   overflow-x: hidden;
   border-radius: var(--radius-lg);
-  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
 }
 
 .manual-roster-table {
@@ -2002,7 +2034,7 @@ textarea:focus-visible {
 .manual-roster-head,
 .manual-roster-row {
   display: grid;
-  grid-template-columns: 48px minmax(76px, 1fr) minmax(84px, 1.08fr) 66px 88px 92px 88px 74px 70px 104px 34px;
+  grid-template-columns: 44px minmax(76px, 1fr) minmax(84px, 1.06fr) 62px 82px 86px 56px 62px 116px 72px 102px 30px;
   gap: 6px;
   align-items: center;
   padding: 8px;
@@ -2011,7 +2043,8 @@ textarea:focus-visible {
 
 .manual-roster-head {
   min-height: 36px;
-  color: var(--muted);
+  background: color-mix(in srgb, var(--surface-2) 68%, transparent);
+  color: var(--muted-strong);
   font-size: 11px;
   font-weight: 820;
 }
@@ -2034,23 +2067,45 @@ textarea:focus-visible {
   background: color-mix(in srgb, var(--danger) 8%, transparent);
 }
 
-.bt-mini-cell {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
+.height-ft-in-cell {
   min-width: 0;
-}
-
-.height-cell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto 18px;
+  align-items: center;
   gap: 3px;
 }
 
-.height-cell span {
-  color: var(--muted);
-  font-size: 11px;
-  text-align: center;
+.height-ft-in-cell span {
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.height-ft-in-cell input {
+  padding: 0 4px;
+}
+
+.height-step-buttons {
+  display: grid;
+  gap: 2px;
+}
+
+.height-step-buttons button {
+  width: 18px;
+  height: 17px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--surface-2) 86%, transparent);
+  color: var(--muted-strong);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.height-step-buttons button:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--burgundy) 44%, var(--line));
 }
 
 .manual-row-error {
@@ -3232,6 +3287,11 @@ textarea:focus-visible {
 
 .modal-panel--import {
   width: min(1080px, calc(100vw - 32px));
+  border-color: color-mix(in srgb, var(--line-strong) 76%, var(--burgundy) 18%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 38%, transparent), transparent 210px),
+    color-mix(in srgb, var(--panel-strong) 94%, var(--surface-2));
+  box-shadow: 0 26px 90px rgba(0, 0, 0, 0.48);
 }
 
 .modal-title {
