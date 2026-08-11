@@ -261,6 +261,7 @@ export default function MetrolinaBaseballApp() {
   const [playerEditorOpen, setPlayerEditorOpen] = useState(false);
   const [rosterImportOpen, setRosterImportOpen] = useState(false);
   const [staffInviteOpen, setStaffInviteOpen] = useState(false);
+  const [staffActionMessage, setStaffActionMessage] = useState("");
   const [topAccountMenuOpen, setTopAccountMenuOpen] = useState(false);
   const [sidebarAccountMenuOpen, setSidebarAccountMenuOpen] = useState(false);
 
@@ -474,6 +475,7 @@ export default function MetrolinaBaseballApp() {
   }
 
   async function copyStaffInviteLink(invitationId: string) {
+    setStaffActionMessage("");
     const link = await supabaseAppRepository.copyStaffInviteLink(invitationId);
     try {
       await navigator.clipboard.writeText(link);
@@ -481,23 +483,30 @@ export default function MetrolinaBaseballApp() {
       window.prompt("Copy invite link", link);
     }
     await reloadCurrentTeam();
+    setStaffActionMessage("Invite link copied.");
     return link;
   }
 
   async function resendStaffInvitation(invitationId: string) {
+    setStaffActionMessage("");
     const result = await supabaseAppRepository.resendStaffInvitation(invitationId);
     await reloadCurrentTeam();
+    setStaffActionMessage(result.email?.sent ? "Invite resent." : result.email?.message ?? "Invite link refreshed. Copy the link if email is not configured.");
     return result;
   }
 
   async function revokeStaffInvitation(invitationId: string) {
+    setStaffActionMessage("");
     await supabaseAppRepository.revokeStaffInvitation(invitationId);
     await reloadCurrentTeam();
+    setStaffActionMessage("Invite revoked.");
   }
 
   async function updateStaffMember(input: StaffMemberUpdateInput) {
+    setStaffActionMessage("");
     await supabaseAppRepository.updateStaffMember(input);
     await reloadCurrentTeam();
+    setStaffActionMessage("Staff updated.");
   }
 
   function toggleTheme() {
@@ -1030,6 +1039,7 @@ export default function MetrolinaBaseballApp() {
             staffMembers={data.staffMembers ?? []}
             staffTeamMemberships={data.staffTeamMemberships ?? []}
             staffInvitations={data.staffInvitations ?? []}
+            staffActionMessage={staffActionMessage}
             team={data.teamContext?.currentTeam}
             availableTeams={data.teamContext?.availableTeams ?? []}
             section={rosterSection}
@@ -1952,6 +1962,7 @@ function RosterView({
   staffMembers,
   staffTeamMemberships,
   staffInvitations,
+  staffActionMessage,
   team,
   availableTeams,
   section,
@@ -1980,6 +1991,7 @@ function RosterView({
   staffMembers: StaffMember[];
   staffTeamMemberships: StaffTeamMembership[];
   staffInvitations: StaffInvitation[];
+  staffActionMessage: string;
   team?: TeamOption;
   availableTeams: TeamOption[];
   section: RosterSection;
@@ -2057,6 +2069,7 @@ function RosterView({
           staffMembers={staffMembers}
           staffTeamMemberships={staffTeamMemberships}
           staffInvitations={staffInvitations}
+          actionMessage={staffActionMessage}
           team={team}
           availableTeams={availableTeams}
           onInviteStaff={onInviteStaff}
@@ -2167,6 +2180,7 @@ function StaffRosterView({
   staffMembers,
   staffTeamMemberships,
   staffInvitations,
+  actionMessage,
   team,
   availableTeams,
   onInviteStaff,
@@ -2178,6 +2192,7 @@ function StaffRosterView({
   staffMembers: StaffMember[];
   staffTeamMemberships: StaffTeamMembership[];
   staffInvitations: StaffInvitation[];
+  actionMessage: string;
   team?: TeamOption;
   availableTeams: TeamOption[];
   onInviteStaff: () => void;
@@ -2248,7 +2263,7 @@ function StaffRosterView({
   return (
     <>
       <section className="staff-roster-shell roster-table-shell">
-        {message && <p className="staff-action-message">{message}</p>}
+        {(message || actionMessage) && <p className="staff-action-message">{message || actionMessage}</p>}
         <div className="staff-table__head">
           <span>Staff</span>
           <span>Role</span>
