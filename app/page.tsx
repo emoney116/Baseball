@@ -4017,13 +4017,21 @@ function ManualRosterBuilder({
         <div>
           <strong>Manual Roster Entry</strong>
         </div>
-        <label className="manual-status-apply">
+        <div className="manual-status-apply">
           <span>All new players</span>
-          <select value={sharedStatus} onChange={(event) => event.target.value && onApplyStatus(event.target.value as RosterStatus)}>
-            {!sharedStatus && <option value="" disabled>Mixed</option>}
-            {ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}
-          </select>
-        </label>
+          <div className="manual-status-chips" role="group" aria-label="Apply roster status to all manual rows">
+            {ROSTER_STATUSES.map((status) => (
+              <button
+                key={status}
+                type="button"
+                className={sharedStatus === status ? "active" : ""}
+                onClick={() => onApplyStatus(status)}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="manual-roster-scroll">
@@ -4166,7 +4174,6 @@ function ManualHeightCell({ value, onChange }: { value: string; onChange: (heigh
         placeholder="ft"
         onChange={(event) => setFeet(event.target.value)}
       />
-      <span>&apos;</span>
       <input
         aria-label="Height inches"
         type="number"
@@ -4177,7 +4184,6 @@ function ManualHeightCell({ value, onChange }: { value: string; onChange: (heigh
         placeholder="in"
         onChange={(event) => setInches(event.target.value)}
       />
-      <span>&quot;</span>
       <div className="height-step-buttons" aria-label="Adjust height">
         <button type="button" onClick={() => step(1)} aria-label="Increase height by one inch"><ChevronUp size={12} aria-hidden="true" /></button>
         <button type="button" onClick={() => step(-1)} aria-label="Decrease height by one inch"><ChevronDown size={12} aria-hidden="true" /></button>
