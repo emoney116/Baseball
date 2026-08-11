@@ -309,16 +309,37 @@ export default function MetrolinaBaseballApp() {
   const selectedPlayer = data?.players.find((player) => player.id === selectedPlayerId) ?? data?.players[0];
   const practicePlayer = data?.players.find((player) => player.id === practicePlayerId) ?? selectedPlayer;
   const currentGame = data?.games.find((game) => game.id === selectedGameId) ?? data?.games[0];
-  const rosterPlayers = data?.players.filter((player) => !player.archived) ?? [];
+  const searchInTeamContext = TEAM_CONTEXT_VIEWS.has(view);
+  const rosterPlayers = uniquePlayers(data?.players.filter((player) => !player.archived) ?? []);
 
-  const globalResults = useMemo(() => {
-    if (!data || !globalQuery.trim()) return [];
+  const globalResults = useMemo<GlobalSearchResults>(() => {
+    const empty: GlobalSearchResults = { organizations: [], teams: [], players: [] };
+    if (!data || !globalQuery.trim()) return empty;
     const needle = globalQuery.trim().toLowerCase();
-    return data.players
-      .filter((player) => !player.archived)
-      .filter((player) => `${player.name} ${player.jerseyNumber} ${player.primaryPosition}`.toLowerCase().includes(needle))
-      .slice(0, 6);
-  }, [data, globalQuery]);
+    if (searchInTeamContext) {
+      return {
+        ...empty,
+        players: uniquePlayers(data.players)
+          .filter((player) => !player.archived)
+          .filter((player) => `${player.name} ${player.jerseyNumber} ${player.primaryPosition}`.toLowerCase().includes(needle))
+          .slice(0, 6),
+      };
+    }
+
+    const teams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
+    const organizations = organizationSummariesFromTeams(teams).filter((organization) =>
+      `${organization.name} ${organization.location ?? ""} ${organization.teams.map((team) => `${team.teamName} ${team.teamLevel ?? ""} ${team.seasonName ?? ""}`).join(" ")}`.toLowerCase().includes(needle),
+    );
+    const matchingTeams = teams.filter((team) =>
+      `${team.organizationName} ${team.teamName} ${team.teamLevel ?? ""} ${team.seasonName ?? ""} ${team.title ?? ""}`.toLowerCase().includes(needle),
+    );
+
+    return {
+      organizations: organizations.slice(0, 4),
+      teams: matchingTeams.slice(0, 6),
+      players: [],
+    };
+  }, [data, globalQuery, searchInTeamContext]);
 
   const activeTotals = useMemo(() => {
     if (!data || !practice) return { pitches: 0, swings: 0, defenseReps: 0, defenders: 0, players: 0, pitchers: 0, hitters: 0 };
@@ -553,32 +574,6 @@ export default function MetrolinaBaseballApp() {
     setSaveStatus("saved");
   }
 
-  async function toggleFollow(target: { organizationId?: ID; teamId?: ID }) {
-    if (!data?.teamContext?.profile) return;
-    const existing = (data.profileFollows ?? []).find((follow) =>
-      (target.teamId && follow.teamId === target.teamId) ||
-      (!target.teamId && target.organizationId && follow.organizationId === target.organizationId && !follow.teamId),
-    );
-    setSaveStatus("saving");
-    try {
-      const nextFollow = await supabaseAppRepository.toggleFollow({ ...target, follow: !existing });
-      setData((current) => {
-        if (!current) return current;
-        const withoutTarget = (current.profileFollows ?? []).filter((follow) =>
-          target.teamId ? follow.teamId !== target.teamId : !(follow.organizationId === target.organizationId && !follow.teamId),
-        );
-        return {
-          ...current,
-          profileFollows: nextFollow ? [nextFollow, ...withoutTarget] : withoutTarget,
-        };
-      });
-      setSaveStatus("saved");
-    } catch (error) {
-      setSaveStatus("error");
-      setSaveError(error instanceof Error ? error.message : "Unable to update follow.");
-    }
-  }
-
   function toggleTheme() {
     commit((current) => ({
       ...current,
@@ -604,6 +599,11 @@ export default function MetrolinaBaseballApp() {
     setTopAccountMenuOpen(false);
     setSidebarAccountMenuOpen(false);
     setView("home");
+  }
+
+  function openOrganization() {
+    setGlobalQuery("");
+    setView("organizations");
   }
 
   async function signOut() {
@@ -1039,7 +1039,7 @@ export default function MetrolinaBaseballApp() {
     );
   }
 
-  const inTeamContext = TEAM_CONTEXT_VIEWS.has(view);
+  const inTeamContext = searchInTeamContext;
   const sidebarItems = inTeamContext ? TEAM_NAV_ITEMS : GLOBAL_NAV_ITEMS;
   const mobileItems = inTeamContext ? TEAM_MOBILE_NAV_ITEMS : MOBILE_NAV_ITEMS;
 
@@ -1098,8 +1098,11 @@ export default function MetrolinaBaseballApp() {
         <TopCommand
           globalQuery={globalQuery}
           globalResults={globalResults}
+          searchMode={inTeamContext ? "team" : "global"}
           onQuery={setGlobalQuery}
           onOpenPlayer={openPlayer}
+          onOpenOrganization={openOrganization}
+          onEnterTeam={enterTeam}
           onStartPractice={() => setStartPracticeOpen(true)}
           onStartGame={() => setStartGameOpen(true)}
           onView={setView}
@@ -1119,7 +1122,6 @@ export default function MetrolinaBaseballApp() {
             data={data}
             onEnterTeam={enterTeam}
             onView={setView}
-            onToggleFollow={toggleFollow}
           />
         )}
 
@@ -1127,7 +1129,6 @@ export default function MetrolinaBaseballApp() {
           <OrganizationsView
             data={data}
             onEnterTeam={enterTeam}
-            onToggleFollow={toggleFollow}
           />
         )}
 
@@ -1135,7 +1136,6 @@ export default function MetrolinaBaseballApp() {
           <MyTeamsView
             data={data}
             onEnterTeam={enterTeam}
-            onToggleFollow={toggleFollow}
           />
         )}
 
@@ -1143,7 +1143,6 @@ export default function MetrolinaBaseballApp() {
           <FollowingView
             data={data}
             onEnterTeam={enterTeam}
-            onToggleFollow={toggleFollow}
           />
         )}
 
@@ -1151,8 +1150,6 @@ export default function MetrolinaBaseballApp() {
           <DiscoverView
             data={data}
             onEnterTeam={enterTeam}
-            onOpenPlayer={openPlayer}
-            onToggleFollow={toggleFollow}
           />
         )}
 
@@ -1697,8 +1694,11 @@ function EmptyActionPanel({
 function TopCommand({
   globalQuery,
   globalResults,
+  searchMode,
   onQuery,
   onOpenPlayer,
+  onOpenOrganization,
+  onEnterTeam,
   onStartPractice,
   onStartGame,
   onView,
@@ -1708,9 +1708,12 @@ function TopCommand({
   onSignOut,
 }: {
   globalQuery: string;
-  globalResults: Player[];
+  globalResults: GlobalSearchResults;
+  searchMode: "global" | "team";
   onQuery: (value: string) => void;
   onOpenPlayer: (playerId: ID) => void;
+  onOpenOrganization: (organization: OrganizationSummary) => void;
+  onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onStartPractice: () => void;
   onStartGame: () => void;
   onView: (view: ViewKey) => void;
@@ -1719,6 +1722,12 @@ function TopCommand({
   onAccountMenu: (open: boolean) => void;
   onSignOut: () => void | Promise<void>;
 }) {
+  const hasTeamResults = globalResults.players.length > 0;
+  const hasGlobalResults = globalResults.organizations.length > 0 || globalResults.teams.length > 0;
+  const hasResults = searchMode === "team" ? hasTeamResults : hasGlobalResults;
+  const placeholder = searchMode === "team" ? "Search players..." : "Search teams or organizations...";
+  const ariaLabel = searchMode === "team" ? "Search players" : "Search teams or organizations";
+
   return (
     <header className="top-command">
       <div className="top-command__identity">
@@ -1730,16 +1739,66 @@ function TopCommand({
 
       <div className="global-search">
         <Search size={16} aria-hidden="true" />
-        <input value={globalQuery} onChange={(event) => onQuery(event.target.value)} placeholder="Search player" aria-label="Search players" />
-        {globalResults.length > 0 && (
+        <input value={globalQuery} onChange={(event) => onQuery(event.target.value)} placeholder={placeholder} aria-label={ariaLabel} />
+        {hasResults && (
           <div className="global-search__results">
-            {globalResults.map((player) => (
-              <button key={player.id} type="button" onClick={() => onOpenPlayer(player.id)}>
-                <PlayerAvatar player={player} size="sm" compact />
-                <span>{player.name}</span>
-                <small>#{player.jerseyNumber}</small>
-              </button>
-            ))}
+            {searchMode === "global" ? (
+              <>
+                {globalResults.organizations.length > 0 && (
+                  <div className="global-search__group">
+                    <span className="global-search__group-title">Organizations</span>
+                    {globalResults.organizations.map((organization) => (
+                      <button
+                        key={organization.id}
+                        type="button"
+                        onClick={() => {
+                          onQuery("");
+                          onOpenOrganization(organization);
+                        }}
+                      >
+                        <OrganizationLogo name={organization.name} />
+                        <span>{organization.name}</span>
+                        <small>{organization.teams.length} team{organization.teams.length === 1 ? "" : "s"}</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {globalResults.teams.length > 0 && (
+                  <div className="global-search__group">
+                    <span className="global-search__group-title">Teams</span>
+                    {globalResults.teams.map((team) => (
+                      <button
+                        key={teamValue(team)}
+                        type="button"
+                        onClick={() => {
+                          onQuery("");
+                          void onEnterTeam(team);
+                        }}
+                      >
+                        <OrganizationLogo name={team.organizationName} />
+                        <span>{team.teamName}</span>
+                        <small>{team.organizationName}</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              globalResults.players.map((player) => (
+                <button
+                  key={player.id}
+                  type="button"
+                  onClick={() => {
+                    onQuery("");
+                    onOpenPlayer(player.id);
+                  }}
+                >
+                  <PlayerAvatar player={player} size="sm" compact />
+                  <span>{player.name}</span>
+                  <small>#{player.jerseyNumber}</small>
+                </button>
+              ))
+            )}
           </div>
         )}
       </div>
@@ -1849,20 +1908,22 @@ function TeamSwitcher({
   if (!current) return null;
 
   const selectedValue = teamValue(current);
+  const visibleTeams = displayWorkspaceTeams(teams);
+  const switchTeams = visibleTeams.some((team) => teamValue(team) === selectedValue) ? visibleTeams : teams;
 
   return (
     <div className={`team-switcher ${compact ? "team-switcher--compact" : ""}`}>
       <OrganizationLogo name={current.organizationName} />
       <span>
         <small>{current.organizationName}</small>
-        {teams.length > 1 ? (
+        {switchTeams.length > 1 ? (
           <ChoiceSelect
             value={selectedValue}
             aria-label="Current team"
             className="team-switch-choice"
-            options={teams.map((team) => ({ value: teamValue(team), label: `${team.teamName} - ${team.seasonName ?? "Current season"}` }))}
+            options={switchTeams.map((team) => ({ value: teamValue(team), label: `${team.teamName} - ${team.seasonName ?? "Current season"}` }))}
             onChange={(value) => {
-              const next = teams.find((team) => teamValue(team) === value);
+              const next = switchTeams.find((team) => teamValue(team) === value);
               if (next) void onSwitch(next);
             }}
           />
@@ -2052,7 +2113,7 @@ function TeamAccessList({ context }: { context?: TeamContext }) {
 }
 
 function GlobalContextSummary({ context, onView }: { context?: TeamContext; onView: (view: ViewKey) => void }) {
-  const teams = context?.availableTeams ?? [];
+  const teams = displayWorkspaceTeams(context?.availableTeams ?? []);
   const orgCount = organizationSummariesFromTeams(teams).length;
   return (
     <button className="global-context-card" type="button" onClick={() => onView("organizations")}>
@@ -2069,30 +2130,22 @@ function ClubhouseHome({
   data,
   onEnterTeam,
   onView,
-  onToggleFollow,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onView: (view: ViewKey) => void;
-  onToggleFollow: (target: { organizationId?: ID; teamId?: ID }) => void | Promise<void>;
 }) {
-  const organizations = organizationSummariesFromTeams(data.teamContext?.availableTeams ?? []);
-  const teams = data.teamContext?.availableTeams ?? [];
-  const recentTeam = data.teamContext?.currentTeam ?? teams[0];
+  const teams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
+  const organizations = organizationSummariesFromTeams(teams);
+  const recentTeam = teams.find((team) => teamValue(team) === teamValue(data.teamContext?.currentTeam)) ?? teams[0];
 
   return (
     <div className="page-stack global-home">
       <section className="global-title-row">
         <div>
           <h1>Home</h1>
-          <p>Choose a program, team workspace, or public team to follow.</p>
+          <p>Your baseball world, all in one place.</p>
         </div>
-        {recentTeam && (
-          <button className="primary-button" type="button" onClick={() => void onEnterTeam(recentTeam)}>
-            Enter {shortTeamName(recentTeam.teamName)}
-            <ChevronRight size={16} aria-hidden="true" />
-          </button>
-        )}
       </section>
 
       <section className="global-section">
@@ -2102,9 +2155,8 @@ function ClubhouseHome({
             <OrganizationCard
               key={organization.id}
               organization={organization}
-              follows={data.profileFollows ?? []}
               onEnterTeam={onEnterTeam}
-              onToggleFollow={onToggleFollow}
+              onOpenOrganization={() => onView("organizations")}
             />
           )) : <CompactEmpty title="No organizations yet" />}
         </div>
@@ -2117,9 +2169,7 @@ function ClubhouseHome({
             <TeamWorkspaceCard
               key={teamValue(team)}
               team={team}
-              follows={data.profileFollows ?? []}
               onEnterTeam={onEnterTeam}
-              onToggleFollow={onToggleFollow}
             />
           )) : <CompactEmpty title="No teams yet" />}
         </div>
@@ -2157,24 +2207,20 @@ function ClubhouseHome({
 function OrganizationsView({
   data,
   onEnterTeam,
-  onToggleFollow,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
-  onToggleFollow: (target: { organizationId?: ID; teamId?: ID }) => void | Promise<void>;
 }) {
-  const organizations = organizationSummariesFromTeams(data.teamContext?.availableTeams ?? []);
+  const organizations = organizationSummariesFromTeams(displayWorkspaceTeams(data.teamContext?.availableTeams ?? []));
   return (
     <div className="page-stack global-home">
-      <SectionHeader title="Organizations" context="Programs you can manage or view" />
+      <SectionHeader title="Organizations" />
       <section className="organization-grid">
         {organizations.length ? organizations.map((organization) => (
           <OrganizationCard
             key={organization.id}
             organization={organization}
-            follows={data.profileFollows ?? []}
             onEnterTeam={onEnterTeam}
-            onToggleFollow={onToggleFollow}
             expanded
           />
         )) : <CompactEmpty title="No organizations yet" />}
@@ -2186,24 +2232,20 @@ function OrganizationsView({
 function MyTeamsView({
   data,
   onEnterTeam,
-  onToggleFollow,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
-  onToggleFollow: (target: { organizationId?: ID; teamId?: ID }) => void | Promise<void>;
 }) {
-  const teams = data.teamContext?.availableTeams ?? [];
+  const teams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
   return (
     <div className="page-stack global-home">
-      <SectionHeader title="My Teams" context="Team workspaces tied to your account" />
+      <SectionHeader title="My Teams" />
       <section className="team-card-grid">
         {teams.length ? teams.map((team) => (
           <TeamWorkspaceCard
             key={teamValue(team)}
             team={team}
-            follows={data.profileFollows ?? []}
             onEnterTeam={onEnterTeam}
-            onToggleFollow={onToggleFollow}
           />
         )) : <CompactEmpty title="No team memberships yet" />}
       </section>
@@ -2214,44 +2256,48 @@ function MyTeamsView({
 function FollowingView({
   data,
   onEnterTeam,
-  onToggleFollow,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
-  onToggleFollow: (target: { organizationId?: ID; teamId?: ID }) => void | Promise<void>;
 }) {
-  const follows = data.profileFollows ?? [];
-  const followedTeams = (data.teamContext?.availableTeams ?? []).filter((team) => follows.some((follow) => follow.teamId === team.teamId));
-  const followedOrganizations = organizationSummariesFromTeams(data.teamContext?.availableTeams ?? []).filter((organization) =>
-    follows.some((follow) => follow.organizationId === organization.id && !follow.teamId),
-  );
+  const managedTeams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
+  const followedTeams: TeamOption[] = [];
+  const followedOrganizations: OrganizationSummary[] = [];
   return (
     <div className="page-stack global-home">
-      <SectionHeader title="Following" context="Following never grants private team access" />
-      {followedOrganizations.length || followedTeams.length ? (
+      <SectionHeader title="Following" />
+      {managedTeams.length || followedOrganizations.length || followedTeams.length ? (
         <>
-          <section className="organization-grid">
-            {followedOrganizations.map((organization) => (
-              <OrganizationCard
-                key={organization.id}
-                organization={organization}
-                follows={follows}
-                onEnterTeam={onEnterTeam}
-                onToggleFollow={onToggleFollow}
-              />
-            ))}
+          <section className="global-section">
+            <SectionHeader title="My teams" />
+            <div className="team-card-grid">
+              {managedTeams.map((team) => (
+                <TeamWorkspaceCard key={teamValue(team)} team={team} onEnterTeam={onEnterTeam} />
+              ))}
+            </div>
           </section>
-          <section className="team-card-grid">
-            {followedTeams.map((team) => (
-              <TeamWorkspaceCard
-                key={teamValue(team)}
-                team={team}
-                follows={follows}
-                onEnterTeam={onEnterTeam}
-                onToggleFollow={onToggleFollow}
-              />
-            ))}
-          </section>
+          {followedOrganizations.length > 0 && (
+            <section className="organization-grid">
+              {followedOrganizations.map((organization) => (
+                <OrganizationCard
+                  key={organization.id}
+                  organization={organization}
+                  onEnterTeam={onEnterTeam}
+                />
+              ))}
+            </section>
+          )}
+          {followedTeams.length > 0 && (
+            <section className="team-card-grid">
+              {followedTeams.map((team) => (
+                <TeamWorkspaceCard
+                  key={teamValue(team)}
+                  team={team}
+                  onEnterTeam={onEnterTeam}
+                />
+              ))}
+            </section>
+          )}
         </>
       ) : (
         <CompactEmpty title="No followed teams yet" action={<span className="muted-copy">Public team discovery is ready for visibility-controlled teams.</span>} />
@@ -2263,34 +2309,28 @@ function FollowingView({
 function DiscoverView({
   data,
   onEnterTeam,
-  onOpenPlayer,
-  onToggleFollow,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
-  onOpenPlayer: (playerId: ID) => void;
-  onToggleFollow: (target: { organizationId?: ID; teamId?: ID }) => void | Promise<void>;
 }) {
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
-  const organizations = organizationSummariesFromTeams(data.teamContext?.availableTeams ?? []).filter((organization) =>
+  const visibleTeams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
+  const organizations = organizationSummariesFromTeams(visibleTeams).filter((organization) =>
     !needle || `${organization.name} ${organization.teams.map((team) => team.teamName).join(" ")}`.toLowerCase().includes(needle),
   );
-  const teams = (data.teamContext?.availableTeams ?? []).filter((team) =>
+  const teams = visibleTeams.filter((team) =>
     !needle || `${team.organizationName} ${team.teamName} ${team.seasonName ?? ""}`.toLowerCase().includes(needle),
-  );
-  const players = data.players.filter((player) =>
-    !player.archived && (!needle || `${player.name} ${player.jerseyNumber} ${player.primaryPosition}`.toLowerCase().includes(needle)),
   );
 
   return (
     <div className="page-stack global-home">
-      <SectionHeader title="Discover" context="Search authorized teams now; public discovery uses team visibility settings." />
+      <SectionHeader title="Discover" />
       <label className="global-discover-search">
         <Search size={17} aria-hidden="true" />
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Clubhouse 9..." />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search teams or organizations..." />
       </label>
-      <section className="discover-grid">
+      <section className="discover-grid discover-grid--two">
         <article className="panel compact-panel">
           <div className="panel-heading tight"><div><h2>Organizations</h2></div></div>
           <div className="compact-list">
@@ -2303,19 +2343,8 @@ function DiscoverView({
           <div className="panel-heading tight"><div><h2>Teams</h2></div></div>
           <div className="compact-list">
             {teams.length ? teams.map((team) => (
-              <TeamMiniRow key={teamValue(team)} team={team} follows={data.profileFollows ?? []} onEnterTeam={onEnterTeam} onToggleFollow={onToggleFollow} />
+              <TeamMiniRow key={teamValue(team)} team={team} onEnterTeam={onEnterTeam} />
             )) : <CompactEmpty title="No teams found" />}
-          </div>
-        </article>
-        <article className="panel compact-panel">
-          <div className="panel-heading tight"><div><h2>Players</h2></div></div>
-          <div className="compact-list">
-            {players.slice(0, 12).length ? players.slice(0, 12).map((player) => (
-              <button className="player-mini-row" key={player.id} type="button" onClick={() => onOpenPlayer(player.id)}>
-                <PlayerAvatar player={player} size="sm" compact />
-                <span><strong>{player.name}</strong><small>#{player.jerseyNumber} - {positionLine(player)} - {player.graduationYear}</small></span>
-              </button>
-            )) : <CompactEmpty title="No players found" />}
           </div>
         </article>
       </section>
@@ -2327,83 +2356,86 @@ type OrganizationSummary = {
   id: ID;
   name: string;
   teams: TeamOption[];
+  location?: string;
+};
+
+type GlobalSearchResults = {
+  organizations: OrganizationSummary[];
+  teams: TeamOption[];
+  players: Player[];
 };
 
 function OrganizationCard({
   organization,
-  follows,
   onEnterTeam,
-  onToggleFollow,
+  onOpenOrganization,
   expanded = false,
 }: {
   organization: OrganizationSummary;
-  follows: AppData["profileFollows"];
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
-  onToggleFollow: (target: { organizationId?: ID; teamId?: ID }) => void | Promise<void>;
+  onOpenOrganization?: (organization: OrganizationSummary) => void;
   expanded?: boolean;
 }) {
-  const followed = follows?.some((follow) => follow.organizationId === organization.id && !follow.teamId) ?? false;
   const firstTeam = organization.teams[0];
+  const visibleChips = organization.teams.slice(0, expanded ? 6 : 3);
+  const extraTeams = Math.max(organization.teams.length - visibleChips.length, 0);
   return (
-    <article className={`panel organization-card ${expanded ? "organization-card--expanded" : ""}`}>
-      <div className="organization-card__top">
+    <article className={`panel organization-card organization-card--compact ${expanded ? "organization-card--expanded" : ""}`}>
+      <button
+        className="organization-card__top"
+        type="button"
+        onClick={() => {
+          if (onOpenOrganization) onOpenOrganization(organization);
+          else if (firstTeam) void onEnterTeam(firstTeam);
+        }}
+      >
         <OrganizationLogo name={organization.name} />
         <span>
           <strong>{organization.name}</strong>
-          <small>{organization.teams.length} team{organization.teams.length === 1 ? "" : "s"}</small>
+          <small>{organization.location ? `${organization.location} - ` : ""}{organization.teams.length} team{organization.teams.length === 1 ? "" : "s"}</small>
         </span>
-      </div>
-      <div className="organization-team-list">
-        {organization.teams.map((team) => (
+        <ChevronRight size={16} aria-hidden="true" />
+      </button>
+      <div className="team-chip-row">
+        {visibleChips.map((team) => (
           <button key={teamValue(team)} type="button" onClick={() => void onEnterTeam(team)}>
-            <span>{team.teamLevel ?? shortTeamName(team.teamName)}</span>
-            <strong>{team.teamName}</strong>
-            <small>{team.seasonName ?? "Current season"}</small>
+            {team.teamLevel ?? shortTeamName(team.teamName)}
           </button>
         ))}
+        {extraTeams > 0 && <span>+{extraTeams} more</span>}
       </div>
-      <div className="card-action-row">
-        {firstTeam && <button className="primary-button" type="button" onClick={() => void onEnterTeam(firstTeam)}>Enter Program</button>}
-        <FollowButton followed={followed} onClick={() => void onToggleFollow({ organizationId: organization.id })} />
-      </div>
+      {onOpenOrganization && (
+        <button className="text-button organization-open-button" type="button" onClick={() => onOpenOrganization(organization)}>
+          Open Organization
+        </button>
+      )}
     </article>
   );
 }
 
 function TeamWorkspaceCard({
   team,
-  follows,
   onEnterTeam,
-  onToggleFollow,
 }: {
   team: TeamOption;
-  follows: AppData["profileFollows"];
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
-  onToggleFollow: (target: { organizationId?: ID; teamId?: ID }) => void | Promise<void>;
 }) {
-  const followed = follows?.some((follow) => follow.teamId === team.teamId) ?? false;
   return (
-    <article className="panel team-workspace-card">
+    <button className="panel team-workspace-card" type="button" onClick={() => void onEnterTeam(team)}>
       <div className="team-workspace-card__top">
         <OrganizationLogo name={team.organizationName} />
         <span>
           <strong>{team.teamName}</strong>
           <small>{team.organizationName}</small>
         </span>
+        <ChevronRight size={16} aria-hidden="true" />
       </div>
       <div className="team-workspace-meta">
         <span>{team.seasonName ?? "Current season"}</span>
         <span>{roleLabel(team.role)}</span>
         {team.title && <span>{team.title}</span>}
       </div>
-      <div className="card-action-row">
-        <button className="primary-button" type="button" onClick={() => void onEnterTeam(team)}>
-          Open Team
-          <ChevronRight size={16} aria-hidden="true" />
-        </button>
-        <FollowButton followed={followed} onClick={() => void onToggleFollow({ organizationId: team.organizationId, teamId: team.teamId })} />
-      </div>
-    </article>
+    </button>
   );
 }
 
@@ -2419,30 +2451,22 @@ function OrganizationMiniRow({ organization, onEnterTeam }: { organization: Orga
 
 function TeamMiniRow({
   team,
-  follows,
   onEnterTeam,
-  onToggleFollow,
 }: {
   team: TeamOption;
-  follows: AppData["profileFollows"];
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
-  onToggleFollow: (target: { organizationId?: ID; teamId?: ID }) => void | Promise<void>;
 }) {
-  const followed = follows?.some((follow) => follow.teamId === team.teamId) ?? false;
   return (
-    <div className="team-mini-row">
-      <button type="button" onClick={() => void onEnterTeam(team)}>
-        <OrganizationLogo name={team.organizationName} />
-        <span><strong>{team.teamName}</strong><small>{team.seasonName ?? "Current season"} - {team.organizationName}</small></span>
-      </button>
-      <FollowButton followed={followed} onClick={() => void onToggleFollow({ organizationId: team.organizationId, teamId: team.teamId })} compact />
-    </div>
+    <button className="team-mini-row" type="button" onClick={() => void onEnterTeam(team)}>
+      <OrganizationLogo name={team.organizationName} />
+      <span><strong>{team.teamName}</strong><small>{team.seasonName ?? "Current season"} - {team.organizationName}</small></span>
+      <ChevronRight size={15} aria-hidden="true" />
+    </button>
   );
 }
 
 function FollowSummary({ data, onEnterTeam }: { data: AppData; onEnterTeam: (team: TeamOption) => void | Promise<void> }) {
-  const follows = data.profileFollows ?? [];
-  const followedTeams = (data.teamContext?.availableTeams ?? []).filter((team) => follows.some((follow) => follow.teamId === team.teamId));
+  const followedTeams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
   if (!followedTeams.length) return <CompactEmpty title="No followed teams yet" />;
   return (
     <div className="compact-list">
@@ -2454,15 +2478,6 @@ function FollowSummary({ data, onEnterTeam }: { data: AppData; onEnterTeam: (tea
         </button>
       ))}
     </div>
-  );
-}
-
-function FollowButton({ followed, onClick, compact = false }: { followed: boolean; onClick: () => void; compact?: boolean }) {
-  return (
-    <button className={followed ? "secondary-button follow-button active" : "secondary-button follow-button"} type="button" onClick={onClick} aria-label={followed ? "Unfollow" : "Follow"}>
-      <Star size={compact ? 13 : 15} aria-hidden="true" />
-      {compact ? "" : followed ? "Following" : "Follow"}
-    </button>
   );
 }
 
@@ -2483,6 +2498,26 @@ function organizationSummariesFromTeams(teams: TeamOption[]) {
     organizations.set(team.organizationId, current);
   }
   return [...organizations.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function displayWorkspaceTeams(teams: TeamOption[]) {
+  const visible = teams.filter((team) => !isProgramContainerTeam(team));
+  return visible.length ? visible : teams;
+}
+
+function isProgramContainerTeam(team: TeamOption) {
+  const level = (team.teamLevel ?? "").trim().toLowerCase();
+  const name = team.teamName.trim().toLowerCase();
+  return level === "program" || name === "baseball" || name.endsWith(" baseball program") || name.includes(" program");
+}
+
+function uniquePlayers(players: Player[]) {
+  const seen = new Set<ID>();
+  return players.filter((player) => {
+    if (seen.has(player.id)) return false;
+    seen.add(player.id);
+    return true;
+  });
 }
 
 function shortTeamName(name: string) {
