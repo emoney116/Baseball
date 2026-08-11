@@ -99,6 +99,45 @@ test("parses MaxPreps PDF table cells and staff", () => {
   assert.equal(parsed.staff[0].name, "Eric Boston");
 });
 
+test("MaxPreps staff can become staff placeholders without player records", () => {
+  const parsed = parseMaxPrepsPdfText([
+    "Metrolina Christian Academy",
+    "25-26",
+    "Varsity",
+    "Baseball",
+    "Roster",
+    "#",
+    "Name",
+    "Pos.",
+    "Gr.",
+    "Ht.",
+    "Wt.",
+    "12",
+    "Jackson Smith",
+    "SS, RHP",
+    "Jr.",
+    "6'1\"",
+    "170",
+    "Staff",
+    "Position",
+    "Darren Adams",
+    "Head Coach",
+    "Eric Boston",
+    "Assistant Coach",
+  ].join("\n"), { sourceId: "pdf-staff", fileName: "maxpreps.pdf" });
+  const data = appData();
+  const plan = buildRosterImportPlan(data, [
+    { source: parsed, teamId: varsity.teamId, teamName: varsity.teamName, seasonId: varsity.seasonId, seasonName: varsity.seasonName, mode: "add", defaultRosterStatus: "Varsity" },
+  ]);
+  const result = applyRosterImportPlan(data, plan).data;
+
+  assert.equal(result.players.length, 1);
+  assert.equal(result.staffMembers.length, 2);
+  assert.equal(result.staffTeamMemberships.length, 2);
+  assert.deepEqual(result.staffMembers.map((member) => member.displayName).sort(), ["Darren Adams", "Eric Boston"]);
+  assert.equal(result.staffTeamMemberships.find((membership) => membership.baseballRole === "Head Coach")?.accessRole, "COACH");
+});
+
 test("uses one player identity with separate team-specific jersey memberships across files", () => {
   const varsityFile = parseRosterCsv(
     "First Name,Last Name,Jersey Number,Graduation Year,Primary Position\nJackson,Smith,12,2027,SS",

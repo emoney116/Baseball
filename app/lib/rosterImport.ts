@@ -1,4 +1,4 @@
-import type { AppData, ID, Player, PlayerTeamMembership, Position, RosterStatus, TeamOption } from "../types";
+import type { AppData, ID, Player, PlayerTeamMembership, Position, RosterStatus, StaffBaseballRole, StaffMember, StaffTeamMembership, TeamOption } from "../types";
 
 export type RosterImportFileType = "csv" | "pdf";
 export type RosterImportMode = "add" | "replace" | "update";
@@ -359,8 +359,11 @@ export function applyRosterImportPlan(data: AppData, plan: RosterImportPlan): Ro
   const now = new Date().toISOString();
   const nextPlayers = [...data.players];
   const nextMemberships = [...(data.playerTeamMemberships ?? [])];
+  const nextStaffMembers = [...(data.staffMembers ?? [])];
+  const nextStaffMemberships = [...(data.staffTeamMemberships ?? [])];
   const playersById = new Map(nextPlayers.map((player) => [player.id, player]));
   const playerIdByIdentity = new Map<string, ID>();
+  const staffByIdentity = new Map(nextStaffMembers.map((member) => [staffIdentityKey(member.displayName, member.email), member.id]));
   let playersCreated = 0;
   let playersUpdated = 0;
   let membershipsAdded = 0;
@@ -436,6 +439,65 @@ export function applyRosterImportPlan(data: AppData, plan: RosterImportPlan): Ro
         }
       }
     }
+
+    for (const staff of file.staff) {
+      const displayName = staff.name.trim();
+      if (!displayName) continue;
+      const identity = staffIdentityKey(displayName);
+      let staffMemberId = staffByIdentity.get(identity);
+      const existingMember = staffMemberId ? nextStaffMembers.find((member) => member.id === staffMemberId) : undefined;
+      const { firstName, lastName } = splitStaffName(displayName);
+      const team = data.teamContext?.availableTeams.find((item) => item.teamId === file.teamId) ?? data.teamContext?.currentTeam;
+      if (!staffMemberId) {
+        staffMemberId = makeImportId("staff");
+        const staffMember: StaffMember = {
+          id: staffMemberId,
+          organizationId: team?.organizationId ?? data.teamContext?.currentTeam?.organizationId ?? "",
+          firstName,
+          lastName,
+          displayName,
+          active: true,
+          createdAt: now,
+          updatedAt: now,
+        };
+        nextStaffMembers.unshift(staffMember);
+        staffByIdentity.set(identity, staffMemberId);
+      } else if (existingMember) {
+        const index = nextStaffMembers.findIndex((member) => member.id === existingMember.id);
+        nextStaffMembers[index] = {
+          ...existingMember,
+          firstName: existingMember.firstName ?? firstName,
+          lastName: existingMember.lastName ?? lastName,
+          active: true,
+          updatedAt: now,
+        };
+      }
+
+      const membershipIndex = nextStaffMemberships.findIndex((membership) =>
+        membership.staffMemberId === staffMemberId &&
+        membership.teamId === file.teamId &&
+        membership.seasonId === file.seasonId,
+      );
+      const existingMembership = membershipIndex >= 0 ? nextStaffMemberships[membershipIndex] : undefined;
+      const nextStaffMembership: StaffTeamMembership = {
+        id: existingMembership?.id ?? makeImportId("stm"),
+        staffMemberId,
+        profileId: existingMembership?.profileId,
+        teamId: file.teamId,
+        seasonId: file.seasonId,
+        baseballRole: normalizeImportedStaffRole(staff.role),
+        accessRole: existingMembership?.accessRole ?? "COACH",
+        active: true,
+        invitationId: existingMembership?.invitationId,
+        createdAt: existingMembership?.createdAt ?? now,
+        updatedAt: now,
+      };
+      if (membershipIndex >= 0) {
+        nextStaffMemberships[membershipIndex] = nextStaffMembership;
+      } else {
+        nextStaffMemberships.unshift(nextStaffMembership);
+      }
+    }
   }
 
   const currentTeamPlayers = nextPlayers.map((player) => {
@@ -461,6 +523,8 @@ export function applyRosterImportPlan(data: AppData, plan: RosterImportPlan): Ro
       ...data,
       players: currentTeamPlayers,
       playerTeamMemberships: nextMemberships,
+      staffMembers: nextStaffMembers,
+      staffTeamMemberships: nextStaffMemberships,
       rosterImports: [
         buildImportHistory(plan, { playersCreated, playersUpdated, membershipsAdded, membershipsUpdated, membershipsRemoved, rowsSkipped }),
         ...(data.rosterImports ?? []),
@@ -871,6 +935,32 @@ function identityKey(firstName: string, lastName: string, graduationYear?: numbe
 
 function normalizeName(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function staffIdentityKey(name: string, email?: string) {
+  return email ? `email:${email.toLowerCase().trim()}` : `name:${normalizeName(name)}`;
+}
+
+function splitStaffName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return {
+    firstName: parts[0] ?? undefined,
+    lastName: parts.slice(1).join(" ") || undefined,
+  };
+}
+
+function normalizeImportedStaffRole(role: string): StaffBaseballRole {
+  const value = role.trim().toLowerCase();
+  if (value.includes("head")) return "Head Coach";
+  if (value.includes("pitch")) return "Pitching Coach";
+  if (value.includes("hit")) return "Hitting Coach";
+  if (value.includes("strength")) return "Strength Coach";
+  if (value.includes("catch")) return "Catching Coach";
+  if (value.includes("trainer") || value.includes("athletic")) return "Athletic Trainer";
+  if (value.includes("manager")) return "Manager";
+  if (value.includes("volunteer")) return "Volunteer";
+  if (value.includes("assistant") || value === "coach") return "Assistant Coach";
+  return "Other";
 }
 
 function colorForName(name: string) {

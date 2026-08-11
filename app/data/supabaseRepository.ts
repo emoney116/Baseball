@@ -23,6 +23,11 @@ import type {
   PracticeAttendance,
   RosterImportRecord,
   RosterStatus,
+  StaffAccessRole,
+  StaffBaseballRole,
+  StaffInvitation,
+  StaffMember,
+  StaffTeamMembership,
   TeamContext,
   TeamMembershipRole,
   TeamOption,
@@ -193,6 +198,7 @@ export const supabaseAppRepository = {
     await syncWorkoutData(supabase, foundation, next);
     await syncGames(supabase, foundation, next);
     await syncNotesAndGoals(supabase, foundation, next);
+    await syncStaffData(foundation, next);
     await syncRosterImports(supabase, foundation, next.rosterImports ?? []);
   },
 
@@ -208,6 +214,97 @@ export const supabaseAppRepository = {
       throw new PersistenceError("save-failed", payload.message ?? "Unable to create team.");
     }
     return payload.team;
+  },
+
+  async inviteStaff(input: {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    staffRole: string;
+    accessRole: "ADMIN" | "COACH";
+    teams: Array<{ teamId: string; seasonId?: string }>;
+  }) {
+    const response = await fetch("/api/staff/invitations", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      message?: string;
+      invitation?: StaffInvitation;
+      email?: { sent: boolean; message?: string; reason?: string };
+    };
+    if (!response.ok || !payload.invitation) {
+      throw new PersistenceError("save-failed", payload.message ?? "Unable to invite staff.");
+    }
+    return payload;
+  },
+
+  async copyStaffInviteLink(invitationId: string) {
+    const response = await fetch(`/api/staff/invitations/${invitationId}/link`, {
+      method: "POST",
+      credentials: "include",
+    });
+    const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; message?: string; inviteLink?: string };
+    if (!response.ok || !payload.inviteLink) {
+      throw new PersistenceError("save-failed", payload.message ?? "Unable to create invite link.");
+    }
+    return payload.inviteLink;
+  },
+
+  async resendStaffInvitation(invitationId: string) {
+    const response = await fetch(`/api/staff/invitations/${invitationId}/resend`, {
+      method: "POST",
+      credentials: "include",
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      message?: string;
+      invitation?: StaffInvitation;
+      email?: { sent: boolean; message?: string; reason?: string };
+    };
+    if (!response.ok) {
+      throw new PersistenceError("save-failed", payload.message ?? "Unable to resend invitation.");
+    }
+    return payload;
+  },
+
+  async revokeStaffInvitation(invitationId: string) {
+    const response = await fetch(`/api/staff/invitations/${invitationId}/revoke`, {
+      method: "POST",
+      credentials: "include",
+    });
+    const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; message?: string };
+    if (!response.ok) {
+      throw new PersistenceError("save-failed", payload.message ?? "Unable to revoke invitation.");
+    }
+  },
+
+  async updateStaffMember(input: {
+    staffMemberId: string;
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    displayName?: string;
+    memberships: Array<{
+      teamId: string;
+      seasonId?: string;
+      baseballRole: StaffBaseballRole;
+      accessRole: StaffAccessRole;
+    }>;
+  }) {
+    const response = await fetch(`/api/staff/members/${input.staffMemberId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; message?: string };
+    if (!response.ok) {
+      throw new PersistenceError("save-failed", payload.message ?? "Unable to update staff.");
+    }
   },
 };
 
@@ -517,11 +614,15 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
   );
   const goalsRows = (goalsResult.data ?? []).filter((row: any) => playerIdsSet.has(row.player_id));
   const rosterImports = await loadRosterImports(supabase, foundation);
+  const staffData = await loadStaffData(supabase, foundation);
 
   return {
     teamContext: foundation.teamContext,
     players,
     playerTeamMemberships: memberships.map(mapPlayerTeamMembership),
+    staffMembers: staffData.staffMembers,
+    staffTeamMemberships: staffData.staffTeamMemberships,
+    staffInvitations: staffData.staffInvitations,
     practices,
     attendance: attendanceRows.map(mapAttendance),
     pitchingSessions: sessionRows.filter((row: any) => row.category === "pitching").map(mapPitchingSession),
@@ -568,6 +669,115 @@ async function loadRosterImports(supabase: SupabaseClient, foundation: Foundatio
   }
 
   return (data ?? []).map(mapRosterImportRecord);
+}
+
+async function loadStaffData(
+  supabase: SupabaseClient,
+  foundation: Foundation,
+): Promise<{ staffMembers: StaffMember[]; staffTeamMemberships: StaffTeamMembership[]; staffInvitations: StaffInvitation[] }> {
+  const authorizedTeamIds = [...new Set((foundation.teamContext.availableTeams ?? []).map((team) => team.teamId).filter(Boolean))];
+  if (authorizedTeamIds.length === 0) return { staffMembers: [], staffTeamMemberships: [], staffInvitations: [] };
+
+  const staffMembershipsResult = await supabase
+    .from("staff_team_memberships")
+    .select("*")
+    .in("team_id", authorizedTeamIds);
+
+  if (staffMembershipsResult.error) {
+    if (isMissingStaffTables(staffMembershipsResult.error)) {
+      return { staffMembers: [], staffTeamMemberships: [], staffInvitations: [] };
+    }
+    throw new PersistenceError("load-failed", staffMembershipsResult.error.message);
+  }
+
+  const staffMembershipRows = staffMembershipsResult.data ?? [];
+  const staffMemberIds = [...new Set(staffMembershipRows.map((row: any) => row.staff_member_id).filter(Boolean))];
+  const profileIdsFromStaff = staffMembershipRows.map((row: any) => row.profile_id).filter(Boolean);
+  const invitationIds = [...new Set(staffMembershipRows.map((row: any) => row.invitation_id).filter(Boolean))];
+
+  const profileMembershipsResult = await supabase
+    .from("profile_team_memberships")
+    .select("id,profile_id,team_id,season_id,role,title,active,created_at,updated_at")
+    .in("team_id", authorizedTeamIds)
+    .eq("active", true);
+  if (profileMembershipsResult.error) throw new PersistenceError("load-failed", profileMembershipsResult.error.message);
+  const profileMembershipRows = (profileMembershipsResult.data ?? []).filter((row: any) =>
+    !row.season_id || row.season_id === foundation.seasonId,
+  );
+  const profileIds = [...new Set([...profileIdsFromStaff, ...profileMembershipRows.map((row: any) => row.profile_id)].filter(Boolean))];
+
+  const [staffMembersResult, invitationsResult, invitationAssignmentsResult, profilesResult] = await Promise.all([
+    staffMemberIds.length
+      ? supabase.from("staff_members").select("*").in("id", staffMemberIds)
+      : Promise.resolve({ data: [], error: null }),
+    invitationIds.length
+      ? supabase.from("team_invitations").select("*").in("id", invitationIds)
+      : Promise.resolve({ data: [], error: null }),
+    invitationIds.length
+      ? supabase.from("team_invitation_memberships").select("*").in("invitation_id", invitationIds)
+      : Promise.resolve({ data: [], error: null }),
+    profileIds.length
+      ? supabase.from("profiles").select("id,email,first_name,last_name,display_name,avatar_url,role").in("id", profileIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  const failed = [staffMembersResult, invitationsResult, invitationAssignmentsResult, profilesResult].find((result) => result.error);
+  if (failed?.error) {
+    if (isMissingStaffTables(failed.error)) return { staffMembers: [], staffTeamMemberships: [], staffInvitations: [] };
+    throw new PersistenceError("load-failed", failed.error.message);
+  }
+
+  const staffMembers = (staffMembersResult.data ?? []).map(mapStaffMember);
+  const staffByProfileId = new Map(staffMembers.filter((member) => member.profileId).map((member) => [member.profileId as string, member]));
+  const profilesById = new Map<string, any>((profilesResult.data ?? []).map((profile: any) => [profile.id, profile]));
+  const staffTeamMemberships = staffMembershipRows.map(mapStaffTeamMembership);
+  const virtualStaffMembers: StaffMember[] = [];
+  const virtualStaffMemberships: StaffTeamMembership[] = [];
+
+  for (const membership of profileMembershipRows) {
+    if (staffByProfileId.has(membership.profile_id)) continue;
+    const profile = profilesById.get(membership.profile_id);
+    const virtualStaffId = `profile-staff-${membership.profile_id}`;
+    virtualStaffMembers.push({
+      id: virtualStaffId,
+      organizationId: foundation.organizationId,
+      profileId: membership.profile_id,
+      email: profile?.email ?? undefined,
+      firstName: profile?.first_name ?? undefined,
+      lastName: profile?.last_name ?? undefined,
+      displayName: profile?.display_name ?? profile?.email ?? "Staff Member",
+      avatarUrl: profile?.avatar_url ?? undefined,
+      active: true,
+      createdAt: membership.created_at ?? new Date().toISOString(),
+      updatedAt: membership.updated_at ?? new Date().toISOString(),
+    });
+    virtualStaffMemberships.push({
+      id: `profile-team-${membership.id}`,
+      staffMemberId: virtualStaffId,
+      profileId: membership.profile_id,
+      teamId: membership.team_id,
+      seasonId: membership.season_id ?? undefined,
+      baseballRole: normalizeStaffBaseballRole(membership.title),
+      accessRole: normalizeStaffAccessRole(membership.role),
+      active: Boolean(membership.active),
+      createdAt: membership.created_at ?? new Date().toISOString(),
+      updatedAt: membership.updated_at ?? new Date().toISOString(),
+    });
+  }
+
+  const invitationAssignments = invitationAssignmentsResult.data ?? [];
+  const invitationTeamMap = new Map<string, any[]>();
+  invitationAssignments.forEach((assignment: any) => {
+    invitationTeamMap.set(assignment.invitation_id, [...(invitationTeamMap.get(assignment.invitation_id) ?? []), assignment]);
+  });
+  const teamById = new Map((foundation.teamContext.availableTeams ?? []).map((team) => [team.teamId, team]));
+  const staffInvitations = (invitationsResult.data ?? []).map((row: any) => mapStaffInvitation(row, invitationTeamMap.get(row.id) ?? [], teamById));
+
+  return {
+    staffMembers: [...staffMembers, ...virtualStaffMembers],
+    staffTeamMemberships: [...staffTeamMemberships, ...virtualStaffMemberships],
+    staffInvitations,
+  };
 }
 
 async function syncDeletedEvents(supabase: SupabaseClient, previous: AppData, next: AppData) {
@@ -963,6 +1173,28 @@ async function syncRosterImports(supabase: SupabaseClient, foundation: Foundatio
   }
 }
 
+async function syncStaffData(foundation: Foundation, data: AppData) {
+  const staffMembers = (data.staffMembers ?? []).filter((member) => !member.id.startsWith("profile-staff-"));
+  const staffTeamMemberships = (data.staffTeamMemberships ?? []).filter((membership) => !membership.id.startsWith("profile-team-"));
+  if (staffMembers.length === 0 && staffTeamMemberships.length === 0) return;
+
+  const response = await fetch("/api/staff/sync", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      organizationId: foundation.organizationId,
+      staffMembers,
+      staffTeamMemberships,
+    }),
+  });
+  const payload = (await response.json().catch(() => ({}))) as { message?: string };
+  if (!response.ok) {
+    if (isMissingStaffTables({ message: payload.message })) return;
+    throw new PersistenceError("save-failed", payload.message ?? "Unable to save staff changes.");
+  }
+}
+
 async function upsertRows(supabase: SupabaseClient, table: string, rows: Array<Record<string, unknown>>) {
   if (rows.length === 0) return;
   const { error } = await supabase.from(table).upsert(rows, { onConflict: "id" });
@@ -1044,11 +1276,98 @@ function mapRosterImportRecord(row: any): RosterImportRecord {
   };
 }
 
+function mapStaffMember(row: any): StaffMember {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    profileId: row.profile_id ?? undefined,
+    email: row.email ?? undefined,
+    firstName: row.first_name ?? undefined,
+    lastName: row.last_name ?? undefined,
+    displayName: row.display_name ?? ([row.first_name, row.last_name].filter(Boolean).join(" ") || row.email || "Staff Member"),
+    avatarUrl: row.avatar_url ?? undefined,
+    active: Boolean(row.active),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapStaffTeamMembership(row: any): StaffTeamMembership {
+  return {
+    id: row.id,
+    staffMemberId: row.staff_member_id,
+    profileId: row.profile_id ?? undefined,
+    teamId: row.team_id,
+    seasonId: row.season_id ?? undefined,
+    baseballRole: normalizeStaffBaseballRole(row.baseball_role),
+    accessRole: normalizeStaffAccessRole(row.access_role),
+    active: Boolean(row.active),
+    invitationId: row.invitation_id ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapStaffInvitation(row: any, assignments: any[], teamById: Map<string, TeamOption>): StaffInvitation {
+  const status = row.status === "PENDING" && row.expires_at && new Date(row.expires_at).getTime() <= Date.now()
+    ? "EXPIRED"
+    : row.status;
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    email: row.email,
+    staffMemberId: row.staff_member_id ?? undefined,
+    invitedByProfileId: row.invited_by_profile_id ?? undefined,
+    staffRole: normalizeStaffBaseballRole(row.staff_role),
+    accessRole: normalizeStaffAccessRole(row.access_role),
+    status,
+    expiresAt: row.expires_at,
+    acceptedAt: row.accepted_at ?? undefined,
+    teamIds: assignments.map((assignment) => assignment.team_id).filter(Boolean),
+    seasonIds: assignments.map((assignment) => assignment.season_id).filter(Boolean),
+    teamNames: assignments.map((assignment) => {
+      const team = teamById.get(assignment.team_id);
+      return [team?.teamName ?? "Team", team?.seasonName].filter(Boolean).join(" - ");
+    }),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function normalizeStaffBaseballRole(role: unknown): StaffBaseballRole {
+  const value = String(role ?? "").trim();
+  const allowed: StaffBaseballRole[] = [
+    "Head Coach",
+    "Assistant Coach",
+    "Pitching Coach",
+    "Hitting Coach",
+    "Strength Coach",
+    "Catching Coach",
+    "Athletic Trainer",
+    "Manager",
+    "Volunteer",
+    "Other",
+  ];
+  return allowed.includes(value as StaffBaseballRole) ? value as StaffBaseballRole : "Assistant Coach";
+}
+
+function normalizeStaffAccessRole(role: unknown): StaffTeamMembership["accessRole"] {
+  return String(role ?? "").trim().toUpperCase() === "ADMIN" ? "ADMIN" : "COACH";
+}
+
 function isMissingRosterImportsTable(error: { code?: string; message?: string }) {
   return (
     error.code === "42P01" ||
     error.code === "PGRST205" ||
     /(relation|table).*roster_imports.*(does not exist|not found)|could not find.*roster_imports/i.test(error.message ?? "")
+  );
+}
+
+function isMissingStaffTables(error: { code?: string; message?: string }) {
+  return (
+    error.code === "42P01" ||
+    error.code === "PGRST205" ||
+    /(relation|table).*(staff_members|staff_team_memberships|team_invitations|team_invitation_memberships).*(does not exist|not found)|could not find.*(staff_members|staff_team_memberships|team_invitations|team_invitation_memberships)/i.test(error.message ?? "")
   );
 }
 

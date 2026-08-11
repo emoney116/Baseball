@@ -33,6 +33,19 @@ export type Throws = "R" | "L";
 export type RosterStatus = "Varsity" | "JV" | "Undecided" | "Cut";
 export type ProgramLevel = "Varsity" | "JV" | "Development";
 export type TeamMembershipRole = "OWNER" | "ADMIN" | "HEAD_COACH" | "ASSISTANT_COACH" | "STAFF" | "COACH" | "PLAYER";
+export type StaffBaseballRole =
+  | "Head Coach"
+  | "Assistant Coach"
+  | "Pitching Coach"
+  | "Hitting Coach"
+  | "Strength Coach"
+  | "Catching Coach"
+  | "Athletic Trainer"
+  | "Manager"
+  | "Volunteer"
+  | "Other";
+export type StaffAccessRole = "ADMIN" | "COACH";
+export type StaffInvitationStatus = "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
 
 export type PracticeStation =
   | "Bullpen"
@@ -205,6 +218,53 @@ export interface PlayerTeamMembership {
   active: boolean;
   startDate?: string;
   endDate?: string;
+}
+
+export interface StaffMember {
+  id: ID;
+  organizationId: ID;
+  profileId?: ID;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  displayName: string;
+  avatarUrl?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffTeamMembership {
+  id: ID;
+  staffMemberId: ID;
+  profileId?: ID;
+  teamId: ID;
+  seasonId?: ID;
+  baseballRole: StaffBaseballRole;
+  accessRole: StaffAccessRole;
+  active: boolean;
+  invitationId?: ID;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffInvitation {
+  id: ID;
+  organizationId: ID;
+  email: string;
+  staffMemberId?: ID;
+  invitedByProfileId?: ID;
+  staffRole: StaffBaseballRole;
+  accessRole: StaffAccessRole;
+  status: StaffInvitationStatus;
+  expiresAt: string;
+  acceptedAt?: string;
+  teamIds: ID[];
+  seasonIds?: ID[];
+  teamNames?: string[];
+  createdAt: string;
+  updatedAt: string;
+  inviteLink?: string;
 }
 
 export interface RosterImportRecord {
@@ -543,6 +603,9 @@ export interface AppData {
   teamContext?: TeamContext;
   players: Player[];
   playerTeamMemberships?: PlayerTeamMembership[];
+  staffMembers?: StaffMember[];
+  staffTeamMemberships?: StaffTeamMembership[];
+  staffInvitations?: StaffInvitation[];
   rosterImports?: RosterImportRecord[];
   practices: Practice[];
   attendance: PracticeAttendance[];

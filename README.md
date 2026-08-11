@@ -43,6 +43,17 @@ SUPABASE_DB_URL=
 
 Do not commit `.env`, `.env.local`, Supabase secret keys, service-role keys, database passwords, setup codes, or Supabase access tokens.
 
+Staff invitation email delivery is optional. The app always creates secure invite links; if email is not configured, admins can copy the link from the Staff roster.
+
+Server-only Resend email variables:
+
+```bash
+RESEND_API_KEY=
+INVITE_FROM_EMAIL=
+```
+
+`RESEND_API_KEY` and `INVITE_FROM_EMAIL` must remain server-only Vercel/local environment variables. Never prefix either value with `NEXT_PUBLIC_`.
+
 ## Database Migrations
 
 Migration files live in:

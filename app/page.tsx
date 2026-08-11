@@ -8,15 +8,18 @@ import {
   ChevronRight,
   ChevronUp,
   ClipboardList,
+  Copy,
   Download,
   Dumbbell,
   Edit3,
   Gauge,
   Home,
   LogOut,
+  Mail,
   Moon,
   MoreHorizontal,
   Plus,
+  RefreshCw,
   Save,
   Search,
   Shield,
@@ -95,6 +98,11 @@ import type {
   Practice,
   PracticeType,
   RosterStatus,
+  StaffAccessRole,
+  StaffBaseballRole,
+  StaffInvitation,
+  StaffMember,
+  StaffTeamMembership,
   TeamContext,
   TeamOption,
   WorkoutSession,
@@ -104,6 +112,7 @@ import type {
 type ViewKey = "home" | "roster" | "practice" | "weights" | "games" | "analytics" | "profile" | "account" | "teams";
 type PracticeMode = "Hitting" | "Pitching" | "Defense" | "Live BP";
 type RosterFilter = "All" | RosterStatus;
+type RosterSection = "Players" | "Staff";
 type RosterPositionFilter = "All" | Position;
 type RosterYearFilter = "All" | string;
 type RosterSortKey = "number" | "player" | "pos" | "bt" | "class" | "height" | "weight" | "status";
@@ -134,6 +143,20 @@ const CREATE_TEAM_VALUE = "__create_team__";
 
 const ROSTER_STATUSES: RosterStatus[] = ["Varsity", "JV", "Undecided", "Cut"];
 const ROSTER_FILTERS: RosterFilter[] = ["All", ...ROSTER_STATUSES];
+const ROSTER_SECTIONS: RosterSection[] = ["Players", "Staff"];
+const STAFF_BASEBALL_ROLES: StaffBaseballRole[] = [
+  "Head Coach",
+  "Assistant Coach",
+  "Pitching Coach",
+  "Hitting Coach",
+  "Strength Coach",
+  "Catching Coach",
+  "Athletic Trainer",
+  "Manager",
+  "Volunteer",
+  "Other",
+];
+const STAFF_ACCESS_ROLES: StaffAccessRole[] = ["ADMIN", "COACH"];
 const POSITIONS: Position[] = ["P", "RHP", "LHP", "C", "1B", "2B", "3B", "SS", "INF", "LF", "CF", "RF", "OF", "UTIL", "DH"];
 const SECONDARY_POSITIONS: Array<Position | ""> = ["", ...POSITIONS];
 const PRACTICE_TYPES: PracticeType[] = ["Full Practice", "Bullpen Day", "Live BP", "Hitting Day", "Scrimmage", "Pitcher Development", "Hitter Development", "Custom"];
@@ -212,6 +235,7 @@ export default function MetrolinaBaseballApp() {
   const [rosterPositionFilter, setRosterPositionFilter] = useState<RosterPositionFilter>("All");
   const [rosterYearFilter, setRosterYearFilter] = useState<RosterYearFilter>("All");
   const [rosterQuery, setRosterQuery] = useState("");
+  const [rosterSection, setRosterSection] = useState<RosterSection>("Players");
   const [profileTab, setProfileTab] = useState<ProfileTab>("overview");
   const [practiceTrackingOpen, setPracticeTrackingOpen] = useState(false);
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("Hitting");
@@ -236,6 +260,7 @@ export default function MetrolinaBaseballApp() {
   const [startGameOpen, setStartGameOpen] = useState(false);
   const [playerEditorOpen, setPlayerEditorOpen] = useState(false);
   const [rosterImportOpen, setRosterImportOpen] = useState(false);
+  const [staffInviteOpen, setStaffInviteOpen] = useState(false);
   const [topAccountMenuOpen, setTopAccountMenuOpen] = useState(false);
   const [sidebarAccountMenuOpen, setSidebarAccountMenuOpen] = useState(false);
 
@@ -428,6 +453,51 @@ export default function MetrolinaBaseballApp() {
       };
     });
     return team;
+  }
+
+  async function reloadCurrentTeam() {
+    const current = data?.teamContext?.currentTeam;
+    await loadApplicationData(() => false, current?.teamId, current?.seasonId);
+  }
+
+  async function inviteStaff(input: {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    staffRole: StaffBaseballRole;
+    accessRole: StaffAccessRole;
+    teams: Array<{ teamId: string; seasonId?: string }>;
+  }) {
+    const result = await supabaseAppRepository.inviteStaff(input);
+    await reloadCurrentTeam();
+    return result;
+  }
+
+  async function copyStaffInviteLink(invitationId: string) {
+    const link = await supabaseAppRepository.copyStaffInviteLink(invitationId);
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      window.prompt("Copy invite link", link);
+    }
+    await reloadCurrentTeam();
+    return link;
+  }
+
+  async function resendStaffInvitation(invitationId: string) {
+    const result = await supabaseAppRepository.resendStaffInvitation(invitationId);
+    await reloadCurrentTeam();
+    return result;
+  }
+
+  async function revokeStaffInvitation(invitationId: string) {
+    await supabaseAppRepository.revokeStaffInvitation(invitationId);
+    await reloadCurrentTeam();
+  }
+
+  async function updateStaffMember(input: StaffMemberUpdateInput) {
+    await supabaseAppRepository.updateStaffMember(input);
+    await reloadCurrentTeam();
   }
 
   function toggleTheme() {
@@ -957,11 +1027,17 @@ export default function MetrolinaBaseballApp() {
         {view === "roster" && (
           <RosterView
             players={rosterPlayers}
+            staffMembers={data.staffMembers ?? []}
+            staffTeamMemberships={data.staffTeamMemberships ?? []}
+            staffInvitations={data.staffInvitations ?? []}
             team={data.teamContext?.currentTeam}
+            availableTeams={data.teamContext?.availableTeams ?? []}
+            section={rosterSection}
             filter={rosterFilter}
             positionFilter={rosterPositionFilter}
             yearFilter={rosterYearFilter}
             query={rosterQuery}
+            onSection={setRosterSection}
             onFilter={setRosterFilter}
             onPositionFilter={setRosterPositionFilter}
             onYearFilter={setRosterYearFilter}
@@ -976,10 +1052,15 @@ export default function MetrolinaBaseballApp() {
               setPlayerEditorOpen(true);
             }}
             onImport={() => setRosterImportOpen(true)}
+            onInviteStaff={() => setStaffInviteOpen(true)}
             onStatus={updateRosterStatus}
             onDeletePlayer={(playerId) => {
               commit((current) => playerRepository.archive(current, playerId));
             }}
+            onCopyStaffInvite={copyStaffInviteLink}
+            onResendStaffInvite={resendStaffInvitation}
+            onRevokeStaffInvite={revokeStaffInvitation}
+            onUpdateStaff={updateStaffMember}
           />
         )}
 
@@ -1234,6 +1315,17 @@ export default function MetrolinaBaseballApp() {
           onImport={(plan) => {
             importRosterPlan(plan);
             setRosterImportOpen(false);
+          }}
+        />
+      )}
+
+      {staffInviteOpen && (
+        <InviteStaffModal
+          teams={data.teamContext?.availableTeams ?? []}
+          currentTeam={data.teamContext?.currentTeam}
+          onClose={() => setStaffInviteOpen(false)}
+          onInvite={async (input) => {
+            return inviteStaff(input);
           }}
         />
       )}
@@ -1847,11 +1939,17 @@ function HomeDashboard({
 
 function RosterView({
   players,
+  staffMembers,
+  staffTeamMemberships,
+  staffInvitations,
   team,
+  availableTeams,
+  section,
   filter,
   positionFilter,
   yearFilter,
   query,
+  onSection,
   onFilter,
   onPositionFilter,
   onYearFilter,
@@ -1860,15 +1958,26 @@ function RosterView({
   onEditPlayer,
   onAddPlayer,
   onImport,
+  onInviteStaff,
   onStatus,
   onDeletePlayer,
+  onCopyStaffInvite,
+  onResendStaffInvite,
+  onRevokeStaffInvite,
+  onUpdateStaff,
 }: {
   players: Player[];
+  staffMembers: StaffMember[];
+  staffTeamMemberships: StaffTeamMembership[];
+  staffInvitations: StaffInvitation[];
   team?: TeamOption;
+  availableTeams: TeamOption[];
+  section: RosterSection;
   filter: RosterFilter;
   positionFilter: RosterPositionFilter;
   yearFilter: RosterYearFilter;
   query: string;
+  onSection: (section: RosterSection) => void;
   onFilter: (filter: RosterFilter) => void;
   onPositionFilter: (filter: RosterPositionFilter) => void;
   onYearFilter: (filter: RosterYearFilter) => void;
@@ -1877,8 +1986,13 @@ function RosterView({
   onEditPlayer: (playerId: ID) => void;
   onAddPlayer: () => void;
   onImport: () => void;
+  onInviteStaff: () => void;
   onStatus: (playerId: ID, status: RosterStatus) => void;
   onDeletePlayer: (playerId: ID) => void;
+  onCopyStaffInvite: (invitationId: ID) => Promise<string>;
+  onResendStaffInvite: (invitationId: ID) => Promise<{ email?: { sent: boolean; message?: string; reason?: string } }>;
+  onRevokeStaffInvite: (invitationId: ID) => Promise<void>;
+  onUpdateStaff: (input: StaffMemberUpdateInput) => Promise<void>;
 }) {
   const [sortConfig, setSortConfig] = useState<{ key: RosterSortKey; direction: SortDirection }>({ key: "number", direction: "asc" });
   const gradYears = Array.from(new Set(players.map((player) => String(player.graduationYear)))).sort();
@@ -1903,18 +2017,46 @@ function RosterView({
         context={team ? `${team.teamName} - ${team.seasonName ?? "Current season"}` : undefined}
         action={
           <div className="section-actions">
-            <button className="secondary-button" type="button" onClick={onImport}>
-              <Upload size={16} aria-hidden="true" />
-              Import Roster
-            </button>
-            <button className="primary-button" type="button" onClick={onAddPlayer}>
-              <UserPlus size={16} aria-hidden="true" />
-              Add Player
-            </button>
+            {section === "Players" ? (
+              <>
+                <button className="secondary-button" type="button" onClick={onImport}>
+                  <Upload size={16} aria-hidden="true" />
+                  Import Roster
+                </button>
+                <button className="primary-button" type="button" onClick={onAddPlayer}>
+                  <UserPlus size={16} aria-hidden="true" />
+                  Add Player
+                </button>
+              </>
+            ) : (
+              <button className="primary-button" type="button" onClick={onInviteStaff}>
+                <Mail size={16} aria-hidden="true" />
+                Invite Staff
+              </button>
+            )}
           </div>
         }
       />
 
+      <section className="roster-section-row">
+        <SegmentedControl values={ROSTER_SECTIONS} active={section} onChange={onSection} />
+      </section>
+
+      {section === "Staff" ? (
+        <StaffRosterView
+          staffMembers={staffMembers}
+          staffTeamMemberships={staffTeamMemberships}
+          staffInvitations={staffInvitations}
+          team={team}
+          availableTeams={availableTeams}
+          onInviteStaff={onInviteStaff}
+          onCopyInvite={onCopyStaffInvite}
+          onResendInvite={onResendStaffInvite}
+          onRevokeInvite={onRevokeStaffInvite}
+          onUpdateStaff={onUpdateStaff}
+        />
+      ) : (
+        <>
       <section className="roster-status-row">
         <SegmentedControl values={ROSTER_FILTERS} active={filter} onChange={onFilter} />
       </section>
@@ -2005,8 +2147,262 @@ function RosterView({
           <CompactEmpty title="No players match these filters" action={<button className="secondary-button" type="button" onClick={() => { onFilter("All"); onPositionFilter("All"); onYearFilter("All"); onQuery(""); }}>Clear Filters</button>} />
         )}
       </section>
+        </>
+      )}
     </div>
   );
+}
+
+function StaffRosterView({
+  staffMembers,
+  staffTeamMemberships,
+  staffInvitations,
+  team,
+  availableTeams,
+  onInviteStaff,
+  onCopyInvite,
+  onResendInvite,
+  onRevokeInvite,
+  onUpdateStaff,
+}: {
+  staffMembers: StaffMember[];
+  staffTeamMemberships: StaffTeamMembership[];
+  staffInvitations: StaffInvitation[];
+  team?: TeamOption;
+  availableTeams: TeamOption[];
+  onInviteStaff: () => void;
+  onCopyInvite: (invitationId: ID) => Promise<string>;
+  onResendInvite: (invitationId: ID) => Promise<{ email?: { sent: boolean; message?: string; reason?: string } }>;
+  onRevokeInvite: (invitationId: ID) => Promise<void>;
+  onUpdateStaff: (input: StaffMemberUpdateInput) => Promise<void>;
+}) {
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [editingStaffId, setEditingStaffId] = useState<ID | null>(null);
+  const currentTeamId = team?.teamId;
+  const memberById = new Map(staffMembers.map((member) => [member.id, member]));
+  const invitationById = new Map(staffInvitations.map((invitation) => [invitation.id, invitation]));
+  const visibleMemberships = staffTeamMemberships
+    .filter((membership) => membership.active && (!currentTeamId || membership.teamId === currentTeamId) && (!team?.seasonId || !membership.seasonId || membership.seasonId === team.seasonId))
+    .sort((a, b) => {
+      const memberA = memberById.get(a.staffMemberId);
+      const memberB = memberById.get(b.staffMemberId);
+      return staffRoleRank(a.baseballRole) - staffRoleRank(b.baseballRole) || (memberA?.displayName ?? "").localeCompare(memberB?.displayName ?? "");
+    });
+
+  const rows = visibleMemberships.map((membership) => {
+    const member = memberById.get(membership.staffMemberId);
+    const invitation = membership.invitationId ? invitationById.get(membership.invitationId) : undefined;
+    return { membership, member, invitation };
+  });
+
+  async function runAction(label: string, action: () => Promise<void>) {
+    setBusyAction(label);
+    setMessage("");
+    try {
+      await action();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to update staff invitation.");
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function saveStaff(input: StaffMemberUpdateInput) {
+    await onUpdateStaff(input);
+    setEditingStaffId(null);
+    setMessage("Staff updated.");
+  }
+
+  async function removeStaffMembership(member: StaffMember | undefined, membership: StaffTeamMembership) {
+    if (!member) return;
+    const teamName = availableTeams.find((item) => item.teamId === membership.teamId)?.teamName ?? "this team";
+    if (!window.confirm(`Remove ${member.displayName} from ${teamName}? Their account and other team access will remain.`)) return;
+    const nextMemberships = staffTeamMemberships
+      .filter((item) => item.staffMemberId === member.id && item.active && item.id !== membership.id)
+      .map((item) => ({
+        teamId: item.teamId,
+        seasonId: item.seasonId,
+        baseballRole: item.baseballRole,
+        accessRole: item.accessRole,
+      }));
+    await runAction(`remove-${membership.id}`, async () => {
+      await onUpdateStaff({
+        staffMemberId: member.id,
+        email: member.email,
+        firstName: member.firstName,
+        lastName: member.lastName,
+        displayName: member.displayName,
+        memberships: nextMemberships,
+      });
+      setMessage("Staff member removed from team.");
+    });
+  }
+
+  return (
+    <>
+      <section className="staff-roster-shell roster-table-shell">
+        {message && <p className="staff-action-message">{message}</p>}
+        <div className="staff-table__head">
+          <span>Staff</span>
+          <span>Role</span>
+          <span>Teams</span>
+          <span>Access</span>
+          <span>Status</span>
+          <span>Actions</span>
+        </div>
+        {rows.length ? rows.map(({ membership, member, invitation }) => {
+          const status = staffStatus(member, invitation);
+          const actionKey = invitation?.id ?? membership.id;
+          return (
+            <article className="staff-table-row" key={membership.id}>
+              <div className="staff-person-cell">
+                <StaffAvatar member={member} />
+                <span>
+                  <strong>{member?.displayName ?? invitation?.email ?? "Staff Member"}</strong>
+                  <small>{member?.email ?? invitation?.email ?? "No email yet"}</small>
+                </span>
+              </div>
+              <span>{membership.baseballRole}</span>
+              <span>{staffTeamLabel(membership.staffMemberId, staffTeamMemberships, availableTeams)}</span>
+              <span className={`staff-access-badge staff-access-badge--${membership.accessRole.toLowerCase()}`}>{membership.accessRole === "ADMIN" ? "Admin" : "Coach"}</span>
+              <span className={`staff-status-badge staff-status-badge--${status.toLowerCase().replace(/\s+/g, "-")}`}>{status}</span>
+              <span className="staff-actions-cell">
+                {status === "Active" || status === "No Account" ? (
+                  <>
+                    {status === "No Account" && (
+                      <button className="secondary-button staff-invite-inline" type="button" onClick={onInviteStaff}>
+                        <Mail size={14} aria-hidden="true" />
+                        Add Email
+                      </button>
+                    )}
+                    <button
+                      className="row-action-button"
+                      type="button"
+                      onClick={() => member && setEditingStaffId(member.id)}
+                      disabled={!member}
+                      aria-label={`Edit ${member?.displayName ?? "staff member"}`}
+                    >
+                      <Edit3 size={15} aria-hidden="true" />
+                    </button>
+                    <button
+                      className="row-action-button row-action-button--danger"
+                      type="button"
+                      disabled={busyAction === `remove-${membership.id}` || !member}
+                      onClick={() => void removeStaffMembership(member, membership)}
+                      aria-label={`Remove ${member?.displayName ?? "staff member"} from team`}
+                    >
+                      <Trash2 size={15} aria-hidden="true" />
+                    </button>
+                  </>
+                ) : invitation ? (
+                  <>
+                  <button
+                    className="row-action-button"
+                    type="button"
+                    disabled={busyAction === `copy-${actionKey}`}
+                    onClick={() => void runAction(`copy-${actionKey}`, async () => {
+                      await onCopyInvite(invitation.id);
+                      setMessage("Invite link copied.");
+                    })}
+                    aria-label={`Copy invite link for ${member?.displayName ?? invitation.email}`}
+                  >
+                    <Copy size={15} aria-hidden="true" />
+                  </button>
+                  <button
+                    className="row-action-button"
+                    type="button"
+                    disabled={busyAction === `resend-${actionKey}`}
+                    onClick={() => void runAction(`resend-${actionKey}`, async () => {
+                      const result = await onResendInvite(invitation.id);
+                      setMessage(result.email?.sent ? "Invite resent." : result.email?.message ?? "Invite link refreshed.");
+                    })}
+                    aria-label={`Resend invite for ${member?.displayName ?? invitation.email}`}
+                  >
+                    <RefreshCw size={15} aria-hidden="true" />
+                  </button>
+                  <button
+                    className="row-action-button row-action-button--danger"
+                    type="button"
+                    disabled={busyAction === `revoke-${actionKey}`}
+                    onClick={() => {
+                      if (window.confirm("Revoke this staff invitation? They will need a new link to join.")) {
+                        void runAction(`revoke-${actionKey}`, async () => {
+                          await onRevokeInvite(invitation.id);
+                          setMessage("Invite revoked.");
+                        });
+                      }
+                    }}
+                    aria-label={`Revoke invite for ${member?.displayName ?? invitation.email}`}
+                  >
+                    <Trash2 size={15} aria-hidden="true" />
+                  </button>
+                </>
+              ) : (
+                <button className="secondary-button staff-invite-inline" type="button" onClick={onInviteStaff}>
+                  <Mail size={14} aria-hidden="true" />
+                  Add Email & Invite
+                </button>
+              )}
+              </span>
+            </article>
+          );
+        }) : (
+          <CompactEmpty
+            title="No staff listed yet"
+            action={<button className="primary-button" type="button" onClick={onInviteStaff}><Mail size={16} aria-hidden="true" />Invite Staff</button>}
+          />
+        )}
+      </section>
+      {editingStaffId && memberById.get(editingStaffId) && (
+        <EditStaffModal
+          member={memberById.get(editingStaffId) as StaffMember}
+          memberships={staffTeamMemberships.filter((membership) => membership.staffMemberId === editingStaffId && membership.active)}
+          teams={availableTeams}
+          onClose={() => setEditingStaffId(null)}
+          onSave={saveStaff}
+        />
+      )}
+    </>
+  );
+}
+
+function StaffAvatar({ member }: { member?: StaffMember }) {
+  const initials = initialsFor(member?.displayName ?? member?.email ?? "Staff Member");
+  return (
+    <span className="staff-avatar">
+      {member?.avatarUrl ? <img src={member.avatarUrl} alt="" /> : initials}
+    </span>
+  );
+}
+
+function staffStatus(member?: StaffMember, invitation?: StaffInvitation) {
+  if (member?.profileId || invitation?.status === "ACCEPTED") return "Active";
+  if (invitation?.status === "PENDING") return "Invite Pending";
+  if (invitation?.status === "EXPIRED") return "Invite Expired";
+  if (invitation?.status === "REVOKED") return "Invite Revoked";
+  return "No Account";
+}
+
+function staffRoleRank(role: StaffBaseballRole) {
+  return STAFF_BASEBALL_ROLES.indexOf(role) >= 0 ? STAFF_BASEBALL_ROLES.indexOf(role) : STAFF_BASEBALL_ROLES.length;
+}
+
+function staffTeamLabel(staffMemberId: ID, memberships: StaffTeamMembership[], teams: TeamOption[]) {
+  const teamNames = memberships
+    .filter((membership) => membership.staffMemberId === staffMemberId && membership.active)
+    .map((membership) => teams.find((team) => team.teamId === membership.teamId)?.teamLevel ?? teams.find((team) => team.teamId === membership.teamId)?.teamName ?? "Team")
+    .filter((name, index, names) => names.indexOf(name) === index);
+  return teamNames.join(", ") || "Team";
+}
+
+function initialsFor(value: string) {
+  return value
+    .split(/\s|@/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "ST";
 }
 
 function RosterSortButton({
@@ -3364,6 +3760,317 @@ type ManualRosterRow = {
   rosterStatus: RosterStatus;
 };
 
+type StaffMemberUpdateInput = {
+  staffMemberId: ID;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
+  memberships: Array<{
+    teamId: ID;
+    seasonId?: ID;
+    baseballRole: StaffBaseballRole;
+    accessRole: StaffAccessRole;
+  }>;
+};
+
+function InviteStaffModal({
+  teams,
+  currentTeam,
+  onClose,
+  onInvite,
+}: {
+  teams: TeamOption[];
+  currentTeam?: TeamOption;
+  onClose: () => void;
+  onInvite: (input: {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    staffRole: StaffBaseballRole;
+    accessRole: StaffAccessRole;
+    teams: Array<{ teamId: string; seasonId?: string }>;
+  }) => Promise<{ invitation?: StaffInvitation; email?: { sent: boolean; message?: string; reason?: string } }>;
+}) {
+  const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [staffRole, setStaffRole] = useState<StaffBaseballRole>("Assistant Coach");
+  const [accessRole, setAccessRole] = useState<StaffAccessRole>("COACH");
+  const [selectedTeams, setSelectedTeams] = useState<string[]>(() => currentTeam ? [teamSelectionKey(currentTeam)] : []);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [inviteLink, setInviteLink] = useState("");
+  const uniqueTeams = teams.filter((team, index, list) => list.findIndex((item) => teamSelectionKey(item) === teamSelectionKey(team)) === index);
+
+  async function submitInvite(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    setInviteLink("");
+    const assignedTeams = selectedTeams
+      .map((key) => uniqueTeams.find((team) => teamSelectionKey(team) === key))
+      .filter((team): team is TeamOption => Boolean(team));
+    if (!email.trim() || assignedTeams.length === 0) {
+      setMessage("Enter an email and choose at least one team.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await onInvite({
+        email: email.trim(),
+        firstName: firstName.trim() || undefined,
+        lastName: lastName.trim() || undefined,
+        staffRole,
+        accessRole,
+        teams: assignedTeams.map((team) => ({ teamId: team.teamId, seasonId: team.seasonId })),
+      });
+      const link = result.invitation?.inviteLink ?? "";
+      setInviteLink(link);
+      setMessage(result.email?.sent ? "Invite sent." : result.email?.message ?? "Invite created. Copy the link to send it manually.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to invite staff.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyLink() {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setMessage("Invite link copied.");
+    } catch {
+      setMessage(inviteLink);
+    }
+  }
+
+  function toggleTeam(key: string) {
+    setSelectedTeams((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+  }
+
+  return (
+    <ModalFrame title="Invite Staff" onClose={onClose} panelClassName="modal-panel--staff">
+      <form className="staff-invite-form" onSubmit={(event) => void submitInvite(event)}>
+        <div className="staff-invite-grid">
+          <label className="form-field">
+            <span>Email</span>
+            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="coach@example.com" autoComplete="email" />
+          </label>
+          <label className="form-field">
+            <span>First name</span>
+            <input value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" />
+          </label>
+          <label className="form-field">
+            <span>Last name</span>
+            <input value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" />
+          </label>
+          <div className="form-field">
+            <span>Staff role</span>
+            <ChoiceSelect
+              value={staffRole}
+              className="form-choice"
+              options={STAFF_BASEBALL_ROLES.map((role) => ({ value: role, label: role }))}
+              onChange={(value) => setStaffRole(value as StaffBaseballRole)}
+              aria-label="Staff role"
+            />
+          </div>
+          <div className="form-field">
+            <span>Application access</span>
+            <ChoiceSelect
+              value={accessRole}
+              className="form-choice"
+              options={STAFF_ACCESS_ROLES.map((role) => ({ value: role, label: role === "ADMIN" ? "Admin" : "Coach" }))}
+              onChange={(value) => setAccessRole(value as StaffAccessRole)}
+              aria-label="Application access"
+            />
+          </div>
+        </div>
+
+        <section className="staff-team-picker" aria-label="Staff teams">
+          {uniqueTeams.map((team) => {
+            const key = teamSelectionKey(team);
+            return (
+              <button
+                key={key}
+                type="button"
+                className={selectedTeams.includes(key) ? "active" : ""}
+                onClick={() => toggleTeam(key)}
+              >
+                <Check size={15} aria-hidden="true" />
+                <span>
+                  <strong>{team.teamLevel ?? team.teamName}</strong>
+                  <small>{team.teamName} - {team.seasonName ?? "Current season"}</small>
+                </span>
+              </button>
+            );
+          })}
+        </section>
+
+        {message && <p className="staff-invite-message">{message}</p>}
+        {inviteLink && (
+          <div className="staff-invite-link">
+            <span>{inviteLink}</span>
+            <button className="secondary-button" type="button" onClick={() => void copyLink()}>
+              <Copy size={15} aria-hidden="true" />
+              Copy Link
+            </button>
+          </div>
+        )}
+
+        <div className="modal-actions">
+          <button className="secondary-button" type="button" onClick={onClose}>Close</button>
+          <button className="primary-button" type="submit" disabled={busy || !email.trim() || selectedTeams.length === 0}>
+            {busy ? "Creating..." : "Send Invite"}
+          </button>
+        </div>
+      </form>
+    </ModalFrame>
+  );
+}
+
+function EditStaffModal({
+  member,
+  memberships,
+  teams,
+  onClose,
+  onSave,
+}: {
+  member: StaffMember;
+  memberships: StaffTeamMembership[];
+  teams: TeamOption[];
+  onClose: () => void;
+  onSave: (input: StaffMemberUpdateInput) => Promise<void>;
+}) {
+  const primaryMembership = memberships[0];
+  const [email, setEmail] = useState(member.email ?? "");
+  const [firstName, setFirstName] = useState(member.firstName ?? "");
+  const [lastName, setLastName] = useState(member.lastName ?? "");
+  const [displayName, setDisplayName] = useState(member.displayName ?? "");
+  const [staffRole, setStaffRole] = useState<StaffBaseballRole>(primaryMembership?.baseballRole ?? "Assistant Coach");
+  const [accessRole, setAccessRole] = useState<StaffAccessRole>(primaryMembership?.accessRole ?? "COACH");
+  const [selectedTeams, setSelectedTeams] = useState<string[]>(() => memberships.map((membership) => `${membership.teamId}:${membership.seasonId ?? ""}`));
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const uniqueTeams = teams.filter((team, index, list) => list.findIndex((item) => teamSelectionKey(item) === teamSelectionKey(team)) === index);
+
+  function toggleTeam(key: string) {
+    setSelectedTeams((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+  }
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    const assignedTeams = selectedTeams
+      .map((key) => uniqueTeams.find((team) => teamSelectionKey(team) === key))
+      .filter((team): team is TeamOption => Boolean(team));
+    const resolvedDisplayName = displayName.trim() || [firstName.trim(), lastName.trim()].filter(Boolean).join(" ") || email.trim() || "Staff Member";
+    setBusy(true);
+    try {
+      await onSave({
+        staffMemberId: member.id,
+        email: email.trim() || undefined,
+        firstName: firstName.trim() || undefined,
+        lastName: lastName.trim() || undefined,
+        displayName: resolvedDisplayName,
+        memberships: assignedTeams.map((team) => ({
+          teamId: team.teamId,
+          seasonId: team.seasonId,
+          baseballRole: staffRole,
+          accessRole,
+        })),
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to update staff.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <ModalFrame title="Edit Staff" onClose={onClose} panelClassName="modal-panel--staff">
+      <form className="staff-invite-form" onSubmit={(event) => void submit(event)}>
+        <div className="staff-invite-grid">
+          <label className="form-field">
+            <span>Email</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              disabled={Boolean(member.profileId)}
+              placeholder="coach@example.com"
+              autoComplete="email"
+            />
+          </label>
+          <label className="form-field">
+            <span>First name</span>
+            <input value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" />
+          </label>
+          <label className="form-field">
+            <span>Last name</span>
+            <input value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" />
+          </label>
+          <label className="form-field">
+            <span>Display name</span>
+            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
+          </label>
+          <div className="form-field">
+            <span>Staff role</span>
+            <ChoiceSelect
+              value={staffRole}
+              className="form-choice"
+              options={STAFF_BASEBALL_ROLES.map((role) => ({ value: role, label: role }))}
+              onChange={(value) => setStaffRole(value as StaffBaseballRole)}
+              aria-label="Staff role"
+            />
+          </div>
+          <div className="form-field">
+            <span>Application access</span>
+            <ChoiceSelect
+              value={accessRole}
+              className="form-choice"
+              options={STAFF_ACCESS_ROLES.map((role) => ({ value: role, label: role === "ADMIN" ? "Admin" : "Coach" }))}
+              onChange={(value) => setAccessRole(value as StaffAccessRole)}
+              aria-label="Application access"
+            />
+          </div>
+        </div>
+
+        <section className="staff-team-picker" aria-label="Staff teams">
+          {uniqueTeams.map((team) => {
+            const key = teamSelectionKey(team);
+            return (
+              <button
+                key={key}
+                type="button"
+                className={selectedTeams.includes(key) ? "active" : ""}
+                onClick={() => toggleTeam(key)}
+              >
+                <Check size={15} aria-hidden="true" />
+                <span>
+                  <strong>{team.teamLevel ?? team.teamName}</strong>
+                  <small>{team.teamName} - {team.seasonName ?? "Current season"}</small>
+                </span>
+              </button>
+            );
+          })}
+        </section>
+
+        {message && <p className="staff-invite-message">{message}</p>}
+        <div className="modal-actions">
+          <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
+          <button className="primary-button" type="submit" disabled={busy}>
+            {busy ? "Saving..." : "Save Staff"}
+          </button>
+        </div>
+      </form>
+    </ModalFrame>
+  );
+}
+
+function teamSelectionKey(team: TeamOption) {
+  return `${team.teamId}:${team.seasonId ?? ""}`;
+}
+
 function RosterImportModal({
   data,
   onClose,
@@ -3386,6 +4093,7 @@ function RosterImportModal({
   const [assignments, setAssignments] = useState<Record<ID, { teamId: ID; mode: RosterImportMode; defaultRosterStatus: RosterStatus; replaceConfirmed: boolean }>>({});
   const [teamDrafts, setTeamDrafts] = useState<Record<ID, { teamName: string; teamLevel: string; seasonName: string; busy?: boolean; error?: string }>>({});
   const [resolutions, setResolutions] = useState<Record<string, { decision: RosterImportDecision; matchedPlayerId?: ID }>>({});
+  const [staffSelections, setStaffSelections] = useState<Record<ID, boolean>>({});
   const [openImportChoice, setOpenImportChoice] = useState<string | null>(null);
   const availableTeams = data.teamContext?.availableTeams ?? [];
   const fallbackTeam = data.teamContext?.currentTeam ?? availableTeams[0];
@@ -3418,6 +4126,7 @@ function RosterImportModal({
         ...basePlan,
         files: basePlan.files.map((file) => ({
           ...file,
+          staff: staffSelections[file.sourceId] ? file.staff : [],
           rows: file.rows.map((row) => {
             const resolution = resolutions[`${file.sourceId}:${row.id}`];
             return resolution ? { ...row, decision: resolution.decision, matchedPlayerId: resolution.matchedPlayerId ?? row.matchedPlayerId } : row;
@@ -3500,6 +4209,13 @@ function RosterImportModal({
         }),
       );
       setFiles((current) => current.map((file) => parsed.find((item) => item.id === file.id) ?? file));
+      setStaffSelections((current) => {
+        const next = { ...current };
+        parsed.forEach((file) => {
+          if (file.staff.length > 0 && next[file.id] === undefined) next[file.id] = true;
+        });
+        return next;
+      });
       setAssignments((current) => {
         const next = { ...current };
         parsed.filter((file) => file.parseStatus !== "error" && file.rows.length > 0).forEach((file) => {
@@ -3531,6 +4247,7 @@ function RosterImportModal({
       const parsed = await parseImportFile(file, sourceId);
       setFiles((current) => current.map((item) => (item.id === sourceId ? parsed : item)));
       if (parsed.parseStatus !== "error" && parsed.rows.length > 0) {
+        setStaffSelections((current) => ({ ...current, [sourceId]: parsed.staff.length > 0 }));
         setAssignments((current) => {
           const suggested = suggestTeamForFile(parsed, availableTeams, fallbackTeam);
           if (!suggested) return current;
@@ -3568,6 +4285,11 @@ function RosterImportModal({
       return next;
     });
     setResolutions((current) => Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${sourceId}:`))));
+    setStaffSelections((current) => {
+      const next = { ...current };
+      delete next[sourceId];
+      return next;
+    });
   }
 
   function updateManualRow(rowId: ID, patch: Partial<ManualRosterRow>) {
@@ -3994,10 +4716,18 @@ function RosterImportModal({
                     <span>Remove {file.removeCount}</span>
                   </div>
                 </div>
-                {file.staff.length > 0 && (
-                  <div className="staff-detected">
-                    <strong>Staff detected</strong>
-                    <span>{file.staff.map((staff) => `${staff.name} - ${staff.role}`).join("; ")}</span>
+                {((files.find((source) => source.id === file.sourceId)?.staff ?? file.staff).length > 0) && (
+                  <div className="staff-detected staff-detected--selectable">
+                    <input
+                      type="checkbox"
+                      aria-label={`Add detected staff from ${file.fileName} to team`}
+                      checked={Boolean(staffSelections[file.sourceId])}
+                      onChange={(event) => setStaffSelections((current) => ({ ...current, [file.sourceId]: event.target.checked }))}
+                    />
+                    <span>
+                      <strong>Add detected staff to team</strong>
+                      <em>{(files.find((source) => source.id === file.sourceId)?.staff ?? file.staff).map((staff) => `${staff.name} - ${staff.role}`).join("; ")}</em>
+                    </span>
                   </div>
                 )}
                 <div className="import-preview__head import-preview__head--wide">
