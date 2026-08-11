@@ -1897,6 +1897,11 @@ textarea:focus-visible {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
+.team-card-grid--compact {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+}
+
 .global-two-column,
 .discover-grid {
   display: grid;
@@ -1915,7 +1920,7 @@ textarea:focus-visible {
 .organization-card,
 .team-workspace-card {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   text-align: left;
 }
 
@@ -1947,6 +1952,33 @@ textarea:focus-visible {
   color: var(--text);
   font: inherit;
   cursor: pointer;
+}
+
+.team-workspace-card--compact {
+  min-height: 94px;
+  padding: 12px;
+}
+
+.team-workspace-card__top--follow {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.team-card-main-button {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.team-card-main-button:hover strong {
+  color: var(--burgundy-strong);
 }
 
 .team-workspace-card:hover,
@@ -2045,6 +2077,39 @@ textarea:focus-visible {
   color: var(--muted-strong);
 }
 
+.follow-heart {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--muted-strong);
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.follow-heart:hover,
+.follow-heart:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy) 45%, var(--line));
+  color: var(--burgundy-strong);
+  background: var(--burgundy-soft);
+}
+
+.follow-heart--active {
+  color: var(--burgundy-strong);
+  border-color: color-mix(in srgb, var(--burgundy) 38%, var(--line));
+  background: var(--burgundy-soft);
+}
+
+.follow-heart--locked {
+  cursor: default;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel-soft) 70%, transparent);
+}
+
 .card-action-row {
   display: flex;
   align-items: center;
@@ -2067,6 +2132,12 @@ textarea:focus-visible {
   gap: 10px;
 }
 
+.team-mini-row--follow {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
 .team-mini-row > button {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) auto;
@@ -2078,6 +2149,18 @@ textarea:focus-visible {
   padding: 0;
   text-align: left;
   cursor: pointer;
+}
+
+.team-mini-row__main {
+  width: 100%;
+}
+
+.team-mini-row--follow > .team-mini-row__main {
+  grid-template-columns: 36px minmax(0, 1fr);
+}
+
+.team-mini-row__main:hover strong {
+  color: var(--burgundy-strong);
 }
 
 .global-discover-search {

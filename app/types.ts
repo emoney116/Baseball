@@ -321,6 +321,32 @@ export interface ProfileFollow {
   createdAt: string;
 }
 
+export interface PublicDirectoryTeamSummary {
+  id: ID;
+  organizationId: ID;
+  organizationName: string;
+  organizationSlug?: string;
+  name: string;
+  level?: string;
+  seasonId?: ID;
+  seasonName?: string;
+  city?: string;
+  state?: string;
+  visibility: "PUBLIC" | "UNLISTED" | "PRIVATE";
+  active: boolean;
+}
+
+export interface PublicDirectoryOrganizationSummary {
+  id: ID;
+  name: string;
+  slug?: string;
+  city?: string;
+  state?: string;
+  logoUrl?: string;
+  visibility: "PUBLIC" | "UNLISTED" | "PRIVATE";
+  teams: PublicDirectoryTeamSummary[];
+}
+
 export interface Practice {
   id: ID;
   date: string;
@@ -615,6 +641,8 @@ export interface AppData {
   staffTeamMemberships?: StaffTeamMembership[];
   staffInvitations?: StaffInvitation[];
   profileFollows?: ProfileFollow[];
+  publicOrganizations?: PublicDirectoryOrganizationSummary[];
+  publicTeams?: PublicDirectoryTeamSummary[];
   rosterImports?: RosterImportRecord[];
   practices: Practice[];
   attendance: PracticeAttendance[];

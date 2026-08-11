@@ -19,6 +19,8 @@ import type {
   PlateAppearance,
   Player,
   ProfileFollow,
+  PublicDirectoryOrganizationSummary,
+  PublicDirectoryTeamSummary,
   PlayerTeamMembership,
   Practice,
   PracticeAttendance,
@@ -697,7 +699,10 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
   const goalsRows = (goalsResult.data ?? []).filter((row: any) => playerIdsSet.has(row.player_id));
   const rosterImports = await loadRosterImports(supabase, foundation);
   const staffData = await loadStaffData(supabase, foundation);
-  const profileFollows = await loadProfileFollows(supabase, foundation.teamContext.profile?.id);
+  const [profileFollows, publicDirectory] = await Promise.all([
+    loadProfileFollows(supabase, foundation.teamContext.profile?.id),
+    loadPublicDirectory(),
+  ]);
 
   return {
     teamContext: foundation.teamContext,
@@ -707,6 +712,8 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     staffTeamMemberships: staffData.staffTeamMemberships,
     staffInvitations: staffData.staffInvitations,
     profileFollows,
+    publicOrganizations: publicDirectory.organizations,
+    publicTeams: publicDirectory.teams,
     practices,
     attendance: attendanceRows.map(mapAttendance),
     pitchingSessions: sessionRows.filter((row: any) => row.category === "pitching").map(mapPitchingSession),
@@ -777,6 +784,25 @@ async function loadProfileFollows(supabase: SupabaseClient, profileId?: string):
     throw new PersistenceError("load-failed", error.message);
   }
   return (data ?? []).map(mapProfileFollow);
+}
+
+async function loadPublicDirectory(): Promise<{ organizations: PublicDirectoryOrganizationSummary[]; teams: PublicDirectoryTeamSummary[] }> {
+  if (typeof window === "undefined") return { organizations: [], teams: [] };
+  try {
+    const response = await fetch("/api/public-directory", { credentials: "include" });
+    const payload = (await response.json().catch(() => ({}))) as {
+      ok?: boolean;
+      organizations?: PublicDirectoryOrganizationSummary[];
+      teams?: PublicDirectoryTeamSummary[];
+    };
+    if (!response.ok || !payload.ok) return { organizations: [], teams: [] };
+    return {
+      organizations: payload.organizations ?? [],
+      teams: payload.teams ?? [],
+    };
+  } catch {
+    return { organizations: [], teams: [] };
+  }
 }
 
 async function loadRosterImports(supabase: SupabaseClient, foundation: Foundation): Promise<RosterImportRecord[]> {
