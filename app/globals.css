@@ -159,6 +159,25 @@ textarea:focus-visible {
   color: var(--text);
 }
 
+.auth-link-button {
+  min-height: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.auth-link-button:hover,
+.auth-link-button:focus-visible {
+  color: var(--text);
+}
+
+.auth-link-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .auth-name-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

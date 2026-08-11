@@ -1414,6 +1414,23 @@ function AuthGate({
     }
   }
 
+  async function sendPasswordReset() {
+    if (!email) {
+      setMessage("Enter your email first.");
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      await authRepository.resetPassword(email);
+      setMessage("Password reset email sent.");
+    } catch (resetError) {
+      setMessage(resetError instanceof Error ? resetError.message : "Unable to send password reset email.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function signOut() {
     setBusy(true);
     await authRepository.signOut();
@@ -1472,6 +1489,11 @@ function AuthGate({
             <button className="primary-button stretch-button" type="submit" disabled={busy || !email || !password || (mode === "signup" && (!firstName || !lastName || !confirmPassword))}>
               {busy ? "Working..." : mode === "login" ? "Sign In" : "Create Account"}
             </button>
+            {mode === "login" && (
+              <button className="auth-link-button" type="button" onClick={() => void sendPasswordReset()} disabled={busy || !email}>
+                Forgot password?
+              </button>
+            )}
           </form>
         </>
       )}
