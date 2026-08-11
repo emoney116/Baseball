@@ -62,6 +62,7 @@ declare
   profile_role_team_authorization_applied boolean;
   staff_invitations_applied boolean;
   staff_invitation_acceptance_fix_applied boolean;
+  staff_invitation_conflict_target_fix_applied boolean;
   seeded_foundation boolean;
   seeded_team_views boolean;
   admin_profiles_without_org_membership integer;
@@ -178,6 +179,16 @@ begin
 
   if not staff_invitation_acceptance_fix_applied then
     raise exception 'Staff invitation acceptance fix migration 20260811141000 is not applied.';
+  end if;
+
+  select exists (
+    select 1
+    from supabase_migrations.schema_migrations
+    where version = '20260811145000'
+  ) into staff_invitation_conflict_target_fix_applied;
+
+  if not staff_invitation_conflict_target_fix_applied then
+    raise exception 'Staff invitation acceptance conflict-target fix migration 20260811145000 is not applied.';
   end if;
 
   select array_agg(table_name order by table_name)
@@ -319,6 +330,7 @@ select 'staff title authorization normalization migration applied' as check_name
 select 'profile role plus team membership authorization migration applied' as check_name, 'pass' as result;
 select 'staff invitations migration applied' as check_name, 'pass' as result;
 select 'staff invitation acceptance fix migration applied' as check_name, 'pass' as result;
+select 'staff invitation acceptance conflict-target fix migration applied' as check_name, 'pass' as result;
 select 'expected tables exist' as check_name, count(*)::text as verified_count
 from unnest(array[
   'organizations', 'teams', 'seasons', 'profiles', 'organization_memberships', 'profile_team_memberships',
