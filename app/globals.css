@@ -6,6 +6,8 @@
   --panel: #1a2029;
   --panel-strong: #202834;
   --panel-soft: #171d25;
+  --surface: var(--panel);
+  --surface-2: var(--panel-soft);
   --line: rgba(205, 213, 224, 0.09);
   --line-strong: rgba(205, 213, 224, 0.16);
   --text: #f5f7fa;
