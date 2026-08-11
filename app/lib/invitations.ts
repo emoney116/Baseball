@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { requestSiteUrl } from "./siteUrl";
 
 export const STAFF_INVITE_LIFETIME_DAYS = Number(process.env.STAFF_INVITE_LIFETIME_DAYS ?? 7);
 
@@ -15,11 +16,5 @@ export function inviteExpiresAt(days = STAFF_INVITE_LIFETIME_DAYS) {
 }
 
 export function buildInviteUrl(request: Request, token: string) {
-  const configuredOrigin = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  const origin = configuredOrigin
-    ? configuredOrigin.startsWith("http")
-      ? configuredOrigin
-      : `https://${configuredOrigin}`
-    : new URL(request.url).origin;
-  return `${origin.replace(/\/$/, "")}/join/${encodeURIComponent(token)}`;
+  return `${requestSiteUrl(request)}/join/${encodeURIComponent(token)}`;
 }

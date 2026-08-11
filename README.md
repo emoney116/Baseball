@@ -29,7 +29,15 @@ Metrolina logos and names remain organization/team-specific data inside the prod
 
 ## Required Environment Variables
 
-These must be configured in Vercel for Production, Preview, and Development:
+This public value should be configured in Vercel Production:
+
+```bash
+NEXT_PUBLIC_SITE_URL=https://clubhouse9sports.com
+```
+
+`NEXT_PUBLIC_SITE_URL` is the canonical production origin used for metadata, staff invitation links, and Supabase auth email redirects. In preview/local environments, leave it unset unless you intentionally want generated links to point at a fixed origin.
+
+These public Supabase values must be configured in Vercel for Production, Preview, and Development:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=

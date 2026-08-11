@@ -5,6 +5,8 @@ import test from "node:test";
 test("staff invitation migration keeps tokens hashed and authorization server-side", () => {
   const migration = readFileSync("supabase/migrations/20260811000000_staff_invitations.sql", "utf8");
   const createRoute = readFileSync("app/api/staff/invitations/route.ts", "utf8");
+  const invitations = readFileSync("app/lib/invitations.ts", "utf8");
+  const siteUrl = readFileSync("app/lib/siteUrl.ts", "utf8");
   const acceptRoute = readFileSync("app/api/staff/invitations/accept/route.ts", "utf8");
   const lookupRoute = readFileSync("app/api/staff/invitations/lookup/route.ts", "utf8");
   const memberRoute = readFileSync("app/api/staff/members/[staffMemberId]/route.ts", "utf8");
@@ -23,6 +25,10 @@ test("staff invitation migration keeps tokens hashed and authorization server-si
   assert.match(createRoute, /createInviteToken/);
   assert.match(createRoute, /hashInviteToken\(token\)/);
   assert.match(createRoute, /sendStaffInviteEmail/);
+  assert.match(invitations, /requestSiteUrl/);
+  assert.doesNotMatch(invitations, /NEXT_PUBLIC_APP_URL|VERCEL_PROJECT_PRODUCTION_URL/);
+  assert.match(siteUrl, /NEXT_PUBLIC_SITE_URL/);
+  assert.match(siteUrl, /https:\/\/clubhouse9sports\.com/);
   assert.match(acceptRoute, /accept_staff_invitation/);
   assert.match(lookupRoute, /readInvitationSummaryByHash/);
   assert.match(memberRoute, /canAdminStaffTeam/);

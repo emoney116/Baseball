@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
 import type React from "react";
 import { APP_DESCRIPTION, APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
+import { absoluteUrl, productionSiteUrl } from "./lib/siteUrl";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(productionSiteUrl()),
   title: APP_NAME,
   applicationName: APP_NAME,
   description: APP_DESCRIPTION,
+  alternates: {
+    canonical: absoluteUrl("/"),
+  },
   icons: {
     icon: [
       { url: BRAND_ASSETS.icon32, sizes: "32x32", type: "image/png" },

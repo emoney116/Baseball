@@ -35,6 +35,7 @@ import type {
   WorkoutSession,
 } from "../types";
 import { APP_NAME } from "../lib/branding";
+import { absoluteUrl, browserSiteUrl } from "../lib/siteUrl";
 import { createClient } from "../lib/supabase/client";
 
 const ORGANIZATION_SLUG = "metrolina-christian-academy";
@@ -120,7 +121,7 @@ export const authRepository = {
         : emailOrInput;
     const supabase = createClient();
     const displayName = [input.firstName, input.lastName].filter(Boolean).join(" ").trim() || input.email;
-    const redirectTo = typeof window !== "undefined" ? window.location.origin : undefined;
+    const redirectTo = absoluteUrl("/", browserSiteUrl());
     const { data, error } = await supabase.auth.signUp({
       email: input.email,
       password: input.password,
@@ -141,6 +142,13 @@ export const authRepository = {
   async signOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
+  },
+
+  async resetPassword(email: string) {
+    const supabase = createClient();
+    const redirectTo = absoluteUrl("/", browserSiteUrl());
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw new PersistenceError("auth-required", error.message);
   },
 
   async getBootstrapStatus(): Promise<BootstrapStatus> {
