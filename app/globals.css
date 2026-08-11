@@ -591,6 +591,10 @@ textarea:focus-visible {
   position: sticky;
   top: 0;
   height: 100dvh;
+  max-height: 100dvh;
+  align-self: start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px 12px;
   border-right: 1px solid var(--line);
   background: var(--sidebar);
@@ -2023,12 +2027,14 @@ textarea:focus-visible {
 
 .organization-team-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(230px, 320px));
+  justify-content: start;
   gap: 12px;
 }
 
 .organization-team-grid--summary {
   grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
 }
 
 .organization-grid {
@@ -2078,6 +2084,28 @@ textarea:focus-visible {
   grid-template-columns: 40px minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
+}
+
+.organization-team-card__header--actionable {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.organization-team-card__main {
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.organization-team-card__main:hover strong {
+  color: var(--brand-light);
 }
 
 .organization-team-card__header strong,

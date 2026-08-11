@@ -39,7 +39,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BaseballField, DonutChart, Heatmap, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
@@ -285,6 +285,8 @@ export default function MetrolinaBaseballApp() {
   const [staffActionMessage, setStaffActionMessage] = useState("");
   const [topAccountMenuOpen, setTopAccountMenuOpen] = useState(false);
   const [sidebarAccountMenuOpen, setSidebarAccountMenuOpen] = useState(false);
+  const lastGlobalRefreshRef = useRef(0);
+  const searchInTeamContext = TEAM_CONTEXT_VIEWS.has(view);
 
   useTeamBrowserBrand(data?.teamContext?.currentTeam);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
@@ -309,11 +311,32 @@ export default function MetrolinaBaseballApp() {
     document.documentElement.dataset.theme = data.settings.theme;
   }, [data, hydrated]);
 
+  useEffect(() => {
+    if (authState.status !== "authenticated") return;
+
+    const refreshOnReturn = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (searchInTeamContext) return;
+      void refreshGlobalData();
+    };
+
+    window.addEventListener("focus", refreshOnReturn);
+    window.addEventListener("pageshow", refreshOnReturn);
+    document.addEventListener("visibilitychange", refreshOnReturn);
+
+    return () => {
+      window.removeEventListener("focus", refreshOnReturn);
+      window.removeEventListener("pageshow", refreshOnReturn);
+      document.removeEventListener("visibilitychange", refreshOnReturn);
+    };
+  // Keep the listener tied to the current global/team context without re-registering on every data refresh.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authState.status, searchInTeamContext, data?.teamContext?.currentTeam?.teamId, data?.teamContext?.currentTeam?.seasonId]);
+
   const practice = data ? activePractice(data) : undefined;
   const selectedPlayer = data?.players.find((player) => player.id === selectedPlayerId) ?? data?.players[0];
   const practicePlayer = data?.players.find((player) => player.id === practicePlayerId) ?? selectedPlayer;
   const currentGame = data?.games.find((game) => game.id === selectedGameId) ?? data?.games[0];
-  const searchInTeamContext = TEAM_CONTEXT_VIEWS.has(view);
   const rosterPlayers = uniquePlayers(data?.players.filter((player) => !player.archived) ?? []);
 
   const globalResults = useMemo<GlobalSearchResults>(() => {
@@ -375,8 +398,9 @@ export default function MetrolinaBaseballApp() {
     isCancelled: () => boolean = () => false,
     selectedTeamId?: ID,
     selectedSeasonId?: ID,
+    options: { silent?: boolean } = {},
   ) {
-    setHydrated(false);
+    if (!options.silent) setHydrated(false);
     setLoadError(null);
     setSaveError(null);
 
@@ -418,7 +442,7 @@ export default function MetrolinaBaseballApp() {
     } catch (error) {
       if (isCancelled()) return;
       setLoadError(error instanceof Error ? error : new Error(`Unable to load ${APP_NAME} data.`));
-      setData(null);
+      if (!options.silent) setData(null);
       setHydrated(true);
     }
   }
@@ -507,6 +531,14 @@ export default function MetrolinaBaseballApp() {
   async function reloadCurrentTeam() {
     const current = data?.teamContext?.currentTeam;
     await loadApplicationData(() => false, current?.teamId, current?.seasonId);
+  }
+
+  async function refreshGlobalData() {
+    const now = Date.now();
+    if (now - lastGlobalRefreshRef.current < 900) return;
+    lastGlobalRefreshRef.current = now;
+    const current = data?.teamContext?.currentTeam;
+    await loadApplicationData(() => false, current?.teamId, current?.seasonId, { silent: true });
   }
 
   async function inviteStaff(input: {
@@ -609,11 +641,20 @@ export default function MetrolinaBaseballApp() {
     setTopAccountMenuOpen(false);
     setSidebarAccountMenuOpen(false);
     setView("home");
+    void refreshGlobalData();
   }
 
   function openOrganization() {
     setGlobalQuery("");
     setView("organizations");
+    void refreshGlobalData();
+  }
+
+  function goToView(nextView: ViewKey) {
+    setView(nextView);
+    if ([...GLOBAL_NAV_ITEMS.map((item) => item.key), "organizations", "following", "discover"].includes(nextView)) {
+      void refreshGlobalData();
+    }
   }
 
   function openPublicOrganization(organization: PublicDirectoryOrganizationSummary) {
@@ -1133,7 +1174,7 @@ export default function MetrolinaBaseballApp() {
 
         <nav className="rail-nav">
           {sidebarItems.map(({ key, label, icon: Icon }) => (
-            <button key={key} type="button" className={view === key ? "active" : ""} onClick={() => setView(key)}>
+            <button key={key} type="button" className={view === key ? "active" : ""} onClick={() => goToView(key)}>
               <Icon size={18} aria-hidden="true" />
               <span>{label}</span>
             </button>
@@ -1189,9 +1230,10 @@ export default function MetrolinaBaseballApp() {
             data={data}
             onEnterTeam={enterTeam}
             onOpenPublicTeam={openPublicTeam}
+            onOpenPublicOrganization={openPublicOrganization}
             onTogglePublicTeamFollow={togglePublicTeamFollow}
             onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
-            onView={setView}
+            onView={goToView}
           />
         )}
 
@@ -1214,6 +1256,7 @@ export default function MetrolinaBaseballApp() {
             data={data}
             onEnterTeam={enterTeam}
             onOpenPublicTeam={openPublicTeam}
+            onOpenPublicOrganization={openPublicOrganization}
             onTogglePublicTeamFollow={togglePublicTeamFollow}
             onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
           />
@@ -2273,6 +2316,7 @@ function ClubhouseHome({
   data,
   onEnterTeam,
   onOpenPublicTeam,
+  onOpenPublicOrganization,
   onTogglePublicTeamFollow,
   onTogglePublicOrganizationFollow,
   onView,
@@ -2280,6 +2324,7 @@ function ClubhouseHome({
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
+  onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
   onView: (view: ViewKey) => void;
@@ -2333,6 +2378,7 @@ function ClubhouseHome({
             data={data}
             onEnterTeam={onEnterTeam}
             onOpenPublicTeam={onOpenPublicTeam}
+            onOpenPublicOrganization={onOpenPublicOrganization}
             onTogglePublicTeamFollow={onTogglePublicTeamFollow}
             onTogglePublicOrganizationFollow={onTogglePublicOrganizationFollow}
           />
@@ -2407,12 +2453,14 @@ function FollowingView({
   data,
   onEnterTeam,
   onOpenPublicTeam,
+  onOpenPublicOrganization,
   onTogglePublicTeamFollow,
   onTogglePublicOrganizationFollow,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
+  onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
 }) {
@@ -2442,6 +2490,7 @@ function FollowingView({
                   organization={organization}
                   followed={isFollowingOrganization(data.profileFollows ?? [], organization.id)}
                   onOpenTeam={onOpenPublicTeam}
+                  onOpenOrganization={onOpenPublicOrganization}
                   onToggleTeamFollow={onTogglePublicTeamFollow}
                   onToggleOrganizationFollow={onTogglePublicOrganizationFollow}
                 />
@@ -2638,23 +2687,27 @@ function PublicOrganizationFollowCard({
   organization,
   followed,
   onOpenTeam,
+  onOpenOrganization,
   onToggleTeamFollow,
   onToggleOrganizationFollow,
 }: {
   organization: PublicDirectoryOrganizationSummary;
   followed: boolean;
   onOpenTeam: (team: PublicDirectoryTeamSummary) => void;
+  onOpenOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onToggleTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onToggleOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
 }) {
   return (
     <article className="panel organization-team-card">
-      <div className="organization-team-card__header">
-        <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
-        <span>
-          <strong>{organization.name}</strong>
-          <small>{organizationLocation(organization) || `${organization.teams.length} teams`}</small>
-        </span>
+      <div className="organization-team-card__header organization-team-card__header--actionable">
+        <button className="organization-team-card__main" type="button" onClick={() => onOpenOrganization(organization)}>
+          <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
+          <span>
+            <strong>{organization.name}</strong>
+            <small>{organizationLocation(organization) || `${organization.teams.length} teams`}</small>
+          </span>
+        </button>
         <FollowButton
           followed={followed}
           label={followed ? `Unfollow ${organization.name}` : `Follow ${organization.name}`}
@@ -2795,12 +2848,14 @@ function FollowSummary({
   data,
   onEnterTeam,
   onOpenPublicTeam,
+  onOpenPublicOrganization,
   onTogglePublicTeamFollow,
   onTogglePublicOrganizationFollow,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
+  onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
 }) {
@@ -2818,6 +2873,7 @@ function FollowSummary({
           organization={organization}
           followed={isFollowingOrganization(data.profileFollows ?? [], organization.id)}
           onOpenTeam={onOpenPublicTeam}
+          onOpenOrganization={onOpenPublicOrganization}
           onToggleTeamFollow={onTogglePublicTeamFollow}
           onToggleOrganizationFollow={onTogglePublicOrganizationFollow}
         />
