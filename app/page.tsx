@@ -78,6 +78,7 @@ import {
 } from "./lib/stats";
 import type {
   AppData,
+  AppProfile,
   BattedBallType,
   CountState,
   DefenseEvent,
@@ -647,6 +648,28 @@ export default function MetrolinaBaseballApp() {
     }
   }
 
+  async function togglePublicOrganizationFollow(organization: PublicDirectoryOrganizationSummary) {
+    const followed = isFollowingOrganization(data?.profileFollows ?? [], organization.id);
+    setSaveStatus("saving");
+    setSaveError(null);
+    try {
+      const follow = !followed;
+      const result = await supabaseAppRepository.toggleFollow({ organizationId: organization.id, follow });
+      setData((current) => {
+        if (!current) return current;
+        const remaining = (current.profileFollows ?? []).filter((item) => item.organizationId !== organization.id);
+        return {
+          ...current,
+          profileFollows: follow && result ? [result, ...remaining] : remaining,
+        };
+      });
+      setSaveStatus("saved");
+    } catch (error) {
+      setSaveStatus("error");
+      setSaveError(error instanceof Error ? error.message : "Unable to update follow.");
+    }
+  }
+
   async function signOut() {
     setTopAccountMenuOpen(false);
     setSidebarAccountMenuOpen(false);
@@ -1167,6 +1190,7 @@ export default function MetrolinaBaseballApp() {
             onEnterTeam={enterTeam}
             onOpenPublicTeam={openPublicTeam}
             onTogglePublicTeamFollow={togglePublicTeamFollow}
+            onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
             onView={setView}
           />
         )}
@@ -1191,6 +1215,7 @@ export default function MetrolinaBaseballApp() {
             onEnterTeam={enterTeam}
             onOpenPublicTeam={openPublicTeam}
             onTogglePublicTeamFollow={togglePublicTeamFollow}
+            onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
           />
         )}
 
@@ -1201,6 +1226,7 @@ export default function MetrolinaBaseballApp() {
             onOpenPublicTeam={openPublicTeam}
             onOpenPublicOrganization={openPublicOrganization}
             onTogglePublicTeamFollow={togglePublicTeamFollow}
+            onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
           />
         )}
 
@@ -1374,7 +1400,7 @@ export default function MetrolinaBaseballApp() {
         )}
 
         {view === "account" && (
-          <AccountProfileView context={data.teamContext} onView={setView} onSignOut={signOut} onSave={saveAccountProfile} />
+          <AccountProfileView context={data.teamContext} onSignOut={signOut} onSave={saveAccountProfile} />
         )}
 
         {view === "profile" && selectedPlayer && (
@@ -2108,24 +2134,62 @@ function ProfileMenu({
 
 function AccountProfileView({
   context,
-  onView,
   onSignOut,
   onSave,
 }: {
   context?: TeamContext;
-  onView: (view: ViewKey) => void;
   onSignOut: () => void | Promise<void>;
   onSave: (input: { firstName?: string; lastName?: string; displayName?: string; avatarUrl?: string }) => Promise<void>;
 }) {
   const profile = context?.profile;
+  const initialDisplayName = preferredProfileDisplayName(profile);
   const [form, setForm] = useState({
     firstName: profile?.firstName ?? "",
     lastName: profile?.lastName ?? "",
-    displayName: profile?.displayName ?? "",
+    displayName: initialDisplayName,
     avatarUrl: profile?.avatarUrl ?? "",
   });
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [message, setMessage] = useState("");
+
+  async function handleAvatarChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setMessage("");
+    if (!file.type.startsWith("image/")) {
+      setStatus("error");
+      setMessage("Choose an image file.");
+      return;
+    }
+    if (file.size > 650_000) {
+      setStatus("error");
+      setMessage("Choose an image under 650 KB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const avatarUrl = typeof reader.result === "string" ? reader.result : "";
+      setForm((current) => ({ ...current, avatarUrl }));
+      setStatus("idle");
+    };
+    reader.onerror = () => {
+      setStatus("error");
+      setMessage("Unable to read that image.");
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function updateNameField(field: "firstName" | "lastName", value: string) {
+    setForm((current) => {
+      const next = { ...current, [field]: value };
+      const currentDefault = [current.firstName, current.lastName].filter(Boolean).join(" ").trim();
+      const nextDefault = [next.firstName, next.lastName].filter(Boolean).join(" ").trim();
+      if (!current.displayName || current.displayName === currentDefault || current.displayName === profile?.email) {
+        next.displayName = nextDefault;
+      }
+      return next;
+    });
+  }
 
   async function submitProfile(event: React.FormEvent) {
     event.preventDefault();
@@ -2155,7 +2219,10 @@ function AccountProfileView({
       />
       <section className="account-grid">
         <form className="panel account-card account-card--editable" onSubmit={submitProfile}>
-          <div className="account-avatar">{form.avatarUrl ? <img src={form.avatarUrl} alt="" /> : <span>{profileInitials(context)}</span>}</div>
+          <label className="account-avatar account-avatar--editable" aria-label="Change profile photo">
+            {form.avatarUrl ? <img src={form.avatarUrl} alt="" /> : <span>{profileInitials(context)}</span>}
+            <input type="file" accept="image/*" onChange={handleAvatarChange} />
+          </label>
           <div>
             <span>Coach Profile</span>
             <h2>{profileDisplayName(context)}</h2>
@@ -2164,21 +2231,16 @@ function AccountProfileView({
           <div className="profile-form-grid">
             <label className="form-field">
               <span>First name</span>
-              <input value={form.firstName} onChange={(event) => setForm({ ...form, firstName: event.target.value })} placeholder="Eric" />
+              <input value={form.firstName} onChange={(event) => updateNameField("firstName", event.target.value)} placeholder="Eric" />
             </label>
             <label className="form-field">
               <span>Last name</span>
-              <input value={form.lastName} onChange={(event) => setForm({ ...form, lastName: event.target.value })} placeholder="Boston" />
+              <input value={form.lastName} onChange={(event) => updateNameField("lastName", event.target.value)} placeholder="Boston" />
             </label>
             <label className="form-field">
               <span>Display name</span>
               <input value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} placeholder="Coach Boston" />
             </label>
-            <label className="form-field">
-              <span>Profile photo URL</span>
-              <input value={form.avatarUrl} onChange={(event) => setForm({ ...form, avatarUrl: event.target.value })} placeholder="https://..." />
-            </label>
-            <FieldLine label="Program role" value={profile?.role ?? "COACH"} />
           </div>
           <div className="profile-save-row">
             {message && <span className={`profile-save-message profile-save-message--${status}`}>{message}</span>}
@@ -2188,30 +2250,7 @@ function AccountProfileView({
             </button>
           </div>
         </form>
-        <article className="panel">
-          <div className="panel-heading tight">
-            <div><span>Teams</span><h2>Access</h2></div>
-            <button type="button" className="text-button" onClick={() => onView("teams")}>Manage</button>
-          </div>
-          <TeamAccessList context={context} />
-        </article>
       </section>
-    </div>
-  );
-}
-
-function TeamAccessList({ context }: { context?: TeamContext }) {
-  const teams = context?.availableTeams ?? [];
-  if (teams.length === 0) return <CompactEmpty title="No team memberships yet" />;
-  return (
-    <div className="team-access-list">
-      {teams.map((team) => (
-        <div key={teamValue(team)}>
-          <strong>{team.teamName}</strong>
-          <span>{roleLabel(team.role)}</span>
-          <small>{team.seasonName ?? "All seasons"}</small>
-        </div>
-      ))}
     </div>
   );
 }
@@ -2235,12 +2274,14 @@ function ClubhouseHome({
   onEnterTeam,
   onOpenPublicTeam,
   onTogglePublicTeamFollow,
+  onTogglePublicOrganizationFollow,
   onView,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
+  onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
   onView: (view: ViewKey) => void;
 }) {
   const teams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
@@ -2271,14 +2312,12 @@ function ClubhouseHome({
 
       <section className="global-section">
         <SectionHeader title="My Teams" action={<button className="text-button" type="button" onClick={() => onView("following")}>View all</button>} />
-        <div className="team-card-grid team-card-grid--compact">
-          {teams.length ? teams.slice(0, 4).map((team) => (
-            <TeamWorkspaceCard
-              key={teamValue(team)}
-              team={team}
+        <div className="organization-team-grid">
+          {organizations.length ? organizations.slice(0, 3).map((organization) => (
+            <ManagedOrganizationTeamCard
+              key={organization.id}
+              organization={organization}
               onEnterTeam={onEnterTeam}
-              compact
-              managed
             />
           )) : <CompactEmpty title="No teams yet" />}
         </div>
@@ -2295,6 +2334,7 @@ function ClubhouseHome({
             onEnterTeam={onEnterTeam}
             onOpenPublicTeam={onOpenPublicTeam}
             onTogglePublicTeamFollow={onTogglePublicTeamFollow}
+            onTogglePublicOrganizationFollow={onTogglePublicOrganizationFollow}
           />
         </article>
         <article className="panel compact-panel">
@@ -2350,19 +2390,13 @@ function MyTeamsView({
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
 }) {
-  const teams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
+  const organizations = organizationSummariesFromTeams(displayWorkspaceTeams(data.teamContext?.availableTeams ?? []));
   return (
     <div className="page-stack global-home">
       <SectionHeader title="My Teams" />
-      <section className="team-card-grid team-card-grid--compact">
-        {teams.length ? teams.map((team) => (
-          <TeamWorkspaceCard
-            key={teamValue(team)}
-            team={team}
-            onEnterTeam={onEnterTeam}
-            compact
-            managed
-          />
+      <section className="organization-team-grid">
+        {organizations.length ? organizations.map((organization) => (
+          <ManagedOrganizationTeamCard key={organization.id} organization={organization} onEnterTeam={onEnterTeam} />
         )) : <CompactEmpty title="No team memberships yet" />}
       </section>
     </div>
@@ -2374,50 +2408,45 @@ function FollowingView({
   onEnterTeam,
   onOpenPublicTeam,
   onTogglePublicTeamFollow,
+  onTogglePublicOrganizationFollow,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
+  onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
 }) {
   const managedTeams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
-  const followedTeams = followedPublicTeams(data);
-  const followedOrganizations: OrganizationSummary[] = [];
+  const managedOrganizations = organizationSummariesFromTeams(managedTeams);
+  const followedOrganizations = followedPublicOrganizationGroups(data);
   return (
     <div className="page-stack global-home">
       <SectionHeader title="Following" />
-      {managedTeams.length || followedOrganizations.length || followedTeams.length ? (
+      {managedOrganizations.length || followedOrganizations.length ? (
         <>
           <section className="global-section">
             <SectionHeader title="My teams" />
-            <div className="team-card-grid team-card-grid--compact">
-              {managedTeams.map((team) => (
-                <TeamWorkspaceCard key={teamValue(team)} team={team} onEnterTeam={onEnterTeam} compact managed />
+            <div className="organization-team-grid">
+              {managedOrganizations.map((organization) => (
+                <ManagedOrganizationTeamCard key={organization.id} organization={organization} onEnterTeam={onEnterTeam} />
               ))}
             </div>
           </section>
           {followedOrganizations.length > 0 && (
-            <section className="organization-grid">
+            <section className="global-section">
+              <SectionHeader title="Following" />
+              <div className="organization-team-grid">
               {followedOrganizations.map((organization) => (
-                <OrganizationCard
+                <PublicOrganizationFollowCard
                   key={organization.id}
                   organization={organization}
-                  onEnterTeam={onEnterTeam}
-                />
-              ))}
-            </section>
-          )}
-          {followedTeams.length > 0 && (
-            <section className="team-card-grid team-card-grid--compact">
-              {followedTeams.map((team) => (
-                <PublicTeamCard
-                  key={team.id}
-                  team={team}
-                  followed
+                  followed={isFollowingOrganization(data.profileFollows ?? [], organization.id)}
                   onOpenTeam={onOpenPublicTeam}
-                  onToggleFollow={onTogglePublicTeamFollow}
+                  onToggleTeamFollow={onTogglePublicTeamFollow}
+                  onToggleOrganizationFollow={onTogglePublicOrganizationFollow}
                 />
               ))}
+              </div>
             </section>
           )}
         </>
@@ -2434,12 +2463,14 @@ function DiscoverView({
   onOpenPublicTeam,
   onOpenPublicOrganization,
   onTogglePublicTeamFollow,
+  onTogglePublicOrganizationFollow,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
   onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
+  onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
 }) {
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
@@ -2468,7 +2499,13 @@ function DiscoverView({
               <OrganizationMiniRow key={organization.id} organization={organization} onEnterTeam={onEnterTeam} />
             )) : null}
             {publicOrganizations.length ? publicOrganizations.map((organization) => (
-              <PublicOrganizationMiniRow key={organization.id} organization={organization} onOpenOrganization={onOpenPublicOrganization} />
+              <PublicOrganizationMiniRow
+                key={organization.id}
+                organization={organization}
+                followed={isFollowingOrganization(data.profileFollows ?? [], organization.id)}
+                onOpenOrganization={onOpenPublicOrganization}
+                onToggleFollow={onTogglePublicOrganizationFollow}
+              />
             )) : null}
             {!organizations.length && !publicOrganizations.length && <CompactEmpty title="No organizations found" />}
           </div>
@@ -2483,7 +2520,8 @@ function DiscoverView({
               <PublicTeamMiniRow
                 key={team.id}
                 team={team}
-                followed={isFollowingTeam(data.profileFollows ?? [], team.id)}
+                followed={isFollowingPublicTeam(data, team)}
+                locked={isFollowingOrganization(data.profileFollows ?? [], team.organizationId)}
                 onOpenTeam={onOpenPublicTeam}
                 onToggleFollow={onTogglePublicTeamFollow}
               />
@@ -2559,73 +2597,93 @@ function OrganizationCard({
   );
 }
 
-function TeamWorkspaceCard({
-  team,
+function ManagedOrganizationTeamCard({
+  organization,
   onEnterTeam,
-  compact = false,
-  managed = false,
 }: {
-  team: TeamOption;
+  organization: OrganizationSummary;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
-  compact?: boolean;
-  managed?: boolean;
 }) {
   return (
-    <button className={`panel team-workspace-card ${compact ? "team-workspace-card--compact" : ""}`} type="button" onClick={() => void onEnterTeam(team)}>
-      <div className="team-workspace-card__top">
-        <OrganizationLogo name={team.organizationName} />
+    <article className="panel organization-team-card">
+      <div className="organization-team-card__header">
+        <OrganizationLogo name={organization.name} />
         <span>
-          <strong>{team.teamName}</strong>
-          <small>{team.organizationName}</small>
+          <strong>{organization.name}</strong>
+          <small>{organization.teams.length} team{organization.teams.length === 1 ? "" : "s"}</small>
         </span>
-        {managed ? (
-          <span className="follow-heart follow-heart--locked" aria-label="Managed team">
-            <Lock size={13} aria-hidden="true" />
-          </span>
-        ) : (
-          <ChevronRight size={16} aria-hidden="true" />
-        )}
+        <span className="follow-heart follow-heart--locked" aria-label="Managed organization">
+          <Lock size={13} aria-hidden="true" />
+        </span>
       </div>
-      <div className="team-workspace-meta">
-        <span>{team.seasonName ?? "Current season"}</span>
-        <span>{roleLabel(team.role)}</span>
-        {team.title && <span>{team.title}</span>}
+      <div className="organization-team-card__list">
+        {organization.teams.map((team) => (
+          <button key={teamValue(team)} type="button" onClick={() => void onEnterTeam(team)}>
+            <span>
+              <strong>{team.teamName}</strong>
+              <small>{team.seasonName ?? "Current season"}</small>
+            </span>
+            <span className="team-workspace-meta">
+              <span>{roleLabel(team.role)}</span>
+              {team.title && <span>{team.title}</span>}
+            </span>
+          </button>
+        ))}
       </div>
-    </button>
+    </article>
   );
 }
 
-function PublicTeamCard({
-  team,
+function PublicOrganizationFollowCard({
+  organization,
   followed,
   onOpenTeam,
-  onToggleFollow,
+  onToggleTeamFollow,
+  onToggleOrganizationFollow,
 }: {
-  team: PublicDirectoryTeamSummary;
+  organization: PublicDirectoryOrganizationSummary;
   followed: boolean;
   onOpenTeam: (team: PublicDirectoryTeamSummary) => void;
-  onToggleFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
+  onToggleTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
+  onToggleOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
 }) {
   return (
-    <article className="panel team-workspace-card team-workspace-card--compact">
-      <div className="team-workspace-card__top team-workspace-card__top--follow">
-        <button className="team-card-main-button" type="button" onClick={() => onOpenTeam(team)}>
-          <OrganizationLogo name={team.organizationName} />
-          <span>
-            <strong>{team.name}</strong>
-            <small>{team.organizationName}</small>
-          </span>
-        </button>
+    <article className="panel organization-team-card">
+      <div className="organization-team-card__header">
+        <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
+        <span>
+          <strong>{organization.name}</strong>
+          <small>{organizationLocation(organization) || `${organization.teams.length} teams`}</small>
+        </span>
         <FollowButton
           followed={followed}
-          label={followed ? `Unfollow ${team.name}` : `Follow ${team.name}`}
-          onClick={() => void onToggleFollow(team)}
+          label={followed ? `Unfollow ${organization.name}` : `Follow ${organization.name}`}
+          onClick={() => void onToggleOrganizationFollow(organization)}
         />
       </div>
-      <div className="team-workspace-meta">
-        <span>{team.seasonName ?? "Current season"}</span>
-        {team.level && <span>{team.level}</span>}
-        {organizationLocation(team) && <span>{organizationLocation(team)}</span>}
+      <div className="organization-team-card__list">
+        {organization.teams.map((team) => (
+          <div key={team.id} className="organization-team-row">
+            <button type="button" onClick={() => onOpenTeam(team)}>
+              <span>
+                <strong>{team.name}</strong>
+                <small>{team.seasonName ?? "Current season"}</small>
+              </span>
+              <ChevronRight size={15} aria-hidden="true" />
+            </button>
+            {followed ? (
+              <span className="follow-heart follow-heart--active follow-heart--locked" aria-label="Included with organization follow">
+                <Heart size={15} aria-hidden="true" fill="currentColor" />
+              </span>
+            ) : (
+              <FollowButton
+                followed
+                label={`Unfollow ${team.name}`}
+                onClick={() => void onToggleTeamFollow(team)}
+              />
+            )}
+          </div>
+        ))}
       </div>
     </article>
   );
@@ -2657,24 +2715,42 @@ function TeamMiniRow({
   );
 }
 
-function PublicOrganizationMiniRow({ organization, onOpenOrganization }: { organization: PublicDirectoryOrganizationSummary; onOpenOrganization: (organization: PublicDirectoryOrganizationSummary) => void }) {
+function PublicOrganizationMiniRow({
+  organization,
+  followed,
+  onOpenOrganization,
+  onToggleFollow,
+}: {
+  organization: PublicDirectoryOrganizationSummary;
+  followed: boolean;
+  onOpenOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
+  onToggleFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
+}) {
   return (
-    <button className="team-mini-row" type="button" onClick={() => onOpenOrganization(organization)}>
-      <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
-      <span><strong>{organization.name}</strong><small>{organizationLocation(organization) || `${organization.teams.length} teams`}</small></span>
-      <ChevronRight size={15} aria-hidden="true" />
-    </button>
+    <div className="team-mini-row team-mini-row--follow">
+      <button className="team-mini-row__main" type="button" onClick={() => onOpenOrganization(organization)}>
+        <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
+        <span><strong>{organization.name}</strong><small>{organizationLocation(organization) || `${organization.teams.length} teams`}</small></span>
+      </button>
+      <FollowButton
+        followed={followed}
+        label={followed ? `Unfollow ${organization.name}` : `Follow ${organization.name}`}
+        onClick={() => void onToggleFollow(organization)}
+      />
+    </div>
   );
 }
 
 function PublicTeamMiniRow({
   team,
   followed,
+  locked,
   onOpenTeam,
   onToggleFollow,
 }: {
   team: PublicDirectoryTeamSummary;
   followed: boolean;
+  locked?: boolean;
   onOpenTeam: (team: PublicDirectoryTeamSummary) => void;
   onToggleFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
 }) {
@@ -2684,11 +2760,17 @@ function PublicTeamMiniRow({
         <OrganizationLogo name={team.organizationName} />
         <span><strong>{team.name}</strong><small>{team.seasonName ?? team.organizationName}</small></span>
       </button>
-      <FollowButton
-        followed={followed}
-        label={followed ? `Unfollow ${team.name}` : `Follow ${team.name}`}
-        onClick={() => void onToggleFollow(team)}
-      />
+      {locked ? (
+        <span className="follow-heart follow-heart--active follow-heart--locked" aria-label="Included with organization follow">
+          <Heart size={15} aria-hidden="true" fill="currentColor" />
+        </span>
+      ) : (
+        <FollowButton
+          followed={followed}
+          label={followed ? `Unfollow ${team.name}` : `Follow ${team.name}`}
+          onClick={() => void onToggleFollow(team)}
+        />
+      )}
     </div>
   );
 }
@@ -2714,31 +2796,30 @@ function FollowSummary({
   onEnterTeam,
   onOpenPublicTeam,
   onTogglePublicTeamFollow,
+  onTogglePublicOrganizationFollow,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
+  onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
 }) {
-  const managedTeams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
-  const publicTeams = followedPublicTeams(data);
-  if (!managedTeams.length && !publicTeams.length) return <CompactEmpty title="No followed teams yet" />;
+  const managedOrganizations = organizationSummariesFromTeams(displayWorkspaceTeams(data.teamContext?.availableTeams ?? []));
+  const publicOrganizations = followedPublicOrganizationGroups(data);
+  if (!managedOrganizations.length && !publicOrganizations.length) return <CompactEmpty title="No followed teams yet" />;
   return (
-    <div className="compact-list">
-      {managedTeams.slice(0, 2).map((team) => (
-        <button className="team-mini-row" type="button" key={teamValue(team)} onClick={() => void onEnterTeam(team)}>
-          <OrganizationLogo name={team.organizationName} />
-          <span><strong>{team.teamName}</strong><small>{team.seasonName ?? "Current season"}</small></span>
-          <span className="follow-heart follow-heart--locked" aria-label="Managed team"><Lock size={13} aria-hidden="true" /></span>
-        </button>
+    <div className="organization-team-grid organization-team-grid--summary">
+      {managedOrganizations.slice(0, 1).map((organization) => (
+        <ManagedOrganizationTeamCard key={organization.id} organization={organization} onEnterTeam={onEnterTeam} />
       ))}
-      {publicTeams.slice(0, Math.max(0, 4 - Math.min(managedTeams.length, 2))).map((team) => (
-        <PublicTeamMiniRow
-          key={team.id}
-          team={team}
-          followed
+      {publicOrganizations.slice(0, 2).map((organization) => (
+        <PublicOrganizationFollowCard
+          key={organization.id}
+          organization={organization}
+          followed={isFollowingOrganization(data.profileFollows ?? [], organization.id)}
           onOpenTeam={onOpenPublicTeam}
-          onToggleFollow={onTogglePublicTeamFollow}
+          onToggleTeamFollow={onTogglePublicTeamFollow}
+          onToggleOrganizationFollow={onTogglePublicOrganizationFollow}
         />
       ))}
     </div>
@@ -2788,10 +2869,6 @@ function shortTeamName(name: string) {
   if (/varsity/i.test(name)) return "Varsity";
   if (/\bjv\b/i.test(name)) return "JV";
   return name.replace(/^Metrolina\s+/i, "");
-}
-
-function FieldLine({ label, value }: { label: string; value: string }) {
-  return <div className="field-line"><span>{label}</span><strong>{value}</strong></div>;
 }
 
 function FormSnapshot({ title, primary, secondary }: { title: string; primary: string; secondary: string }) {
@@ -7190,10 +7267,31 @@ function isFollowingTeam(follows: ProfileFollow[] | undefined, teamId: ID) {
   return Boolean(follows?.some((follow) => follow.teamId === teamId));
 }
 
-function followedPublicTeams(data: AppData) {
+function isFollowingOrganization(follows: ProfileFollow[] | undefined, organizationId: ID) {
+  return Boolean(follows?.some((follow) => follow.organizationId === organizationId && !follow.teamId));
+}
+
+function isFollowingPublicTeam(data: AppData, team: PublicDirectoryTeamSummary) {
+  const follows = data.profileFollows ?? [];
+  return isFollowingTeam(follows, team.id) || isFollowingOrganization(follows, team.organizationId);
+}
+
+function followedPublicOrganizationGroups(data: AppData) {
   const managedTeamIds = new Set((data.teamContext?.availableTeams ?? []).map((team) => team.teamId));
-  const followedTeamIds = new Set((data.profileFollows ?? []).map((follow) => follow.teamId).filter(Boolean));
-  return (data.publicTeams ?? []).filter((team) => followedTeamIds.has(team.id) && !managedTeamIds.has(team.id));
+  const follows = data.profileFollows ?? [];
+  const followedTeamIds = new Set(follows.map((follow) => follow.teamId).filter(Boolean));
+  const followedOrganizationIds = new Set(follows.map((follow) => follow.organizationId).filter(Boolean));
+
+  return (data.publicOrganizations ?? [])
+    .map((organization) => {
+      const organizationFollowed = followedOrganizationIds.has(organization.id);
+      const teams = organization.teams.filter((team) => {
+        if (managedTeamIds.has(team.id)) return false;
+        return organizationFollowed || followedTeamIds.has(team.id);
+      });
+      return { ...organization, teams };
+    })
+    .filter((organization) => organization.teams.length > 0);
 }
 
 function organizationLocation(source: { city?: string; state?: string }) {
@@ -7230,6 +7328,12 @@ function roleLabel(role?: string) {
 function profileDisplayName(context?: TeamContext) {
   const profile = context?.profile;
   return [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() || profile?.displayName || profile?.email || "Coach";
+}
+
+function preferredProfileDisplayName(profile?: AppProfile) {
+  const named = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim();
+  const display = profile?.displayName && !profile.displayName.includes("@") ? profile.displayName : "";
+  return display || named;
 }
 
 function profileInitials(context?: TeamContext) {

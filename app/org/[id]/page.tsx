@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PublicBackButton } from "../../components/PublicBackButton";
+import { PublicFollowButton } from "../../components/PublicFollowButton";
 import { APP_NAME, BRAND_ASSETS } from "../../lib/branding";
 import { getPublicOrganizationDirectory } from "../../lib/publicDirectory";
 
@@ -11,11 +13,14 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
   return (
     <main className="public-shell">
       <header className="public-topbar">
-        <Link href="/" className="public-brand">
-          <img src={BRAND_ASSETS.mark} alt="" />
-          <span>{APP_NAME}</span>
-        </Link>
-        <Link href="/" className="secondary-button">Open App</Link>
+        <div className="public-topbar__left">
+          <PublicBackButton />
+          <Link href="/" className="public-brand">
+            <img src={BRAND_ASSETS.mark} alt="" />
+            <span>{APP_NAME}</span>
+          </Link>
+        </div>
+        <PublicFollowButton organizationId={organization.id} label="Follow Org" />
       </header>
 
       <section className="public-hero public-hero--compact">
@@ -35,11 +40,14 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
         </div>
         <div className="public-card-grid">
           {organization.teams.length ? organization.teams.map((team) => (
-            <Link key={team.id} href={`/team/${team.id}`} className="public-team-card">
-              <span>{team.season?.name ?? "Current season"}</span>
-              <strong>{team.name}</strong>
-              <small>{team.level ?? "Baseball"} · {team.visibility.toLowerCase()}</small>
-            </Link>
+            <article key={team.id} className="public-team-card public-team-card--with-action">
+              <Link href={`/team/${team.id}`} className="public-team-card__link">
+                <span>{team.season?.name ?? "Current season"}</span>
+                <strong>{team.name}</strong>
+                <small>{team.level ?? "Baseball"} - {team.visibility.toLowerCase()}</small>
+              </Link>
+              <PublicFollowButton organizationId={organization.id} teamId={team.id} compact />
+            </article>
           )) : (
             <article className="public-empty">No public teams yet.</article>
           )}

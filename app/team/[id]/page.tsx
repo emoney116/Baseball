@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PublicBackButton } from "../../components/PublicBackButton";
+import { PublicFollowButton } from "../../components/PublicFollowButton";
 import { APP_NAME, BRAND_ASSETS } from "../../lib/branding";
 import { getPublicTeamDirectory } from "../../lib/publicDirectory";
 
@@ -16,18 +18,21 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   return (
     <main className="public-shell">
       <header className="public-topbar">
-        <Link href="/" className="public-brand">
-          <img src={BRAND_ASSETS.mark} alt="" />
-          <span>{APP_NAME}</span>
-        </Link>
-        <Link href="/" className="secondary-button">Open App</Link>
+        <div className="public-topbar__left">
+          <PublicBackButton />
+          <Link href="/" className="public-brand">
+            <img src={BRAND_ASSETS.mark} alt="" />
+            <span>{APP_NAME}</span>
+          </Link>
+        </div>
+        <PublicFollowButton organizationId={team.organization.id} teamId={team.id} label="Follow Team" />
       </header>
 
       <section className="public-hero">
         <div>
           <Link href={`/org/${team.organization.slug}`} className="public-kicker">{team.organization.name}</Link>
           <h1>{team.name}</h1>
-          <p>{team.season?.name ?? "Current season"} · {team.level ?? "Baseball"}</p>
+          <p>{team.season?.name ?? "Current season"} - {team.level ?? "Baseball"}</p>
         </div>
         <div className="public-stat-strip">
           <span><strong>{team.roster.length}</strong><small>Players</small></span>
@@ -47,9 +52,9 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
                 <strong>{player.jerseyNumber ?? "-"}</strong>
                 <span>
                   <b>{player.name}</b>
-                  <small>{[player.primaryPosition, player.secondaryPosition].filter(Boolean).join(" / ")} · {player.graduationYear ?? "Class TBD"}</small>
+                  <small>{[player.primaryPosition, player.secondaryPosition].filter(Boolean).join(" / ")} - {player.graduationYear ?? "Class TBD"}</small>
                 </span>
-                <em>{player.height ?? "--"} · {player.weight ? `${player.weight} lb` : "--"}</em>
+                <em>{player.height ?? "--"} - {player.weight ? `${player.weight} lb` : "--"}</em>
               </div>
             )) : (
               <article className="public-empty">No public roster entries yet.</article>

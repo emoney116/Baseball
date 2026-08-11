@@ -260,6 +260,32 @@ textarea:focus-visible {
   gap: 16px;
 }
 
+.public-topbar__left {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.public-back-button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted-strong);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.public-back-button:hover,
+.public-back-button:focus-visible {
+  color: var(--text);
+  border-color: var(--line-strong);
+  background: var(--panel-strong);
+}
+
 .public-brand {
   display: inline-flex;
   align-items: center;
@@ -273,6 +299,64 @@ textarea:focus-visible {
   width: 34px;
   height: 34px;
   object-fit: contain;
+}
+
+.public-follow-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.public-follow-button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.public-follow-button:hover,
+.public-follow-button:focus-visible,
+.public-follow-button--active {
+  border-color: color-mix(in srgb, var(--burgundy) 50%, var(--line));
+  background: var(--burgundy-soft);
+  color: var(--burgundy-strong);
+}
+
+.public-follow-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.public-follow-button--compact {
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  border-radius: 999px;
+  justify-content: center;
+  padding: 0;
+}
+
+.public-follow-message {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-strong);
+  color: var(--muted-strong);
+  box-shadow: var(--shadow);
+  z-index: 5;
 }
 
 .public-hero,
@@ -398,13 +482,28 @@ textarea:focus-visible {
   transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
+.public-team-card--with-action {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+}
+
+.public-team-card__link {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+
 .public-team-card:hover {
   border-color: rgba(174, 36, 87, 0.45);
   transform: translateY(-1px);
 }
 
 .public-team-card span,
-.public-team-card small {
+.public-team-card small,
+.public-team-card__link span,
+.public-team-card__link small {
   color: var(--muted);
 }
 
@@ -1743,7 +1842,7 @@ textarea:focus-visible {
 }
 
 .account-grid {
-  grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.7fr);
+  grid-template-columns: minmax(0, 860px);
 }
 
 .account-card {
@@ -1769,6 +1868,40 @@ textarea:focus-visible {
   font-size: 24px;
   font-weight: 950;
   overflow: hidden;
+}
+
+.account-avatar--editable {
+  position: relative;
+  cursor: pointer;
+}
+
+.account-avatar--editable::after {
+  content: "Change";
+  position: absolute;
+  inset-inline: 10px;
+  bottom: 8px;
+  min-height: 20px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.58);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 900;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.account-avatar--editable:hover::after,
+.account-avatar--editable:focus-within::after {
+  opacity: 1;
+}
+
+.account-avatar--editable input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .account-avatar img {
@@ -1888,6 +2021,16 @@ textarea:focus-visible {
   gap: 12px;
 }
 
+.organization-team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.organization-team-grid--summary {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .organization-grid {
   grid-template-columns: repeat(auto-fill, minmax(230px, 320px));
   justify-content: start;
@@ -1918,10 +2061,91 @@ textarea:focus-visible {
 }
 
 .organization-card,
-.team-workspace-card {
+.team-workspace-card,
+.organization-team-card {
   display: grid;
   gap: 10px;
   text-align: left;
+}
+
+.organization-team-card {
+  align-content: start;
+  padding: 12px;
+}
+
+.organization-team-card__header {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.organization-team-card__header strong,
+.organization-team-card__list strong {
+  display: block;
+}
+
+.organization-team-card__header small,
+.organization-team-card__list small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.organization-team-card__list {
+  max-height: 176px;
+  overflow: auto;
+  display: grid;
+  gap: 6px;
+  padding-right: 2px;
+}
+
+.organization-team-card__list > button,
+.organization-team-row {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+}
+
+.organization-team-card__list > button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.organization-team-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+}
+
+.organization-team-row > button {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.organization-team-card__list > button:hover,
+.organization-team-row:hover {
+  border-color: var(--line-strong);
+  background: var(--panel-strong);
 }
 
 .organization-card__top,
@@ -2108,6 +2332,11 @@ textarea:focus-visible {
   cursor: default;
   color: var(--muted);
   background: color-mix(in srgb, var(--panel-soft) 70%, transparent);
+}
+
+.follow-heart--active.follow-heart--locked {
+  color: var(--burgundy-strong);
+  background: var(--burgundy-soft);
 }
 
 .card-action-row {

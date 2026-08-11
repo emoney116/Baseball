@@ -23,7 +23,7 @@ export async function PATCH(request: NextRequest) {
     const firstName = cleanText(body.firstName, 80);
     const lastName = cleanText(body.lastName, 80);
     const displayName = cleanText(body.displayName, 160) || [firstName, lastName].filter(Boolean).join(" ").trim() || authData.user.email || "Coach";
-    const avatarUrl = cleanUrl(body.avatarUrl);
+    const avatarUrl = cleanAvatarValue(body.avatarUrl);
 
     const admin = createAdminClient();
     await admin.auth.admin.updateUserById(authData.user.id, {
@@ -92,9 +92,10 @@ function cleanText(value: unknown, maxLength: number) {
   return value.trim().slice(0, maxLength);
 }
 
-function cleanUrl(value: unknown) {
-  const text = cleanText(value, 500);
+function cleanAvatarValue(value: unknown) {
+  const text = cleanText(value, 750_000);
   if (!text) return "";
+  if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(text)) return text;
   try {
     const url = new URL(text);
     return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : "";
