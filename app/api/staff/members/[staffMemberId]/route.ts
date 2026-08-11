@@ -13,6 +13,8 @@ type StaffMembershipInput = {
 
 const ADMIN_ROLES = new Set(["OWNER", "ADMIN", "HEAD_COACH"]);
 const ADMIN_TITLES = new Set(["PROGRAM ADMIN", "OWNER", "HEAD COACH"]);
+const VIRTUAL_PROFILE_STAFF_PREFIX = "profile-staff-";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ staffMemberId: string }> }) {
   try {
@@ -24,19 +26,27 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
 
     const body = (await request.json().catch(() => ({}))) as {
-      email?: string;
-      firstName?: string;
-      lastName?: string;
-      displayName?: string;
       memberships?: StaffMembershipInput[];
     };
     const requestedMemberships = normalizeRequestedMemberships(body.memberships ?? []);
+    if (requestedMemberships.length === 0) {
+      return NextResponse.json({ ok: false, message: "Choose at least one team." }, { status: 400 });
+    }
     const admin = createAdminClient();
+    let resolvedStaffMemberId = staffMemberId;
+    const virtualProfileId = parseVirtualProfileStaffId(staffMemberId);
+    if (virtualProfileId) {
+      const materialized = await materializeProfileStaffMember(admin, authData.user.id, virtualProfileId, requestedMemberships);
+      if ("response" in materialized) return materialized.response;
+      resolvedStaffMemberId = materialized.staffMemberId;
+    } else if (!UUID_PATTERN.test(staffMemberId)) {
+      return NextResponse.json({ ok: false, message: "Staff member was not found." }, { status: 404 });
+    }
 
     const { data: staffMember, error: staffError } = await admin
       .from("staff_members")
       .select("id,organization_id,profile_id,email,display_name")
-      .eq("id", staffMemberId)
+      .eq("id", resolvedStaffMemberId)
       .maybeSingle();
     if (staffError) return NextResponse.json({ ok: false, message: staffError.message }, { status: 500 });
     if (!staffMember) return NextResponse.json({ ok: false, message: "Staff member was not found." }, { status: 404 });
@@ -44,7 +54,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const { data: existingMemberships, error: membershipError } = await admin
       .from("staff_team_memberships")
       .select("id,staff_member_id,profile_id,team_id,season_id,baseball_role,access_role,active")
-      .eq("staff_member_id", staffMemberId);
+      .eq("staff_member_id", resolvedStaffMemberId);
     if (membershipError) return NextResponse.json({ ok: false, message: membershipError.message }, { status: 500 });
 
     const allTeamIds = [
@@ -87,27 +97,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
-    const normalizedEmail = body.email?.trim().toLowerCase() || null;
-    const firstName = body.firstName?.trim() || null;
-    const lastName = body.lastName?.trim() || null;
-    const displayName =
-      body.displayName?.trim() ||
-      [firstName, lastName].filter(Boolean).join(" ").trim() ||
-      normalizedEmail ||
-      staffMember.display_name ||
-      "Staff Member";
-
     const { error: updateStaffError } = await admin
       .from("staff_members")
       .update({
-        email: staffMember.profile_id ? staffMember.email : normalizedEmail,
-        first_name: firstName,
-        last_name: lastName,
-        display_name: displayName,
         active: true,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", staffMemberId);
+      .eq("id", resolvedStaffMemberId);
     if (updateStaffError) return NextResponse.json({ ok: false, message: updateStaffError.message }, { status: 500 });
 
     for (const requested of requestedMemberships) {
@@ -115,7 +111,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         membership.team_id === requested.teamId && sameSeason(membership.season_id, requested.seasonId),
       );
       const row = {
-        staff_member_id: staffMemberId,
+        staff_member_id: resolvedStaffMemberId,
         profile_id: staffMember.profile_id ?? null,
         team_id: requested.teamId,
         season_id: requested.seasonId ?? null,
@@ -161,6 +157,142 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       { status: 500 },
     );
   }
+}
+
+function parseVirtualProfileStaffId(staffMemberId: string) {
+  if (!staffMemberId.startsWith(VIRTUAL_PROFILE_STAFF_PREFIX)) return null;
+  const profileId = staffMemberId.slice(VIRTUAL_PROFILE_STAFF_PREFIX.length);
+  return UUID_PATTERN.test(profileId) ? profileId : null;
+}
+
+async function materializeProfileStaffMember(
+  admin: ReturnType<typeof createAdminClient>,
+  actorProfileId: string,
+  profileId: string,
+  requestedMemberships: ReturnType<typeof normalizeRequestedMemberships>,
+): Promise<{ staffMemberId: string } | { response: NextResponse }> {
+  const requestedTeamIds = [...new Set(requestedMemberships.map((membership) => membership.teamId).filter(Boolean))];
+  if (requestedTeamIds.length === 0) {
+    return { response: NextResponse.json({ ok: false, message: "Choose at least one team." }, { status: 400 }) };
+  }
+
+  const [{ data: profile, error: profileError }, { data: requestedTeams, error: teamsError }] = await Promise.all([
+    admin.from("profiles").select("id,email,first_name,last_name,display_name,avatar_url").eq("id", profileId).maybeSingle(),
+    admin.from("teams").select("id,organization_id").in("id", requestedTeamIds),
+  ]);
+  if (profileError) return { response: NextResponse.json({ ok: false, message: profileError.message }, { status: 500 }) };
+  if (teamsError) return { response: NextResponse.json({ ok: false, message: teamsError.message }, { status: 500 }) };
+  if (!profile) return { response: NextResponse.json({ ok: false, message: "Staff member was not found." }, { status: 404 }) };
+
+  const teamsById = new Map((requestedTeams ?? []).map((team) => [team.id, team]));
+  const organizationIds = new Set<string>();
+  for (const teamId of requestedTeamIds) {
+    const team = teamsById.get(teamId);
+    if (!team) return { response: NextResponse.json({ ok: false, message: "One selected team was not found." }, { status: 400 }) };
+    organizationIds.add(team.organization_id);
+    if (!(await canAdminStaffTeam(admin, actorProfileId, team.id, team.organization_id))) {
+      return { response: NextResponse.json({ ok: false, message: "You do not have permission to manage staff for this team." }, { status: 403 }) };
+    }
+  }
+  if (organizationIds.size !== 1) {
+    return { response: NextResponse.json({ ok: false, message: "Staff changes must stay inside one organization." }, { status: 400 }) };
+  }
+  const organizationId = [...organizationIds][0];
+
+  const email = typeof profile.email === "string" ? profile.email.trim().toLowerCase() : null;
+  const displayName =
+    profile.display_name ||
+    [profile.first_name, profile.last_name].filter(Boolean).join(" ").trim() ||
+    email ||
+    "Staff Member";
+
+  let staffMemberId: string | undefined;
+  const { data: existingByProfile, error: existingByProfileError } = await admin
+    .from("staff_members")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("profile_id", profileId)
+    .maybeSingle();
+  if (existingByProfileError) return { response: NextResponse.json({ ok: false, message: existingByProfileError.message }, { status: 500 }) };
+  staffMemberId = existingByProfile?.id;
+
+  if (!staffMemberId && email) {
+    const { data: existingByEmail, error: existingByEmailError } = await admin
+      .from("staff_members")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("email", email)
+      .maybeSingle();
+    if (existingByEmailError) return { response: NextResponse.json({ ok: false, message: existingByEmailError.message }, { status: 500 }) };
+    staffMemberId = existingByEmail?.id;
+  }
+
+  if (staffMemberId) {
+    const { error } = await admin
+      .from("staff_members")
+      .update({
+        profile_id: profileId,
+        email,
+        first_name: profile.first_name ?? null,
+        last_name: profile.last_name ?? null,
+        display_name: displayName,
+        avatar_url: profile.avatar_url ?? null,
+        active: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", staffMemberId);
+    if (error) return { response: NextResponse.json({ ok: false, message: error.message }, { status: 500 }) };
+  } else {
+    const { data: inserted, error } = await admin
+      .from("staff_members")
+      .insert({
+        organization_id: organizationId,
+        profile_id: profileId,
+        email,
+        first_name: profile.first_name ?? null,
+        last_name: profile.last_name ?? null,
+        display_name: displayName,
+        avatar_url: profile.avatar_url ?? null,
+        active: true,
+      })
+      .select("id")
+      .single();
+    if (error) return { response: NextResponse.json({ ok: false, message: error.message }, { status: 500 }) };
+    staffMemberId = inserted.id;
+  }
+  if (!staffMemberId) {
+    return { response: NextResponse.json({ ok: false, message: "Staff member could not be prepared." }, { status: 500 }) };
+  }
+
+  const { data: orgTeams, error: orgTeamsError } = await admin.from("teams").select("id").eq("organization_id", organizationId);
+  if (orgTeamsError) return { response: NextResponse.json({ ok: false, message: orgTeamsError.message }, { status: 500 }) };
+  const orgTeamIds = (orgTeams ?? []).map((team) => team.id);
+  if (orgTeamIds.length) {
+    const { data: profileMemberships, error: profileMembershipsError } = await admin
+      .from("profile_team_memberships")
+      .select("team_id,season_id,role,title,active,created_at,updated_at")
+      .eq("profile_id", profileId)
+      .eq("active", true)
+      .in("team_id", orgTeamIds);
+    if (profileMembershipsError) return { response: NextResponse.json({ ok: false, message: profileMembershipsError.message }, { status: 500 }) };
+
+    for (const membership of profileMemberships ?? []) {
+      const { error } = await admin.from("staff_team_memberships").upsert({
+        staff_member_id: staffMemberId,
+        profile_id: profileId,
+        team_id: membership.team_id,
+        season_id: membership.season_id ?? null,
+        baseball_role: baseballRoleFromProfileMembership(membership.title, membership.role),
+        access_role: accessRoleFromProfileMembership(membership.role),
+        active: true,
+        created_at: membership.created_at ?? new Date().toISOString(),
+        updated_at: membership.updated_at ?? new Date().toISOString(),
+      }, { onConflict: "staff_member_id,team_id,season_id" });
+      if (error) return { response: NextResponse.json({ ok: false, message: error.message }, { status: 500 }) };
+    }
+  }
+
+  return { staffMemberId };
 }
 
 function normalizeRequestedMemberships(memberships: StaffMembershipInput[]) {
@@ -226,6 +358,16 @@ async function deactivateProfileTeamMembership(
 
 function applySeasonFilter<T extends { eq: (column: string, value: string) => T; is: (column: string, value: null) => T }>(query: T, seasonId?: string) {
   return seasonId ? query.eq("season_id", seasonId) : query.is("season_id", null);
+}
+
+function accessRoleFromProfileMembership(role: unknown): "ADMIN" | "COACH" {
+  return ADMIN_ROLES.has(normalize(role)) ? "ADMIN" : "COACH";
+}
+
+function baseballRoleFromProfileMembership(title: unknown, role: unknown) {
+  const titleValue = String(title ?? "").trim();
+  if (titleValue) return titleValue;
+  return normalize(role) === "HEAD_COACH" ? "Head Coach" : "Assistant Coach";
 }
 
 async function canAdminStaffTeam(

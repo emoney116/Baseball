@@ -5857,6 +5857,45 @@ body {
   gap: 6px;
 }
 
+.tooltip-trigger {
+  position: relative;
+}
+
+.tooltip-trigger::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 240;
+  min-width: max-content;
+  max-width: 220px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--panel-strong) 96%, #000);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 760;
+  line-height: 1.2;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 120ms ease 700ms, transform 120ms ease 700ms;
+  white-space: nowrap;
+}
+
+.tooltip-trigger:hover::after,
+.tooltip-trigger:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+[data-theme="light"] .tooltip-trigger::after {
+  background: #ffffff;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.16);
+}
+
 .staff-invite-inline {
   min-height: 30px;
   padding: 0 10px;
@@ -5887,6 +5926,44 @@ body {
 
 .staff-invite-grid .form-field:first-child {
   grid-column: 1 / -1;
+}
+
+.staff-edit-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  padding: 9px 10px;
+}
+
+.staff-edit-summary strong,
+.staff-edit-summary small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff-edit-summary strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.staff-edit-summary small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.staff-edit-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.staff-edit-grid .form-field:first-child {
+  grid-column: auto;
 }
 
 .staff-team-picker {

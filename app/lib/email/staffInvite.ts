@@ -19,6 +19,10 @@ export async function sendStaffInviteEmail(input: StaffInviteEmailInput): Promis
   const from = process.env.INVITE_FROM_EMAIL;
 
   if (!apiKey || !from) {
+    console.warn("staff_invite_email_not_configured", {
+      hasApiKey: Boolean(apiKey),
+      hasFrom: Boolean(from),
+    });
     return {
       sent: false,
       reason: "not-configured",
@@ -46,6 +50,10 @@ export async function sendStaffInviteEmail(input: StaffInviteEmailInput): Promis
   });
 
   if (error) {
+    console.warn("staff_invite_email_send_failed", {
+      name: "name" in error ? error.name : "ResendError",
+      message: error.message,
+    });
     return {
       sent: false,
       reason: "send-failed",
@@ -53,6 +61,7 @@ export async function sendStaffInviteEmail(input: StaffInviteEmailInput): Promis
     };
   }
 
+  console.info("staff_invite_email_sent", { id: data?.id });
   return { sent: true, id: data?.id };
 }
 

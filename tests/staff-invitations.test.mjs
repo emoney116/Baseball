@@ -28,4 +28,8 @@ test("staff invitation migration keeps tokens hashed and authorization server-si
   assert.match(memberRoute, /canAdminStaffTeam/);
   assert.match(memberRoute, /hasAnotherTeamAdmin/);
   assert.match(memberRoute, /profile_team_memberships/);
+  assert.match(memberRoute, /profile-staff-/);
+  assert.match(memberRoute, /materializeProfileStaffMember/);
+  assert.match(memberRoute, /UUID_PATTERN/);
+  assert.doesNotMatch(memberRoute, /body\.email|body\.firstName|body\.lastName|body\.displayName/);
 });

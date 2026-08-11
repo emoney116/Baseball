@@ -284,10 +284,6 @@ export const supabaseAppRepository = {
 
   async updateStaffMember(input: {
     staffMemberId: string;
-    email?: string;
-    firstName?: string;
-    lastName?: string;
-    displayName?: string;
     memberships: Array<{
       teamId: string;
       seasonId?: string;

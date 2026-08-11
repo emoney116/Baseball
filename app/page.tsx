@@ -1717,9 +1717,18 @@ function ProfileMenu({
   const initials = profileInitials(context);
   const profileName = profileDisplayName(context);
   const role = context?.currentTeam?.title ?? roleLabel(context?.currentTeam?.role) ?? profile?.role ?? "Coach";
+  function handleProfileClick() {
+    if (variant === "icon") {
+      onOpen(false);
+      onView("account");
+      return;
+    }
+    onOpen(!open);
+  }
+
   return (
     <div className={`profile-menu profile-menu--${variant}`}>
-      <button className="profile-menu__button" type="button" onClick={() => onOpen(!open)} aria-label="Open profile menu" aria-expanded={open}>
+      <button className="profile-menu__button" type="button" onClick={handleProfileClick} aria-label={variant === "icon" ? "Open profile" : "Open profile menu"} aria-expanded={variant === "card" ? open : undefined}>
         <span className="profile-menu__avatar">{profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" /> : <span>{initials}</span>}</span>
         {variant === "card" && (
           <span className="profile-menu__identity">
@@ -1728,7 +1737,7 @@ function ProfileMenu({
           </span>
         )}
       </button>
-      {open && (
+      {variant === "card" && open && (
         <div className="profile-menu__panel">
           <div>
             <strong>{profileName}</strong>
@@ -2230,10 +2239,6 @@ function StaffRosterView({
     await runAction(`remove-${membership.id}`, async () => {
       await onUpdateStaff({
         staffMemberId: member.id,
-        email: member.email,
-        firstName: member.firstName,
-        lastName: member.lastName,
-        displayName: member.displayName,
         memberships: nextMemberships,
       });
       setMessage("Staff member removed from team.");
@@ -2278,20 +2283,22 @@ function StaffRosterView({
                       </button>
                     )}
                     <button
-                      className="row-action-button"
+                      className="row-action-button tooltip-trigger"
                       type="button"
                       onClick={() => member && setEditingStaffId(member.id)}
                       disabled={!member}
                       aria-label={`Edit ${member?.displayName ?? "staff member"}`}
+                      data-tooltip="Edit staff"
                     >
                       <Edit3 size={15} aria-hidden="true" />
                     </button>
                     <button
-                      className="row-action-button row-action-button--danger"
+                      className="row-action-button row-action-button--danger tooltip-trigger"
                       type="button"
                       disabled={busyAction === `remove-${membership.id}` || !member}
                       onClick={() => void removeStaffMembership(member, membership)}
                       aria-label={`Remove ${member?.displayName ?? "staff member"} from team`}
+                      data-tooltip="Remove from team"
                     >
                       <Trash2 size={15} aria-hidden="true" />
                     </button>
@@ -2299,7 +2306,7 @@ function StaffRosterView({
                 ) : invitation ? (
                   <>
                   <button
-                    className="row-action-button"
+                    className="row-action-button tooltip-trigger"
                     type="button"
                     disabled={busyAction === `copy-${actionKey}`}
                     onClick={() => void runAction(`copy-${actionKey}`, async () => {
@@ -2307,23 +2314,25 @@ function StaffRosterView({
                       setMessage("Invite link copied.");
                     })}
                     aria-label={`Copy invite link for ${member?.displayName ?? invitation.email}`}
+                    data-tooltip="Copy invite link"
                   >
                     <Copy size={15} aria-hidden="true" />
                   </button>
                   <button
-                    className="row-action-button"
+                    className="row-action-button tooltip-trigger"
                     type="button"
                     disabled={busyAction === `resend-${actionKey}`}
                     onClick={() => void runAction(`resend-${actionKey}`, async () => {
                       const result = await onResendInvite(invitation.id);
-                      setMessage(result.email?.sent ? "Invite resent." : result.email?.message ?? "Invite link refreshed.");
+                      setMessage(result.email?.sent ? "Invite resent." : result.email?.message ?? "Invite link refreshed. Copy the link if email is not configured.");
                     })}
                     aria-label={`Resend invite for ${member?.displayName ?? invitation.email}`}
+                    data-tooltip="Resend invite"
                   >
                     <RefreshCw size={15} aria-hidden="true" />
                   </button>
                   <button
-                    className="row-action-button row-action-button--danger"
+                    className="row-action-button row-action-button--danger tooltip-trigger"
                     type="button"
                     disabled={busyAction === `revoke-${actionKey}`}
                     onClick={() => {
@@ -2335,6 +2344,7 @@ function StaffRosterView({
                       }
                     }}
                     aria-label={`Revoke invite for ${member?.displayName ?? invitation.email}`}
+                    data-tooltip="Revoke invite"
                   >
                     <Trash2 size={15} aria-hidden="true" />
                   </button>
@@ -3763,10 +3773,6 @@ type ManualRosterRow = {
 
 type StaffMemberUpdateInput = {
   staffMemberId: ID;
-  email?: string;
-  firstName?: string;
-  lastName?: string;
-  displayName?: string;
   memberships: Array<{
     teamId: ID;
     seasonId?: ID;
@@ -3943,10 +3949,6 @@ function EditStaffModal({
   onSave: (input: StaffMemberUpdateInput) => Promise<void>;
 }) {
   const primaryMembership = memberships[0];
-  const [email, setEmail] = useState(member.email ?? "");
-  const [firstName, setFirstName] = useState(member.firstName ?? "");
-  const [lastName, setLastName] = useState(member.lastName ?? "");
-  const [displayName, setDisplayName] = useState(member.displayName ?? "");
   const [staffRole, setStaffRole] = useState<StaffBaseballRole>(primaryMembership?.baseballRole ?? "Assistant Coach");
   const [accessRole, setAccessRole] = useState<StaffAccessRole>(primaryMembership?.accessRole ?? "COACH");
   const [selectedTeams, setSelectedTeams] = useState<string[]>(() => memberships.map((membership) => `${membership.teamId}:${membership.seasonId ?? ""}`));
@@ -3964,15 +3966,14 @@ function EditStaffModal({
     const assignedTeams = selectedTeams
       .map((key) => uniqueTeams.find((team) => teamSelectionKey(team) === key))
       .filter((team): team is TeamOption => Boolean(team));
-    const resolvedDisplayName = displayName.trim() || [firstName.trim(), lastName.trim()].filter(Boolean).join(" ") || email.trim() || "Staff Member";
+    if (assignedTeams.length === 0) {
+      setMessage("Choose at least one team.");
+      return;
+    }
     setBusy(true);
     try {
       await onSave({
         staffMemberId: member.id,
-        email: email.trim() || undefined,
-        firstName: firstName.trim() || undefined,
-        lastName: lastName.trim() || undefined,
-        displayName: resolvedDisplayName,
         memberships: assignedTeams.map((team) => ({
           teamId: team.teamId,
           seasonId: team.seasonId,
@@ -3990,30 +3991,15 @@ function EditStaffModal({
   return (
     <ModalFrame title="Edit Staff" onClose={onClose} panelClassName="modal-panel--staff">
       <form className="staff-invite-form" onSubmit={(event) => void submit(event)}>
-        <div className="staff-invite-grid">
-          <label className="form-field">
-            <span>Email</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              disabled={Boolean(member.profileId)}
-              placeholder="coach@example.com"
-              autoComplete="email"
-            />
-          </label>
-          <label className="form-field">
-            <span>First name</span>
-            <input value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" />
-          </label>
-          <label className="form-field">
-            <span>Last name</span>
-            <input value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" />
-          </label>
-          <label className="form-field">
-            <span>Display name</span>
-            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
-          </label>
+        <div className="staff-edit-summary">
+          <StaffAvatar member={member} />
+          <span>
+            <strong>{member.displayName}</strong>
+            <small>{member.email ?? "No account email"}</small>
+          </span>
+        </div>
+
+        <div className="staff-invite-grid staff-edit-grid">
           <div className="form-field">
             <span>Staff role</span>
             <ChoiceSelect
@@ -4059,7 +4045,7 @@ function EditStaffModal({
         {message && <p className="staff-invite-message">{message}</p>}
         <div className="modal-actions">
           <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
-          <button className="primary-button" type="submit" disabled={busy}>
+          <button className="primary-button" type="submit" disabled={busy || selectedTeams.length === 0}>
             {busy ? "Saving..." : "Save Staff"}
           </button>
         </div>
