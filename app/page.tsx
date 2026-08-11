@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Archive,
   BarChart3,
   Building2,
   Check,
@@ -24,6 +23,7 @@ import {
   Sun,
   Target,
   Trophy,
+  Trash2,
   Undo2,
   Upload,
   User,
@@ -236,7 +236,8 @@ export default function MetrolinaBaseballApp() {
   const [startGameOpen, setStartGameOpen] = useState(false);
   const [playerEditorOpen, setPlayerEditorOpen] = useState(false);
   const [rosterImportOpen, setRosterImportOpen] = useState(false);
-  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [topAccountMenuOpen, setTopAccountMenuOpen] = useState(false);
+  const [sidebarAccountMenuOpen, setSidebarAccountMenuOpen] = useState(false);
 
   useTeamBrowserBrand(data?.teamContext?.currentTeam);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
@@ -440,13 +441,15 @@ export default function MetrolinaBaseballApp() {
   }
 
   async function switchTeam(team: TeamOption) {
-    setAccountMenuOpen(false);
+    setTopAccountMenuOpen(false);
+    setSidebarAccountMenuOpen(false);
     await loadApplicationData(() => false, team.teamId, team.seasonId);
     setView("home");
   }
 
   async function signOut() {
-    setAccountMenuOpen(false);
+    setTopAccountMenuOpen(false);
+    setSidebarAccountMenuOpen(false);
     await authRepository.signOut();
     setData(null);
     setAuthState({ status: "anonymous" });
@@ -906,11 +909,14 @@ export default function MetrolinaBaseballApp() {
           </button>
           <ProfileMenu
             context={data.teamContext}
-            open={accountMenuOpen}
-            onOpen={setAccountMenuOpen}
+            open={sidebarAccountMenuOpen}
+            onOpen={(open) => {
+              setSidebarAccountMenuOpen(open);
+              if (open) setTopAccountMenuOpen(false);
+            }}
             onView={setView}
             onSignOut={signOut}
-            variant="card"
+            variant="icon"
           />
         </div>
       </aside>
@@ -925,8 +931,11 @@ export default function MetrolinaBaseballApp() {
           onStartGame={() => setStartGameOpen(true)}
           onView={setView}
           context={data.teamContext}
-          accountMenuOpen={accountMenuOpen}
-          onAccountMenu={setAccountMenuOpen}
+          accountMenuOpen={topAccountMenuOpen}
+          onAccountMenu={(open) => {
+            setTopAccountMenuOpen(open);
+            if (open) setSidebarAccountMenuOpen(false);
+          }}
           onSignOut={signOut}
         />
 
@@ -968,6 +977,9 @@ export default function MetrolinaBaseballApp() {
             }}
             onImport={() => setRosterImportOpen(true)}
             onStatus={updateRosterStatus}
+            onDeletePlayer={(playerId) => {
+              commit((current) => playerRepository.archive(current, playerId));
+            }}
           />
         )}
 
@@ -1210,10 +1222,6 @@ export default function MetrolinaBaseballApp() {
             setSelectedPlayerId(player.id);
             setPlayerEditorOpen(false);
             setView("profile");
-          }}
-          onArchive={(playerId) => {
-            commit((current) => playerRepository.archive(current, playerId));
-            setPlayerEditorOpen(false);
           }}
         />
       )}
@@ -1489,6 +1497,75 @@ function TopCommand({
   );
 }
 
+type ChoiceOption = {
+  value: string;
+  label: string;
+};
+
+function ChoiceSelect({
+  label,
+  value,
+  options,
+  onChange,
+  className = "",
+  disabled = false,
+  "aria-label": ariaLabel,
+}: {
+  label?: string;
+  value: string;
+  options: ChoiceOption[];
+  onChange: (value: string) => void;
+  className?: string;
+  disabled?: boolean;
+  "aria-label"?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((option) => option.value === value) ?? options[0];
+
+  return (
+    <div
+      className={["choice-select", open ? "open" : "", className].filter(Boolean).join(" ")}
+      onBlur={(event) => {
+        const nextFocus = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+        if (!nextFocus || !event.currentTarget.contains(nextFocus)) setOpen(false);
+      }}
+    >
+      {label && <span className="choice-select__label">{label}</span>}
+      <button
+        type="button"
+        className="choice-select__button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel ?? label}
+        disabled={disabled}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <strong>{selected?.label ?? "Select"}</strong>
+        <ChevronDown size={14} aria-hidden="true" />
+      </button>
+      {open && !disabled && (
+        <div className="choice-select__menu" role="listbox" aria-label={ariaLabel ?? label}>
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={option.value === value ? "active" : ""}
+              role="option"
+              aria-selected={option.value === value}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TeamSwitcher({
   context,
   onSwitch,
@@ -1505,31 +1582,26 @@ function TeamSwitcher({
   const selectedValue = teamValue(current);
 
   return (
-    <label className={`team-switcher ${compact ? "team-switcher--compact" : ""}`}>
+    <div className={`team-switcher ${compact ? "team-switcher--compact" : ""}`}>
       <Building2 size={16} aria-hidden="true" />
       <span>
         <small>{current.seasonName ?? "Current season"}</small>
         {teams.length > 1 ? (
-          <select
+          <ChoiceSelect
             value={selectedValue}
             aria-label="Current team"
-            onChange={(event) => {
-              const next = teams.find((team) => teamValue(team) === event.target.value);
+            className="team-switch-choice"
+            options={teams.map((team) => ({ value: teamValue(team), label: team.teamName }))}
+            onChange={(value) => {
+              const next = teams.find((team) => teamValue(team) === value);
               if (next) void onSwitch(next);
             }}
-          >
-            {teams.map((team) => (
-              <option key={teamValue(team)} value={teamValue(team)}>
-                {team.teamName}
-              </option>
-            ))}
-          </select>
+          />
         ) : (
           <strong>{current.teamName}</strong>
         )}
       </span>
-      {teams.length > 1 && <ChevronDown size={14} aria-hidden="true" />}
-    </label>
+    </div>
   );
 }
 
@@ -1789,6 +1861,7 @@ function RosterView({
   onAddPlayer,
   onImport,
   onStatus,
+  onDeletePlayer,
 }: {
   players: Player[];
   team?: TeamOption;
@@ -1805,6 +1878,7 @@ function RosterView({
   onAddPlayer: () => void;
   onImport: () => void;
   onStatus: (playerId: ID, status: RosterStatus) => void;
+  onDeletePlayer: (playerId: ID) => void;
 }) {
   const [sortConfig, setSortConfig] = useState<{ key: RosterSortKey; direction: SortDirection }>({ key: "number", direction: "asc" });
   const gradYears = Array.from(new Set(players.map((player) => String(player.graduationYear)))).sort();
@@ -1850,20 +1924,22 @@ function RosterView({
           <Search size={15} aria-hidden="true" />
           <input value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Search by name or number..." />
         </label>
-        <label className="filter-select">
-          <span>Position</span>
-          <select value={positionFilter} onChange={(event) => onPositionFilter(event.target.value as RosterPositionFilter)}>
-            <option>All</option>
-            {POSITIONS.map((position) => <option key={position}>{position}</option>)}
-          </select>
-        </label>
-        <label className="filter-select">
-          <span>Class</span>
-          <select value={yearFilter} onChange={(event) => onYearFilter(event.target.value)}>
-            <option>All</option>
-            {gradYears.map((year) => <option key={year}>{year}</option>)}
-          </select>
-        </label>
+        <ChoiceSelect
+          label="Position"
+          value={positionFilter}
+          className="filter-select"
+          options={[{ value: "All", label: "All" }, ...POSITIONS.map((position) => ({ value: position, label: position }))]}
+          onChange={(value) => onPositionFilter(value as RosterPositionFilter)}
+          aria-label="Filter roster by position"
+        />
+        <ChoiceSelect
+          label="Class"
+          value={yearFilter}
+          className="filter-select"
+          options={[{ value: "All", label: "All" }, ...gradYears.map((year) => ({ value: year, label: year }))]}
+          onChange={onYearFilter}
+          aria-label="Filter roster by class"
+        />
       </section>
 
       <section className="roster-table-shell">
@@ -1900,14 +1976,30 @@ function RosterView({
             <span className="roster-height-cell">{player.height ?? "--"}</span>
             <span className="roster-mobile-label">Weight</span>
             <span className="roster-weight-cell">{player.weight ? `${player.weight}` : "--"}</span>
-            <label className={`status-select-wrap status-select-wrap--${(player.rosterStatus ?? "Undecided").toLowerCase()}`}>
-              <select value={player.rosterStatus ?? "Undecided"} onChange={(event) => onStatus(player.id, event.target.value as RosterStatus)} aria-label={`Roster status for ${player.name}`}>
-                {ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}
-              </select>
-            </label>
-            <button className="row-menu-button" type="button" onClick={() => onEditPlayer(player.id)} aria-label={`Edit ${player.name}`}>
-              <MoreHorizontal size={16} aria-hidden="true" />
-            </button>
+            <ChoiceSelect
+              value={player.rosterStatus ?? "Undecided"}
+              className={`status-select-wrap status-select-wrap--${(player.rosterStatus ?? "Undecided").toLowerCase()}`}
+              options={ROSTER_STATUSES.map((status) => ({ value: status, label: status }))}
+              onChange={(value) => onStatus(player.id, value as RosterStatus)}
+              aria-label={`Roster status for ${player.name}`}
+            />
+            <span className="row-action-group">
+              <button className="row-action-button" type="button" onClick={() => onEditPlayer(player.id)} aria-label={`Edit ${player.name}`}>
+                <Edit3 size={15} aria-hidden="true" />
+              </button>
+              <button
+                className="row-action-button row-action-button--danger"
+                type="button"
+                onClick={() => {
+                  if (window.confirm(`Delete ${player.name} from the active roster? Historical data will be preserved.`)) {
+                    onDeletePlayer(player.id);
+                  }
+                }}
+                aria-label={`Delete ${player.name}`}
+              >
+                <Trash2 size={15} aria-hidden="true" />
+              </button>
+            </span>
           </article>
         )) : (
           <CompactEmpty title="No players match these filters" action={<button className="secondary-button" type="button" onClick={() => { onFilter("All"); onPositionFilter("All"); onYearFilter("All"); onQuery(""); }}>Clear Filters</button>} />
@@ -2572,12 +2664,16 @@ function WeightRoomView({
             ))}
           </div>
           <div className="form-grid">
-            <label>
+            <div className="form-field">
               <span>Exercise</span>
-              <select value={form.exercise} onChange={(event) => onForm({ ...form, exercise: event.target.value })}>
-                {EXERCISES.map((exercise) => <option key={exercise}>{exercise}</option>)}
-              </select>
-            </label>
+              <ChoiceSelect
+                value={form.exercise}
+                className="form-choice"
+                options={EXERCISES.map((exercise) => ({ value: exercise, label: exercise }))}
+                onChange={(value) => onForm({ ...form, exercise: value })}
+                aria-label="Exercise"
+              />
+            </div>
             <label>
               <span>Weight</span>
               <input inputMode="numeric" value={form.weight} onChange={(event) => onForm({ ...form, weight: event.target.value.replace(/[^0-9.]/g, "") })} />
@@ -3102,7 +3198,7 @@ function StartPracticeModal({ data, onClose, onCreate }: { data: AppData; onClos
         <label><span>Date</span><input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
         <label><span>Time</span><input type="time" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} /></label>
         <label><span>Practice name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
-        <label><span>Type</span><select value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as PracticeType })}>{PRACTICE_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label>
+        <div className="form-field"><span>Type</span><ChoiceSelect value={form.type} className="form-choice" options={PRACTICE_TYPES.map((type) => ({ value: type, label: type }))} onChange={(value) => setForm({ ...form, type: value as PracticeType })} aria-label="Practice type" /></div>
         <label><span>Location</span><input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} /></label>
         <label className="wide"><span>Notes</span><textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
       </div>
@@ -3137,11 +3233,11 @@ function StartGameModal({ data, onClose, onCreate }: { data: AppData; onClose: (
     <ModalFrame title="Start Game" onClose={onClose}>
       <div className="form-grid">
         <label><span>Opponent</span><input value={form.opponent} onChange={(event) => setForm({ ...form, opponent: event.target.value })} /></label>
-        <label><span>Home/Away</span><select value={form.homeAway} onChange={(event) => setForm({ ...form, homeAway: event.target.value as Game["homeAway"] })}><option>Home</option><option>Away</option></select></label>
+        <div className="form-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, homeAway: value as Game["homeAway"] })} aria-label="Home or away" /></div>
         <label><span>Date</span><input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
         <label><span>Location</span><input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} /></label>
-        <label><span>Game type</span><select value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as GameType })}>{GAME_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label>
-        <label><span>Starting pitcher</span><select value={form.startingPitcherId} onChange={(event) => setForm({ ...form, startingPitcherId: event.target.value })}>{data.players.filter((player) => player.isPitcher).map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}</select></label>
+        <div className="form-field"><span>Game type</span><ChoiceSelect value={form.type} className="form-choice" options={GAME_TYPES.map((type) => ({ value: type, label: type }))} onChange={(value) => setForm({ ...form, type: value as GameType })} aria-label="Game type" /></div>
+        <div className="form-field"><span>Starting pitcher</span><ChoiceSelect value={form.startingPitcherId ?? ""} className="form-choice" options={data.players.filter((player) => player.isPitcher).map((player) => ({ value: player.id, label: player.name }))} onChange={(value) => setForm({ ...form, startingPitcherId: value })} aria-label="Starting pitcher" /></div>
       </div>
       <RosterPicker title="Lineup" players={data.players.filter((player) => player.rosterStatus !== "Cut")} selected={lineup} onToggle={(id) => setLineup(lineup.includes(id) ? lineup.filter((item) => item !== id) : [...lineup, id])} />
       <button className="primary-button stretch-button" type="button" onClick={() => onCreate({
@@ -3173,7 +3269,7 @@ function StartGameModal({ data, onClose, onCreate }: { data: AppData; onClose: (
   );
 }
 
-function PlayerEditorModal({ player, onClose, onSave, onArchive }: { player?: Player; onClose: () => void; onSave: (player: Player) => void; onArchive: (playerId: ID) => void }) {
+function PlayerEditorModal({ player, onClose, onSave }: { player?: Player; onClose: () => void; onSave: (player: Player) => void }) {
   const [form, setForm] = useState<Player>(
     player ?? {
       id: createId("p"),
@@ -3218,18 +3314,17 @@ function PlayerEditorModal({ player, onClose, onSave, onArchive }: { player?: Pl
             <input aria-label="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
             <ManualNumberCell label="Number" value={form.jerseyNumber ? String(form.jerseyNumber) : ""} min={0} max={99} onChange={(value) => setForm({ ...form, jerseyNumber: Number(value) || 0 })} />
             <ManualNumberCell label="Graduation" value={String(form.graduationYear || currentRosterYear())} min={2020} max={2045} onChange={(value) => setForm({ ...form, graduationYear: Number(value) || currentRosterYear() })} />
-            <select aria-label="Primary" value={form.primaryPosition} onChange={(event) => setForm({ ...form, primaryPosition: event.target.value as Position })}>{POSITIONS.map((position) => <option key={position}>{position}</option>)}</select>
-            <select aria-label="Secondary" value={form.secondaryPosition ?? ""} onChange={(event) => setForm({ ...form, secondaryPosition: event.target.value ? event.target.value as Position : undefined })}>{SECONDARY_POSITIONS.map((position) => <option key={position || "none"} value={position}>{position || "None"}</option>)}</select>
-            <select aria-label="Bats" value={form.bats} onChange={(event) => setForm({ ...form, bats: event.target.value as Player["bats"] })}><option>R</option><option>L</option><option>S</option></select>
-            <select aria-label="Throws" value={form.throws} onChange={(event) => setForm({ ...form, throws: event.target.value as Player["throws"] })}><option>R</option><option>L</option></select>
+            <ChoiceSelect aria-label="Primary" value={form.primaryPosition} className="manual-choice-cell" options={POSITIONS.map((position) => ({ value: position, label: position }))} onChange={(value) => setForm({ ...form, primaryPosition: value as Position })} />
+            <ChoiceSelect aria-label="Secondary" value={form.secondaryPosition ?? ""} className="manual-choice-cell" options={SECONDARY_POSITIONS.map((position) => ({ value: position, label: position || "None" }))} onChange={(value) => setForm({ ...form, secondaryPosition: value ? value as Position : undefined })} />
+            <ChoiceSelect aria-label="Bats" value={form.bats} className="manual-choice-cell" options={["R", "L", "S"].map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, bats: value as Player["bats"] })} />
+            <ChoiceSelect aria-label="Throws" value={form.throws} className="manual-choice-cell" options={["R", "L"].map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, throws: value as Player["throws"] })} />
             <ManualHeightCell value={String(heightToInches(form.height))} onChange={(heightInches) => setForm({ ...form, height: heightInches ? formatHeightFromInches(Number(heightInches)) : undefined })} />
             <ManualNumberCell label="Weight" value={form.weight ? String(form.weight) : ""} min={80} max={320} onChange={(value) => setForm({ ...form, weight: Number(value) || undefined })} />
-            <select aria-label="Status" value={form.rosterStatus} onChange={(event) => setForm({ ...form, rosterStatus: event.target.value as RosterStatus })}>{ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}</select>
+            <ChoiceSelect aria-label="Status" value={form.rosterStatus ?? "Undecided"} className="manual-choice-cell" options={ROSTER_STATUSES.map((status) => ({ value: status, label: status }))} onChange={(value) => setForm({ ...form, rosterStatus: value as RosterStatus })} />
           </div>
         </div>
       </section>
       <div className="modal-actions">
-        {player && <button className="secondary-button" type="button" onClick={() => onArchive(player.id)}><Archive size={16} aria-hidden="true" />Archive</button>}
         <button className="primary-button" type="button" onClick={() => onSave({ ...form, ...roleFlags, updatedAt: new Date().toISOString() })}><Save size={16} aria-hidden="true" />Save Player</button>
       </div>
     </ModalFrame>
@@ -3934,11 +4029,17 @@ function RosterImportModal({
                       <strong>{row.matchedPlayerName ?? (row.duplicateSourcePlayerId ? "Same upload" : row.status === "possible-match" ? "Review" : "New")}</strong>
                       <small>{row.candidatePlayerIds.length ? `${row.candidatePlayerIds.length} candidate${row.candidatePlayerIds.length === 1 ? "" : "s"}` : "No existing match"}</small>
                     </div>
-                    <select
+                    <ChoiceSelect
                       value={row.decision}
                       disabled={row.status === "error"}
-                      onChange={(event) => {
-                        const decision = event.target.value as RosterImportDecision;
+                      className="import-row-choice"
+                      options={[
+                        { value: "use-existing", label: "Use Existing Player" },
+                        { value: "create-new", label: "Create New Player" },
+                        { value: "skip", label: "Skip" },
+                      ].filter((option) => option.value !== "use-existing" || row.matchedPlayerId || row.candidatePlayerIds.length)}
+                      onChange={(value) => {
+                        const decision = value as RosterImportDecision;
                         setResolutions((current) => ({
                           ...current,
                           [`${file.sourceId}:${row.id}`]: {
@@ -3947,11 +4048,8 @@ function RosterImportModal({
                           },
                         }));
                       }}
-                    >
-                      <option value="use-existing" disabled={!row.matchedPlayerId && row.candidatePlayerIds.length === 0}>Use Existing Player</option>
-                      <option value="create-new">Create New Player</option>
-                      <option value="skip">Skip</option>
-                    </select>
+                      aria-label={`Duplicate resolution for ${row.firstName} ${row.lastName}`}
+                    />
                   </article>
                 ))}
               </div>
@@ -4122,28 +4220,43 @@ function ManualRosterBuilder({
                   onChange={(event) => onChangeRow(row.id, { lastName: event.target.value })}
                 />
                 <ManualNumberCell label="Graduation year" value={row.graduationYear} min={2020} max={2045} onChange={(graduationYear) => onChangeRow(row.id, { graduationYear })} />
-                <select aria-label="Primary position" value={row.primaryPosition} onChange={(event) => onChangeRow(row.id, { primaryPosition: event.target.value as Position | "" })}>
-                  <option value="">-</option>
-                  {POSITIONS.map((position) => <option key={position}>{position}</option>)}
-                </select>
-                <select aria-label="Secondary position" value={row.secondaryPosition} onChange={(event) => onChangeRow(row.id, { secondaryPosition: event.target.value as Position | "" })}>
-                  <option value="">-</option>
-                  {POSITIONS.map((position) => <option key={position}>{position}</option>)}
-                </select>
-                <select aria-label="Bats" value={row.bats} onChange={(event) => onChangeRow(row.id, { bats: event.target.value as Player["bats"] })}>
-                  <option>R</option>
-                  <option>L</option>
-                  <option>S</option>
-                </select>
-                <select aria-label="Throws" value={row.throws} onChange={(event) => onChangeRow(row.id, { throws: event.target.value as Player["throws"] })}>
-                  <option>R</option>
-                  <option>L</option>
-                </select>
+                <ChoiceSelect
+                  aria-label="Primary position"
+                  value={row.primaryPosition}
+                  className="manual-choice-cell"
+                  options={[{ value: "", label: "-" }, ...POSITIONS.map((position) => ({ value: position, label: position }))]}
+                  onChange={(value) => onChangeRow(row.id, { primaryPosition: value as Position | "" })}
+                />
+                <ChoiceSelect
+                  aria-label="Secondary position"
+                  value={row.secondaryPosition}
+                  className="manual-choice-cell"
+                  options={[{ value: "", label: "-" }, ...POSITIONS.map((position) => ({ value: position, label: position }))]}
+                  onChange={(value) => onChangeRow(row.id, { secondaryPosition: value as Position | "" })}
+                />
+                <ChoiceSelect
+                  aria-label="Bats"
+                  value={row.bats}
+                  className="manual-choice-cell"
+                  options={["R", "L", "S"].map((value) => ({ value, label: value }))}
+                  onChange={(value) => onChangeRow(row.id, { bats: value as Player["bats"] })}
+                />
+                <ChoiceSelect
+                  aria-label="Throws"
+                  value={row.throws}
+                  className="manual-choice-cell"
+                  options={["R", "L"].map((value) => ({ value, label: value }))}
+                  onChange={(value) => onChangeRow(row.id, { throws: value as Player["throws"] })}
+                />
                 <ManualHeightCell value={row.heightInches} onChange={(heightInches) => onChangeRow(row.id, { heightInches })} />
                 <ManualNumberCell label="Weight" value={row.weight} min={80} max={320} onChange={(weight) => onChangeRow(row.id, { weight })} />
-                <select aria-label="Roster status" value={row.rosterStatus} onChange={(event) => onChangeRow(row.id, { rosterStatus: event.target.value as RosterStatus })}>
-                  {ROSTER_STATUSES.map((status) => <option key={status}>{status}</option>)}
-                </select>
+                <ChoiceSelect
+                  aria-label="Roster status"
+                  value={row.rosterStatus}
+                  className="manual-choice-cell"
+                  options={ROSTER_STATUSES.map((status) => ({ value: status, label: status }))}
+                  onChange={(value) => onChangeRow(row.id, { rosterStatus: value as RosterStatus })}
+                />
                 <button className="row-menu-button" type="button" onClick={() => onRemoveRow(row.id)} aria-label="Remove row">
                   <X size={15} aria-hidden="true" />
                 </button>
