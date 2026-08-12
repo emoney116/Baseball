@@ -256,27 +256,6 @@ function rosterFileSignature(file: File) {
   return `${file.name.toLowerCase()}::${file.size}::${file.lastModified}`;
 }
 
-function teamFaviconHref(team?: TeamOption) {
-  const teamWithLogo = team as (TeamOption & { logoUrl?: string; logo_url?: string }) | undefined;
-  const explicitLogo = teamWithLogo?.logoUrl ?? teamWithLogo?.logo_url;
-  if (explicitLogo) return explicitLogo;
-  return BRAND_ASSETS.icon;
-}
-
-function useTeamBrowserBrand(team?: TeamOption) {
-  const href = teamFaviconHref(team);
-  useEffect(() => {
-    const selectors = ["link[rel='icon']", "link[rel='shortcut icon']"];
-    const existing = selectors.flatMap((selector) => Array.from(document.querySelectorAll<HTMLLinkElement>(selector)));
-    const links = existing.length ? existing : [document.createElement("link")];
-    links.forEach((link) => {
-      link.rel = link.rel || "icon";
-      link.href = href;
-      if (!link.parentNode) document.head.appendChild(link);
-    });
-  }, [href]);
-}
-
 export default function MetrolinaBaseballApp() {
   const [data, setData] = useState<AppData | null>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -326,7 +305,6 @@ export default function MetrolinaBaseballApp() {
   const lastGlobalRefreshRef = useRef(0);
   const searchInTeamContext = TEAM_CONTEXT_VIEWS.has(view);
 
-  useTeamBrowserBrand(data?.teamContext?.currentTeam);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<ID | undefined>();
   const [sessionSummary, setSessionSummary] = useState<{ type: "Hitting" | "Pitching" | "Defense"; sessionId: ID } | null>(null);

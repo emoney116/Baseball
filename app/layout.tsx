@@ -16,9 +16,8 @@ export const metadata: Metadata = {
     icon: [
       { url: BRAND_ASSETS.icon32, sizes: "32x32", type: "image/png" },
       { url: BRAND_ASSETS.icon, sizes: "192x192", type: "image/png" },
-      { url: "/favicon.ico", sizes: "any" },
     ],
-    shortcut: "/favicon.ico",
+    shortcut: BRAND_ASSETS.icon32,
     apple: [{ url: BRAND_ASSETS.icon180, sizes: "180x180", type: "image/png" }],
   },
   openGraph: {

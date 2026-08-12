@@ -3141,7 +3141,7 @@ textarea:focus-visible {
   padding: 6px;
 }
 
-.organization-team-row > button {
+.organization-team-row > button:not(.follow-heart) {
   min-width: 0;
   border: 0;
   background: transparent;
