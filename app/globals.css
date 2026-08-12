@@ -2886,20 +2886,27 @@ textarea:focus-visible {
 }
 
 .modal-close-button {
+  display: inline-grid;
+  place-items: center;
   border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 82%, transparent);
   width: 32px;
   height: 32px;
   min-width: 32px;
   min-height: 32px;
   background: color-mix(in srgb, var(--panel-soft) 88%, transparent);
   color: var(--muted-strong);
+  padding: 0;
+  box-shadow: none;
 }
 
 .modal-close-button:hover,
 .modal-close-button:focus-visible {
   background: color-mix(in srgb, var(--burgundy) 16%, var(--panel-soft));
-  border-color: color-mix(in srgb, var(--burgundy) 36%, var(--line));
+  border-color: var(--burgundy);
   color: var(--text);
+  outline: 2px solid color-mix(in srgb, var(--burgundy) 30%, transparent);
+  outline-offset: 2px;
 }
 
 .organization-add-team-button {

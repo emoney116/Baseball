@@ -15,6 +15,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { useRef, useState, type CSSProperties, type ChangeEvent, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { cityOptionsForState, US_STATE_OPTIONS } from "../../../lib/locations";
 import type { OrgRole, OrganizationManageData, OrganizationVisibility } from "../../../lib/organizationManagement";
 
 type TabKey = "general" | "teams" | "staff" | "invites" | "visibility";
@@ -43,17 +44,6 @@ const STAFF_ROLE_OPTIONS = [
   "Volunteer",
   "Other",
 ];
-const US_STATE_OPTIONS = ["AL", "AZ", "AR", "CA", "CO", "FL", "GA", "IL", "IN", "KY", "MD", "MI", "MO", "NC", "OH", "PA", "SC", "TN", "TX", "VA", "WV"];
-const CITY_OPTIONS_BY_STATE: Record<string, string[]> = {
-  NC: ["Charlotte", "Indian Trail", "Matthews", "Monroe", "Pineville", "Waxhaw", "Weddington", "Other"],
-  SC: ["Fort Mill", "Rock Hill", "Lancaster", "Other"],
-  TN: ["Nashville", "Knoxville", "Memphis", "Chattanooga", "Other"],
-  GA: ["Atlanta", "Marietta", "Savannah", "Other"],
-  VA: ["Richmond", "Virginia Beach", "Roanoke", "Other"],
-  TX: ["Dallas", "Houston", "Austin", "San Antonio", "Other"],
-  FL: ["Orlando", "Tampa", "Jacksonville", "Miami", "Other"],
-  CA: ["Los Angeles", "San Diego", "San Jose", "Sacramento", "Other"],
-};
 const SEASON_OPTIONS = buildSeasonOptions();
 
 type ChoiceOption = {
@@ -1266,11 +1256,6 @@ function buildSeasonOptions() {
     for (const season of seasonNames) seasons.add(`${season} ${year}`);
   }
   return [...seasons];
-}
-
-function cityOptionsForState(state: string) {
-  if (!state) return [];
-  return CITY_OPTIONS_BY_STATE[state] ?? ["Other"];
 }
 
 function levelOptionsForTeamType(teamType: string) {

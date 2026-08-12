@@ -44,6 +44,7 @@ import { BaseballField, DonutChart, Heatmap, MetricBar, MiniLineChart, PlayerAva
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
 import { APP_NAME, APP_SECONDARY_TAGLINE, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
+import { cityOptionsForState, US_STATE_OPTIONS } from "./lib/locations";
 import {
   applyRosterImportPlan,
   buildRosterImportPlan,
@@ -217,19 +218,6 @@ const ROSTER_CSV_TEMPLATE = [
 const TEAM_TYPE_OPTIONS = ["School", "Travel", "Club", "Other"];
 const SCHOOL_LEVEL_OPTIONS = ["Varsity", "JV", "Freshman", "Other"];
 const AGE_GROUP_OPTIONS = ["18+", "18U", "17U", "16U", "15U", "14U", "13U", "12U", "11U", "10U", "9U", "8U", "7U", "6U", "Other"];
-const US_STATE_OPTIONS = [
-  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "IA", "ID", "IL", "IN", "KS", "KY", "LA", "MA", "MD", "ME", "MI",
-  "MN", "MO", "MS", "MT", "NC", "ND", "NE", "NH", "NJ", "NM", "NV", "NY", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX",
-  "UT", "VA", "VT", "WA", "WI", "WV", "WY",
-];
-const CITY_OPTIONS_BY_STATE: Record<string, string[]> = {
-  NC: ["Charlotte", "Indian Trail", "Matthews", "Monroe", "Waxhaw", "Huntersville", "Concord", "Raleigh", "Durham", "Greensboro", "Other"],
-  SC: ["Fort Mill", "Rock Hill", "Columbia", "Greenville", "Spartanburg", "Charleston", "Other"],
-  GA: ["Atlanta", "Marietta", "Alpharetta", "Savannah", "Augusta", "Other"],
-  FL: ["Orlando", "Tampa", "Jacksonville", "Miami", "Fort Myers", "Other"],
-  VA: ["Richmond", "Virginia Beach", "Norfolk", "Roanoke", "Other"],
-  TN: ["Nashville", "Knoxville", "Chattanooga", "Memphis", "Other"],
-};
 const SEASON_OPTIONS = buildSeasonOptions();
 
 function slugifyFilePart(value: string) {
@@ -262,11 +250,6 @@ function levelOptionsForTeamType(teamType: string) {
 
 function defaultLevelForTeamType(teamType: string) {
   return teamType === "School" ? "Varsity" : "18U";
-}
-
-function cityOptionsForState(state: string) {
-  if (!state) return [];
-  return CITY_OPTIONS_BY_STATE[state] ?? ["Other"];
 }
 
 function rosterFileSignature(file: File) {
