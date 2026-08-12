@@ -117,7 +117,7 @@ function cleanText(value: unknown, maxLength: number) {
 }
 
 function cleanAvatarValue(value: unknown) {
-  const text = cleanText(value, 750_000);
+  const text = cleanText(value, 180_000);
   if (!text) return "";
   if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(text)) return text;
   try {

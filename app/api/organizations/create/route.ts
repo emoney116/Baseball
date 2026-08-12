@@ -16,10 +16,12 @@ export async function POST(request: NextRequest) {
       organizationName?: string;
       city?: string;
       state?: string;
+      logoUrl?: string;
     };
     const organizationName = cleanText(body.organizationName, 120);
     const city = cleanText(body.city, 80);
     const state = cleanText(body.state, 40);
+    const logoUrl = cleanAvatarValue(body.logoUrl);
     if (!organizationName) {
       return NextResponse.json({ ok: false, message: "Organization name is required." }, { status: 400 });
     }
@@ -32,6 +34,7 @@ export async function POST(request: NextRequest) {
         slug: `${slugify(organizationName)}-${crypto.randomUUID().slice(0, 6)}`,
         city: city || null,
         state: state || null,
+        logo_url: logoUrl || null,
         visibility: "PRIVATE",
       })
       .select("id,name,slug,city,state,logo_url")
@@ -72,6 +75,18 @@ export async function POST(request: NextRequest) {
       { ok: false, message: error instanceof Error ? error.message : "Unable to create organization." },
       { status: 500 },
     );
+  }
+}
+
+function cleanAvatarValue(value: unknown) {
+  const text = cleanText(value, 750_000);
+  if (!text) return "";
+  if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(text)) return text;
+  try {
+    const url = new URL(text);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : "";
+  } catch {
+    return "";
   }
 }
 

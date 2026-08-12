@@ -295,11 +295,16 @@ export interface AppProfile {
 }
 
 export interface TeamOption {
-  organizationId: ID;
+  organizationId?: ID;
   organizationName: string;
   teamId: ID;
   teamName: string;
   teamLevel?: string;
+  teamType?: string;
+  ageGroup?: string;
+  city?: string;
+  state?: string;
+  logoUrl?: string;
   seasonId?: ID;
   seasonName?: string;
   role: TeamMembershipRole;
@@ -343,11 +348,14 @@ export interface ProfileFollowExclusion {
 
 export interface PublicDirectoryTeamSummary {
   id: ID;
-  organizationId: ID;
+  organizationId?: ID;
   organizationName: string;
   organizationSlug?: string;
   name: string;
   level?: string;
+  teamType?: string;
+  ageGroup?: string;
+  logoUrl?: string;
   seasonId?: ID;
   seasonName?: string;
   city?: string;

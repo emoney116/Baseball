@@ -133,7 +133,6 @@ type LiveBpOutcomeLabel = "K" | "BB" | "HBP" | "1B" | "2B" | "3B" | "HR" | "Out"
 
 const GLOBAL_NAV_ITEMS: Array<{ key: ViewKey; label: string; shortLabel: string; icon: LucideIcon }> = [
   { key: "home", label: "Home", shortLabel: "Home", icon: Home },
-  { key: "organizations", label: "Organizations", shortLabel: "Orgs", icon: Building2 },
   { key: "following", label: "Following", shortLabel: "Following", icon: Star },
   { key: "discover", label: "Discover", shortLabel: "Search", icon: Search },
   { key: "account", label: "Profile", shortLabel: "Profile", icon: User },
@@ -165,6 +164,7 @@ const CREATE_TEAM_VALUE = "__create_team__";
 const ROUTABLE_VIEWS = new Set<ViewKey>([
   ...GLOBAL_NAV_ITEMS.map((item) => item.key),
   ...TEAM_NAV_ITEMS.map((item) => item.key),
+  "organizations",
   "profile",
   "account",
 ]);
@@ -214,8 +214,23 @@ const ROSTER_CSV_TEMPLATE = [
   "Jackson,Smith,12,2027,SS,P,R,R,Metrolina Varsity,Varsity",
   "Mason,Lee,17,2026,P,1B,R,R,Metrolina Varsity,Varsity",
 ].join("\n");
-const TEAM_LEVEL_OPTIONS = ["Varsity", "JV", "Freshman", "17U", "16U", "15U", "14U", "Travel", "Club", "Other"];
-const SEASON_OPTIONS = ["Fall 2026", "Spring 2027", "Summer 2027", "Fall 2027", "Spring 2028", "Summer 2028"];
+const TEAM_TYPE_OPTIONS = ["School", "Travel", "Club", "Other"];
+const SCHOOL_LEVEL_OPTIONS = ["Varsity", "JV", "Freshman", "Other"];
+const AGE_GROUP_OPTIONS = ["18+", "18U", "17U", "16U", "15U", "14U", "13U", "12U", "11U", "10U", "9U", "8U", "7U", "6U", "Other"];
+const US_STATE_OPTIONS = [
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "IA", "ID", "IL", "IN", "KS", "KY", "LA", "MA", "MD", "ME", "MI",
+  "MN", "MO", "MS", "MT", "NC", "ND", "NE", "NH", "NJ", "NM", "NV", "NY", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX",
+  "UT", "VA", "VT", "WA", "WI", "WV", "WY",
+];
+const CITY_OPTIONS_BY_STATE: Record<string, string[]> = {
+  NC: ["Charlotte", "Indian Trail", "Matthews", "Monroe", "Waxhaw", "Huntersville", "Concord", "Raleigh", "Durham", "Greensboro", "Other"],
+  SC: ["Fort Mill", "Rock Hill", "Columbia", "Greenville", "Spartanburg", "Charleston", "Other"],
+  GA: ["Atlanta", "Marietta", "Alpharetta", "Savannah", "Augusta", "Other"],
+  FL: ["Orlando", "Tampa", "Jacksonville", "Miami", "Fort Myers", "Other"],
+  VA: ["Richmond", "Virginia Beach", "Norfolk", "Roanoke", "Other"],
+  TN: ["Nashville", "Knoxville", "Chattanooga", "Memphis", "Other"],
+};
+const SEASON_OPTIONS = buildSeasonOptions();
 
 function slugifyFilePart(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "current-season";
@@ -223,6 +238,35 @@ function slugifyFilePart(value: string) {
 
 function currentRosterYear() {
   return new Date().getFullYear();
+}
+
+function buildSeasonOptions() {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth() + 1;
+  const currentSeason = currentMonth <= 5 ? "Spring" : currentMonth <= 8 ? "Summer" : "Fall";
+  const seasonOrder = ["Spring", "Summer", "Fall"];
+  const seasons: string[] = [];
+  for (let year = currentYear; year <= currentYear + 2; year += 1) {
+    for (const season of seasonOrder) {
+      if (year === currentYear && seasonOrder.indexOf(season) < seasonOrder.indexOf(currentSeason)) continue;
+      seasons.push(`${season} ${year}`);
+    }
+  }
+  return seasons;
+}
+
+function levelOptionsForTeamType(teamType: string) {
+  return teamType === "School" ? SCHOOL_LEVEL_OPTIONS : AGE_GROUP_OPTIONS;
+}
+
+function defaultLevelForTeamType(teamType: string) {
+  return teamType === "School" ? "Varsity" : "18U";
+}
+
+function cityOptionsForState(state: string) {
+  if (!state) return [];
+  return CITY_OPTIONS_BY_STATE[state] ?? ["Other"];
 }
 
 function rosterFileSignature(file: File) {
@@ -549,7 +593,23 @@ export default function MetrolinaBaseballApp() {
     commit((current) => applyRosterImportPlan(current, plan).data);
   }
 
-  async function createTeamForImport(input: { organizationId?: string; organizationName?: string; city?: string; state?: string; teamName: string; teamLevel?: string; seasonName: string }) {
+  async function createTeamForImport(input: {
+    organizationId?: string;
+    organizationName?: string;
+    organizationCity?: string;
+    organizationState?: string;
+    organizationLogoUrl?: string;
+    city?: string;
+    state?: string;
+    teamCity?: string;
+    teamState?: string;
+    teamName: string;
+    teamLevel?: string;
+    teamType?: string;
+    ageGroup?: string;
+    logoUrl?: string;
+    seasonName: string;
+  }) {
     const team = await supabaseAppRepository.createTeam(input);
     setData((current) => {
       if (!current) return current;
@@ -571,7 +631,7 @@ export default function MetrolinaBaseballApp() {
     return team;
   }
 
-  async function createOrganization(input: { organizationName: string; city?: string; state?: string }) {
+  async function createOrganization(input: { organizationName: string; city?: string; state?: string; logoUrl?: string }) {
     const organization = await supabaseAppRepository.createOrganization(input);
     setData((current) => {
       if (!current) return current;
@@ -715,12 +775,6 @@ export default function MetrolinaBaseballApp() {
     void refreshGlobalData();
   }
 
-  function openOrganization() {
-    setGlobalQuery("");
-    navigateToView("organizations");
-    void refreshGlobalData();
-  }
-
   function goToView(nextView: ViewKey) {
     navigateToView(nextView);
     if ([...GLOBAL_NAV_ITEMS.map((item) => item.key), "organizations", "following", "discover"].includes(nextView)) {
@@ -729,6 +783,11 @@ export default function MetrolinaBaseballApp() {
   }
 
   function openPublicOrganization(organization: PublicDirectoryOrganizationSummary) {
+    setGlobalQuery("");
+    window.location.href = `/org/${organization.slug ?? organization.id}`;
+  }
+
+  function openManagedOrganization(organization: OrganizationSummary) {
     setGlobalQuery("");
     window.location.href = `/org/${organization.slug ?? organization.id}`;
   }
@@ -742,15 +801,30 @@ export default function MetrolinaBaseballApp() {
     setSaveStatus("saving");
     setSaveError(null);
     try {
-      const followed = isFollowingTeam(data?.profileFollows ?? [], team.id);
-      const follow = !followed;
-      const result = await supabaseAppRepository.toggleFollow({ teamId: team.id, follow });
+      const orgFollowed = team.organizationId ? isFollowingOrganization(data?.profileFollows ?? [], team.organizationId) : false;
+      const specificallyFollowed = isFollowingTeam(data?.profileFollows ?? [], team.id);
+      const excluded = isTeamExcludedFromFollow(data?.profileFollowExclusions ?? [], team.organizationId, team.id);
+      const effectivelyFollowed = orgFollowed ? !excluded : specificallyFollowed;
+      const follow = !effectivelyFollowed;
+      const exclusionResult = orgFollowed && team.organizationId
+        ? await supabaseAppRepository.toggleOrganizationTeamExclusion({ organizationId: team.organizationId, teamId: team.id, exclude: !follow })
+        : undefined;
+      const followResult = !orgFollowed
+        ? await supabaseAppRepository.toggleFollow({ teamId: team.id, follow })
+        : undefined;
       setData((current) => {
         if (!current) return current;
         const remaining = (current.profileFollows ?? []).filter((item) => item.teamId !== team.id);
+        const remainingExclusions = (current.profileFollowExclusions ?? []).filter((item) => item.teamId !== team.id);
+        if (orgFollowed && team.organizationId) {
+          return {
+            ...current,
+            profileFollowExclusions: !follow && exclusionResult ? [exclusionResult, ...remainingExclusions] : remainingExclusions,
+          };
+        }
         return {
           ...current,
-          profileFollows: follow && result ? [result, ...remaining] : remaining,
+          profileFollows: follow && followResult ? [followResult, ...remaining] : remaining,
         };
       });
       setSaveStatus("saved");
@@ -1276,7 +1350,7 @@ export default function MetrolinaBaseballApp() {
           searchMode={inTeamContext ? "team" : "global"}
           onQuery={setGlobalQuery}
           onOpenPlayer={openPlayer}
-          onOpenOrganization={openOrganization}
+          onOpenOrganization={openManagedOrganization}
           onOpenPublicOrganization={openPublicOrganization}
           onEnterTeam={enterTeam}
           onOpenPublicTeam={openPublicTeam}
@@ -1307,12 +1381,13 @@ export default function MetrolinaBaseballApp() {
         )}
 
         {view === "home" && (
-          <ClubhouseHome
-            data={data}
-            onEnterTeam={enterTeam}
-            onOpenPublicTeam={openPublicTeam}
-            onOpenPublicOrganization={openPublicOrganization}
-            onTogglePublicTeamFollow={togglePublicTeamFollow}
+            <ClubhouseHome
+              data={data}
+              onEnterTeam={enterTeam}
+              onOpenPublicTeam={openPublicTeam}
+              onOpenPublicOrganization={openPublicOrganization}
+              onOpenManagedOrganization={openManagedOrganization}
+              onTogglePublicTeamFollow={togglePublicTeamFollow}
             onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
             onView={goToView}
             onCreateTeam={() => openTeamCreator(undefined, "existing")}
@@ -1767,6 +1842,10 @@ function AuthGate({
   }
 
   async function createAccount() {
+    if (!firstName.trim() || !lastName.trim()) {
+      setMessage("First and last name are required.");
+      return;
+    }
     if (password !== confirmPassword) {
       setMessage("Passwords do not match.");
       return;
@@ -2421,7 +2500,9 @@ function AccountProfileView({
   const [message, setMessage] = useState("");
   const [cropState, setCropState] = useState<AvatarCropState | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const profileName = profileDisplayName(context);
+  const fullName = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() || profileDisplayName(context);
+  const displayValue = displayName.trim() || fullName;
+  const emailValue = profile?.email ?? "No email available";
 
   useEffect(() => {
     setDisplayName(initialDisplayName);
@@ -2514,35 +2595,44 @@ function AccountProfileView({
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} />
           </label>
           <div className="account-profile-main">
-            <span>{profileName}</span>
-            <div className="profile-display-row">
-            {editingDisplayName ? (
-              <input
-                className="profile-display-input"
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") void saveDisplayName();
-                    if (event.key === "Escape") {
-                      setDisplayName(initialDisplayName);
-                      setEditingDisplayName(false);
-                    }
-                  }}
-                />
-              ) : (
-                <h2>{displayName}</h2>
-            )}
-            {editingDisplayName ? (
-              <button className="secondary-button profile-inline-action" type="button" onClick={() => void saveDisplayName()} disabled={status === "saving"}>
-                {status === "saving" ? "Saving..." : "Save"}
-              </button>
-            ) : (
-                <button className="icon-button profile-edit-button" type="button" aria-label="Edit display name" onClick={() => setEditingDisplayName(true)}>
-                  <Edit3 size={14} aria-hidden="true" />
-                </button>
-            )}
+            <div className="profile-line">
+              <span>Name</span>
+              <strong>{fullName}</strong>
             </div>
-            <p>{profile?.email ?? "No email available"}</p>
+            <div className="profile-line">
+              <span>Display</span>
+              <div className="profile-display-row">
+                {editingDisplayName ? (
+                  <input
+                    className="profile-display-input"
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") void saveDisplayName();
+                      if (event.key === "Escape") {
+                        setDisplayName(initialDisplayName);
+                        setEditingDisplayName(false);
+                      }
+                    }}
+                  />
+                ) : (
+                  <strong>{displayValue}</strong>
+                )}
+                {editingDisplayName ? (
+                  <button className="secondary-button profile-inline-action" type="button" onClick={() => void saveDisplayName()} disabled={status === "saving"}>
+                    {status === "saving" ? "Saving..." : "Save"}
+                  </button>
+                ) : (
+                  <button className="icon-button profile-edit-button" type="button" aria-label="Edit display name" onClick={() => setEditingDisplayName(true)}>
+                    <Edit3 size={13} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="profile-line">
+              <span>Email</span>
+              <p>{emailValue}</p>
+            </div>
           </div>
           <div className="profile-save-row profile-save-row--compact">
             {message && <span className={`profile-save-message profile-save-message--${status}`}>{message}</span>}
@@ -2582,12 +2672,14 @@ type AvatarCropState = {
 
 function AvatarCropModal({
   state,
+  title = "Profile Photo",
   onChange,
   onCancel,
   onPickDifferent,
   onApply,
 }: {
   state: AvatarCropState;
+  title?: string;
   onChange: React.Dispatch<React.SetStateAction<AvatarCropState | null>>;
   onCancel: () => void;
   onPickDifferent: () => void;
@@ -2614,7 +2706,7 @@ function AvatarCropModal({
       <div className="modal-panel avatar-crop-modal">
         <div className="modal-title">
           <div>
-            <h2>Profile Photo</h2>
+            <h2>{title}</h2>
             <p>{state.fileName}</p>
           </div>
           <button className="icon-button" type="button" onClick={onCancel} aria-label="Close">
@@ -2668,7 +2760,7 @@ async function cropAvatarImage(state: AvatarCropState) {
   const image = await loadImageElement(state.sourceUrl);
   const sourceSize = Math.min(image.naturalWidth, image.naturalHeight);
   if (!sourceSize) throw new Error("Unable to read that image.");
-  const outputSize = 360;
+  const outputSize = 240;
   const canvas = document.createElement("canvas");
   canvas.width = outputSize;
   canvas.height = outputSize;
@@ -2691,7 +2783,7 @@ async function cropAvatarImage(state: AvatarCropState) {
   context.drawImage(image, drawX, drawY, drawnWidth, drawnHeight);
   context.restore();
 
-  return canvas.toDataURL("image/webp", 0.86);
+  return canvas.toDataURL("image/webp", 0.76);
 }
 
 function loadImageElement(sourceUrl: string) {
@@ -2722,6 +2814,7 @@ function ClubhouseHome({
   onEnterTeam,
   onOpenPublicTeam,
   onOpenPublicOrganization,
+  onOpenManagedOrganization,
   onTogglePublicTeamFollow,
   onTogglePublicOrganizationFollow,
   onView,
@@ -2731,6 +2824,7 @@ function ClubhouseHome({
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
   onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
+  onOpenManagedOrganization: (organization: OrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
   onView: (view: ViewKey) => void;
@@ -2760,6 +2854,7 @@ function ClubhouseHome({
               key={organization.id}
               organization={organization}
               onEnterTeam={onEnterTeam}
+              onOpenOrganization={onOpenManagedOrganization}
             />
           )) : <CompactEmpty title="No organizations yet" />}
         </div>
@@ -2773,6 +2868,7 @@ function ClubhouseHome({
               key={organization.id}
               organization={organization}
               onEnterTeam={onEnterTeam}
+              onOpenOrganization={onOpenManagedOrganization}
             />
           )) : <CompactEmpty title="No teams yet" />}
         </div>
@@ -2892,24 +2988,104 @@ function TeamCreatorModal({
   initialOrganizationId?: ID;
   initialMode?: "existing" | "new" | "organization";
   onClose: () => void;
-  onCreateOrganization: (input: { organizationName: string; city?: string; state?: string }) => Promise<void>;
-  onCreate: (input: { organizationId?: string; organizationName?: string; city?: string; state?: string; teamName: string; teamLevel?: string; seasonName: string }) => Promise<void>;
+  onCreateOrganization: (input: { organizationName: string; city?: string; state?: string; logoUrl?: string }) => Promise<void>;
+  onCreate: (input: {
+    organizationId?: string;
+    organizationName?: string;
+    organizationCity?: string;
+    organizationState?: string;
+    organizationLogoUrl?: string;
+    teamCity?: string;
+    teamState?: string;
+    teamName: string;
+    teamLevel?: string;
+    teamType?: string;
+    ageGroup?: string;
+    seasonName: string;
+  }) => Promise<void>;
 }) {
-  const startingMode: "existing" | "new" | "organization" =
-    initialMode === "organization" ? "organization" : initialOrganizationId || organizations.length ? "existing" : "organization";
-  const [mode, setMode] = useState<"existing" | "new" | "organization">(startingMode);
+  const startingMode: "existing" | "organization" =
+    initialMode === "organization" ? "organization" : "existing";
+  const [mode, setMode] = useState<"existing" | "organization">(startingMode);
   const [addFirstTeam, setAddFirstTeam] = useState(initialMode === "new");
   const [form, setForm] = useState({
     organizationId: initialOrganizationId ?? organizations[0]?.id ?? "",
     organizationName: "",
-    city: "",
-    state: "",
+    organizationCity: "",
+    organizationState: "",
     teamName: "",
+    teamType: "School",
     teamLevel: "Varsity",
-    seasonName: "Fall 2026",
+    teamCity: "",
+    teamState: "",
+    seasonName: SEASON_OPTIONS[0] ?? "Summer 2026",
   });
+  const [organizationLogoUrl, setOrganizationLogoUrl] = useState("");
+  const [cropState, setCropState] = useState<AvatarCropState | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
   const [message, setMessage] = useState("");
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
+
+  function updateTeamType(teamType: string) {
+    setForm((current) => ({
+      ...current,
+      teamType,
+      teamLevel: defaultLevelForTeamType(teamType),
+    }));
+  }
+
+  function updateState(scope: "organization" | "team", state: string) {
+    setForm((current) => ({
+      ...current,
+      [scope === "organization" ? "organizationState" : "teamState"]: state,
+      [scope === "organization" ? "organizationCity" : "teamCity"]: "",
+    }));
+  }
+
+  function handleLogoFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setMessage("");
+    if (!file.type.startsWith("image/")) {
+      setStatus("error");
+      setMessage("Choose an image file.");
+      return;
+    }
+    if (file.size > 8_000_000) {
+      setStatus("error");
+      setMessage("Choose an image under 8 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const sourceUrl = typeof reader.result === "string" ? reader.result : "";
+      setCropState({ sourceUrl, fileName: file.name, zoom: 1, offsetX: 0, offsetY: 0, status: "idle", message: "" });
+      setStatus("idle");
+    };
+    reader.onerror = () => {
+      setStatus("error");
+      setMessage("Unable to read that image.");
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function applyLogoCrop() {
+    if (!cropState) return;
+    setCropState((current) => current ? { ...current, status: "saving", message: "" } : current);
+    try {
+      const nextLogoUrl = await cropAvatarImage(cropState);
+      setOrganizationLogoUrl(nextLogoUrl);
+      setCropState(null);
+      setStatus("idle");
+    } catch (error) {
+      setCropState((current) => current ? {
+        ...current,
+        status: "error",
+        message: error instanceof Error ? error.message : "Unable to crop that image.",
+      } : current);
+    }
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -2926,6 +3102,11 @@ function TeamCreatorModal({
       setMessage("Team name is required.");
       return;
     }
+    if (teamMode && mode === "existing" && !form.organizationId && (!form.teamState || !form.teamCity)) {
+      setStatus("error");
+      setMessage("State and city are required for teams without an organization.");
+      return;
+    }
     if (teamMode && !form.seasonName.trim()) {
       setStatus("error");
       setMessage("Season is required.");
@@ -2935,17 +3116,23 @@ function TeamCreatorModal({
       if (mode === "organization" && !addFirstTeam) {
         await onCreateOrganization({
           organizationName: form.organizationName,
-          city: form.city,
-          state: form.state,
+          city: form.organizationCity,
+          state: form.organizationState,
+          logoUrl: organizationLogoUrl,
         });
       } else {
         await onCreate({
           organizationId: mode === "existing" ? form.organizationId : undefined,
           organizationName: mode === "organization" ? form.organizationName : undefined,
-          city: mode === "organization" ? form.city : undefined,
-          state: mode === "organization" ? form.state : undefined,
+          organizationCity: mode === "organization" ? form.organizationCity : undefined,
+          organizationState: mode === "organization" ? form.organizationState : undefined,
+          organizationLogoUrl: mode === "organization" ? organizationLogoUrl : undefined,
+          teamCity: form.teamCity,
+          teamState: form.teamState,
           teamName: form.teamName,
           teamLevel: form.teamLevel,
+          teamType: form.teamType,
+          ageGroup: form.teamType === "School" ? undefined : form.teamLevel,
           seasonName: form.seasonName,
         });
       }
@@ -2958,6 +3145,11 @@ function TeamCreatorModal({
   const createsTeam = mode === "existing" || addFirstTeam;
   const selectedOrganization = organizations.find((organization) => organization.id === form.organizationId);
   const modeLabel = mode === "existing" ? "Add Team" : "New Organization";
+  const selectedOrganizationOptions = [
+    { value: "", label: "No organization" },
+    ...organizations.map((organization) => ({ value: organization.id, label: organization.name })),
+  ];
+  const teamLocationRequired = mode === "existing" && !form.organizationId;
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Create team or organization">
@@ -2965,15 +3157,14 @@ function TeamCreatorModal({
         <div className="modal-title">
           <div>
             <h2>{modeLabel}</h2>
-            <p>Create a team inside an existing organization or start a new organization.</p>
           </div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="Close">
+          <button className="icon-button modal-close-button" type="button" onClick={onClose} aria-label="Close">
             <X size={17} aria-hidden="true" />
           </button>
         </div>
 
         <div className="team-creator-segment" role="tablist" aria-label="Creation type">
-          <button type="button" className={mode === "existing" ? "active" : ""} onClick={() => setMode("existing")} disabled={!organizations.length}>
+          <button type="button" className={mode === "existing" ? "active" : ""} onClick={() => setMode("existing")}>
             Add Team
           </button>
           <button type="button" className={mode === "organization" ? "active" : ""} onClick={() => setMode("organization")}>
@@ -2983,42 +3174,55 @@ function TeamCreatorModal({
 
         <div className="team-creator-grid">
           {mode === "existing" ? (
-            <div className="form-field team-creator-org-field">
+            <div className="form-field team-creator-org-field team-creator-span">
               <span>Organization</span>
-              {selectedOrganization && (
-                <div className="selected-organization-preview">
-                  <OrganizationLogo name={selectedOrganization.name} logoUrl={selectedOrganization.logoUrl} />
-                  <span>
-                    <strong>{selectedOrganization.name}</strong>
-                    {selectedOrganization.location && <small>{selectedOrganization.location}</small>}
-                  </span>
-                </div>
-              )}
-              <ChoiceSelect
-                aria-label="Organization"
-                value={form.organizationId}
-                options={organizations.map((organization) => ({ value: organization.id, label: organization.name }))}
-                onChange={(organizationId) => setForm((current) => ({ ...current, organizationId }))}
-              />
+              <div className="team-creator-org-select">
+                {selectedOrganization && <OrganizationLogo name={selectedOrganization.name} logoUrl={selectedOrganization.logoUrl} />}
+                <ChoiceSelect
+                  aria-label="Organization"
+                  className="form-choice"
+                  value={form.organizationId}
+                  options={selectedOrganizationOptions}
+                  onChange={(organizationId) => setForm((current) => ({ ...current, organizationId }))}
+                />
+              </div>
             </div>
           ) : (
             <>
-              <label className="form-field">
+              <div className="organization-logo-field">
+                <button className="organization-logo-picker" type="button" onClick={() => logoInputRef.current?.click()} aria-label="Choose organization logo">
+                  {organizationLogoUrl ? <img src={organizationLogoUrl} alt="" /> : <Upload size={18} aria-hidden="true" />}
+                </button>
+                <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoFile} />
+              </div>
+              <label className="form-field team-creator-span">
                 <span>Organization Name</span>
-                <input
-                  value={form.organizationName}
-                  onChange={(event) => setForm((current) => ({ ...current, organizationName: event.target.value }))}
-                  placeholder="Metrolina Christian Academy"
-                />
+                <input value={form.organizationName} onChange={(event) => setForm((current) => ({ ...current, organizationName: event.target.value }))} />
               </label>
-              <label className="form-field">
-                <span>City</span>
-                <input value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} placeholder="Charlotte" />
-              </label>
-              <label className="form-field">
+              <div className="form-field">
                 <span>State</span>
-                <input value={form.state} onChange={(event) => setForm((current) => ({ ...current, state: event.target.value.toUpperCase().slice(0, 2) }))} placeholder="NC" />
-              </label>
+                <ChoiceSelect
+                  aria-label="Organization state"
+                  className="form-choice"
+                  value={form.organizationState}
+                  options={[{ value: "", label: "Select state" }, ...US_STATE_OPTIONS.map((state) => ({ value: state, label: state }))]}
+                  onChange={(state) => updateState("organization", state)}
+                />
+              </div>
+              <div className="form-field">
+                <span>City</span>
+                <ChoiceSelect
+                  aria-label="Organization city"
+                  className="form-choice"
+                  value={form.organizationCity}
+                  disabled={!form.organizationState}
+                  options={[
+                    { value: "", label: form.organizationState ? "Select city" : "Select state first" },
+                    ...cityOptionsForState(form.organizationState).map((city) => ({ value: city, label: city })),
+                  ]}
+                  onChange={(city) => setForm((current) => ({ ...current, organizationCity: city }))}
+                />
+              </div>
               <button
                 className={`add-first-team-toggle ${addFirstTeam ? "active" : ""}`}
                 type="button"
@@ -3031,17 +3235,27 @@ function TeamCreatorModal({
           )}
           {createsTeam && (
             <>
-              <label className="form-field">
+              <label className="form-field team-creator-span">
                 <span>Team Name</span>
-                <input value={form.teamName} onChange={(event) => setForm((current) => ({ ...current, teamName: event.target.value }))} placeholder="Varsity Baseball" />
+                <input value={form.teamName} onChange={(event) => setForm((current) => ({ ...current, teamName: event.target.value }))} />
               </label>
               <div className="form-field">
-                <span>Level</span>
+                <span>Team Type</span>
+                <ChoiceSelect
+                  aria-label="Team type"
+                  className="form-choice"
+                  value={form.teamType}
+                  options={TEAM_TYPE_OPTIONS.map((type) => ({ value: type, label: type }))}
+                  onChange={updateTeamType}
+                />
+              </div>
+              <div className="form-field">
+                <span>{form.teamType === "School" ? "Level" : "Age"}</span>
                 <ChoiceSelect
                   aria-label="Team level"
                   className="form-choice"
                   value={form.teamLevel}
-                  options={TEAM_LEVEL_OPTIONS.map((level) => ({ value: level, label: level }))}
+                  options={levelOptionsForTeamType(form.teamType).map((level) => ({ value: level, label: level }))}
                   onChange={(teamLevel) => setForm((current) => ({ ...current, teamLevel }))}
                 />
               </div>
@@ -3055,6 +3269,30 @@ function TeamCreatorModal({
                   onChange={(seasonName) => setForm((current) => ({ ...current, seasonName }))}
                 />
               </div>
+              <div className="form-field">
+                <span>{teamLocationRequired ? "State" : "Team State"}</span>
+                <ChoiceSelect
+                  aria-label="Team state"
+                  className="form-choice"
+                  value={form.teamState}
+                  options={[{ value: "", label: teamLocationRequired ? "Required" : "Optional" }, ...US_STATE_OPTIONS.map((state) => ({ value: state, label: state }))]}
+                  onChange={(state) => updateState("team", state)}
+                />
+              </div>
+              <div className="form-field">
+                <span>{teamLocationRequired ? "City" : "Team City"}</span>
+                <ChoiceSelect
+                  aria-label="Team city"
+                  className="form-choice"
+                  value={form.teamCity}
+                  disabled={!form.teamState}
+                  options={[
+                    { value: "", label: form.teamState ? (teamLocationRequired ? "Required" : "Optional") : "Select state first" },
+                    ...cityOptionsForState(form.teamState).map((city) => ({ value: city, label: city })),
+                  ]}
+                  onChange={(city) => setForm((current) => ({ ...current, teamCity: city }))}
+                />
+              </div>
             </>
           )}
         </div>
@@ -3062,10 +3300,20 @@ function TeamCreatorModal({
         {message && <span className="profile-save-message profile-save-message--error">{message}</span>}
         <div className="modal-actions">
           <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
-          <button className="primary-button" type="submit" disabled={status === "saving" || (mode === "existing" && !form.organizationId)}>
+          <button className="primary-button" type="submit" disabled={status === "saving"}>
             {status === "saving" ? "Creating..." : createsTeam ? "Create Team" : "Create Organization"}
           </button>
         </div>
+        {cropState && (
+          <AvatarCropModal
+            title="Organization Logo"
+            state={cropState}
+            onChange={setCropState}
+            onCancel={() => setCropState(null)}
+            onPickDifferent={() => logoInputRef.current?.click()}
+            onApply={() => void applyLogoCrop()}
+          />
+        )}
       </form>
     </div>
   );
@@ -3122,7 +3370,13 @@ function FollowingView({
                   followed={isFollowingOrganization(data.profileFollows ?? [], organization.id)}
                   onOpenTeam={onOpenPublicTeam}
                   onOpenOrganization={onOpenPublicOrganization}
-                  isTeamFollowed={(team) => isFollowingTeam(data.profileFollows ?? [], team.id)}
+                  isTeamFollowed={(team) =>
+                    isFollowingTeam(data.profileFollows ?? [], team.id) ||
+                    (team.organizationId
+                      ? isFollowingOrganization(data.profileFollows ?? [], team.organizationId) &&
+                        !isTeamExcludedFromFollow(data.profileFollowExclusions ?? [], team.organizationId, team.id)
+                      : false)
+                  }
                   onToggleTeamFollow={onTogglePublicTeamFollow}
                   onToggleOrganizationFollow={onTogglePublicOrganizationFollow}
                 />
@@ -3211,7 +3465,13 @@ function DiscoverView({
               <PublicTeamMiniRow
                 key={team.id}
                 team={team}
-                followed={isFollowingTeam(data.profileFollows ?? [], team.id)}
+                followed={
+                  isFollowingTeam(data.profileFollows ?? [], team.id) ||
+                  (team.organizationId
+                    ? isFollowingOrganization(data.profileFollows ?? [], team.organizationId) &&
+                      !isTeamExcludedFromFollow(data.profileFollowExclusions ?? [], team.organizationId, team.id)
+                    : false)
+                }
                 onOpenTeam={onOpenPublicTeam}
                 onToggleFollow={onTogglePublicTeamFollow}
               />
@@ -3227,6 +3487,7 @@ function DiscoverView({
 type OrganizationSummary = {
   id: ID;
   name: string;
+  slug?: string;
   teams: TeamOption[];
   location?: string;
   logoUrl?: string;
@@ -3304,18 +3565,26 @@ function OrganizationCard({
 function ManagedOrganizationTeamCard({
   organization,
   onEnterTeam,
+  onOpenOrganization,
 }: {
   organization: OrganizationSummary;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
+  onOpenOrganization?: (organization: OrganizationSummary) => void;
 }) {
   return (
     <article className="panel organization-team-card">
-      <div className="organization-team-card__header">
+      <div className="organization-team-card__header organization-team-card__header--actionable">
+        <button
+          className="organization-team-card__main"
+          type="button"
+          onClick={() => onOpenOrganization ? onOpenOrganization(organization) : organization.teams[0] && void onEnterTeam(organization.teams[0])}
+        >
           <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
-        <span>
-          <strong>{organization.name}</strong>
-          <small>{organization.teams.length} team{organization.teams.length === 1 ? "" : "s"}</small>
-        </span>
+          <span>
+            <strong>{organization.name}</strong>
+            <small>{organization.teams.length} team{organization.teams.length === 1 ? "" : "s"}</small>
+          </span>
+        </button>
         <span className="follow-heart follow-heart--locked" aria-label="Managed organization">
           <Lock size={13} aria-hidden="true" />
         </span>
@@ -3522,7 +3791,13 @@ function FollowSummary({
           followed={isFollowingOrganization(data.profileFollows ?? [], organization.id)}
           onOpenTeam={onOpenPublicTeam}
           onOpenOrganization={onOpenPublicOrganization}
-          isTeamFollowed={(team) => isFollowingTeam(data.profileFollows ?? [], team.id)}
+          isTeamFollowed={(team) =>
+            isFollowingTeam(data.profileFollows ?? [], team.id) ||
+            (team.organizationId
+              ? isFollowingOrganization(data.profileFollows ?? [], team.organizationId) &&
+                !isTeamExcludedFromFollow(data.profileFollowExclusions ?? [], team.organizationId, team.id)
+              : false)
+          }
           onToggleTeamFollow={onTogglePublicTeamFollow}
           onToggleOrganizationFollow={onTogglePublicOrganizationFollow}
         />
@@ -3547,6 +3822,7 @@ function organizationSummariesFromContext(context?: TeamContext) {
     organizations.set(organization.id, {
       id: organization.id,
       name: organization.name,
+      slug: organization.slug,
       teams: [],
       location,
       logoUrl: organization.logoUrl,
@@ -3554,6 +3830,7 @@ function organizationSummariesFromContext(context?: TeamContext) {
     });
   }
   for (const team of displayWorkspaceTeams(context?.availableTeams ?? [])) {
+    if (!team.organizationId) continue;
     const current = organizations.get(team.organizationId) ?? {
       id: team.organizationId,
       name: team.organizationName,
@@ -7997,6 +8274,11 @@ function isFollowingTeam(follows: ProfileFollow[] | undefined, teamId: ID) {
 
 function isFollowingOrganization(follows: ProfileFollow[] | undefined, organizationId: ID) {
   return Boolean(follows?.some((follow) => follow.organizationId === organizationId && !follow.teamId));
+}
+
+function isTeamExcludedFromFollow(exclusions: AppData["profileFollowExclusions"] | undefined, organizationId: ID | undefined, teamId: ID) {
+  if (!organizationId) return false;
+  return Boolean(exclusions?.some((exclusion) => exclusion.organizationId === organizationId && exclusion.teamId === teamId));
 }
 
 function followedPublicOrganizationGroups(data: AppData) {

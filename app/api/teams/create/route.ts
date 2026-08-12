@@ -13,85 +13,115 @@ export async function POST(request: NextRequest) {
     const body = (await request.json().catch(() => ({}))) as {
       organizationId?: string;
       organizationName?: string;
+      organizationCity?: string;
+      organizationState?: string;
+      organizationLogoUrl?: string;
       city?: string;
       state?: string;
+      teamCity?: string;
+      teamState?: string;
       teamName?: string;
       teamLevel?: string;
+      teamType?: string;
+      ageGroup?: string;
+      logoUrl?: string;
       seasonName?: string;
     };
     const organizationId = cleanText(body.organizationId, 80);
     const organizationName = cleanText(body.organizationName, 120);
-    const city = cleanText(body.city, 80);
-    const state = cleanText(body.state, 40);
+    const organizationCity = cleanText(body.organizationCity ?? body.city, 80);
+    const organizationState = cleanText(body.organizationState ?? body.state, 40);
+    const teamCity = cleanText(body.teamCity ?? body.city, 80);
+    const teamState = cleanText(body.teamState ?? body.state, 40);
     const teamName = body.teamName?.trim();
     const teamLevel = body.teamLevel?.trim() || null;
+    const teamType = cleanText(body.teamType, 40) || null;
+    const ageGroup = cleanText(body.ageGroup, 40) || null;
+    const logoUrl = cleanAvatarValue(body.logoUrl);
+    const organizationLogoUrl = cleanAvatarValue(body.organizationLogoUrl);
     const seasonName = body.seasonName?.trim() || "Fall 2026";
     if (!teamName) {
       return NextResponse.json({ ok: false, message: "Team name is required." }, { status: 400 });
     }
-    if (!organizationId && !organizationName) {
-      return NextResponse.json({ ok: false, message: "Choose or create an organization for this team." }, { status: 400 });
+    if (!organizationId && !organizationName && (!teamCity || !teamState)) {
+      return NextResponse.json({ ok: false, message: "City and state are required for teams without an organization." }, { status: 400 });
     }
 
     const admin = createAdminClient();
-    const organizationResult = organizationId
-      ? await admin
-          .from("organizations")
-          .select("id,name")
-          .eq("id", organizationId)
-          .maybeSingle()
-      : await admin
-          .from("organizations")
-          .insert(
-            {
-              name: organizationName,
-              slug: `${slugify(organizationName)}-${crypto.randomUUID().slice(0, 6)}`,
-              city: city || null,
-              state: state || null,
-              visibility: "PRIVATE",
-            },
-          )
-          .select("id,name")
-          .single();
-    const { data: organization, error: organizationError } = organizationResult;
-    if (organizationError || !organization) {
-      return NextResponse.json({ ok: false, message: organizationError?.message ?? "Organization not found." }, { status: 404 });
+    let organization: { id: string; name: string; city?: string | null; state?: string | null } | null = null;
+    if (organizationId || organizationName) {
+      const organizationResult = organizationId
+        ? await admin
+            .from("organizations")
+            .select("id,name,city,state")
+            .eq("id", organizationId)
+            .maybeSingle()
+        : await admin
+            .from("organizations")
+            .insert(
+              {
+                name: organizationName,
+                slug: `${slugify(organizationName)}-${crypto.randomUUID().slice(0, 6)}`,
+                city: organizationCity || null,
+                state: organizationState || null,
+                logo_url: organizationLogoUrl || null,
+                visibility: "PRIVATE",
+              },
+            )
+            .select("id,name,city,state")
+            .single();
+      const { data, error } = organizationResult;
+      if (error || !data) {
+        return NextResponse.json({ ok: false, message: error?.message ?? "Organization not found." }, { status: 404 });
+      }
+      organization = data;
     }
 
-    const { count, error: adminError } = await admin
-      .from("organization_memberships")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", organization.id)
-      .eq("profile_id", authData.user.id)
-      .eq("role", "ADMIN")
-      .eq("active", true);
-    if (adminError) {
-      return NextResponse.json({ ok: false, message: adminError.message }, { status: 500 });
-    }
-    if ((count ?? 0) === 0) {
-      if (organizationId) {
-        return NextResponse.json({ ok: false, message: "Only organization admins can create teams there." }, { status: 403 });
+    if (organization) {
+      const { count, error: adminError } = await admin
+        .from("organization_memberships")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", organization.id)
+        .eq("profile_id", authData.user.id)
+        .eq("role", "ADMIN")
+        .eq("active", true);
+      if (adminError) {
+        return NextResponse.json({ ok: false, message: adminError.message }, { status: 500 });
       }
-      const { error: membershipError } = await admin.from("organization_memberships").upsert(
-        {
-          organization_id: organization.id,
-          profile_id: authData.user.id,
-          role: "ADMIN",
-          active: true,
-        },
-        { onConflict: "organization_id,profile_id" },
-      );
-      if (membershipError) {
-        return NextResponse.json({ ok: false, message: membershipError.message }, { status: 500 });
+      if ((count ?? 0) === 0) {
+        if (organizationId) {
+          return NextResponse.json({ ok: false, message: "Only organization admins can create teams there." }, { status: 403 });
+        }
+        const { error: membershipError } = await admin.from("organization_memberships").upsert(
+          {
+            organization_id: organization.id,
+            profile_id: authData.user.id,
+            role: "ADMIN",
+            active: true,
+          },
+          { onConflict: "organization_id,profile_id" },
+        );
+        if (membershipError) {
+          return NextResponse.json({ ok: false, message: membershipError.message }, { status: 500 });
+        }
       }
     }
 
-    const { data: team, error: teamError } = await admin
-      .from("teams")
-      .upsert(
-        { organization_id: organization.id, name: teamName, level: teamLevel, active: true },
-        { onConflict: "organization_id,name" },
-      )
+    const teamPayload = {
+      organization_id: organization?.id ?? null,
+      name: teamName,
+      level: teamLevel,
+      team_type: teamType,
+      age_group: ageGroup,
+      city: teamCity || null,
+      state: teamState || null,
+      logo_url: logoUrl || null,
+      active: true,
+    };
+    const teamMutation = organization
+      ? admin.from("teams").upsert(teamPayload, { onConflict: "organization_id,name" })
+      : admin.from("teams").insert(teamPayload);
+    const { data: team, error: teamError } = await teamMutation
       .select("id,organization_id,name,level,active")
       .single();
     if (teamError || !team) {
@@ -101,7 +131,7 @@ export async function POST(request: NextRequest) {
     const { data: season, error: seasonError } = await admin
       .from("seasons")
       .upsert(
-        { organization_id: organization.id, team_id: team.id, name: seasonName, active: true },
+        { organization_id: organization?.id ?? null, team_id: team.id, name: seasonName, active: true },
         { onConflict: "team_id,name" },
       )
       .select("id,name,active")
@@ -130,11 +160,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       team: {
-        organizationId: organization.id,
-        organizationName: organization.name,
+        organizationId: organization?.id ?? undefined,
+        organizationName: organization?.name ?? "Independent",
         teamId: team.id,
         teamName: team.name,
         teamLevel: team.level ?? undefined,
+        teamType: teamType ?? undefined,
+        ageGroup: ageGroup ?? undefined,
+        city: teamCity || organization?.city || undefined,
+        state: teamState || organization?.state || undefined,
+        logoUrl: logoUrl || undefined,
         seasonId: season.id,
         seasonName: season.name,
         role: "ADMIN",
@@ -153,6 +188,18 @@ export async function POST(request: NextRequest) {
 function cleanText(value: unknown, maxLength: number) {
   if (typeof value !== "string") return "";
   return value.trim().slice(0, maxLength);
+}
+
+function cleanAvatarValue(value: unknown) {
+  const text = cleanText(value, 750_000);
+  if (!text) return "";
+  if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(text)) return text;
+  try {
+    const url = new URL(text);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : "";
+  } catch {
+    return "";
+  }
 }
 
 function slugify(value: string) {

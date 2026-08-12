@@ -2130,10 +2130,29 @@ textarea:focus-visible {
   min-width: 0;
 }
 
-.account-profile-main > span {
-  color: var(--muted-strong);
-  font-size: 13px;
+.profile-line {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.profile-line > span {
+  color: var(--muted);
+  font-size: 11px;
   font-weight: 800;
+  letter-spacing: 0;
+}
+
+.profile-line strong {
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.profile-line p {
+  margin: 0;
+  color: var(--muted-strong);
 }
 
 .profile-display-row {
@@ -2141,12 +2160,6 @@ textarea:focus-visible {
   align-items: center;
   gap: 8px;
   min-width: 0;
-}
-
-.profile-display-row h2 {
-  margin: 2px 0 0;
-  line-height: 1.05;
-  overflow-wrap: anywhere;
 }
 
 .profile-display-input {
@@ -2166,13 +2179,13 @@ textarea:focus-visible {
 }
 
 .profile-edit-button {
-  width: 30px;
-  height: 30px;
-  min-width: 30px;
-  min-height: 30px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--burgundy) 16%, var(--panel-soft));
-  border-color: color-mix(in srgb, var(--burgundy) 34%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 12%, var(--panel-soft));
+  border-color: color-mix(in srgb, var(--burgundy) 24%, var(--line));
   color: var(--muted-strong);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
@@ -2250,7 +2263,7 @@ textarea:focus-visible {
 
 .avatar-crop-stage {
   position: relative;
-  width: min(320px, 78vw);
+  width: min(340px, 78vw);
   aspect-ratio: 1;
   margin: 4px auto;
   border: 1px solid var(--line);
@@ -2320,19 +2333,12 @@ textarea:focus-visible {
 }
 
 .team-creator-modal {
-  width: min(680px, calc(100vw - 28px));
+  width: min(760px, calc(100vw - 28px));
   border-radius: 16px;
   padding: 16px;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--panel-strong) 94%, transparent), var(--panel-strong)),
     var(--panel-strong);
-}
-
-.team-creator-modal .modal-title p {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.4;
 }
 
 .team-creator-segment {
@@ -2361,17 +2367,13 @@ textarea:focus-visible {
   box-shadow: 0 8px 18px color-mix(in srgb, var(--burgundy) 22%, transparent);
 }
 
-.team-creator-segment button:disabled {
-  opacity: 0.48;
-  cursor: not-allowed;
-}
-
 .team-creator-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 92px repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
+.team-creator-span,
 .team-creator-grid .form-field:first-child {
   grid-column: 1 / -1;
 }
@@ -2380,39 +2382,52 @@ textarea:focus-visible {
   gap: 8px;
 }
 
-.selected-organization-preview {
-  min-height: 54px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel-soft);
-  padding: 8px;
+.team-creator-org-select {
+  min-width: 0;
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 9px;
+  gap: 8px;
 }
 
-.selected-organization-preview .organization-logo {
-  width: 36px;
-  height: 36px;
-}
-
-.selected-organization-preview span {
+.team-creator-org-select .choice-select {
   min-width: 0;
 }
 
-.selected-organization-preview strong,
-.selected-organization-preview small {
-  display: block;
-  min-width: 0;
+.organization-logo-field {
+  grid-row: span 2;
+  align-self: stretch;
+}
+
+.organization-logo-picker {
+  width: 92px;
+  height: 92px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel-soft);
+  color: var(--muted-strong);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.selected-organization-preview small {
-  color: var(--muted);
-  font-size: 12px;
+.organization-logo-picker:hover,
+.organization-logo-picker:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy) 60%, var(--line));
+  color: var(--text);
+  outline: 0;
+}
+
+.organization-logo-picker img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.organization-logo-field input {
+  display: none;
 }
 
 .add-first-team-toggle {
@@ -2455,6 +2470,23 @@ textarea:focus-visible {
   border-color: color-mix(in srgb, var(--burgundy) 72%, var(--line));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 18%, transparent);
   outline: 0;
+}
+
+.modal-close-button {
+  border-radius: 999px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  background: color-mix(in srgb, var(--panel-soft) 88%, transparent);
+  color: var(--muted-strong);
+}
+
+.modal-close-button:hover,
+.modal-close-button:focus-visible {
+  background: color-mix(in srgb, var(--burgundy) 16%, var(--panel-soft));
+  border-color: color-mix(in srgb, var(--burgundy) 36%, var(--line));
+  color: var(--text);
 }
 
 .organization-add-team-button {
@@ -2845,13 +2877,22 @@ textarea:focus-visible {
   place-items: center;
   padding: 0;
   line-height: 0;
+  position: relative;
   cursor: pointer;
 }
 
 .follow-heart svg,
 .public-follow-button--compact svg {
   display: block;
-  margin: auto;
+  margin: 0;
+  width: 15px;
+  height: 15px;
+}
+
+.follow-heart svg {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
 }
 
 .follow-heart:hover,
@@ -8963,6 +9004,13 @@ body,
 
   .team-creator-grid {
     grid-template-columns: 1fr;
+  }
+
+  .organization-logo-field,
+  .team-creator-span,
+  .team-creator-grid .form-field:first-child {
+    grid-column: 1;
+    grid-row: auto;
   }
 }
 

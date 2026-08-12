@@ -33,6 +33,9 @@ type TeamSummary = {
   organizationSlug?: string;
   name: string;
   level?: string;
+  teamType?: string;
+  ageGroup?: string;
+  logoUrl?: string;
   seasonId?: string;
   seasonName?: string;
   city?: string;
@@ -89,7 +92,7 @@ export async function GET() {
   const teamsResult = organizationIds.length
     ? await admin
         .from("teams")
-        .select("id,organization_id,name,level,active,visibility")
+        .select("id,organization_id,name,level,team_type,age_group,city,state,logo_url,active,visibility")
         .in("organization_id", organizationIds)
         .eq("active", true)
         .eq("visibility", "PUBLIC")
@@ -146,10 +149,13 @@ export async function GET() {
       organizationSlug: organization.slug,
       name: team.name,
       level: team.level ?? undefined,
+      teamType: team.team_type ?? undefined,
+      ageGroup: team.age_group ?? undefined,
+      logoUrl: team.logo_url ?? undefined,
       seasonId: season?.id,
       seasonName: season?.name,
-      city: organization.city,
-      state: organization.state,
+      city: team.city ?? organization.city,
+      state: team.state ?? organization.state,
       visibility: normalizeVisibility(team.visibility),
       active: Boolean(team.active),
     });

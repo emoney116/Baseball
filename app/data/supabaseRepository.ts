@@ -124,7 +124,9 @@ export const authRepository = {
         ? { email: emailOrInput, password: maybePassword ?? "" }
         : emailOrInput;
     const supabase = createClient();
-    const displayName = [input.firstName, input.lastName].filter(Boolean).join(" ").trim() || input.email;
+    const firstName = input.firstName?.trim() ?? "";
+    const lastName = input.lastName?.trim() ?? "";
+    const displayName = [firstName, lastName].filter(Boolean).join(" ").trim() || input.email;
     const redirectTo = absoluteUrl("/", browserSiteUrl());
     const { data, error } = await supabase.auth.signUp({
       email: input.email,
@@ -132,9 +134,10 @@ export const authRepository = {
       options: {
         emailRedirectTo: redirectTo,
         data: {
-          first_name: input.firstName ?? null,
-          last_name: input.lastName ?? null,
+          first_name: firstName || null,
+          last_name: lastName || null,
           display_name: displayName,
+          avatar_url: null,
         },
       },
     });
@@ -143,8 +146,8 @@ export const authRepository = {
       await ensureOwnProfile(supabase, {
         id: data.user.id,
         email: input.email,
-        firstName: input.firstName,
-        lastName: input.lastName,
+        firstName,
+        lastName,
         displayName,
       }).catch(() => undefined);
     }
@@ -238,7 +241,23 @@ export const supabaseAppRepository = {
     await syncRosterImports(supabase, foundation, next.rosterImports ?? []);
   },
 
-  async createTeam(input: { organizationId?: string; organizationName?: string; city?: string; state?: string; teamName: string; teamLevel?: string; seasonName: string }): Promise<TeamOption> {
+  async createTeam(input: {
+    organizationId?: string;
+    organizationName?: string;
+    organizationCity?: string;
+    organizationState?: string;
+    organizationLogoUrl?: string;
+    city?: string;
+    state?: string;
+    teamCity?: string;
+    teamState?: string;
+    teamName: string;
+    teamLevel?: string;
+    teamType?: string;
+    ageGroup?: string;
+    logoUrl?: string;
+    seasonName: string;
+  }): Promise<TeamOption> {
     const response = await fetch("/api/teams/create", {
       method: "POST",
       credentials: "include",
@@ -252,7 +271,7 @@ export const supabaseAppRepository = {
     return payload.team;
   },
 
-  async createOrganization(input: { organizationName: string; city?: string; state?: string }): Promise<OrganizationOption> {
+  async createOrganization(input: { organizationName: string; city?: string; state?: string; logoUrl?: string }): Promise<OrganizationOption> {
     const response = await fetch("/api/organizations/create", {
       method: "POST",
       credentials: "include",
@@ -461,6 +480,7 @@ async function loadFoundation(
     firstName: stringMetadata(metadata.first_name),
     lastName: stringMetadata(metadata.last_name),
     displayName: stringMetadata(metadata.display_name) ?? user.email,
+    legacyAvatarUrl: stringMetadata(metadata.avatar_url),
   });
   const teamContext = await loadTeamContext(supabase, profile, requestedTeamId, requestedSeasonId);
   const currentTeam = teamContext.currentTeam;
@@ -480,7 +500,7 @@ async function loadFoundation(
   persistSelectedTeam(currentTeam);
 
   return {
-    organizationId: currentTeam.organizationId,
+    organizationId: currentTeam.organizationId ?? "",
     organizationName: currentTeam.organizationName,
     teamId: currentTeam.teamId,
     teamName: currentTeam.teamName,
@@ -498,6 +518,7 @@ async function ensureOwnProfile(
     firstName?: string;
     lastName?: string;
     displayName?: string;
+    legacyAvatarUrl?: string;
   },
 ): Promise<AppProfile> {
   const { data: existing, error: existingError } = await supabase
@@ -506,6 +527,18 @@ async function ensureOwnProfile(
     .eq("id", input.id)
     .maybeSingle();
   if (existingError) throw new PersistenceError("load-failed", existingError.message);
+
+  const updateAuthMetadata = (supabase.auth as unknown as { updateUser?: (input: { data: Record<string, unknown> }) => Promise<unknown> }).updateUser;
+  if (input.legacyAvatarUrl && updateAuthMetadata) {
+    void updateAuthMetadata.call(supabase.auth, {
+      data: {
+        first_name: input.firstName ?? existing?.first_name ?? null,
+        last_name: input.lastName ?? existing?.last_name ?? null,
+        display_name: input.displayName ?? existing?.display_name ?? input.email ?? "Coach",
+        avatar_url: null,
+      },
+    }).catch(() => undefined);
+  }
 
   const firstName = nonEmpty(input.firstName) ?? existing?.first_name ?? null;
   const lastName = nonEmpty(input.lastName) ?? existing?.last_name ?? null;
@@ -570,7 +603,7 @@ async function loadTeamContext(
   const seasonIds = [...new Set(rows.map((row: any) => row.season_id).filter(Boolean))];
 
   const [teamsResult, seasonsResult] = await Promise.all([
-    supabase.from("teams").select("id,organization_id,name,level,active").in("id", teamIds),
+    supabase.from("teams").select("id,organization_id,name,level,team_type,age_group,city,state,logo_url,active").in("id", teamIds),
     seasonIds.length
       ? supabase.from("seasons").select("id,team_id,name,active").in("id", seasonIds)
       : Promise.resolve({ data: [], error: null }),
@@ -582,7 +615,7 @@ async function loadTeamContext(
   const teamsById = new Map<string, any>((teamsResult.data ?? []).map((team: any) => [team.id, team]));
   const organizationIds = [...new Set((teamsResult.data ?? []).map((team: any) => team.organization_id).filter(Boolean))];
   const organizationsResult = organizationIds.length
-    ? await supabase.from("organizations").select("id,name").in("id", organizationIds)
+    ? await supabase.from("organizations").select("id,name,city,state,logo_url").in("id", organizationIds)
     : { data: [], error: null };
   if (organizationsResult.error) throw new PersistenceError("load-failed", organizationsResult.error.message);
   const organizationsById = new Map<string, any>((organizationsResult.data ?? []).map((organization: any) => [organization.id, organization]));
@@ -593,14 +626,19 @@ async function loadTeamContext(
     .map((membership: any): TeamOption | null => {
       const team = teamsById.get(membership.team_id);
       if (!team) return null;
-      const organization = organizationsById.get(team.organization_id);
+      const organization = team.organization_id ? organizationsById.get(team.organization_id) : undefined;
       const season = membership.season_id ? seasonsById.get(membership.season_id) : undefined;
       return {
-        organizationId: team.organization_id,
-        organizationName: organization?.name ?? "Organization",
+        organizationId: team.organization_id ?? undefined,
+        organizationName: organization?.name ?? "Independent",
         teamId: team.id,
         teamName: team.name,
         teamLevel: team.level ?? undefined,
+        teamType: team.team_type ?? undefined,
+        ageGroup: team.age_group ?? undefined,
+        city: team.city ?? organization?.city ?? undefined,
+        state: team.state ?? organization?.state ?? undefined,
+        logoUrl: team.logo_url ?? undefined,
         seasonId: season?.id ?? membership.season_id ?? undefined,
         seasonName: season?.name ?? undefined,
         role: normalizeTeamRole(membership.role),
@@ -696,6 +734,7 @@ function mergeOrganizationOptions(organizations: OrganizationOption[], teams: Te
   const merged = new Map<ID, OrganizationOption>();
   for (const organization of organizations) merged.set(organization.id, organization);
   for (const team of teams) {
+    if (!team.organizationId) continue;
     if (!merged.has(team.organizationId)) {
       merged.set(team.organizationId, {
         id: team.organizationId,
@@ -786,6 +825,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
       ? await supabase.from("players").select("*").in("id", playerIds)
       : { data: [], error: null };
 
+  const organizationScoped = Boolean(foundation.organizationId);
   const [
     practicesResult,
     exercisesResult,
@@ -795,21 +835,35 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     goalsResult,
   ] = await Promise.all([
     supabase.from("practices").select("*").eq("season_id", foundation.seasonId).order("practice_date", { ascending: false }),
-    supabase.from("exercises").select("*").eq("organization_id", foundation.organizationId),
+    organizationScoped
+      ? supabase.from("exercises").select("*").eq("organization_id", foundation.organizationId)
+      : Promise.resolve({ data: [], error: null }),
     supabase.from("workout_sessions").select("*").eq("season_id", foundation.seasonId).order("session_date", { ascending: false }),
     supabase.from("games").select("*").eq("season_id", foundation.seasonId).order("game_date", { ascending: false }),
-    supabase
-      .from("player_notes")
-      .select("*")
-      .eq("organization_id", foundation.organizationId)
-      .or(`team_id.eq.${foundation.teamId},team_id.is.null`)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("development_goals")
-      .select("*")
-      .eq("organization_id", foundation.organizationId)
-      .or(`team_id.eq.${foundation.teamId},team_id.is.null`)
-      .order("created_at", { ascending: false }),
+    organizationScoped
+      ? supabase
+          .from("player_notes")
+          .select("*")
+          .eq("organization_id", foundation.organizationId)
+          .or(`team_id.eq.${foundation.teamId},team_id.is.null`)
+          .order("created_at", { ascending: false })
+      : supabase
+          .from("player_notes")
+          .select("*")
+          .eq("team_id", foundation.teamId)
+          .order("created_at", { ascending: false }),
+    organizationScoped
+      ? supabase
+          .from("development_goals")
+          .select("*")
+          .eq("organization_id", foundation.organizationId)
+          .or(`team_id.eq.${foundation.teamId},team_id.is.null`)
+          .order("created_at", { ascending: false })
+      : supabase
+          .from("development_goals")
+          .select("*")
+          .eq("team_id", foundation.teamId)
+          .order("created_at", { ascending: false }),
   ]);
 
   const practiceRows = practicesResult.data ?? [];

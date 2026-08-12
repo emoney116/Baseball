@@ -68,6 +68,10 @@ export default function JoinInvitationClient({ token }: { token: string }) {
 
   async function createAccount() {
     if (!invitation) return;
+    if (!firstName.trim() || !lastName.trim()) {
+      setMessage("First and last name are required.");
+      return;
+    }
     if (password !== confirmPassword) {
       setMessage("Passwords do not match.");
       return;
