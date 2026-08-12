@@ -60,6 +60,10 @@ function gameHref(gameId: string, tab: GameTab) {
   return `/game/${gameId}?tab=${tab}`;
 }
 
+function teamPageHref(teamId: string, workspaceAccess: boolean) {
+  return workspaceAccess ? `/?view=games&team=${teamId}` : `/team/${teamId}?tab=games`;
+}
+
 function initials(value: string) {
   return value
     .split(/\s+/)
@@ -127,19 +131,20 @@ export default async function GamePage({
 
   const final = isFinalGame(publicGame.game);
   const activeTab = normalizeTab(query.tab, final);
+  const teamHref = teamPageHref(publicGame.team.id, publicGame.workspaceAccess);
 
   return (
     <main className="public-shell public-game-shell">
       <header className="public-topbar public-game-topbar">
         <div className="public-topbar__left">
-          <PublicBackButton />
+          <PublicBackButton href={teamHref} label={`Back to ${publicGame.team.name}`} />
           <Link href="/" className="public-brand">
             <img src={BRAND_ASSETS.mark} alt="" />
             <span>{APP_NAME}</span>
           </Link>
         </div>
         {publicGame.workspaceAccess ? (
-          <Link href={`/?view=games&team=${publicGame.team.id}`} className="public-workspace-link">
+          <Link href={teamHref} className="public-workspace-link">
             Open Team Workspace
           </Link>
         ) : (
@@ -233,7 +238,7 @@ function GameTabs({
   return (
     <nav className="public-game-tabs" aria-label="Game sections">
       {tabs.map(({ id, label, icon: Icon }) => (
-        <Link key={id} href={gameHref(gameId, id)} className={activeTab === id ? "active" : undefined}>
+        <Link key={id} href={gameHref(gameId, id)} replace className={activeTab === id ? "active" : undefined}>
           <Icon size={16} />
           {label}
         </Link>

@@ -46,6 +46,9 @@ test("next build contains the Clubhouse 9 app shell", async () => {
   assert.match(publicGamePage, /type GameTab = "preview" \| "summary" \| "play-by-play" \| "box-score" \| "info"/);
   assert.match(publicGamePage, /normalizeTab\(query\.tab, final\)/);
   assert.match(publicGamePage, /final \? "summary" : "preview"/);
+  assert.match(publicGamePage, /function teamPageHref\(teamId: string, workspaceAccess: boolean\)/);
+  assert.match(publicGamePage, /<PublicBackButton href=\{teamHref\} label=\{`Back to \$\{publicGame\.team\.name\}`\} \/>/);
+  assert.match(publicGamePage, /href=\{gameHref\(gameId, id\)\} replace/);
   assert.match(publicGamePage, /Score by Innings/);
   assert.match(publicGamePage, /Play-by-play will appear once the game begins/);
   assert.match(publicGameSeed, /create table if not exists public\.public_game_details/);
