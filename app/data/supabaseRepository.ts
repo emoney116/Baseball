@@ -509,12 +509,13 @@ async function ensureOwnProfile(
   const lastName = nonEmpty(input.lastName) ?? existing?.last_name ?? null;
   const nameDisplay = [firstName, lastName].filter(Boolean).join(" ").trim();
   const incomingDisplay = nonEmpty(input.displayName);
+  const emailDisplay = input.email?.split("@")[0]?.replace(/[._-]+/g, " ").trim();
   const displayName =
     existing?.display_name && existing.display_name !== existing.email
       ? existing.display_name
       : incomingDisplay && incomingDisplay !== input.email
         ? incomingDisplay
-        : nameDisplay || existing?.display_name || input.email || "Coach";
+        : nameDisplay || existing?.display_name || emailDisplay || input.email || "Coach";
   const row = {
     id: input.id,
     email: input.email ? input.email.toLowerCase() : null,

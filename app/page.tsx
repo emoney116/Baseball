@@ -162,6 +162,12 @@ const TEAM_MOBILE_NAV_ITEMS: Array<{ key: ViewKey | "more"; label: string; short
 const MORE_VIEWS: ViewKey[] = ["organizations", "weights", "analytics", "account"];
 const TEAM_CONTEXT_VIEWS = new Set<ViewKey>(["teamHome", "roster", "practice", "weights", "games", "analytics", "profile"]);
 const CREATE_TEAM_VALUE = "__create_team__";
+const ROUTABLE_VIEWS = new Set<ViewKey>([
+  ...GLOBAL_NAV_ITEMS.map((item) => item.key),
+  ...TEAM_NAV_ITEMS.map((item) => item.key),
+  "profile",
+  "account",
+]);
 
 const ROSTER_STATUSES: RosterStatus[] = ["Varsity", "JV", "Undecided", "Cut"];
 const ROSTER_FILTERS: RosterFilter[] = ["All", ...ROSTER_STATUSES];
@@ -208,6 +214,8 @@ const ROSTER_CSV_TEMPLATE = [
   "Jackson,Smith,12,2027,SS,P,R,R,Metrolina Varsity,Varsity",
   "Mason,Lee,17,2026,P,1B,R,R,Metrolina Varsity,Varsity",
 ].join("\n");
+const TEAM_LEVEL_OPTIONS = ["Varsity", "JV", "Freshman", "17U", "16U", "15U", "14U", "Travel", "Club", "Other"];
+const SEASON_OPTIONS = ["Fall 2026", "Spring 2027", "Summer 2027", "Fall 2027", "Spring 2028", "Summer 2028"];
 
 function slugifyFilePart(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "current-season";
@@ -300,6 +308,21 @@ export default function MetrolinaBaseballApp() {
   const [analyticsContext, setAnalyticsContext] = useState<AnalyticsContext>("All");
   const [dateFilter, setDateFilter] = useState<DateFilter>("Fall");
 
+  function navigateToView(nextView: ViewKey, options: { replace?: boolean; playerId?: ID } = {}) {
+    setView(nextView);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (nextView === "home") url.searchParams.delete("view");
+    else url.searchParams.set("view", nextView);
+    if (options.playerId) url.searchParams.set("player", options.playerId);
+    else if (nextView !== "profile") url.searchParams.delete("player");
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (nextUrl === currentUrl) return;
+    const method = options.replace ? "replaceState" : "pushState";
+    window.history[method]({}, "", nextUrl);
+  }
+
   useEffect(() => {
     let cancelled = false;
     void loadApplicationData(() => cancelled);
@@ -312,6 +335,22 @@ export default function MetrolinaBaseballApp() {
   useEffect(() => {
     if (!hydrated || !data) return;
     document.documentElement.dataset.theme = data.settings.theme;
+  }, [data, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated || !data) return;
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const requestedView = params.get("view") as ViewKey | null;
+      const nextView = requestedView && ROUTABLE_VIEWS.has(requestedView) ? requestedView : "home";
+      setView(nextView);
+      const requestedPlayer = params.get("player");
+      if (requestedPlayer && data.players.some((player) => player.id === requestedPlayer)) {
+        setSelectedPlayerId(requestedPlayer);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
   }, [data, hydrated]);
 
   useEffect(() => {
@@ -478,7 +517,7 @@ export default function MetrolinaBaseballApp() {
     setSelectedWeightPlayerId(playerId);
     setProfileTab("overview");
     setGlobalQuery("");
-    setView("profile");
+    navigateToView("profile", { playerId });
   }
 
   function selectPracticePlayer(playerId: ID) {
@@ -521,6 +560,7 @@ export default function MetrolinaBaseballApp() {
         teamContext: {
           profile: context?.profile,
           currentTeam: context?.currentTeam ?? team,
+          organizations: context?.organizations ?? [],
           availableTeams: [
             team,
             ...availableTeams.filter((item) => item.teamId !== team.teamId || item.seasonId !== team.seasonId),
@@ -661,7 +701,7 @@ export default function MetrolinaBaseballApp() {
     setTopAccountMenuOpen(false);
     setSidebarAccountMenuOpen(false);
     await loadApplicationData(() => false, team.teamId, team.seasonId);
-    setView("teamHome");
+    navigateToView("teamHome");
   }
 
   async function enterTeam(team: TeamOption) {
@@ -671,18 +711,18 @@ export default function MetrolinaBaseballApp() {
   function returnToClubhouseHome() {
     setTopAccountMenuOpen(false);
     setSidebarAccountMenuOpen(false);
-    setView("home");
+    navigateToView("home");
     void refreshGlobalData();
   }
 
   function openOrganization() {
     setGlobalQuery("");
-    setView("organizations");
+    navigateToView("organizations");
     void refreshGlobalData();
   }
 
   function goToView(nextView: ViewKey) {
-    setView(nextView);
+    navigateToView(nextView);
     if ([...GLOBAL_NAV_ITEMS.map((item) => item.key), "organizations", "following", "discover"].includes(nextView)) {
       void refreshGlobalData();
     }
@@ -748,7 +788,7 @@ export default function MetrolinaBaseballApp() {
     await authRepository.signOut();
     setData(null);
     setAuthState({ status: "anonymous" });
-    setView("home");
+    navigateToView("home", { replace: true });
   }
 
   function logHitting(action: HittingEvent["action"], contactResult?: BattedBallType, contactQuality?: HittingContactQuality, direction: Direction = hitDirection) {
@@ -1196,10 +1236,9 @@ export default function MetrolinaBaseballApp() {
                 <ChevronRight size={14} aria-hidden="true" />
                 Clubhouse Home
               </button>
-              <TeamSwitcher context={data.teamContext} onSwitch={switchTeam} compact />
             </>
           ) : (
-            <GlobalContextSummary context={data.teamContext} onView={setView} />
+            <GlobalContextSummary context={data.teamContext} onView={goToView} />
           )}
         </div>
 
@@ -1223,7 +1262,7 @@ export default function MetrolinaBaseballApp() {
               setSidebarAccountMenuOpen(open);
               if (open) setTopAccountMenuOpen(false);
             }}
-            onView={setView}
+            onView={goToView}
             onSignOut={signOut}
             variant="icon"
           />
@@ -1243,8 +1282,8 @@ export default function MetrolinaBaseballApp() {
           onOpenPublicTeam={openPublicTeam}
           onStartPractice={() => setStartPracticeOpen(true)}
           onStartGame={() => setStartGameOpen(true)}
-          onView={setView}
-          showTeamActions={inTeamContext}
+          onView={goToView}
+          showTeamActions={false}
           context={data.teamContext}
           accountMenuOpen={topAccountMenuOpen}
           onAccountMenu={(open) => {
@@ -1255,6 +1294,17 @@ export default function MetrolinaBaseballApp() {
         />
 
         <SyncStatusBanner status={saveStatus} error={saveError} />
+
+        {inTeamContext && (
+          <TeamWorkspaceHeader
+            context={data.teamContext}
+            view={view}
+            onSwitch={switchTeam}
+            onClubhouseHome={returnToClubhouseHome}
+            onStartPractice={() => setStartPracticeOpen(true)}
+            onStartGame={() => setStartGameOpen(true)}
+          />
+        )}
 
         {view === "home" && (
           <ClubhouseHome
@@ -1315,7 +1365,7 @@ export default function MetrolinaBaseballApp() {
             practice={practice}
             weeklyMvp={weeklyMvp}
             weightLeader={weightLeader}
-            onView={setView}
+            onView={goToView}
             onOpenPlayer={openPlayer}
             onStartPractice={() => setStartPracticeOpen(true)}
             onStartGame={() => setStartGameOpen(true)}
@@ -1511,7 +1561,7 @@ export default function MetrolinaBaseballApp() {
                 return;
               }
               setMobileMoreOpen(false);
-              setView(key);
+                goToView(key);
             }}
           >
             <Icon size={19} aria-hidden="true" />
@@ -1529,24 +1579,24 @@ export default function MetrolinaBaseballApp() {
             </button>
           )}
           {!inTeamContext && (
-            <button type="button" onClick={() => { setView("organizations"); setMobileMoreOpen(false); }}>
+            <button type="button" onClick={() => { goToView("organizations"); setMobileMoreOpen(false); }}>
               <Building2 size={17} aria-hidden="true" />
               Organizations
             </button>
           )}
-          <button type="button" onClick={() => { setView("weights"); setMobileMoreOpen(false); }}>
+          <button type="button" onClick={() => { goToView("weights"); setMobileMoreOpen(false); }}>
             <Dumbbell size={17} aria-hidden="true" />
             Weight Room
           </button>
-          <button type="button" onClick={() => { setView("analytics"); setMobileMoreOpen(false); }}>
+          <button type="button" onClick={() => { goToView("analytics"); setMobileMoreOpen(false); }}>
             <BarChart3 size={17} aria-hidden="true" />
             Analytics
           </button>
-          <button type="button" onClick={() => { setView("account"); setMobileMoreOpen(false); }}>
+          <button type="button" onClick={() => { goToView("account"); setMobileMoreOpen(false); }}>
             <User size={17} aria-hidden="true" />
             My Profile
           </button>
-          <button type="button" onClick={() => { setView("teams"); setMobileMoreOpen(false); }}>
+          <button type="button" onClick={() => { goToView("teams"); setMobileMoreOpen(false); }}>
             <Building2 size={17} aria-hidden="true" />
             Teams
           </button>
@@ -1578,7 +1628,7 @@ export default function MetrolinaBaseballApp() {
               settings: { ...current.settings, activePracticeId: practiceDraft.id },
             }));
             setStartPracticeOpen(false);
-            setView("practice");
+            navigateToView("practice");
             setPracticeTrackingOpen(false);
             if (practiceDraft.playerIds[0]) {
               setPracticePlayerId(practiceDraft.playerIds[0]);
@@ -1596,7 +1646,7 @@ export default function MetrolinaBaseballApp() {
             commit((current) => gameRepository.upsert(current, game));
             setSelectedGameId(game.id);
             setStartGameOpen(false);
-            setView("games");
+            navigateToView("games");
           }}
         />
       )}
@@ -1609,7 +1659,7 @@ export default function MetrolinaBaseballApp() {
             commit((current) => playerRepository.upsert(current, player));
             setSelectedPlayerId(player.id);
             setPlayerEditorOpen(false);
-            setView("profile");
+            navigateToView("profile", { playerId: player.id });
           }}
         />
       )}
@@ -2169,6 +2219,121 @@ function TeamSwitcher({
   );
 }
 
+function TeamWorkspaceHeader({
+  context,
+  view,
+  onSwitch,
+  onClubhouseHome,
+  onStartPractice,
+  onStartGame,
+}: {
+  context?: TeamContext;
+  view: ViewKey;
+  onSwitch: (team: TeamOption) => void | Promise<void>;
+  onClubhouseHome: () => void;
+  onStartPractice: () => void;
+  onStartGame: () => void;
+}) {
+  const current = context?.currentTeam;
+  if (!current) return null;
+  const isTeamHome = view === "teamHome";
+  return (
+    <section className={`team-workspace-header ${isTeamHome ? "team-workspace-header--home" : "team-workspace-header--compact"}`}>
+      <OrganizationLogo name={current.organizationName} logoUrl={teamOrganizationLogo(current, context)} />
+      <div className="team-workspace-header__identity">
+        {isTeamHome ? (
+          <>
+            <span>{current.organizationName}</span>
+            <TeamIdentitySwitcher context={context} current={current} onSwitch={onSwitch} onClubhouseHome={onClubhouseHome} />
+            <small>{current.seasonName ?? "Current season"}</small>
+          </>
+        ) : (
+          <div className="team-compact-title">
+            <TeamIdentitySwitcher context={context} current={current} onSwitch={onSwitch} onClubhouseHome={onClubhouseHome} compact />
+            <small>{current.seasonName ?? "Current season"}</small>
+          </div>
+        )}
+      </div>
+      <div className="team-workspace-header__actions">
+        <button type="button" className="primary-button" onClick={onStartPractice}>
+          <Plus size={16} aria-hidden="true" />
+          Practice
+        </button>
+        <button type="button" className="secondary-button" onClick={onStartGame}>
+          <Plus size={16} aria-hidden="true" />
+          Game
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function TeamIdentitySwitcher({
+  context,
+  current,
+  onSwitch,
+  onClubhouseHome,
+  compact = false,
+}: {
+  context?: TeamContext;
+  current: TeamOption;
+  onSwitch: (team: TeamOption) => void | Promise<void>;
+  onClubhouseHome: () => void;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const organizations = organizationSummariesFromContext(context).filter((organization) => organization.teams.length > 0);
+  const selectedValue = teamValue(current);
+
+  return (
+    <div
+      className={`team-identity-switcher ${compact ? "team-identity-switcher--compact" : ""}`}
+      onBlur={(event) => {
+        const nextFocus = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+        if (!nextFocus || !event.currentTarget.contains(nextFocus)) setOpen(false);
+      }}
+    >
+      <button type="button" className="team-identity-switcher__button" onClick={() => setOpen((value) => !value)} aria-haspopup="dialog" aria-expanded={open}>
+        <strong>{current.teamName}</strong>
+        <ChevronDown size={16} aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="team-identity-switcher__panel">
+          {organizations.map((organization) => (
+            <div className="team-switcher-group" key={organization.id}>
+              <div className="team-switcher-group__heading">
+                <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
+                <strong>{organization.name}</strong>
+              </div>
+              {organization.teams.map((team) => (
+                <button
+                  key={teamValue(team)}
+                  type="button"
+                  className={teamValue(team) === selectedValue ? "active" : ""}
+                  onClick={() => {
+                    setOpen(false);
+                    void onSwitch(team);
+                  }}
+                >
+                  <span>
+                    <strong>{team.teamName}</strong>
+                    <small>{team.seasonName ?? "Current season"}</small>
+                  </span>
+                  {teamValue(team) === selectedValue ? <Check size={15} aria-hidden="true" /> : <ChevronRight size={15} aria-hidden="true" />}
+                </button>
+              ))}
+            </div>
+          ))}
+          <button className="team-switcher-home-row" type="button" onClick={() => { setOpen(false); onClubhouseHome(); }}>
+            <Home size={15} aria-hidden="true" />
+            Clubhouse Home
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProfileMenu({
   context,
   open,
@@ -2256,7 +2421,7 @@ function AccountProfileView({
   const [message, setMessage] = useState("");
   const [cropState, setCropState] = useState<AvatarCropState | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const profileName = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() || profile?.displayName || profile?.email || "Coach";
+  const profileName = profileDisplayName(context);
 
   useEffect(() => {
     setDisplayName(initialDisplayName);
@@ -2351,11 +2516,11 @@ function AccountProfileView({
           <div className="account-profile-main">
             <span>{profileName}</span>
             <div className="profile-display-row">
-              {editingDisplayName ? (
-                <input
-                  className="profile-display-input"
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
+            {editingDisplayName ? (
+              <input
+                className="profile-display-input"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") void saveDisplayName();
                     if (event.key === "Escape") {
@@ -2366,16 +2531,16 @@ function AccountProfileView({
                 />
               ) : (
                 <h2>{displayName}</h2>
-              )}
-              {editingDisplayName ? (
-                <button className="secondary-button profile-inline-action" type="button" onClick={() => void saveDisplayName()} disabled={status === "saving"}>
-                  {status === "saving" ? "Saving..." : "Save"}
-                </button>
-              ) : (
+            )}
+            {editingDisplayName ? (
+              <button className="secondary-button profile-inline-action" type="button" onClick={() => void saveDisplayName()} disabled={status === "saving"}>
+                {status === "saving" ? "Saving..." : "Save"}
+              </button>
+            ) : (
                 <button className="icon-button profile-edit-button" type="button" aria-label="Edit display name" onClick={() => setEditingDisplayName(true)}>
-                  <Edit3 size={15} aria-hidden="true" />
+                  <Edit3 size={14} aria-hidden="true" />
                 </button>
-              )}
+            )}
             </div>
             <p>{profile?.email ?? "No email available"}</p>
           </div>
@@ -2428,9 +2593,22 @@ function AvatarCropModal({
   onPickDifferent: () => void;
   onApply: () => void;
 }) {
+  const dragRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null);
   const previewStyle = {
     transform: `translate(calc(-50% + ${state.offsetX}px), calc(-50% + ${state.offsetY}px)) scale(${state.zoom})`,
   };
+
+  function moveCrop(clientX: number, clientY: number) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    const maxOffset = 150;
+    onChange((current) => current ? {
+      ...current,
+      offsetX: clampNumber(drag.originX + clientX - drag.startX, -maxOffset, maxOffset),
+      offsetY: clampNumber(drag.originY + clientY - drag.startY, -maxOffset, maxOffset),
+    } : current);
+  }
+
   return (
     <div className="modal-backdrop avatar-crop-backdrop" role="dialog" aria-modal="true" aria-label="Crop profile photo">
       <div className="modal-panel avatar-crop-modal">
@@ -2443,7 +2621,20 @@ function AvatarCropModal({
             <X size={17} aria-hidden="true" />
           </button>
         </div>
-        <div className="avatar-crop-stage">
+        <div
+          className="avatar-crop-stage"
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, originX: state.offsetX, originY: state.offsetY };
+          }}
+          onPointerMove={(event) => moveCrop(event.clientX, event.clientY)}
+          onPointerUp={(event) => {
+            if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
+          }}
+          onPointerCancel={() => {
+            dragRef.current = null;
+          }}
+        >
           <img src={state.sourceUrl} alt="" style={previewStyle} draggable={false} />
           <div className="avatar-crop-mask" aria-hidden="true" />
         </div>
@@ -2457,28 +2648,6 @@ function AvatarCropModal({
               step="0.01"
               value={state.zoom}
               onChange={(event) => onChange((current) => current ? { ...current, zoom: Number(event.target.value) } : current)}
-            />
-          </label>
-          <label>
-            <span>Horizontal</span>
-            <input
-              type="range"
-              min="-120"
-              max="120"
-              step="1"
-              value={state.offsetX}
-              onChange={(event) => onChange((current) => current ? { ...current, offsetX: Number(event.target.value) } : current)}
-            />
-          </label>
-          <label>
-            <span>Vertical</span>
-            <input
-              type="range"
-              min="-120"
-              max="120"
-              step="1"
-              value={state.offsetY}
-              onChange={(event) => onChange((current) => current ? { ...current, offsetY: Number(event.target.value) } : current)}
             />
           </label>
         </div>
@@ -2579,7 +2748,7 @@ function ClubhouseHome({
         </div>
         <button className="primary-button" type="button" onClick={onCreateTeam}>
           <Plus size={16} aria-hidden="true" />
-          New Team
+          New Team/Org
         </button>
       </section>
 
@@ -2662,7 +2831,7 @@ function OrganizationsView({
         action={
           <button className="primary-button" type="button" onClick={() => onCreateTeam(undefined, "organization")}>
             <Plus size={16} aria-hidden="true" />
-            New Organization
+            New Team/Org
           </button>
         }
       />
@@ -2698,7 +2867,7 @@ function MyTeamsView({
         action={
           <button className="primary-button" type="button" onClick={onCreateTeam}>
             <Plus size={16} aria-hidden="true" />
-            New Team
+            New Team/Org
           </button>
         }
       />
@@ -2726,15 +2895,17 @@ function TeamCreatorModal({
   onCreateOrganization: (input: { organizationName: string; city?: string; state?: string }) => Promise<void>;
   onCreate: (input: { organizationId?: string; organizationName?: string; city?: string; state?: string; teamName: string; teamLevel?: string; seasonName: string }) => Promise<void>;
 }) {
-  const startingMode = initialMode ?? (initialOrganizationId || organizations.length ? "existing" : "new");
+  const startingMode: "existing" | "new" | "organization" =
+    initialMode === "organization" ? "organization" : initialOrganizationId || organizations.length ? "existing" : "organization";
   const [mode, setMode] = useState<"existing" | "new" | "organization">(startingMode);
+  const [addFirstTeam, setAddFirstTeam] = useState(initialMode === "new");
   const [form, setForm] = useState({
     organizationId: initialOrganizationId ?? organizations[0]?.id ?? "",
     organizationName: "",
     city: "",
     state: "",
     teamName: "",
-    teamLevel: "",
+    teamLevel: "Varsity",
     seasonName: "Fall 2026",
   });
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
@@ -2744,8 +2915,24 @@ function TeamCreatorModal({
     event.preventDefault();
     setStatus("saving");
     setMessage("");
+    const teamMode = mode === "existing" || (mode === "organization" && addFirstTeam);
+    if (!form.organizationName.trim() && mode === "organization") {
+      setStatus("error");
+      setMessage("Organization name is required.");
+      return;
+    }
+    if (teamMode && !form.teamName.trim()) {
+      setStatus("error");
+      setMessage("Team name is required.");
+      return;
+    }
+    if (teamMode && !form.seasonName.trim()) {
+      setStatus("error");
+      setMessage("Season is required.");
+      return;
+    }
     try {
-      if (mode === "organization") {
+      if (mode === "organization" && !addFirstTeam) {
         await onCreateOrganization({
           organizationName: form.organizationName,
           city: form.city,
@@ -2754,9 +2941,9 @@ function TeamCreatorModal({
       } else {
         await onCreate({
           organizationId: mode === "existing" ? form.organizationId : undefined,
-          organizationName: mode === "new" ? form.organizationName : undefined,
-          city: mode === "new" ? form.city : undefined,
-          state: mode === "new" ? form.state : undefined,
+          organizationName: mode === "organization" ? form.organizationName : undefined,
+          city: mode === "organization" ? form.city : undefined,
+          state: mode === "organization" ? form.state : undefined,
           teamName: form.teamName,
           teamLevel: form.teamLevel,
           seasonName: form.seasonName,
@@ -2768,37 +2955,45 @@ function TeamCreatorModal({
     }
   }
 
-  const createsTeam = mode !== "organization";
+  const createsTeam = mode === "existing" || addFirstTeam;
+  const selectedOrganization = organizations.find((organization) => organization.id === form.organizationId);
+  const modeLabel = mode === "existing" ? "Add Team" : "New Organization";
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Create team">
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Create team or organization">
       <form className="modal-panel team-creator-modal" onSubmit={submit}>
         <div className="modal-title">
           <div>
-            <h2>{mode === "organization" ? "Create Organization" : "Create Team"}</h2>
-            <p>Teams work best inside an organization. Standalone teams and org invite links will get a dedicated permissions pass.</p>
+            <h2>{modeLabel}</h2>
+            <p>Create a team inside an existing organization or start a new organization.</p>
           </div>
           <button className="icon-button" type="button" onClick={onClose} aria-label="Close">
             <X size={17} aria-hidden="true" />
           </button>
         </div>
 
-        <div className="auth-tabs team-creator-tabs">
+        <div className="team-creator-segment" role="tablist" aria-label="Creation type">
           <button type="button" className={mode === "existing" ? "active" : ""} onClick={() => setMode("existing")} disabled={!organizations.length}>
-            Existing Org
-          </button>
-          <button type="button" className={mode === "new" ? "active" : ""} onClick={() => setMode("new")}>
-            New Org + Team
+            Add Team
           </button>
           <button type="button" className={mode === "organization" ? "active" : ""} onClick={() => setMode("organization")}>
-            Organization Only
+            New Organization
           </button>
         </div>
 
         <div className="team-creator-grid">
           {mode === "existing" ? (
-            <div className="form-field">
+            <div className="form-field team-creator-org-field">
               <span>Organization</span>
+              {selectedOrganization && (
+                <div className="selected-organization-preview">
+                  <OrganizationLogo name={selectedOrganization.name} logoUrl={selectedOrganization.logoUrl} />
+                  <span>
+                    <strong>{selectedOrganization.name}</strong>
+                    {selectedOrganization.location && <small>{selectedOrganization.location}</small>}
+                  </span>
+                </div>
+              )}
               <ChoiceSelect
                 aria-label="Organization"
                 value={form.organizationId}
@@ -2809,12 +3004,11 @@ function TeamCreatorModal({
           ) : (
             <>
               <label className="form-field">
-                <span>Organization</span>
+                <span>Organization Name</span>
                 <input
                   value={form.organizationName}
                   onChange={(event) => setForm((current) => ({ ...current, organizationName: event.target.value }))}
                   placeholder="Metrolina Christian Academy"
-                  required
                 />
               </label>
               <label className="form-field">
@@ -2825,36 +3019,51 @@ function TeamCreatorModal({
                 <span>State</span>
                 <input value={form.state} onChange={(event) => setForm((current) => ({ ...current, state: event.target.value.toUpperCase().slice(0, 2) }))} placeholder="NC" />
               </label>
+              <button
+                className={`add-first-team-toggle ${addFirstTeam ? "active" : ""}`}
+                type="button"
+                onClick={() => setAddFirstTeam((value) => !value)}
+              >
+                <Plus size={15} aria-hidden="true" />
+                Add first team
+              </button>
             </>
           )}
           {createsTeam && (
             <>
               <label className="form-field">
                 <span>Team Name</span>
-                <input value={form.teamName} onChange={(event) => setForm((current) => ({ ...current, teamName: event.target.value }))} placeholder="Varsity Baseball" required={createsTeam} />
+                <input value={form.teamName} onChange={(event) => setForm((current) => ({ ...current, teamName: event.target.value }))} placeholder="Varsity Baseball" />
               </label>
-              <label className="form-field">
+              <div className="form-field">
                 <span>Level</span>
-                <input value={form.teamLevel} onChange={(event) => setForm((current) => ({ ...current, teamLevel: event.target.value }))} placeholder="Varsity, JV, 17U" />
-              </label>
-              <label className="form-field">
+                <ChoiceSelect
+                  aria-label="Team level"
+                  className="form-choice"
+                  value={form.teamLevel}
+                  options={TEAM_LEVEL_OPTIONS.map((level) => ({ value: level, label: level }))}
+                  onChange={(teamLevel) => setForm((current) => ({ ...current, teamLevel }))}
+                />
+              </div>
+              <div className="form-field">
                 <span>Season</span>
-                <input value={form.seasonName} onChange={(event) => setForm((current) => ({ ...current, seasonName: event.target.value }))} placeholder="Fall 2026" required={createsTeam} />
-              </label>
+                <ChoiceSelect
+                  aria-label="Season"
+                  className="form-choice"
+                  value={form.seasonName}
+                  options={SEASON_OPTIONS.map((season) => ({ value: season, label: season }))}
+                  onChange={(seasonName) => setForm((current) => ({ ...current, seasonName }))}
+                />
+              </div>
             </>
           )}
-        </div>
-
-        <div className="team-creator-note">
-          <strong>Coming later</strong>
-          <span>Moving teams between organizations, org invitations, and separate org/team ownership need a dedicated schema pass so permissions stay clean.</span>
         </div>
 
         {message && <span className="profile-save-message profile-save-message--error">{message}</span>}
         <div className="modal-actions">
           <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
           <button className="primary-button" type="submit" disabled={status === "saving" || (mode === "existing" && !form.organizationId)}>
-            {status === "saving" ? "Creating..." : mode === "organization" ? "Create Organization" : "Create Team"}
+            {status === "saving" ? "Creating..." : createsTeam ? "Create Team" : "Create Organization"}
           </button>
         </div>
       </form>
@@ -2888,7 +3097,7 @@ function FollowingView({
         action={
           <button className="secondary-button" type="button" onClick={onCreateTeam}>
             <Plus size={16} aria-hidden="true" />
-            New Team
+            New Team/Org
           </button>
         }
       />
@@ -2965,7 +3174,7 @@ function DiscoverView({
         action={
           <button className="secondary-button" type="button" onClick={onCreateTeam}>
             <Plus size={16} aria-hidden="true" />
-            New Team
+            New Team/Org
           </button>
         }
       />
@@ -7712,6 +7921,10 @@ function formatCompactNumber(value: number) {
   return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: value >= 1000 ? 1 : 0 }).format(value);
 }
 
+function clampNumber(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function formatTime(value?: string) {
   if (!value) return "--";
   const date = new Date(value);
@@ -7774,6 +7987,10 @@ function teamValue(team?: TeamOption) {
   return team ? `${team.teamId}:${team.seasonId ?? "all"}` : "";
 }
 
+function teamOrganizationLogo(team: TeamOption, context?: TeamContext) {
+  return context?.organizations?.find((organization) => organization.id === team.organizationId)?.logoUrl;
+}
+
 function isFollowingTeam(follows: ProfileFollow[] | undefined, teamId: ID) {
   return Boolean(follows?.some((follow) => follow.teamId === teamId));
 }
@@ -7832,13 +8049,15 @@ function roleLabel(role?: string) {
 
 function profileDisplayName(context?: TeamContext) {
   const profile = context?.profile;
-  return [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() || profile?.displayName || profile?.email || "Coach";
+  const named = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim();
+  const display = profile?.displayName && !profile.displayName.includes("@") ? profile.displayName : "";
+  return named || display || profile?.email?.split("@")[0]?.replace(/[._-]+/g, " ") || "Coach";
 }
 
 function preferredProfileDisplayName(profile?: AppProfile) {
   const named = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim();
   const display = profile?.displayName && !profile.displayName.includes("@") ? profile.displayName : "";
-  return display || named;
+  return display || named || profile?.email?.split("@")[0]?.replace(/[._-]+/g, " ") || "Coach";
 }
 
 function profileInitials(context?: TeamContext) {

@@ -638,6 +638,10 @@ textarea:focus-visible {
   color: var(--muted);
 }
 
+.sidebar-brand .context-back-button {
+  justify-content: flex-start;
+}
+
 .global-context-card {
   min-height: 54px;
   padding: 8px;
@@ -957,6 +961,198 @@ textarea:focus-visible {
 
 .top-command__account {
   display: none;
+}
+
+.team-workspace-header {
+  margin: 0 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--panel) 88%, transparent), color-mix(in srgb, var(--panel-soft) 92%, transparent)),
+    var(--panel);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.team-workspace-header--home {
+  min-height: 82px;
+  padding: 13px 16px;
+}
+
+.team-workspace-header--compact {
+  min-height: 62px;
+  padding: 10px 14px;
+}
+
+.team-workspace-header > .organization-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+}
+
+.team-workspace-header--compact > .organization-logo {
+  width: 40px;
+  height: 40px;
+}
+
+.team-workspace-header__identity {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.team-workspace-header__identity > span,
+.team-workspace-header__identity small,
+.team-compact-title small {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-workspace-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.team-identity-switcher {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.team-identity-switcher__button {
+  max-width: min(520px, 100%);
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: inline-grid;
+  grid-template-columns: minmax(0, auto) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.team-identity-switcher__button strong {
+  min-width: 0;
+  font-size: 23px;
+  font-weight: 850;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.team-identity-switcher--compact .team-identity-switcher__button strong {
+  font-size: 17px;
+}
+
+.team-identity-switcher__button svg {
+  color: var(--muted);
+}
+
+.team-identity-switcher__button:focus-visible {
+  outline: 0;
+  color: var(--burgundy-strong);
+}
+
+.team-identity-switcher__panel {
+  position: absolute;
+  z-index: 180;
+  top: calc(100% + 10px);
+  left: 0;
+  width: min(420px, calc(100vw - 42px));
+  max-height: min(520px, calc(100dvh - 160px));
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-strong) 96%, #030507);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+  padding: 8px;
+}
+
+.team-switcher-group {
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+}
+
+.team-switcher-group + .team-switcher-group {
+  border-top: 1px solid var(--line);
+}
+
+.team-switcher-group__heading {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 7px;
+}
+
+.team-switcher-group__heading .organization-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.team-switcher-group__heading strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.team-switcher-group button,
+.team-switcher-home-row {
+  width: 100%;
+  min-height: 48px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.team-switcher-group button:hover,
+.team-switcher-group button:focus-visible,
+.team-switcher-group button.active,
+.team-switcher-home-row:hover,
+.team-switcher-home-row:focus-visible {
+  background: color-mix(in srgb, var(--burgundy) 18%, var(--panel-soft));
+  outline: 0;
+}
+
+.team-switcher-group button small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.team-switcher-group button.active svg {
+  color: var(--burgundy-strong);
+}
+
+.team-switcher-home-row {
+  grid-template-columns: auto minmax(0, 1fr);
+  color: var(--muted-strong);
+  font-weight: 820;
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
 }
 
 .primary-button,
@@ -1970,9 +2166,22 @@ textarea:focus-visible {
 }
 
 .profile-edit-button {
-  width: 34px;
-  height: 34px;
-  min-width: 34px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--burgundy) 16%, var(--panel-soft));
+  border-color: color-mix(in srgb, var(--burgundy) 34%, var(--line));
+  color: var(--muted-strong);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.profile-edit-button:hover,
+.profile-edit-button:focus-visible {
+  background: var(--burgundy);
+  border-color: var(--burgundy-strong);
+  color: #fff;
 }
 
 .account-teams-card {
@@ -2048,6 +2257,12 @@ textarea:focus-visible {
   border-radius: var(--radius);
   overflow: hidden;
   background: var(--panel-soft);
+  cursor: grab;
+  touch-action: none;
+}
+
+.avatar-crop-stage:active {
+  cursor: grabbing;
 }
 
 .avatar-crop-stage img {
@@ -2086,12 +2301,12 @@ textarea:focus-visible {
 
 .avatar-crop-controls {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .avatar-crop-controls label {
   display: grid;
-  grid-template-columns: 82px minmax(0, 1fr);
+  grid-template-columns: 52px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   color: var(--muted-strong);
@@ -2105,7 +2320,12 @@ textarea:focus-visible {
 }
 
 .team-creator-modal {
-  width: min(640px, calc(100vw - 28px));
+  width: min(680px, calc(100vw - 28px));
+  border-radius: 16px;
+  padding: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-strong) 94%, transparent), var(--panel-strong)),
+    var(--panel-strong);
 }
 
 .team-creator-modal .modal-title p {
@@ -2115,37 +2335,126 @@ textarea:focus-visible {
   line-height: 1.4;
 }
 
-.team-creator-tabs {
-  width: min(360px, 100%);
+.team-creator-segment {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  padding: 4px;
+}
+
+.team-creator-segment button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-strong);
+  font-weight: 820;
+  cursor: pointer;
+}
+
+.team-creator-segment button.active {
+  background: var(--burgundy);
+  color: #fff;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--burgundy) 22%, transparent);
+}
+
+.team-creator-segment button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
 }
 
 .team-creator-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .team-creator-grid .form-field:first-child {
   grid-column: 1 / -1;
 }
 
-.team-creator-note {
+.team-creator-org-field {
+  gap: 8px;
+}
+
+.selected-organization-preview {
+  min-height: 54px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-soft);
+  padding: 8px;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+}
+
+.selected-organization-preview .organization-logo {
+  width: 36px;
+  height: 36px;
+}
+
+.selected-organization-preview span {
+  min-width: 0;
+}
+
+.selected-organization-preview strong,
+.selected-organization-preview small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-organization-preview small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.add-first-team-toggle {
+  grid-column: 1 / -1;
+  min-height: 40px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--panel-soft);
-  padding: 10px 12px;
-  display: grid;
-  gap: 3px;
+  color: var(--muted-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 820;
+  cursor: pointer;
 }
 
-.team-creator-note strong {
-  font-size: 12px;
+.add-first-team-toggle.active {
+  border-color: color-mix(in srgb, var(--burgundy) 58%, var(--line));
+  background: var(--burgundy-soft);
+  color: var(--text);
 }
 
-.team-creator-note span {
-  color: var(--muted);
+.team-creator-modal .form-field > span {
+  color: var(--muted-strong);
   font-size: 12px;
-  line-height: 1.4;
+  font-weight: 780;
+}
+
+.team-creator-modal input {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-soft) 86%, transparent);
+  color: var(--text);
+  padding: 0 12px;
+}
+
+.team-creator-modal input:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy) 72%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 18%, transparent);
+  outline: 0;
 }
 
 .organization-add-team-button {
@@ -8616,5 +8925,71 @@ body,
   .practice-command__actions .secondary-button {
     width: 100%;
     justify-content: center;
+  }
+}
+
+@media (max-width: 1180px) {
+  .team-workspace-header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .team-workspace-header__actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 860px) {
+  .team-workspace-header {
+    border-radius: 10px;
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .team-workspace-header > .organization-logo {
+    width: 40px;
+    height: 40px;
+  }
+
+  .team-identity-switcher__button strong {
+    font-size: 18px;
+  }
+
+  .team-workspace-header__actions .primary-button,
+  .team-workspace-header__actions .secondary-button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .team-creator-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .team-workspace-header {
+    margin-bottom: 10px;
+  }
+
+  .team-workspace-header__identity > span {
+    display: none;
+  }
+
+  .team-identity-switcher__panel {
+    left: -50px;
+    width: calc(100vw - 28px);
+  }
+
+  .team-creator-modal {
+    width: min(100%, calc(100vw - 16px));
+    padding: 12px;
+  }
+
+  .team-creator-segment button {
+    font-size: 12px;
+  }
+
+  .avatar-crop-modal {
+    width: min(100%, calc(100vw - 16px));
   }
 }

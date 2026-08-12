@@ -36,9 +36,13 @@ export async function PATCH(request: NextRequest) {
     const lastName = Object.prototype.hasOwnProperty.call(body, "lastName")
       ? cleanText(body.lastName, 80)
       : cleanText(existingProfile?.last_name, 80);
+    const emailFallback = authData.user.email?.split("@")[0]?.replace(/[._-]+/g, " ").trim() || authData.user.email || "Coach";
+    const nameFallback = [firstName, lastName].filter(Boolean).join(" ").trim();
+    const existingDisplayName = cleanText(existingProfile?.display_name, 160);
+    const incomingDisplayName = cleanText(body.displayName, 160);
     const displayName = Object.prototype.hasOwnProperty.call(body, "displayName")
-      ? cleanText(body.displayName, 160) || [firstName, lastName].filter(Boolean).join(" ").trim() || authData.user.email || "Coach"
-      : cleanText(existingProfile?.display_name, 160) || [firstName, lastName].filter(Boolean).join(" ").trim() || authData.user.email || "Coach";
+      ? incomingDisplayName || nameFallback || emailFallback
+      : existingDisplayName || nameFallback || emailFallback;
     const avatarUrl = Object.prototype.hasOwnProperty.call(body, "avatarUrl")
       ? cleanAvatarValue(body.avatarUrl)
       : cleanAvatarValue(existingProfile?.avatar_url);
