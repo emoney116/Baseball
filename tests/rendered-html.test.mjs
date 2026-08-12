@@ -10,6 +10,8 @@ test("next build contains the Clubhouse 9 app shell", async () => {
   const page = readFileSync("app/page.tsx", "utf8");
   const branding = readFileSync("app/lib/branding.ts", "utf8");
   const repository = readFileSync("app/data/supabaseRepository.ts", "utf8");
+  const profileRoute = readFileSync("app/api/profile/route.ts", "utf8");
+  const authAvatarScrubMigration = readFileSync("supabase/migrations/20260811220000_scrub_auth_avatar_metadata.sql", "utf8");
   const workflow = readFileSync(".github/workflows/supabase-migrations.yml", "utf8");
   const bootstrapRoute = readFileSync("app/api/setup/bootstrap/route.ts", "utf8");
 
@@ -22,6 +24,10 @@ test("next build contains the Clubhouse 9 app shell", async () => {
   assert.match(page, /TeamSwitcher/);
   assert.match(page, /Your account is ready/);
   assert.doesNotMatch(repository, /claim_initial_metrolina_admin/);
+  assert.match(profileRoute, /avatar_url:\s*null/);
+  assert.match(profileRoute, /Keep images out of auth metadata/);
+  assert.match(authAvatarScrubMigration, /update auth\.users/);
+  assert.match(authAvatarScrubMigration, /raw_user_meta_data[\s\S]*-\s*'avatar_url'/);
   assert.match(workflow, /supabase\/setup-cli@v2/);
   assert.match(workflow, /SUPABASE_ACCESS_TOKEN/);
   assert.match(workflow, /SUPABASE_DB_PASSWORD/);

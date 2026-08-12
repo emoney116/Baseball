@@ -52,7 +52,10 @@ export async function PATCH(request: NextRequest) {
         first_name: firstName || null,
         last_name: lastName || null,
         display_name: displayName,
-        avatar_url: avatarUrl || null,
+        // Keep images out of auth metadata. Supabase embeds user metadata in
+        // auth tokens/cookies, and profile photo data URLs can exceed Vercel's
+        // request header limit before the app can render.
+        avatar_url: null,
       },
     });
 

@@ -173,6 +173,8 @@ export const authRepository = {
     if (!response.ok || !payload.profile) {
       throw new PersistenceError("save-failed", payload.message ?? "Unable to update profile.");
     }
+    const supabase = createClient();
+    await supabase.auth.refreshSession().catch(() => undefined);
     return payload.profile;
   },
 
