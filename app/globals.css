@@ -1011,6 +1011,758 @@ textarea:focus-visible {
   color: var(--muted);
 }
 
+.public-team-shell {
+  padding-bottom: 48px;
+}
+
+.public-team-shell .public-topbar,
+.public-team-identity,
+.public-team-tabs,
+.public-team-view {
+  max-width: 1320px;
+  margin-inline: auto;
+}
+
+.public-workspace-link {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  background: var(--burgundy);
+  color: white;
+  padding: 0 14px;
+  text-decoration: none;
+  font-weight: 850;
+  box-shadow: var(--shadow-button);
+}
+
+.public-team-identity {
+  min-height: 164px;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) minmax(310px, auto);
+  align-items: center;
+  gap: 22px;
+  padding: 18px 24px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--panel), var(--panel-soft));
+  box-shadow: var(--shadow);
+}
+
+.public-team-mark {
+  width: 106px;
+  height: 106px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--panel-strong) 82%, transparent);
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 25px;
+  font-weight: 900;
+}
+
+.public-team-mark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 10px;
+}
+
+.public-team-title-block {
+  min-width: 0;
+}
+
+.public-team-kicker {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.public-team-title-block h1 {
+  margin: 8px 0 8px;
+  font-size: clamp(2rem, 4vw, 3.25rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.public-team-meta,
+.public-team-location {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted-strong);
+}
+
+.public-team-meta span:not(.public-team-badge)::after {
+  content: "•";
+  margin-left: 8px;
+  color: var(--muted);
+}
+
+.public-team-badge {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-strong);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.public-team-location {
+  margin-top: 10px;
+}
+
+.public-team-header-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(98px, 1fr));
+  gap: 10px;
+}
+
+.public-team-header-stats span {
+  min-height: 82px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-strong);
+  text-align: center;
+}
+
+.public-team-header-stats strong {
+  font-size: 25px;
+  line-height: 1;
+}
+
+.public-team-header-stats small {
+  color: var(--muted-strong);
+}
+
+.public-team-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 14px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.public-team-tabs a {
+  min-height: 48px;
+  min-width: 118px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted-strong);
+  text-decoration: none;
+  font-weight: 850;
+}
+
+.public-team-tabs a:hover,
+.public-team-tabs a:focus-visible,
+.public-team-tabs a.active {
+  color: var(--text);
+}
+
+.public-team-tabs a.active {
+  border-bottom-color: var(--burgundy);
+  background: linear-gradient(to bottom, var(--burgundy-soft), transparent);
+  color: var(--burgundy-strong);
+}
+
+.public-team-view {
+  margin-top: 16px;
+}
+
+.public-games-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(310px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.public-stats-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.public-team-panel {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.public-team-panel__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.public-team-panel__heading h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.public-team-panel__heading p,
+.public-panel-note {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.public-team-panel__heading a {
+  color: var(--burgundy-strong);
+  text-decoration: none;
+  font-weight: 850;
+}
+
+.public-game-toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-strong);
+}
+
+.public-game-toggle a {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--muted-strong);
+  padding: 0 14px;
+  text-decoration: none;
+  font-weight: 850;
+}
+
+.public-game-toggle a.active {
+  background: var(--burgundy);
+  color: white;
+}
+
+.public-schedule-list {
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.public-schedule-row {
+  min-height: 78px;
+  display: grid;
+  grid-template-columns: 86px 52px minmax(170px, 1.2fr) minmax(180px, 1fr) minmax(104px, auto) 18px;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  text-decoration: none;
+  background: color-mix(in srgb, var(--panel-soft) 50%, transparent);
+}
+
+.public-schedule-row:last-child {
+  border-bottom: 0;
+}
+
+.public-schedule-row:hover,
+.public-schedule-row:focus-visible {
+  background: var(--panel-soft);
+}
+
+.public-schedule-date {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  color: var(--text);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.public-schedule-date small {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.public-schedule-date strong {
+  font-size: 18px;
+  line-height: 1.05;
+}
+
+.public-opponent-mark {
+  width: 44px;
+  height: 44px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-strong);
+  color: var(--text);
+  font-weight: 900;
+}
+
+.public-schedule-opponent,
+.public-schedule-location,
+.public-schedule-status,
+.public-next-game__opponent {
+  min-width: 0;
+}
+
+.public-schedule-opponent strong,
+.public-schedule-location strong,
+.public-next-game__opponent strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-schedule-opponent small,
+.public-schedule-location small,
+.public-schedule-status small,
+.public-next-game__opponent small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.public-schedule-location {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-strong);
+}
+
+.public-schedule-status {
+  display: grid;
+  justify-items: end;
+  text-align: right;
+}
+
+.public-result-pill {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: var(--panel-strong);
+  color: var(--muted-strong);
+  font-weight: 850;
+}
+
+.public-result-pill--w {
+  background: rgba(22, 163, 74, 0.15);
+  color: var(--success);
+}
+
+.public-result-pill--l {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger);
+}
+
+.public-result-pill--t {
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--warning);
+}
+
+.public-side-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.public-quick-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.public-quick-stat-grid--wide {
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+}
+
+.public-quick-stat-grid span {
+  min-height: 78px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  border-radius: 10px;
+  background: var(--panel-strong);
+  text-align: center;
+}
+
+.public-quick-stat-grid strong {
+  font-size: 24px;
+}
+
+.public-quick-stat-grid small {
+  color: var(--muted);
+}
+
+.public-next-game {
+  display: grid;
+  gap: 12px;
+}
+
+.public-next-game h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.public-next-game__opponent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.public-next-game p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--muted-strong);
+}
+
+.public-game-detail-link {
+  width: fit-content;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  border-radius: var(--radius);
+  background: var(--burgundy);
+  color: white;
+  padding: 0 14px;
+  text-decoration: none;
+  font-weight: 850;
+}
+
+.public-roster-table {
+  display: grid;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.public-roster-head,
+.public-roster-entry {
+  display: grid;
+  grid-template-columns: 56px minmax(210px, 1fr) minmax(120px, 0.5fr) 84px 76px 82px 82px;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+}
+
+.public-roster-head {
+  min-height: 40px;
+  background: var(--panel-strong);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.public-roster-entry {
+  min-height: 62px;
+  border-top: 1px solid var(--line);
+}
+
+.public-player-number {
+  color: var(--text);
+}
+
+.public-player-name {
+  min-width: 0;
+}
+
+.public-player-name b {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-player-name small,
+.public-roster-entry span:not(.public-player-name) {
+  color: var(--muted-strong);
+}
+
+.public-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.public-info-item {
+  min-height: 74px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  border-radius: 12px;
+  background: var(--panel-strong);
+  padding: 14px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.public-info-item small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.public-info-item strong {
+  font-size: 16px;
+}
+
+.public-team-empty {
+  min-height: 74px;
+  display: grid;
+  align-content: center;
+  border-radius: 12px;
+  background: var(--panel-strong);
+  color: var(--muted);
+  padding: 16px;
+}
+
+@media (max-width: 1180px) {
+  .public-team-identity {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .public-team-mark {
+    width: 92px;
+    height: 92px;
+  }
+
+  .public-team-header-stats {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .public-games-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .public-side-stack {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .public-roster-head,
+  .public-roster-entry {
+    grid-template-columns: 48px minmax(190px, 1fr) minmax(104px, 0.5fr) 70px 68px 76px 76px;
+  }
+}
+
+@media (max-width: 860px) {
+  .public-team-identity {
+    min-height: 0;
+    align-items: start;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .public-team-title-block h1 {
+    font-size: clamp(1.8rem, 6vw, 2.5rem);
+  }
+
+  .public-side-stack,
+  .public-stats-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .public-schedule-row {
+    grid-template-columns: 72px 44px minmax(0, 1fr) minmax(100px, auto) 18px;
+  }
+
+  .public-schedule-location {
+    grid-column: 3 / -1;
+    grid-row: 2;
+  }
+
+  .public-roster-table {
+    border: 0;
+    gap: 8px;
+    overflow: visible;
+  }
+
+  .public-roster-head {
+    display: none;
+  }
+
+  .public-roster-entry {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    gap: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel-strong);
+  }
+
+  .public-roster-entry span:nth-child(3) {
+    display: none;
+  }
+
+  .public-roster-entry span:nth-child(n + 4) {
+    color: var(--muted);
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 560px) {
+  .public-team-topbar {
+    align-items: flex-start;
+  }
+
+  .public-team-topbar .public-follow-wrap,
+  .public-workspace-link {
+    width: 100%;
+  }
+
+  .public-team-topbar .public-follow-button,
+  .public-workspace-link {
+    width: 100%;
+  }
+
+  .public-team-identity {
+    grid-template-columns: 76px minmax(0, 1fr);
+    border-radius: 14px;
+  }
+
+  .public-team-mark {
+    width: 72px;
+    height: 72px;
+    border-radius: 14px;
+    font-size: 20px;
+  }
+
+  .public-team-title-block h1 {
+    margin-top: 5px;
+    font-size: 1.85rem;
+  }
+
+  .public-team-kicker {
+    font-size: 10px;
+  }
+
+  .public-team-meta {
+    gap: 6px;
+    font-size: 13px;
+  }
+
+  .public-team-meta span:not(.public-team-badge)::after {
+    margin-left: 6px;
+  }
+
+  .public-team-location {
+    grid-column: 1 / -1;
+    margin-top: 4px;
+    font-size: 14px;
+  }
+
+  .public-team-header-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .public-team-header-stats span {
+    min-height: 64px;
+    border-radius: 10px;
+  }
+
+  .public-team-header-stats strong {
+    font-size: 19px;
+  }
+
+  .public-team-tabs a {
+    min-width: 98px;
+    min-height: 44px;
+  }
+
+  .public-team-panel {
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .public-team-panel__heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .public-game-toggle {
+    width: 100%;
+  }
+
+  .public-game-toggle a {
+    flex: 1;
+  }
+
+  .public-schedule-row {
+    min-height: 0;
+    grid-template-columns: 58px 40px minmax(0, 1fr) 18px;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .public-schedule-date strong {
+    font-size: 15px;
+  }
+
+  .public-opponent-mark {
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    font-size: 12px;
+  }
+
+  .public-schedule-status {
+    grid-column: 3 / -1;
+    grid-row: 2;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .public-schedule-location {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    padding-left: 68px;
+  }
+
+  .public-quick-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .public-roster-entry {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+
+  .public-roster-entry span:nth-child(n + 4) {
+    grid-column: 2;
+  }
+}
+
 .empty-action-panel {
   min-height: 260px;
   display: grid;

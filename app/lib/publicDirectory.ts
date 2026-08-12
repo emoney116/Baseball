@@ -19,6 +19,10 @@ type TeamRow = {
   name: string;
   level: string | null;
   team_type?: string | null;
+  age_group?: string | null;
+  city?: string | null;
+  state?: string | null;
+  logo_url?: string | null;
   active: boolean;
   visibility: string | null;
 };
@@ -48,9 +52,12 @@ type PlayerRow = {
 type GameRow = {
   id: string;
   opponent: string;
+  starts_at: string | null;
   game_date: string;
   home_away: string;
   location: string | null;
+  game_type: string | null;
+  status: string | null;
   result: string | null;
   our_score: number | null;
   opponent_score: number | null;
@@ -72,9 +79,12 @@ export type PublicRosterPlayer = {
 export type PublicGameSummary = {
   id: string;
   opponent: string;
+  startsAt?: string;
   gameDate: string;
   homeAway: string;
   location?: string;
+  gameType?: string;
+  status?: string;
   result?: string;
   ourScore: number;
   opponentScore: number;
@@ -110,6 +120,11 @@ export type PublicOrganizationDirectory = {
 };
 
 export type PublicTeamDirectory = PublicTeamSummary & {
+  teamType?: string;
+  ageGroup?: string;
+  city?: string;
+  state?: string;
+  logoUrl?: string;
   organization: {
     id: string;
     name: string;
@@ -329,7 +344,7 @@ export async function getPublicTeamDirectory(identifier: string): Promise<Public
   const admin = createAdminClient();
   const { data: team, error: teamError } = await admin
     .from("teams")
-    .select("id,organization_id,name,level,team_type,active,visibility")
+    .select("id,organization_id,name,level,team_type,age_group,city,state,logo_url,active,visibility")
     .eq("id", identifier)
     .maybeSingle();
 
@@ -361,38 +376,66 @@ export async function getPublicTeamDirectory(identifier: string): Promise<Public
     .limit(1);
   const season = (seasonRows as SeasonRow[] | null)?.[0];
 
-  const { data: membershipRows } = await admin
+  let membershipQuery = admin
     .from("player_team_memberships")
     .select("player_id,jersey_number")
     .eq("team_id", teamRow.id)
     .eq("active", true)
     .limit(80);
+  if (season?.id) membershipQuery = membershipQuery.eq("season_id", season.id);
+  const { data: membershipRows, error: membershipError } = await membershipQuery;
+  if (membershipError) {
+    console.warn("Public team roster query failed", {
+      teamId: teamRow.id,
+      code: membershipError.code,
+      message: membershipError.message,
+    });
+  }
   const playerMemberships = (membershipRows ?? []) as Array<{ player_id?: string | null; jersey_number?: number | null }>;
   const membershipByPlayer = new Map(playerMemberships.filter((membership) => membership.player_id).map((membership) => [membership.player_id as string, membership]));
   const playerIds = [...new Set(playerMemberships.map((membership) => membership.player_id).filter(Boolean) as string[])];
 
-  const { data: playerRows } = playerIds.length
+  const { data: playerRows, error: playerError } = playerIds.length
     ? await admin
         .from("players")
         .select("id,first_name,last_name,jersey_number,graduation_year,primary_position,secondary_position,bats,throws,height,weight,active")
         .in("id", playerIds)
         .eq("active", true)
     : { data: [] };
+  if (playerError) {
+    console.warn("Public team player query failed", {
+      teamId: teamRow.id,
+      code: playerError.code,
+      message: playerError.message,
+    });
+  }
 
-  const { data: gameRows } = season
+  const { data: gameRows, error: gameError } = season
     ? await admin
         .from("games")
-        .select("id,opponent,game_date,home_away,location,result,our_score,opponent_score")
+        .select("id,opponent,starts_at,game_date,home_away,location,game_type,status,result,our_score,opponent_score")
         .eq("team_id", teamRow.id)
         .eq("season_id", season.id)
         .order("game_date", { ascending: false })
-        .limit(10)
+        .limit(60)
     : { data: [] };
+  if (gameError) {
+    console.warn("Public team game query failed", {
+      teamId: teamRow.id,
+      code: gameError.code,
+      message: gameError.message,
+    });
+  }
 
   return {
     id: teamRow.id,
     name: teamRow.name,
     level: teamRow.level ?? undefined,
+    teamType: teamRow.team_type ?? undefined,
+    ageGroup: teamRow.age_group ?? undefined,
+    city: teamRow.city ?? organizationRow.city ?? undefined,
+    state: teamRow.state ?? organizationRow.state ?? undefined,
+    logoUrl: teamRow.logo_url ?? organizationRow.logo_url ?? undefined,
     active: Boolean(teamRow.active),
     visibility: organizationVisibility,
     authorized: teamAuthorized,
@@ -425,9 +468,12 @@ export async function getPublicTeamDirectory(identifier: string): Promise<Public
     games: (gameRows as GameRow[] | null ?? []).map((game) => ({
       id: game.id,
       opponent: game.opponent,
+      startsAt: game.starts_at ?? undefined,
       gameDate: game.game_date,
       homeAway: game.home_away,
       location: game.location ?? undefined,
+      gameType: game.game_type ?? undefined,
+      status: game.status ?? undefined,
       result: game.result ?? undefined,
       ourScore: game.our_score ?? 0,
       opponentScore: game.opponent_score ?? 0,

@@ -1,5 +1,24 @@
 begin;
 
+update public.organizations
+set
+  visibility = 'PUBLIC',
+  city = coalesce(nullif(city, ''), 'Matthews'),
+  state = coalesce(nullif(state, ''), 'NC'),
+  updated_at = now()
+where id = '8d7b9b66-5b46-4c84-82d3-3d61c3ad1006';
+
+update public.teams
+set
+  active = true,
+  visibility = 'PUBLIC',
+  team_type = coalesce(nullif(team_type, ''), 'Club'),
+  age_group = coalesce(nullif(age_group, ''), level, '14U'),
+  city = coalesce(nullif(city, ''), 'Matthews'),
+  state = coalesce(nullif(state, ''), 'NC'),
+  updated_at = now()
+where id = '9a3b5d10-6e4f-4f7a-9b20-5d8f24ac2015';
+
 insert into public.players (
   id,
   organization_id,

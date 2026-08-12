@@ -14,6 +14,8 @@ test("next build contains the Clubhouse 9 app shell", async () => {
   const authAvatarScrubMigration = readFileSync("supabase/migrations/20260811220000_scrub_auth_avatar_metadata.sql", "utf8");
   const workflow = readFileSync(".github/workflows/supabase-migrations.yml", "utf8");
   const bootstrapRoute = readFileSync("app/api/setup/bootstrap/route.ts", "utf8");
+  const publicTeamPage = readFileSync("app/team/[id]/page.tsx", "utf8");
+  const showcaseSeed = readFileSync("supabase/migrations/20260812143000_seed_carolina_showcase_public_team_demo.sql", "utf8");
 
   assert.match(layout, /APP_NAME/);
   assert.match(branding, /APP_NAME\s*=\s*"Clubhouse 9"/);
@@ -34,4 +36,10 @@ test("next build contains the Clubhouse 9 app shell", async () => {
   assert.match(workflow, /SUPABASE_PROJECT_ID/);
   assert.match(bootstrapRoute, /authorizeSetupUser/);
   assert.match(bootstrapRoute, /bootstrap_metrolina_admin/);
+  assert.match(publicTeamPage, /type PublicTeamTab = "games" \| "roster" \| "stats" \| "info"/);
+  assert.match(publicTeamPage, /<GamesTab team=\{team\} gameMode=\{gameMode\} record=\{record\} \/>/);
+  assert.match(publicTeamPage, /normalizeTab\(query\.tab\)/);
+  assert.match(publicTeamPage, /PublicTeamHeader/);
+  assert.match(showcaseSeed, /'final', 6, 3, 'W'/);
+  assert.doesNotMatch(showcaseSeed, /'completed',/);
 });
