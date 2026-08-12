@@ -2683,7 +2683,6 @@ function AccountProfileView({
                 organization={organization}
                 onEnterTeam={onEnterTeam}
                 onOpenOrganization={onManageOrganization}
-                manageLabel="Manage Organization"
               />
             )) : <CompactEmpty title="No organizations yet" />}
           </div>
@@ -3650,12 +3649,10 @@ function ManagedOrganizationTeamCard({
   organization,
   onEnterTeam,
   onOpenOrganization,
-  manageLabel = "Manage Organization",
 }: {
   organization: OrganizationSummary;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenOrganization?: (organization: OrganizationSummary) => void;
-  manageLabel?: string;
 }) {
   return (
     <article className="panel organization-team-card">
@@ -3675,11 +3672,6 @@ function ManagedOrganizationTeamCard({
           <Lock size={13} aria-hidden="true" />
         </span>
       </div>
-      {onOpenOrganization && (
-        <button className="text-button organization-manage-button" type="button" onClick={() => onOpenOrganization(organization)}>
-          {manageLabel}
-        </button>
-      )}
       <div className="organization-team-card__list">
         {organization.teams.length ? organization.teams.map((team) => (
           <button key={teamValue(team)} type="button" onClick={() => void onEnterTeam(team)}>
