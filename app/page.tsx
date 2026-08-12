@@ -482,15 +482,17 @@ export default function MetrolinaBaseballApp() {
       const firstPlayer = loaded.settings.recentPlayerIds[0] ?? active?.playerIds[0] ?? loaded.players[0]?.id ?? "";
       const firstGame = loaded.games.find((game) => !game.result)?.id ?? loaded.games[0]?.id ?? "";
 
-      setSelectedPlayerId(requestedPlayer && loaded.players.some((player) => player.id === requestedPlayer) ? requestedPlayer : firstPlayer);
-      setPracticePlayerId(firstPlayer);
-      setSelectedWeightPlayerId(firstPlayer);
-      setSelectedGameId(firstGame);
-      setLiveBpPitcherId(loaded.players.find((player) => player.isPitcher && !player.archived)?.id ?? firstPlayer);
-      setLiveBpHitterId(loaded.players.find((player) => player.isHitter && !player.archived && player.id !== firstPlayer)?.id ?? firstPlayer);
+      if (!options.silent) {
+        setSelectedPlayerId(requestedPlayer && loaded.players.some((player) => player.id === requestedPlayer) ? requestedPlayer : firstPlayer);
+        setPracticePlayerId(firstPlayer);
+        setSelectedWeightPlayerId(firstPlayer);
+        setSelectedGameId(firstGame);
+        setLiveBpPitcherId(loaded.players.find((player) => player.isPitcher && !player.archived)?.id ?? firstPlayer);
+        setLiveBpHitterId(loaded.players.find((player) => player.isHitter && !player.archived && player.id !== firstPlayer)?.id ?? firstPlayer);
 
-      if (requestedView && [...GLOBAL_NAV_ITEMS.map((item) => item.key), ...TEAM_NAV_ITEMS.map((item) => item.key), "profile", "account"].includes(requestedView)) {
-        setView(requestedView);
+        if (requestedView && [...GLOBAL_NAV_ITEMS.map((item) => item.key), ...TEAM_NAV_ITEMS.map((item) => item.key), "profile", "account"].includes(requestedView)) {
+          setView(requestedView);
+        }
       }
     } catch (error) {
       if (isCancelled()) return;
@@ -691,22 +693,29 @@ export default function MetrolinaBaseballApp() {
 
   async function saveAccountProfile(input: { firstName?: string; lastName?: string; displayName?: string; avatarUrl?: string }) {
     const profile = await authRepository.updateProfile(input);
+    const nextProfile = {
+      ...profile,
+      firstName: profile.firstName ?? input.firstName,
+      lastName: profile.lastName ?? input.lastName,
+      displayName: profile.displayName ?? input.displayName,
+      avatarUrl: profile.avatarUrl ?? input.avatarUrl,
+    };
     setData((current) => {
       if (!current?.teamContext) return current;
       return {
         ...current,
         teamContext: {
           ...current.teamContext,
-          profile,
+          profile: nextProfile,
         },
         staffMembers: (current.staffMembers ?? []).map((member) =>
-          member.profileId === profile.id
+          member.profileId === nextProfile.id
             ? {
                 ...member,
-                firstName: profile.firstName,
-                lastName: profile.lastName,
-                displayName: profile.displayName ?? profile.email ?? member.displayName,
-                avatarUrl: profile.avatarUrl,
+                firstName: nextProfile.firstName,
+                lastName: nextProfile.lastName,
+                displayName: nextProfile.displayName ?? nextProfile.email ?? member.displayName,
+                avatarUrl: nextProfile.avatarUrl,
                 updatedAt: new Date().toISOString(),
               }
             : member,
@@ -2486,7 +2495,10 @@ function AccountProfileView({
   const profile = context?.profile;
   const initialDisplayName = preferredProfileDisplayName(profile);
   const [displayName, setDisplayName] = useState(initialDisplayName);
+  const [firstName, setFirstName] = useState(profile?.firstName ?? "");
+  const [lastName, setLastName] = useState(profile?.lastName ?? "");
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatarUrl ?? "");
+  const [editingName, setEditingName] = useState(false);
   const [editingDisplayName, setEditingDisplayName] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [message, setMessage] = useState("");
@@ -2498,8 +2510,11 @@ function AccountProfileView({
 
   useEffect(() => {
     setDisplayName(initialDisplayName);
+    setFirstName(profile?.firstName ?? "");
+    setLastName(profile?.lastName ?? "");
     setAvatarUrl(profile?.avatarUrl ?? "");
-  }, [initialDisplayName, profile?.avatarUrl]);
+    if ([profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim()) setEditingName(false);
+  }, [initialDisplayName, profile?.avatarUrl, profile?.firstName, profile?.lastName]);
 
   async function handleAvatarChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -2568,16 +2583,41 @@ function AccountProfileView({
     }
   }
 
+  async function saveName() {
+    const nextFirstName = firstName.trim();
+    const nextLastName = lastName.trim();
+    if (!nextFirstName || !nextLastName) {
+      setStatus("error");
+      setMessage("First and last name are required.");
+      return;
+    }
+    const nextDisplayName = displayName.trim() || `${nextFirstName} ${nextLastName}`;
+    setStatus("saving");
+    setMessage("");
+    try {
+      await onSave({ firstName: nextFirstName, lastName: nextLastName, displayName: nextDisplayName });
+      setDisplayName(nextDisplayName);
+      setEditingName(false);
+      setStatus("saved");
+      setMessage("Saved");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Unable to save name.");
+    }
+  }
+
   return (
     <div className="page-stack">
       <SectionHeader
         title="My Profile"
-        context={context?.currentTeam ? `${context.currentTeam.teamName} - ${context.currentTeam.seasonName ?? "Current season"}` : undefined}
         action={
-          <button className="secondary-button" type="button" onClick={() => void onSignOut()}>
-            <LogOut size={16} aria-hidden="true" />
-            Sign Out
-          </button>
+          <div className="profile-header-actions">
+            <ProfileAffiliationAvatars context={context} />
+            <button className="secondary-button" type="button" onClick={() => void onSignOut()}>
+              <LogOut size={16} aria-hidden="true" />
+              Sign Out
+            </button>
+          </div>
         }
       />
       <section className="account-grid">
@@ -2589,7 +2629,34 @@ function AccountProfileView({
           <div className="account-profile-main">
             <div className="profile-line">
               <span>Name</span>
-              <strong>{fullName || "Name not set"}</strong>
+              {editingName ? (
+                <div className="profile-name-editor">
+                  <input
+                    value={firstName}
+                    onChange={(event) => setFirstName(event.target.value)}
+                    placeholder="First"
+                    aria-label="First name"
+                  />
+                  <input
+                    value={lastName}
+                    onChange={(event) => setLastName(event.target.value)}
+                    placeholder="Last"
+                    aria-label="Last name"
+                  />
+                  <button className="secondary-button profile-inline-action" type="button" onClick={() => void saveName()} disabled={status === "saving"}>
+                    {status === "saving" ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              ) : (
+                <div className="profile-display-row">
+                  <strong>{fullName || "Name not set"}</strong>
+                  {!fullName && (
+                    <button className="secondary-button profile-inline-action" type="button" onClick={() => setEditingName(true)}>
+                      Set name
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             <div className="profile-line">
               <span>Display name</span>
@@ -4438,6 +4505,37 @@ function StaffAvatar({ member }: { member?: StaffMember }) {
     <span className="staff-avatar">
       {member?.avatarUrl ? <img src={member.avatarUrl} alt="" /> : initials}
     </span>
+  );
+}
+
+function ProfileAffiliationAvatars({ context }: { context?: TeamContext }) {
+  const organizations = organizationSummariesFromContext(context);
+  const organizationIds = new Set(organizations.map((organization) => organization.id));
+  const standaloneTeams = displayWorkspaceTeams(context?.availableTeams ?? [])
+    .filter((team) => !team.organizationId || !organizationIds.has(team.organizationId));
+  const items = [
+    ...organizations.map((organization) => ({
+      key: `org:${organization.id}`,
+      name: organization.name,
+      logoUrl: organization.logoUrl,
+      title: organization.name,
+    })),
+    ...standaloneTeams.map((team) => ({
+      key: `team:${team.teamId}:${team.seasonId ?? "current"}`,
+      name: team.teamName,
+      logoUrl: team.logoUrl,
+      title: `${team.teamName}${team.seasonName ? ` - ${team.seasonName}` : ""}`,
+    })),
+  ].slice(0, 10);
+  if (!items.length) return null;
+  return (
+    <div className="profile-affiliation-avatars" aria-label="Profile organizations and teams">
+      {items.map((item) => (
+        <span key={item.key} className="profile-affiliation-avatar" title={item.title}>
+          <OrganizationLogo name={item.name} logoUrl={item.logoUrl} />
+        </span>
+      ))}
+    </div>
   );
 }
 

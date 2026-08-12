@@ -1088,10 +1088,16 @@ textarea:focus-visible {
   min-height: 54px;
   padding: 8px;
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-columns: 42px minmax(0, 1fr);
   align-items: center;
   gap: 9px;
   text-align: left;
+}
+
+.global-context-card .organization-logo {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
 }
 
 .global-context-card small,
@@ -1220,9 +1226,9 @@ textarea:focus-visible {
 }
 
 .sidebar-footer {
-  display: grid;
-  grid-template-columns: 38px 38px;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
@@ -1292,7 +1298,7 @@ textarea:focus-visible {
 }
 
 .top-command span,
-.section-header span,
+.section-header > div > span,
 .panel-heading span,
 .section-kicker,
 .practice-header span,
@@ -2602,6 +2608,62 @@ textarea:focus-visible {
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+.profile-header-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.profile-affiliation-avatars {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  min-width: 0;
+}
+
+.profile-affiliation-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  margin-left: -8px;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.18));
+}
+
+.profile-affiliation-avatar:first-child {
+  margin-left: 0;
+}
+
+.profile-affiliation-avatar .organization-logo {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-color: var(--line-strong);
+}
+
+.profile-name-editor {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(120px, 180px) auto;
+  align-items: center;
+  gap: 8px;
+  max-width: 520px;
+}
+
+.profile-name-editor input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--input-bg);
+  color: var(--text);
+  padding: 0 10px;
+  font-weight: 760;
 }
 
 .profile-display-input {
@@ -6593,6 +6655,16 @@ select option {
     right: 0;
   }
 
+  .profile-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .profile-name-editor {
+    grid-template-columns: 1fr;
+    max-width: none;
+  }
+
   .auth-name-grid,
   .profile-fields,
   .team-row {
@@ -6968,8 +7040,8 @@ body {
 
 .sidebar-footer {
   margin-top: auto;
-  grid-template-columns: 38px 38px;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
@@ -7150,7 +7222,7 @@ body {
   font-weight: 760;
 }
 
-.section-header span {
+.section-header > div > span {
   display: none;
 }
 
