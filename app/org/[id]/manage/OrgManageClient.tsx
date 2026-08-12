@@ -845,7 +845,7 @@ function InvitesTab({
             Send Invite
           </button>
         </div>
-        <div className="team-creator-grid">
+        <div className="team-creator-grid org-invite-form-grid">
           <label className="form-field team-creator-span">
             <span>Email</span>
             <input type="email" value={draft.email} onChange={(event) => onChange((current) => ({ ...current, email: event.target.value }))} />
@@ -858,7 +858,17 @@ function InvitesTab({
             <span>Last Name</span>
             <input value={draft.lastName} onChange={(event) => onChange((current) => ({ ...current, lastName: event.target.value }))} />
           </label>
-          <div className="form-field">
+          <div className="form-field org-invite-staff-role">
+            <span>Staff Role</span>
+            <ChoiceSelect
+              aria-label="Staff role"
+              className="form-choice"
+              value={draft.staffRole}
+              options={STAFF_ROLE_OPTIONS.map((role) => ({ value: role, label: role }))}
+              onChange={(staffRole) => onChange((current) => ({ ...current, staffRole }))}
+            />
+          </div>
+          <div className="form-field org-invite-org-role">
             <span>Org Role</span>
             <ChoiceSelect
               aria-label="Organization role"
@@ -869,29 +879,6 @@ function InvitesTab({
                 { value: "ADMIN", label: "Org Admin" },
               ]}
               onChange={(orgRole) => onChange((current) => ({ ...current, orgRole: orgRole as OrgRole }))}
-            />
-          </div>
-          <div className="form-field">
-            <span>Staff Role</span>
-            <ChoiceSelect
-              aria-label="Staff role"
-              className="form-choice"
-              value={draft.staffRole}
-              options={STAFF_ROLE_OPTIONS.map((role) => ({ value: role, label: role }))}
-              onChange={(staffRole) => onChange((current) => ({ ...current, staffRole }))}
-            />
-          </div>
-          <div className="form-field">
-            <span>App Access</span>
-            <ChoiceSelect
-              aria-label="Application access"
-              className="form-choice"
-              value={draft.accessRole}
-              options={[
-                { value: "COACH", label: "Coach" },
-                { value: "ADMIN", label: "Admin" },
-              ]}
-              onChange={(accessRole) => onChange((current) => ({ ...current, accessRole: accessRole as "ADMIN" | "COACH" }))}
             />
           </div>
         </div>

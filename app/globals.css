@@ -358,6 +358,19 @@ textarea:focus-visible {
   padding: 0;
 }
 
+.public-follow-button--compact.public-follow-button--active {
+  border-color: var(--line);
+  background: transparent;
+  color: var(--burgundy);
+  box-shadow: none;
+}
+
+.public-follow-button--compact.public-follow-button--active:hover,
+.public-follow-button--compact.public-follow-button--active:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy) 45%, var(--line));
+  background: transparent;
+}
+
 .public-follow-message {
   position: absolute;
   top: calc(100% + 6px);
@@ -867,6 +880,22 @@ textarea:focus-visible {
 
 .org-team-checkboxes input {
   accent-color: var(--burgundy);
+}
+
+.org-invite-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.org-invite-form-grid .team-creator-span {
+  grid-column: 1 / -1;
+}
+
+.org-invite-staff-role {
+  grid-column: 1;
+}
+
+.org-invite-org-role {
+  grid-column: 2;
 }
 
 .org-team-checkboxes strong,
@@ -1849,7 +1878,7 @@ textarea:focus-visible {
 .organization-logo {
   width: 34px;
   height: 34px;
-  border-radius: 10px;
+  border-radius: 999px;
   background: var(--panel-strong);
   border: 1px solid var(--line);
   display: grid;
@@ -1864,14 +1893,14 @@ textarea:focus-visible {
 .team-switcher .organization-logo {
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: 999px;
 }
 
 .organization-logo img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  padding: 2px;
+  object-fit: cover;
+  padding: 0;
 }
 
 .profile-menu {
@@ -2816,7 +2845,7 @@ textarea:focus-visible {
   width: 92px;
   height: 92px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 999px;
   background: var(--panel-soft);
   color: var(--muted-strong);
   display: grid;
@@ -3291,7 +3320,7 @@ textarea:focus-visible {
   min-width: 32px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: var(--panel-soft);
+  background: transparent;
   color: var(--muted-strong);
   display: inline-grid;
   place-items: center;
@@ -3323,14 +3352,14 @@ textarea:focus-visible {
 .follow-heart:focus-visible {
   border-color: color-mix(in srgb, var(--burgundy) 45%, var(--line));
   color: var(--burgundy-strong);
-  background: var(--burgundy-soft);
+  background: transparent;
 }
 
 .follow-heart--active {
-  color: #ffffff;
-  border-color: color-mix(in srgb, var(--burgundy) 72%, var(--line));
-  background: var(--burgundy);
-  box-shadow: 0 8px 18px rgba(159, 36, 76, 0.24);
+  color: var(--burgundy);
+  border-color: var(--line);
+  background: transparent;
+  box-shadow: none;
 }
 
 .follow-heart--active svg {
@@ -3341,12 +3370,12 @@ textarea:focus-visible {
 .follow-heart--locked {
   cursor: default;
   color: var(--muted);
-  background: color-mix(in srgb, var(--panel-soft) 70%, transparent);
+  background: transparent;
 }
 
 .follow-heart--active.follow-heart--locked {
   color: var(--burgundy-strong);
-  background: var(--burgundy-soft);
+  background: transparent;
   box-shadow: none;
 }
 
