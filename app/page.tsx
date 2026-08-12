@@ -282,6 +282,9 @@ export default function MetrolinaBaseballApp() {
   const [playerEditorOpen, setPlayerEditorOpen] = useState(false);
   const [rosterImportOpen, setRosterImportOpen] = useState(false);
   const [staffInviteOpen, setStaffInviteOpen] = useState(false);
+  const [teamCreatorOpen, setTeamCreatorOpen] = useState(false);
+  const [teamCreatorOrganizationId, setTeamCreatorOrganizationId] = useState<ID | undefined>();
+  const [teamCreatorMode, setTeamCreatorMode] = useState<"existing" | "new" | "organization">("existing");
   const [staffActionMessage, setStaffActionMessage] = useState("");
   const [topAccountMenuOpen, setTopAccountMenuOpen] = useState(false);
   const [sidebarAccountMenuOpen, setSidebarAccountMenuOpen] = useState(false);
@@ -354,7 +357,7 @@ export default function MetrolinaBaseballApp() {
     }
 
     const teams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
-    const organizations = organizationSummariesFromTeams(teams).filter((organization) =>
+    const organizations = organizationSummariesFromContext(data.teamContext).filter((organization) =>
       `${organization.name} ${organization.location ?? ""} ${organization.teams.map((team) => `${team.teamName} ${team.teamLevel ?? ""} ${team.seasonName ?? ""}`).join(" ")}`.toLowerCase().includes(needle),
     );
     const matchingTeams = teams.filter((team) =>
@@ -507,7 +510,7 @@ export default function MetrolinaBaseballApp() {
     commit((current) => applyRosterImportPlan(current, plan).data);
   }
 
-  async function createTeamForImport(input: { teamName: string; teamLevel?: string; seasonName: string }) {
+  async function createTeamForImport(input: { organizationId?: string; organizationName?: string; city?: string; state?: string; teamName: string; teamLevel?: string; seasonName: string }) {
     const team = await supabaseAppRepository.createTeam(input);
     setData((current) => {
       if (!current) return current;
@@ -526,6 +529,34 @@ export default function MetrolinaBaseballApp() {
       };
     });
     return team;
+  }
+
+  async function createOrganization(input: { organizationName: string; city?: string; state?: string }) {
+    const organization = await supabaseAppRepository.createOrganization(input);
+    setData((current) => {
+      if (!current) return current;
+      const context = current.teamContext;
+      const organizations = context?.organizations ?? [];
+      return {
+        ...current,
+        teamContext: {
+          profile: context?.profile,
+          currentTeam: context?.currentTeam,
+          availableTeams: context?.availableTeams ?? [],
+          organizations: [
+            organization,
+            ...organizations.filter((item) => item.id !== organization.id),
+          ],
+        },
+      };
+    });
+    return organization;
+  }
+
+  function openTeamCreator(organizationId?: ID, mode: "existing" | "new" | "organization" = organizationId ? "existing" : "existing") {
+    setTeamCreatorOrganizationId(organizationId);
+    setTeamCreatorMode(mode);
+    setTeamCreatorOpen(true);
   }
 
   async function reloadCurrentTeam() {
@@ -1234,6 +1265,7 @@ export default function MetrolinaBaseballApp() {
             onTogglePublicTeamFollow={togglePublicTeamFollow}
             onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
             onView={goToView}
+            onCreateTeam={() => openTeamCreator(undefined, "existing")}
           />
         )}
 
@@ -1241,6 +1273,7 @@ export default function MetrolinaBaseballApp() {
           <OrganizationsView
             data={data}
             onEnterTeam={enterTeam}
+            onCreateTeam={openTeamCreator}
           />
         )}
 
@@ -1248,6 +1281,7 @@ export default function MetrolinaBaseballApp() {
           <MyTeamsView
             data={data}
             onEnterTeam={enterTeam}
+            onCreateTeam={() => openTeamCreator(undefined, "existing")}
           />
         )}
 
@@ -1259,6 +1293,7 @@ export default function MetrolinaBaseballApp() {
             onOpenPublicOrganization={openPublicOrganization}
             onTogglePublicTeamFollow={togglePublicTeamFollow}
             onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
+            onCreateTeam={() => openTeamCreator(undefined, "existing")}
           />
         )}
 
@@ -1270,6 +1305,7 @@ export default function MetrolinaBaseballApp() {
             onOpenPublicOrganization={openPublicOrganization}
             onTogglePublicTeamFollow={togglePublicTeamFollow}
             onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
+            onCreateTeam={() => openTeamCreator(undefined, "existing")}
           />
         )}
 
@@ -1443,7 +1479,7 @@ export default function MetrolinaBaseballApp() {
         )}
 
         {view === "account" && (
-          <AccountProfileView context={data.teamContext} onSignOut={signOut} onSave={saveAccountProfile} />
+          <AccountProfileView context={data.teamContext} onEnterTeam={enterTeam} onSignOut={signOut} onSave={saveAccountProfile} />
         )}
 
         {view === "profile" && selectedPlayer && (
@@ -1586,6 +1622,29 @@ export default function MetrolinaBaseballApp() {
           onImport={(plan) => {
             importRosterPlan(plan);
             setRosterImportOpen(false);
+          }}
+        />
+      )}
+
+      {teamCreatorOpen && (
+        <TeamCreatorModal
+          organizations={organizationSummariesFromContext(data.teamContext)}
+          initialOrganizationId={teamCreatorOrganizationId}
+          initialMode={teamCreatorMode}
+          onClose={() => setTeamCreatorOpen(false)}
+          onCreateOrganization={async (input) => {
+            await createOrganization(input);
+            setTeamCreatorOpen(false);
+            setTeamCreatorOrganizationId(undefined);
+            setTeamCreatorMode("existing");
+            await refreshGlobalData();
+          }}
+          onCreate={async (input) => {
+            const team = await createTeamForImport(input);
+            setTeamCreatorOpen(false);
+            setTeamCreatorOrganizationId(undefined);
+            setTeamCreatorMode("existing");
+            await enterTeam(team);
           }}
         />
       )}
@@ -2179,26 +2238,34 @@ function ProfileMenu({
 
 function AccountProfileView({
   context,
+  onEnterTeam,
   onSignOut,
   onSave,
 }: {
   context?: TeamContext;
+  onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onSignOut: () => void | Promise<void>;
   onSave: (input: { firstName?: string; lastName?: string; displayName?: string; avatarUrl?: string }) => Promise<void>;
 }) {
   const profile = context?.profile;
   const initialDisplayName = preferredProfileDisplayName(profile);
-  const [form, setForm] = useState({
-    firstName: profile?.firstName ?? "",
-    lastName: profile?.lastName ?? "",
-    displayName: initialDisplayName,
-    avatarUrl: profile?.avatarUrl ?? "",
-  });
+  const [displayName, setDisplayName] = useState(initialDisplayName);
+  const [avatarUrl, setAvatarUrl] = useState(profile?.avatarUrl ?? "");
+  const [editingDisplayName, setEditingDisplayName] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [cropState, setCropState] = useState<AvatarCropState | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const profileName = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim() || profile?.displayName || profile?.email || "Coach";
+
+  useEffect(() => {
+    setDisplayName(initialDisplayName);
+    setAvatarUrl(profile?.avatarUrl ?? "");
+  }, [initialDisplayName, profile?.avatarUrl]);
 
   async function handleAvatarChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = "";
     if (!file) return;
     setMessage("");
     if (!file.type.startsWith("image/")) {
@@ -2206,15 +2273,15 @@ function AccountProfileView({
       setMessage("Choose an image file.");
       return;
     }
-    if (file.size > 650_000) {
+    if (file.size > 8_000_000) {
       setStatus("error");
-      setMessage("Choose an image under 650 KB.");
+      setMessage("Choose an image under 8 MB.");
       return;
     }
     const reader = new FileReader();
     reader.onload = () => {
-      const avatarUrl = typeof reader.result === "string" ? reader.result : "";
-      setForm((current) => ({ ...current, avatarUrl }));
+      const sourceUrl = typeof reader.result === "string" ? reader.result : "";
+      setCropState({ sourceUrl, fileName: file.name, zoom: 1, offsetX: 0, offsetY: 0, status: "idle", message: "" });
       setStatus("idle");
     };
     reader.onerror = () => {
@@ -2224,26 +2291,39 @@ function AccountProfileView({
     reader.readAsDataURL(file);
   }
 
-  function updateNameField(field: "firstName" | "lastName", value: string) {
-    setForm((current) => {
-      const next = { ...current, [field]: value };
-      const currentDefault = [current.firstName, current.lastName].filter(Boolean).join(" ").trim();
-      const nextDefault = [next.firstName, next.lastName].filter(Boolean).join(" ").trim();
-      if (!current.displayName || current.displayName === currentDefault || current.displayName === profile?.email) {
-        next.displayName = nextDefault;
-      }
-      return next;
-    });
-  }
-
-  async function submitProfile(event: React.FormEvent) {
-    event.preventDefault();
+  async function applyAvatarCrop() {
+    if (!cropState) return;
+    setCropState((current) => current ? { ...current, status: "saving", message: "" } : current);
     setStatus("saving");
     setMessage("");
     try {
-      await onSave(form);
+      const nextAvatarUrl = await cropAvatarImage(cropState);
+      await onSave({ avatarUrl: nextAvatarUrl });
+      setAvatarUrl(nextAvatarUrl);
+      setCropState(null);
       setStatus("saved");
       setMessage("Saved");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Unable to save profile photo.");
+      setCropState((current) => current ? {
+        ...current,
+        status: "error",
+        message: error instanceof Error ? error.message : "Unable to crop that image.",
+      } : current);
+    }
+  }
+
+  async function saveDisplayName() {
+    const nextDisplayName = displayName.trim() || initialDisplayName;
+    setDisplayName(nextDisplayName);
+    setStatus("saving");
+    setMessage("");
+    try {
+      await onSave({ displayName: nextDisplayName });
+      setStatus("saved");
+      setMessage("Saved");
+      setEditingDisplayName(false);
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Unable to save profile.");
@@ -2263,51 +2343,205 @@ function AccountProfileView({
         }
       />
       <section className="account-grid">
-        <form className="panel account-card account-card--editable" onSubmit={submitProfile}>
+        <article className="panel account-card account-card--editable">
           <label className="account-avatar account-avatar--editable" aria-label="Change profile photo">
-            {form.avatarUrl ? <img src={form.avatarUrl} alt="" /> : <span>{profileInitials(context)}</span>}
-            <input type="file" accept="image/*" onChange={handleAvatarChange} />
+            {avatarUrl ? <img src={avatarUrl} alt="" /> : <span>{profileInitials(context)}</span>}
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} />
           </label>
-          <div>
-            <span>Coach Profile</span>
-            <h2>{profileDisplayName(context)}</h2>
+          <div className="account-profile-main">
+            <span>{profileName}</span>
+            <div className="profile-display-row">
+              {editingDisplayName ? (
+                <input
+                  className="profile-display-input"
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void saveDisplayName();
+                    if (event.key === "Escape") {
+                      setDisplayName(initialDisplayName);
+                      setEditingDisplayName(false);
+                    }
+                  }}
+                />
+              ) : (
+                <h2>{displayName}</h2>
+              )}
+              {editingDisplayName ? (
+                <button className="secondary-button profile-inline-action" type="button" onClick={() => void saveDisplayName()} disabled={status === "saving"}>
+                  {status === "saving" ? "Saving..." : "Save"}
+                </button>
+              ) : (
+                <button className="icon-button profile-edit-button" type="button" aria-label="Edit display name" onClick={() => setEditingDisplayName(true)}>
+                  <Edit3 size={15} aria-hidden="true" />
+                </button>
+              )}
+            </div>
             <p>{profile?.email ?? "No email available"}</p>
           </div>
-          <div className="profile-form-grid">
-            <label className="form-field">
-              <span>First name</span>
-              <input value={form.firstName} onChange={(event) => updateNameField("firstName", event.target.value)} placeholder="Eric" />
-            </label>
-            <label className="form-field">
-              <span>Last name</span>
-              <input value={form.lastName} onChange={(event) => updateNameField("lastName", event.target.value)} placeholder="Boston" />
-            </label>
-            <label className="form-field">
-              <span>Display name</span>
-              <input value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} placeholder="Coach Boston" />
-            </label>
-          </div>
-          <div className="profile-save-row">
+          <div className="profile-save-row profile-save-row--compact">
             {message && <span className={`profile-save-message profile-save-message--${status}`}>{message}</span>}
-            <button className="primary-button" type="submit" disabled={status === "saving"}>
-              <Save size={15} aria-hidden="true" />
-              {status === "saving" ? "Saving..." : "Save Profile"}
-            </button>
           </div>
-        </form>
+        </article>
+        <article className="panel account-teams-card">
+          <div className="panel-heading tight"><div><h2>Your Organizations</h2></div></div>
+          <div className="organization-team-grid organization-team-grid--summary">
+            {organizationSummariesFromContext(context).length ? organizationSummariesFromContext(context).map((organization) => (
+              <ManagedOrganizationTeamCard key={organization.id} organization={organization} onEnterTeam={onEnterTeam} />
+            )) : <CompactEmpty title="No organizations yet" />}
+          </div>
+        </article>
       </section>
+      {cropState && (
+        <AvatarCropModal
+          state={cropState}
+          onChange={setCropState}
+          onCancel={() => setCropState(null)}
+          onPickDifferent={() => fileInputRef.current?.click()}
+          onApply={() => void applyAvatarCrop()}
+        />
+      )}
     </div>
   );
 }
 
+type AvatarCropState = {
+  sourceUrl: string;
+  fileName: string;
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+  status: "idle" | "saving" | "error";
+  message: string;
+};
+
+function AvatarCropModal({
+  state,
+  onChange,
+  onCancel,
+  onPickDifferent,
+  onApply,
+}: {
+  state: AvatarCropState;
+  onChange: React.Dispatch<React.SetStateAction<AvatarCropState | null>>;
+  onCancel: () => void;
+  onPickDifferent: () => void;
+  onApply: () => void;
+}) {
+  const previewStyle = {
+    transform: `translate(calc(-50% + ${state.offsetX}px), calc(-50% + ${state.offsetY}px)) scale(${state.zoom})`,
+  };
+  return (
+    <div className="modal-backdrop avatar-crop-backdrop" role="dialog" aria-modal="true" aria-label="Crop profile photo">
+      <div className="modal-panel avatar-crop-modal">
+        <div className="modal-title">
+          <div>
+            <h2>Profile Photo</h2>
+            <p>{state.fileName}</p>
+          </div>
+          <button className="icon-button" type="button" onClick={onCancel} aria-label="Close">
+            <X size={17} aria-hidden="true" />
+          </button>
+        </div>
+        <div className="avatar-crop-stage">
+          <img src={state.sourceUrl} alt="" style={previewStyle} draggable={false} />
+          <div className="avatar-crop-mask" aria-hidden="true" />
+        </div>
+        <div className="avatar-crop-controls">
+          <label>
+            <span>Zoom</span>
+            <input
+              type="range"
+              min="1"
+              max="2.8"
+              step="0.01"
+              value={state.zoom}
+              onChange={(event) => onChange((current) => current ? { ...current, zoom: Number(event.target.value) } : current)}
+            />
+          </label>
+          <label>
+            <span>Horizontal</span>
+            <input
+              type="range"
+              min="-120"
+              max="120"
+              step="1"
+              value={state.offsetX}
+              onChange={(event) => onChange((current) => current ? { ...current, offsetX: Number(event.target.value) } : current)}
+            />
+          </label>
+          <label>
+            <span>Vertical</span>
+            <input
+              type="range"
+              min="-120"
+              max="120"
+              step="1"
+              value={state.offsetY}
+              onChange={(event) => onChange((current) => current ? { ...current, offsetY: Number(event.target.value) } : current)}
+            />
+          </label>
+        </div>
+        {state.message && <span className="profile-save-message profile-save-message--error">{state.message}</span>}
+        <div className="modal-actions">
+          <button className="secondary-button" type="button" onClick={onPickDifferent}>Choose Different</button>
+          <button className="secondary-button" type="button" onClick={onCancel}>Cancel</button>
+          <button className="primary-button" type="button" onClick={onApply} disabled={state.status === "saving"}>
+            {state.status === "saving" ? "Cropping..." : "Use Photo"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+async function cropAvatarImage(state: AvatarCropState) {
+  const image = await loadImageElement(state.sourceUrl);
+  const sourceSize = Math.min(image.naturalWidth, image.naturalHeight);
+  if (!sourceSize) throw new Error("Unable to read that image.");
+  const outputSize = 360;
+  const canvas = document.createElement("canvas");
+  canvas.width = outputSize;
+  canvas.height = outputSize;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Unable to crop that image.");
+
+  const scale = outputSize / sourceSize;
+  const drawnWidth = image.naturalWidth * scale * state.zoom;
+  const drawnHeight = image.naturalHeight * scale * state.zoom;
+  const drawX = (outputSize - drawnWidth) / 2 + state.offsetX;
+  const drawY = (outputSize - drawnHeight) / 2 + state.offsetY;
+
+  context.save();
+  context.beginPath();
+  context.arc(outputSize / 2, outputSize / 2, outputSize / 2, 0, Math.PI * 2);
+  context.clip();
+  context.fillStyle = "#11151b";
+  context.fillRect(0, 0, outputSize, outputSize);
+  context.imageSmoothingQuality = "high";
+  context.drawImage(image, drawX, drawY, drawnWidth, drawnHeight);
+  context.restore();
+
+  return canvas.toDataURL("image/webp", 0.86);
+}
+
+function loadImageElement(sourceUrl: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Unable to read that image."));
+    image.src = sourceUrl;
+  });
+}
+
 function GlobalContextSummary({ context, onView }: { context?: TeamContext; onView: (view: ViewKey) => void }) {
   const teams = displayWorkspaceTeams(context?.availableTeams ?? []);
-  const orgCount = organizationSummariesFromTeams(teams).length;
+  const organizations = organizationSummariesFromContext(context);
   return (
     <button className="global-context-card" type="button" onClick={() => onView("organizations")}>
-      <OrganizationLogo name={teams[0]?.organizationName ?? APP_NAME} />
+      <OrganizationLogo name={organizations[0]?.name ?? APP_NAME} logoUrl={organizations[0]?.logoUrl} />
       <span>
-        <small>{orgCount || 0} organization{orgCount === 1 ? "" : "s"}</small>
+        <small>{organizations.length || 0} organization{organizations.length === 1 ? "" : "s"}</small>
         <strong>{teams.length || 0} team{teams.length === 1 ? "" : "s"}</strong>
       </span>
     </button>
@@ -2322,6 +2556,7 @@ function ClubhouseHome({
   onTogglePublicTeamFollow,
   onTogglePublicOrganizationFollow,
   onView,
+  onCreateTeam,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
@@ -2330,9 +2565,10 @@ function ClubhouseHome({
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
   onView: (view: ViewKey) => void;
+  onCreateTeam: () => void;
 }) {
   const teams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
-  const organizations = organizationSummariesFromTeams(teams);
+  const organizations = organizationSummariesFromContext(data.teamContext);
   const recentTeam = teams.find((team) => teamValue(team) === teamValue(data.teamContext?.currentTeam)) ?? teams[0];
 
   return (
@@ -2341,6 +2577,10 @@ function ClubhouseHome({
         <div>
           <h1>Home</h1>
         </div>
+        <button className="primary-button" type="button" onClick={onCreateTeam}>
+          <Plus size={16} aria-hidden="true" />
+          New Team
+        </button>
       </section>
 
       <section className="global-section">
@@ -2408,20 +2648,31 @@ function ClubhouseHome({
 function OrganizationsView({
   data,
   onEnterTeam,
+  onCreateTeam,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
+  onCreateTeam: (organizationId?: ID, mode?: "existing" | "new" | "organization") => void;
 }) {
-  const organizations = organizationSummariesFromTeams(displayWorkspaceTeams(data.teamContext?.availableTeams ?? []));
+  const organizations = organizationSummariesFromContext(data.teamContext);
   return (
     <div className="page-stack global-home">
-      <SectionHeader title="Organizations" />
+      <SectionHeader
+        title="Organizations"
+        action={
+          <button className="primary-button" type="button" onClick={() => onCreateTeam(undefined, "organization")}>
+            <Plus size={16} aria-hidden="true" />
+            New Organization
+          </button>
+        }
+      />
       <section className="organization-grid">
         {organizations.length ? organizations.map((organization) => (
           <OrganizationCard
             key={organization.id}
             organization={organization}
             onEnterTeam={onEnterTeam}
+            onCreateTeam={onCreateTeam}
             expanded
           />
         )) : <CompactEmpty title="No organizations yet" />}
@@ -2433,19 +2684,180 @@ function OrganizationsView({
 function MyTeamsView({
   data,
   onEnterTeam,
+  onCreateTeam,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
+  onCreateTeam: () => void;
 }) {
-  const organizations = organizationSummariesFromTeams(displayWorkspaceTeams(data.teamContext?.availableTeams ?? []));
+  const organizations = organizationSummariesFromContext(data.teamContext).filter((organization) => organization.teams.length > 0);
   return (
     <div className="page-stack global-home">
-      <SectionHeader title="My Teams" />
+      <SectionHeader
+        title="My Teams"
+        action={
+          <button className="primary-button" type="button" onClick={onCreateTeam}>
+            <Plus size={16} aria-hidden="true" />
+            New Team
+          </button>
+        }
+      />
       <section className="organization-team-grid">
         {organizations.length ? organizations.map((organization) => (
           <ManagedOrganizationTeamCard key={organization.id} organization={organization} onEnterTeam={onEnterTeam} />
         )) : <CompactEmpty title="No team memberships yet" />}
       </section>
+    </div>
+  );
+}
+
+function TeamCreatorModal({
+  organizations,
+  initialOrganizationId,
+  initialMode,
+  onClose,
+  onCreateOrganization,
+  onCreate,
+}: {
+  organizations: OrganizationSummary[];
+  initialOrganizationId?: ID;
+  initialMode?: "existing" | "new" | "organization";
+  onClose: () => void;
+  onCreateOrganization: (input: { organizationName: string; city?: string; state?: string }) => Promise<void>;
+  onCreate: (input: { organizationId?: string; organizationName?: string; city?: string; state?: string; teamName: string; teamLevel?: string; seasonName: string }) => Promise<void>;
+}) {
+  const startingMode = initialMode ?? (initialOrganizationId || organizations.length ? "existing" : "new");
+  const [mode, setMode] = useState<"existing" | "new" | "organization">(startingMode);
+  const [form, setForm] = useState({
+    organizationId: initialOrganizationId ?? organizations[0]?.id ?? "",
+    organizationName: "",
+    city: "",
+    state: "",
+    teamName: "",
+    teamLevel: "",
+    seasonName: "Fall 2026",
+  });
+  const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [message, setMessage] = useState("");
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setStatus("saving");
+    setMessage("");
+    try {
+      if (mode === "organization") {
+        await onCreateOrganization({
+          organizationName: form.organizationName,
+          city: form.city,
+          state: form.state,
+        });
+      } else {
+        await onCreate({
+          organizationId: mode === "existing" ? form.organizationId : undefined,
+          organizationName: mode === "new" ? form.organizationName : undefined,
+          city: mode === "new" ? form.city : undefined,
+          state: mode === "new" ? form.state : undefined,
+          teamName: form.teamName,
+          teamLevel: form.teamLevel,
+          seasonName: form.seasonName,
+        });
+      }
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Unable to create.");
+    }
+  }
+
+  const createsTeam = mode !== "organization";
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Create team">
+      <form className="modal-panel team-creator-modal" onSubmit={submit}>
+        <div className="modal-title">
+          <div>
+            <h2>{mode === "organization" ? "Create Organization" : "Create Team"}</h2>
+            <p>Teams work best inside an organization. Standalone teams and org invite links will get a dedicated permissions pass.</p>
+          </div>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Close">
+            <X size={17} aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="auth-tabs team-creator-tabs">
+          <button type="button" className={mode === "existing" ? "active" : ""} onClick={() => setMode("existing")} disabled={!organizations.length}>
+            Existing Org
+          </button>
+          <button type="button" className={mode === "new" ? "active" : ""} onClick={() => setMode("new")}>
+            New Org + Team
+          </button>
+          <button type="button" className={mode === "organization" ? "active" : ""} onClick={() => setMode("organization")}>
+            Organization Only
+          </button>
+        </div>
+
+        <div className="team-creator-grid">
+          {mode === "existing" ? (
+            <div className="form-field">
+              <span>Organization</span>
+              <ChoiceSelect
+                aria-label="Organization"
+                value={form.organizationId}
+                options={organizations.map((organization) => ({ value: organization.id, label: organization.name }))}
+                onChange={(organizationId) => setForm((current) => ({ ...current, organizationId }))}
+              />
+            </div>
+          ) : (
+            <>
+              <label className="form-field">
+                <span>Organization</span>
+                <input
+                  value={form.organizationName}
+                  onChange={(event) => setForm((current) => ({ ...current, organizationName: event.target.value }))}
+                  placeholder="Metrolina Christian Academy"
+                  required
+                />
+              </label>
+              <label className="form-field">
+                <span>City</span>
+                <input value={form.city} onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))} placeholder="Charlotte" />
+              </label>
+              <label className="form-field">
+                <span>State</span>
+                <input value={form.state} onChange={(event) => setForm((current) => ({ ...current, state: event.target.value.toUpperCase().slice(0, 2) }))} placeholder="NC" />
+              </label>
+            </>
+          )}
+          {createsTeam && (
+            <>
+              <label className="form-field">
+                <span>Team Name</span>
+                <input value={form.teamName} onChange={(event) => setForm((current) => ({ ...current, teamName: event.target.value }))} placeholder="Varsity Baseball" required={createsTeam} />
+              </label>
+              <label className="form-field">
+                <span>Level</span>
+                <input value={form.teamLevel} onChange={(event) => setForm((current) => ({ ...current, teamLevel: event.target.value }))} placeholder="Varsity, JV, 17U" />
+              </label>
+              <label className="form-field">
+                <span>Season</span>
+                <input value={form.seasonName} onChange={(event) => setForm((current) => ({ ...current, seasonName: event.target.value }))} placeholder="Fall 2026" required={createsTeam} />
+              </label>
+            </>
+          )}
+        </div>
+
+        <div className="team-creator-note">
+          <strong>Coming later</strong>
+          <span>Moving teams between organizations, org invitations, and separate org/team ownership need a dedicated schema pass so permissions stay clean.</span>
+        </div>
+
+        {message && <span className="profile-save-message profile-save-message--error">{message}</span>}
+        <div className="modal-actions">
+          <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
+          <button className="primary-button" type="submit" disabled={status === "saving" || (mode === "existing" && !form.organizationId)}>
+            {status === "saving" ? "Creating..." : mode === "organization" ? "Create Organization" : "Create Team"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -2457,6 +2869,7 @@ function FollowingView({
   onOpenPublicOrganization,
   onTogglePublicTeamFollow,
   onTogglePublicOrganizationFollow,
+  onCreateTeam,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
@@ -2464,13 +2877,21 @@ function FollowingView({
   onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
+  onCreateTeam: () => void;
 }) {
-  const managedTeams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
-  const managedOrganizations = organizationSummariesFromTeams(managedTeams);
+  const managedOrganizations = organizationSummariesFromContext(data.teamContext).filter((organization) => organization.teams.length > 0);
   const followedOrganizations = followedPublicOrganizationGroups(data);
   return (
     <div className="page-stack global-home">
-      <SectionHeader title="Following" />
+      <SectionHeader
+        title="Following"
+        action={
+          <button className="secondary-button" type="button" onClick={onCreateTeam}>
+            <Plus size={16} aria-hidden="true" />
+            New Team
+          </button>
+        }
+      />
       {managedOrganizations.length || followedOrganizations.length ? (
         <>
           <section className="global-section">
@@ -2515,6 +2936,7 @@ function DiscoverView({
   onOpenPublicOrganization,
   onTogglePublicTeamFollow,
   onTogglePublicOrganizationFollow,
+  onCreateTeam,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
@@ -2522,11 +2944,12 @@ function DiscoverView({
   onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
+  onCreateTeam: () => void;
 }) {
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const visibleTeams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
-  const organizations = organizationSummariesFromTeams(visibleTeams).filter((organization) =>
+  const organizations = organizationSummariesFromContext(data.teamContext).filter((organization) =>
     !needle || `${organization.name} ${organization.teams.map((team) => team.teamName).join(" ")}`.toLowerCase().includes(needle),
   );
   const teams = visibleTeams.filter((team) =>
@@ -2537,7 +2960,15 @@ function DiscoverView({
 
   return (
     <div className="page-stack global-home">
-      <SectionHeader title="Discover" />
+      <SectionHeader
+        title="Discover"
+        action={
+          <button className="secondary-button" type="button" onClick={onCreateTeam}>
+            <Plus size={16} aria-hidden="true" />
+            New Team
+          </button>
+        }
+      />
       <label className="global-discover-search">
         <Search size={17} aria-hidden="true" />
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search teams or organizations..." />
@@ -2589,6 +3020,8 @@ type OrganizationSummary = {
   name: string;
   teams: TeamOption[];
   location?: string;
+  logoUrl?: string;
+  role?: string;
 };
 
 type GlobalSearchResults = {
@@ -2603,11 +3036,13 @@ function OrganizationCard({
   organization,
   onEnterTeam,
   onOpenOrganization,
+  onCreateTeam,
   expanded = false,
 }: {
   organization: OrganizationSummary;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenOrganization?: (organization: OrganizationSummary) => void;
+  onCreateTeam?: (organizationId?: ID) => void;
   expanded?: boolean;
 }) {
   const firstTeam = organization.teams[0];
@@ -2623,24 +3058,34 @@ function OrganizationCard({
           else if (firstTeam) void onEnterTeam(firstTeam);
         }}
       >
-        <OrganizationLogo name={organization.name} />
+        <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
         <span>
           <strong>{organization.name}</strong>
           <small>{organization.location ? `${organization.location} - ` : ""}{organization.teams.length} team{organization.teams.length === 1 ? "" : "s"}</small>
         </span>
         <ChevronRight size={16} aria-hidden="true" />
       </button>
-      <div className="team-chip-row">
-        {visibleChips.map((team) => (
-          <button key={teamValue(team)} type="button" onClick={() => void onEnterTeam(team)}>
-            {team.teamLevel ?? shortTeamName(team.teamName)}
-          </button>
-        ))}
-        {extraTeams > 0 && <span>+{extraTeams} more</span>}
-      </div>
+      {visibleChips.length ? (
+        <div className="team-chip-row">
+          {visibleChips.map((team) => (
+            <button key={teamValue(team)} type="button" onClick={() => void onEnterTeam(team)}>
+              {team.teamLevel ?? shortTeamName(team.teamName)}
+            </button>
+          ))}
+          {extraTeams > 0 && <span>+{extraTeams} more</span>}
+        </div>
+      ) : (
+        <div className="team-chip-row"><span>No teams yet</span></div>
+      )}
       {onOpenOrganization && (
         <button className="text-button organization-open-button" type="button" onClick={() => onOpenOrganization(organization)}>
           Open Organization
+        </button>
+      )}
+      {expanded && onCreateTeam && (
+        <button className="secondary-button organization-add-team-button" type="button" onClick={() => onCreateTeam(organization.id)}>
+          <Plus size={15} aria-hidden="true" />
+          Add Team
         </button>
       )}
     </article>
@@ -2657,7 +3102,7 @@ function ManagedOrganizationTeamCard({
   return (
     <article className="panel organization-team-card">
       <div className="organization-team-card__header">
-        <OrganizationLogo name={organization.name} />
+          <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
         <span>
           <strong>{organization.name}</strong>
           <small>{organization.teams.length} team{organization.teams.length === 1 ? "" : "s"}</small>
@@ -2667,7 +3112,7 @@ function ManagedOrganizationTeamCard({
         </span>
       </div>
       <div className="organization-team-card__list">
-        {organization.teams.map((team) => (
+        {organization.teams.length ? organization.teams.map((team) => (
           <button key={teamValue(team)} type="button" onClick={() => void onEnterTeam(team)}>
             <span>
               <strong>{team.teamName}</strong>
@@ -2678,7 +3123,7 @@ function ManagedOrganizationTeamCard({
               {team.title && <span>{team.title}</span>}
             </span>
           </button>
-        ))}
+        )) : <CompactEmpty title="No teams yet" />}
       </div>
     </article>
   );
@@ -2853,7 +3298,7 @@ function FollowSummary({
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
 }) {
-  const managedOrganizations = organizationSummariesFromTeams(displayWorkspaceTeams(data.teamContext?.availableTeams ?? []));
+  const managedOrganizations = organizationSummariesFromContext(data.teamContext);
   const publicOrganizations = followedPublicOrganizationGroups(data);
   if (!managedOrganizations.length && !publicOrganizations.length) return <CompactEmpty title="No followed teams yet" />;
   return (
@@ -2886,10 +3331,25 @@ function OrganizationLogo({ name, logoUrl }: { name: string; logoUrl?: string })
   );
 }
 
-function organizationSummariesFromTeams(teams: TeamOption[]) {
+function organizationSummariesFromContext(context?: TeamContext) {
   const organizations = new Map<ID, OrganizationSummary>();
-  for (const team of teams) {
-    const current = organizations.get(team.organizationId) ?? { id: team.organizationId, name: team.organizationName, teams: [] };
+  for (const organization of context?.organizations ?? []) {
+    const location = [organization.city, organization.state].filter(Boolean).join(", ") || undefined;
+    organizations.set(organization.id, {
+      id: organization.id,
+      name: organization.name,
+      teams: [],
+      location,
+      logoUrl: organization.logoUrl,
+      role: organization.role,
+    });
+  }
+  for (const team of displayWorkspaceTeams(context?.availableTeams ?? [])) {
+    const current = organizations.get(team.organizationId) ?? {
+      id: team.organizationId,
+      name: team.organizationName,
+      teams: [],
+    };
     current.teams.push(team);
     organizations.set(team.organizationId, current);
   }

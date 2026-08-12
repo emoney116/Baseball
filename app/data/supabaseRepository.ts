@@ -14,6 +14,7 @@ import type {
   HittingSession,
   ID,
   AppProfile,
+  OrganizationOption,
   PitchEvent,
   PitchingSession,
   PlateAppearance,
@@ -235,7 +236,7 @@ export const supabaseAppRepository = {
     await syncRosterImports(supabase, foundation, next.rosterImports ?? []);
   },
 
-  async createTeam(input: { teamName: string; teamLevel?: string; seasonName: string }): Promise<TeamOption> {
+  async createTeam(input: { organizationId?: string; organizationName?: string; city?: string; state?: string; teamName: string; teamLevel?: string; seasonName: string }): Promise<TeamOption> {
     const response = await fetch("/api/teams/create", {
       method: "POST",
       credentials: "include",
@@ -247,6 +248,20 @@ export const supabaseAppRepository = {
       throw new PersistenceError("save-failed", payload.message ?? "Unable to create team.");
     }
     return payload.team;
+  },
+
+  async createOrganization(input: { organizationName: string; city?: string; state?: string }): Promise<OrganizationOption> {
+    const response = await fetch("/api/organizations/create", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { ok?: boolean; message?: string; organization?: OrganizationOption };
+    if (!response.ok || !payload.organization) {
+      throw new PersistenceError("save-failed", payload.message ?? "Unable to create organization.");
+    }
+    return payload.organization;
   },
 
   async toggleFollow(input: { organizationId?: string; teamId?: string; follow: boolean }) {
@@ -449,10 +464,15 @@ async function loadFoundation(
   const currentTeam = teamContext.currentTeam;
 
   if (!currentTeam?.seasonId) {
-    throw new PersistenceError(
-      "membership-required",
-      "Your account is ready. You are not connected to an active team season yet.",
-    );
+    return {
+      organizationId: teamContext.organizations?.[0]?.id ?? "",
+      organizationName: teamContext.organizations?.[0]?.name ?? "",
+      teamId: "",
+      teamName: "",
+      seasonId: "",
+      seasonName: SEASON_NAME,
+      teamContext,
+    };
   }
 
   persistSelectedTeam(currentTeam);
@@ -540,9 +560,8 @@ async function loadTeamContext(
   if (membershipError) throw new PersistenceError("load-failed", membershipError.message);
 
   const rows = memberships ?? [];
-  if (rows.length === 0) {
-    return { profile, availableTeams: [] };
-  }
+  const organizations = await loadOrganizationContext(supabase, profile.id);
+  if (rows.length === 0) return { profile, organizations, availableTeams: [] };
 
   const teamIds = [...new Set(rows.map((row: any) => row.team_id).filter(Boolean))];
   const seasonIds = [...new Set(rows.map((row: any) => row.season_id).filter(Boolean))];
@@ -603,7 +622,7 @@ async function loadTeamContext(
     availableTeams.find((option) => option.teamName.toLowerCase().includes("varsity")) ??
     availableTeams[0];
 
-  return { profile, availableTeams, currentTeam };
+  return { profile, organizations: mergeOrganizationOptions(organizations, availableTeams), availableTeams, currentTeam };
 }
 
 function readSelectedTeam(): { teamId?: string; seasonId?: string } | null {
@@ -621,6 +640,69 @@ function persistSelectedTeam(team: TeamOption) {
     SELECTED_TEAM_STORAGE_KEY,
     JSON.stringify({ teamId: team.teamId, seasonId: team.seasonId }),
   );
+}
+
+async function loadOrganizationContext(supabase: SupabaseClient, profileId: string): Promise<OrganizationOption[]> {
+  const { data: memberships, error: membershipError } = await supabase
+    .from("organization_memberships")
+    .select("organization_id,role,active")
+    .eq("profile_id", profileId)
+    .eq("active", true);
+  if (membershipError) throw new PersistenceError("load-failed", membershipError.message);
+
+  const organizationIds = [...new Set((memberships ?? []).map((membership: any) => membership.organization_id).filter(Boolean))];
+  if (!organizationIds.length) return [];
+
+  const primaryResult = await supabase
+    .from("organizations")
+    .select("id,name,slug,city,state,logo_url")
+    .in("id", organizationIds);
+  let organizationRows: any[] = primaryResult.data ?? [];
+  let organizationError = primaryResult.error;
+
+  if (organizationError && /city|state|logo_url|schema cache|column/i.test(organizationError.message)) {
+    const fallbackResult = await supabase
+      .from("organizations")
+      .select("id,name,slug")
+      .in("id", organizationIds);
+    organizationRows = fallbackResult.data ?? [];
+    organizationError = fallbackResult.error;
+  }
+
+  if (organizationError) throw new PersistenceError("load-failed", organizationError.message);
+
+  const membershipsByOrg = new Map((memberships ?? []).map((membership: any) => [membership.organization_id, membership]));
+  return organizationRows
+    .map((organization: any): OrganizationOption => {
+      const membership = membershipsByOrg.get(organization.id);
+      return {
+        id: organization.id,
+        name: organization.name,
+        slug: organization.slug ?? undefined,
+        city: organization.city ?? undefined,
+        state: organization.state ?? undefined,
+        logoUrl: organization.logo_url ?? undefined,
+        role: normalizeTeamRole(membership?.role),
+        active: Boolean(membership?.active ?? true),
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function mergeOrganizationOptions(organizations: OrganizationOption[], teams: TeamOption[]) {
+  const merged = new Map<ID, OrganizationOption>();
+  for (const organization of organizations) merged.set(organization.id, organization);
+  for (const team of teams) {
+    if (!merged.has(team.organizationId)) {
+      merged.set(team.organizationId, {
+        id: team.organizationId,
+        name: team.organizationName,
+        role: team.role,
+        active: true,
+      });
+    }
+  }
+  return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function compareTeamOptions(a: TeamOption, b: TeamOption) {
@@ -642,6 +724,48 @@ function normalizeTeamRole(role: unknown): TeamMembershipRole {
 }
 
 async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Promise<AppData> {
+  if (!foundation.teamId || !foundation.seasonId) {
+    const [profileFollows, profileFollowExclusions, publicDirectory] = await Promise.all([
+      loadProfileFollows(supabase, foundation.teamContext.profile?.id),
+      loadProfileFollowExclusions(supabase, foundation.teamContext.profile?.id),
+      loadPublicDirectory(),
+    ]);
+
+    return {
+      teamContext: foundation.teamContext,
+      players: [],
+      playerTeamMemberships: [],
+      staffMembers: [],
+      staffTeamMemberships: [],
+      staffInvitations: [],
+      profileFollows,
+      profileFollowExclusions,
+      publicOrganizations: publicDirectory.organizations,
+      publicTeams: publicDirectory.teams,
+      rosterImports: [],
+      practices: [],
+      attendance: [],
+      pitchingSessions: [],
+      pitchEvents: [],
+      hittingSessions: [],
+      hittingEvents: [],
+      defenseSessions: [],
+      defenseEvents: [],
+      workoutSessions: [],
+      workoutEntries: [],
+      games: [],
+      gameEvents: [],
+      plateAppearances: [],
+      coachNotes: [],
+      developmentGoals: [],
+      settings: {
+        theme: "dark",
+        rosterSeason: SEASON_NAME,
+        recentPlayerIds: [],
+      },
+    };
+  }
+
   const membershipsResult = await supabase
     .from("player_team_memberships")
     .select("*")

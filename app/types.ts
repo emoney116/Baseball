@@ -307,8 +307,20 @@ export interface TeamOption {
   active: boolean;
 }
 
+export interface OrganizationOption {
+  id: ID;
+  name: string;
+  slug?: string;
+  city?: string;
+  state?: string;
+  logoUrl?: string;
+  role?: TeamMembershipRole;
+  active: boolean;
+}
+
 export interface TeamContext {
   profile?: AppProfile;
+  organizations?: OrganizationOption[];
   availableTeams: TeamOption[];
   currentTeam?: TeamOption;
 }

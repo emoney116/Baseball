@@ -2,8 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "../../../lib/supabase/admin";
 import { createClient } from "../../../lib/supabase/server";
 
-const ORGANIZATION_SLUG = "metrolina-christian-academy";
-
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -13,23 +11,49 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json().catch(() => ({}))) as {
+      organizationId?: string;
+      organizationName?: string;
+      city?: string;
+      state?: string;
       teamName?: string;
       teamLevel?: string;
       seasonName?: string;
     };
+    const organizationId = cleanText(body.organizationId, 80);
+    const organizationName = cleanText(body.organizationName, 120);
+    const city = cleanText(body.city, 80);
+    const state = cleanText(body.state, 40);
     const teamName = body.teamName?.trim();
     const teamLevel = body.teamLevel?.trim() || null;
     const seasonName = body.seasonName?.trim() || "Fall 2026";
     if (!teamName) {
       return NextResponse.json({ ok: false, message: "Team name is required." }, { status: 400 });
     }
+    if (!organizationId && !organizationName) {
+      return NextResponse.json({ ok: false, message: "Choose or create an organization for this team." }, { status: 400 });
+    }
 
     const admin = createAdminClient();
-    const { data: organization, error: organizationError } = await admin
-      .from("organizations")
-      .select("id,name")
-      .eq("slug", ORGANIZATION_SLUG)
-      .maybeSingle();
+    const organizationResult = organizationId
+      ? await admin
+          .from("organizations")
+          .select("id,name")
+          .eq("id", organizationId)
+          .maybeSingle()
+      : await admin
+          .from("organizations")
+          .insert(
+            {
+              name: organizationName,
+              slug: `${slugify(organizationName)}-${crypto.randomUUID().slice(0, 6)}`,
+              city: city || null,
+              state: state || null,
+              visibility: "PRIVATE",
+            },
+          )
+          .select("id,name")
+          .single();
+    const { data: organization, error: organizationError } = organizationResult;
     if (organizationError || !organization) {
       return NextResponse.json({ ok: false, message: organizationError?.message ?? "Organization not found." }, { status: 404 });
     }
@@ -45,7 +69,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, message: adminError.message }, { status: 500 });
     }
     if ((count ?? 0) === 0) {
-      return NextResponse.json({ ok: false, message: "Only organization admins can create teams." }, { status: 403 });
+      if (organizationId) {
+        return NextResponse.json({ ok: false, message: "Only organization admins can create teams there." }, { status: 403 });
+      }
+      const { error: membershipError } = await admin.from("organization_memberships").upsert(
+        {
+          organization_id: organization.id,
+          profile_id: authData.user.id,
+          role: "ADMIN",
+          active: true,
+        },
+        { onConflict: "organization_id,profile_id" },
+      );
+      if (membershipError) {
+        return NextResponse.json({ ok: false, message: membershipError.message }, { status: 500 });
+      }
     }
 
     const { data: team, error: teamError } = await admin
@@ -110,4 +148,19 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+function cleanText(value: unknown, maxLength: number) {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, maxLength);
+}
+
+function slugify(value: string) {
+  const base = value
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 72);
+  return base || `org-${crypto.randomUUID().slice(0, 8)}`;
 }

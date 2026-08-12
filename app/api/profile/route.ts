@@ -20,12 +20,29 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = (await request.json().catch(() => ({}))) as ProfilePatch;
-    const firstName = cleanText(body.firstName, 80);
-    const lastName = cleanText(body.lastName, 80);
-    const displayName = cleanText(body.displayName, 160) || [firstName, lastName].filter(Boolean).join(" ").trim() || authData.user.email || "Coach";
-    const avatarUrl = cleanAvatarValue(body.avatarUrl);
-
     const admin = createAdminClient();
+    const { data: existingProfile, error: existingProfileError } = await admin
+      .from("profiles")
+      .select("first_name,last_name,display_name,avatar_url")
+      .eq("id", authData.user.id)
+      .maybeSingle();
+    if (existingProfileError) {
+      return NextResponse.json({ ok: false, message: existingProfileError.message }, { status: 500 });
+    }
+
+    const firstName = Object.prototype.hasOwnProperty.call(body, "firstName")
+      ? cleanText(body.firstName, 80)
+      : cleanText(existingProfile?.first_name, 80);
+    const lastName = Object.prototype.hasOwnProperty.call(body, "lastName")
+      ? cleanText(body.lastName, 80)
+      : cleanText(existingProfile?.last_name, 80);
+    const displayName = Object.prototype.hasOwnProperty.call(body, "displayName")
+      ? cleanText(body.displayName, 160) || [firstName, lastName].filter(Boolean).join(" ").trim() || authData.user.email || "Coach"
+      : cleanText(existingProfile?.display_name, 160) || [firstName, lastName].filter(Boolean).join(" ").trim() || authData.user.email || "Coach";
+    const avatarUrl = Object.prototype.hasOwnProperty.call(body, "avatarUrl")
+      ? cleanAvatarValue(body.avatarUrl)
+      : cleanAvatarValue(existingProfile?.avatar_url);
+
     await admin.auth.admin.updateUserById(authData.user.id, {
       user_metadata: {
         first_name: firstName || null,

@@ -1868,6 +1868,7 @@ textarea:focus-visible {
 
 .account-card--editable {
   align-items: start;
+  min-height: 180px;
 }
 
 .account-avatar {
@@ -1929,6 +1930,61 @@ textarea:focus-visible {
   color: var(--muted);
 }
 
+.account-profile-main {
+  min-width: 0;
+}
+
+.account-profile-main > span {
+  color: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.profile-display-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.profile-display-row h2 {
+  margin: 2px 0 0;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.profile-display-input {
+  width: min(420px, 100%);
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-soft);
+  color: var(--text);
+  padding: 0 10px;
+  font-size: 20px;
+  font-weight: 850;
+}
+
+.profile-inline-action {
+  min-height: 36px;
+}
+
+.profile-edit-button {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+}
+
+.account-teams-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.account-teams-card .organization-team-grid {
+  grid-template-columns: 1fr;
+}
+
 .profile-fields {
   grid-column: 1 / -1;
   display: grid;
@@ -1955,6 +2011,11 @@ textarea:focus-visible {
   gap: 10px;
 }
 
+.profile-save-row--compact {
+  justify-content: flex-start;
+  min-height: 20px;
+}
+
 .profile-save-message {
   color: var(--muted);
   font-weight: 720;
@@ -1966,6 +2027,130 @@ textarea:focus-visible {
 
 .profile-save-message--error {
   color: var(--danger);
+}
+
+.avatar-crop-modal {
+  width: min(560px, calc(100vw - 28px));
+}
+
+.avatar-crop-modal .modal-title p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.avatar-crop-stage {
+  position: relative;
+  width: min(320px, 78vw);
+  aspect-ratio: 1;
+  margin: 4px auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--panel-soft);
+}
+
+.avatar-crop-stage img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform-origin: center;
+  user-select: none;
+}
+
+.avatar-crop-mask {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.avatar-crop-mask::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 0 50%, rgba(0, 0, 0, 0.58) 50.5% 100%);
+}
+
+.avatar-crop-mask::after {
+  content: "";
+  position: absolute;
+  inset: 13.75%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.24);
+}
+
+.avatar-crop-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.avatar-crop-controls label {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.avatar-crop-controls input[type="range"] {
+  width: 100%;
+  accent-color: var(--burgundy);
+}
+
+.team-creator-modal {
+  width: min(640px, calc(100vw - 28px));
+}
+
+.team-creator-modal .modal-title p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.team-creator-tabs {
+  width: min(360px, 100%);
+}
+
+.team-creator-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.team-creator-grid .form-field:first-child {
+  grid-column: 1 / -1;
+}
+
+.team-creator-note {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  padding: 10px 12px;
+  display: grid;
+  gap: 3px;
+}
+
+.team-creator-note strong {
+  font-size: 12px;
+}
+
+.team-creator-note span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.organization-add-team-button {
+  width: fit-content;
+  min-height: 34px;
 }
 
 .field-line,
@@ -2368,9 +2553,10 @@ textarea:focus-visible {
 }
 
 .follow-heart--active {
-  color: var(--burgundy-strong);
-  border-color: color-mix(in srgb, var(--burgundy) 38%, var(--line));
-  background: var(--burgundy-soft);
+  color: #ffffff;
+  border-color: color-mix(in srgb, var(--burgundy) 72%, var(--line));
+  background: var(--burgundy);
+  box-shadow: 0 8px 18px rgba(159, 36, 76, 0.24);
 }
 
 .follow-heart--locked {
@@ -2382,6 +2568,7 @@ textarea:focus-visible {
 .follow-heart--active.follow-heart--locked {
   color: var(--burgundy-strong);
   background: var(--burgundy-soft);
+  box-shadow: none;
 }
 
 .card-action-row {
