@@ -44,6 +44,20 @@ type TeamSummary = {
   active: boolean;
 };
 
+type TeamRow = {
+  id: string;
+  organization_id: string;
+  name: string;
+  level?: string | null;
+  team_type?: string | null;
+  age_group?: string | null;
+  city?: string | null;
+  state?: string | null;
+  logo_url?: string | null;
+  active?: boolean | null;
+  visibility?: string | null;
+};
+
 type SeasonRow = {
   id: string;
   team_id: string;
@@ -103,7 +117,7 @@ export async function GET() {
     return NextResponse.json({ ok: false, message: teamsResult.error.message }, { status: 500 });
   }
 
-  const teamRows = teamsResult.data ?? [];
+  const teamRows = ((teamsResult.data ?? []) as TeamRow[]).filter((team) => !isProgramContainerTeamRow(team));
   const teamIds = teamRows.map((team) => team.id).filter(Boolean);
   const seasonsResult = teamIds.length
     ? await admin
@@ -171,4 +185,11 @@ export async function GET() {
     organizations: [...organizationsById.values()].filter((organization) => organization.teams.length > 0),
     teams,
   });
+}
+
+function isProgramContainerTeamRow(team: { name?: string | null; level?: string | null; team_type?: string | null }) {
+  const name = (team.name ?? "").trim().toLowerCase();
+  const level = (team.level ?? "").trim().toLowerCase();
+  const teamType = (team.team_type ?? "").trim().toLowerCase();
+  return teamType === "program" || level === "program" || name === "baseball" || name.endsWith(" baseball program") || name.includes(" program");
 }

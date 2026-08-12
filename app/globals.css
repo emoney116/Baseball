@@ -3014,6 +3014,15 @@ textarea:focus-visible {
   color: var(--muted);
 }
 
+.organization-manage-button {
+  justify-self: start;
+  margin: 8px 0 10px 50px;
+  min-height: 28px;
+  padding: 0;
+  font-size: 12px;
+  color: var(--brand-light);
+}
+
 .organization-team-card__list {
   max-height: 176px;
   overflow: auto;

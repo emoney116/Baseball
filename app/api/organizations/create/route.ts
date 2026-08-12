@@ -17,13 +17,18 @@ export async function POST(request: NextRequest) {
       city?: string;
       state?: string;
       logoUrl?: string;
+      visibility?: string;
     };
     const organizationName = cleanText(body.organizationName, 120);
     const city = cleanText(body.city, 80);
     const state = cleanText(body.state, 40);
     const logoUrl = cleanAvatarValue(body.logoUrl);
+    const visibility = normalizeVisibility(body.visibility);
     if (!organizationName) {
       return NextResponse.json({ ok: false, message: "Organization name is required." }, { status: 400 });
+    }
+    if (!state || !city) {
+      return NextResponse.json({ ok: false, message: "State and city are required." }, { status: 400 });
     }
 
     const admin = createAdminClient();
@@ -35,9 +40,9 @@ export async function POST(request: NextRequest) {
         city: city || null,
         state: state || null,
         logo_url: logoUrl || null,
-        visibility: "PRIVATE",
+        visibility,
       })
-      .select("id,name,slug,city,state,logo_url")
+      .select("id,name,slug,city,state,logo_url,visibility")
       .single();
 
     if (organizationError || !organization) {
@@ -66,6 +71,7 @@ export async function POST(request: NextRequest) {
         city: organization.city ?? undefined,
         state: organization.state ?? undefined,
         logoUrl: organization.logo_url ?? undefined,
+        visibility: organization.visibility ?? visibility,
         role: "ADMIN",
         active: true,
       },
@@ -76,6 +82,10 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+function normalizeVisibility(value: unknown) {
+  return value === "UNLISTED" || value === "PRIVATE" ? value : "PUBLIC";
 }
 
 function cleanAvatarValue(value: unknown) {

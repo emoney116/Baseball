@@ -20,7 +20,7 @@ type RouteContext = { params: Promise<{ organizationId: string }> };
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   try {
     const auth = await requireOrgAdmin(params);
-    const data = await readOrganizationManageData(auth.admin, auth.organization.id);
+    const data = await readOrganizationManageData(auth.admin, auth.organization.id, auth.userId);
     return NextResponse.json({ ok: true, data });
   } catch (error) {
     return handleManageError(error);
@@ -90,7 +90,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       }
     }
 
-    const data = await readOrganizationManageData(auth.admin, auth.organization.id);
+    const data = await readOrganizationManageData(auth.admin, auth.organization.id, auth.userId);
     return NextResponse.json({ ok: true, data });
   } catch (error) {
     return handleManageError(error);

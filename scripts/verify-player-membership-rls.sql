@@ -39,7 +39,7 @@ join lateral (
   limit 1
 ) staff on true
 where org.slug = 'metrolina-christian-academy'
-order by case team.name when 'Metrolina Varsity' then 0 when 'Baseball' then 1 else 2 end
+order by case team.name when 'Metrolina Varsity' then 0 when 'Metrolina JV' then 1 else 2 end
 limit 1;
 
 do $$

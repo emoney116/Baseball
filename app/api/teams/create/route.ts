@@ -16,6 +16,7 @@ export async function POST(request: NextRequest) {
       organizationCity?: string;
       organizationState?: string;
       organizationLogoUrl?: string;
+      organizationVisibility?: string;
       city?: string;
       state?: string;
       teamCity?: string;
@@ -25,6 +26,7 @@ export async function POST(request: NextRequest) {
       teamType?: string;
       ageGroup?: string;
       logoUrl?: string;
+      visibility?: string;
       seasonName?: string;
     };
     const organizationId = cleanText(body.organizationId, 80);
@@ -39,6 +41,8 @@ export async function POST(request: NextRequest) {
     const ageGroup = cleanText(body.ageGroup, 40) || null;
     const logoUrl = cleanAvatarValue(body.logoUrl);
     const organizationLogoUrl = cleanAvatarValue(body.organizationLogoUrl);
+    const organizationVisibility = normalizeVisibility(body.organizationVisibility);
+    const visibility = normalizeVisibility(body.visibility);
     const seasonName = body.seasonName?.trim() || "Fall 2026";
     if (!teamName) {
       return NextResponse.json({ ok: false, message: "Team name is required." }, { status: 400 });
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
                 city: organizationCity || null,
                 state: organizationState || null,
                 logo_url: organizationLogoUrl || null,
-                visibility: "PRIVATE",
+                visibility: organizationVisibility,
               },
             )
             .select("id,name,city,state")
@@ -113,16 +117,17 @@ export async function POST(request: NextRequest) {
       level: teamLevel,
       team_type: teamType,
       age_group: ageGroup,
-      city: teamCity || null,
-      state: teamState || null,
+      city: teamCity || organization?.city || null,
+      state: teamState || organization?.state || null,
       logo_url: logoUrl || null,
+      visibility,
       active: true,
     };
     const teamMutation = organization
       ? admin.from("teams").upsert(teamPayload, { onConflict: "organization_id,name" })
       : admin.from("teams").insert(teamPayload);
     const { data: team, error: teamError } = await teamMutation
-      .select("id,organization_id,name,level,active")
+      .select("id,organization_id,name,level,active,visibility")
       .single();
     if (teamError || !team) {
       return NextResponse.json({ ok: false, message: teamError?.message ?? "Unable to create team." }, { status: 500 });
@@ -183,6 +188,10 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+function normalizeVisibility(value: unknown) {
+  return value === "UNLISTED" || value === "PRIVATE" ? value : "PUBLIC";
 }
 
 function cleanText(value: unknown, maxLength: number) {

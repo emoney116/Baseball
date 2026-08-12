@@ -24,7 +24,7 @@ begin
   select org.id, team.id, season.id
   into v_org_id, v_team_id, v_season_id
   from public.organizations org
-  join public.teams team on team.organization_id = org.id and team.name = 'Baseball'
+  join public.teams team on team.organization_id = org.id and team.name = 'Metrolina Varsity'
   join public.seasons season on season.team_id = team.id and season.name = 'Fall 2026'
   where org.slug = 'metrolina-christian-academy';
 
@@ -62,7 +62,7 @@ begin
   )
   values (
     v_roster_import_id, v_org_id, v_team_id, v_season_id,
-    jsonb_build_array(v_marker || '.csv'), jsonb_build_array('Baseball'), jsonb_build_array('add'),
+    jsonb_build_array(v_marker || '.csv'), jsonb_build_array('Metrolina Varsity'), jsonb_build_array('add'),
     1, 1, 0, 1, 0, 0, 0,
     jsonb_build_object('remoteVerification', v_marker),
     v_now_value, v_now_value

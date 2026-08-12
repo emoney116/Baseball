@@ -18,6 +18,7 @@ type TeamRow = {
   organization_id: string;
   name: string;
   level: string | null;
+  team_type?: string | null;
   active: boolean;
   visibility: string | null;
 };
@@ -128,6 +129,13 @@ function normalizeVisibility(value: unknown): Visibility {
   return value === "PUBLIC" || value === "UNLISTED" || value === "PRIVATE" ? value : "PRIVATE";
 }
 
+function isProgramContainerTeamRow(team: { name?: string | null; level?: string | null; team_type?: string | null }) {
+  const name = (team.name ?? "").trim().toLowerCase();
+  const level = (team.level ?? "").trim().toLowerCase();
+  const teamType = (team.team_type ?? "").trim().toLowerCase();
+  return teamType === "program" || level === "program" || name === "baseball" || name.endsWith(" baseball program") || name.includes(" program");
+}
+
 async function viewerId() {
   try {
     const supabase = await createClient();
@@ -213,14 +221,14 @@ export async function getPublicOrganizationDirectory(identifier: string): Promis
 
   const { data: teamRows, error: teamError } = await admin
     .from("teams")
-    .select("id,organization_id,name,level,active,visibility")
+    .select("id,organization_id,name,level,team_type,active,visibility")
     .eq("organization_id", organizationRow.id)
     .eq("active", true)
     .order("name", { ascending: true });
 
   if (teamError) return null;
 
-  const teams = (teamRows ?? []) as TeamRow[];
+  const teams = ((teamRows ?? []) as TeamRow[]).filter((team) => !isProgramContainerTeamRow(team));
   const { data: memberRows } = await admin
     .from("organization_memberships")
     .select("role,active")
@@ -278,11 +286,11 @@ export async function getPublicTeamDirectory(identifier: string): Promise<Public
   const admin = createAdminClient();
   const { data: team, error: teamError } = await admin
     .from("teams")
-    .select("id,organization_id,name,level,active,visibility")
+    .select("id,organization_id,name,level,team_type,active,visibility")
     .eq("id", identifier)
     .maybeSingle();
 
-  if (teamError || !team || !team.active) return null;
+  if (teamError || !team || !team.active || isProgramContainerTeamRow(team as TeamRow)) return null;
   const teamRow = team as TeamRow;
 
   const { data: organization, error: organizationError } = await admin

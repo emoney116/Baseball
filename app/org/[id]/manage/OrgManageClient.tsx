@@ -107,14 +107,15 @@ export function OrgManageClient({ initialData }: { initialData: OrganizationMana
     logoUrl: initialData.organization.logoUrl ?? "",
   });
   const [visibilityDraft, setVisibilityDraft] = useState<OrganizationVisibility>(initialData.organization.visibility);
-  const [addTeamDraft, setAddTeamDraft] = useState<AddTeamDraft>(() => defaultTeamDraft());
+  const [addTeamDraft, setAddTeamDraft] = useState<AddTeamDraft>(() => defaultTeamDraft(initialData.organization));
   const [editingTeamId, setEditingTeamId] = useState("");
   const [teamDrafts, setTeamDrafts] = useState<Record<string, TeamDraft>>(() => teamDraftsFromData(initialData));
   const [inviteDraft, setInviteDraft] = useState<InviteDraft>(() => defaultInviteDraft(initialData));
+  const [showAllInvites, setShowAllInvites] = useState(false);
   const [cropState, setCropState] = useState<CropState | null>(null);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const orgLocation = [data.organization.city, data.organization.state].filter(Boolean).join(", ");
-  const activeTeams = data.teams.filter((team) => team.active);
+  const activeTeams = data.teams.filter((team) => team.active && !isProgramContainerTeam(team));
 
   async function refresh() {
     const response = await fetch(`/api/organizations/${data.organization.id}/manage`, { cache: "no-store" });
@@ -202,7 +203,7 @@ export function OrgManageClient({ initialData }: { initialData: OrganizationMana
       });
       const result = (await response.json()) as { ok: boolean; message?: string };
       if (!response.ok || !result.ok) throw new Error(result.message ?? "Unable to create team.");
-      setAddTeamDraft(defaultTeamDraft());
+      setAddTeamDraft(defaultTeamDraft(data.organization));
       await refresh();
       setStatus("saved");
       setMessage("Team created");
@@ -248,6 +249,28 @@ export function OrgManageClient({ initialData }: { initialData: OrganizationMana
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Unable to update team.");
+    }
+  }
+
+  async function removeTeamFromOrganization(teamId: string) {
+    if (!window.confirm("Remove this team from this organization? The team and its history will stay available outside the organization.")) return;
+    setStatus("saving");
+    setMessage("");
+    try {
+      const response = await fetch(`/api/organizations/${data.organization.id}/teams/${teamId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ removeFromOrganization: true }),
+      });
+      const result = (await response.json()) as { ok: boolean; data?: OrganizationManageData; message?: string };
+      if (!response.ok || !result.ok || !result.data) throw new Error(result.message ?? "Unable to remove team from organization.");
+      applyData(result.data);
+      setEditingTeamId("");
+      setStatus("saved");
+      setMessage("Team removed from organization");
+    } catch (error) {
+      setStatus("error");
+      setMessage(error instanceof Error ? error.message : "Unable to remove team from organization.");
     }
   }
 
@@ -416,21 +439,21 @@ export function OrgManageClient({ initialData }: { initialData: OrganizationMana
           onTeamDraftChange={setTeamDrafts}
           onEdit={setEditingTeamId}
           onSaveTeam={(teamId) => void updateTeam(teamId)}
-          onArchiveTeam={(teamId) => {
-            if (window.confirm("Archive this team? Historical data stays attached to the team.")) void updateTeam(teamId, { active: false });
-          }}
+          onRemoveTeam={(teamId) => void removeTeamFromOrganization(teamId)}
           onRestoreTeam={(teamId) => void updateTeam(teamId, { active: true })}
         />
       );
     }
     if (tab === "staff") {
-      return <StaffTab members={data.members} onUpdateMember={(profileId, role, active) => void updateMember(profileId, role, active)} />;
+      return <StaffTab currentProfileId={data.currentProfileId} members={data.members} onUpdateMember={(profileId, role, active) => void updateMember(profileId, role, active)} />;
     }
     if (tab === "invites") {
       return (
         <InvitesTab
           teams={activeTeams}
           invitations={data.invitations}
+          showAll={showAllInvites}
+          onShowAll={() => setShowAllInvites(true)}
           draft={inviteDraft}
           onChange={setInviteDraft}
           onInvite={inviteStaff}
@@ -508,7 +531,6 @@ function GeneralTab({
       <div className="panel-heading tight">
         <div>
           <h2>General</h2>
-          <p>Keep the public program identity current.</p>
         </div>
         <button className="primary-button" type="submit" disabled={status === "saving"}>
           <Save size={15} aria-hidden="true" />
@@ -575,7 +597,7 @@ function TeamsTab({
   onTeamDraftChange,
   onEdit,
   onSaveTeam,
-  onArchiveTeam,
+  onRemoveTeam,
   onRestoreTeam,
 }: {
   teams: OrganizationManageData["teams"];
@@ -587,7 +609,7 @@ function TeamsTab({
   onTeamDraftChange: (value: SetStateAction<Record<string, TeamDraft>>) => void;
   onEdit: (teamId: string) => void;
   onSaveTeam: (teamId: string) => void;
-  onArchiveTeam: (teamId: string) => void;
+  onRemoveTeam: (teamId: string) => void;
   onRestoreTeam: (teamId: string) => void;
 }) {
   return (
@@ -596,7 +618,6 @@ function TeamsTab({
         <div className="panel-heading tight">
           <div>
             <h2>Add Team</h2>
-            <p>Create inside this organization.</p>
           </div>
           <button className="primary-button" type="submit">
             <Plus size={15} aria-hidden="true" />
@@ -610,7 +631,7 @@ function TeamsTab({
         <div className="panel-heading tight">
           <div>
             <h2>Teams</h2>
-            <p>Archive teams instead of deleting history.</p>
+            <p>Remove teams from this organization without deleting history.</p>
           </div>
         </div>
         <div className="org-team-list">
@@ -644,9 +665,9 @@ function TeamsTab({
                         Save Team
                       </button>
                       {team.active ? (
-                        <button className="secondary-button" type="button" onClick={() => onArchiveTeam(team.id)}>
+                        <button className="secondary-button" type="button" onClick={() => onRemoveTeam(team.id)}>
                           <Archive size={15} aria-hidden="true" />
-                          Archive Team
+                          Remove from Org
                         </button>
                       ) : (
                         <button className="secondary-button" type="button" onClick={() => onRestoreTeam(team.id)}>
@@ -752,12 +773,15 @@ function TeamFields<T extends AddTeamDraft | TeamDraft>({
 }
 
 function StaffTab({
+  currentProfileId,
   members,
   onUpdateMember,
 }: {
+  currentProfileId?: string;
   members: OrganizationManageData["members"];
   onUpdateMember: (profileId: string, role: OrgRole, active?: boolean) => void;
 }) {
+  const activeAdminCount = members.filter((member) => member.active && member.role === "ADMIN").length;
   return (
     <article className="panel org-manage-panel">
       <div className="panel-heading tight">
@@ -767,32 +791,43 @@ function StaffTab({
         </div>
       </div>
       <div className="org-member-table">
-        {members.map((member) => (
-          <div key={member.profileId} className={`org-member-row ${member.active ? "" : "is-archived"}`}>
-            <OrgLogo name={member.displayName} logoUrl={member.avatarUrl} />
-            <span className="org-member-row__person">
-              <strong>{member.displayName}</strong>
-              <small>{member.email ?? "No email"}</small>
-            </span>
-            <span className="team-chip-row">
-              {member.teams.length ? member.teams.slice(0, 3).map((team) => <small key={team.id}>{team.name}</small>) : <small>No teams</small>}
-              {member.teams.length > 3 && <small>+{member.teams.length - 3}</small>}
-            </span>
-            <ChoiceSelect
-              aria-label={`Organization role for ${member.displayName}`}
-              className="form-choice org-role-choice"
-              value={member.role}
-              options={[
-                { value: "ADMIN", label: "Org Admin" },
-                { value: "MEMBER", label: "Org Member" },
-              ]}
-              onChange={(role) => onUpdateMember(member.profileId, role as OrgRole, member.active)}
-            />
-            <button className="icon-button danger-icon-button" type="button" onClick={() => onUpdateMember(member.profileId, member.role, false)} aria-label={`Remove ${member.displayName}`}>
-              <Ban size={15} aria-hidden="true" />
-            </button>
-          </div>
-        ))}
+        {members.map((member) => {
+          const isCurrentLastAdmin = member.profileId === currentProfileId && member.active && member.role === "ADMIN" && activeAdminCount <= 1;
+          return (
+            <div key={member.profileId} className={`org-member-row ${member.active ? "" : "is-archived"}`}>
+              <OrgLogo name={member.displayName} logoUrl={member.avatarUrl} />
+              <span className="org-member-row__person">
+                <strong>{member.displayName}</strong>
+                <small>{member.email ?? "No email"}</small>
+              </span>
+              <span className="team-chip-row">
+                {member.teams.length ? member.teams.slice(0, 3).map((team) => <small key={team.id}>{team.name}</small>) : <small>No teams</small>}
+                {member.teams.length > 3 && <small>+{member.teams.length - 3}</small>}
+              </span>
+              <ChoiceSelect
+                aria-label={`Organization role for ${member.displayName}`}
+                className="form-choice org-role-choice"
+                value={member.role}
+                options={[
+                  { value: "ADMIN", label: "Org Admin" },
+                  { value: "MEMBER", label: "Org Member" },
+                ]}
+                disabled={isCurrentLastAdmin}
+                onChange={(role) => onUpdateMember(member.profileId, role as OrgRole, member.active)}
+              />
+              <button
+                className="icon-button danger-icon-button"
+                type="button"
+                disabled={isCurrentLastAdmin}
+                title={isCurrentLastAdmin ? "Add another org admin before removing your own admin access." : undefined}
+                onClick={() => onUpdateMember(member.profileId, member.role, false)}
+                aria-label={`Remove ${member.displayName}`}
+              >
+                <Ban size={15} aria-hidden="true" />
+              </button>
+            </div>
+          );
+        })}
       </div>
     </article>
   );
@@ -801,6 +836,8 @@ function StaffTab({
 function InvitesTab({
   teams,
   invitations,
+  showAll,
+  onShowAll,
   draft,
   onChange,
   onInvite,
@@ -810,6 +847,8 @@ function InvitesTab({
 }: {
   teams: OrganizationManageData["teams"];
   invitations: OrganizationManageData["invitations"];
+  showAll: boolean;
+  onShowAll: () => void;
   draft: InviteDraft;
   onChange: (value: SetStateAction<InviteDraft>) => void;
   onInvite: (event: FormEvent) => void;
@@ -817,6 +856,8 @@ function InvitesTab({
   onResend: (id: string) => void;
   onRevoke: (id: string) => void;
 }) {
+  const visibleInvites = invitations.filter((invite) => invite.status !== "REVOKED");
+  const displayedInvites = showAll ? visibleInvites : visibleInvites.slice(0, 5);
   return (
     <section className="org-manage-grid">
       <form className="panel org-manage-panel" onSubmit={onInvite}>
@@ -907,11 +948,16 @@ function InvitesTab({
         <div className="panel-heading tight">
           <div>
             <h2>Invites</h2>
-            <p>Pending, accepted, expired, and revoked links.</p>
+            <p>Pending, accepted, and expired links.</p>
           </div>
+          {!showAll && visibleInvites.length > 5 && (
+            <button className="text-button" type="button" onClick={onShowAll}>
+              View all
+            </button>
+          )}
         </div>
         <div className="org-invite-list">
-          {invitations.length ? invitations.map((invite) => (
+          {displayedInvites.length ? displayedInvites.map((invite) => (
             <div key={invite.id} className="org-invite-row">
               <span>
                 <strong>{invite.email}</strong>
@@ -1034,11 +1080,19 @@ function ChoiceSelect({
 }
 
 function OrgLogo({ name, logoUrl, large = false }: { name: string; logoUrl?: string; large?: boolean }) {
+  const resolvedLogoUrl = logoUrl || (/metrolina/i.test(name) ? "/brand/metrolina-baseball-alpha.png" : "");
   return (
     <span className={`organization-logo ${large ? "organization-logo--lg" : ""}`} aria-hidden="true">
-      {logoUrl ? <img src={logoUrl} alt="" /> : initialsFor(name)}
+      {resolvedLogoUrl ? <img src={resolvedLogoUrl} alt="" /> : initialsFor(name)}
     </span>
   );
+}
+
+function isProgramContainerTeam(team: { name?: string; level?: string; teamType?: string }) {
+  const name = (team.name ?? "").trim().toLowerCase();
+  const level = (team.level ?? "").trim().toLowerCase();
+  const teamType = (team.teamType ?? "").trim().toLowerCase();
+  return teamType === "program" || level === "program" || name === "baseball" || name.endsWith(" baseball program") || name.includes(" program");
 }
 
 function ImageCropModal({
@@ -1174,13 +1228,13 @@ function loadImage(sourceUrl: string) {
   });
 }
 
-function defaultTeamDraft(): AddTeamDraft {
+function defaultTeamDraft(organization?: OrganizationManageData["organization"]): AddTeamDraft {
   return {
     teamName: "",
     teamType: "School",
     teamLevel: "Varsity",
-    teamState: "",
-    teamCity: "",
+    teamState: organization?.state ?? "",
+    teamCity: organization?.city ?? "",
     seasonName: SEASON_OPTIONS[0] ?? "Summer 2026",
   };
 }

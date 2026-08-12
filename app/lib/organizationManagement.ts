@@ -6,6 +6,7 @@ export type OrganizationVisibility = "PUBLIC" | "UNLISTED" | "PRIVATE";
 export type OrgRole = "ADMIN" | "MEMBER";
 
 export type OrganizationManageData = {
+  currentProfileId?: string;
   organization: {
     id: string;
     name: string;
@@ -203,7 +204,14 @@ export async function countOtherOrganizationAdmins(admin: AdminClient, organizat
   return count ?? 0;
 }
 
-export async function readOrganizationManageData(admin: AdminClient, organizationId: string): Promise<OrganizationManageData> {
+export function isProgramContainerTeamRow(team: { name?: string | null; level?: string | null; team_type?: string | null }) {
+  const name = (team.name ?? "").trim().toLowerCase();
+  const level = (team.level ?? "").trim().toLowerCase();
+  const teamType = (team.team_type ?? "").trim().toLowerCase();
+  return teamType === "program" || level === "program" || name === "baseball" || name.endsWith(" baseball program") || name.includes(" program");
+}
+
+export async function readOrganizationManageData(admin: AdminClient, organizationId: string, currentProfileId?: string): Promise<OrganizationManageData> {
   const { data: organization, error: organizationError } = await admin
     .from("organizations")
     .select("id,name,slug,city,state,logo_url,visibility")
@@ -237,7 +245,7 @@ export async function readOrganizationManageData(admin: AdminClient, organizatio
   if (membershipsError) throw new Error(membershipsError.message);
   if (invitationsError) throw new Error(invitationsError.message);
 
-  const teams = (teamRows ?? []) as TeamRow[];
+  const teams = ((teamRows ?? []) as TeamRow[]).filter((team) => !isProgramContainerTeamRow(team));
   const teamIds = teams.map((team) => team.id);
   const memberRows = (membershipRows ?? []) as OrganizationMembershipRow[];
   const profileIds = [...new Set(memberRows.map((membership) => membership.profile_id).filter(Boolean))];
@@ -302,6 +310,7 @@ export async function readOrganizationManageData(admin: AdminClient, organizatio
   }
 
   return {
+    currentProfileId,
     organization: {
       id: organizationRow.id,
       name: organizationRow.name,

@@ -224,13 +224,32 @@ begin
   select exists (
     select 1
     from public.organizations org
-    join public.teams team on team.organization_id = org.id and team.name = 'Baseball'
+    join public.teams team on team.organization_id = org.id and team.name = 'Metrolina Varsity'
     join public.seasons season on season.team_id = team.id and season.name = 'Fall 2026'
     where org.slug = 'metrolina-christian-academy'
+      and org.visibility = 'PUBLIC'
+      and coalesce(nullif(org.city, ''), '') <> ''
+      and coalesce(nullif(org.state, ''), '') <> ''
   ) into seeded_foundation;
 
   if not seeded_foundation then
-    raise exception 'Seeded Metrolina organization/team/season was not found.';
+    raise exception 'Seeded Metrolina organization/Varsity season identity was not found.';
+  end if;
+
+  select exists (
+    select 1
+    from public.organizations org
+    join public.teams team on team.organization_id = org.id
+    where org.slug = 'metrolina-christian-academy'
+      and (
+        lower(team.name) = 'baseball'
+        or lower(coalesce(team.level, '')) = 'program'
+        or lower(coalesce(team.team_type, '')) = 'program'
+      )
+  ) into seeded_foundation;
+
+  if seeded_foundation then
+    raise exception 'Legacy Metrolina Baseball Program pseudo-team still exists.';
   end if;
 
   select exists (
@@ -241,10 +260,14 @@ begin
     join public.teams jv on jv.organization_id = org.id and jv.name = 'Metrolina JV'
     join public.seasons jv_season on jv_season.team_id = jv.id and jv_season.name = 'Fall 2026'
     where org.slug = 'metrolina-christian-academy'
+      and coalesce(nullif(varsity.city, ''), '') <> ''
+      and coalesce(nullif(varsity.state, ''), '') <> ''
+      and coalesce(nullif(jv.city, ''), '') <> ''
+      and coalesce(nullif(jv.state, ''), '') <> ''
   ) into seeded_team_views;
 
   if not seeded_team_views then
-    raise exception 'Seeded Metrolina Varsity/JV Fall 2026 teams were not found.';
+    raise exception 'Seeded Metrolina Varsity/JV Fall 2026 teams or location identity were not found.';
   end if;
 
   select count(*)

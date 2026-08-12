@@ -119,7 +119,7 @@ async function completeInvitationSummary(admin: AdminClient, invitation: Invitat
   return {
     id: invitation.id,
     organizationId: invitation.organization_id,
-    organizationName: organization?.name ?? "Baseball Program",
+    organizationName: organization?.name ?? "Baseball organization",
     email: invitation.email,
     status,
     staffRole: invitation.staff_role ?? "Assistant Coach",

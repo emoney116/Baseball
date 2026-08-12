@@ -54,7 +54,28 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       visibility?: string;
       active?: boolean;
       seasonName?: string;
+      removeFromOrganization?: boolean;
     };
+
+    if (body.removeFromOrganization === true) {
+      const now = new Date().toISOString();
+      const { error: teamUpdateError } = await admin
+        .from("teams")
+        .update({ organization_id: null, updated_at: now })
+        .eq("id", teamId)
+        .eq("organization_id", organization.id);
+      if (teamUpdateError) throw new Error(teamUpdateError.message);
+
+      const { error: seasonUpdateError } = await admin
+        .from("seasons")
+        .update({ organization_id: null, updated_at: now })
+        .eq("team_id", teamId)
+        .eq("organization_id", organization.id);
+      if (seasonUpdateError) throw new Error(seasonUpdateError.message);
+
+      const data = await readOrganizationManageData(admin, organization.id, authData.user.id);
+      return NextResponse.json({ ok: true, data });
+    }
 
     const teamUpdates: Record<string, string | boolean | null> = {};
     if (Object.prototype.hasOwnProperty.call(body, "name")) {
@@ -92,7 +113,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       if (seasonError) throw new Error(seasonError.message);
     }
 
-    const data = await readOrganizationManageData(admin, organization.id);
+    const data = await readOrganizationManageData(admin, organization.id, authData.user.id);
     return NextResponse.json({ ok: true, data });
   } catch (error) {
     return NextResponse.json(

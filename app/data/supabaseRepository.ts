@@ -247,6 +247,7 @@ export const supabaseAppRepository = {
     organizationCity?: string;
     organizationState?: string;
     organizationLogoUrl?: string;
+    organizationVisibility?: string;
     city?: string;
     state?: string;
     teamCity?: string;
@@ -256,6 +257,7 @@ export const supabaseAppRepository = {
     teamType?: string;
     ageGroup?: string;
     logoUrl?: string;
+    visibility?: string;
     seasonName: string;
   }): Promise<TeamOption> {
     const response = await fetch("/api/teams/create", {
@@ -271,7 +273,7 @@ export const supabaseAppRepository = {
     return payload.team;
   },
 
-  async createOrganization(input: { organizationName: string; city?: string; state?: string; logoUrl?: string }): Promise<OrganizationOption> {
+  async createOrganization(input: { organizationName: string; city?: string; state?: string; logoUrl?: string; visibility?: string }): Promise<OrganizationOption> {
     const response = await fetch("/api/organizations/create", {
       method: "POST",
       credentials: "include",
@@ -647,6 +649,7 @@ async function loadTeamContext(
       };
     })
     .filter((option): option is TeamOption => Boolean(option))
+    .filter((option) => !isProgramContainerTeamOption(option))
     .sort(compareTeamOptions);
 
   const currentTeam =
@@ -745,6 +748,13 @@ function mergeOrganizationOptions(organizations: OrganizationOption[], teams: Te
     }
   }
   return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function isProgramContainerTeamOption(team: TeamOption) {
+  const name = team.teamName.trim().toLowerCase();
+  const level = (team.teamLevel ?? "").trim().toLowerCase();
+  const teamType = (team.teamType ?? "").trim().toLowerCase();
+  return teamType === "program" || level === "program" || name === "baseball" || name.endsWith(" baseball program") || name.includes(" program");
 }
 
 function compareTeamOptions(a: TeamOption, b: TeamOption) {

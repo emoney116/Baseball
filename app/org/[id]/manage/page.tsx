@@ -46,7 +46,7 @@ export default async function OrganizationManagePage({ params }: { params: Promi
     );
   }
 
-  const data = await readOrganizationManageData(admin, organization.id);
+  const data = await readOrganizationManageData(admin, organization.id, authData.user?.id);
 
   return (
     <main className="public-shell org-manage-shell">
