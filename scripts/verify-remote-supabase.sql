@@ -45,6 +45,7 @@ declare
     'public.current_profile_can_view_staff_member(uuid)',
     'public.current_profile_can_admin_invitation(uuid)',
     'public.create_staff_invitation(text,text,text,text,text,text,timestamp with time zone,uuid[],uuid[])',
+    'public.create_staff_invitation(text,text,text,text,text,text,timestamp with time zone,uuid[],uuid[],text)',
     'public.accept_staff_invitation(text)',
     'public.revoke_staff_invitation(uuid)',
     'public.refresh_staff_invitation(uuid,text,timestamp with time zone)'

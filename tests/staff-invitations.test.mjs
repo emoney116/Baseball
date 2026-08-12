@@ -7,7 +7,9 @@ test("staff invitation migration keeps tokens hashed and authorization server-si
   const acceptanceFixMigration = readFileSync("supabase/migrations/20260811141000_fix_staff_invitation_acceptance.sql", "utf8");
   const conflictTargetFixMigration = readFileSync("supabase/migrations/20260811145000_fix_staff_invitation_acceptance_conflict_target.sql", "utf8");
   const organizationManagementMigration = readFileSync("supabase/migrations/20260812113000_organization_management.sql", "utf8");
+  const invitationCompatibilityMigration = readFileSync("supabase/migrations/20260812115000_restore_staff_invitation_compatibility.sql", "utf8");
   const remoteVerifyWorkflow = readFileSync(".github/workflows/supabase-remote-verify.yml", "utf8");
+  const remoteVerifySql = readFileSync("scripts/verify-remote-supabase.sql", "utf8");
   const remoteAcceptanceRegression = readFileSync("scripts/verify-staff-invitation-acceptance.sql", "utf8");
   const createRoute = readFileSync("app/api/staff/invitations/route.ts", "utf8");
   const invitations = readFileSync("app/lib/invitations.ts", "utf8");
@@ -44,6 +46,10 @@ test("staff invitation migration keeps tokens hashed and authorization server-si
   assert.match(organizationManagementMigration, /add column if not exists org_role/);
   assert.match(organizationManagementMigration, /insert into public\.organization_memberships/);
   assert.match(organizationManagementMigration, /excluded\.role = 'ADMIN'::public\.membership_role/);
+  assert.match(invitationCompatibilityMigration, /create or replace function public\.create_staff_invitation\(\s*invite_email text,[\s\S]*invite_season_ids uuid\[\] default array\[\]::uuid\[\]\s*\)/);
+  assert.match(invitationCompatibilityMigration, /'MEMBER'\s*\);/);
+  assert.match(remoteVerifySql, /public\.create_staff_invitation\(text,text,text,text,text,text,timestamp with time zone,uuid\[\],uuid\[\]\)/);
+  assert.match(remoteVerifySql, /public\.create_staff_invitation\(text,text,text,text,text,text,timestamp with time zone,uuid\[\],uuid\[\],text\)/);
   assert.match(remoteAcceptanceRegression, /org_role,\s+expires_at/s);
   assert.match(remoteAcceptanceRegression, /organization_memberships as om/);
 
