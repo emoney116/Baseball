@@ -35,7 +35,12 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
               Manage Organization
             </Link>
           )}
-          <PublicFollowButton organizationId={organization.id} label="Follow Org" />
+          <PublicFollowButton
+            organizationId={organization.id}
+            label="Follow Org"
+            locked={!organization.canFollow}
+            lockedLabel="You already have access to this organization"
+          />
         </div>
       </header>
 
@@ -76,12 +81,18 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
         <div className="public-card-grid">
           {organization.teams.length ? organization.teams.map((team) => (
             <article key={team.id} className="public-team-card public-team-card--with-action">
-              <Link href={`/team/${team.id}`} className="public-team-card__link">
+              <Link href={team.workspaceAccess ? `/?view=teamHome&team=${team.id}${team.season?.id ? `&season=${team.season.id}` : ""}` : `/team/${team.id}`} className="public-team-card__link">
                 <span>{team.season?.name ?? "Current season"}</span>
                 <strong>{team.name}</strong>
                 <small>{team.level ?? "Baseball"} - {team.visibility.toLowerCase()}</small>
               </Link>
-              <PublicFollowButton organizationId={organization.id} teamId={team.id} compact />
+              <PublicFollowButton
+                organizationId={organization.id}
+                teamId={team.id}
+                compact
+                locked={team.authorized}
+                lockedLabel="You already have access to this team"
+              />
             </article>
           )) : (
             <article className="public-empty">No public teams yet.</article>

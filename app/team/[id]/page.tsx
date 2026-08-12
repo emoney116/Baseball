@@ -25,7 +25,13 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
             <span>{APP_NAME}</span>
           </Link>
         </div>
-        <PublicFollowButton organizationId={team.organization.id} teamId={team.id} label="Follow Team" />
+        <PublicFollowButton
+          organizationId={team.organization.id}
+          teamId={team.id}
+          label="Follow Team"
+          locked={!team.canFollow}
+          lockedLabel="You already have access to this team"
+        />
       </header>
 
       <section className="public-hero">

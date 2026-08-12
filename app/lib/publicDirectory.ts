@@ -86,6 +86,8 @@ export type PublicTeamSummary = {
   level?: string;
   visibility: Visibility;
   active: boolean;
+  authorized: boolean;
+  workspaceAccess: boolean;
   season?: {
     id: string;
     name: string;
@@ -102,6 +104,7 @@ export type PublicOrganizationDirectory = {
   visibility: Visibility;
   teams: PublicTeamSummary[];
   authorized: boolean;
+  canFollow: boolean;
   adminCount: number;
   memberCount: number;
 };
@@ -119,6 +122,7 @@ export type PublicTeamDirectory = PublicTeamSummary & {
   roster: PublicRosterPlayer[];
   games: PublicGameSummary[];
   authorized: boolean;
+  canFollow: boolean;
 };
 
 function isUuid(value: string) {
@@ -144,6 +148,37 @@ async function viewerId() {
   } catch {
     return undefined;
   }
+}
+
+async function viewerAccessForOrganization(organizationId: string, teamIds: string[]) {
+  const userId = await viewerId();
+  if (!userId) return { userId: undefined, organizationMember: false, teamIds: new Set<string>() };
+
+  const admin = createAdminClient();
+  const [{ data: organizationMembership }, { data: teamMembershipRows }] = await Promise.all([
+    admin
+      .from("organization_memberships")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("profile_id", userId)
+      .eq("active", true)
+      .limit(1)
+      .maybeSingle(),
+    teamIds.length
+      ? admin
+          .from("profile_team_memberships")
+          .select("team_id")
+          .in("team_id", teamIds)
+          .eq("profile_id", userId)
+          .eq("active", true)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  return {
+    userId,
+    organizationMember: Boolean(organizationMembership),
+    teamIds: new Set(((teamMembershipRows ?? []) as Array<{ team_id?: string | null }>).map((row) => row.team_id).filter(Boolean) as string[]),
+  };
 }
 
 async function canViewOrganization(organizationId: string, teamIds: string[], organizationVisibility: Visibility) {
@@ -229,6 +264,7 @@ export async function getPublicOrganizationDirectory(identifier: string): Promis
   if (teamError) return null;
 
   const teams = ((teamRows ?? []) as TeamRow[]).filter((team) => !isProgramContainerTeamRow(team));
+  const viewerAccess = await viewerAccessForOrganization(organizationRow.id, teams.map((team) => team.id));
   const { data: memberRows } = await admin
     .from("organization_memberships")
     .select("role,active")
@@ -243,6 +279,7 @@ export async function getPublicOrganizationDirectory(identifier: string): Promis
   if (!access.allowed) return null;
 
   const organizationVisibility = normalizeVisibility(organizationRow.visibility);
+  const organizationAuthorized = access.authorized || viewerAccess.organizationMember || viewerAccess.teamIds.size > 0;
   const visibleTeams = access.authorized || organizationVisibility === "PUBLIC" || organizationVisibility === "UNLISTED"
     ? teams
     : [];
@@ -264,17 +301,22 @@ export async function getPublicOrganizationDirectory(identifier: string): Promis
     state: organizationRow.state ?? undefined,
     logoUrl: organizationRow.logo_url ?? undefined,
     visibility: normalizeVisibility(organizationRow.visibility),
-    authorized: access.authorized,
+    authorized: organizationAuthorized,
+    canFollow: !organizationAuthorized,
     adminCount: activeMembers.filter((member) => member.role === "ADMIN").length,
     memberCount: activeMembers.length,
     teams: visibleTeams.map((team) => {
       const season = seasonByTeam.get(team.id);
+      const teamWorkspaceAccess = viewerAccess.teamIds.has(team.id);
+      const teamAuthorized = viewerAccess.organizationMember || teamWorkspaceAccess;
       return {
         id: team.id,
         name: team.name,
         level: team.level ?? undefined,
         active: Boolean(team.active),
         visibility: organizationVisibility,
+        authorized: teamAuthorized,
+        workspaceAccess: teamWorkspaceAccess,
         season: season ? { id: season.id, name: season.name } : undefined,
       };
     }),
@@ -303,9 +345,12 @@ export async function getPublicTeamDirectory(identifier: string): Promise<Public
   if (organizationError || !organization) return null;
   const organizationRow = organization as OrganizationRow;
   const organizationVisibility = normalizeVisibility(organizationRow.visibility);
+  const viewerAccess = await viewerAccessForOrganization(organizationRow.id, [teamRow.id]);
 
   const access = await canViewTeam(teamRow.id, organizationRow.id, organizationVisibility);
   if (!access.allowed) return null;
+  const teamWorkspaceAccess = viewerAccess.teamIds.has(teamRow.id);
+  const teamAuthorized = access.authorized || viewerAccess.organizationMember || teamWorkspaceAccess;
 
   const { data: seasonRows } = await admin
     .from("seasons")
@@ -348,6 +393,8 @@ export async function getPublicTeamDirectory(identifier: string): Promise<Public
     level: teamRow.level ?? undefined,
     active: Boolean(teamRow.active),
     visibility: organizationVisibility,
+    authorized: teamAuthorized,
+    workspaceAccess: teamWorkspaceAccess,
     season: season ? { id: season.id, name: season.name } : undefined,
     organization: {
       id: organizationRow.id,
@@ -358,7 +405,7 @@ export async function getPublicTeamDirectory(identifier: string): Promise<Public
       logoUrl: organizationRow.logo_url ?? undefined,
       visibility: organizationVisibility,
     },
-    authorized: access.authorized,
+    canFollow: !teamAuthorized,
     roster: (playerRows ?? [])
       .map((player: PlayerRow) => ({
         id: player.id,

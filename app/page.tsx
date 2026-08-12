@@ -360,6 +360,10 @@ export default function MetrolinaBaseballApp() {
     else url.searchParams.set("view", nextView);
     if (options.playerId) url.searchParams.set("player", options.playerId);
     else if (nextView !== "profile") url.searchParams.delete("player");
+    if (!TEAM_CONTEXT_VIEWS.has(nextView)) {
+      url.searchParams.delete("team");
+      url.searchParams.delete("season");
+    }
     const nextUrl = `${url.pathname}${url.search}${url.hash}`;
     const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (nextUrl === currentUrl) return;
@@ -501,9 +505,11 @@ export default function MetrolinaBaseballApp() {
     }
 
     try {
-      const loaded = await supabaseAppRepository.load(selectedTeamId, selectedSeasonId);
-      if (isCancelled()) return;
       const params = new URLSearchParams(window.location.search);
+      const requestedTeam = params.get("team") ?? selectedTeamId;
+      const requestedSeason = params.get("season") ?? selectedSeasonId;
+      const loaded = await supabaseAppRepository.load(requestedTeam ?? undefined, requestedSeason ?? undefined);
+      if (isCancelled()) return;
       const requestedView = params.get("view") as ViewKey | null;
       const requestedPlayer = params.get("player");
 
@@ -763,6 +769,13 @@ export default function MetrolinaBaseballApp() {
     setTopAccountMenuOpen(false);
     setSidebarAccountMenuOpen(false);
     await loadApplicationData(() => false, team.teamId, team.seasonId);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("team", team.teamId);
+      if (team.seasonId) url.searchParams.set("season", team.seasonId);
+      else url.searchParams.delete("season");
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    }
     navigateToView("teamHome");
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart } from "lucide-react";
+import { Heart, Lock } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "../lib/supabase/client";
 
@@ -9,15 +9,18 @@ type PublicFollowButtonProps = {
   teamId?: string;
   label?: string;
   compact?: boolean;
+  locked?: boolean;
+  lockedLabel?: string;
 };
 
-export function PublicFollowButton({ organizationId, teamId, label = "Follow", compact = false }: PublicFollowButtonProps) {
+export function PublicFollowButton({ organizationId, teamId, label = "Follow", compact = false, locked = false, lockedLabel = "Included with your access" }: PublicFollowButtonProps) {
   const [state, setState] = useState<"checking" | "signed-out" | "idle" | "saving">("checking");
   const [followed, setFollowed] = useState(false);
   const [message, setMessage] = useState("");
   const targetKey = useMemo(() => `${organizationId ?? "orgless"}:${teamId ?? "org"}`, [organizationId, teamId]);
 
   useEffect(() => {
+    if (locked) return;
     let active = true;
     async function loadFollowState() {
       try {
@@ -53,7 +56,22 @@ export function PublicFollowButton({ organizationId, teamId, label = "Follow", c
     return () => {
       active = false;
     };
-  }, [targetKey, organizationId, teamId]);
+  }, [targetKey, organizationId, teamId, locked]);
+
+  if (locked) {
+    return (
+      <span className="public-follow-wrap">
+        <span
+          className={`public-follow-button public-follow-button--locked ${compact ? "public-follow-button--compact" : ""}`}
+          aria-label={lockedLabel}
+          title={lockedLabel}
+        >
+          <Lock size={15} aria-hidden="true" />
+          {!compact && "Joined"}
+        </span>
+      </span>
+    );
+  }
 
   async function toggleFollow() {
     if (state === "signed-out") {

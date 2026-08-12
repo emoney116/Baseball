@@ -334,6 +334,18 @@ textarea:focus-visible {
   opacity: 0.72;
 }
 
+.public-follow-button--locked {
+  cursor: default;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel-soft) 78%, transparent);
+}
+
+.public-follow-button--locked:hover {
+  border-color: var(--line);
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel-soft) 78%, transparent);
+}
+
 .public-follow-button--compact {
   width: 36px;
   min-width: 36px;
