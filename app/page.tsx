@@ -103,6 +103,7 @@ import type {
   Practice,
   PracticeType,
   ProfileFollow,
+  ProfileFollowExclusion,
   PublicDirectoryOrganizationSummary,
   PublicDirectoryTeamSummary,
   RosterStatus,
@@ -668,10 +669,33 @@ export default function MetrolinaBaseballApp() {
   }
 
   async function togglePublicTeamFollow(team: PublicDirectoryTeamSummary) {
-    const followed = isFollowingTeam(data?.profileFollows ?? [], team.id);
+    const organizationFollowed = isFollowingOrganization(data?.profileFollows ?? [], team.organizationId);
+    const excludedFromOrganization = isTeamExcludedFromOrganization(data?.profileFollowExclusions ?? [], team.organizationId, team.id);
     setSaveStatus("saving");
     setSaveError(null);
     try {
+      if (organizationFollowed) {
+        const exclude = !excludedFromOrganization;
+        const result = await supabaseAppRepository.toggleOrganizationTeamExclusion({
+          organizationId: team.organizationId,
+          teamId: team.id,
+          exclude,
+        });
+        setData((current) => {
+          if (!current) return current;
+          const remainingExclusions = (current.profileFollowExclusions ?? []).filter((item) => item.teamId !== team.id);
+          const remainingFollows = (current.profileFollows ?? []).filter((item) => item.teamId !== team.id);
+          return {
+            ...current,
+            profileFollows: remainingFollows,
+            profileFollowExclusions: exclude && result ? [result, ...remainingExclusions] : remainingExclusions,
+          };
+        });
+        setSaveStatus("saved");
+        return;
+      }
+
+      const followed = isFollowingTeam(data?.profileFollows ?? [], team.id);
       const follow = !followed;
       const result = await supabaseAppRepository.toggleFollow({ teamId: team.id, follow });
       setData((current) => {
@@ -702,6 +726,9 @@ export default function MetrolinaBaseballApp() {
         return {
           ...current,
           profileFollows: follow && result ? [result, ...remaining] : remaining,
+          profileFollowExclusions: follow
+            ? current.profileFollowExclusions
+            : (current.profileFollowExclusions ?? []).filter((item) => item.organizationId !== organization.id),
         };
       });
       setSaveStatus("saved");
@@ -2491,6 +2518,7 @@ function FollowingView({
                   followed={isFollowingOrganization(data.profileFollows ?? [], organization.id)}
                   onOpenTeam={onOpenPublicTeam}
                   onOpenOrganization={onOpenPublicOrganization}
+                  isTeamFollowed={(team) => isFollowingPublicTeam(data, team)}
                   onToggleTeamFollow={onTogglePublicTeamFollow}
                   onToggleOrganizationFollow={onTogglePublicOrganizationFollow}
                 />
@@ -2570,7 +2598,6 @@ function DiscoverView({
                 key={team.id}
                 team={team}
                 followed={isFollowingPublicTeam(data, team)}
-                locked={isFollowingOrganization(data.profileFollows ?? [], team.organizationId)}
                 onOpenTeam={onOpenPublicTeam}
                 onToggleFollow={onTogglePublicTeamFollow}
               />
@@ -2688,6 +2715,7 @@ function PublicOrganizationFollowCard({
   followed,
   onOpenTeam,
   onOpenOrganization,
+  isTeamFollowed,
   onToggleTeamFollow,
   onToggleOrganizationFollow,
 }: {
@@ -2695,6 +2723,7 @@ function PublicOrganizationFollowCard({
   followed: boolean;
   onOpenTeam: (team: PublicDirectoryTeamSummary) => void;
   onOpenOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
+  isTeamFollowed: (team: PublicDirectoryTeamSummary) => boolean;
   onToggleTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onToggleOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
 }) {
@@ -2715,28 +2744,25 @@ function PublicOrganizationFollowCard({
         />
       </div>
       <div className="organization-team-card__list">
-        {organization.teams.map((team) => (
-          <div key={team.id} className="organization-team-row">
-            <button type="button" onClick={() => onOpenTeam(team)}>
-              <span>
-                <strong>{team.name}</strong>
-                <small>{team.seasonName ?? "Current season"}</small>
-              </span>
-              <ChevronRight size={15} aria-hidden="true" />
-            </button>
-            {followed ? (
-              <span className="follow-heart follow-heart--active follow-heart--locked" aria-label="Included with organization follow">
-                <Heart size={15} aria-hidden="true" fill="currentColor" />
-              </span>
-            ) : (
+        {organization.teams.map((team) => {
+          const teamFollowed = isTeamFollowed(team);
+          return (
+            <div key={team.id} className="organization-team-row">
+              <button type="button" onClick={() => onOpenTeam(team)}>
+                <span>
+                  <strong>{team.name}</strong>
+                  <small>{team.seasonName ?? "Current season"}</small>
+                </span>
+                <ChevronRight size={15} aria-hidden="true" />
+              </button>
               <FollowButton
-                followed
-                label={`Unfollow ${team.name}`}
+                followed={teamFollowed}
+                label={teamFollowed ? `Unfollow ${team.name}` : `Follow ${team.name}`}
                 onClick={() => void onToggleTeamFollow(team)}
               />
-            )}
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
     </article>
   );
@@ -2874,6 +2900,7 @@ function FollowSummary({
           followed={isFollowingOrganization(data.profileFollows ?? [], organization.id)}
           onOpenTeam={onOpenPublicTeam}
           onOpenOrganization={onOpenPublicOrganization}
+          isTeamFollowed={(team) => isFollowingPublicTeam(data, team)}
           onToggleTeamFollow={onTogglePublicTeamFollow}
           onToggleOrganizationFollow={onTogglePublicOrganizationFollow}
         />
@@ -7327,14 +7354,20 @@ function isFollowingOrganization(follows: ProfileFollow[] | undefined, organizat
   return Boolean(follows?.some((follow) => follow.organizationId === organizationId && !follow.teamId));
 }
 
+function isTeamExcludedFromOrganization(exclusions: ProfileFollowExclusion[] | undefined, organizationId: ID, teamId: ID) {
+  return Boolean(exclusions?.some((exclusion) => exclusion.organizationId === organizationId && exclusion.teamId === teamId));
+}
+
 function isFollowingPublicTeam(data: AppData, team: PublicDirectoryTeamSummary) {
   const follows = data.profileFollows ?? [];
-  return isFollowingTeam(follows, team.id) || isFollowingOrganization(follows, team.organizationId);
+  const excluded = isTeamExcludedFromOrganization(data.profileFollowExclusions ?? [], team.organizationId, team.id);
+  return isFollowingTeam(follows, team.id) || (isFollowingOrganization(follows, team.organizationId) && !excluded);
 }
 
 function followedPublicOrganizationGroups(data: AppData) {
   const managedTeamIds = new Set((data.teamContext?.availableTeams ?? []).map((team) => team.teamId));
   const follows = data.profileFollows ?? [];
+  const exclusions = data.profileFollowExclusions ?? [];
   const followedTeamIds = new Set(follows.map((follow) => follow.teamId).filter(Boolean));
   const followedOrganizationIds = new Set(follows.map((follow) => follow.organizationId).filter(Boolean));
 
@@ -7343,11 +7376,12 @@ function followedPublicOrganizationGroups(data: AppData) {
       const organizationFollowed = followedOrganizationIds.has(organization.id);
       const teams = organization.teams.filter((team) => {
         if (managedTeamIds.has(team.id)) return false;
+        if (organizationFollowed && isTeamExcludedFromOrganization(exclusions, organization.id, team.id)) return false;
         return organizationFollowed || followedTeamIds.has(team.id);
       });
       return { ...organization, teams };
     })
-    .filter((organization) => organization.teams.length > 0);
+    .filter((organization) => followedOrganizationIds.has(organization.id) || organization.teams.length > 0);
 }
 
 function organizationLocation(source: { city?: string; state?: string }) {

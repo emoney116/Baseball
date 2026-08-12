@@ -15,6 +15,7 @@ export function PublicFollowButton({ organizationId, teamId, label = "Follow", c
   const [state, setState] = useState<"checking" | "signed-out" | "idle" | "saving">("checking");
   const [followed, setFollowed] = useState(false);
   const [inherited, setInherited] = useState(false);
+  const [excluded, setExcluded] = useState(false);
   const [message, setMessage] = useState("");
   const targetKey = useMemo(() => `${organizationId ?? "orgless"}:${teamId ?? "org"}`, [organizationId, teamId]);
 
@@ -56,13 +57,27 @@ export function PublicFollowButton({ organizationId, teamId, label = "Follow", c
               .maybeSingle(),
           );
         }
+        if (teamId && organizationId) {
+          checks.push(
+            supabase
+              .from("profile_follow_exclusions")
+              .select("id")
+              .eq("profile_id", userData.user.id)
+              .eq("organization_id", organizationId)
+              .eq("team_id", teamId)
+              .limit(1)
+              .maybeSingle(),
+          );
+        }
 
         const results = await Promise.all(checks);
         if (!active) return;
         const teamFollow = teamId ? Boolean(results[0]?.data) : false;
         const organizationFollow = organizationId ? Boolean(results[teamId ? 1 : 0]?.data) : false;
-        setFollowed(teamFollow || organizationFollow);
-        setInherited(Boolean(teamId && organizationFollow && !teamFollow));
+        const organizationExclusion = Boolean(teamId && organizationId && results[2]?.data);
+        setExcluded(organizationExclusion);
+        setFollowed(teamFollow || (organizationFollow && !organizationExclusion));
+        setInherited(Boolean(teamId && organizationFollow && !teamFollow && !organizationExclusion));
         setState("idle");
       } catch {
         if (!active) return;
@@ -82,12 +97,6 @@ export function PublicFollowButton({ organizationId, teamId, label = "Follow", c
       window.setTimeout(() => setMessage(""), 2200);
       return;
     }
-    if (inherited) {
-      setMessage("Followed through the organization.");
-      window.setTimeout(() => setMessage(""), 2200);
-      return;
-    }
-
     setState("saving");
     setMessage("");
     try {
@@ -99,20 +108,70 @@ export function PublicFollowButton({ organizationId, teamId, label = "Follow", c
         return;
       }
 
+      if (teamId && organizationId && inherited) {
+        await supabase
+          .from("profile_follows")
+          .delete()
+          .eq("profile_id", userData.user.id)
+          .eq("team_id", teamId);
+        const { error } = await supabase.from("profile_follow_exclusions").upsert({
+          profile_id: userData.user.id,
+          organization_id: organizationId,
+          team_id: teamId,
+        }, { onConflict: "profile_id,team_id" });
+        if (error) throw error;
+        setExcluded(true);
+        setInherited(false);
+        setFollowed(false);
+        setState("idle");
+        return;
+      }
+
+      if (teamId && organizationId && excluded && !followed) {
+        const { error } = await supabase
+          .from("profile_follow_exclusions")
+          .delete()
+          .eq("profile_id", userData.user.id)
+          .eq("organization_id", organizationId)
+          .eq("team_id", teamId);
+        if (error) throw error;
+        setExcluded(false);
+        setInherited(true);
+        setFollowed(true);
+        setState("idle");
+        return;
+      }
+
       if (followed) {
         let query = supabase.from("profile_follows").delete().eq("profile_id", userData.user.id);
         query = teamId ? query.eq("team_id", teamId) : query.is("team_id", null);
         query = organizationId ? query.eq("organization_id", organizationId) : query.is("organization_id", null);
         const { error } = await query;
         if (error) throw error;
+        if (organizationId && !teamId) {
+          await supabase
+            .from("profile_follow_exclusions")
+            .delete()
+            .eq("profile_id", userData.user.id)
+            .eq("organization_id", organizationId);
+        }
         setFollowed(false);
       } else {
+        if (teamId && organizationId) {
+          await supabase
+            .from("profile_follow_exclusions")
+            .delete()
+            .eq("profile_id", userData.user.id)
+            .eq("organization_id", organizationId)
+            .eq("team_id", teamId);
+        }
         const { error } = await supabase.from("profile_follows").insert({
           profile_id: userData.user.id,
           organization_id: organizationId ?? null,
           team_id: teamId ?? null,
         });
         if (error && error.code !== "23505") throw error;
+        setExcluded(false);
         setFollowed(true);
       }
       setState("idle");

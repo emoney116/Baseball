@@ -19,6 +19,7 @@ import type {
   PlateAppearance,
   Player,
   ProfileFollow,
+  ProfileFollowExclusion,
   PublicDirectoryOrganizationSummary,
   PublicDirectoryTeamSummary,
   PlayerTeamMembership,
@@ -265,6 +266,13 @@ export const supabaseAppRepository = {
       query = input.organizationId ? query.eq("organization_id", input.organizationId) : query.is("organization_id", null);
       const { error } = await query;
       if (error) throw new PersistenceError("save-failed", error.message);
+      if (input.organizationId && !input.teamId) {
+        await supabase
+          .from("profile_follow_exclusions")
+          .delete()
+          .eq("profile_id", userData.user.id)
+          .eq("organization_id", input.organizationId);
+      }
       return undefined;
     }
 
@@ -286,6 +294,43 @@ export const supabaseAppRepository = {
       .single();
     if (error) throw new PersistenceError("save-failed", error.message);
     return mapProfileFollow(data);
+  },
+
+  async toggleOrganizationTeamExclusion(input: { organizationId: string; teamId: string; exclude: boolean }) {
+    const supabase = createClient();
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      throw new PersistenceError("auth-required", "Sign in before updating follows.");
+    }
+
+    if (!input.exclude) {
+      const { error } = await supabase
+        .from("profile_follow_exclusions")
+        .delete()
+        .eq("profile_id", userData.user.id)
+        .eq("organization_id", input.organizationId)
+        .eq("team_id", input.teamId);
+      if (error) throw new PersistenceError("save-failed", error.message);
+      return undefined;
+    }
+
+    await supabase
+      .from("profile_follows")
+      .delete()
+      .eq("profile_id", userData.user.id)
+      .eq("team_id", input.teamId);
+
+    const { data, error } = await supabase
+      .from("profile_follow_exclusions")
+      .upsert({
+        profile_id: userData.user.id,
+        organization_id: input.organizationId,
+        team_id: input.teamId,
+      }, { onConflict: "profile_id,team_id" })
+      .select("*")
+      .single();
+    if (error) throw new PersistenceError("save-failed", error.message);
+    return mapProfileFollowExclusion(data);
   },
 
   async inviteStaff(input: {
@@ -699,8 +744,9 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
   const goalsRows = (goalsResult.data ?? []).filter((row: any) => playerIdsSet.has(row.player_id));
   const rosterImports = await loadRosterImports(supabase, foundation);
   const staffData = await loadStaffData(supabase, foundation);
-  const [profileFollows, publicDirectory] = await Promise.all([
+  const [profileFollows, profileFollowExclusions, publicDirectory] = await Promise.all([
     loadProfileFollows(supabase, foundation.teamContext.profile?.id),
+    loadProfileFollowExclusions(supabase, foundation.teamContext.profile?.id),
     loadPublicDirectory(),
   ]);
 
@@ -712,6 +758,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     staffTeamMemberships: staffData.staffTeamMemberships,
     staffInvitations: staffData.staffInvitations,
     profileFollows,
+    profileFollowExclusions,
     publicOrganizations: publicDirectory.organizations,
     publicTeams: publicDirectory.teams,
     practices,
@@ -784,6 +831,20 @@ async function loadProfileFollows(supabase: SupabaseClient, profileId?: string):
     throw new PersistenceError("load-failed", error.message);
   }
   return (data ?? []).map(mapProfileFollow);
+}
+
+async function loadProfileFollowExclusions(supabase: SupabaseClient, profileId?: string): Promise<ProfileFollowExclusion[]> {
+  if (!profileId) return [];
+  const { data, error } = await supabase
+    .from("profile_follow_exclusions")
+    .select("*")
+    .eq("profile_id", profileId)
+    .order("created_at", { ascending: false });
+  if (error) {
+    if (isMissingProfileFollowsTable(error)) return [];
+    throw new PersistenceError("load-failed", error.message);
+  }
+  return (data ?? []).map(mapProfileFollowExclusion);
 }
 
 async function loadPublicDirectory(): Promise<{ organizations: PublicDirectoryOrganizationSummary[]; teams: PublicDirectoryTeamSummary[] }> {
@@ -1417,6 +1478,16 @@ function mapProfileFollow(row: any): ProfileFollow {
   };
 }
 
+function mapProfileFollowExclusion(row: any): ProfileFollowExclusion {
+  return {
+    id: row.id,
+    profileId: row.profile_id,
+    organizationId: row.organization_id,
+    teamId: row.team_id,
+    createdAt: row.created_at,
+  };
+}
+
 function mapRosterImportRecord(row: any): RosterImportRecord {
   const summary = row.summary ?? {};
   return {
@@ -1526,7 +1597,7 @@ function isMissingRosterImportsTable(error: { code?: string; message?: string })
 
 function isMissingProfileFollowsTable(error: { code?: string; message?: string }) {
   const message = String(error.message ?? "").toLowerCase();
-  return error.code === "42P01" || message.includes("profile_follows");
+  return error.code === "42P01" || message.includes("profile_follows") || message.includes("profile_follow_exclusions");
 }
 
 function isMissingStaffTables(error: { code?: string; message?: string }) {

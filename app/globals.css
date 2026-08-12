@@ -588,12 +588,15 @@ textarea:focus-visible {
 }
 
 .ops-sidebar {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  bottom: 0;
+  width: 214px;
   height: 100dvh;
   max-height: 100dvh;
   align-self: start;
-  overflow-y: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
   padding: 16px 12px;
   border-right: 1px solid var(--line);
@@ -798,6 +801,7 @@ textarea:focus-visible {
 
 .ops-main {
   min-width: 0;
+  grid-column: 2;
   padding: 18px 18px 38px;
 }
 
@@ -2395,7 +2399,8 @@ textarea:focus-visible {
   gap: 8px;
 }
 
-.team-mini-row > button {
+.team-mini-row > button:not(.follow-heart),
+.team-mini-row > .team-mini-row__main {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) auto;
   align-items: center;
@@ -2414,6 +2419,14 @@ textarea:focus-visible {
 
 .team-mini-row--follow > .team-mini-row__main {
   grid-template-columns: 36px minmax(0, 1fr);
+}
+
+.team-mini-row--follow > .follow-heart,
+.organization-team-row > .follow-heart,
+.organization-team-card__header > .follow-heart {
+  justify-self: end;
+  display: grid;
+  place-items: center;
 }
 
 .team-mini-row__main:hover strong {
@@ -5404,6 +5417,7 @@ select option {
   }
 
   .ops-main {
+    grid-column: 1;
     padding: 12px 12px 86px;
   }
 
@@ -7555,6 +7569,7 @@ body,
   }
 
   .ops-sidebar {
+    width: 178px;
     padding: 12px 10px;
   }
 
@@ -7630,6 +7645,7 @@ body,
   }
 
   .ops-main {
+    grid-column: 1;
     padding: 12px 14px calc(94px + env(safe-area-inset-bottom));
   }
 
