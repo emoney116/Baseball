@@ -15,7 +15,9 @@ test("next build contains the Clubhouse 9 app shell", async () => {
   const workflow = readFileSync(".github/workflows/supabase-migrations.yml", "utf8");
   const bootstrapRoute = readFileSync("app/api/setup/bootstrap/route.ts", "utf8");
   const publicTeamPage = readFileSync("app/team/[id]/page.tsx", "utf8");
+  const publicGamePage = readFileSync("app/game/[id]/page.tsx", "utf8");
   const showcaseSeed = readFileSync("supabase/migrations/20260812143000_seed_carolina_showcase_public_team_demo.sql", "utf8");
+  const publicGameSeed = readFileSync("supabase/migrations/20260812170000_public_game_detail_pages.sql", "utf8");
 
   assert.match(layout, /APP_NAME/);
   assert.match(branding, /APP_NAME\s*=\s*"Clubhouse 9"/);
@@ -40,6 +42,17 @@ test("next build contains the Clubhouse 9 app shell", async () => {
   assert.match(publicTeamPage, /<GamesTab team=\{team\} gameMode=\{gameMode\} record=\{record\} \/>/);
   assert.match(publicTeamPage, /normalizeTab\(query\.tab\)/);
   assert.match(publicTeamPage, /PublicTeamHeader/);
+  assert.match(publicTeamPage, /href=\{`\/game\/\$\{game\.id\}`\}/);
+  assert.match(publicGamePage, /type GameTab = "preview" \| "summary" \| "play-by-play" \| "box-score" \| "info"/);
+  assert.match(publicGamePage, /normalizeTab\(query\.tab, final\)/);
+  assert.match(publicGamePage, /final \? "summary" : "preview"/);
+  assert.match(publicGamePage, /Score by Innings/);
+  assert.match(publicGamePage, /Play-by-play will appear once the game begins/);
+  assert.match(publicGameSeed, /create table if not exists public\.public_game_details/);
+  assert.match(publicGameSeed, /14a90000-0000-4000-8000-000000000004/);
+  assert.match(publicGameSeed, /PP 80/);
+  assert.match(publicGameSeed, /play_by_play/);
   assert.match(showcaseSeed, /'final', 6, 3, 'W'/);
+  assert.match(showcaseSeed, /Pineville Post 80/);
   assert.doesNotMatch(showcaseSeed, /'completed',/);
 });

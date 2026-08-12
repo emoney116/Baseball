@@ -1547,7 +1547,596 @@ textarea:focus-visible {
   padding: 16px;
 }
 
+.public-game-shell {
+  padding-bottom: 48px;
+}
+
+.public-game-shell .public-topbar,
+.public-game-matchup,
+.public-game-tabs,
+.public-game-view {
+  max-width: 1320px;
+  margin-inline: auto;
+}
+
+.public-game-matchup {
+  position: relative;
+  min-height: 168px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 0.7fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+  padding: 20px 24px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at center, color-mix(in srgb, var(--burgundy) 11%, transparent), transparent 48%),
+    linear-gradient(135deg, var(--panel), var(--panel-soft));
+  box-shadow: var(--shadow);
+}
+
+.public-game-status-label {
+  position: absolute;
+  top: 14px;
+  left: 24px;
+  color: var(--burgundy-strong);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.public-game-matchup__side {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.public-game-matchup__side--opponent {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.public-game-matchup__side strong {
+  display: block;
+  color: var(--text);
+  font-size: clamp(1.1rem, 2vw, 1.45rem);
+  line-height: 1.08;
+}
+
+.public-game-matchup__side small,
+.public-game-matchup__center small,
+.public-starter-card small,
+.public-starter-card em {
+  color: var(--muted-strong);
+  font-style: normal;
+}
+
+.public-game-logo {
+  width: 62px;
+  height: 62px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-strong) 82%, transparent);
+  color: var(--text);
+  font-size: 22px;
+  font-weight: 950;
+  overflow: hidden;
+}
+
+.public-game-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 7px;
+}
+
+.public-game-matchup__center {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  color: var(--muted-strong);
+  text-align: center;
+}
+
+.public-game-matchup__center small {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.public-game-vs {
+  display: grid;
+  gap: 2px;
+}
+
+.public-game-vs strong {
+  font-size: 19px;
+  letter-spacing: 0.04em;
+}
+
+.public-game-vs span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.public-game-scoreline {
+  min-width: 220px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 18px;
+}
+
+.public-game-scoreline strong {
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+  line-height: 1;
+}
+
+.public-game-scoreline span {
+  color: var(--burgundy-strong);
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.public-game-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 14px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.public-game-tabs a {
+  min-height: 48px;
+  min-width: 142px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted-strong);
+  text-decoration: none;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.public-game-tabs a:hover,
+.public-game-tabs a:focus-visible,
+.public-game-tabs a.active {
+  color: var(--text);
+}
+
+.public-game-tabs a.active {
+  border-bottom-color: var(--burgundy);
+  background: linear-gradient(to bottom, var(--burgundy-soft), transparent);
+  color: var(--burgundy-strong);
+}
+
+.public-game-view {
+  margin-top: 16px;
+}
+
+.public-game-panel {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.public-game-panel h2,
+.public-game-panel h3,
+.public-game-panel p {
+  margin: 0;
+}
+
+.public-game-panel h2 {
+  font-size: 20px;
+  margin-bottom: 14px;
+}
+
+.public-game-panel h3 {
+  font-size: 14px;
+}
+
+.public-game-panel__heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.public-game-panel__heading h2 {
+  margin-bottom: 0;
+}
+
+.public-game-panel__heading span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.public-game-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.public-game-wide {
+  grid-column: 1 / -1;
+}
+
+.public-game-info-list {
+  display: grid;
+  gap: 12px;
+}
+
+.public-game-info-list--compact {
+  margin-top: 16px;
+}
+
+.public-game-info-list p {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: var(--muted-strong);
+}
+
+.public-game-comparison {
+  display: grid;
+}
+
+.public-game-comparison div {
+  min-height: 36px;
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) 90px;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.public-game-comparison div:last-child {
+  border-bottom: 0;
+}
+
+.public-game-comparison strong {
+  color: var(--text);
+}
+
+.public-game-comparison strong:last-child {
+  text-align: right;
+}
+
+.public-game-comparison span {
+  color: var(--muted);
+  text-align: center;
+}
+
+.public-starter-matchup {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+}
+
+.public-starter-matchup > strong {
+  color: var(--text);
+  letter-spacing: 0.05em;
+}
+
+.public-starter-card {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.public-starter-card--right {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.public-starter-card strong,
+.public-highlight-list strong,
+.public-recent-games-list strong,
+.public-next-game-row strong {
+  display: block;
+  color: var(--text);
+}
+
+.public-starter-card em {
+  display: block;
+  margin: 2px 0;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.public-recent-matchup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--muted-strong);
+}
+
+.public-game-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(310px, 0.75fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.public-game-summary-main,
+.public-game-summary-side,
+.public-box-score-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.public-linescore-scroll,
+.public-box-scroll {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.public-linescore {
+  min-width: calc(240px + (var(--innings, 7) * 42px) + 126px);
+}
+
+.public-linescore__head,
+.public-linescore__row {
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) repeat(var(--innings, 7), 42px) repeat(3, 42px);
+  align-items: center;
+  gap: 0;
+}
+
+.public-linescore__head {
+  min-height: 34px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.public-linescore__head span,
+.public-linescore__row span,
+.public-linescore__row strong {
+  min-height: 34px;
+  display: grid;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  text-align: center;
+}
+
+.public-linescore__head span:first-child,
+.public-linescore__row strong:first-child {
+  justify-items: start;
+  text-align: left;
+}
+
+.public-linescore__row strong:not(:first-child) {
+  color: var(--text);
+}
+
+.public-linescore-notes {
+  margin-top: 12px !important;
+  color: var(--muted-strong);
+  font-size: 13px;
+}
+
+.public-highlight-list {
+  display: grid;
+  gap: 12px;
+}
+
+.public-highlight-list span {
+  display: grid;
+  gap: 3px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.public-highlight-list span:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.public-highlight-list small,
+.public-next-game-row small,
+.public-recent-games-list span,
+.public-recent-games-list em {
+  color: var(--muted);
+}
+
+.public-next-game-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.public-next-game-row small {
+  display: block;
+  margin-top: 3px;
+}
+
+.public-recent-games-list {
+  display: grid;
+}
+
+.public-recent-games-list a {
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.public-recent-games-list a:last-child {
+  border-bottom: 0;
+}
+
+.public-recent-result {
+  font-style: normal;
+  font-weight: 850;
+}
+
+.public-recent-result--w {
+  color: var(--success) !important;
+}
+
+.public-recent-result--l {
+  color: var(--danger) !important;
+}
+
+.public-play-timeline {
+  display: grid;
+  gap: 14px;
+}
+
+.public-play-timeline section {
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--panel-soft);
+  overflow: hidden;
+}
+
+.public-play-timeline h3 {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted-strong);
+}
+
+.public-play-event {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.public-play-event:last-child {
+  border-bottom: 0;
+}
+
+.public-play-event p {
+  color: var(--text);
+}
+
+.public-play-event small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.public-box-section {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.public-box-section:first-of-type {
+  margin-top: 0;
+}
+
+.public-box-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+}
+
+.public-box-table th,
+.public-box-table td {
+  height: 36px;
+  border-bottom: 1px solid var(--line);
+  padding: 0 10px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.public-box-table th:first-child,
+.public-box-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 180px;
+  background: var(--panel);
+  text-align: left;
+}
+
+.public-box-table thead th {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.public-game-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.public-game-info-grid span {
+  min-height: 72px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  border-radius: 12px;
+  background: var(--panel-strong);
+  padding: 13px;
+}
+
+.public-game-info-grid small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.public-game-info-grid strong {
+  color: var(--text);
+}
+
+.public-game-empty {
+  min-height: 68px;
+  display: grid;
+  align-content: center;
+  border-radius: 12px;
+  background: var(--panel-strong);
+  color: var(--muted);
+  padding: 14px;
+}
+
 @media (max-width: 1180px) {
+  .public-game-matchup {
+    grid-template-columns: 1fr;
+    align-items: start;
+    text-align: left;
+  }
+
+  .public-game-matchup__side--opponent {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .public-game-matchup__center {
+    justify-items: flex-start;
+    text-align: left;
+  }
+
+  .public-game-summary-grid,
+  .public-game-preview {
+    grid-template-columns: 1fr;
+  }
+
   .public-team-identity {
     grid-template-columns: 96px minmax(0, 1fr);
   }
@@ -1577,6 +2166,47 @@ textarea:focus-visible {
 }
 
 @media (max-width: 860px) {
+  .public-game-matchup {
+    min-height: 0;
+    padding: 18px 16px;
+  }
+
+  .public-game-scoreline {
+    min-width: 0;
+    width: 100%;
+    grid-template-columns: auto auto auto;
+    justify-content: start;
+  }
+
+  .public-game-tabs a {
+    min-width: 132px;
+  }
+
+  .public-starter-matchup {
+    grid-template-columns: 1fr;
+  }
+
+  .public-starter-matchup > strong {
+    text-align: left;
+  }
+
+  .public-starter-card--right {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .public-recent-matchup {
+    display: grid;
+  }
+
+  .public-game-comparison div {
+    grid-template-columns: 72px minmax(0, 1fr) 72px;
+  }
+
+  .public-game-summary-side {
+    grid-template-columns: 1fr;
+  }
+
   .public-team-identity {
     min-height: 0;
     align-items: start;
@@ -1631,6 +2261,86 @@ textarea:focus-visible {
 }
 
 @media (max-width: 560px) {
+  .public-game-topbar {
+    align-items: flex-start;
+  }
+
+  .public-game-topbar .public-follow-wrap,
+  .public-game-topbar .public-follow-button,
+  .public-game-topbar .public-workspace-link {
+    width: 100%;
+  }
+
+  .public-game-matchup {
+    gap: 14px;
+    border-radius: 14px;
+  }
+
+  .public-game-matchup__side {
+    gap: 10px;
+  }
+
+  .public-game-logo {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    font-size: 18px;
+  }
+
+  .public-game-matchup__side strong {
+    font-size: 1rem;
+  }
+
+  .public-game-scoreline strong {
+    font-size: 2.2rem;
+  }
+
+  .public-game-status-label {
+    position: static;
+    grid-column: 1 / -1;
+  }
+
+  .public-game-tabs a {
+    min-width: 118px;
+    min-height: 44px;
+  }
+
+  .public-game-panel {
+    border-radius: 14px;
+    padding: 14px;
+  }
+
+  .public-game-comparison div {
+    grid-template-columns: 58px minmax(0, 1fr) 58px;
+    font-size: 13px;
+  }
+
+  .public-game-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .public-recent-games-list a {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .public-recent-games-list em {
+    grid-column: 2;
+  }
+
+  .public-box-table {
+    min-width: 620px;
+  }
+
+  .public-box-table th:first-child,
+  .public-box-table td:first-child {
+    min-width: 150px;
+  }
+
+  .public-linescore__head,
+  .public-linescore__row {
+    grid-template-columns: minmax(160px, 1fr) repeat(var(--innings, 7), 38px) repeat(3, 38px);
+  }
+
   .public-team-topbar {
     align-items: flex-start;
   }

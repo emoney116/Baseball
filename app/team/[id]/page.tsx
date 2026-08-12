@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { ComponentType } from "react";
 import { BarChart3, CalendarDays, ChevronRight, Clock, Info, MapPin, ShieldCheck, Users } from "lucide-react";
 import { PublicBackButton } from "../../components/PublicBackButton";
@@ -9,7 +9,7 @@ import { getPublicTeamDirectory, type PublicGameSummary, type PublicRosterPlayer
 
 type PublicTeamTab = "games" | "roster" | "stats" | "info";
 type GameMode = "upcoming" | "past";
-type TeamPageSearchParams = { tab?: string | string[]; games?: string | string[] };
+type TeamPageSearchParams = { tab?: string | string[]; games?: string | string[]; game?: string | string[] };
 
 const PUBLIC_TEAM_TABS: Array<{ id: PublicTeamTab; label: string; icon: ComponentType<{ size?: number }> }> = [
   { id: "games", label: "Games", icon: CalendarDays },
@@ -106,6 +106,9 @@ export default async function TeamPage({
 }) {
   const emptyQuery: TeamPageSearchParams = {};
   const [{ id }, query] = await Promise.all([params, searchParams ?? Promise.resolve(emptyQuery)]);
+  const gameId = firstParam(query.game);
+  if (gameId) redirect(`/game/${gameId}`);
+
   const team = await getPublicTeamDirectory(id);
   if (!team) notFound();
 
@@ -253,7 +256,7 @@ function GamesTab({
           </div>
         </div>
         <div className="public-schedule-list">
-          {visibleGames.length ? visibleGames.map((game) => <PublicGameRow key={game.id} teamId={team.id} game={game} />) : (
+          {visibleGames.length ? visibleGames.map((game) => <PublicGameRow key={game.id} game={game} />) : (
             <div className="public-team-empty">
               {gameMode === "past" ? "No public results yet." : "No games scheduled yet."}
             </div>
@@ -263,20 +266,20 @@ function GamesTab({
 
       <aside className="public-side-stack">
         <QuickStatsPanel team={team} record={record} />
-        <NextGamePanel teamId={team.id} nextGame={nextGame} lastGame={lastGame} />
+        <NextGamePanel nextGame={nextGame} lastGame={lastGame} />
       </aside>
     </div>
   );
 }
 
-function PublicGameRow({ teamId, game }: { teamId: string; game: PublicGameSummary }) {
+function PublicGameRow({ game }: { game: PublicGameSummary }) {
   const date = formatGameDate(game);
   const location = locationParts(game.location);
   const completed = Boolean(game.result || game.status === "final");
   const homeAway = game.homeAway === "Home" ? "vs." : "@";
 
   return (
-    <Link href={`/team/${teamId}?tab=games&game=${game.id}`} className="public-schedule-row">
+    <Link href={`/game/${game.id}`} className="public-schedule-row">
       <span className="public-schedule-date">
         <small>{date.weekday}</small>
         <strong>{date.monthDay}</strong>
@@ -331,15 +334,7 @@ function QuickStatsPanel({ team, record }: { team: PublicTeamDirectory; record: 
   );
 }
 
-function NextGamePanel({
-  teamId,
-  nextGame,
-  lastGame,
-}: {
-  teamId: string;
-  nextGame?: PublicGameSummary;
-  lastGame?: PublicGameSummary;
-}) {
+function NextGamePanel({ nextGame, lastGame }: { nextGame?: PublicGameSummary; lastGame?: PublicGameSummary }) {
   const game = nextGame ?? lastGame;
   if (!game) {
     return (
@@ -366,7 +361,7 @@ function NextGamePanel({
       <p><CalendarDays size={16} /> {date.full}</p>
       <p><Clock size={16} /> {nextGame ? formatGameTime(game) : `${game.result ?? "Final"} ${game.ourScore}-${game.opponentScore}`}</p>
       <p><MapPin size={16} /> {location.venue}{location.city ? `, ${location.city}` : ""}</p>
-      <Link href={`/team/${teamId}?tab=games&game=${game.id}`} className="public-game-detail-link">
+      <Link href={`/game/${game.id}`} className="public-game-detail-link">
         View Game Details <ChevronRight size={16} />
       </Link>
     </article>
