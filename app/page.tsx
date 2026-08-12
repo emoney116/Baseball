@@ -2610,9 +2610,9 @@ function AccountProfileView({
     <div className="page-stack">
       <SectionHeader
         title="My Profile"
+        titleAdornment={<ProfileAffiliationAvatars context={context} />}
         action={
           <div className="profile-header-actions">
-            <ProfileAffiliationAvatars context={context} />
             <button className="secondary-button" type="button" onClick={() => void onSignOut()}>
               <LogOut size={16} aria-hidden="true" />
               Sign Out
@@ -2700,7 +2700,7 @@ function AccountProfileView({
         <article className="panel account-teams-card">
           <div className="panel-heading tight">
             <div><h2>Your Organizations</h2></div>
-            <button className="icon-button" type="button" onClick={onCreateOrganization} aria-label="Create organization">
+            <button className="icon-button account-create-button" type="button" onClick={onCreateOrganization} aria-label="Create organization">
               <Plus size={16} aria-hidden="true" />
             </button>
           </div>
@@ -7433,12 +7433,29 @@ function PracticeSummaryModal({
   );
 }
 
-function SectionHeader({ eyebrow, title, body, context, action }: { eyebrow?: string; title: string; body?: string; context?: string; action?: React.ReactNode }) {
+function SectionHeader({
+  eyebrow,
+  title,
+  titleAdornment,
+  body,
+  context,
+  action,
+}: {
+  eyebrow?: string;
+  title: string;
+  titleAdornment?: React.ReactNode;
+  body?: string;
+  context?: string;
+  action?: React.ReactNode;
+}) {
   return (
     <section className="section-header">
       <div>
         {eyebrow && <span>{eyebrow}</span>}
-        <h2>{title}</h2>
+        <div className="section-header__title-row">
+          <h2>{title}</h2>
+          {titleAdornment}
+        </div>
         {context && <small>{context}</small>}
         {body && <p>{body}</p>}
       </div>
