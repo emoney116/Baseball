@@ -363,11 +363,13 @@ export async function getPublicTeamDirectory(identifier: string): Promise<Public
 
   const { data: membershipRows } = await admin
     .from("player_team_memberships")
-    .select("player_id")
+    .select("player_id,jersey_number")
     .eq("team_id", teamRow.id)
     .eq("active", true)
     .limit(80);
-  const playerIds = [...new Set((membershipRows ?? []).map((membership) => membership.player_id as string | null).filter(Boolean))];
+  const playerMemberships = (membershipRows ?? []) as Array<{ player_id?: string | null; jersey_number?: number | null }>;
+  const membershipByPlayer = new Map(playerMemberships.filter((membership) => membership.player_id).map((membership) => [membership.player_id as string, membership]));
+  const playerIds = [...new Set(playerMemberships.map((membership) => membership.player_id).filter(Boolean) as string[])];
 
   const { data: playerRows } = playerIds.length
     ? await admin
@@ -410,7 +412,7 @@ export async function getPublicTeamDirectory(identifier: string): Promise<Public
       .map((player: PlayerRow) => ({
         id: player.id,
         name: `${player.first_name} ${player.last_name}`.trim(),
-        jerseyNumber: player.jersey_number ?? undefined,
+        jerseyNumber: membershipByPlayer.get(player.id)?.jersey_number ?? player.jersey_number ?? undefined,
         graduationYear: player.graduation_year ?? undefined,
         primaryPosition: player.primary_position,
         secondaryPosition: player.secondary_position ?? undefined,

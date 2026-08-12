@@ -3454,7 +3454,7 @@ function FollowingView({
       <SectionHeader
         title="Following"
         action={
-          <button className="secondary-button" type="button" onClick={onCreateTeam}>
+          <button className="primary-button" type="button" onClick={onCreateTeam}>
             <Plus size={16} aria-hidden="true" />
             New Team/Org
           </button>
@@ -3537,7 +3537,7 @@ function DiscoverView({
       <SectionHeader
         title="Discover"
         action={
-          <button className="secondary-button" type="button" onClick={onCreateTeam}>
+          <button className="primary-button" type="button" onClick={onCreateTeam}>
             <Plus size={16} aria-hidden="true" />
             New Team/Org
           </button>
