@@ -7,6 +7,9 @@ type OrganizationRow = {
   id: string;
   name: string;
   slug: string;
+  city?: string | null;
+  state?: string | null;
+  logo_url?: string | null;
   visibility: string | null;
 };
 
@@ -92,9 +95,14 @@ export type PublicOrganizationDirectory = {
   id: string;
   name: string;
   slug: string;
+  city?: string;
+  state?: string;
+  logoUrl?: string;
   visibility: Visibility;
   teams: PublicTeamSummary[];
   authorized: boolean;
+  adminCount: number;
+  memberCount: number;
 };
 
 export type PublicTeamDirectory = PublicTeamSummary & {
@@ -102,6 +110,9 @@ export type PublicTeamDirectory = PublicTeamSummary & {
     id: string;
     name: string;
     slug: string;
+    city?: string;
+    state?: string;
+    logoUrl?: string;
     visibility: Visibility;
   };
   roster: PublicRosterPlayer[];
@@ -191,7 +202,7 @@ export async function getPublicOrganizationDirectory(identifier: string): Promis
   const admin = createAdminClient();
   const organizationQuery = admin
     .from("organizations")
-    .select("id,name,slug,visibility")
+    .select("id,name,slug,city,state,logo_url,visibility")
     .limit(1);
   const { data: organization, error } = isUuid(identifier)
     ? await organizationQuery.eq("id", identifier).maybeSingle()
@@ -210,6 +221,12 @@ export async function getPublicOrganizationDirectory(identifier: string): Promis
   if (teamError) return null;
 
   const teams = (teamRows ?? []) as TeamRow[];
+  const { data: memberRows } = await admin
+    .from("organization_memberships")
+    .select("role,active")
+    .eq("organization_id", organizationRow.id)
+    .eq("active", true);
+  const activeMembers = (memberRows ?? []) as Array<{ role?: string | null }>;
   const access = await canViewOrganization(
     organizationRow.id,
     teams.map((team) => team.id),
@@ -234,8 +251,13 @@ export async function getPublicOrganizationDirectory(identifier: string): Promis
     id: organizationRow.id,
     name: organizationRow.name,
     slug: organizationRow.slug,
+    city: organizationRow.city ?? undefined,
+    state: organizationRow.state ?? undefined,
+    logoUrl: organizationRow.logo_url ?? undefined,
     visibility: normalizeVisibility(organizationRow.visibility),
     authorized: access.authorized,
+    adminCount: activeMembers.filter((member) => member.role === "ADMIN").length,
+    memberCount: activeMembers.length,
     teams: visibleTeams.map((team) => {
       const season = seasonByTeam.get(team.id);
       return {
@@ -265,7 +287,7 @@ export async function getPublicTeamDirectory(identifier: string): Promise<Public
 
   const { data: organization, error: organizationError } = await admin
     .from("organizations")
-    .select("id,name,slug,visibility")
+    .select("id,name,slug,city,state,logo_url,visibility")
     .eq("id", teamRow.organization_id)
     .maybeSingle();
 
@@ -326,6 +348,9 @@ export async function getPublicTeamDirectory(identifier: string): Promise<Public
       id: organizationRow.id,
       name: organizationRow.name,
       slug: organizationRow.slug,
+      city: organizationRow.city ?? undefined,
+      state: organizationRow.state ?? undefined,
+      logoUrl: organizationRow.logo_url ?? undefined,
       visibility: normalizeVisibility(organizationRow.visibility),
     },
     authorized: access.authorized,

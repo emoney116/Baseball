@@ -118,6 +118,7 @@ insert into public.team_invitations (
   token_hash,
   staff_role,
   access_role,
+  org_role,
   expires_at
 )
 select
@@ -131,6 +132,7 @@ select
   fixture.token_hash,
   'Assistant Coach',
   'COACH',
+  'ADMIN',
   now() + interval '7 days'
 from staff_invitation_acceptance_fixture as fixture;
 
@@ -163,6 +165,7 @@ declare
   v_result record;
   v_profile_memberships integer;
   v_staff_memberships integer;
+  v_org_admin_memberships integer;
   v_invitation_status text;
 begin
   select fixture.*
@@ -227,6 +230,18 @@ begin
 
   if v_staff_memberships <> 1 then
     raise exception 'Expected one accepted staff_team_memberships row, found %.', v_staff_memberships;
+  end if;
+
+  select count(*)
+  into v_org_admin_memberships
+  from public.organization_memberships as om
+  where om.organization_id = v_fixture.organization_id
+    and om.profile_id = v_fixture.accepting_profile_id
+    and om.active = true
+    and om.role = 'ADMIN';
+
+  if v_org_admin_memberships <> 1 then
+    raise exception 'Expected accepted invitation to create/promote one organization admin membership, found %.', v_org_admin_memberships;
   end if;
 end $$;
 

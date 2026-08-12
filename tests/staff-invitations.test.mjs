@@ -6,6 +6,7 @@ test("staff invitation migration keeps tokens hashed and authorization server-si
   const migration = readFileSync("supabase/migrations/20260811000000_staff_invitations.sql", "utf8");
   const acceptanceFixMigration = readFileSync("supabase/migrations/20260811141000_fix_staff_invitation_acceptance.sql", "utf8");
   const conflictTargetFixMigration = readFileSync("supabase/migrations/20260811145000_fix_staff_invitation_acceptance_conflict_target.sql", "utf8");
+  const organizationManagementMigration = readFileSync("supabase/migrations/20260812113000_organization_management.sql", "utf8");
   const remoteVerifyWorkflow = readFileSync(".github/workflows/supabase-remote-verify.yml", "utf8");
   const remoteAcceptanceRegression = readFileSync("scripts/verify-staff-invitation-acceptance.sql", "utf8");
   const createRoute = readFileSync("app/api/staff/invitations/route.ts", "utf8");
@@ -40,9 +41,15 @@ test("staff invitation migration keeps tokens hashed and authorization server-si
   assert.match(remoteAcceptanceRegression, /ti\.status[\s\S]*ACCEPTED/);
   assert.match(remoteAcceptanceRegression, /profile_team_memberships/);
   assert.match(remoteAcceptanceRegression, /staff_team_memberships/);
+  assert.match(organizationManagementMigration, /add column if not exists org_role/);
+  assert.match(organizationManagementMigration, /insert into public\.organization_memberships/);
+  assert.match(organizationManagementMigration, /excluded\.role = 'ADMIN'::public\.membership_role/);
+  assert.match(remoteAcceptanceRegression, /org_role,\s+expires_at/s);
+  assert.match(remoteAcceptanceRegression, /organization_memberships as om/);
 
   assert.match(createRoute, /createInviteToken/);
   assert.match(createRoute, /hashInviteToken\(token\)/);
+  assert.match(createRoute, /invite_org_role/);
   assert.match(createRoute, /sendStaffInviteEmail/);
   assert.match(invitations, /requestSiteUrl/);
   assert.doesNotMatch(invitations, /NEXT_PUBLIC_APP_URL|VERCEL_PROJECT_PRODUCTION_URL/);

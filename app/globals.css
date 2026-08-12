@@ -509,6 +509,364 @@ textarea:focus-visible {
   color: var(--muted);
 }
 
+.public-topbar__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.public-manage-link {
+  min-height: 38px;
+  text-decoration: none;
+}
+
+.public-org-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.public-org-summary .public-panel {
+  padding: 16px;
+}
+
+.public-org-summary strong {
+  display: block;
+  font-size: 26px;
+  line-height: 1;
+}
+
+.public-org-summary small {
+  color: var(--muted);
+}
+
+.org-manage-shell {
+  padding-bottom: 48px;
+}
+
+.org-manage {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+
+.org-manage-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+}
+
+.org-manage-hero span:first-child {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.org-manage-hero h1 {
+  margin: 2px 0;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  line-height: 1;
+}
+
+.org-manage-hero p,
+.org-manage-panel .panel-heading p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.visibility-badge {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 11px;
+  color: var(--muted-strong);
+  background: var(--panel-soft);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.visibility-badge--public {
+  color: var(--success);
+  border-color: rgba(22, 163, 74, 0.28);
+  background: rgba(22, 163, 74, 0.08);
+}
+
+.visibility-badge--unlisted {
+  color: var(--warning);
+  border-color: rgba(245, 158, 11, 0.26);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.org-manage-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+
+.org-manage-tabs button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted-strong);
+  padding: 0 12px;
+  font-weight: 850;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.org-manage-tabs button.active {
+  background: var(--burgundy);
+  color: white;
+}
+
+.org-manage-message {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 10px 12px;
+  font-weight: 850;
+  color: var(--muted-strong);
+  background: var(--panel);
+}
+
+.org-manage-message--saved {
+  color: var(--success);
+  border-color: rgba(22, 163, 74, 0.24);
+  background: rgba(22, 163, 74, 0.06);
+}
+
+.org-manage-message--error {
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.org-manage-panel {
+  padding: 18px;
+}
+
+.org-manage-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.78fr) minmax(0, 1.22fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.org-general-grid {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) minmax(140px, 0.4fr) minmax(160px, 0.5fr);
+  gap: 14px;
+  align-items: end;
+}
+
+.org-logo-editor {
+  align-self: stretch;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--panel-soft);
+}
+
+.org-logo-editor > div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.visually-hidden-input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.org-team-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.org-team-list,
+.org-invite-list,
+.org-member-table {
+  display: grid;
+  gap: 10px;
+}
+
+.org-team-admin-card,
+.org-member-row,
+.org-invite-row {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel-soft);
+}
+
+.org-team-admin-card.is-archived,
+.org-member-row.is-archived {
+  opacity: 0.62;
+}
+
+.org-team-admin-card__summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+}
+
+.org-team-admin-card__summary strong,
+.org-member-row strong,
+.org-invite-row strong {
+  display: block;
+}
+
+.org-team-admin-card__summary small,
+.org-member-row small,
+.org-invite-row small {
+  color: var(--muted);
+}
+
+.org-team-edit-grid {
+  border-top: 1px solid var(--line);
+  padding: 12px;
+}
+
+.org-team-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.org-member-row {
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: auto minmax(190px, 1fr) minmax(180px, 0.7fr) 150px auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.org-member-row .team-chip-row {
+  justify-content: flex-start;
+}
+
+.org-role-choice .choice-select__button {
+  min-height: 38px;
+}
+
+.danger-icon-button {
+  color: var(--muted);
+}
+
+.danger-icon-button:hover,
+.danger-icon-button:focus-visible {
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.38);
+}
+
+.org-team-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.org-team-checkboxes label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-soft);
+  cursor: pointer;
+}
+
+.org-team-checkboxes input {
+  accent-color: var(--burgundy);
+}
+
+.org-team-checkboxes strong,
+.org-team-checkboxes small {
+  display: block;
+}
+
+.org-team-checkboxes small {
+  color: var(--muted);
+}
+
+.org-invite-row {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) auto auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+}
+
+.org-invite-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.visibility-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.visibility-choice-grid button {
+  min-height: 132px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel-soft);
+  color: var(--text);
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 8px;
+  padding: 18px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.visibility-choice-grid button.active {
+  border-color: color-mix(in srgb, var(--burgundy) 55%, var(--line));
+  background: var(--burgundy-soft);
+}
+
+.visibility-choice-grid small {
+  color: var(--muted);
+}
+
 .public-panel {
   padding: 18px;
 }
@@ -8890,6 +9248,33 @@ body,
   }
 }
 
+@media (max-width: 980px) {
+  .org-manage-grid,
+  .org-general-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .org-team-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .org-member-row {
+    grid-template-columns: auto minmax(0, 1fr) 150px auto;
+  }
+
+  .org-member-row .team-chip-row {
+    grid-column: 2 / -1;
+  }
+
+  .org-invite-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .org-invite-actions {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 560px) {
   .public-shell {
     padding: 14px;
@@ -8897,6 +9282,19 @@ body,
 
   .public-topbar {
     margin-bottom: 14px;
+  }
+
+  .public-topbar__actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .public-topbar__actions > * {
+    flex: 1;
+  }
+
+  .public-org-summary {
+    grid-template-columns: 1fr;
   }
 
   .public-hero {
@@ -8923,6 +9321,41 @@ body,
   .public-roster-row,
   .public-game-row {
     gap: 5px;
+  }
+
+  .org-manage-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .org-manage-hero .visibility-badge {
+    grid-column: 1 / -1;
+    width: fit-content;
+  }
+
+  .org-manage-tabs {
+    width: 100%;
+  }
+
+  .org-team-form-grid,
+  .visibility-choice-grid,
+  .org-team-checkboxes {
+    grid-template-columns: 1fr;
+  }
+
+  .org-team-admin-card__summary,
+  .org-member-row,
+  .org-invite-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .org-team-admin-card__summary .secondary-button,
+  .org-member-row .team-chip-row,
+  .org-member-row .org-role-choice,
+  .org-member-row .danger-icon-button,
+  .org-invite-row .staff-status-badge,
+  .org-invite-row > small,
+  .org-invite-actions {
+    grid-column: 1 / -1;
   }
 
   .top-command {

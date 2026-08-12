@@ -13,6 +13,7 @@ type InviteStaffBody = {
   lastName?: string;
   staffRole?: string;
   accessRole?: "ADMIN" | "COACH";
+  orgRole?: "ADMIN" | "MEMBER";
   teams?: Array<{ teamId?: string; seasonId?: string }>;
 };
 
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
       invite_last_name: body.lastName ?? null,
       invite_staff_role: body.staffRole ?? "Assistant Coach",
       invite_access_role: body.accessRole ?? "COACH",
+      invite_org_role: body.orgRole === "ADMIN" ? "ADMIN" : "MEMBER",
       invite_token_hash: hashInviteToken(token),
       invite_expires_at: expiresAt,
       invite_team_ids: teams.map((team) => team.teamId),

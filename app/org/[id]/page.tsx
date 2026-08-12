@@ -3,12 +3,21 @@ import { notFound } from "next/navigation";
 import { PublicBackButton } from "../../components/PublicBackButton";
 import { PublicFollowButton } from "../../components/PublicFollowButton";
 import { APP_NAME, BRAND_ASSETS } from "../../lib/branding";
+import { hasOrganizationAdminAccess } from "../../lib/organizationManagement";
 import { getPublicOrganizationDirectory } from "../../lib/publicDirectory";
+import { createAdminClient } from "../../lib/supabase/admin";
+import { createClient } from "../../lib/supabase/server";
 
 export default async function OrganizationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const organization = await getPublicOrganizationDirectory(id);
   if (!organization) notFound();
+  const supabase = await createClient();
+  const { data: authData } = await supabase.auth.getUser();
+  const canManage = authData.user
+    ? await hasOrganizationAdminAccess(createAdminClient(), authData.user.id, organization.id).catch(() => false)
+    : false;
+  const location = [organization.city, organization.state].filter(Boolean).join(", ");
 
   return (
     <main className="public-shell">
@@ -20,18 +29,44 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
             <span>{APP_NAME}</span>
           </Link>
         </div>
-        <PublicFollowButton organizationId={organization.id} label="Follow Org" />
+        <div className="public-topbar__actions">
+          {canManage && (
+            <Link href={`/org/${organization.slug || organization.id}/manage`} className="primary-button public-manage-link">
+              Manage Organization
+            </Link>
+          )}
+          <PublicFollowButton organizationId={organization.id} label="Follow Org" />
+        </div>
       </header>
 
       <section className="public-hero public-hero--compact">
         <div className="organization-logo organization-logo--lg" aria-hidden="true">
-          {organization.name.slice(0, 2).toUpperCase()}
+          {organization.logoUrl ? <img src={organization.logoUrl} alt="" /> : organization.name.slice(0, 2).toUpperCase()}
         </div>
         <div>
           <span>{organization.authorized ? "Program workspace" : "Public program"}</span>
           <h1>{organization.name}</h1>
-          <p>{organization.teams.length} active team{organization.teams.length === 1 ? "" : "s"}</p>
+          <p>
+            {[location, `${organization.teams.length} active team${organization.teams.length === 1 ? "" : "s"}`]
+              .filter(Boolean)
+              .join(" - ")}
+          </p>
         </div>
+      </section>
+
+      <section className="public-section public-org-summary">
+        <article className="public-panel">
+          <strong>{organization.teams.length}</strong>
+          <small>Teams</small>
+        </article>
+        <article className="public-panel">
+          <strong>{organization.adminCount}</strong>
+          <small>Admins</small>
+        </article>
+        <article className="public-panel">
+          <strong>{organization.memberCount}</strong>
+          <small>Staff & members</small>
+        </article>
       </section>
 
       <section className="public-section">

@@ -10,6 +10,7 @@ export type InvitationSummary = {
   status: "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
   staffRole: string;
   accessRole: "ADMIN" | "COACH";
+  orgRole: "ADMIN" | "MEMBER";
   staffMemberId?: string;
   expiresAt: string;
   acceptedAt?: string;
@@ -28,6 +29,7 @@ type InvitationRow = {
   status: "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
   staff_role?: string | null;
   access_role?: string | null;
+  org_role?: string | null;
   staff_member_id?: string | null;
   invited_by_profile_id?: string | null;
   expires_at: string;
@@ -39,7 +41,7 @@ type InvitationRow = {
 export async function readInvitationSummary(admin: AdminClient, invitationId: string): Promise<InvitationSummary | null> {
   const { data: invitation, error } = await admin
     .from("team_invitations")
-    .select("id,organization_id,email,status,staff_role,access_role,staff_member_id,invited_by_profile_id,expires_at,accepted_at,created_at,updated_at")
+    .select("id,organization_id,email,status,staff_role,access_role,org_role,staff_member_id,invited_by_profile_id,expires_at,accepted_at,created_at,updated_at")
     .eq("id", invitationId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -50,7 +52,7 @@ export async function readInvitationSummary(admin: AdminClient, invitationId: st
 export async function readInvitationSummaryByHash(admin: AdminClient, tokenHash: string): Promise<InvitationSummary | null> {
   const { data: invitation, error } = await admin
     .from("team_invitations")
-    .select("id,organization_id,email,status,staff_role,access_role,staff_member_id,invited_by_profile_id,expires_at,accepted_at,created_at,updated_at")
+    .select("id,organization_id,email,status,staff_role,access_role,org_role,staff_member_id,invited_by_profile_id,expires_at,accepted_at,created_at,updated_at")
     .eq("token_hash", tokenHash)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -122,6 +124,7 @@ async function completeInvitationSummary(admin: AdminClient, invitation: Invitat
     status,
     staffRole: invitation.staff_role ?? "Assistant Coach",
     accessRole: invitation.access_role === "ADMIN" ? "ADMIN" : "COACH",
+    orgRole: invitation.org_role === "ADMIN" ? "ADMIN" : "MEMBER",
     staffMemberId: invitation.staff_member_id ?? undefined,
     invitedByProfileId: invitation.invited_by_profile_id ?? undefined,
     expiresAt: invitation.expires_at,
