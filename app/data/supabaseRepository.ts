@@ -262,8 +262,13 @@ export const supabaseAppRepository = {
 
     if (!input.follow) {
       let query = supabase.from("profile_follows").delete().eq("profile_id", userData.user.id);
-      query = input.teamId ? query.eq("team_id", input.teamId) : query.is("team_id", null);
-      query = input.organizationId ? query.eq("organization_id", input.organizationId) : query.is("organization_id", null);
+      if (input.teamId) {
+        query = query.eq("team_id", input.teamId).is("organization_id", null);
+      } else if (input.organizationId) {
+        query = query.eq("organization_id", input.organizationId).is("team_id", null);
+      } else {
+        query = query.is("organization_id", null).is("team_id", null);
+      }
       const { error } = await query;
       if (error) throw new PersistenceError("save-failed", error.message);
       if (input.organizationId && !input.teamId) {
@@ -277,8 +282,13 @@ export const supabaseAppRepository = {
     }
 
     let existingQuery = supabase.from("profile_follows").select("*").eq("profile_id", userData.user.id).limit(1);
-    existingQuery = input.teamId ? existingQuery.eq("team_id", input.teamId) : existingQuery.is("team_id", null);
-    existingQuery = input.organizationId ? existingQuery.eq("organization_id", input.organizationId) : existingQuery.is("organization_id", null);
+    if (input.teamId) {
+      existingQuery = existingQuery.eq("team_id", input.teamId).is("organization_id", null);
+    } else if (input.organizationId) {
+      existingQuery = existingQuery.eq("organization_id", input.organizationId).is("team_id", null);
+    } else {
+      existingQuery = existingQuery.is("organization_id", null).is("team_id", null);
+    }
     const { data: existing, error: existingError } = await existingQuery.maybeSingle();
     if (existingError) throw new PersistenceError("save-failed", existingError.message);
     if (existing) return mapProfileFollow(existing);
@@ -287,7 +297,7 @@ export const supabaseAppRepository = {
       .from("profile_follows")
       .insert({
         profile_id: userData.user.id,
-        organization_id: input.organizationId ?? null,
+        organization_id: input.teamId ? null : input.organizationId ?? null,
         team_id: input.teamId ?? null,
       })
       .select("*")

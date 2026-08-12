@@ -14,8 +14,6 @@ type PublicFollowButtonProps = {
 export function PublicFollowButton({ organizationId, teamId, label = "Follow", compact = false }: PublicFollowButtonProps) {
   const [state, setState] = useState<"checking" | "signed-out" | "idle" | "saving">("checking");
   const [followed, setFollowed] = useState(false);
-  const [inherited, setInherited] = useState(false);
-  const [excluded, setExcluded] = useState(false);
   const [message, setMessage] = useState("");
   const targetKey = useMemo(() => `${organizationId ?? "orgless"}:${teamId ?? "org"}`, [organizationId, teamId]);
 
@@ -29,55 +27,21 @@ export function PublicFollowButton({ organizationId, teamId, label = "Follow", c
         if (!userData.user) {
           setState("signed-out");
           setFollowed(false);
-          setInherited(false);
           return;
         }
 
-        const checks = [];
+        let query = supabase.from("profile_follows").select("id").eq("profile_id", userData.user.id).limit(1);
         if (teamId) {
-          checks.push(
-            supabase
-              .from("profile_follows")
-              .select("id")
-              .eq("profile_id", userData.user.id)
-              .eq("team_id", teamId)
-              .limit(1)
-              .maybeSingle(),
-          );
+          query = query.eq("team_id", teamId).is("organization_id", null);
+        } else if (organizationId) {
+          query = query.eq("organization_id", organizationId).is("team_id", null);
+        } else {
+          query = query.is("organization_id", null).is("team_id", null);
         }
-        if (organizationId) {
-          checks.push(
-            supabase
-              .from("profile_follows")
-              .select("id")
-              .eq("profile_id", userData.user.id)
-              .eq("organization_id", organizationId)
-              .is("team_id", null)
-              .limit(1)
-              .maybeSingle(),
-          );
-        }
-        if (teamId && organizationId) {
-          checks.push(
-            supabase
-              .from("profile_follow_exclusions")
-              .select("id")
-              .eq("profile_id", userData.user.id)
-              .eq("organization_id", organizationId)
-              .eq("team_id", teamId)
-              .limit(1)
-              .maybeSingle(),
-          );
-        }
-
-        const results = await Promise.all(checks);
+        const { data, error } = await query.maybeSingle();
+        if (error) throw error;
         if (!active) return;
-        const teamFollow = teamId ? Boolean(results[0]?.data) : false;
-        const organizationFollow = organizationId ? Boolean(results[teamId ? 1 : 0]?.data) : false;
-        const organizationExclusion = Boolean(teamId && organizationId && results[2]?.data);
-        setExcluded(organizationExclusion);
-        setFollowed(teamFollow || (organizationFollow && !organizationExclusion));
-        setInherited(Boolean(teamId && organizationFollow && !teamFollow && !organizationExclusion));
+        setFollowed(Boolean(data));
         setState("idle");
       } catch {
         if (!active) return;
@@ -108,44 +72,15 @@ export function PublicFollowButton({ organizationId, teamId, label = "Follow", c
         return;
       }
 
-      if (teamId && organizationId && inherited) {
-        await supabase
-          .from("profile_follows")
-          .delete()
-          .eq("profile_id", userData.user.id)
-          .eq("team_id", teamId);
-        const { error } = await supabase.from("profile_follow_exclusions").upsert({
-          profile_id: userData.user.id,
-          organization_id: organizationId,
-          team_id: teamId,
-        }, { onConflict: "profile_id,team_id" });
-        if (error) throw error;
-        setExcluded(true);
-        setInherited(false);
-        setFollowed(false);
-        setState("idle");
-        return;
-      }
-
-      if (teamId && organizationId && excluded && !followed) {
-        const { error } = await supabase
-          .from("profile_follow_exclusions")
-          .delete()
-          .eq("profile_id", userData.user.id)
-          .eq("organization_id", organizationId)
-          .eq("team_id", teamId);
-        if (error) throw error;
-        setExcluded(false);
-        setInherited(true);
-        setFollowed(true);
-        setState("idle");
-        return;
-      }
-
       if (followed) {
         let query = supabase.from("profile_follows").delete().eq("profile_id", userData.user.id);
-        query = teamId ? query.eq("team_id", teamId) : query.is("team_id", null);
-        query = organizationId ? query.eq("organization_id", organizationId) : query.is("organization_id", null);
+        if (teamId) {
+          query = query.eq("team_id", teamId).is("organization_id", null);
+        } else if (organizationId) {
+          query = query.eq("organization_id", organizationId).is("team_id", null);
+        } else {
+          query = query.is("organization_id", null).is("team_id", null);
+        }
         const { error } = await query;
         if (error) throw error;
         if (organizationId && !teamId) {
@@ -157,21 +92,12 @@ export function PublicFollowButton({ organizationId, teamId, label = "Follow", c
         }
         setFollowed(false);
       } else {
-        if (teamId && organizationId) {
-          await supabase
-            .from("profile_follow_exclusions")
-            .delete()
-            .eq("profile_id", userData.user.id)
-            .eq("organization_id", organizationId)
-            .eq("team_id", teamId);
-        }
         const { error } = await supabase.from("profile_follows").insert({
           profile_id: userData.user.id,
-          organization_id: organizationId ?? null,
+          organization_id: teamId ? null : organizationId ?? null,
           team_id: teamId ?? null,
         });
         if (error && error.code !== "23505") throw error;
-        setExcluded(false);
         setFollowed(true);
       }
       setState("idle");
@@ -193,7 +119,7 @@ export function PublicFollowButton({ organizationId, teamId, label = "Follow", c
         onClick={toggleFollow}
         disabled={state === "checking" || state === "saving"}
         aria-label={ariaLabel}
-        title={inherited ? "Followed through the organization" : ariaLabel}
+        title={ariaLabel}
       >
         <Heart size={15} aria-hidden="true" fill={followed ? "currentColor" : "none"} />
         {buttonText}

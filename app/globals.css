@@ -340,6 +340,8 @@ textarea:focus-visible {
   height: 36px;
   min-height: 36px;
   border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
   justify-content: center;
   padding: 0;
 }
@@ -951,6 +953,10 @@ textarea:focus-visible {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.top-command__account {
+  display: none;
 }
 
 .primary-button,
@@ -2344,7 +2350,14 @@ textarea:focus-visible {
   display: inline-grid;
   place-items: center;
   padding: 0;
+  line-height: 0;
   cursor: pointer;
+}
+
+.follow-heart svg,
+.public-follow-button--compact svg {
+  display: block;
+  margin: auto;
 }
 
 .follow-heart:hover,
@@ -2425,8 +2438,14 @@ textarea:focus-visible {
 .organization-team-row > .follow-heart,
 .organization-team-card__header > .follow-heart {
   justify-self: end;
+  align-self: center;
   display: grid;
   place-items: center;
+}
+
+.organization-team-row > .follow-heart svg {
+  justify-self: center;
+  align-self: center;
 }
 
 .team-mini-row__main:hover strong {
@@ -5425,6 +5444,10 @@ select option {
     display: block;
   }
 
+  .top-command__account {
+    display: block;
+  }
+
   .bottom-nav {
     position: fixed;
     left: 10px;
@@ -7673,6 +7696,10 @@ body,
     display: block;
     width: 40px;
     height: 40px;
+  }
+
+  .top-command__account {
+    display: block;
   }
 
   .bottom-nav {
