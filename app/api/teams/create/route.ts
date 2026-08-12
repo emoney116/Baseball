@@ -52,12 +52,12 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = createAdminClient();
-    let organization: { id: string; name: string; city?: string | null; state?: string | null } | null = null;
+    let organization: { id: string; name: string; city?: string | null; state?: string | null; visibility?: string | null } | null = null;
     if (organizationId || organizationName) {
       const organizationResult = organizationId
         ? await admin
             .from("organizations")
-            .select("id,name,city,state")
+            .select("id,name,city,state,visibility")
             .eq("id", organizationId)
             .maybeSingle()
         : await admin
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
                 visibility: organizationVisibility,
               },
             )
-            .select("id,name,city,state")
+            .select("id,name,city,state,visibility")
             .single();
       const { data, error } = organizationResult;
       if (error || !data) {
@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
       city: teamCity || organization?.city || null,
       state: teamState || organization?.state || null,
       logo_url: logoUrl || null,
-      visibility,
+      visibility: organization ? normalizeVisibility(organization.visibility) : visibility,
       active: true,
     };
     const teamMutation = organization

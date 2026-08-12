@@ -109,7 +109,6 @@ export async function GET() {
         .select("id,organization_id,name,level,team_type,age_group,city,state,logo_url,active,visibility")
         .in("organization_id", organizationIds)
         .eq("active", true)
-        .eq("visibility", "PUBLIC")
         .order("name", { ascending: true })
     : { data: [], error: null };
 
@@ -170,7 +169,7 @@ export async function GET() {
       seasonName: season?.name,
       city: team.city ?? organization.city,
       state: team.state ?? organization.state,
-      visibility: normalizeVisibility(team.visibility),
+      visibility: normalizeVisibility(organization.visibility),
       active: Boolean(team.active),
     });
   }

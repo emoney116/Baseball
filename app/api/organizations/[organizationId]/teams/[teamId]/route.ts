@@ -3,7 +3,6 @@ import {
   cleanImageValue,
   cleanText,
   hasOrganizationAdminAccess,
-  normalizeVisibility,
   readOrganizationManageData,
   resolveOrganizationByIdentifier,
 } from "../../../../../lib/organizationManagement";
@@ -51,7 +50,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       city?: string;
       state?: string;
       logoUrl?: string | null;
-      visibility?: string;
       active?: boolean;
       seasonName?: string;
       removeFromOrganization?: boolean;
@@ -88,7 +86,6 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     if (Object.prototype.hasOwnProperty.call(body, "ageGroup")) teamUpdates.age_group = cleanText(body.ageGroup, 40) || null;
     if (Object.prototype.hasOwnProperty.call(body, "city")) teamUpdates.city = cleanText(body.city, 80) || null;
     if (Object.prototype.hasOwnProperty.call(body, "state")) teamUpdates.state = cleanText(body.state, 40) || null;
-    if (Object.prototype.hasOwnProperty.call(body, "visibility")) teamUpdates.visibility = normalizeVisibility(body.visibility);
     if (Object.prototype.hasOwnProperty.call(body, "active")) teamUpdates.active = body.active !== false;
     if (Object.prototype.hasOwnProperty.call(body, "logoUrl")) {
       const logoUrl = cleanImageValue(body.logoUrl);

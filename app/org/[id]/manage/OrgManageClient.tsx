@@ -236,7 +236,6 @@ export function OrgManageClient({ initialData }: { initialData: OrganizationMana
           city: draft.teamCity,
           state: draft.teamState,
           seasonName: draft.seasonName,
-          visibility: draft.visibility,
           active: draft.active,
         }),
       });
@@ -654,7 +653,6 @@ function TeamsTab({
                   <div className="org-team-edit-grid">
                     <TeamFields
                       draft={draftValue}
-                      includeVisibility
                       onChange={(next) => onTeamDraftChange((current) => ({
                         ...current,
                         [team.id]: typeof next === "function" ? next(current[team.id] ?? draftValue) : next,
@@ -689,11 +687,9 @@ function TeamsTab({
 
 function TeamFields<T extends AddTeamDraft | TeamDraft>({
   draft,
-  includeVisibility = false,
   onChange,
 }: {
   draft: T;
-  includeVisibility?: boolean;
   onChange: (value: SetStateAction<T>) => void;
 }) {
   return (
@@ -756,18 +752,6 @@ function TeamFields<T extends AddTeamDraft | TeamDraft>({
           onChange={(teamCity) => onChange((current) => ({ ...current, teamCity }))}
         />
       </div>
-      {includeVisibility && "visibility" in draft && (
-        <div className="form-field">
-          <span>Visibility</span>
-          <ChoiceSelect
-            aria-label="Team visibility"
-            className="form-choice"
-            value={draft.visibility}
-            options={visibilityOptions()}
-            onChange={(visibility) => onChange((current) => ({ ...current, visibility: visibility as OrganizationVisibility }))}
-          />
-        </div>
-      )}
     </div>
   );
 }
@@ -1295,14 +1279,6 @@ function levelOptionsForTeamType(teamType: string) {
 
 function defaultLevelForTeamType(teamType: string) {
   return teamType === "School" ? "Varsity" : "17U";
-}
-
-function visibilityOptions() {
-  return [
-    { value: "PUBLIC", label: "Public" },
-    { value: "UNLISTED", label: "Unlisted" },
-    { value: "PRIVATE", label: "Private" },
-  ];
 }
 
 function visibilityLabel(visibility: OrganizationVisibility) {

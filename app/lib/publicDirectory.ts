@@ -177,8 +177,8 @@ async function canViewOrganization(organizationId: string, teamIds: string[], or
   return { authorized, allowed: authorized };
 }
 
-async function canViewTeam(teamId: string, organizationId: string, teamVisibility: Visibility, organizationVisibility: Visibility) {
-  if (teamVisibility === "PUBLIC" || teamVisibility === "UNLISTED" || organizationVisibility === "PUBLIC") {
+async function canViewTeam(teamId: string, organizationId: string, organizationVisibility: Visibility) {
+  if (organizationVisibility === "PUBLIC" || organizationVisibility === "UNLISTED") {
     return { authorized: false, allowed: true };
   }
   const userId = await viewerId();
@@ -242,9 +242,10 @@ export async function getPublicOrganizationDirectory(identifier: string): Promis
   );
   if (!access.allowed) return null;
 
-  const visibleTeams = access.authorized
+  const organizationVisibility = normalizeVisibility(organizationRow.visibility);
+  const visibleTeams = access.authorized || organizationVisibility === "PUBLIC" || organizationVisibility === "UNLISTED"
     ? teams
-    : teams.filter((team) => normalizeVisibility(team.visibility) !== "PRIVATE");
+    : [];
   const seasonIds = visibleTeams.map((team) => team.id);
   const { data: seasonRows } = seasonIds.length
     ? await admin
@@ -273,7 +274,7 @@ export async function getPublicOrganizationDirectory(identifier: string): Promis
         name: team.name,
         level: team.level ?? undefined,
         active: Boolean(team.active),
-        visibility: normalizeVisibility(team.visibility),
+        visibility: organizationVisibility,
         season: season ? { id: season.id, name: season.name } : undefined,
       };
     }),
@@ -301,13 +302,9 @@ export async function getPublicTeamDirectory(identifier: string): Promise<Public
 
   if (organizationError || !organization) return null;
   const organizationRow = organization as OrganizationRow;
+  const organizationVisibility = normalizeVisibility(organizationRow.visibility);
 
-  const access = await canViewTeam(
-    teamRow.id,
-    organizationRow.id,
-    normalizeVisibility(teamRow.visibility),
-    normalizeVisibility(organizationRow.visibility),
-  );
+  const access = await canViewTeam(teamRow.id, organizationRow.id, organizationVisibility);
   if (!access.allowed) return null;
 
   const { data: seasonRows } = await admin
@@ -350,7 +347,7 @@ export async function getPublicTeamDirectory(identifier: string): Promise<Public
     name: teamRow.name,
     level: teamRow.level ?? undefined,
     active: Boolean(teamRow.active),
-    visibility: normalizeVisibility(teamRow.visibility),
+    visibility: organizationVisibility,
     season: season ? { id: season.id, name: season.name } : undefined,
     organization: {
       id: organizationRow.id,
@@ -359,7 +356,7 @@ export async function getPublicTeamDirectory(identifier: string): Promise<Public
       city: organizationRow.city ?? undefined,
       state: organizationRow.state ?? undefined,
       logoUrl: organizationRow.logo_url ?? undefined,
-      visibility: normalizeVisibility(organizationRow.visibility),
+      visibility: organizationVisibility,
     },
     authorized: access.authorized,
     roster: (playerRows ?? [])

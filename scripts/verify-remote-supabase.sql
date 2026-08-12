@@ -262,12 +262,16 @@ begin
     where org.slug = 'metrolina-christian-academy'
       and coalesce(nullif(varsity.city, ''), '') <> ''
       and coalesce(nullif(varsity.state, ''), '') <> ''
+      and varsity.active = true
+      and varsity.visibility = 'PUBLIC'
       and coalesce(nullif(jv.city, ''), '') <> ''
       and coalesce(nullif(jv.state, ''), '') <> ''
+      and jv.active = true
+      and jv.visibility = 'PUBLIC'
   ) into seeded_team_views;
 
   if not seeded_team_views then
-    raise exception 'Seeded Metrolina Varsity/JV Fall 2026 teams or location identity were not found.';
+    raise exception 'Seeded Metrolina Varsity/JV Fall 2026 teams, public visibility, or location identity were not found.';
   end if;
 
   select count(*)

@@ -3348,20 +3348,22 @@ function TeamCreatorModal({
                   onChange={(city) => setForm((current) => ({ ...current, teamCity: city }))}
                 />
               </div>
-              <div className="form-field">
-                <span>Visibility</span>
-                <ChoiceSelect
-                  aria-label="Team visibility"
-                  className="form-choice"
-                  value={form.teamVisibility}
-                  options={[
-                    { value: "PUBLIC", label: "Public" },
-                    { value: "UNLISTED", label: "Unlisted" },
-                    { value: "PRIVATE", label: "Private" },
-                  ]}
-                  onChange={(teamVisibility) => setForm((current) => ({ ...current, teamVisibility }))}
-                />
-              </div>
+              {teamLocationRequired && (
+                <div className="form-field">
+                  <span>Visibility</span>
+                  <ChoiceSelect
+                    aria-label="Team visibility"
+                    className="form-choice"
+                    value={form.teamVisibility}
+                    options={[
+                      { value: "PUBLIC", label: "Public" },
+                      { value: "UNLISTED", label: "Unlisted" },
+                      { value: "PRIVATE", label: "Private" },
+                    ]}
+                    onChange={(teamVisibility) => setForm((current) => ({ ...current, teamVisibility }))}
+                  />
+                </div>
+              )}
             </>
           )}
         </div>

@@ -87,6 +87,13 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         updates.updated_at = new Date().toISOString();
         const { error } = await auth.admin.from("organizations").update(updates).eq("id", auth.organization.id);
         if (error) throw new Error(error.message);
+        if (Object.prototype.hasOwnProperty.call(updates, "visibility")) {
+          const { error: teamVisibilityError } = await auth.admin
+            .from("teams")
+            .update({ visibility: updates.visibility, updated_at: updates.updated_at })
+            .eq("organization_id", auth.organization.id);
+          if (teamVisibilityError) throw new Error(teamVisibilityError.message);
+        }
       }
     }
 
