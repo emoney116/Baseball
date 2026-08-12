@@ -3318,12 +3318,14 @@ textarea:focus-visible {
   width: 32px;
   height: 32px;
   min-width: 32px;
+  flex: 0 0 32px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: transparent;
+  background: var(--panel-soft);
   color: var(--muted-strong);
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   line-height: 0;
   position: relative;
@@ -3352,13 +3354,13 @@ textarea:focus-visible {
 .follow-heart:focus-visible {
   border-color: color-mix(in srgb, var(--burgundy) 45%, var(--line));
   color: var(--burgundy-strong);
-  background: transparent;
+  background: var(--panel-soft);
 }
 
 .follow-heart--active {
   color: var(--burgundy);
   border-color: var(--line);
-  background: transparent;
+  background: var(--panel-soft);
   box-shadow: none;
 }
 
@@ -3370,12 +3372,12 @@ textarea:focus-visible {
 .follow-heart--locked {
   cursor: default;
   color: var(--muted);
-  background: transparent;
+  background: var(--panel-soft);
 }
 
 .follow-heart--active.follow-heart--locked {
   color: var(--burgundy-strong);
-  background: transparent;
+  background: var(--panel-soft);
   box-shadow: none;
 }
 
@@ -3437,13 +3439,6 @@ textarea:focus-visible {
 .organization-team-row > .follow-heart,
 .organization-team-card__header > .follow-heart {
   justify-self: end;
-  align-self: center;
-  display: grid;
-  place-items: center;
-}
-
-.organization-team-row > .follow-heart svg {
-  justify-self: center;
   align-self: center;
 }
 
