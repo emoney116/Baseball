@@ -3883,7 +3883,6 @@ function PublicOrganizationFollowCard({
                     <strong>{team.name}</strong>
                     <small>{team.seasonName ?? "Current season"}</small>
                   </span>
-                  <ChevronRight size={15} aria-hidden="true" />
                 </button>
                 <FollowButton
                   followed={teamFollowed}
@@ -3925,7 +3924,6 @@ function PublicTeamFollowCard({
         label={followed ? `Unfollow ${team.name}` : `Follow ${team.name}`}
         onClick={() => void onToggleFollow(team)}
       />
-      <ChevronRight className="public-follow-team-card__chevron" size={18} aria-hidden="true" />
     </article>
   );
 }
