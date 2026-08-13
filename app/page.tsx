@@ -16,6 +16,7 @@ import {
   Dumbbell,
   Edit3,
   Gauge,
+  Handshake,
   Heart,
   Home,
   Lock,
@@ -30,8 +31,10 @@ import {
   Save,
   Search,
   Shield,
+  Sparkles,
   Sun,
   Star,
+  Swords,
   Target,
   Trophy,
   Trash2,
@@ -147,6 +150,7 @@ type AppIcon = React.ComponentType<{ size?: number | string; "aria-hidden"?: boo
 type ScheduleViewMode = "Calendar" | "Week" | "Agenda";
 type ScheduleSource = "practice" | "game" | "lift" | "event";
 type ScheduleDateFieldMode = "desktop" | "native";
+type TimePeriod = "AM" | "PM";
 
 interface ScheduleItem {
   id: ID;
@@ -239,7 +243,7 @@ const HITTING_STATIONS: HittingSession["type"][] = ["Tee", "Front Toss", "Machin
 const PITCHING_STATIONS: PitchingSession["type"][] = ["Bullpen", "Live BP"];
 const DEFENSE_STATIONS: DefenseStation[] = ["Infield", "Outfield", "Catching", "PFP", "Situational defense", "Team defense"];
 const GAME_TYPES: GameType[] = ["Fall Game", "Scrimmage", "Showcase", "Regular Season", "Tournament", "Other"];
-const SCHEDULE_EVENT_TYPES: ScheduleEventType[] = ["Practice", "Game", "Lift", "Scrimmage", "Meeting", "Team Event", "Tournament", "Other"];
+const SCHEDULE_EVENT_TYPES: ScheduleEventType[] = ["Game", "Practice", "Lift", "Scrimmage", "Tournament", "Other"];
 const SCHEDULE_EVENT_ACCENTS: Record<ScheduleEventType, string> = {
   Practice: "practice",
   Game: "game",
@@ -4601,7 +4605,10 @@ function ScheduleTypeIcon({ type }: { type: ScheduleEventType }) {
   if (type === "Practice") return <span className={className}><ClipboardList size={16} aria-hidden="true" /></span>;
   if (type === "Game") return <span className={className}><BaseballIcon size={16} aria-hidden="true" /></span>;
   if (type === "Lift") return <span className={className}><Dumbbell size={16} aria-hidden="true" /></span>;
+  if (type === "Scrimmage") return <span className={className}><Swords size={16} aria-hidden="true" /></span>;
   if (type === "Tournament") return <span className={className}><Trophy size={16} aria-hidden="true" /></span>;
+  if (type === "Meeting" || type === "Team Event") return <span className={className}><Handshake size={16} aria-hidden="true" /></span>;
+  if (type === "Other") return <span className={className}><Sparkles size={16} aria-hidden="true" /></span>;
   return <span className={className}><CalendarDays size={16} aria-hidden="true" /></span>;
 }
 
@@ -4733,9 +4740,9 @@ function TimePickerField({
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(() => formatPickerTime(value));
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const options = useMemo(() => buildTimeOptions(), []);
   const suggestionValues = useMemo(() => Array.from(new Set(suggestions.filter(Boolean))), [suggestions]);
   const displayValue = open ? draft : formatPickerTime(value);
+  const pickerParts = timePickerParts(value || parseTimeInput(draft) || suggestionValues[0] || "18:00");
 
   function commitDraft() {
     const parsed = parseTimeInput(draft);
@@ -4755,6 +4762,12 @@ function TimePickerField({
     onChange(nextValue);
     setDraft(formatPickerTime(nextValue));
     setOpen(false);
+  }
+
+  function updatePart(partial: Partial<{ hour: number; minute: number; period: TimePeriod }>) {
+    const nextValue = timeValueFromParts({ ...pickerParts, ...partial });
+    onChange(nextValue);
+    setDraft(formatPickerTime(nextValue));
   }
 
   function handleBlur() {
@@ -4796,7 +4809,7 @@ function TimePickerField({
         />
       </span>
       {open && (
-        <div className="schedule-time-popover" role="listbox" aria-label={`${label} picker`}>
+        <div className="schedule-time-popover" role="dialog" aria-label={`${label} picker`}>
           {suggestionValues.length > 0 && (
             <div className="schedule-time-suggestions">
               {suggestionValues.map((timeValue) => (
@@ -4806,20 +4819,45 @@ function TimePickerField({
               ))}
             </div>
           )}
-          <div className="schedule-time-list">
-            {options.map((timeValue) => (
-              <button
-                key={timeValue}
-                type="button"
-                className={timeValue === value ? "is-selected" : ""}
-                onClick={() => chooseTime(timeValue)}
-                role="option"
-                aria-selected={timeValue === value}
-              >
-                {formatPickerTime(timeValue)}
-              </button>
-            ))}
+          <div className="schedule-time-parts">
+            <label className="schedule-time-part">
+              <span>Hour</span>
+              <input
+                value={String(pickerParts.hour)}
+                inputMode="numeric"
+                aria-label={`${label} hour`}
+                onChange={(event) => {
+                  const next = parseInt(event.target.value.replace(/\D/g, ""), 10);
+                  if (Number.isFinite(next)) updatePart({ hour: clampNumber(next, 1, 12) });
+                }}
+              />
+            </label>
+            <label className="schedule-time-part">
+              <span>Minute</span>
+              <input
+                value={String(pickerParts.minute).padStart(2, "0")}
+                inputMode="numeric"
+                aria-label={`${label} minute`}
+                onChange={(event) => {
+                  const next = parseInt(event.target.value.replace(/\D/g, ""), 10);
+                  if (Number.isFinite(next)) updatePart({ minute: clampNumber(next, 0, 59) });
+                }}
+              />
+            </label>
+            <div className="schedule-period-toggle" role="group" aria-label={`${label} period`}>
+              {(["AM", "PM"] as TimePeriod[]).map((period) => (
+                <button
+                  key={period}
+                  type="button"
+                  className={pickerParts.period === period ? "is-selected" : ""}
+                  onClick={() => updatePart({ period })}
+                >
+                  {period}
+                </button>
+              ))}
+            </div>
           </div>
+          {optional && value && <button type="button" className="schedule-time-clear" onClick={() => chooseTime("")}>Leave blank</button>}
         </div>
       )}
     </div>
@@ -6798,14 +6836,16 @@ function ScheduleEventModal({
     value: type,
     label: type,
     description:
-      type === "Practice" ? "Team work" :
       type === "Game" ? "Opponent matchup" :
+      type === "Practice" ? "Team work" :
       type === "Lift" ? "Weight room" :
+      type === "Scrimmage" ? "Controlled matchup" :
       type === "Tournament" ? "Multi-game event" :
+      type === "Other" ? "Meeting / Team Event / Etc." :
       undefined,
     icon: <ScheduleTypeIcon type={type} />,
   }));
-  const isGenericTitleType = eventType === "Meeting" || eventType === "Team Event" || eventType === "Other";
+  const isGenericTitleType = eventType === "Other";
   const opponentTeams = useMemo(() => {
     const seen = new Set<ID>();
     const teams: Array<{
@@ -7040,7 +7080,7 @@ function ScheduleEventModal({
   }
 
   return (
-    <ModalFrame title="Add Event" onClose={onClose} panelClassName="schedule-event-modal">
+    <ModalFrame title="Add Event" onClose={onClose} panelClassName={`schedule-event-modal schedule-event-modal--${SCHEDULE_EVENT_ACCENTS[eventType]}`}>
       <div className="schedule-event-form">
         <div className="form-field schedule-event-type-field wide">
           <span>Event Type</span>
@@ -9842,13 +9882,6 @@ function formatPickerDate(dateKey?: string) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function buildTimeOptions() {
-  const options: string[] = [];
-  for (let minutes = 6 * 60; minutes <= 23 * 60 + 45; minutes += 15) options.push(formatMinutesAsTimeValue(minutes));
-  for (let minutes = 0; minutes < 6 * 60; minutes += 15) options.push(formatMinutesAsTimeValue(minutes));
-  return options;
-}
-
 function parseTimeValue(value?: string) {
   if (!value) return undefined;
   const match = value.match(/^(\d{1,2}):(\d{2})$/);
@@ -9874,6 +9907,25 @@ function formatPickerTime(value?: string) {
   const hour12 = hours % 12 || 12;
   const period = hours >= 12 ? "PM" : "AM";
   return `${hour12}:${String(minutePart).padStart(2, "0")} ${period}`;
+}
+
+function timePickerParts(value?: string): { hour: number; minute: number; period: TimePeriod } {
+  const totalMinutes = parseTimeValue(value) ?? 18 * 60;
+  const hours = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
+  return {
+    hour: hours % 12 || 12,
+    minute,
+    period: hours >= 12 ? "PM" : "AM",
+  };
+}
+
+function timeValueFromParts(parts: { hour: number; minute: number; period: TimePeriod }) {
+  let hour = clampNumber(parts.hour, 1, 12);
+  const minute = clampNumber(parts.minute, 0, 59);
+  if (parts.period === "AM" && hour === 12) hour = 0;
+  if (parts.period === "PM" && hour !== 12) hour += 12;
+  return formatMinutesAsTimeValue(hour * 60 + minute);
 }
 
 function parseTimeInput(value: string) {

@@ -9769,33 +9769,44 @@ body {
 }
 
 .schedule-type-icon {
+  --schedule-icon-accent: var(--burgundy-bright);
   width: 32px;
   height: 32px;
   border-radius: 9px;
   display: grid;
   place-items: center;
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.055);
+  color: var(--schedule-icon-accent);
+  background: color-mix(in srgb, var(--schedule-icon-accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--schedule-icon-accent) 16%, transparent);
 }
 
 .schedule-type-icon--practice {
-  color: #fff;
-  background: rgba(195, 50, 99, 0.32);
+  --schedule-icon-accent: #d94c79;
 }
 
-.schedule-type-icon--game,
-.schedule-type-icon--tournament {
-  background: rgba(255, 255, 255, 0.09);
+.schedule-type-icon--game {
+  --schedule-icon-accent: #ff6b7e;
 }
 
 .schedule-type-icon--lift {
-  color: var(--teal);
-  background: rgba(47, 196, 154, 0.14);
+  --schedule-icon-accent: var(--teal);
 }
 
 .schedule-type-icon--scrimmage {
-  color: #c4b5fd;
-  background: rgba(167, 139, 250, 0.14);
+  --schedule-icon-accent: #c4b5fd;
+}
+
+.schedule-type-icon--tournament {
+  --schedule-icon-accent: #f59e0b;
+}
+
+.schedule-type-icon--meeting,
+.schedule-type-icon--team-event {
+  --schedule-icon-accent: #60a5fa;
+}
+
+.schedule-type-icon--other {
+  --schedule-icon-accent: #94a3b8;
 }
 
 .upcoming-schedule-card {
@@ -9852,7 +9863,38 @@ body {
 }
 
 .schedule-event-modal {
+  --schedule-accent: var(--burgundy);
   width: min(720px, calc(100vw - 28px));
+  height: min(650px, calc(100dvh - 32px));
+  border-color: color-mix(in srgb, var(--schedule-accent) 34%, var(--line-strong));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--schedule-accent) 13%, transparent),
+    var(--shadow);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.schedule-event-modal--practice {
+  --schedule-accent: #d94c79;
+}
+
+.schedule-event-modal--game {
+  --schedule-accent: #ff6b7e;
+}
+
+.schedule-event-modal--lift {
+  --schedule-accent: var(--teal);
+}
+
+.schedule-event-modal--scrimmage {
+  --schedule-accent: #c4b5fd;
+}
+
+.schedule-event-modal--tournament {
+  --schedule-accent: #f59e0b;
+}
+
+.schedule-event-modal--other {
+  --schedule-accent: #94a3b8;
 }
 
 .schedule-event-form {
@@ -9860,6 +9902,9 @@ body {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+  align-content: start;
+  padding-right: 3px;
+  padding-bottom: 100px;
 }
 
 .schedule-event-form label,
@@ -9961,6 +10006,11 @@ body {
   position: relative;
 }
 
+.schedule-picker-field:has(.schedule-date-popover),
+.schedule-picker-field:has(.schedule-time-popover) {
+  z-index: 125;
+}
+
 .schedule-picker-anchor {
   grid-template-columns: auto minmax(0, 1fr);
 }
@@ -10000,7 +10050,7 @@ body {
   position: absolute;
   top: calc(100% + 7px);
   left: 0;
-  z-index: 35;
+  z-index: 130;
   width: min(320px, calc(100vw - 40px));
   border: 1px solid color-mix(in srgb, var(--line-strong) 78%, transparent);
   border-radius: 14px;
@@ -10111,8 +10161,8 @@ body {
 }
 
 .schedule-time-popover {
-  width: min(260px, calc(100vw - 40px));
-  padding: 8px;
+  width: min(286px, calc(100vw - 40px));
+  padding: 10px;
 }
 
 .schedule-time-suggestions {
@@ -10124,8 +10174,7 @@ body {
   padding-bottom: 7px;
 }
 
-.schedule-time-suggestions button,
-.schedule-time-list button {
+.schedule-time-suggestions button {
   min-height: 34px;
   border: 1px solid transparent;
   border-radius: 9px;
@@ -10142,18 +10191,86 @@ body {
   color: var(--burgundy-bright);
 }
 
-.schedule-time-list {
-  max-height: 224px;
-  overflow-y: auto;
+.schedule-time-parts {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  padding-right: 2px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
 }
 
-.schedule-time-list button:hover,
-.schedule-time-list button:focus-visible,
-.schedule-time-list button.is-selected,
+.schedule-time-part {
+  display: grid;
+  gap: 5px;
+}
+
+.schedule-time-part span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.schedule-time-part input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 68%, transparent);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 74%, transparent), color-mix(in srgb, var(--panel) 94%, transparent)),
+    var(--panel);
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 880;
+  text-align: center;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.schedule-time-part input:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy) 76%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 18%, transparent);
+  outline: 0;
+}
+
+.schedule-period-toggle {
+  min-height: 42px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 68%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 52%, transparent);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+}
+
+.schedule-period-toggle button {
+  min-width: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-strong);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 880;
+}
+
+.schedule-period-toggle button.is-selected {
+  background: color-mix(in srgb, var(--burgundy) 82%, #fff 4%);
+  color: #fff;
+}
+
+.schedule-time-clear {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 58%, transparent);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted-strong);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 820;
+  margin-top: 8px;
+}
+
+.schedule-time-clear:hover,
+.schedule-time-clear:focus-visible,
 .schedule-time-suggestions button:hover,
 .schedule-time-suggestions button:focus-visible {
   border-color: color-mix(in srgb, var(--burgundy) 42%, transparent);
