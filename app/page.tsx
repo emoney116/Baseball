@@ -5833,15 +5833,15 @@ function PracticeHome({
                   <div className="practice-attendance-heading-main">
                     <div className="practice-attendance-title-line">
                       <h2>Team Attendance</h2>
-                      <span className="attendance-status-key" aria-label="Attendance color key">
-                        <span><i className="present" />P</span>
-                        <span><i className="late" />L</span>
-                        <span><i className="absent" />A</span>
-                        <span><i className="excused" />E</span>
-                      </span>
                     </div>
                     <span>{attendanceDenominator} players</span>
                   </div>
+                  <span className="attendance-status-key" aria-label="Attendance color key">
+                    <span><i className="present" />P</span>
+                    <span><i className="late" />L</span>
+                    <span><i className="absent" />A</span>
+                    <span><i className="excused" />E</span>
+                  </span>
                 </div>
                 <div className="practice-avatar-row">
                   {pagedAttendancePlayers.map((player) => {

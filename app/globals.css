@@ -13535,23 +13535,25 @@ body,
 .attendance-status-key {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-self: end;
+  gap: 5px;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 900;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .attendance-status-key span {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
 }
 
 .attendance-status-key i {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 999px;
   background: var(--green);
 }
