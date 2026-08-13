@@ -382,6 +382,7 @@ export const attendance: PracticeAttendance[] = practices.flatMap((practice) =>
       practiceId: practice.id,
       playerId,
       role,
+      status: "Present",
       checkedInAt: practice.startedAt,
     };
   }),

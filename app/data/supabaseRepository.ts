@@ -1324,6 +1324,7 @@ async function syncAttendance(supabase: SupabaseClient, attendance: PracticeAtte
       practice_id: item.practiceId,
       player_id: item.playerId,
       role: item.role,
+      status: item.status ?? "Present",
       checked_in_at: item.checkedInAt,
     })),
     { onConflict: "practice_id,player_id" },
@@ -1811,8 +1812,9 @@ function isMissingStaffTables(error: { code?: string; message?: string }) {
 
 function mapPractice(row: any, attendanceRows: any[]): Practice {
   const attendance = attendanceRows.filter((item) => item.practice_id === row.id);
-  const pitcherIds = attendance.filter((item) => ["Pitcher", "Two-way"].includes(item.role)).map((item) => item.player_id);
-  const hitterIds = attendance.filter((item) => ["Hitter", "Two-way"].includes(item.role)).map((item) => item.player_id);
+  const activeAttendance = attendance.filter((item) => ["Present", "Late"].includes(item.status ?? "Present"));
+  const pitcherIds = activeAttendance.filter((item) => ["Pitcher", "Two-way"].includes(item.role)).map((item) => item.player_id);
+  const hitterIds = activeAttendance.filter((item) => ["Hitter", "Two-way"].includes(item.role)).map((item) => item.player_id);
   return {
     id: row.id,
     date: row.practice_date,
@@ -1820,7 +1822,7 @@ function mapPractice(row: any, attendanceRows: any[]): Practice {
     type: row.practice_type,
     location: row.location ?? "",
     notes: row.notes ?? undefined,
-    playerIds: attendance.map((item) => item.player_id),
+    playerIds: activeAttendance.map((item) => item.player_id),
     pitcherIds,
     hitterIds,
     startedAt: row.starts_at ?? `${row.practice_date}T12:00:00.000Z`,
@@ -1836,6 +1838,7 @@ function mapAttendance(row: any): PracticeAttendance {
     practiceId: row.practice_id,
     playerId: row.player_id,
     role: row.role,
+    status: row.status ?? "Present",
     checkedInAt: row.checked_in_at,
   };
 }

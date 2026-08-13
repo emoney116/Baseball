@@ -2,6 +2,10 @@ export type ID = string;
 
 export type PracticeType =
   | "Full Practice"
+  | "Team Practice"
+  | "Hitting"
+  | "Pitching"
+  | "Defense"
   | "Bullpen Day"
   | "Live BP"
   | "Hitting Day"
@@ -9,6 +13,8 @@ export type PracticeType =
   | "Pitcher Development"
   | "Hitter Development"
   | "Custom";
+
+export type PracticeAttendanceStatus = "Present" | "Absent" | "Excused" | "Late";
 
 export type Position =
   | "P"
@@ -150,7 +156,7 @@ export type DefenseStation =
   | "Situational defense"
   | "Team defense";
 
-export type DefenseOutcome = "Clean" | "Error" | "Good Play" | "Great Play";
+export type DefenseOutcome = "Clean" | "Error" | "Missed Rep" | "Good Play" | "Great Play";
 export type ThrowQuality = "Poor" | "Average" | "Good" | "Plus";
 export type ExerciseKind = "Lift" | "Test" | "Speed" | "Jump" | "Custom";
 export type GameType =
@@ -396,6 +402,7 @@ export interface PracticeAttendance {
   practiceId: ID;
   playerId: ID;
   role: "Pitcher" | "Hitter" | "Two-way" | "Observer";
+  status: PracticeAttendanceStatus;
   checkedInAt: string;
 }
 

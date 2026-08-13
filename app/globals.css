@@ -6343,6 +6343,39 @@ select option {
   gap: 14px;
 }
 
+.practice-development-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.85fr);
+  gap: 14px;
+}
+
+.practice-attendance-card {
+  grid-column: 2;
+}
+
+.practice-leader-card {
+  display: grid;
+  gap: 12px;
+}
+
+.practice-leader-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.practice-leader-columns > div {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.practice-leader-columns > div > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .practice-live-card {
   display: grid;
   gap: 12px;
@@ -6424,7 +6457,7 @@ select option {
 
 .recent-practice-list article {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) repeat(3, minmax(82px, auto));
+  grid-template-columns: minmax(0, 1fr) repeat(4, minmax(82px, auto));
   gap: 8px;
   align-items: center;
   min-height: 48px;
@@ -6460,6 +6493,200 @@ select option {
 .practice-preset-panel strong {
   display: block;
   margin-top: 2px;
+}
+
+.practice-preset-panel small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.practice-start-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.practice-start-grid .wide,
+.practice-team-context,
+.practice-team-picker {
+  grid-column: 1 / -1;
+}
+
+.practice-start-grid label,
+.practice-start-grid .form-field {
+  display: grid;
+  gap: 6px;
+}
+
+.practice-team-context,
+.practice-team-picker {
+  display: grid;
+  gap: 8px;
+}
+
+.practice-team-context {
+  min-height: 58px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  padding: 10px 12px;
+  align-content: center;
+}
+
+.practice-team-context strong,
+.practice-team-context small {
+  display: block;
+}
+
+.practice-team-context small {
+  color: var(--muted);
+}
+
+.practice-team-picker > span,
+.attendance-roster__head,
+.practice-start-grid label span,
+.practice-start-grid .form-field > span,
+.practice-team-context > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.practice-team-picker > div {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+}
+
+.practice-team-picker button {
+  min-height: 58px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-content: center;
+  gap: 1px 8px;
+  padding: 9px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.practice-team-picker button small {
+  grid-column: 2;
+  color: var(--muted);
+}
+
+.practice-team-picker button.active {
+  border-color: rgba(159, 36, 76, 0.42);
+  background: var(--burgundy-soft);
+}
+
+.attendance-bulk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.attendance-bulk-row button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--text);
+  padding: 0 13px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.attendance-roster {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.attendance-roster__head,
+.attendance-row {
+  display: grid;
+  grid-template-columns: 42px minmax(220px, 1fr) minmax(360px, auto);
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+}
+
+.attendance-roster__head {
+  min-height: 38px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.attendance-roster__list {
+  max-height: min(44vh, 460px);
+  overflow-y: auto;
+}
+
+.attendance-row {
+  min-height: 58px;
+  border-top: 1px solid var(--line);
+}
+
+.attendance-row > strong {
+  font-size: 16px;
+}
+
+.attendance-row > span {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+}
+
+.attendance-row b,
+.attendance-row small {
+  display: block;
+}
+
+.attendance-row small {
+  color: var(--muted);
+}
+
+.attendance-row--absent {
+  background: rgba(239, 68, 68, 0.065);
+}
+
+.attendance-row--late {
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.attendance-row--excused {
+  background: rgba(125, 139, 163, 0.055);
+}
+
+.attendance-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(76px, 1fr));
+  gap: 6px;
+}
+
+.attendance-status-grid button {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.attendance-status-grid button.active {
+  border-color: var(--burgundy);
+  background: var(--burgundy);
+  color: #fff;
 }
 
 .practice-header {
@@ -6511,6 +6738,34 @@ select option {
 .current-player-card strong,
 .current-player-card small {
   display: block;
+}
+
+.player-cycle-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.player-cycle-row button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.player-cycle-row button:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.55;
 }
 
 .switcher-list,
@@ -6645,6 +6900,12 @@ select option {
   font-size: clamp(25px, 3.4vw, 38px);
   line-height: 1;
   font-weight: 820;
+}
+
+.live-metrics small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
 }
 
 .pitch-type-row,
