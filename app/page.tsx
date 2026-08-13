@@ -254,6 +254,7 @@ const SCHEDULE_EVENT_ACCENTS: Record<ScheduleEventType, string> = {
   Tournament: "tournament",
   Other: "other",
 };
+const SCHEDULE_HOME_AWAY_OPTIONS: Game["homeAway"][] = ["TBD", "Home", "Away", "Neutral"];
 const GAME_PITCH_BUTTONS: GamePitchOutcome[] = ["Ball", "Called Strike", "Swinging Strike", "Foul", "In Play"];
 const BIP_OUTCOMES: GameBallInPlayOutcome[] = ["Single", "Double", "Triple", "Home Run", "Ground Out", "Fly Out", "Line Out", "Pop Out", "Error", "Fielder's Choice", "Sac Fly", "Sac Bunt"];
 const LIVE_BP_OUTCOMES: LiveBpOutcomeLabel[] = ["K", "BB", "HBP", "1B", "2B", "3B", "HR", "Out", "Error", "FC"];
@@ -4824,7 +4825,6 @@ function TimePickerField({
         <div className="schedule-time-popover" role="dialog" aria-label={`${label} picker`}>
           <div className="schedule-time-scroll-picker">
             <div className="schedule-time-column" role="listbox" aria-label={`${label} hour`}>
-              <span>Hour</span>
               {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => (
                 <button
                   key={hour}
@@ -4838,7 +4838,6 @@ function TimePickerField({
               ))}
             </div>
             <div className="schedule-time-column" role="listbox" aria-label={`${label} minute`}>
-              <span>Minute</span>
               {Array.from({ length: 60 }, (_, minute) => minute).map((minute) => (
                 <button
                   key={minute}
@@ -6298,7 +6297,7 @@ function GamesView({
           {data.games.map((item) => (
             <button key={item.id} type="button" className={item.id === game?.id ? "active" : ""} onClick={() => onGame(item.id)}>
               <span>{shortDate(item.date)}</span>
-              <strong>{item.homeAway === "Home" ? "vs" : "at"} {item.opponent}</strong>
+              <strong>{matchupPrefix(item.homeAway).replace(".", "")} {item.opponent}</strong>
               <small>{item.result ? `${item.result} ${item.metrolinaScore}-${item.opponentScore}` : `${item.type} - ${item.location}`}</small>
             </button>
           ))}
@@ -6834,10 +6833,11 @@ function ScheduleEventModal({
     endDate: today,
     startTime: "18:00",
     endTime: "",
-    location: currentTeam?.city && currentTeam?.state ? `${currentTeam.city}, ${currentTeam.state}` : "",
+    location: "",
     notes: "",
     opponent: "",
     homeAway: "Home" as Game["homeAway"],
+    intersquad: false,
     visibility: defaultScheduleVisibility("Game", currentTeam),
   });
   const eventTypeOptions: ChoiceOption[] = SCHEDULE_EVENT_TYPES.map((type) => ({
@@ -6898,18 +6898,21 @@ function ScheduleEventModal({
       .slice(0, 5);
   }, [opponentQuery, opponentTeams]);
   const hasExactOpponentMatch = opponentTeams.some((team) => team.name.toLowerCase() === opponentQuery);
-  const mapsQuery = form.location.trim() || [currentTeam?.city, currentTeam?.state].filter(Boolean).join(", ");
+  const mapsQuery = form.location.trim();
   const mapsUrl = mapsQuery ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}` : "";
 
   function chooseType(type: ScheduleEventType) {
     setErrors([]);
     setEventType(type);
+    setOpponentResultsOpen(false);
+    setSelectedOpponentTeamId(undefined);
     setForm((current) => ({
       ...current,
+      intersquad: type === "Scrimmage" ? current.intersquad : false,
       title: type === "Tournament" && shouldResetScheduleTitle(type, current.title)
         ? ""
         : shouldResetScheduleTitle(type, current.title)
-        ? defaultScheduleTitle(type, current.opponent, current.homeAway)
+        ? defaultScheduleTitle(type, type === "Scrimmage" && current.intersquad ? "Intersquad" : current.opponent, current.homeAway)
         : current.title,
       visibility: defaultScheduleVisibility(type, currentTeam),
     }));
@@ -6918,28 +6921,39 @@ function ScheduleEventModal({
   function updateOpponent(value: string) {
     setSelectedOpponentTeamId(undefined);
     setOpponentResultsOpen(Boolean(value.trim()));
-    setForm((current) => ({ ...current, opponent: value, title: defaultScheduleTitle(eventType, value, current.homeAway) }));
+    setForm((current) => ({ ...current, opponent: value, intersquad: false, title: defaultScheduleTitle(eventType, value, current.homeAway) }));
   }
 
   function updateHomeAway(value: Game["homeAway"]) {
     setForm((current) => ({
       ...current,
       homeAway: value,
-      title: defaultScheduleTitle(eventType, current.opponent, value),
+      title: defaultScheduleTitle(eventType, current.intersquad ? "Intersquad" : current.opponent, value),
     }));
   }
 
   function chooseOpponent(team: (typeof opponentTeams)[number]) {
     setSelectedOpponentTeamId(team.id);
     setOpponentResultsOpen(false);
-    setForm((current) => ({ ...current, opponent: team.name, title: defaultScheduleTitle(eventType, team.name, current.homeAway) }));
+    setForm((current) => ({ ...current, opponent: team.name, intersquad: false, title: defaultScheduleTitle(eventType, team.name, current.homeAway) }));
   }
 
   function chooseTypedOpponent() {
     const opponent = form.opponent.trim();
     setSelectedOpponentTeamId(undefined);
     setOpponentResultsOpen(false);
-    setForm((current) => ({ ...current, opponent, title: defaultScheduleTitle(eventType, opponent, current.homeAway) }));
+    setForm((current) => ({ ...current, opponent, intersquad: false, title: defaultScheduleTitle(eventType, opponent, current.homeAway) }));
+  }
+
+  function toggleIntersquad(checked: boolean) {
+    setSelectedOpponentTeamId(undefined);
+    setOpponentResultsOpen(false);
+    setForm((current) => ({
+      ...current,
+      intersquad: checked,
+      opponent: checked ? "" : current.opponent,
+      title: checked ? "Intersquad Scrimmage" : defaultScheduleTitle(eventType, current.opponent, current.homeAway),
+    }));
   }
 
   function updateDate(value: string) {
@@ -6952,19 +6966,34 @@ function ScheduleEventModal({
 
   function renderOpponentLookup(optional = false) {
     const typedOpponent = form.opponent.trim();
+    const isScrimmage = eventType === "Scrimmage";
     return (
       <div className="form-field schedule-opponent-field">
-        <span>Opponent {optional && <small>optional</small>}</span>
+        <span className={isScrimmage ? "schedule-opponent-label-row" : ""}>
+          <span>Opponent {optional && <small>optional</small>}</span>
+          {isScrimmage && (
+            <label className="schedule-intersquad-toggle">
+              <input
+                type="checkbox"
+                checked={form.intersquad}
+                onChange={(event) => toggleIntersquad(event.target.checked)}
+              />
+              Intersquad
+            </label>
+          )}
+        </span>
         <span className="schedule-input-shell">
           <Search size={15} aria-hidden="true" />
           <input
-            value={form.opponent}
-            placeholder={optional ? "Search teams or enter opponent" : "Search teams or enter opponent"}
+            value={form.intersquad ? "Intersquad Scrimmage" : form.opponent}
+            placeholder="Search teams or enter opponent"
+            disabled={form.intersquad}
             onChange={(event) => updateOpponent(event.target.value)}
-            onFocus={() => setOpponentResultsOpen(Boolean(typedOpponent))}
+            onFocus={() => setOpponentResultsOpen(Boolean(typedOpponent) && !form.intersquad)}
           />
         </span>
-        {typedOpponent && opponentResultsOpen && (
+        {form.intersquad && <small className="schedule-intersquad-note">This will save as an intersquad scrimmage.</small>}
+        {typedOpponent && opponentResultsOpen && !form.intersquad && (
           <div className="schedule-opponent-results">
             {opponentSuggestions.map((team) => (
               <button
@@ -7070,7 +7099,8 @@ function ScheduleEventModal({
       });
       return;
     }
-    const title = form.title.trim() || defaultScheduleTitle(eventType, form.opponent, form.homeAway);
+    const scheduleOpponent = form.intersquad ? "Intersquad" : form.opponent;
+    const title = form.title.trim() || defaultScheduleTitle(eventType, scheduleOpponent, form.homeAway);
     onCreateEvent({
       id: createId("schedule"),
       organizationId: currentTeam?.organizationId,
@@ -7101,13 +7131,13 @@ function ScheduleEventModal({
         {eventType === "Game" && (
           <>
             {renderOpponentLookup(false)}
-            <div className="form-field schedule-home-away-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => updateHomeAway(value as Game["homeAway"])} aria-label="Home or away" /></div>
+            <div className="form-field schedule-home-away-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={SCHEDULE_HOME_AWAY_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => updateHomeAway(value as Game["homeAway"])} aria-label="Home or away" /></div>
           </>
         )}
         {eventType === "Scrimmage" && (
           <>
             {renderOpponentLookup(true)}
-            <div className="form-field schedule-home-away-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => updateHomeAway(value as Game["homeAway"])} aria-label="Scrimmage home or away" /></div>
+            <div className="form-field schedule-home-away-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={SCHEDULE_HOME_AWAY_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => updateHomeAway(value as Game["homeAway"])} aria-label="Scrimmage home or away" /></div>
           </>
         )}
         {eventType === "Tournament" && (
@@ -9436,7 +9466,7 @@ function buildTeamRecentActivity(data: AppData): TeamActivity[] {
     ...data.games.map((game) => ({
       key: `team-game-${game.id}`,
       kind: "game" as const,
-      title: `${game.homeAway === "Home" ? "vs" : "at"} ${game.opponent}`,
+      title: `${matchupPrefix(game.homeAway).replace(".", "")} ${game.opponent}`,
       meta: game.result ? `${game.result} ${game.metrolinaScore}-${game.opponentScore}` : game.location,
       date: game.date,
     })),
@@ -9757,7 +9787,7 @@ function buildScheduleItems(data: AppData): ScheduleItem[] {
     source: "game",
     sourceId: game.id,
     eventType: "Game",
-    title: `${game.homeAway === "Away" ? "at" : "vs"} ${game.opponent}`,
+    title: `${matchupPrefix(game.homeAway).replace(".", "")} ${game.opponent}`,
     startAt: game.startsAt ?? toLocalIso(game.date, "18:00"),
     date: game.date,
     location: game.location,
@@ -10001,12 +10031,16 @@ function defaultScheduleVisibility(type: ScheduleEventType, team?: TeamOption): 
   return "TEAM_ONLY";
 }
 
+function matchupPrefix(homeAway: Game["homeAway"]) {
+  return homeAway === "Away" ? "at" : "vs.";
+}
+
 function defaultScheduleTitle(type: ScheduleEventType, opponent = "", homeAway: Game["homeAway"] = "Home") {
   const trimmedOpponent = opponent.trim();
   if (type === "Practice") return "Practice";
-  if (type === "Game") return trimmedOpponent ? `${homeAway === "Away" ? "at" : "vs."} ${trimmedOpponent}` : "Game";
+  if (type === "Game") return trimmedOpponent ? `${matchupPrefix(homeAway)} ${trimmedOpponent}` : "Game";
   if (type === "Lift") return "Team Lift";
-  if (type === "Scrimmage") return trimmedOpponent ? `${homeAway === "Away" ? "at" : "vs."} ${trimmedOpponent} Scrimmage` : "Scrimmage";
+  if (type === "Scrimmage") return trimmedOpponent === "Intersquad" ? "Intersquad Scrimmage" : trimmedOpponent ? `${matchupPrefix(homeAway)} ${trimmedOpponent} Scrimmage` : "Scrimmage";
   if (type === "Meeting") return "Team Meeting";
   if (type === "Team Event") return "Team Event";
   if (type === "Tournament") return "Tournament";

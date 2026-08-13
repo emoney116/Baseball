@@ -276,7 +276,7 @@ function PublicGameRow({ game }: { game: PublicGameSummary }) {
   const date = formatGameDate(game);
   const location = locationParts(game.location);
   const completed = Boolean(game.result || game.status === "final");
-  const homeAway = game.homeAway === "Home" ? "vs." : "@";
+  const homeAway = game.homeAway === "Away" ? "@" : "vs.";
 
   return (
     <Link href={`/game/${game.id}`} className="public-schedule-row">
@@ -354,7 +354,7 @@ function NextGamePanel({ nextGame, lastGame }: { nextGame?: PublicGameSummary; l
       <div className="public-next-game__opponent">
         <OpponentMark opponent={game.opponent} />
         <span>
-          <strong>{game.homeAway === "Home" ? "vs." : "@"} {game.opponent}</strong>
+          <strong>{game.homeAway === "Away" ? "@" : "vs."} {game.opponent}</strong>
           <small>{game.gameType ?? "Game"}</small>
         </span>
       </div>

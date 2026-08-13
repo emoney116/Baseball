@@ -10014,6 +10014,11 @@ body {
   outline: 0;
 }
 
+.schedule-input-shell input:disabled {
+  color: color-mix(in srgb, var(--muted) 74%, transparent);
+  cursor: not-allowed;
+}
+
 .schedule-input-shell input[type="date"]::-webkit-calendar-picker-indicator,
 .schedule-input-shell input[type="time"]::-webkit-calendar-picker-indicator {
   display: none;
@@ -10190,8 +10195,8 @@ body {
 }
 
 .schedule-time-popover {
-  width: min(226px, calc(100vw - 36px));
-  padding: 7px;
+  width: min(204px, calc(100vw - 36px));
+  padding: 8px;
 }
 
 .schedule-picker-field--align-right .schedule-time-popover {
@@ -10201,55 +10206,46 @@ body {
 
 .schedule-time-scroll-picker {
   display: grid;
-  grid-template-columns: 58px 66px 48px;
+  grid-template-columns: 54px 60px 40px;
   align-items: stretch;
   justify-content: center;
-  gap: 6px;
+  gap: 7px;
 }
 
 .schedule-time-column {
   min-width: 0;
-  height: 128px;
+  height: 106px;
   overflow-y: auto;
   scroll-snap-type: y proximity;
-  scrollbar-width: thin;
+  scrollbar-width: none;
   border: 0;
-  border-radius: 13px;
+  border-radius: 14px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 28%, transparent 72%, rgba(255, 255, 255, 0.03)),
-    color-mix(in srgb, var(--surface) 50%, transparent);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 30%, transparent 70%, rgba(255, 255, 255, 0.04)),
+    color-mix(in srgb, var(--surface) 42%, transparent);
   display: grid;
   align-content: start;
-  gap: 2px;
-  padding: 5px;
+  gap: 3px;
+  padding: 6px;
   box-shadow:
     inset 0 0 0 1px color-mix(in srgb, var(--line-strong) 52%, transparent),
-    inset 0 48px 30px -44px rgba(255, 255, 255, 0.12),
-    inset 0 -48px 30px -44px rgba(0, 0, 0, 0.74);
+    inset 0 42px 26px -40px rgba(255, 255, 255, 0.14),
+    inset 0 -42px 26px -40px rgba(0, 0, 0, 0.76);
 }
 
-.schedule-time-column span {
-  position: sticky;
-  top: -5px;
-  z-index: 1;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, var(--panel)), color-mix(in srgb, var(--surface) 78%, transparent));
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 850;
-  padding: 4px 0 6px;
-  text-align: center;
-  text-transform: uppercase;
+.schedule-time-column::-webkit-scrollbar {
+  display: none;
 }
 
 .schedule-time-column button {
   width: 100%;
-  min-height: 30px;
+  min-height: 28px;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: 10px;
   background: transparent;
   color: var(--text);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 850;
   text-align: center;
   scroll-snap-align: center;
@@ -10265,8 +10261,8 @@ body {
 
 .schedule-period-toggle {
   border: 0;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--surface) 52%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 44%, transparent);
   display: grid;
   grid-template-columns: 1fr;
   overflow: hidden;
@@ -10279,7 +10275,7 @@ body {
   background: transparent;
   color: var(--muted-strong);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 880;
 }
 
@@ -10349,6 +10345,48 @@ body {
   position: relative;
   align-self: start;
   grid-column: span 2;
+}
+
+.schedule-opponent-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.schedule-intersquad-toggle {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px !important;
+  min-height: 26px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 58%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 36%, transparent);
+  color: var(--muted-strong);
+  cursor: pointer;
+  font-size: 11px !important;
+  font-weight: 850 !important;
+  padding: 4px 9px;
+}
+
+.schedule-intersquad-toggle:hover,
+.schedule-intersquad-toggle:focus-within {
+  border-color: color-mix(in srgb, var(--schedule-accent, var(--burgundy)) 42%, transparent);
+  color: var(--text);
+}
+
+.schedule-intersquad-toggle input {
+  width: 13px;
+  height: 13px;
+  min-height: 0;
+  accent-color: var(--schedule-accent, var(--burgundy));
+}
+
+.schedule-intersquad-note {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 720;
+  margin-top: -2px;
 }
 
 .schedule-opponent-results {

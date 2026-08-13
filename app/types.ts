@@ -588,7 +588,7 @@ export interface Game {
   date: string;
   startsAt?: string;
   opponent: string;
-  homeAway: "Home" | "Away";
+  homeAway: "TBD" | "Home" | "Away" | "Neutral";
   location: string;
   type: GameType;
   result?: "W" | "L" | "T";

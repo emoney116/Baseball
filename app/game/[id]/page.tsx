@@ -289,7 +289,7 @@ function GameInfoList({ game, compact = false }: { game: PublicGameDetail; compa
     { icon: Clock, label: formatGameTime(game.game) },
     { icon: MapPin, label: location.full },
     { icon: ShieldCheck, label: game.detail.eventName ?? game.game.gameType ?? "Game" },
-    { icon: Users, label: `${game.game.homeAway === "Home" ? "Home" : "Away"} vs. ${game.game.opponent}` },
+    { icon: Users, label: `${game.game.homeAway} vs. ${game.game.opponent}` },
   ];
   return (
     <div className={`public-game-info-list ${compact ? "public-game-info-list--compact" : ""}`}>
@@ -637,7 +637,7 @@ function NextGameCard({ game }: { game: PublicGameDetail }) {
       <Link href={`/game/${game.nextGame.id}`} className="public-next-game-row">
         <TeamLogo name={game.nextGame.opponent} />
         <span>
-          <strong>{game.nextGame.homeAway === "Home" ? "vs." : "@"} {game.nextGame.opponent}</strong>
+          <strong>{game.nextGame.homeAway === "Away" ? "@" : "vs."} {game.nextGame.opponent}</strong>
           <small>{formatShortDate(game.nextGame)} - {formatGameTime(game.nextGame)}</small>
           <small>{game.nextGame.location ?? "Location TBD"}</small>
         </span>
@@ -656,7 +656,7 @@ function RecentGames({ game }: { game: PublicGameDetail }) {
           {game.recentGames.map((item) => (
             <Link key={item.id} href={`/game/${item.id}`}>
               <span>{formatShortDate(item)}</span>
-              <strong>{item.homeAway === "Home" ? "vs." : "@"} {item.opponent}</strong>
+              <strong>{item.homeAway === "Away" ? "@" : "vs."} {item.opponent}</strong>
               <em className={`public-recent-result public-recent-result--${item.result?.toLowerCase() ?? "final"}`}>{scoreLabel(item)}</em>
             </Link>
           ))}
