@@ -28,6 +28,7 @@ import type {
   PracticeAttendance,
   RosterImportRecord,
   RosterStatus,
+  ScheduleEvent,
   StaffAccessRole,
   StaffBaseballRole,
   StaffInvitation,
@@ -237,6 +238,7 @@ export const supabaseAppRepository = {
     await syncPracticeEvents(supabase, next);
     await syncWorkoutData(supabase, foundation, next);
     await syncGames(supabase, foundation, next);
+    await syncScheduleEvents(supabase, foundation, next);
     await syncNotesAndGoals(supabase, foundation, next);
     await syncStaffData(foundation, next);
     await syncRosterImports(supabase, foundation, next.rosterImports ?? []);
@@ -851,6 +853,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
       defenseEvents: [],
       workoutSessions: [],
       workoutEntries: [],
+      scheduleEvents: [],
       games: [],
       gameEvents: [],
       plateAppearances: [],
@@ -990,6 +993,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
   );
   const goalsRows = (goalsResult.data ?? []).filter((row: any) => playerIdsSet.has(row.player_id));
   const rosterImports = await loadRosterImports(supabase, foundation);
+  const scheduleEvents = await loadScheduleEvents(supabase, foundation);
   const staffData = await loadStaffData(supabase, foundation);
   const [profileFollows, profileFollowExclusions, profileTeamPins, publicDirectory] = await Promise.all([
     loadProfileFollows(supabase, foundation.teamContext.profile?.id),
@@ -1022,6 +1026,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     workoutEntries: (workoutSetsResult.data ?? [])
       .filter((row: any) => workoutSessionIds.has(row.workout_session_id) && playerIdsSet.has(row.player_id))
       .map((row: any) => mapWorkoutEntry(row, exercisesById.get(row.exercise_id))),
+    scheduleEvents,
     games: gameRows.map((row: any) => mapGame(row, lineupRows)),
     gameEvents: (gameEventsResult.data ?? []).filter((row: any) => gameIds.has(row.game_id)).map(mapGameEvent),
     plateAppearances: (plateAppearancesResult.data ?? [])
@@ -1146,6 +1151,23 @@ async function loadRosterImports(supabase: SupabaseClient, foundation: Foundatio
   return (data ?? []).map(mapRosterImportRecord);
 }
 
+async function loadScheduleEvents(supabase: SupabaseClient, foundation: Foundation): Promise<ScheduleEvent[]> {
+  if (!foundation.teamId || !foundation.seasonId) return [];
+  const { data, error } = await supabase
+    .from("schedule_events")
+    .select("*")
+    .eq("team_id", foundation.teamId)
+    .eq("season_id", foundation.seasonId)
+    .order("start_at", { ascending: true });
+
+  if (error) {
+    if (isMissingScheduleEventsTable(error)) return [];
+    throw new PersistenceError("load-failed", error.message);
+  }
+
+  return (data ?? []).map(mapScheduleEvent);
+}
+
 async function loadStaffData(
   supabase: SupabaseClient,
   foundation: Foundation,
@@ -1261,14 +1283,30 @@ async function syncDeletedEvents(supabase: SupabaseClient, previous: AppData, ne
   await deleteMissing(supabase, "defense_events", previous.defenseEvents, next.defenseEvents);
   await deleteMissing(supabase, "workout_sets", previous.workoutEntries, next.workoutEntries);
   await deleteMissing(supabase, "game_pitch_events", previous.gameEvents, next.gameEvents);
+  await deleteMissing(
+    supabase,
+    "schedule_events",
+    (previous.scheduleEvents ?? []).filter(isStandaloneScheduleEvent),
+    (next.scheduleEvents ?? []).filter(isStandaloneScheduleEvent),
+    isMissingScheduleEventsTable,
+  );
 }
 
-async function deleteMissing<T extends { id: ID }>(supabase: SupabaseClient, table: string, previous: T[], next: T[]) {
+async function deleteMissing<T extends { id: ID }>(
+  supabase: SupabaseClient,
+  table: string,
+  previous: T[],
+  next: T[],
+  ignoreMissing?: (error: { code?: string; message?: string }) => boolean,
+) {
   const nextIds = new Set(next.map((item) => item.id));
   const removedIds = previous.map((item) => item.id).filter((id) => !nextIds.has(id));
   if (removedIds.length === 0) return;
   const { error } = await supabase.from(table).delete().in("id", removedIds);
-  if (error) throw new PersistenceError("save-failed", error.message);
+  if (error) {
+    if (ignoreMissing?.(error)) return;
+    throw new PersistenceError("save-failed", error.message);
+  }
 }
 
 async function syncPlayers(supabase: SupabaseClient, foundation: Foundation, players: Player[], memberships?: PlayerTeamMembership[]) {
@@ -1376,6 +1414,10 @@ async function syncPractices(supabase: SupabaseClient, foundation: Foundation, p
     { onConflict: "id" },
   );
   if (error) throw new PersistenceError("save-failed", error.message);
+}
+
+function isStandaloneScheduleEvent(event: ScheduleEvent) {
+  return !event.practiceId && !event.gameId && !event.workoutSessionId;
 }
 
 async function syncAttendance(supabase: SupabaseClient, attendance: PracticeAttendance[]) {
@@ -1524,6 +1566,7 @@ async function syncWorkoutData(supabase: SupabaseClient, foundation: Foundation,
 
 async function syncGames(supabase: SupabaseClient, foundation: Foundation, data: AppData) {
   if (data.games.length > 0) {
+    const gamesWithEvents = new Set(data.gameEvents.map((event) => event.gameId));
     await upsertRows(
       supabase,
       "games",
@@ -1534,11 +1577,11 @@ async function syncGames(supabase: SupabaseClient, foundation: Foundation, data:
         season_id: foundation.seasonId,
         opponent: game.opponent,
         game_date: game.date,
-        starts_at: `${game.date}T12:00:00.000Z`,
+        starts_at: game.startsAt ?? `${game.date}T12:00:00.000Z`,
         home_away: game.homeAway,
         location: game.location,
         game_type: game.type,
-        status: game.result ? "final" : "active",
+        status: game.result ? "final" : gamesWithEvents.has(game.id) ? "active" : "scheduled",
         our_score: game.metrolinaScore,
         opponent_score: game.opponentScore,
         inning: game.inning,
@@ -1572,6 +1615,84 @@ async function syncGames(supabase: SupabaseClient, foundation: Foundation, data:
 
   await upsertRows(supabase, "game_pitch_events", data.gameEvents.map(mapGameEventToRow));
   await upsertRows(supabase, "plate_appearances", data.plateAppearances.map(mapPlateAppearanceToRow));
+}
+
+async function syncScheduleEvents(supabase: SupabaseClient, foundation: Foundation, data: AppData) {
+  const genericRows = (data.scheduleEvents ?? [])
+    .filter(isStandaloneScheduleEvent)
+    .map((event) => ({
+      id: event.id,
+      organization_id: event.organizationId ?? foundation.organizationId,
+      team_id: event.teamId ?? foundation.teamId,
+      season_id: event.seasonId ?? foundation.seasonId,
+      team_ids: event.teamIds?.length ? event.teamIds : foundation.teamId ? [foundation.teamId] : [],
+      event_type: event.eventType,
+      title: event.title,
+      start_at: event.startAt,
+      end_at: event.endAt ?? null,
+      location: event.location ?? null,
+      address: event.address ?? null,
+      notes: event.notes ?? null,
+      visibility: event.visibility,
+      status: event.status,
+      practice_id: null,
+      game_id: null,
+      workout_session_id: null,
+      created_by: event.createdBy ?? null,
+      created_at: event.createdAt,
+      updated_at: event.updatedAt,
+    }));
+  const practiceRows = data.practices.map((practice) => ({
+    id: practice.id,
+    organization_id: foundation.organizationId,
+    team_id: foundation.teamId,
+    season_id: foundation.seasonId,
+    team_ids: [foundation.teamId],
+    event_type: "Practice",
+    title: practice.name || practice.type,
+    start_at: practice.startedAt,
+    end_at: practice.endedAt ?? null,
+    location: practice.location || null,
+    address: null,
+    notes: practice.notes ?? null,
+    visibility: "TEAM_ONLY",
+    status: practice.endedAt ? "Completed" : "Scheduled",
+    practice_id: practice.id,
+    game_id: null,
+    workout_session_id: null,
+    created_by: null,
+    created_at: practice.createdAt,
+    updated_at: practice.updatedAt,
+  }));
+  const gameRows = data.games.map((game) => ({
+    id: game.id,
+    organization_id: foundation.organizationId,
+    team_id: foundation.teamId,
+    season_id: foundation.seasonId,
+    team_ids: [foundation.teamId],
+    event_type: "Game",
+    title: `${game.homeAway === "Away" ? "@ " : "vs. "}${game.opponent}`,
+    start_at: game.startsAt ?? `${game.date}T12:00:00.000Z`,
+    end_at: null,
+    location: game.location || null,
+    address: null,
+    notes: game.type ?? null,
+    visibility: "PUBLIC",
+    status: game.result ? "Completed" : "Scheduled",
+    practice_id: null,
+    game_id: game.id,
+    workout_session_id: null,
+    created_by: null,
+    created_at: game.createdAt,
+    updated_at: game.updatedAt,
+  }));
+  const rows = [...genericRows, ...practiceRows, ...gameRows];
+  if (rows.length === 0) return;
+  const { error } = await supabase.from("schedule_events").upsert(rows, { onConflict: "id" });
+  if (error) {
+    if (isMissingScheduleEventsTable(error)) return;
+    throw new PersistenceError("save-failed", error.message);
+  }
 }
 
 async function syncNotesAndGoals(supabase: SupabaseClient, foundation: Foundation, data: AppData) {
@@ -1880,6 +2001,14 @@ function isMissingProfilePinsTable(error: { code?: string; message?: string }) {
   return error.code === "42P01" || message.includes("profile_team_pins");
 }
 
+function isMissingScheduleEventsTable(error: { code?: string; message?: string }) {
+  return (
+    error.code === "42P01" ||
+    error.code === "PGRST205" ||
+    /(relation|table).*schedule_events.*(does not exist|not found)|could not find.*schedule_events/i.test(error.message ?? "")
+  );
+}
+
 function isMissingStaffTables(error: { code?: string; message?: string }) {
   return (
     error.code === "42P01" ||
@@ -2081,6 +2210,31 @@ function mapWorkoutEntry(row: any, exercise?: any): WorkoutEntry {
   };
 }
 
+function mapScheduleEvent(row: any): ScheduleEvent {
+  return {
+    id: row.id,
+    organizationId: row.organization_id ?? undefined,
+    teamId: row.team_id ?? undefined,
+    seasonId: row.season_id ?? undefined,
+    teamIds: row.team_ids ?? [],
+    eventType: row.event_type,
+    title: row.title,
+    startAt: row.start_at,
+    endAt: row.end_at ?? undefined,
+    location: row.location ?? undefined,
+    address: row.address ?? undefined,
+    notes: row.notes ?? undefined,
+    visibility: row.visibility ?? "TEAM_ONLY",
+    status: row.status ?? "Scheduled",
+    practiceId: row.practice_id ?? undefined,
+    gameId: row.game_id ?? undefined,
+    workoutSessionId: row.workout_session_id ?? undefined,
+    createdBy: row.created_by ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function mapGame(row: any, lineupRows: any[]): Game {
   const gameLineups = lineupRows.filter((lineup) => lineup.game_id === row.id).sort((a, b) => (a.batting_order ?? 99) - (b.batting_order ?? 99));
   const positions: Game["positions"] = {};
@@ -2090,6 +2244,7 @@ function mapGame(row: any, lineupRows: any[]): Game {
   return {
     id: row.id,
     date: row.game_date,
+    startsAt: row.starts_at ?? undefined,
     opponent: row.opponent,
     homeAway: row.home_away,
     location: row.location ?? "",

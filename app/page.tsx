@@ -3,6 +3,8 @@
 import {
   BarChart3,
   Building2,
+  CalendarDays,
+  CalendarPlus,
   ChevronLeft,
   Check,
   ChevronDown,
@@ -19,6 +21,7 @@ import {
   Lock,
   LogOut,
   Mail,
+  MapPin,
   Moon,
   MoreHorizontal,
   Plus,
@@ -112,6 +115,10 @@ import type {
   PublicDirectoryOrganizationSummary,
   PublicDirectoryTeamSummary,
   RosterStatus,
+  ScheduleEvent,
+  ScheduleEventStatus,
+  ScheduleEventType,
+  ScheduleEventVisibility,
   StaffAccessRole,
   StaffBaseballRole,
   StaffInvitation,
@@ -123,7 +130,7 @@ import type {
   ZonePoint,
 } from "./types";
 
-type ViewKey = "home" | "organizations" | "teams" | "following" | "discover" | "teamHome" | "roster" | "practice" | "weights" | "games" | "analytics" | "profile" | "account";
+type ViewKey = "home" | "organizations" | "teams" | "following" | "discover" | "teamHome" | "schedule" | "roster" | "practice" | "weights" | "games" | "analytics" | "profile" | "account";
 type PracticeMode = "Hitting" | "Pitching" | "Defense" | "Live BP";
 type RosterFilter = "All" | RosterStatus;
 type RosterSection = "Players" | "Staff";
@@ -136,36 +143,56 @@ type AnalyticsContext = "All" | "Practice" | "Game" | "Live BP" | "Weight Room";
 type DateFilter = "Last Week" | "Last 30 Days" | "Fall";
 type PracticeRosterPreset = "All" | "Varsity" | "JV" | "Custom";
 type LiveBpOutcomeLabel = "K" | "BB" | "HBP" | "1B" | "2B" | "3B" | "HR" | "Out" | "Error" | "FC";
+type AppIcon = React.ComponentType<{ size?: number | string; "aria-hidden"?: boolean | "true" | "false"; className?: string }>;
+type ScheduleViewMode = "Calendar" | "Week" | "Agenda";
+type ScheduleSource = "practice" | "game" | "lift" | "event";
 
-const GLOBAL_NAV_ITEMS: Array<{ key: ViewKey; label: string; shortLabel: string; icon: LucideIcon }> = [
+interface ScheduleItem {
+  id: ID;
+  source: ScheduleSource;
+  sourceId: ID;
+  eventType: ScheduleEventType;
+  title: string;
+  startAt: string;
+  endAt?: string;
+  date: string;
+  location?: string;
+  notes?: string;
+  visibility: ScheduleEventVisibility;
+  status: ScheduleEventStatus;
+  accent: string;
+}
+
+const GLOBAL_NAV_ITEMS: Array<{ key: ViewKey; label: string; shortLabel: string; icon: AppIcon }> = [
   { key: "home", label: "Home", shortLabel: "Home", icon: Home },
   { key: "following", label: "Following", shortLabel: "Following", icon: Star },
   { key: "discover", label: "Discover", shortLabel: "Search", icon: Search },
   { key: "account", label: "Profile", shortLabel: "Profile", icon: User },
 ];
-const TEAM_NAV_ITEMS: Array<{ key: ViewKey; label: string; shortLabel: string; icon: LucideIcon }> = [
+const TEAM_NAV_ITEMS: Array<{ key: ViewKey; label: string; shortLabel: string; icon: AppIcon }> = [
   { key: "teamHome", label: "Team Home", shortLabel: "Home", icon: Home },
+  { key: "schedule", label: "Schedule", shortLabel: "Schedule", icon: ScheduleCalendarIcon },
   { key: "roster", label: "Roster", shortLabel: "Roster", icon: Users },
   { key: "practice", label: "Practice", shortLabel: "Practice", icon: ClipboardList },
   { key: "weights", label: "Weight Room", shortLabel: "Weights", icon: Dumbbell },
-  { key: "games", label: "Games", shortLabel: "Games", icon: Gauge },
+  { key: "games", label: "Games", shortLabel: "Games", icon: BaseballIcon },
   { key: "analytics", label: "Analytics", shortLabel: "Analytics", icon: BarChart3 },
 ];
-const MOBILE_NAV_ITEMS: Array<{ key: ViewKey | "more"; label: string; shortLabel: string; icon: LucideIcon }> = [
+const MOBILE_NAV_ITEMS: Array<{ key: ViewKey | "more"; label: string; shortLabel: string; icon: AppIcon }> = [
   { key: "home", label: "Home", shortLabel: "Home", icon: Home },
   { key: "following", label: "Following", shortLabel: "Following", icon: Star },
   { key: "discover", label: "Discover", shortLabel: "Search", icon: Search },
   { key: "more", label: "More", shortLabel: "More", icon: MoreHorizontal },
 ];
-const TEAM_MOBILE_NAV_ITEMS: Array<{ key: ViewKey | "more"; label: string; shortLabel: string; icon: LucideIcon }> = [
+const TEAM_MOBILE_NAV_ITEMS: Array<{ key: ViewKey | "more"; label: string; shortLabel: string; icon: AppIcon }> = [
   { key: "teamHome", label: "Team Home", shortLabel: "Home", icon: Home },
-  { key: "roster", label: "Roster", shortLabel: "Roster", icon: Users },
+  { key: "schedule", label: "Schedule", shortLabel: "Schedule", icon: ScheduleCalendarIcon },
   { key: "practice", label: "Practice", shortLabel: "Practice", icon: ClipboardList },
-  { key: "games", label: "Games", shortLabel: "Games", icon: Gauge },
+  { key: "games", label: "Games", shortLabel: "Games", icon: BaseballIcon },
   { key: "more", label: "More", shortLabel: "More", icon: MoreHorizontal },
 ];
-const MORE_VIEWS: ViewKey[] = ["organizations", "weights", "analytics", "account"];
-const TEAM_CONTEXT_VIEWS = new Set<ViewKey>(["teamHome", "roster", "practice", "weights", "games", "analytics", "profile"]);
+const MORE_VIEWS: ViewKey[] = ["organizations", "roster", "weights", "analytics", "account"];
+const TEAM_CONTEXT_VIEWS = new Set<ViewKey>(["teamHome", "schedule", "roster", "practice", "weights", "games", "analytics", "profile"]);
 const CREATE_TEAM_VALUE = "__create_team__";
 const ROUTABLE_VIEWS = new Set<ViewKey>([
   ...GLOBAL_NAV_ITEMS.map((item) => item.key),
@@ -211,6 +238,18 @@ const HITTING_STATIONS: HittingSession["type"][] = ["Tee", "Front Toss", "Machin
 const PITCHING_STATIONS: PitchingSession["type"][] = ["Bullpen", "Live BP"];
 const DEFENSE_STATIONS: DefenseStation[] = ["Infield", "Outfield", "Catching", "PFP", "Situational defense", "Team defense"];
 const GAME_TYPES: GameType[] = ["Fall Game", "Scrimmage", "Showcase", "Regular Season", "Tournament", "Other"];
+const SCHEDULE_EVENT_TYPES: ScheduleEventType[] = ["Practice", "Game", "Lift", "Scrimmage", "Meeting", "Team Event", "Tournament", "Other"];
+const SCHEDULE_VISIBILITIES: ScheduleEventVisibility[] = ["TEAM_ONLY", "PUBLIC", "PRIVATE"];
+const SCHEDULE_EVENT_ACCENTS: Record<ScheduleEventType, string> = {
+  Practice: "practice",
+  Game: "game",
+  Lift: "lift",
+  Scrimmage: "scrimmage",
+  Meeting: "meeting",
+  "Team Event": "team-event",
+  Tournament: "tournament",
+  Other: "other",
+};
 const GAME_PITCH_BUTTONS: GamePitchOutcome[] = ["Ball", "Called Strike", "Swinging Strike", "Foul", "In Play"];
 const BIP_OUTCOMES: GameBallInPlayOutcome[] = ["Single", "Double", "Triple", "Home Run", "Ground Out", "Fly Out", "Line Out", "Pop Out", "Error", "Fielder's Choice", "Sac Fly", "Sac Bunt"];
 const LIVE_BP_OUTCOMES: LiveBpOutcomeLabel[] = ["K", "BB", "HBP", "1B", "2B", "3B", "HR", "Out", "Error", "FC"];
@@ -258,6 +297,56 @@ function defaultLevelForTeamType(teamType: string) {
   return teamType === "School" ? "Varsity" : "18U";
 }
 
+type SvgIconProps = React.SVGProps<SVGSVGElement> & { size?: number | string };
+
+function BaseballIcon(props: SvgIconProps) {
+  // eslint-disable-next-line react/prop-types
+  const { size = 18, className, ...svgProps } = props;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...svgProps}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M7.5 4.5c2.2 2.2 3.4 4.7 3.4 7.5s-1.2 5.3-3.4 7.5" />
+      <path d="M16.5 4.5c-2.2 2.2-3.4 4.7-3.4 7.5s1.2 5.3 3.4 7.5" />
+      <path d="M8.2 7.8h2.1M8.8 10.2h2.1M8.8 13.8h2.1M8.2 16.2h2.1" />
+      <path d="M13.7 7.8h2.1M13.1 10.2h2.1M13.1 13.8h2.1M13.7 16.2h2.1" />
+    </svg>
+  );
+}
+
+function ScheduleCalendarIcon(props: SvgIconProps) {
+  // eslint-disable-next-line react/prop-types
+  const { size = 18, className, ...svgProps } = props;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      {...svgProps}
+    >
+      <rect x="4" y="5" width="16" height="15" rx="3" />
+      <path d="M8 3.5v4M16 3.5v4M4.5 9.5h15" />
+      <path d="M8 13h2M13 13h3M8 16h2M13 16h3" />
+    </svg>
+  );
+}
+
 function rosterFileSignature(file: File) {
   return `${file.name.toLowerCase()}::${file.size}::${file.lastModified}`;
 }
@@ -299,6 +388,7 @@ export default function MetrolinaBaseballApp() {
   const [weightForm, setWeightForm] = useState({ exercise: "Back Squat", weight: "225", reps: "5", sets: "3", effort: "8" });
   const [startPracticeOpen, setStartPracticeOpen] = useState(false);
   const [startGameOpen, setStartGameOpen] = useState(false);
+  const [scheduleEventOpen, setScheduleEventOpen] = useState(false);
   const [playerEditorOpen, setPlayerEditorOpen] = useState(false);
   const [rosterImportOpen, setRosterImportOpen] = useState(false);
   const [staffInviteOpen, setStaffInviteOpen] = useState(false);
@@ -1196,6 +1286,40 @@ export default function MetrolinaBaseballApp() {
     setPracticeSummaryOpen(false);
   }
 
+  function createPracticeRecord(practiceDraft: Practice, attendanceDraft: PracticeAttendance[], options: { openPractice?: boolean } = {}) {
+    commit((current) => ({
+      ...current,
+      practices: [practiceDraft, ...current.practices],
+      attendance: [...attendanceDraft, ...current.attendance],
+      settings: { ...current.settings, activePracticeId: options.openPractice ? practiceDraft.id : current.settings.activePracticeId },
+    }));
+    if (options.openPractice) {
+      navigateToView("practice");
+      setPracticeTrackingOpen(false);
+      if (practiceDraft.playerIds[0]) {
+        setPracticePlayerId(practiceDraft.playerIds[0]);
+        setSelectedPlayerId(practiceDraft.playerIds[0]);
+      }
+    }
+  }
+
+  function createGameRecord(game: Game, options: { openGame?: boolean } = {}) {
+    commit((current) => gameRepository.upsert(current, game));
+    setSelectedGameId(game.id);
+    if (options.openGame) navigateToView("games");
+  }
+
+  function createScheduleEvent(event: ScheduleEvent) {
+    commit((current) => ({ ...current, scheduleEvents: [event, ...(current.scheduleEvents ?? [])] }));
+  }
+
+  function updateScheduleEvent(event: ScheduleEvent) {
+    commit((current) => ({
+      ...current,
+      scheduleEvents: (current.scheduleEvents ?? []).map((item) => (item.id === event.id ? event : item)),
+    }));
+  }
+
   function addWorkoutEntry() {
     if (!data) return;
     const player = data.players.find((item) => item.id === selectedWeightPlayerId);
@@ -1320,8 +1444,8 @@ export default function MetrolinaBaseballApp() {
           </button>
           {inTeamContext && (
             <button className="context-back-button" type="button" onClick={returnToClubhouseHome}>
-              <ChevronRight size={14} aria-hidden="true" />
-              Clubhouse Home
+              <ChevronLeft size={14} aria-hidden="true" />
+              <span>Clubhouse Home</span>
             </button>
           )}
         </div>
@@ -1454,13 +1578,25 @@ export default function MetrolinaBaseballApp() {
         {view === "teamHome" && (
           <HomeDashboard
             data={data}
-            practice={practice}
             weeklyMvp={weeklyMvp}
             weightLeader={weightLeader}
             onView={goToView}
             onOpenPlayer={openPlayer}
             onStartPractice={() => setStartPracticeOpen(true)}
             onStartGame={() => setStartGameOpen(true)}
+          />
+        )}
+
+        {view === "schedule" && (
+          <ScheduleView
+            data={data}
+            onAddEvent={() => setScheduleEventOpen(true)}
+            onView={goToView}
+            onOpenGame={(gameId) => {
+              setSelectedGameId(gameId);
+              goToView("games");
+            }}
+            onUpdateScheduleEvent={updateScheduleEvent}
           />
         )}
 
@@ -1653,7 +1789,7 @@ export default function MetrolinaBaseballApp() {
           <button
             key={key}
             type="button"
-            className={(key === "more" ? MORE_VIEWS.includes(view) || (inTeamContext && ["weights", "analytics", "account"].includes(view)) : view === key) ? "active" : ""}
+            className={(key === "more" ? MORE_VIEWS.includes(view) || (inTeamContext && ["roster", "weights", "analytics", "account"].includes(view)) : view === key) ? "active" : ""}
             onClick={() => {
               if (key === "more") {
                 setMobileMoreOpen((open) => !open);
@@ -1683,6 +1819,12 @@ export default function MetrolinaBaseballApp() {
               Organizations
             </button>
           )}
+          {inTeamContext && (
+            <button type="button" onClick={() => { goToView("roster"); setMobileMoreOpen(false); }}>
+              <Users size={17} aria-hidden="true" />
+              Roster
+            </button>
+          )}
           <button type="button" onClick={() => { goToView("weights"); setMobileMoreOpen(false); }}>
             <Dumbbell size={17} aria-hidden="true" />
             Weight Room
@@ -1695,10 +1837,12 @@ export default function MetrolinaBaseballApp() {
             <User size={17} aria-hidden="true" />
             My Profile
           </button>
-          <button type="button" onClick={() => { goToView("teams"); setMobileMoreOpen(false); }}>
-            <Building2 size={17} aria-hidden="true" />
-            Teams
-          </button>
+          {!inTeamContext && (
+            <button type="button" onClick={() => { goToView("teams"); setMobileMoreOpen(false); }}>
+              <Building2 size={17} aria-hidden="true" />
+              Teams
+            </button>
+          )}
           <button type="button" onClick={() => { toggleTheme(); setMobileMoreOpen(false); }}>
             {data.settings.theme === "dark" ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
             {data.settings.theme === "dark" ? "Light" : "Dark"}
@@ -1711,19 +1855,8 @@ export default function MetrolinaBaseballApp() {
           data={data}
           onClose={() => setStartPracticeOpen(false)}
           onCreate={(practiceDraft, attendanceDraft) => {
-            commit((current) => ({
-              ...current,
-              practices: [practiceDraft, ...current.practices],
-              attendance: [...attendanceDraft, ...current.attendance],
-              settings: { ...current.settings, activePracticeId: practiceDraft.id },
-            }));
+            createPracticeRecord(practiceDraft, attendanceDraft, { openPractice: true });
             setStartPracticeOpen(false);
-            navigateToView("practice");
-            setPracticeTrackingOpen(false);
-            if (practiceDraft.playerIds[0]) {
-              setPracticePlayerId(practiceDraft.playerIds[0]);
-              setSelectedPlayerId(practiceDraft.playerIds[0]);
-            }
           }}
         />
       )}
@@ -1733,10 +1866,27 @@ export default function MetrolinaBaseballApp() {
           data={data}
           onClose={() => setStartGameOpen(false)}
           onCreate={(game) => {
-            commit((current) => gameRepository.upsert(current, game));
-            setSelectedGameId(game.id);
+            createGameRecord(game, { openGame: true });
             setStartGameOpen(false);
-            navigateToView("games");
+          }}
+        />
+      )}
+
+      {scheduleEventOpen && (
+        <ScheduleEventModal
+          data={data}
+          onClose={() => setScheduleEventOpen(false)}
+          onCreatePractice={(practiceDraft, attendanceDraft) => {
+            createPracticeRecord(practiceDraft, attendanceDraft);
+            setScheduleEventOpen(false);
+          }}
+          onCreateGame={(game) => {
+            createGameRecord(game);
+            setScheduleEventOpen(false);
+          }}
+          onCreateEvent={(event) => {
+            createScheduleEvent(event);
+            setScheduleEventOpen(false);
           }}
         />
       )}
@@ -4127,7 +4277,6 @@ function FormSnapshot({ title, primary, secondary }: { title: string; primary: s
 
 function HomeDashboard({
   data,
-  practice,
   weeklyMvp,
   weightLeader,
   onView,
@@ -4136,7 +4285,6 @@ function HomeDashboard({
   onStartGame,
 }: {
   data: AppData;
-  practice?: Practice;
   weeklyMvp?: AwardResult;
   weightLeader?: WeightLeaderResult;
   onView: (view: ViewKey) => void;
@@ -4144,7 +4292,12 @@ function HomeDashboard({
   onStartPractice: () => void;
   onStartGame: () => void;
 }) {
-  const upcomingGame = data.games.find((game) => !game.result);
+  const scheduleItems = buildScheduleItems(data);
+  const today = todayKey();
+  const nextItems = scheduleItems.filter((item) => isUpcomingScheduleItem(item) && item.status !== "Cancelled").slice(0, 5);
+  const todaysPractice = nextItems.find((item) => item.eventType === "Practice" && item.date === today);
+  const nextPractice = todaysPractice ?? nextItems.find((item) => item.eventType === "Practice");
+  const nextGame = nextItems.find((item) => item.eventType === "Game");
   const activeRoster = data.players.filter((player) => !player.archived && player.rosterStatus !== "Cut");
   const rosterPitchers = activeRoster.filter((player) => player.isPitcher).length;
   const rosterHitters = activeRoster.filter((player) => player.isHitter).length;
@@ -4157,18 +4310,18 @@ function HomeDashboard({
       <section className="home-ops-grid">
         <HomeInfoCard
           icon={ClipboardList}
-          title="Today's Practice"
-          primary={practice ? formatTime(practice.startedAt) : "No practice scheduled"}
-          meta={practice ? practice.location : "Start practice when coaches arrive"}
-          onClick={practice ? () => onView("practice") : onStartPractice}
-          cta={practice ? "Open" : "Start"}
+          title={todaysPractice ? "Today's Practice" : "Next Practice"}
+          primary={nextPractice ? formatTime(nextPractice.startAt) : "No practice scheduled"}
+          meta={nextPractice ? [nextPractice.title, nextPractice.location].filter(Boolean).join(" - ") : "Create the next practice when ready"}
+          onClick={nextPractice ? () => onView(nextPractice.source === "practice" ? "practice" : "schedule") : onStartPractice}
+          cta={nextPractice ? "Open" : "Start"}
         />
         <HomeInfoCard
-          icon={Gauge}
+          icon={BaseballIcon}
           title="Next Game"
-          primary={upcomingGame ? `${upcomingGame.homeAway === "Home" ? "vs" : "at"} ${upcomingGame.opponent}` : "No game scheduled"}
-          meta={upcomingGame ? `${shortDate(upcomingGame.date)} - ${upcomingGame.location}` : "Create the next game when ready"}
-          onClick={upcomingGame ? () => onView("games") : onStartGame}
+          primary={nextGame ? nextGame.title : "No game scheduled"}
+          meta={nextGame ? `${shortDate(nextGame.date)} - ${nextGame.location ?? "Location TBD"}` : "Create the next game when ready"}
+          onClick={nextGame ? () => onView("games") : onStartGame}
         />
         <HomeInfoCard
           icon={Users}
@@ -4182,6 +4335,7 @@ function HomeDashboard({
       <section className="home-secondary-grid">
         <AwardCard title="Player of the Week" award={weeklyMvp} onOpenPlayer={onOpenPlayer} icon={Trophy} />
         <WeightLeaderCard leader={weightLeader} onOpenPlayer={onOpenPlayer} />
+        <UpcomingScheduleCard items={nextItems} onView={onView} />
         <RecentActivityCard activities={buildTeamRecentActivity(data).slice(0, 5)} onOpenPlayer={onOpenPlayer} />
       </section>
 
@@ -4196,6 +4350,257 @@ function HomeDashboard({
         ]}
       />
     </div>
+  );
+}
+
+function ScheduleView({
+  data,
+  onAddEvent,
+  onView,
+  onOpenGame,
+  onUpdateScheduleEvent,
+}: {
+  data: AppData;
+  onAddEvent: () => void;
+  onView: (view: ViewKey) => void;
+  onOpenGame: (gameId: ID) => void;
+  onUpdateScheduleEvent: (event: ScheduleEvent) => void;
+}) {
+  const [mode, setMode] = useState<ScheduleViewMode>(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 720px)").matches ? "Agenda" : "Calendar",
+  );
+  const [cursor, setCursor] = useState(() => new Date());
+  const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
+  const items = useMemo(() => buildScheduleItems(data), [data]);
+  const upcomingItems = items.filter((item) => isUpcomingScheduleItem(item) && item.status !== "Cancelled").slice(0, 6);
+  const cursorMonthLabel = cursor.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  function moveCursor(amount: number) {
+    setCursor((current) => {
+      const next = new Date(current);
+      if (mode === "Week") next.setDate(next.getDate() + amount * 7);
+      else next.setMonth(next.getMonth() + amount);
+      return next;
+    });
+  }
+
+  return (
+    <div className="page-stack schedule-page">
+      <SectionHeader
+        title="Schedule"
+        context={teamContextLine(data.teamContext?.currentTeam)}
+        action={(
+          <button type="button" className="primary-button" onClick={onAddEvent}>
+            <CalendarPlus size={16} aria-hidden="true" />
+            Add Event
+          </button>
+        )}
+      />
+
+      <section className="panel schedule-toolbar">
+        <div className="schedule-toolbar__date">
+          <button type="button" className="icon-button" onClick={() => moveCursor(-1)} aria-label="Previous period"><ChevronLeft size={17} aria-hidden="true" /></button>
+          <strong>{mode === "Week" ? weekRangeLabel(cursor) : cursorMonthLabel}</strong>
+          <button type="button" className="icon-button" onClick={() => moveCursor(1)} aria-label="Next period"><ChevronRight size={17} aria-hidden="true" /></button>
+        </div>
+        <SegmentedControl values={["Calendar", "Week", "Agenda"] as ScheduleViewMode[]} active={mode} onChange={setMode} />
+        <button type="button" className="secondary-button" onClick={() => setCursor(new Date())}>Today</button>
+      </section>
+
+      <section className="schedule-layout">
+        <div className="schedule-main">
+          {mode === "Calendar" && <ScheduleMonthView cursor={cursor} items={items} onSelect={setSelectedItem} />}
+          {mode === "Week" && <ScheduleWeekView cursor={cursor} items={items} onSelect={setSelectedItem} />}
+          {mode === "Agenda" && <ScheduleAgendaView items={items} onSelect={setSelectedItem} />}
+        </div>
+        <aside className="schedule-side">
+          <article className="panel schedule-next-card">
+            <div className="panel-heading tight">
+              <div>
+                <span>Next Up</span>
+                <h2>Upcoming</h2>
+              </div>
+              <button type="button" className="text-button" onClick={() => setMode("Agenda")}>Agenda</button>
+            </div>
+            {upcomingItems.length ? upcomingItems.map((item) => (
+              <button key={item.id} type="button" className="schedule-mini-row" onClick={() => setSelectedItem(item)}>
+                <ScheduleTypeIcon type={item.eventType} />
+                <span>
+                  <strong>{item.title}</strong>
+                  <small>{shortDate(item.date)} · {formatTime(item.startAt)}</small>
+                </span>
+              </button>
+            )) : (
+              <CompactEmpty title="No events scheduled yet." />
+            )}
+          </article>
+          <ScheduleDetailCard
+            data={data}
+            item={selectedItem}
+            onView={onView}
+            onOpenGame={onOpenGame}
+            onUpdateScheduleEvent={onUpdateScheduleEvent}
+          />
+        </aside>
+      </section>
+    </div>
+  );
+}
+
+function ScheduleMonthView({ cursor, items, onSelect }: { cursor: Date; items: ScheduleItem[]; onSelect: (item: ScheduleItem) => void }) {
+  const days = calendarDaysForMonth(cursor);
+  const currentMonth = cursor.getMonth();
+  return (
+    <article className="panel schedule-calendar">
+      <div className="schedule-calendar__weekdays">
+        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => <span key={day}>{day}</span>)}
+      </div>
+      <div className="schedule-calendar__grid">
+        {days.map((date) => {
+          const dateKey = isoDate(date);
+          const dayItems = items.filter((item) => item.date === dateKey);
+          return (
+            <div key={dateKey} className={`schedule-day ${date.getMonth() !== currentMonth ? "schedule-day--muted" : ""} ${isToday(dateKey) ? "schedule-day--today" : ""}`}>
+              <span className="schedule-day__number">{date.getDate()}</span>
+              <div className="schedule-day__events">
+                {dayItems.slice(0, 3).map((item) => (
+                  <button key={item.id} type="button" className={`schedule-chip schedule-chip--${item.accent}`} onClick={() => onSelect(item)}>
+                    <small>{formatTime(item.startAt)}</small>
+                    <span>{item.title}</span>
+                  </button>
+                ))}
+                {dayItems.length > 3 && <em>+{dayItems.length - 3} more</em>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </article>
+  );
+}
+
+function ScheduleWeekView({ cursor, items, onSelect }: { cursor: Date; items: ScheduleItem[]; onSelect: (item: ScheduleItem) => void }) {
+  const days = weekDates(cursor);
+  return (
+    <article className="panel schedule-week">
+      {days.map((date) => {
+        const dateKey = isoDate(date);
+        const dayItems = items.filter((item) => item.date === dateKey);
+        return (
+          <section key={dateKey} className={`schedule-week-day ${isToday(dateKey) ? "schedule-week-day--today" : ""}`}>
+            <header>
+              <strong>{date.toLocaleDateString("en-US", { weekday: "short" })}</strong>
+              <span>{date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+            </header>
+            <div>
+              {dayItems.length ? dayItems.map((item) => (
+                <button key={item.id} type="button" className={`schedule-week-event schedule-chip--${item.accent}`} onClick={() => onSelect(item)}>
+                  <small>{formatTime(item.startAt)}</small>
+                  <strong>{item.title}</strong>
+                  {item.location && <em>{item.location}</em>}
+                </button>
+              )) : <span className="schedule-week-empty">No events</span>}
+            </div>
+          </section>
+        );
+      })}
+    </article>
+  );
+}
+
+function ScheduleAgendaView({ items, onSelect }: { items: ScheduleItem[]; onSelect: (item: ScheduleItem) => void }) {
+  const upcoming = items.filter((item) => !isPastScheduleItem(item) || item.status !== "Completed").slice(0, 30);
+  const groups = groupScheduleItemsByDate(upcoming.length ? upcoming : items.slice(0, 20));
+  return (
+    <article className="panel schedule-agenda">
+      {groups.length ? groups.map((group) => (
+        <section key={group.date} className="schedule-agenda-group">
+          <h3>{agendaDateLabel(group.date)}</h3>
+          {group.items.map((item) => (
+            <button key={item.id} type="button" className="schedule-agenda-row" onClick={() => onSelect(item)}>
+              <time>{formatTime(item.startAt)}</time>
+              <ScheduleTypeIcon type={item.eventType} />
+              <span>
+                <strong>{item.title}</strong>
+                <small>{item.eventType}{item.location ? ` · ${item.location}` : ""}</small>
+              </span>
+              <em className={`schedule-status schedule-status--${item.status.toLowerCase()}`}>{item.status}</em>
+            </button>
+          ))}
+        </section>
+      )) : (
+        <CompactEmpty title="No events scheduled yet." />
+      )}
+    </article>
+  );
+}
+
+function ScheduleDetailCard({
+  data,
+  item,
+  onView,
+  onOpenGame,
+  onUpdateScheduleEvent,
+}: {
+  data: AppData;
+  item: ScheduleItem | null;
+  onView: (view: ViewKey) => void;
+  onOpenGame: (gameId: ID) => void;
+  onUpdateScheduleEvent: (event: ScheduleEvent) => void;
+}) {
+  if (!item) {
+    return (
+      <article className="panel schedule-detail-card">
+        <CompactEmpty title="Select an event to see details." />
+      </article>
+    );
+  }
+  const genericEvent = item.source === "event" ? (data.scheduleEvents ?? []).find((event) => event.id === item.sourceId) : undefined;
+  return (
+    <article className="panel schedule-detail-card">
+      <div className="schedule-detail-card__top">
+        <ScheduleTypeIcon type={item.eventType} />
+        <span>
+          <small>{item.eventType}</small>
+          <strong>{item.title}</strong>
+        </span>
+        <em className={`schedule-status schedule-status--${item.status.toLowerCase()}`}>{item.status}</em>
+      </div>
+      <div className="schedule-detail-list">
+        <span><CalendarDays size={15} aria-hidden="true" />{fullDate(item.date)}</span>
+        <span><ClockIcon />{formatTime(item.startAt)}{item.endAt ? ` - ${formatTime(item.endAt)}` : ""}</span>
+        {item.location && <span><MapPin size={15} aria-hidden="true" />{item.location}</span>}
+        {item.notes && <p>{item.notes}</p>}
+      </div>
+      <div className="schedule-detail-actions">
+        {item.source === "practice" && <button type="button" className="primary-button" onClick={() => onView("practice")}>Open Practice</button>}
+        {item.source === "game" && <button type="button" className="primary-button" onClick={() => onOpenGame(item.sourceId)}>View Game</button>}
+        {item.source === "lift" && <button type="button" className="primary-button" onClick={() => onView("weights")}>Open Weight Room</button>}
+        {genericEvent && genericEvent.status !== "Cancelled" && (
+          <button type="button" className="secondary-button" onClick={() => onUpdateScheduleEvent({ ...genericEvent, status: "Cancelled", updatedAt: new Date().toISOString() })}>
+            Cancel Event
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function ScheduleTypeIcon({ type }: { type: ScheduleEventType }) {
+  const className = `schedule-type-icon schedule-type-icon--${SCHEDULE_EVENT_ACCENTS[type]}`;
+  if (type === "Practice") return <span className={className}><ClipboardList size={16} aria-hidden="true" /></span>;
+  if (type === "Game") return <span className={className}><BaseballIcon size={16} aria-hidden="true" /></span>;
+  if (type === "Lift") return <span className={className}><Dumbbell size={16} aria-hidden="true" /></span>;
+  if (type === "Tournament") return <span className={className}><Trophy size={16} aria-hidden="true" /></span>;
+  return <span className={className}><CalendarDays size={16} aria-hidden="true" /></span>;
+}
+
+function ClockIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
   );
 }
 
@@ -5442,12 +5847,38 @@ function WeightRoomView({
   const weeklyRows = players.slice(0, 14).map((player) => buildWeeklyWorkoutRow(data, player));
   const entries = data.workoutEntries.filter((entry) => entry.playerId === selected?.id).slice(0, 8);
   const metrics = selected ? buildWeightMetrics(data, selected.id) : undefined;
+  const liftEvents = buildScheduleItems(data).filter((item) => item.eventType === "Lift").slice(0, 5);
 
   return (
     <div className="page-stack weights-page">
       <SectionHeader title="Weight Room" context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} - ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined} />
       <section className="weights-grid">
         <WeightLeaderCard leader={leader} onOpenPlayer={onOpenPlayer} />
+        <article className="panel weight-schedule-card">
+          <div className="panel-heading tight">
+            <div>
+              <span>Schedule</span>
+              <h2>Team Lifts</h2>
+            </div>
+            <ScheduleCalendarIcon size={18} aria-hidden="true" />
+          </div>
+          {liftEvents.length ? (
+            <div className="upcoming-schedule-list">
+              {liftEvents.map((item) => (
+                <button key={item.id} type="button">
+                  <time>{item.date === todayKey() ? "Today" : shortDate(item.date)}</time>
+                  <ScheduleTypeIcon type={item.eventType} />
+                  <span>
+                    <strong>{item.title}</strong>
+                    <small>{formatTime(item.startAt)}{item.location ? ` - ${item.location}` : ""}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <CompactEmpty title="No lifts scheduled yet" />
+          )}
+        </article>
         <article className="panel workout-entry">
           <div className="panel-heading tight">
             <div>
@@ -6055,10 +6486,12 @@ function StartPracticeModal({ data, onClose, onCreate }: { data: AppData; onClos
 
 function StartGameModal({ data, onClose, onCreate }: { data: AppData; onClose: () => void; onCreate: (game: Game) => void }) {
   const starters = data.players.filter((player) => !player.archived && player.rosterStatus !== "Cut").slice(0, 9).map((player) => player.id);
+  const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({
     opponent: "Charlotte Latin",
     homeAway: "Home" as Game["homeAway"],
-    date: "2026-08-15",
+    date: today,
+    time: "18:00",
     location: "Metrolina Varsity Field",
     type: "Fall Game" as GameType,
     startingPitcherId: data.players.find((player) => player.isPitcher)?.id ?? starters[0],
@@ -6071,6 +6504,7 @@ function StartGameModal({ data, onClose, onCreate }: { data: AppData; onClose: (
         <label><span>Opponent</span><input value={form.opponent} onChange={(event) => setForm({ ...form, opponent: event.target.value })} /></label>
         <div className="form-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, homeAway: value as Game["homeAway"] })} aria-label="Home or away" /></div>
         <label><span>Date</span><input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
+        <label><span>Time</span><input type="time" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} /></label>
         <label><span>Location</span><input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} /></label>
         <div className="form-field"><span>Game type</span><ChoiceSelect value={form.type} className="form-choice" options={GAME_TYPES.map((type) => ({ value: type, label: type }))} onChange={(value) => setForm({ ...form, type: value as GameType })} aria-label="Game type" /></div>
         <div className="form-field"><span>Starting pitcher</span><ChoiceSelect value={form.startingPitcherId ?? ""} className="form-choice" options={data.players.filter((player) => player.isPitcher).map((player) => ({ value: player.id, label: player.name }))} onChange={(value) => setForm({ ...form, startingPitcherId: value })} aria-label="Starting pitcher" /></div>
@@ -6079,6 +6513,7 @@ function StartGameModal({ data, onClose, onCreate }: { data: AppData; onClose: (
       <button className="primary-button stretch-button" type="button" onClick={() => onCreate({
         id: createId("game"),
         date: form.date,
+        startsAt: toLocalIso(form.date, form.time || "18:00"),
         opponent: form.opponent,
         homeAway: form.homeAway,
         location: form.location,
@@ -6101,6 +6536,184 @@ function StartGameModal({ data, onClose, onCreate }: { data: AppData; onClose: (
       })}>
         Open Scoring Console
       </button>
+    </ModalFrame>
+  );
+}
+
+function ScheduleEventModal({
+  data,
+  onClose,
+  onCreatePractice,
+  onCreateGame,
+  onCreateEvent,
+}: {
+  data: AppData;
+  onClose: () => void;
+  onCreatePractice: (practice: Practice, attendance: PracticeAttendance[]) => void;
+  onCreateGame: (game: Game) => void;
+  onCreateEvent: (event: ScheduleEvent) => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const currentTeam = data.teamContext?.currentTeam;
+  const availablePlayers = data.players.filter((player) => !player.archived && player.rosterStatus !== "Cut");
+  const starters = availablePlayers.slice(0, 9).map((player) => player.id);
+  const [eventType, setEventType] = useState<ScheduleEventType>("Practice");
+  const [form, setForm] = useState({
+    title: "Team Practice",
+    date: today,
+    startTime: "18:00",
+    endTime: "20:00",
+    location: currentTeam?.city && currentTeam?.state ? `${currentTeam.city}, ${currentTeam.state}` : "",
+    notes: "",
+    practiceType: "Team Practice" as PracticeType,
+    opponent: "",
+    homeAway: "Home" as Game["homeAway"],
+    gameType: "Scrimmage" as GameType,
+    visibility: "TEAM_ONLY" as ScheduleEventVisibility,
+  });
+
+  function chooseType(type: ScheduleEventType) {
+    setEventType(type);
+    setForm((current) => ({
+      ...current,
+      title:
+        type === "Practice" ? "Team Practice" :
+        type === "Game" ? (current.opponent ? `${current.homeAway === "Away" ? "at" : "vs."} ${current.opponent}` : "Game") :
+        type === "Lift" ? "Team Lift" :
+        type === "Scrimmage" ? "Scrimmage" :
+        type === "Meeting" ? "Team Meeting" :
+        type,
+      visibility: defaultScheduleVisibility(type, currentTeam),
+      gameType: type === "Tournament" ? "Tournament" : type === "Scrimmage" ? "Scrimmage" : current.gameType,
+    }));
+  }
+
+  function submit() {
+    const now = new Date().toISOString();
+    const startAt = toLocalIso(form.date, form.startTime || "18:00");
+    const endAt = form.endTime ? toLocalIso(form.date, form.endTime) : undefined;
+    if (eventType === "Practice") {
+      const selectedPlayers = availablePlayers;
+      const practice: Practice = {
+        id: createId("practice"),
+        date: form.date,
+        name: form.title || form.practiceType,
+        type: form.practiceType,
+        location: form.location,
+        notes: form.notes,
+        playerIds: selectedPlayers.map((player) => player.id),
+        pitcherIds: selectedPlayers.filter((player) => player.isPitcher).map((player) => player.id),
+        hitterIds: selectedPlayers.filter((player) => player.isHitter).map((player) => player.id),
+        startedAt: startAt,
+        endedAt: undefined,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const attendance = selectedPlayers.map((player) => ({
+        id: createId("att"),
+        practiceId: practice.id,
+        playerId: player.id,
+        role: (player.isPitcher && player.isHitter ? "Two-way" : player.isPitcher ? "Pitcher" : player.isHitter ? "Hitter" : "Observer") as PracticeAttendance["role"],
+        status: "Present" as PracticeAttendanceStatus,
+        checkedInAt: startAt,
+      }));
+      onCreatePractice(practice, attendance);
+      return;
+    }
+    if (eventType === "Game") {
+      const opponent = form.opponent.trim() || "Opponent";
+      onCreateGame({
+        id: createId("game"),
+        date: form.date,
+        startsAt: startAt,
+        opponent,
+        homeAway: form.homeAway,
+        location: form.location,
+        type: form.gameType,
+        metrolinaScore: 0,
+        opponentScore: 0,
+        inning: 1,
+        half: form.homeAway === "Home" ? "Top" : "Bottom",
+        outs: 0,
+        balls: 0,
+        strikes: 0,
+        runners: {},
+        lineup: starters,
+        positions: {},
+        startingPitcherId: data.players.find((player) => player.isPitcher)?.id ?? starters[0],
+        currentPitcherId: data.players.find((player) => player.isPitcher)?.id ?? starters[0],
+        currentBatterId: starters[0],
+        createdAt: now,
+        updatedAt: now,
+      });
+      return;
+    }
+    const title = form.title.trim() || eventType;
+    onCreateEvent({
+      id: createId("schedule"),
+      organizationId: currentTeam?.organizationId,
+      teamId: currentTeam?.teamId,
+      seasonId: currentTeam?.seasonId,
+      teamIds: currentTeam?.teamId ? [currentTeam.teamId] : [],
+      eventType,
+      title,
+      startAt,
+      endAt,
+      location: form.location,
+      notes: form.notes,
+      visibility: form.visibility,
+      status: "Scheduled",
+      createdBy: data.teamContext?.profile?.id,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  return (
+    <ModalFrame title="Add Event" onClose={onClose} panelClassName="schedule-event-modal">
+      <div className="schedule-event-type-grid">
+        {SCHEDULE_EVENT_TYPES.map((type) => (
+          <button key={type} type="button" className={eventType === type ? "active" : ""} onClick={() => chooseType(type)}>
+            <ScheduleTypeIcon type={type} />
+            <span>{type}</span>
+          </button>
+        ))}
+      </div>
+      <div className="schedule-event-form">
+        {eventType === "Practice" && (
+          <div className="form-field"><span>Practice Type</span><ChoiceSelect value={form.practiceType} className="form-choice" options={PRACTICE_TYPES.map((type) => ({ value: type, label: type }))} onChange={(value) => setForm({ ...form, practiceType: value as PracticeType, title: value })} aria-label="Practice type" /></div>
+        )}
+        {eventType === "Game" && (
+          <>
+            <label className="wide"><span>Opponent</span><input value={form.opponent} onChange={(event) => setForm({ ...form, opponent: event.target.value, title: `${form.homeAway === "Away" ? "at" : "vs."} ${event.target.value}` })} /></label>
+            <div className="form-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, homeAway: value as Game["homeAway"] })} aria-label="Home or away" /></div>
+            <div className="form-field"><span>Game Type</span><ChoiceSelect value={form.gameType} className="form-choice" options={GAME_TYPES.map((type) => ({ value: type, label: type }))} onChange={(value) => setForm({ ...form, gameType: value as GameType })} aria-label="Game type" /></div>
+          </>
+        )}
+        {eventType !== "Practice" && eventType !== "Game" && (
+          <label className="wide"><span>Title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
+        )}
+        <label><span>Date</span><input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
+        <label><span>Start</span><input type="time" value={form.startTime} onChange={(event) => setForm({ ...form, startTime: event.target.value })} /></label>
+        <label><span>End</span><input type="time" value={form.endTime} onChange={(event) => setForm({ ...form, endTime: event.target.value })} /></label>
+        <label className="wide"><span>Location</span><input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} /></label>
+        <div className="form-field"><span>Visibility</span><ChoiceSelect value={form.visibility} className="form-choice" options={SCHEDULE_VISIBILITIES.map((value) => ({ value, label: scheduleVisibilityLabel(value) }))} onChange={(value) => setForm({ ...form, visibility: value as ScheduleEventVisibility })} aria-label="Event visibility" /></div>
+        {currentTeam && (
+          <section className="practice-team-context wide" aria-label="Event team">
+            <span>Team</span>
+            <strong>{currentTeam.teamName}</strong>
+            <small>{currentTeam.seasonName ?? data.settings.rosterSeason}</small>
+          </section>
+        )}
+        <label className="wide"><span>Notes</span><textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
+      </div>
+      <div className="modal-actions">
+        <button type="button" className="secondary-button" onClick={onClose}>Cancel</button>
+        <button type="button" className="primary-button" onClick={submit}>
+          <CalendarPlus size={16} aria-hidden="true" />
+          Save Event
+        </button>
+      </div>
     </ModalFrame>
   );
 }
@@ -7749,7 +8362,7 @@ function HomeInfoCard({
   onClick,
   cta,
 }: {
-  icon: LucideIcon;
+  icon: AppIcon;
   title: string;
   primary: string;
   meta: string;
@@ -7878,6 +8491,37 @@ function WeightLeaderCard({ leader, onOpenPlayer }: { leader?: WeightLeaderResul
         </>
       ) : (
         <CompactEmpty title="No workouts yet" />
+      )}
+    </article>
+  );
+}
+
+function UpcomingScheduleCard({ items, onView }: { items: ScheduleItem[]; onView: (view: ViewKey) => void }) {
+  return (
+    <article className="panel upcoming-schedule-card">
+      <div className="award-card__top">
+        <span>Upcoming</span>
+        <button type="button" className="text-button" onClick={() => onView("schedule")}>View Schedule</button>
+      </div>
+      {items.length ? (
+        <div className="upcoming-schedule-list">
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onView(item.source === "game" ? "games" : item.source === "practice" ? "practice" : item.source === "lift" ? "weights" : "schedule")}
+            >
+              <time>{item.date === todayKey() ? "Today" : shortDate(item.date)}</time>
+              <ScheduleTypeIcon type={item.eventType} />
+              <span>
+                <strong>{item.title}</strong>
+                <small>{formatTime(item.startAt)}{item.location ? ` - ${item.location}` : ""}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <CompactEmpty title="No upcoming team events" />
       )}
     </article>
   );
@@ -8659,6 +9303,189 @@ function teamPracticeAttendancePct(data: AppData, activeRosterCount: number) {
   if (!data.practices.length || !activeRosterCount) return 0;
   const attended = data.practices.reduce((total, practice) => total + new Set(practice.playerIds).size, 0);
   return pct(attended, data.practices.length * activeRosterCount);
+}
+
+function buildScheduleItems(data: AppData): ScheduleItem[] {
+  const practiceItems: ScheduleItem[] = data.practices.map((practice) => ({
+    id: `practice-${practice.id}`,
+    source: "practice",
+    sourceId: practice.id,
+    eventType: "Practice",
+    title: practice.name || practice.type,
+    startAt: practice.startedAt,
+    endAt: practice.endedAt,
+    date: practice.date,
+    location: practice.location,
+    notes: practice.notes,
+    visibility: "TEAM_ONLY",
+    status: practice.endedAt ? "Completed" : "Scheduled",
+    accent: SCHEDULE_EVENT_ACCENTS.Practice,
+  }));
+
+  const gameItems: ScheduleItem[] = data.games.map((game) => ({
+    id: `game-${game.id}`,
+    source: "game",
+    sourceId: game.id,
+    eventType: "Game",
+    title: `${game.homeAway === "Away" ? "at" : "vs"} ${game.opponent}`,
+    startAt: game.startsAt ?? toLocalIso(game.date, "18:00"),
+    date: game.date,
+    location: game.location,
+    notes: game.type,
+    visibility: defaultScheduleVisibility("Game", data.teamContext?.currentTeam),
+    status: game.result ? "Completed" : "Scheduled",
+    accent: SCHEDULE_EVENT_ACCENTS.Game,
+  }));
+
+  const workoutsByDate = new Map<string, WorkoutSession[]>();
+  for (const session of data.workoutSessions) {
+    const dateSessions = workoutsByDate.get(session.date) ?? [];
+    dateSessions.push(session);
+    workoutsByDate.set(session.date, dateSessions);
+  }
+  const liftItems: ScheduleItem[] = [...workoutsByDate.entries()].map(([date, sessions]) => ({
+    id: `lift-${date}`,
+    source: "lift",
+    sourceId: sessions[0]?.id ?? date,
+    eventType: "Lift",
+    title: sessions.length > 1 ? `Team Lift (${sessions.length})` : "Team Lift",
+    startAt: toLocalIso(date, "16:00"),
+    date,
+    location: "Weight Room",
+    visibility: "TEAM_ONLY",
+    status: sessions.every((session) => session.completed) ? "Completed" : "Scheduled",
+    accent: SCHEDULE_EVENT_ACCENTS.Lift,
+  }));
+
+  const genericItems: ScheduleItem[] = (data.scheduleEvents ?? [])
+    .filter((event) => !event.practiceId && !event.gameId && !event.workoutSessionId)
+    .map((event) => ({
+      id: `event-${event.id}`,
+      source: "event",
+      sourceId: event.id,
+      eventType: event.eventType,
+      title: event.title,
+      startAt: event.startAt,
+      endAt: event.endAt,
+      date: dateKeyFromIso(event.startAt),
+      location: event.location,
+      notes: event.notes,
+      visibility: event.visibility,
+      status: event.status,
+      accent: SCHEDULE_EVENT_ACCENTS[event.eventType],
+    }));
+
+  return [...practiceItems, ...gameItems, ...liftItems, ...genericItems].sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
+}
+
+function toLocalIso(date: string, time = "12:00") {
+  const safeTime = time || "12:00";
+  return new Date(`${date}T${safeTime}:00`).toISOString();
+}
+
+function dateKeyFromIso(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  return localDateKey(date);
+}
+
+function todayKey() {
+  return localDateKey(new Date());
+}
+
+function isUpcomingScheduleItem(item: ScheduleItem) {
+  return Date.parse(item.startAt) >= Date.parse(`${todayKey()}T00:00:00`);
+}
+
+function isPastScheduleItem(item: ScheduleItem) {
+  return Date.parse(item.startAt) < Date.parse(`${todayKey()}T00:00:00`);
+}
+
+function isoDate(date: Date) {
+  return localDateKey(date);
+}
+
+function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isToday(dateKey: string) {
+  return dateKey === todayKey();
+}
+
+function calendarDaysForMonth(cursor: Date) {
+  const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+  const start = new Date(first);
+  const day = start.getDay();
+  start.setDate(start.getDate() - (day === 0 ? 6 : day - 1));
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return date;
+  });
+}
+
+function weekDates(cursor: Date) {
+  const start = new Date(cursor);
+  const day = start.getDay();
+  start.setDate(start.getDate() - (day === 0 ? 6 : day - 1));
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return date;
+  });
+}
+
+function weekRangeLabel(cursor: Date) {
+  const days = weekDates(cursor);
+  const first = days[0];
+  const last = days[6];
+  return `${first.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${last.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
+}
+
+function groupScheduleItemsByDate(items: ScheduleItem[]) {
+  const groups = new Map<string, ScheduleItem[]>();
+  for (const item of items) {
+    const group = groups.get(item.date) ?? [];
+    group.push(item);
+    groups.set(item.date, group);
+  }
+  return [...groups.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([date, groupItems]) => ({
+      date,
+      items: groupItems.sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt)),
+    }));
+}
+
+function agendaDateLabel(date: string) {
+  const today = todayKey();
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowKey = tomorrow.toISOString().slice(0, 10);
+  if (date === today) return "Today";
+  if (date === tomorrowKey) return "Tomorrow";
+  return fullDate(date);
+}
+
+function teamContextLine(team?: TeamOption) {
+  if (!team) return "Current team";
+  return `${team.teamName} - ${team.seasonName ?? "Current season"}`;
+}
+
+function defaultScheduleVisibility(type: ScheduleEventType, team?: TeamOption): ScheduleEventVisibility {
+  void team;
+  if (type === "Game" || type === "Tournament") return "PUBLIC";
+  return "TEAM_ONLY";
+}
+
+function scheduleVisibilityLabel(value: ScheduleEventVisibility) {
+  if (value === "TEAM_ONLY") return "Team only";
+  if (value === "PUBLIC") return "Public";
+  return "Private";
 }
 
 function weeklyRepCount(data: AppData) {

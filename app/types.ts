@@ -556,9 +556,37 @@ export interface WorkoutEntry {
   createdAt: string;
 }
 
+export type ScheduleEventType = "Practice" | "Game" | "Lift" | "Scrimmage" | "Meeting" | "Team Event" | "Tournament" | "Other";
+export type ScheduleEventStatus = "Scheduled" | "Completed" | "Cancelled" | "Postponed";
+export type ScheduleEventVisibility = "PUBLIC" | "TEAM_ONLY" | "PRIVATE";
+
+export interface ScheduleEvent {
+  id: ID;
+  organizationId?: ID;
+  teamId?: ID;
+  seasonId?: ID;
+  teamIds?: ID[];
+  eventType: ScheduleEventType;
+  title: string;
+  startAt: string;
+  endAt?: string;
+  location?: string;
+  address?: string;
+  notes?: string;
+  visibility: ScheduleEventVisibility;
+  status: ScheduleEventStatus;
+  practiceId?: ID;
+  gameId?: ID;
+  workoutSessionId?: ID;
+  createdBy?: ID;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Game {
   id: ID;
   date: string;
+  startsAt?: string;
   opponent: string;
   homeAway: "Home" | "Away";
   location: string;
@@ -700,6 +728,7 @@ export interface AppData {
   defenseEvents: DefenseEvent[];
   workoutSessions: WorkoutSession[];
   workoutEntries: WorkoutEntry[];
+  scheduleEvents: ScheduleEvent[];
   games: Game[];
   gameEvents: GameEvent[];
   plateAppearances: PlateAppearance[];

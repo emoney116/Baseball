@@ -726,6 +726,7 @@ export const sampleData: AppData = {
   defenseEvents,
   workoutSessions,
   workoutEntries,
+  scheduleEvents: [],
   games,
   gameEvents,
   plateAppearances: [],
