@@ -79,11 +79,10 @@ import {
   pct,
   playerHittingEvents,
   playerPitchEvents,
-  practiceHittingEvents,
-  practicePitchEvents,
   shortDate,
   trendByPractice,
 } from "./lib/stats";
+import { deriveConcurrentPracticeTotals, nextSessionSequence, touchSessionContributor } from "./lib/practiceConcurrency";
 import type {
   AppData,
   AppProfile,
@@ -153,6 +152,30 @@ type ScheduleSource = "practice" | "game" | "lift" | "event";
 type ScheduleDateFieldMode = "desktop" | "native";
 type TimePeriod = "AM" | "PM";
 type ScheduleEventFilter = "All" | ScheduleEventType;
+type PracticeSessionActivityMode = PracticeMode;
+
+type PracticeActiveSessionRow = {
+  id: ID;
+  mode: PracticeSessionActivityMode;
+  sessionId: ID;
+  title: string;
+  station?: string;
+  primaryPlayerId: ID;
+  secondaryPlayerId?: ID;
+  playerLine: string;
+  count: string;
+  contributors: string[];
+  isMine: boolean;
+  startedAt: string;
+};
+
+type PracticeActivityFeedRow = {
+  id: ID;
+  mode: PracticeSessionActivityMode;
+  time: string;
+  title: string;
+  detail: string;
+};
 
 interface ScheduleItem {
   id: ID;
@@ -536,11 +559,11 @@ export default function MetrolinaBaseballApp() {
     const pitching = data.pitchingSessions.filter((session) => session.practiceId === practice.id);
     const hitting = data.hittingSessions.filter((session) => session.practiceId === practice.id);
     const defense = data.defenseSessions.filter((session) => session.practiceId === practice.id);
-    const defenseReps = data.defenseEvents.filter((event) => event.practiceId === practice.id).length;
+    const totals = deriveConcurrentPracticeTotals(data, practice.id);
     return {
-      pitches: practicePitchEvents(data, practice.id).length,
-      swings: practiceHittingEvents(data, practice.id).filter((event) => event.action !== "Took pitch").length,
-      defenseReps,
+      pitches: totals.pitches,
+      swings: totals.swings,
+      defenseReps: totals.defense,
       defenders: new Set(defense.map((session) => session.playerId)).size,
       players: practice.playerIds.length,
       pitchers: new Set(pitching.map((session) => session.pitcherId)).size || practice.pitcherIds.length,
@@ -660,6 +683,33 @@ export default function MetrolinaBaseballApp() {
     setPracticeTrackingOpen(false);
   }
 
+  function resumePracticeSession(session: PracticeActiveSessionRow) {
+    setPracticeMode(session.mode);
+    setPracticePlayerId(session.primaryPlayerId);
+    setSelectedPlayerId(session.primaryPlayerId);
+    if (session.mode === "Hitting") setHittingStation((session.station as HittingSession["type"]) || "Machine");
+    if (session.mode === "Pitching") setPitchingStation((session.station as PitchingSession["type"]) || "Bullpen");
+    if (session.mode === "Defense") setDefenseStation((session.station as DefenseStation) || "Infield");
+    if (session.mode === "Live BP") {
+      setPitchingStation("Live BP");
+      setHittingStation("Live BP");
+      setLiveBpPitcherId(session.primaryPlayerId);
+      if (session.secondaryPlayerId) setLiveBpHitterId(session.secondaryPlayerId);
+    }
+    setPracticeDrilldown({ kind: "hub" });
+    setPracticeTrackingOpen(true);
+    if (!practice) return;
+    commit((current) => {
+      const profileId = current.teamContext?.profile?.id;
+      if (session.mode === "Hitting") return ensureHittingSession(current, practice, session.primaryPlayerId, (session.station as HittingSession["type"]) || "Machine", profileId).data;
+      if (session.mode === "Pitching") return ensurePitchingSession(current, practice, session.primaryPlayerId, (session.station as PitchingSession["type"]) || "Bullpen", profileId).data;
+      if (session.mode === "Defense") return ensureDefenseSession(current, practice, session.primaryPlayerId, (session.station as DefenseStation) || "Infield", profileId).data;
+      const pitchingNext = ensurePitchingSession(current, practice, session.primaryPlayerId, "Live BP", profileId, session.secondaryPlayerId);
+      if (!session.secondaryPlayerId) return pitchingNext.data;
+      return ensureHittingSession(pitchingNext.data, practice, session.secondaryPlayerId, "Live BP", profileId).data;
+    });
+  }
+
   function startConfiguredPracticeSession(input: {
     mode: PracticeMode;
     station?: HittingSession["type"] | PitchingSession["type"] | DefenseStation;
@@ -684,6 +734,25 @@ export default function MetrolinaBaseballApp() {
     setSelectedPlayerId(firstPlayerId);
     setPracticeDrilldown({ kind: "hub" });
     setPracticeTrackingOpen(true);
+
+    if (!practice) return;
+    commit((current) => {
+      const profileId = current.teamContext?.profile?.id;
+      if (input.mode === "Live BP" && input.liveBpPitcherId && input.liveBpHitterId) {
+        const pitchingNext = ensurePitchingSession(current, practice, input.liveBpPitcherId, "Live BP", profileId, input.liveBpHitterId);
+        const hittingNext = ensureHittingSession(pitchingNext.data, practice, input.liveBpHitterId, "Live BP", profileId);
+        return touchRecentPlayers(touchRecentPlayers(hittingNext.data, input.liveBpPitcherId), input.liveBpHitterId);
+      }
+      return input.playerIds.reduce((nextData, playerId) => {
+        const next =
+          input.mode === "Hitting"
+            ? ensureHittingSession(nextData, practice, playerId, (input.station as HittingSession["type"]) ?? hittingStation, profileId)
+            : input.mode === "Pitching"
+              ? ensurePitchingSession(nextData, practice, playerId, (input.station as PitchingSession["type"]) ?? pitchingStation, profileId)
+              : ensureDefenseSession(nextData, practice, playerId, (input.station as DefenseStation) ?? defenseStation, profileId);
+        return touchRecentPlayers(next.data, playerId);
+      }, current);
+    });
   }
 
   function updatePracticeAttendance(playerId: ID, status: PracticeAttendanceStatus) {
@@ -691,6 +760,7 @@ export default function MetrolinaBaseballApp() {
     const player = data.players.find((item) => item.id === playerId);
     if (!player) return;
     commit((current) => {
+      const now = new Date().toISOString();
       const existing = current.attendance.find((item) => item.practiceId === practice.id && item.playerId === playerId);
       const nextRow: PracticeAttendance = {
         id: existing?.id ?? createId("att"),
@@ -699,6 +769,8 @@ export default function MetrolinaBaseballApp() {
         role: existing?.role ?? (player.isPitcher && player.isHitter ? "Two-way" : player.isPitcher ? "Pitcher" : player.isHitter ? "Hitter" : "Observer"),
         status,
         checkedInAt: existing?.checkedInAt ?? practice.startedAt,
+        updatedByProfileId: current.teamContext?.profile?.id,
+        updatedAt: now,
       };
       return {
         ...current,
@@ -713,6 +785,7 @@ export default function MetrolinaBaseballApp() {
     if (!practice || !data) return;
     const roster = data.players.filter((player) => !player.archived && practice.playerIds.includes(player.id));
     commit((current) => {
+      const now = new Date().toISOString();
       const rows = new Map(current.attendance.filter((item) => item.practiceId === practice.id).map((item) => [item.playerId, item]));
       const nextAttendance = current.attendance.filter((item) => item.practiceId !== practice.id);
       const updatedRows = roster.map((player) => {
@@ -724,6 +797,8 @@ export default function MetrolinaBaseballApp() {
           role: existing?.role ?? (player.isPitcher && player.isHitter ? "Two-way" : player.isPitcher ? "Pitcher" : player.isHitter ? "Hitter" : "Observer"),
           status: "Present" as PracticeAttendanceStatus,
           checkedInAt: existing?.checkedInAt ?? practice.startedAt,
+          updatedByProfileId: current.teamContext?.profile?.id,
+          updatedAt: now,
         };
       });
       return { ...current, attendance: [...updatedRows, ...nextAttendance] };
@@ -1044,12 +1119,15 @@ export default function MetrolinaBaseballApp() {
   function logHitting(action: HittingEvent["action"], contactResult?: BattedBallType, contactQuality?: HittingContactQuality, direction: Direction = hitDirection) {
     if (!practice || !practicePlayer) return;
     commit((current) => {
-      const next = ensureHittingSession(current, practice, practicePlayer.id, hittingStation);
+      const profileId = current.teamContext?.profile?.id;
+      const next = ensureHittingSession(current, practice, practicePlayer.id, hittingStation, profileId);
       const session = next.session;
       const eventNumber = next.data.hittingEvents.filter((event) => event.sessionId === session.id).length + 1;
       const isBip = action === "Ball in play";
+      const eventId = createId("he");
+      const createdAt = new Date().toISOString();
       const event: HittingEvent = {
-        id: createId("he"),
+        id: eventId,
         practiceId: practice.id,
         sessionId: session.id,
         hitterId: practicePlayer.id,
@@ -1062,7 +1140,12 @@ export default function MetrolinaBaseballApp() {
         pitchType: hittingStation === "Machine" || hittingStation === "Live BP" ? selectedPitchType : undefined,
         velocity: hittingStation === "Machine" && velocity ? Number(velocity) : undefined,
         isLiveBp: hittingStation === "Live BP",
-        createdAt: new Date().toISOString(),
+        createdAt,
+        createdByProfileId: profileId,
+        entrySource: "COACH",
+        verificationStatus: "COACH_RECORDED",
+        idempotencyKey: eventId,
+        sessionSequence: nextSessionSequence(next.data.hittingEvents, session.id),
       };
       return touchRecentPlayers({ ...next.data, hittingEvents: [event, ...next.data.hittingEvents] }, practicePlayer.id);
     });
@@ -1071,7 +1154,8 @@ export default function MetrolinaBaseballApp() {
   function logPitch(outcome: PitchOutcome, battedBall?: BattedBallType) {
     if (!practice || !practicePlayer) return;
     commit((current) => {
-      const next = ensurePitchingSession(current, practice, practicePlayer.id, pitchingStation);
+      const profileId = current.teamContext?.profile?.id;
+      const next = ensurePitchingSession(current, practice, practicePlayer.id, pitchingStation, profileId);
       const session = next.session;
       const sessionEvents = next.data.pitchEvents.filter((event) => event.sessionId === session.id);
       const last = sessionEvents[0];
@@ -1081,8 +1165,10 @@ export default function MetrolinaBaseballApp() {
       const isZone = pitchLocation ? pitchLocation.x >= 0.22 && pitchLocation.x <= 0.78 && pitchLocation.y >= 0.18 && pitchLocation.y <= 0.82 : false;
       const countBefore = last?.countAfter ?? { balls: 0, strikes: 0 };
       const countAfter = nextCount(countBefore, outcome);
+      const eventId = createId("pe");
+      const createdAt = new Date().toISOString();
       const event: PitchEvent = {
-        id: createId("pe"),
+        id: eventId,
         practiceId: practice.id,
         sessionId: session.id,
         pitcherId: practicePlayer.id,
@@ -1105,7 +1191,12 @@ export default function MetrolinaBaseballApp() {
         location: pitchLocation,
         countBefore,
         countAfter,
-        createdAt: new Date().toISOString(),
+        createdAt,
+        createdByProfileId: profileId,
+        entrySource: "COACH",
+        verificationStatus: "COACH_RECORDED",
+        idempotencyKey: eventId,
+        sessionSequence: nextSessionSequence(next.data.pitchEvents, session.id),
       };
       return touchRecentPlayers({ ...next.data, pitchEvents: [event, ...next.data.pitchEvents] }, practicePlayer.id);
     });
@@ -1126,14 +1217,18 @@ export default function MetrolinaBaseballApp() {
     const isZone = pitchLocation ? pitchLocation.x >= 0.22 && pitchLocation.x <= 0.78 && pitchLocation.y >= 0.18 && pitchLocation.y <= 0.82 : false;
 
     commit((current) => {
-      const pitchingNext = ensurePitchingSession(current, practice, pitcher.id, "Live BP");
+      const profileId = current.teamContext?.profile?.id;
+      const pitchingNext = ensurePitchingSession(current, practice, pitcher.id, "Live BP", profileId, hitter.id);
       const pitchingSession = pitchingNext.session;
-      const hittingNext = ensureHittingSession(pitchingNext.data, practice, hitter.id, "Live BP");
+      const hittingNext = ensureHittingSession(pitchingNext.data, practice, hitter.id, "Live BP", profileId);
       const hittingSession = hittingNext.session;
       const pitchNumber = hittingNext.data.pitchEvents.filter((event) => event.sessionId === pitchingSession.id).length + 1;
       const eventNumber = hittingNext.data.hittingEvents.filter((event) => event.sessionId === hittingSession.id).length + 1;
+      const createdAt = new Date().toISOString();
+      const pitchEventId = createId("pe");
+      const hittingEventId = createId("he");
       const pitchEvent: PitchEvent = {
-        id: createId("pe"),
+        id: pitchEventId,
         practiceId: practice.id,
         sessionId: pitchingSession.id,
         pitcherId: pitcher.id,
@@ -1155,10 +1250,15 @@ export default function MetrolinaBaseballApp() {
         location: pitchLocation,
         countBefore,
         countAfter,
-        createdAt: new Date().toISOString(),
+        createdAt,
+        createdByProfileId: profileId,
+        entrySource: "COACH",
+        verificationStatus: "COACH_RECORDED",
+        idempotencyKey: pitchEventId,
+        sessionSequence: nextSessionSequence(hittingNext.data.pitchEvents, pitchingSession.id),
       };
       const hittingEvent: HittingEvent = {
-        id: createId("he"),
+        id: hittingEventId,
         practiceId: practice.id,
         sessionId: hittingSession.id,
         hitterId: hitter.id,
@@ -1172,7 +1272,12 @@ export default function MetrolinaBaseballApp() {
         pitchType: selectedPitchType,
         velocity: velocity ? Number(velocity) : undefined,
         isLiveBp: true,
-        createdAt: new Date().toISOString(),
+        createdAt,
+        createdByProfileId: profileId,
+        entrySource: "COACH",
+        verificationStatus: "COACH_RECORDED",
+        idempotencyKey: hittingEventId,
+        sessionSequence: nextSessionSequence(hittingNext.data.hittingEvents, hittingSession.id),
       };
       return touchRecentPlayers(
         touchRecentPlayers(
@@ -1193,8 +1298,9 @@ export default function MetrolinaBaseballApp() {
     if (!pitcher || !hitter) return;
 
     commit((current) => {
-      const pitchingNext = ensurePitchingSession(current, practice, pitcher.id, "Live BP");
-      const hittingNext = ensureHittingSession(pitchingNext.data, practice, hitter.id, "Live BP");
+      const profileId = current.teamContext?.profile?.id;
+      const pitchingNext = ensurePitchingSession(current, practice, pitcher.id, "Live BP", profileId, hitter.id);
+      const hittingNext = ensureHittingSession(pitchingNext.data, practice, hitter.id, "Live BP", profileId);
       const plateAppearance: PlateAppearance = {
         id: createId("pa"),
         practiceId: practice.id,
@@ -1230,11 +1336,14 @@ export default function MetrolinaBaseballApp() {
   function logDefense(outcome: DefenseOutcome, errorType?: DefenseEvent["errorType"]) {
     if (!practice || !practicePlayer) return;
     commit((current) => {
-      const next = ensureDefenseSession(current, practice, practicePlayer.id, defenseStation);
+      const profileId = current.teamContext?.profile?.id;
+      const next = ensureDefenseSession(current, practice, practicePlayer.id, defenseStation, profileId);
       const session = next.session;
       const eventNumber = next.data.defenseEvents.filter((event) => event.sessionId === session.id).length + 1;
+      const eventId = createId("de");
+      const createdAt = new Date().toISOString();
       const event: DefenseEvent = {
-        id: createId("de"),
+        id: eventId,
         practiceId: practice.id,
         sessionId: session.id,
         playerId: practicePlayer.id,
@@ -1246,7 +1355,12 @@ export default function MetrolinaBaseballApp() {
         decision: outcome === "Great Play" ? "Advanced" : "Correct",
         range: outcome === "Great Play" ? "Plus" : outcome === "Good Play" ? "Difficult" : "Routine",
         errorType: outcome === "Error" ? errorType ?? "Fielding" : undefined,
-        createdAt: new Date().toISOString(),
+        createdAt,
+        createdByProfileId: profileId,
+        entrySource: "COACH",
+        verificationStatus: "COACH_RECORDED",
+        idempotencyKey: eventId,
+        sessionSequence: nextSessionSequence(next.data.defenseEvents, session.id),
       };
       return touchRecentPlayers({ ...next.data, defenseEvents: [event, ...next.data.defenseEvents] }, practicePlayer.id);
     });
@@ -1318,7 +1432,7 @@ export default function MetrolinaBaseballApp() {
         return {
           ...current,
           hittingSessions: current.hittingSessions.map((session) =>
-            session.id === sessionSummary.sessionId ? { ...session, endedAt, summaryNote, sessionGrade: gradeSession(summaryNote) } : session,
+            session.id === sessionSummary.sessionId ? { ...session, endedAt, status: "COMPLETED", updatedAt: endedAt, summaryNote, sessionGrade: gradeSession(summaryNote) } : session,
           ),
         };
       }
@@ -1326,14 +1440,14 @@ export default function MetrolinaBaseballApp() {
         return {
           ...current,
           pitchingSessions: current.pitchingSessions.map((session) =>
-            session.id === sessionSummary.sessionId ? { ...session, endedAt, summaryNote, sessionGrade: gradeSession(summaryNote) } : session,
+            session.id === sessionSummary.sessionId ? { ...session, endedAt, status: "COMPLETED", updatedAt: endedAt, summaryNote, sessionGrade: gradeSession(summaryNote) } : session,
           ),
         };
       }
       return {
         ...current,
         defenseSessions: current.defenseSessions.map((session) =>
-          session.id === sessionSummary.sessionId ? { ...session, endedAt, summaryNote } : session,
+          session.id === sessionSummary.sessionId ? { ...session, endedAt, status: "COMPLETED", updatedAt: endedAt, summaryNote } : session,
         ),
       };
     });
@@ -1342,15 +1456,36 @@ export default function MetrolinaBaseballApp() {
 
   function endPractice() {
     if (!practice) return;
+    if (data) {
+      const activeSessions = [
+        ...data.hittingSessions.filter((session) => session.practiceId === practice.id && !session.endedAt && (session.status ?? "ACTIVE") === "ACTIVE"),
+        ...data.pitchingSessions.filter((session) => session.practiceId === practice.id && !session.endedAt && (session.status ?? "ACTIVE") === "ACTIVE"),
+        ...data.defenseSessions.filter((session) => session.practiceId === practice.id && !session.endedAt && (session.status ?? "ACTIVE") === "ACTIVE"),
+      ];
+      if (activeSessions.length > 0 && typeof window !== "undefined") {
+        const confirmed = window.confirm(`${activeSessions.length} session${activeSessions.length === 1 ? " is" : "s are"} still active. End all sessions and this practice?`);
+        if (!confirmed) return;
+      }
+    }
     setPracticeSummaryOpen(true);
   }
 
   function savePracticeSummary() {
     if (!practice) return;
+    const endedAt = new Date().toISOString();
     commit((current) => ({
       ...current,
       practices: current.practices.map((item) =>
-        item.id === practice.id ? { ...item, endedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : item,
+        item.id === practice.id ? { ...item, endedAt, updatedAt: endedAt } : item,
+      ),
+      hittingSessions: current.hittingSessions.map((session) =>
+        session.practiceId === practice.id && !session.endedAt ? { ...session, endedAt, status: "COMPLETED", updatedAt: endedAt } : session,
+      ),
+      pitchingSessions: current.pitchingSessions.map((session) =>
+        session.practiceId === practice.id && !session.endedAt ? { ...session, endedAt, status: "COMPLETED", updatedAt: endedAt } : session,
+      ),
+      defenseSessions: current.defenseSessions.map((session) =>
+        session.practiceId === practice.id && !session.endedAt ? { ...session, endedAt, status: "COMPLETED", updatedAt: endedAt } : session,
       ),
       settings: { ...current.settings, activePracticeId: undefined },
     }));
@@ -1725,6 +1860,7 @@ export default function MetrolinaBaseballApp() {
             onTab={setPracticeHubTab}
             onStartPractice={() => setStartPracticeOpen(true)}
             onOpenStation={openPracticeStation}
+            onOpenSession={resumePracticeSession}
             onOpenAttendance={() => (practice ? setPracticeDrilldown({ kind: "attendance" }) : setStartPracticeOpen(true))}
             onEndPractice={endPractice}
             onOpenPlayer={openPlayer}
@@ -5567,6 +5703,7 @@ function PracticeHome({
   onTab,
   onStartPractice,
   onOpenStation,
+  onOpenSession,
   onOpenAttendance,
   onEndPractice,
   onOpenPlayer,
@@ -5578,6 +5715,7 @@ function PracticeHome({
   onTab: (tab: PracticeHubTab) => void;
   onStartPractice: () => void;
   onOpenStation: (mode: PracticeMode) => void;
+  onOpenSession: (session: PracticeActiveSessionRow) => void;
   onOpenAttendance: () => void;
   onEndPractice: () => void;
   onOpenPlayer: (playerId: ID) => void;
@@ -5600,6 +5738,9 @@ function PracticeHome({
   const defensePlayers = practice ? data.players.filter((player) => practice.playerIds.includes(player.id)).length : rosterCount;
   const practiceTime = practice ? formatPracticeTimeRange(practice) : "";
   const statusLabel = practice ? (practice.endedAt ? "Completed Practice" : "Today's Practice") : "Practice Hub";
+  const activeSessions = practice ? buildActivePracticeSessions(data, practice.id) : [];
+  const mySession = activeSessions.find((session) => session.isMine);
+  const recentActivity = practice ? buildPracticeActivityFeed(data, practice.id).slice(0, 5) : [];
 
   return (
     <div className="page-stack practice-home">
@@ -5668,6 +5809,14 @@ function PracticeHome({
 
           {practice ? (
             <section className="practice-overview-grid">
+              <PracticeActiveSessionsCard
+                sessions={activeSessions}
+                mySession={mySession}
+                recentActivity={recentActivity}
+                onOpenSession={onOpenSession}
+                onStartSession={() => onOpenStation("Hitting")}
+              />
+
               <article className="panel practice-attendance-overview">
                 <div className="panel-heading tight">
                   <div>
@@ -5753,6 +5902,80 @@ function PracticeActivityCard({
       <strong>{title}</strong>
       <small>{description}</small>
     </button>
+  );
+}
+
+function PracticeActiveSessionsCard({
+  sessions,
+  mySession,
+  recentActivity,
+  onOpenSession,
+  onStartSession,
+}: {
+  sessions: PracticeActiveSessionRow[];
+  mySession?: PracticeActiveSessionRow;
+  recentActivity: PracticeActivityFeedRow[];
+  onOpenSession: (session: PracticeActiveSessionRow) => void;
+  onStartSession: () => void;
+}) {
+  return (
+    <article className="panel practice-active-sessions-card">
+      <div className="panel-heading tight">
+        <div>
+          <h2>Active Sessions</h2>
+          <span>{sessions.length ? `${sessions.length} station${sessions.length === 1 ? "" : "s"} running` : "No active stations yet"}</span>
+        </div>
+        <button className="secondary-button" type="button" onClick={onStartSession}>
+          <Plus size={15} aria-hidden="true" />
+          Start Session
+        </button>
+      </div>
+
+      {mySession && (
+        <button type="button" className={`practice-my-session practice-session-mode--${practiceModeClass(mySession.mode)}`} onClick={() => onOpenSession(mySession)}>
+          <span>
+            <small>My Session</small>
+            <strong>{mySession.title}</strong>
+            <em>{mySession.playerLine} - {mySession.count}</em>
+          </span>
+          <ChevronRight size={16} aria-hidden="true" />
+        </button>
+      )}
+
+      <div className="practice-active-session-grid">
+        {sessions.slice(0, 6).map((session) => (
+          <button key={session.id} type="button" className={`practice-active-session-card practice-session-mode--${practiceModeClass(session.mode)}`} onClick={() => onOpenSession(session)}>
+            <span className="practice-session-type">{session.mode}</span>
+            <strong>{session.title}</strong>
+            <em>{session.playerLine}</em>
+            <span className="practice-session-meta">
+              <b>{session.count}</b>
+              <span>{session.station || "Field"}</span>
+            </span>
+            <span className="practice-session-contributors">
+              {session.contributors.slice(0, 3).map((contributor) => (
+                <i key={`${session.id}-${contributor}`}>{initialsFor(contributor)}</i>
+              ))}
+              {session.contributors.length > 0 ? <small>{session.contributors[0]}</small> : <small>Open station</small>}
+            </span>
+          </button>
+        ))}
+        {!sessions.length && <CompactEmpty title="Start a session when a station opens." />}
+      </div>
+
+      {recentActivity.length > 0 && (
+        <div className="practice-activity-feed">
+          <span>Recent Activity</span>
+          {recentActivity.map((activity) => (
+            <div key={activity.id}>
+              <time>{activity.time}</time>
+              <strong>{activity.title}</strong>
+              <em>{activity.detail}</em>
+            </div>
+          ))}
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -9863,13 +10086,11 @@ function buildWeeklyWorkoutRow(data: AppData, player: Player) {
 }
 
 function practiceTotals(data: AppData, practiceId: ID) {
-  const pitchEvents = data.pitchEvents.filter((event) => event.practiceId === practiceId);
-  const hittingEvents = data.hittingEvents.filter((event) => event.practiceId === practiceId);
-  const defenseEvents = data.defenseEvents.filter((event) => event.practiceId === practiceId);
+  const totals = deriveConcurrentPracticeTotals(data, practiceId);
   return {
-    pitches: pitchEvents.length,
-    swings: hittingEvents.filter((event) => event.action !== "Took pitch").length,
-    defense: defenseEvents.length,
+    pitches: totals.pitches,
+    swings: totals.swings,
+    defense: totals.defense,
     hittingSessions: data.hittingSessions.filter((session) => session.practiceId === practiceId).length,
     pitchingSessions: data.pitchingSessions.filter((session) => session.practiceId === practiceId).length,
     defenseSessions: data.defenseSessions.filter((session) => session.practiceId === practiceId).length,
@@ -9903,6 +10124,130 @@ function buildPracticeStandouts(data: AppData, practiceId: ID) {
     command && command.stats.intendedTargetHitPct > 0 && { label: "Best Command %", player: command.player, value: `${formatPct(command.stats.intendedTargetHitPct)} target hit` },
     defense && { label: "Clean Defensive Reps", player: defense.player, value: `${defense.clean}/${defense.events.length} clean` },
   ].filter(Boolean) as Array<{ label: string; player: Player; value: string }>;
+}
+
+function buildActivePracticeSessions(data: AppData, practiceId: ID): PracticeActiveSessionRow[] {
+  const playerById = new Map(data.players.map((player) => [player.id, player]));
+  const currentProfileId = data.teamContext?.profile?.id;
+  const rows: PracticeActiveSessionRow[] = [
+    ...data.hittingSessions
+      .filter((session) => session.practiceId === practiceId && !session.endedAt)
+      .map((session) => {
+        const player = playerById.get(session.hitterId);
+        const events = data.hittingEvents.filter((event) => event.sessionId === session.id);
+        return {
+          id: `hit-${session.id}`,
+          mode: "Hitting" as const,
+          sessionId: session.id,
+          title: session.title ?? `${session.type} Hitting`,
+          station: session.station ?? session.type,
+          primaryPlayerId: session.hitterId,
+          playerLine: player?.name ?? "Hitter",
+          count: `${events.filter((event) => event.action !== "Took pitch").length} swings`,
+          contributors: contributorLabels(data, session.id, session.createdByProfileId, session.contributorProfileIds),
+          isMine: Boolean(currentProfileId && (session.createdByProfileId === currentProfileId || session.contributorProfileIds?.includes(currentProfileId))),
+          startedAt: session.startedAt,
+        };
+      }),
+    ...data.pitchingSessions
+      .filter((session) => session.practiceId === practiceId && !session.endedAt)
+      .map((session) => {
+        const player = playerById.get(session.pitcherId);
+        const hitter = session.hitterId ? playerById.get(session.hitterId) : undefined;
+        const events = data.pitchEvents.filter((event) => event.sessionId === session.id);
+        return {
+          id: `pitch-${session.id}`,
+          mode: session.type === "Live BP" ? "Live BP" as const : "Pitching" as const,
+          sessionId: session.id,
+          title: session.title ?? (session.type === "Live BP" ? "Live BP" : `${session.type} Pitching`),
+          station: session.station ?? session.type,
+          primaryPlayerId: session.pitcherId,
+          secondaryPlayerId: session.hitterId,
+          playerLine: hitter ? `${player?.name ?? "Pitcher"} vs ${hitter.name}` : player?.name ?? "Pitcher",
+          count: `${events.length} pitches`,
+          contributors: contributorLabels(data, session.id, session.createdByProfileId, session.contributorProfileIds),
+          isMine: Boolean(currentProfileId && (session.createdByProfileId === currentProfileId || session.contributorProfileIds?.includes(currentProfileId))),
+          startedAt: session.startedAt,
+        };
+      }),
+    ...data.defenseSessions
+      .filter((session) => session.practiceId === practiceId && !session.endedAt)
+      .map((session) => {
+        const player = playerById.get(session.playerId);
+        const events = data.defenseEvents.filter((event) => event.sessionId === session.id);
+        return {
+          id: `def-${session.id}`,
+          mode: "Defense" as const,
+          sessionId: session.id,
+          title: session.title ?? `${session.station} Defense`,
+          station: session.station,
+          primaryPlayerId: session.playerId,
+          playerLine: player?.name ?? "Defender",
+          count: `${events.length} reps`,
+          contributors: contributorLabels(data, session.id, session.createdByProfileId, session.contributorProfileIds),
+          isMine: Boolean(currentProfileId && (session.createdByProfileId === currentProfileId || session.contributorProfileIds?.includes(currentProfileId))),
+          startedAt: session.startedAt,
+        };
+      }),
+  ];
+  return rows.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+}
+
+function contributorLabels(data: AppData, sessionId: ID, createdByProfileId?: ID, contributorProfileIds?: ID[]) {
+  const profile = data.teamContext?.profile;
+  const staffByProfileId = new Map((data.staffMembers ?? []).filter((member) => member.profileId).map((member) => [member.profileId as ID, member.displayName]));
+  const ids = new Set<ID>([
+    ...(createdByProfileId ? [createdByProfileId] : []),
+    ...(contributorProfileIds ?? []),
+    ...((data.practiceSessionContributors ?? []).filter((row) => row.sessionId === sessionId).map((row) => row.profileId)),
+  ]);
+  return [...ids].map((profileId) => {
+    if (profileId === profile?.id) return profileDisplayName(data.teamContext);
+    return staffByProfileId.get(profileId) ?? "Coach";
+  });
+}
+
+function buildPracticeActivityFeed(data: AppData, practiceId: ID): PracticeActivityFeedRow[] {
+  const playerById = new Map(data.players.map((player) => [player.id, player]));
+  const rows: Array<PracticeActivityFeedRow & { createdAt: string }> = [
+    ...data.pitchEvents
+      .filter((event) => event.practiceId === practiceId)
+      .map((event) => ({
+        id: `pitch-${event.id}`,
+        mode: "Pitching" as const,
+        time: formatTime(event.createdAt),
+        title: playerById.get(event.pitcherId)?.name ?? "Pitcher",
+        detail: `${PITCH_TYPE_LABELS[event.pitchType]} ${event.outcome}`,
+        createdAt: event.createdAt,
+      })),
+    ...data.hittingEvents
+      .filter((event) => event.practiceId === practiceId)
+      .map((event) => ({
+        id: `hit-${event.id}`,
+        mode: "Hitting" as const,
+        time: formatTime(event.createdAt),
+        title: playerById.get(event.hitterId)?.name ?? "Hitter",
+        detail: event.contactQuality ? `${event.contactQuality} ${event.contactResult ?? "contact"}` : event.action,
+        createdAt: event.createdAt,
+      })),
+    ...data.defenseEvents
+      .filter((event) => event.practiceId === practiceId)
+      .map((event) => ({
+        id: `def-${event.id}`,
+        mode: "Defense" as const,
+        time: formatTime(event.createdAt),
+        title: playerById.get(event.playerId)?.name ?? "Defender",
+        detail: `${event.station} ${event.outcome}`,
+        createdAt: event.createdAt,
+      })),
+  ];
+  return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((row) => ({
+    id: row.id,
+    mode: row.mode,
+    time: row.time,
+    title: row.title,
+    detail: row.detail,
+  }));
 }
 
 function buildPlayerRecentActivity(data: AppData, player: Player) {
@@ -10148,9 +10493,22 @@ function buildSessionSummary(data: AppData, summary: { type: "Hitting" | "Pitchi
   };
 }
 
-function ensureHittingSession(data: AppData, practice: Practice, playerId: ID, type: HittingSession["type"]) {
+function ensureHittingSession(data: AppData, practice: Practice, playerId: ID, type: HittingSession["type"], profileId?: ID) {
+  const now = new Date().toISOString();
   const existing = data.hittingSessions.find((session) => session.practiceId === practice.id && session.hitterId === playerId && session.type === type && !session.endedAt);
-  if (existing) return { data, session: existing };
+  if (existing) {
+    const session = {
+      ...existing,
+      contributorProfileIds: withContributorProfile(existing.contributorProfileIds, profileId),
+      updatedAt: now,
+    };
+    const nextData = {
+      ...data,
+      hittingSessions: data.hittingSessions.map((item) => (item.id === session.id ? session : item)),
+      practiceSessionContributors: touchSessionContributor(data.practiceSessionContributors ?? [], { sessionId: session.id, profileId, at: now }),
+    };
+    return { data: nextData, session };
+  }
   const session: HittingSession = {
     id: createId("hs"),
     practiceId: practice.id,
@@ -10160,38 +10518,115 @@ function ensureHittingSession(data: AppData, practice: Practice, playerId: ID, t
     plannedReps: 20,
     machineVelocity: type === "Machine" ? 85 : undefined,
     machinePitchType: type === "Machine" ? "4-Seam" : undefined,
-    startedAt: new Date().toISOString(),
+    startedAt: now,
+    title: `${type} - Hitting`,
+    status: "ACTIVE",
+    createdByProfileId: profileId,
+    contributorProfileIds: withContributorProfile([], profileId),
+    location: practice.location,
+    station: type,
+    entryPolicy: "COACH_ONLY",
+    updatedAt: now,
   };
-  return { data: { ...data, hittingSessions: [session, ...data.hittingSessions] }, session };
+  return {
+    data: {
+      ...data,
+      hittingSessions: [session, ...data.hittingSessions],
+      practiceSessionContributors: touchSessionContributor(data.practiceSessionContributors ?? [], { sessionId: session.id, profileId, at: now }),
+    },
+    session,
+  };
 }
 
-function ensurePitchingSession(data: AppData, practice: Practice, playerId: ID, type: PitchingSession["type"]) {
+function ensurePitchingSession(data: AppData, practice: Practice, playerId: ID, type: PitchingSession["type"], profileId?: ID, hitterId?: ID) {
+  const now = new Date().toISOString();
   const existing = data.pitchingSessions.find((session) => session.practiceId === practice.id && session.pitcherId === playerId && session.type === type && !session.endedAt);
-  if (existing) return { data, session: existing };
+  if (existing) {
+    const session = {
+      ...existing,
+      hitterId: hitterId ?? existing.hitterId,
+      contributorProfileIds: withContributorProfile(existing.contributorProfileIds, profileId),
+      updatedAt: now,
+    };
+    const nextData = {
+      ...data,
+      pitchingSessions: data.pitchingSessions.map((item) => (item.id === session.id ? session : item)),
+      practiceSessionContributors: touchSessionContributor(data.practiceSessionContributors ?? [], { sessionId: session.id, profileId, at: now }),
+    };
+    return { data: nextData, session };
+  }
   const session: PitchingSession = {
     id: createId("ps"),
     practiceId: practice.id,
     pitcherId: playerId,
     type,
+    hitterId,
     focusTags: ["Strike throwing"],
     intendedFocus: "Win the zone early and finish every pitch.",
-    startedAt: new Date().toISOString(),
+    startedAt: now,
+    title: type === "Live BP" ? "Live BP" : `${type} - Pitching`,
+    status: "ACTIVE",
+    createdByProfileId: profileId,
+    contributorProfileIds: withContributorProfile([], profileId),
+    location: practice.location,
+    station: type === "Live BP" ? "Main Field" : "Bullpen",
+    entryPolicy: "COACH_ONLY",
+    updatedAt: now,
   };
-  return { data: { ...data, pitchingSessions: [session, ...data.pitchingSessions] }, session };
+  return {
+    data: {
+      ...data,
+      pitchingSessions: [session, ...data.pitchingSessions],
+      practiceSessionContributors: touchSessionContributor(data.practiceSessionContributors ?? [], { sessionId: session.id, profileId, at: now }),
+    },
+    session,
+  };
 }
 
-function ensureDefenseSession(data: AppData, practice: Practice, playerId: ID, station: DefenseStation) {
+function ensureDefenseSession(data: AppData, practice: Practice, playerId: ID, station: DefenseStation, profileId?: ID) {
+  const now = new Date().toISOString();
   const existing = data.defenseSessions.find((session) => session.practiceId === practice.id && session.playerId === playerId && session.station === station && !session.endedAt);
-  if (existing) return { data, session: existing };
+  if (existing) {
+    const session = {
+      ...existing,
+      contributorProfileIds: withContributorProfile(existing.contributorProfileIds, profileId),
+      updatedAt: now,
+    };
+    const nextData = {
+      ...data,
+      defenseSessions: data.defenseSessions.map((item) => (item.id === session.id ? session : item)),
+      practiceSessionContributors: touchSessionContributor(data.practiceSessionContributors ?? [], { sessionId: session.id, profileId, at: now }),
+    };
+    return { data: nextData, session };
+  }
   const session = {
     id: createId("ds"),
     practiceId: practice.id,
     playerId,
     station,
     mode: "Quick Practice" as const,
-    startedAt: new Date().toISOString(),
+    startedAt: now,
+    title: `${station} - Defense`,
+    status: "ACTIVE" as const,
+    createdByProfileId: profileId,
+    contributorProfileIds: withContributorProfile([], profileId),
+    location: practice.location,
+    entryPolicy: "COACH_ONLY" as const,
+    updatedAt: now,
   };
-  return { data: { ...data, defenseSessions: [session, ...data.defenseSessions] }, session };
+  return {
+    data: {
+      ...data,
+      defenseSessions: [session, ...data.defenseSessions],
+      practiceSessionContributors: touchSessionContributor(data.practiceSessionContributors ?? [], { sessionId: session.id, profileId, at: now }),
+    },
+    session,
+  };
+}
+
+function withContributorProfile(ids: ID[] | undefined, profileId?: ID) {
+  if (!profileId) return ids ?? [];
+  return [...new Set([...(ids ?? []), profileId])];
 }
 
 function applyGameOutcome(game: Game, outcome: GamePitchOutcome, ballInPlayOutcome?: GameBallInPlayOutcome): Game {

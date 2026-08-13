@@ -218,6 +218,7 @@ function migrate(data: Partial<AppData>): AppData {
     rosterImports: merged.rosterImports ?? sampleData.rosterImports ?? [],
     practices: merged.practices ?? sampleData.practices,
     attendance: merged.attendance ?? sampleData.attendance,
+    practiceSessionContributors: merged.practiceSessionContributors ?? sampleData.practiceSessionContributors ?? [],
     pitchingSessions: merged.pitchingSessions ?? sampleData.pitchingSessions,
     pitchEvents: merged.pitchEvents ?? sampleData.pitchEvents,
     hittingSessions: merged.hittingSessions ?? sampleData.hittingSessions,

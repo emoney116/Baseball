@@ -413,9 +413,46 @@ export interface PracticeAttendance {
   role: "Pitcher" | "Hitter" | "Two-way" | "Observer";
   status: PracticeAttendanceStatus;
   checkedInAt: string;
+  updatedByProfileId?: ID;
+  updatedAt?: string;
 }
 
-export interface PitchingSession {
+export type PracticeSessionStatus = "ACTIVE" | "COMPLETED" | "CANCELLED";
+export type PracticeSessionContributorRole = "COACH" | "PLAYER" | "MANAGER";
+export type PracticeEntryPolicy = "COACH_ONLY" | "COACH_AND_ASSIGNED_PLAYERS" | "PLAYER_SELF_ENTRY";
+export type PracticeEntrySource = "COACH" | "PLAYER" | "DEVICE" | "IMPORT";
+export type PracticeVerificationStatus = "COACH_RECORDED" | "PLAYER_RECORDED" | "COACH_VERIFIED";
+
+export interface PracticeSessionContributor {
+  id: ID;
+  sessionId: ID;
+  profileId: ID;
+  role: PracticeSessionContributorRole;
+  joinedAt: string;
+  lastActiveAt: string;
+}
+
+interface PracticeSessionAudit {
+  status?: PracticeSessionStatus;
+  title?: string;
+  createdByProfileId?: ID;
+  contributorProfileIds?: ID[];
+  location?: string;
+  station?: string;
+  entryPolicy?: PracticeEntryPolicy;
+  updatedAt?: string;
+}
+
+interface PracticeEventAudit {
+  createdByProfileId?: ID;
+  updatedByProfileId?: ID;
+  entrySource?: PracticeEntrySource;
+  verificationStatus?: PracticeVerificationStatus;
+  idempotencyKey?: string;
+  sessionSequence?: number;
+}
+
+export type PitchingSession = {
   id: ID;
   practiceId: ID;
   pitcherId: ID;
@@ -428,9 +465,9 @@ export interface PitchingSession {
   endedAt?: string;
   summaryNote?: string;
   sessionGrade?: string;
-}
+} & PracticeSessionAudit;
 
-export interface PitchEvent {
+export type PitchEvent = {
   id: ID;
   practiceId: ID;
   sessionId: ID;
@@ -459,9 +496,9 @@ export interface PitchEvent {
   mechanicalNote?: string;
   coachNote?: string;
   createdAt: string;
-}
+} & PracticeEventAudit;
 
-export interface HittingSession {
+export type HittingSession = {
   id: ID;
   practiceId: ID;
   hitterId: ID;
@@ -478,9 +515,9 @@ export interface HittingSession {
   endedAt?: string;
   summaryNote?: string;
   sessionGrade?: string;
-}
+} & PracticeSessionAudit;
 
-export interface HittingEvent {
+export type HittingEvent = {
   id: ID;
   practiceId: ID;
   sessionId: ID;
@@ -497,9 +534,9 @@ export interface HittingEvent {
   velocity?: number;
   isLiveBp?: boolean;
   createdAt: string;
-}
+} & PracticeEventAudit;
 
-export interface DefenseSession {
+export type DefenseSession = {
   id: ID;
   practiceId: ID;
   playerId: ID;
@@ -509,9 +546,9 @@ export interface DefenseSession {
   endedAt?: string;
   plannedReps?: number;
   summaryNote?: string;
-}
+} & PracticeSessionAudit;
 
-export interface DefenseEvent {
+export type DefenseEvent = {
   id: ID;
   practiceId: ID;
   sessionId: ID;
@@ -526,7 +563,7 @@ export interface DefenseEvent {
   errorType?: "Fielding" | "Throwing" | "Decision";
   coachNote?: string;
   createdAt: string;
-}
+} & PracticeEventAudit;
 
 export interface WorkoutSession {
   id: ID;
@@ -720,6 +757,7 @@ export interface AppData {
   rosterImports?: RosterImportRecord[];
   practices: Practice[];
   attendance: PracticeAttendance[];
+  practiceSessionContributors: PracticeSessionContributor[];
   pitchingSessions: PitchingSession[];
   pitchEvents: PitchEvent[];
   hittingSessions: HittingSession[];

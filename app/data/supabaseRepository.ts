@@ -26,6 +26,12 @@ import type {
   PlayerTeamMembership,
   Practice,
   PracticeAttendance,
+  PracticeEntryPolicy,
+  PracticeEntrySource,
+  PracticeSessionContributor,
+  PracticeSessionContributorRole,
+  PracticeSessionStatus,
+  PracticeVerificationStatus,
   RosterImportRecord,
   RosterStatus,
   ScheduleEvent,
@@ -235,6 +241,7 @@ export const supabaseAppRepository = {
     await syncPractices(supabase, foundation, next.practices);
     await syncAttendance(supabase, next.attendance);
     await syncPracticeSessions(supabase, next);
+    await syncPracticeSessionContributors(supabase, next);
     await syncPracticeEvents(supabase, next);
     await syncWorkoutData(supabase, foundation, next);
     await syncGames(supabase, foundation, next);
@@ -845,6 +852,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
       rosterImports: [],
       practices: [],
       attendance: [],
+      practiceSessionContributors: [],
       pitchingSessions: [],
       pitchEvents: [],
       hittingSessions: [],
@@ -935,6 +943,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
   const [
     attendanceResult,
     sessionsResult,
+    sessionContributorsResult,
     pitchEventsResult,
     hittingEventsResult,
     defenseEventsResult,
@@ -945,6 +954,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
   ] = await Promise.all([
     supabase.from("practice_attendance").select("*"),
     supabase.from("practice_sessions").select("*"),
+    supabase.from("practice_session_contributors").select("*"),
     supabase.from("pitch_events").select("*").order("created_at", { ascending: false }),
     supabase.from("hitting_events").select("*").order("created_at", { ascending: false }),
     supabase.from("defense_events").select("*").order("created_at", { ascending: false }),
@@ -959,6 +969,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     practicesResult,
     attendanceResult,
     sessionsResult,
+    sessionContributorsResult,
     pitchEventsResult,
     hittingEventsResult,
     defenseEventsResult,
@@ -972,7 +983,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     notesResult,
     goalsResult,
   ];
-  const failed = results.find((result) => result.error);
+  const failed = results.find((result) => result.error && !isMissingPracticeSessionContributorsTable(result.error));
   if (failed?.error) throw new PersistenceError("load-failed", failed.error.message);
 
   const membershipByPlayer = new Map<string, any>(memberships.map((membership: any) => [membership.player_id, membership]));
@@ -984,6 +995,9 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
   const practices = practiceRows.map((row: any) => mapPractice(row, attendanceRows));
   const sessionRows = (sessionsResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && playerIdsSet.has(row.player_id));
   const sessionIds = new Set<string>(sessionRows.map((session: any) => session.id));
+  const sessionContributorRows = isMissingPracticeSessionContributorsTable(sessionContributorsResult.error ?? {})
+    ? []
+    : (sessionContributorsResult.data ?? []).filter((row: any) => sessionIds.has(row.session_id));
   const exercisesById = new Map<string, any>((exercisesResult.data ?? []).map((exercise: any) => [exercise.id, exercise]));
   const lineupRows = (gameLineupsResult.data ?? []).filter((row: any) => gameIds.has(row.game_id) && playerIdsSet.has(row.player_id));
   const notesRows = (notesResult.data ?? []).filter((row: any) =>
@@ -1016,6 +1030,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     publicTeams: publicDirectory.teams,
     practices,
     attendance: attendanceRows.map(mapAttendance),
+    practiceSessionContributors: sessionContributorRows.map(mapPracticeSessionContributor),
     pitchingSessions: sessionRows.filter((row: any) => row.category === "pitching").map(mapPitchingSession),
     pitchEvents: (pitchEventsResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && sessionIds.has(row.session_id)).map(mapPitchEvent),
     hittingSessions: sessionRows.filter((row: any) => row.category === "hitting").map(mapHittingSession),
@@ -1430,6 +1445,8 @@ async function syncAttendance(supabase: SupabaseClient, attendance: PracticeAtte
       role: item.role,
       status: item.status ?? "Present",
       checked_in_at: item.checkedInAt,
+      updated_by_profile_id: item.updatedByProfileId ?? null,
+      updated_at: item.updatedAt ?? item.checkedInAt,
     })),
     { onConflict: "practice_id,player_id" },
   );
@@ -1448,6 +1465,14 @@ async function syncPracticeSessions(supabase: SupabaseClient, data: AppData) {
       ended_at: session.endedAt ?? null,
       summary_note: session.summaryNote ?? null,
       session_grade: session.sessionGrade ?? null,
+      title: session.title ?? `${session.type} hitting`,
+      status: session.status ?? (session.endedAt ? "COMPLETED" : "ACTIVE"),
+      created_by_profile_id: session.createdByProfileId ?? null,
+      contributor_profile_ids: session.contributorProfileIds ?? [],
+      location: session.location ?? null,
+      station: session.station ?? session.machineLocation ?? session.type,
+      entry_policy: session.entryPolicy ?? "COACH_ONLY",
+      updated_at: session.updatedAt ?? session.endedAt ?? session.startedAt,
       metadata: {
         machineVelocity: session.machineVelocity,
         machinePitchType: session.machinePitchType,
@@ -1470,6 +1495,14 @@ async function syncPracticeSessions(supabase: SupabaseClient, data: AppData) {
       ended_at: session.endedAt ?? null,
       summary_note: session.summaryNote ?? null,
       session_grade: session.sessionGrade ?? null,
+      title: session.title ?? `${session.type} pitching`,
+      status: session.status ?? (session.endedAt ? "COMPLETED" : "ACTIVE"),
+      created_by_profile_id: session.createdByProfileId ?? null,
+      contributor_profile_ids: session.contributorProfileIds ?? [],
+      location: session.location ?? null,
+      station: session.station ?? session.type,
+      entry_policy: session.entryPolicy ?? "COACH_ONLY",
+      updated_at: session.updatedAt ?? session.endedAt ?? session.startedAt,
       metadata: {
         catcherId: session.catcherId,
         hitterId: session.hitterId,
@@ -1486,12 +1519,37 @@ async function syncPracticeSessions(supabase: SupabaseClient, data: AppData) {
       started_at: session.startedAt,
       ended_at: session.endedAt ?? null,
       summary_note: session.summaryNote ?? null,
+      title: session.title ?? `${session.station} defense`,
+      status: session.status ?? (session.endedAt ? "COMPLETED" : "ACTIVE"),
+      created_by_profile_id: session.createdByProfileId ?? null,
+      contributor_profile_ids: session.contributorProfileIds ?? [],
+      location: session.location ?? null,
+      station: session.station,
+      entry_policy: session.entryPolicy ?? "COACH_ONLY",
+      updated_at: session.updatedAt ?? session.endedAt ?? session.startedAt,
       metadata: { mode: session.mode, plannedReps: session.plannedReps },
     })),
   ];
   if (rows.length === 0) return;
   const { error } = await supabase.from("practice_sessions").upsert(rows, { onConflict: "id" });
   if (error) throw new PersistenceError("save-failed", error.message);
+}
+
+async function syncPracticeSessionContributors(supabase: SupabaseClient, data: AppData) {
+  const contributors = data.practiceSessionContributors ?? [];
+  if (contributors.length === 0) return;
+  const rows = contributors.map((contributor) => ({
+    session_id: contributor.sessionId,
+    profile_id: contributor.profileId,
+    role: contributor.role,
+    joined_at: contributor.joinedAt,
+    last_active_at: contributor.lastActiveAt,
+  }));
+  const { error } = await supabase.from("practice_session_contributors").upsert(rows, { onConflict: "session_id,profile_id" });
+  if (error) {
+    if (isMissingPracticeSessionContributorsTable(error)) return;
+    throw new PersistenceError("save-failed", error.message);
+  }
 }
 
 async function syncPracticeEvents(supabase: SupabaseClient, data: AppData) {
@@ -2009,6 +2067,14 @@ function isMissingScheduleEventsTable(error: { code?: string; message?: string }
   );
 }
 
+function isMissingPracticeSessionContributorsTable(error: { code?: string; message?: string }) {
+  return (
+    error.code === "42P01" ||
+    error.code === "PGRST205" ||
+    /(relation|table).*practice_session_contributors.*(does not exist|not found)|could not find.*practice_session_contributors/i.test(error.message ?? "")
+  );
+}
+
 function isMissingStaffTables(error: { code?: string; message?: string }) {
   return (
     error.code === "42P01" ||
@@ -2047,6 +2113,19 @@ function mapAttendance(row: any): PracticeAttendance {
     role: row.role,
     status: row.status ?? "Present",
     checkedInAt: row.checked_in_at,
+    updatedByProfileId: row.updated_by_profile_id ?? undefined,
+    updatedAt: row.updated_at ?? undefined,
+  };
+}
+
+function mapPracticeSessionContributor(row: any): PracticeSessionContributor {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    profileId: row.profile_id,
+    role: normalizePracticeSessionContributorRole(row.role),
+    joinedAt: row.joined_at,
+    lastActiveAt: row.last_active_at,
   };
 }
 
@@ -2069,6 +2148,14 @@ function mapHittingSession(row: any): HittingSession {
     endedAt: row.ended_at ?? undefined,
     summaryNote: row.summary_note ?? undefined,
     sessionGrade: row.session_grade ?? undefined,
+    title: row.title ?? undefined,
+    status: normalizePracticeSessionStatus(row.status, row.ended_at),
+    createdByProfileId: row.created_by_profile_id ?? undefined,
+    contributorProfileIds: Array.isArray(row.contributor_profile_ids) ? row.contributor_profile_ids : undefined,
+    location: row.location ?? undefined,
+    station: row.station ?? undefined,
+    entryPolicy: normalizePracticeEntryPolicy(row.entry_policy),
+    updatedAt: row.updated_at ?? undefined,
   };
 }
 
@@ -2087,6 +2174,14 @@ function mapPitchingSession(row: any): PitchingSession {
     endedAt: row.ended_at ?? undefined,
     summaryNote: row.summary_note ?? undefined,
     sessionGrade: row.session_grade ?? undefined,
+    title: row.title ?? undefined,
+    status: normalizePracticeSessionStatus(row.status, row.ended_at),
+    createdByProfileId: row.created_by_profile_id ?? undefined,
+    contributorProfileIds: Array.isArray(row.contributor_profile_ids) ? row.contributor_profile_ids : undefined,
+    location: row.location ?? undefined,
+    station: row.station ?? undefined,
+    entryPolicy: normalizePracticeEntryPolicy(row.entry_policy),
+    updatedAt: row.updated_at ?? undefined,
   };
 }
 
@@ -2102,6 +2197,13 @@ function mapDefenseSession(row: any): DefenseSession {
     endedAt: row.ended_at ?? undefined,
     plannedReps: metadata.plannedReps,
     summaryNote: row.summary_note ?? undefined,
+    title: row.title ?? undefined,
+    status: normalizePracticeSessionStatus(row.status, row.ended_at),
+    createdByProfileId: row.created_by_profile_id ?? undefined,
+    contributorProfileIds: Array.isArray(row.contributor_profile_ids) ? row.contributor_profile_ids : undefined,
+    location: row.location ?? undefined,
+    entryPolicy: normalizePracticeEntryPolicy(row.entry_policy),
+    updatedAt: row.updated_at ?? undefined,
   };
 }
 
@@ -2135,6 +2237,12 @@ function mapPitchEvent(row: any): PitchEvent {
     mechanicalNote: row.mechanical_note ?? undefined,
     coachNote: row.coach_note ?? undefined,
     createdAt: row.created_at,
+    createdByProfileId: row.created_by_profile_id ?? undefined,
+    updatedByProfileId: row.updated_by_profile_id ?? undefined,
+    entrySource: normalizePracticeEntrySource(row.entry_source),
+    verificationStatus: normalizePracticeVerificationStatus(row.verification_status),
+    idempotencyKey: row.idempotency_key ?? undefined,
+    sessionSequence: row.session_sequence ?? undefined,
   };
 }
 
@@ -2156,6 +2264,12 @@ function mapHittingEvent(row: any): HittingEvent {
     velocity: toNumber(row.velocity),
     isLiveBp: row.is_live_bp,
     createdAt: row.created_at,
+    createdByProfileId: row.created_by_profile_id ?? undefined,
+    updatedByProfileId: row.updated_by_profile_id ?? undefined,
+    entrySource: normalizePracticeEntrySource(row.entry_source),
+    verificationStatus: normalizePracticeVerificationStatus(row.verification_status),
+    idempotencyKey: row.idempotency_key ?? undefined,
+    sessionSequence: row.session_sequence ?? undefined,
   };
 }
 
@@ -2175,7 +2289,43 @@ function mapDefenseEvent(row: any): DefenseEvent {
     errorType: row.error_type ?? undefined,
     coachNote: row.coach_note ?? undefined,
     createdAt: row.created_at,
+    createdByProfileId: row.created_by_profile_id ?? undefined,
+    updatedByProfileId: row.updated_by_profile_id ?? undefined,
+    entrySource: normalizePracticeEntrySource(row.entry_source),
+    verificationStatus: normalizePracticeVerificationStatus(row.verification_status),
+    idempotencyKey: row.idempotency_key ?? undefined,
+    sessionSequence: row.session_sequence ?? undefined,
   };
+}
+
+function normalizePracticeSessionStatus(status: unknown, endedAt?: string | null): PracticeSessionStatus {
+  const value = String(status ?? "").trim().toUpperCase();
+  if (value === "COMPLETED" || value === "CANCELLED" || value === "ACTIVE") return value;
+  return endedAt ? "COMPLETED" : "ACTIVE";
+}
+
+function normalizePracticeEntryPolicy(policy: unknown): PracticeEntryPolicy | undefined {
+  const value = String(policy ?? "").trim().toUpperCase();
+  if (value === "COACH_AND_ASSIGNED_PLAYERS" || value === "PLAYER_SELF_ENTRY" || value === "COACH_ONLY") return value;
+  return undefined;
+}
+
+function normalizePracticeEntrySource(source: unknown): PracticeEntrySource | undefined {
+  const value = String(source ?? "").trim().toUpperCase();
+  if (value === "COACH" || value === "PLAYER" || value === "DEVICE" || value === "IMPORT") return value;
+  return undefined;
+}
+
+function normalizePracticeVerificationStatus(status: unknown): PracticeVerificationStatus | undefined {
+  const value = String(status ?? "").trim().toUpperCase();
+  if (value === "COACH_RECORDED" || value === "PLAYER_RECORDED" || value === "COACH_VERIFIED") return value;
+  return undefined;
+}
+
+function normalizePracticeSessionContributorRole(role: unknown): PracticeSessionContributorRole {
+  const value = String(role ?? "").trim().toUpperCase();
+  if (value === "PLAYER" || value === "MANAGER" || value === "COACH") return value;
+  return "COACH";
 }
 
 function mapWorkoutSession(row: any): WorkoutSession {
@@ -2365,6 +2515,12 @@ function mapPitchEventToRow(event: PitchEvent) {
     coach_note: event.coachNote ?? null,
     context: event.practiceId ? "practice" : "game",
     created_at: event.createdAt,
+    created_by_profile_id: event.createdByProfileId ?? null,
+    updated_by_profile_id: event.updatedByProfileId ?? null,
+    entry_source: event.entrySource ?? "COACH",
+    verification_status: event.verificationStatus ?? "COACH_RECORDED",
+    idempotency_key: event.idempotencyKey ?? event.id,
+    session_sequence: event.sessionSequence ?? null,
   };
 }
 
@@ -2387,6 +2543,12 @@ function mapHittingEventToRow(event: HittingEvent) {
     is_live_bp: event.isLiveBp ?? false,
     context: event.isLiveBp ? "live_bp" : "practice",
     created_at: event.createdAt,
+    created_by_profile_id: event.createdByProfileId ?? null,
+    updated_by_profile_id: event.updatedByProfileId ?? null,
+    entry_source: event.entrySource ?? "COACH",
+    verification_status: event.verificationStatus ?? "COACH_RECORDED",
+    idempotency_key: event.idempotencyKey ?? event.id,
+    session_sequence: event.sessionSequence ?? null,
   };
 }
 
@@ -2406,6 +2568,12 @@ function mapDefenseEventToRow(event: DefenseEvent) {
     error_type: event.errorType ?? null,
     coach_note: event.coachNote ?? null,
     created_at: event.createdAt,
+    created_by_profile_id: event.createdByProfileId ?? null,
+    updated_by_profile_id: event.updatedByProfileId ?? null,
+    entry_source: event.entrySource ?? "COACH",
+    verification_status: event.verificationStatus ?? "COACH_RECORDED",
+    idempotency_key: event.idempotencyKey ?? event.id,
+    session_sequence: event.sessionSequence ?? null,
   };
 }
 
