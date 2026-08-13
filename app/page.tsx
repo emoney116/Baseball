@@ -5728,7 +5728,7 @@ function PracticeHome({
     practice ? data.players.filter((player) => !player.archived && practice.playerIds.includes(player.id)) : data.players.filter((player) => !player.archived),
     data.settings.recentPlayerIds,
   );
-  const attendancePageSize = 8;
+  const attendancePageSize = 25;
   const [attendancePage, setAttendancePage] = useState(0);
   const practiceAttendance = practice ? data.attendance.filter((item) => item.practiceId === practice.id) : [];
   const activeAttendance = practiceAttendance.filter((item) => item.status === "Present" || item.status === "Late");
@@ -5825,8 +5825,16 @@ function PracticeHome({
 
               <article className="panel practice-attendance-overview">
                 <div className="panel-heading tight">
-                  <div>
-                    <h2>Team Attendance</h2>
+                  <div className="practice-attendance-heading-main">
+                    <div className="practice-attendance-title-line">
+                      <h2>Team Attendance</h2>
+                      <span className="attendance-status-key" aria-label="Attendance color key">
+                        <span><i className="present" />P</span>
+                        <span><i className="late" />L</span>
+                        <span><i className="absent" />A</span>
+                        <span><i className="excused" />E</span>
+                      </span>
+                    </div>
                     <span>{practiceAttendance.length || rosterCount} players</span>
                   </div>
                 </div>
@@ -5843,7 +5851,7 @@ function PracticeHome({
                       >
                         <PlayerAvatar player={player} size="sm" compact />
                         <span className="attendance-avatar__meta">
-                          <strong>{player.name}</strong>
+                          <strong>{attendancePlayerCode(player)}</strong>
                           <small>{status}</small>
                         </span>
                       </button>
@@ -6072,6 +6080,14 @@ function PracticeRecentCard({ data, recentPractices }: { data: AppData; recentPr
       )}
     </article>
   );
+}
+
+function attendancePlayerCode(player: Player) {
+  const parts = player.name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "";
+  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
+  const initials = `${first}${last}`.toUpperCase() || "?";
+  return player.jerseyNumber ? `${initials} #${player.jerseyNumber}` : initials;
 }
 
 function PracticeLeadersCard({
