@@ -146,6 +146,7 @@ type LiveBpOutcomeLabel = "K" | "BB" | "HBP" | "1B" | "2B" | "3B" | "HR" | "Out"
 type AppIcon = React.ComponentType<{ size?: number | string; "aria-hidden"?: boolean | "true" | "false"; className?: string }>;
 type ScheduleViewMode = "Calendar" | "Week" | "Agenda";
 type ScheduleSource = "practice" | "game" | "lift" | "event";
+type ScheduleDateFieldMode = "desktop" | "native";
 
 interface ScheduleItem {
   id: ID;
@@ -239,7 +240,6 @@ const PITCHING_STATIONS: PitchingSession["type"][] = ["Bullpen", "Live BP"];
 const DEFENSE_STATIONS: DefenseStation[] = ["Infield", "Outfield", "Catching", "PFP", "Situational defense", "Team defense"];
 const GAME_TYPES: GameType[] = ["Fall Game", "Scrimmage", "Showcase", "Regular Season", "Tournament", "Other"];
 const SCHEDULE_EVENT_TYPES: ScheduleEventType[] = ["Practice", "Game", "Lift", "Scrimmage", "Meeting", "Team Event", "Tournament", "Other"];
-const SCHEDULE_VISIBILITIES: ScheduleEventVisibility[] = ["TEAM_ONLY", "PUBLIC", "PRIVATE"];
 const SCHEDULE_EVENT_ACCENTS: Record<ScheduleEventType, string> = {
   Practice: "practice",
   Game: "game",
@@ -4614,6 +4614,218 @@ function ClockIcon() {
   );
 }
 
+function DatePickerField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [pickerMode, setPickerMode] = useState<ScheduleDateFieldMode>("desktop");
+  const [cursor, setCursor] = useState(() => monthCursor(value));
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const nativeInputRef = useRef<HTMLInputElement | null>(null);
+  const today = todayKey();
+  const monthDays = useMemo(() => calendarDaysForMonth(cursor), [cursor]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const query = window.matchMedia("(max-width: 720px), (pointer: coarse) and (max-width: 900px)");
+    const update = () => setPickerMode(query.matches ? "native" : "desktop");
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  function moveMonth(amount: number) {
+    setCursor((current) => new Date(current.getFullYear(), current.getMonth() + amount, 1));
+  }
+
+  function openPicker() {
+    if (pickerMode === "native") {
+      const nativeInput = nativeInputRef.current as (HTMLInputElement & { showPicker?: () => void }) | null;
+      if (nativeInput?.showPicker) {
+        nativeInput.focus();
+        nativeInput.showPicker();
+        return;
+      }
+    }
+    setCursor(monthCursor(value));
+    setOpen((current) => !current);
+  }
+
+  function chooseDate(nextValue: string) {
+    onChange(nextValue);
+    setCursor(monthCursor(nextValue));
+    setOpen(false);
+  }
+
+  function handleBlur() {
+    window.setTimeout(() => {
+      if (!rootRef.current?.contains(document.activeElement)) setOpen(false);
+    }, 0);
+  }
+
+  return (
+    <div ref={rootRef} className="form-field schedule-control-field schedule-picker-field" onBlur={handleBlur}>
+      <span>{label}</span>
+      <span className="schedule-input-shell schedule-picker-anchor">
+        <CalendarDays size={15} aria-hidden="true" />
+        <button type="button" className="schedule-picker-button" onClick={openPicker} aria-haspopup="dialog" aria-expanded={open}>
+          {formatPickerDate(value)}
+        </button>
+        <input
+          ref={nativeInputRef}
+          className="schedule-native-picker"
+          type="date"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          aria-label={label}
+          tabIndex={-1}
+        />
+      </span>
+      {open && pickerMode === "desktop" && (
+        <div className="schedule-date-popover" role="dialog" aria-label={`${label} picker`}>
+          <div className="schedule-date-popover__header">
+            <button type="button" className="schedule-picker-nav" onClick={() => moveMonth(-1)} aria-label="Previous month"><ChevronLeft size={15} aria-hidden="true" /></button>
+            <strong>{cursor.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</strong>
+            <button type="button" className="schedule-picker-nav" onClick={() => moveMonth(1)} aria-label="Next month"><ChevronRight size={15} aria-hidden="true" /></button>
+          </div>
+          <div className="schedule-date-weekdays" aria-hidden="true">
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => <span key={day}>{day}</span>)}
+          </div>
+          <div className="schedule-date-grid">
+            {monthDays.map((date) => {
+              const dateKey = isoDate(date);
+              return (
+                <button
+                  key={dateKey}
+                  type="button"
+                  className={[
+                    "schedule-date-cell",
+                    date.getMonth() === cursor.getMonth() ? "" : "is-muted",
+                    dateKey === value ? "is-selected" : "",
+                    dateKey === today ? "is-today" : "",
+                  ].filter(Boolean).join(" ")}
+                  onClick={() => chooseDate(dateKey)}
+                  aria-current={dateKey === today ? "date" : undefined}
+                >
+                  {date.getDate()}
+                </button>
+              );
+            })}
+          </div>
+          <button type="button" className="schedule-picker-today" onClick={() => chooseDate(today)}>Today</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TimePickerField({
+  label,
+  value,
+  onChange,
+  suggestions = [],
+  optional = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  suggestions?: string[];
+  optional?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(() => formatPickerTime(value));
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const options = useMemo(() => buildTimeOptions(), []);
+  const suggestionValues = useMemo(() => Array.from(new Set(suggestions.filter(Boolean))), [suggestions]);
+  const displayValue = open ? draft : formatPickerTime(value);
+
+  function commitDraft() {
+    const parsed = parseTimeInput(draft);
+    if (parsed) {
+      onChange(parsed);
+      setDraft(formatPickerTime(parsed));
+      return;
+    }
+    if (!draft.trim()) {
+      onChange("");
+      return;
+    }
+    setDraft(formatPickerTime(value));
+  }
+
+  function chooseTime(nextValue: string) {
+    onChange(nextValue);
+    setDraft(formatPickerTime(nextValue));
+    setOpen(false);
+  }
+
+  function handleBlur() {
+    window.setTimeout(() => {
+      if (!rootRef.current?.contains(document.activeElement)) {
+        commitDraft();
+        setOpen(false);
+      }
+    }, 0);
+  }
+
+  return (
+    <div ref={rootRef} className="form-field schedule-control-field schedule-picker-field" onBlur={handleBlur}>
+      <span>{label} {optional && <small>optional</small>}</span>
+      <span className="schedule-input-shell schedule-picker-anchor">
+        <ClockIcon />
+        <input
+          className="schedule-picker-text"
+          value={displayValue}
+          placeholder="--:-- --"
+          inputMode="text"
+          onFocus={() => {
+            setDraft(formatPickerTime(value));
+            setOpen(true);
+          }}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            setOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitDraft();
+              setOpen(false);
+            }
+            if (event.key === "Escape") setOpen(false);
+          }}
+          aria-label={label}
+        />
+      </span>
+      {open && (
+        <div className="schedule-time-popover" role="listbox" aria-label={`${label} picker`}>
+          {suggestionValues.length > 0 && (
+            <div className="schedule-time-suggestions">
+              {suggestionValues.map((timeValue) => (
+                <button key={timeValue} type="button" onClick={() => chooseTime(timeValue)}>
+                  {formatPickerTime(timeValue)}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="schedule-time-list">
+            {options.map((timeValue) => (
+              <button
+                key={timeValue}
+                type="button"
+                className={timeValue === value ? "is-selected" : ""}
+                onClick={() => chooseTime(timeValue)}
+                role="option"
+                aria-selected={timeValue === value}
+              >
+                {formatPickerTime(timeValue)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RosterView({
   players,
   staffMembers,
@@ -6580,7 +6792,6 @@ function ScheduleEventModal({
     notes: "",
     opponent: "",
     homeAway: "Home" as Game["homeAway"],
-    gameType: "Scrimmage" as GameType,
     visibility: "TEAM_ONLY" as ScheduleEventVisibility,
   });
   const eventTypeOptions: ChoiceOption[] = SCHEDULE_EVENT_TYPES.map((type) => ({
@@ -6653,7 +6864,6 @@ function ScheduleEventModal({
         ? defaultScheduleTitle(type, current.opponent, current.homeAway)
         : current.title,
       visibility: defaultScheduleVisibility(type, currentTeam),
-      gameType: type === "Tournament" ? "Tournament" : type === "Scrimmage" ? "Scrimmage" : current.gameType,
     }));
   }
 
@@ -6692,7 +6902,7 @@ function ScheduleEventModal({
   function renderOpponentLookup(optional = false) {
     const typedOpponent = form.opponent.trim();
     return (
-      <div className="form-field schedule-opponent-field wide">
+      <div className="form-field schedule-opponent-field">
         <span>Opponent {optional && <small>optional</small>}</span>
         <span className="schedule-input-shell">
           <Search size={15} aria-hidden="true" />
@@ -6789,7 +6999,7 @@ function ScheduleEventModal({
         opponent,
         homeAway: form.homeAway,
         location: form.location,
-        type: form.gameType,
+        type: "Fall Game",
         metrolinaScore: 0,
         opponentScore: 0,
         inning: 1,
@@ -6839,14 +7049,13 @@ function ScheduleEventModal({
         {eventType === "Game" && (
           <>
             {renderOpponentLookup(false)}
-            <div className="form-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => updateHomeAway(value as Game["homeAway"])} aria-label="Home or away" /></div>
-            <div className="form-field"><span>Tournament/Event</span><ChoiceSelect value={form.gameType} className="form-choice" options={GAME_TYPES.map((type) => ({ value: type, label: type }))} onChange={(value) => setForm({ ...form, gameType: value as GameType })} aria-label="Game event type" /></div>
+            <div className="form-field schedule-home-away-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => updateHomeAway(value as Game["homeAway"])} aria-label="Home or away" /></div>
           </>
         )}
         {eventType === "Scrimmage" && (
           <>
             {renderOpponentLookup(true)}
-            <div className="form-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => updateHomeAway(value as Game["homeAway"])} aria-label="Scrimmage home or away" /></div>
+            <div className="form-field schedule-home-away-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => updateHomeAway(value as Game["homeAway"])} aria-label="Scrimmage home or away" /></div>
           </>
         )}
         {eventType === "Tournament" && (
@@ -6855,36 +7064,12 @@ function ScheduleEventModal({
         {isGenericTitleType && (
           <label className="wide"><span>Title</span><input value={form.title} placeholder="Film Review" onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
         )}
-        <label className="schedule-control-field">
-          <span>{eventType === "Tournament" ? "Start Date" : "Date"}</span>
-          <span className="schedule-input-shell">
-            <CalendarDays size={15} aria-hidden="true" />
-            <input type="date" value={form.date} onChange={(event) => updateDate(event.target.value)} />
-          </span>
-        </label>
+        <DatePickerField label={eventType === "Tournament" ? "Start Date" : "Date"} value={form.date} onChange={updateDate} />
         {eventType === "Tournament" && (
-          <label className="schedule-control-field">
-            <span>End Date</span>
-            <span className="schedule-input-shell">
-              <CalendarDays size={15} aria-hidden="true" />
-              <input type="date" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} />
-            </span>
-          </label>
+          <DatePickerField label="End Date" value={form.endDate} onChange={(value) => setForm({ ...form, endDate: value })} />
         )}
-        <label className="schedule-control-field">
-          <span>Start</span>
-          <span className="schedule-input-shell">
-            <ClockIcon />
-            <input type="time" value={form.startTime} onChange={(event) => setForm({ ...form, startTime: event.target.value })} />
-          </span>
-        </label>
-        <label className="schedule-control-field">
-          <span>End <small>optional</small></span>
-          <span className="schedule-input-shell">
-            <ClockIcon />
-            <input type="time" value={form.endTime} onChange={(event) => setForm({ ...form, endTime: event.target.value })} />
-          </span>
-        </label>
+        <TimePickerField label="Start" value={form.startTime} onChange={(value) => setForm({ ...form, startTime: value })} />
+        <TimePickerField label="End" value={form.endTime} onChange={(value) => setForm({ ...form, endTime: value })} suggestions={suggestedEndTimes(form.startTime)} optional />
         <label className="wide schedule-control-field">
           <span>Location</span>
           <span className="schedule-input-shell schedule-input-shell--with-action">
@@ -6893,17 +7078,6 @@ function ScheduleEventModal({
             {mapsUrl && <a className="schedule-map-link" href={mapsUrl} target="_blank" rel="noreferrer">Search Maps</a>}
           </span>
         </label>
-        {currentTeam && (
-          <div className="form-field schedule-team-field">
-            <span>Team</span>
-            <button type="button" className="schedule-team-pill" disabled>
-              <Users size={16} aria-hidden="true" />
-              <strong>{currentTeam.teamName}<small>{currentTeam.seasonName ?? data.settings.rosterSeason}</small></strong>
-              <ChevronDown size={14} aria-hidden="true" />
-            </button>
-          </div>
-        )}
-        <div className="form-field"><span>Visibility</span><ChoiceSelect value={form.visibility} className="form-choice" options={SCHEDULE_VISIBILITIES.map((value) => ({ value, label: scheduleVisibilityLabel(value) }))} onChange={(value) => setForm({ ...form, visibility: value as ScheduleEventVisibility })} aria-label="Event visibility" /></div>
         <label className="wide"><span>Notes <small>optional</small></span><textarea value={form.notes} placeholder="Add notes..." onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
         {errors.length > 0 && (
           <div className="form-errors wide" role="alert">
@@ -9650,6 +9824,83 @@ function weekRangeLabel(cursor: Date) {
   return `${first.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${last.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
+function monthCursor(dateKey?: string) {
+  const date = parseDateKey(dateKey) ?? new Date();
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function parseDateKey(dateKey?: string) {
+  if (!dateKey) return undefined;
+  const [year, month, day] = dateKey.split("-").map(Number);
+  if (!year || !month || !day) return undefined;
+  return new Date(year, month - 1, day);
+}
+
+function formatPickerDate(dateKey?: string) {
+  const date = parseDateKey(dateKey);
+  if (!date) return "Select date";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function buildTimeOptions() {
+  const options: string[] = [];
+  for (let minutes = 6 * 60; minutes <= 23 * 60 + 45; minutes += 15) options.push(formatMinutesAsTimeValue(minutes));
+  for (let minutes = 0; minutes < 6 * 60; minutes += 15) options.push(formatMinutesAsTimeValue(minutes));
+  return options;
+}
+
+function parseTimeValue(value?: string) {
+  if (!value) return undefined;
+  const match = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return undefined;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return undefined;
+  return hours * 60 + minutes;
+}
+
+function formatMinutesAsTimeValue(totalMinutes: number) {
+  const normalized = ((totalMinutes % 1440) + 1440) % 1440;
+  const hours = Math.floor(normalized / 60);
+  const minutes = normalized % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function formatPickerTime(value?: string) {
+  const minutes = parseTimeValue(value);
+  if (minutes === undefined) return "";
+  const hours = Math.floor(minutes / 60);
+  const minutePart = minutes % 60;
+  const hour12 = hours % 12 || 12;
+  const period = hours >= 12 ? "PM" : "AM";
+  return `${hour12}:${String(minutePart).padStart(2, "0")} ${period}`;
+}
+
+function parseTimeInput(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return "";
+  const match = normalized.match(/^(\d{1,2})(?::?(\d{2}))?\s*(a|am|p|pm)?$/);
+  if (!match) return undefined;
+  let hours = Number(match[1]);
+  const minutes = Number(match[2] ?? "0");
+  const period = match[3];
+  if (minutes > 59 || hours > 24) return undefined;
+  if (period) {
+    if (hours < 1 || hours > 12) return undefined;
+    if (period.startsWith("p") && hours !== 12) hours += 12;
+    if (period.startsWith("a") && hours === 12) hours = 0;
+  } else if (hours === 24) {
+    hours = 0;
+  }
+  return formatMinutesAsTimeValue(hours * 60 + minutes);
+}
+
+function suggestedEndTimes(startTime: string) {
+  const startMinutes = parseTimeValue(startTime);
+  if (startMinutes === undefined) return [];
+  return [60, 90, 120].map((offset) => formatMinutesAsTimeValue(startMinutes + offset));
+}
+
 function groupScheduleItemsByDate(items: ScheduleItem[]) {
   const groups = new Map<string, ScheduleItem[]>();
   for (const item of items) {
@@ -9684,12 +9935,6 @@ function defaultScheduleVisibility(type: ScheduleEventType, team?: TeamOption): 
   void team;
   if (type === "Game" || type === "Tournament") return "PUBLIC";
   return "TEAM_ONLY";
-}
-
-function scheduleVisibilityLabel(value: ScheduleEventVisibility) {
-  if (value === "TEAM_ONLY") return "Team only";
-  if (value === "PUBLIC") return "Public";
-  return "Private";
 }
 
 function defaultScheduleTitle(type: ScheduleEventType, opponent = "", homeAway: Game["homeAway"] = "Home") {

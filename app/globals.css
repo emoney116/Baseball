@@ -9856,6 +9856,7 @@ body {
 }
 
 .schedule-event-form {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
@@ -9907,6 +9908,7 @@ body {
 }
 
 .schedule-input-shell {
+  position: relative;
   min-height: 46px;
   border: 1px solid color-mix(in srgb, var(--line-strong) 66%, transparent);
   border-radius: 10px;
@@ -9948,18 +9950,215 @@ body {
 
 .schedule-input-shell input[type="date"]::-webkit-calendar-picker-indicator,
 .schedule-input-shell input[type="time"]::-webkit-calendar-picker-indicator {
-  cursor: pointer;
-  filter: invert(1);
-  opacity: 0.72;
-}
-
-.schedule-input-shell input[type="date"]::-webkit-calendar-picker-indicator:hover,
-.schedule-input-shell input[type="time"]::-webkit-calendar-picker-indicator:hover {
-  opacity: 1;
+  display: none;
 }
 
 .schedule-input-shell--with-action {
   grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.schedule-picker-field {
+  position: relative;
+}
+
+.schedule-picker-anchor {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.schedule-picker-button {
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 840;
+  padding: 0;
+  text-align: left;
+}
+
+.schedule-picker-button.is-placeholder {
+  color: color-mix(in srgb, var(--muted) 72%, transparent);
+}
+
+.schedule-picker-text {
+  font-size: 13px;
+  font-weight: 840;
+}
+
+.schedule-native-picker {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.schedule-date-popover,
+.schedule-time-popover {
+  position: absolute;
+  top: calc(100% + 7px);
+  left: 0;
+  z-index: 35;
+  width: min(320px, calc(100vw - 40px));
+  border: 1px solid color-mix(in srgb, var(--line-strong) 78%, transparent);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--panel-strong) 98%, transparent)),
+    var(--panel-strong);
+  box-shadow: 0 22px 54px rgba(0, 0, 0, 0.42);
+  padding: 10px;
+}
+
+.schedule-date-popover__header {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.schedule-date-popover__header strong {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 880;
+}
+
+.schedule-picker-nav {
+  width: 34px;
+  height: 34px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 68%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 58%, transparent);
+  color: var(--muted-strong);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.schedule-picker-nav:hover,
+.schedule-picker-nav:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy) 58%, var(--line));
+  color: var(--text);
+  outline: 0;
+}
+
+.schedule-date-weekdays,
+.schedule-date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.schedule-date-weekdays span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  padding: 4px 0;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.schedule-date-cell {
+  aspect-ratio: 1;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.schedule-date-cell:hover,
+.schedule-date-cell:focus-visible {
+  background: color-mix(in srgb, var(--burgundy) 12%, transparent);
+  border-color: color-mix(in srgb, var(--burgundy) 28%, transparent);
+  outline: 0;
+}
+
+.schedule-date-cell.is-muted {
+  color: color-mix(in srgb, var(--muted) 58%, transparent);
+}
+
+.schedule-date-cell.is-today {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--burgundy-bright) 54%, transparent);
+}
+
+.schedule-date-cell.is-selected {
+  background: var(--burgundy);
+  color: #fff;
+}
+
+.schedule-picker-today {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid color-mix(in srgb, var(--burgundy) 34%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--burgundy) 12%, transparent);
+  color: var(--burgundy-bright);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 860;
+  margin-top: 9px;
+}
+
+.schedule-picker-today:hover,
+.schedule-picker-today:focus-visible {
+  background: color-mix(in srgb, var(--burgundy) 20%, transparent);
+  color: #fff;
+  outline: 0;
+}
+
+.schedule-time-popover {
+  width: min(260px, calc(100vw - 40px));
+  padding: 8px;
+}
+
+.schedule-time-suggestions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 7px;
+  padding-bottom: 7px;
+}
+
+.schedule-time-suggestions button,
+.schedule-time-list button {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 820;
+}
+
+.schedule-time-suggestions button {
+  border-color: color-mix(in srgb, var(--burgundy) 30%, transparent);
+  background: color-mix(in srgb, var(--burgundy) 10%, transparent);
+  color: var(--burgundy-bright);
+}
+
+.schedule-time-list {
+  max-height: 224px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding-right: 2px;
+}
+
+.schedule-time-list button:hover,
+.schedule-time-list button:focus-visible,
+.schedule-time-list button.is-selected,
+.schedule-time-suggestions button:hover,
+.schedule-time-suggestions button:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy) 42%, transparent);
+  background: color-mix(in srgb, var(--burgundy) 16%, transparent);
+  outline: 0;
 }
 
 .schedule-map-link {
@@ -10000,10 +10199,17 @@ body {
 }
 
 .schedule-opponent-field {
+  position: relative;
   align-self: start;
+  grid-column: span 2;
 }
 
 .schedule-opponent-results {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 7px);
+  left: 0;
+  right: 0;
   border: 1px solid color-mix(in srgb, var(--line-strong) 66%, transparent);
   border-radius: 12px;
   background:
@@ -10013,6 +10219,10 @@ body {
   display: grid;
   gap: 4px;
   padding: 5px;
+}
+
+.schedule-home-away-field {
+  grid-column: span 1;
 }
 
 .schedule-opponent-option {
@@ -11311,6 +11521,16 @@ body {
 
   .schedule-event-form {
     grid-template-columns: 1fr;
+  }
+
+  .schedule-opponent-field,
+  .schedule-home-away-field {
+    grid-column: auto;
+  }
+
+  .schedule-date-popover,
+  .schedule-time-popover {
+    width: min(100%, calc(100vw - 36px));
   }
 
   .team-snapshot-bar > div {
