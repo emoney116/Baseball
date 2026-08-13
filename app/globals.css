@@ -4618,15 +4618,33 @@ textarea:focus-visible {
 }
 
 .organization-grid,
-.team-card-grid {
+.team-card-grid,
+.managed-team-grid,
+.followed-team-grid,
+.followed-organization-grid {
   display: grid;
   gap: 12px;
 }
 
 .managed-team-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 540px));
+  justify-content: start;
   gap: 10px;
+}
+
+.followed-team-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 410px), 520px));
+  justify-content: start;
+}
+
+.followed-team-grid--summary {
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
+}
+
+.followed-organization-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 560px));
+  justify-content: start;
 }
 
 .organization-team-grid {
@@ -4642,8 +4660,8 @@ textarea:focus-visible {
 }
 
 .organization-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 1fr));
-  justify-content: stretch;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 520px));
+  justify-content: start;
 }
 
 .team-card-grid {
@@ -4729,6 +4747,70 @@ textarea:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.public-follow-team-card {
+  min-height: 72px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.public-follow-team-card__main {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.public-follow-team-card__main .organization-logo {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+}
+
+.public-follow-team-card__main span {
+  min-width: 0;
+}
+
+.public-follow-team-card__main strong,
+.public-follow-team-card__main small {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.public-follow-team-card__main strong {
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.public-follow-team-card__main small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.public-follow-team-card:hover {
+  border-color: var(--line-strong);
+  background: var(--panel-strong);
+}
+
+.public-follow-team-card:hover .public-follow-team-card__main strong {
+  color: var(--brand-light);
+}
+
+.public-follow-team-card__chevron {
+  color: var(--muted);
 }
 
 .organization-team-card__main span,
@@ -5165,6 +5247,10 @@ textarea:focus-visible {
 
 .team-mini-row__main {
   width: 100%;
+}
+
+.team-mini-row__main--with-chevron {
+  grid-template-columns: 36px minmax(0, 1fr) auto;
 }
 
 .team-mini-row--follow > .team-mini-row__main {
@@ -10311,6 +10397,8 @@ body {
 
   .organization-grid,
   .managed-team-grid,
+  .followed-team-grid,
+  .followed-organization-grid,
   .team-card-grid,
   .global-two-column,
   .discover-grid,

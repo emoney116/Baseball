@@ -801,27 +801,12 @@ export default function MetrolinaBaseballApp() {
     setSaveStatus("saving");
     setSaveError(null);
     try {
-      const orgFollowed = team.organizationId ? isFollowingOrganization(data?.profileFollows ?? [], team.organizationId) : false;
-      const specificallyFollowed = isFollowingTeam(data?.profileFollows ?? [], team.id);
-      const excluded = isTeamExcludedFromFollow(data?.profileFollowExclusions ?? [], team.organizationId, team.id);
-      const effectivelyFollowed = orgFollowed ? !excluded : specificallyFollowed;
-      const follow = !effectivelyFollowed;
-      const exclusionResult = orgFollowed && team.organizationId
-        ? await supabaseAppRepository.toggleOrganizationTeamExclusion({ organizationId: team.organizationId, teamId: team.id, exclude: !follow })
-        : undefined;
-      const followResult = !orgFollowed
-        ? await supabaseAppRepository.toggleFollow({ teamId: team.id, follow })
-        : undefined;
+      const followed = isFollowingTeam(data?.profileFollows ?? [], team.id);
+      const follow = !followed;
+      const followResult = await supabaseAppRepository.toggleFollow({ teamId: team.id, follow });
       setData((current) => {
         if (!current) return current;
         const remaining = (current.profileFollows ?? []).filter((item) => item.teamId !== team.id);
-        const remainingExclusions = (current.profileFollowExclusions ?? []).filter((item) => item.teamId !== team.id);
-        if (orgFollowed && team.organizationId) {
-          return {
-            ...current,
-            profileFollowExclusions: !follow && exclusionResult ? [exclusionResult, ...remainingExclusions] : remainingExclusions,
-          };
-        }
         return {
           ...current,
           profileFollows: follow && followResult ? [followResult, ...remaining] : remaining,
@@ -1419,10 +1404,8 @@ export default function MetrolinaBaseballApp() {
               data={data}
               onEnterTeam={enterTeam}
               onOpenPublicTeam={openPublicTeam}
-              onOpenPublicOrganization={openPublicOrganization}
               onOpenManagedOrganization={openManagedOrganization}
               onTogglePublicTeamFollow={togglePublicTeamFollow}
-              onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
               onToggleTeamPin={toggleTeamPin}
               onView={goToView}
               onCreateTeam={() => openTeamCreator(undefined, "existing")}
@@ -1449,12 +1432,10 @@ export default function MetrolinaBaseballApp() {
         {view === "following" && (
           <FollowingView
             data={data}
-            onEnterTeam={enterTeam}
             onOpenPublicTeam={openPublicTeam}
             onOpenPublicOrganization={openPublicOrganization}
             onTogglePublicTeamFollow={togglePublicTeamFollow}
             onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
-            onToggleTeamPin={toggleTeamPin}
             onCreateTeam={() => openTeamCreator(undefined, "existing")}
           />
         )}
@@ -1466,7 +1447,6 @@ export default function MetrolinaBaseballApp() {
             onOpenPublicTeam={openPublicTeam}
             onOpenPublicOrganization={openPublicOrganization}
             onTogglePublicTeamFollow={togglePublicTeamFollow}
-            onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
             onCreateTeam={() => openTeamCreator(undefined, "existing")}
           />
         )}
@@ -2971,10 +2951,8 @@ function ClubhouseHome({
   data,
   onEnterTeam,
   onOpenPublicTeam,
-  onOpenPublicOrganization,
   onOpenManagedOrganization,
   onTogglePublicTeamFollow,
-  onTogglePublicOrganizationFollow,
   onToggleTeamPin,
   onView,
   onCreateTeam,
@@ -2982,10 +2960,8 @@ function ClubhouseHome({
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
-  onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onOpenManagedOrganization: (organization: OrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
-  onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
   onToggleTeamPin: (team: TeamOption) => void | Promise<void>;
   onView: (view: ViewKey) => void;
   onCreateTeam: () => void;
@@ -3044,12 +3020,8 @@ function ClubhouseHome({
           </div>
           <FollowSummary
             data={data}
-            onEnterTeam={onEnterTeam}
             onOpenPublicTeam={onOpenPublicTeam}
-            onOpenPublicOrganization={onOpenPublicOrganization}
             onTogglePublicTeamFollow={onTogglePublicTeamFollow}
-            onTogglePublicOrganizationFollow={onTogglePublicOrganizationFollow}
-            onToggleTeamPin={onToggleTeamPin}
           />
         </article>
         <article className="panel compact-panel">
@@ -3535,25 +3507,21 @@ function TeamCreatorModal({
 
 function FollowingView({
   data,
-  onEnterTeam,
   onOpenPublicTeam,
   onOpenPublicOrganization,
   onTogglePublicTeamFollow,
   onTogglePublicOrganizationFollow,
-  onToggleTeamPin,
   onCreateTeam,
 }: {
   data: AppData;
-  onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
   onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
-  onToggleTeamPin: (team: TeamOption) => void | Promise<void>;
   onCreateTeam: () => void;
 }) {
-  const managedTeams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
-  const followedOrganizations = followedPublicOrganizationGroups(data);
+  const followedTeams = followedPublicTeams(data);
+  const followedOrganizations = followedPublicOrganizations(data);
   return (
     <div className="page-stack global-home">
       <SectionHeader
@@ -3565,45 +3533,40 @@ function FollowingView({
           </button>
         }
       />
-      {managedTeams.length || followedOrganizations.length ? (
+      {followedTeams.length || followedOrganizations.length ? (
         <>
-          <section className="global-section">
-            <SectionHeader title="My teams" />
-            <div className="managed-team-grid">
-              {managedTeams.map((team) => (
-                <ManagedTeamCard
-                  key={teamValue(team)}
-                  team={team}
-                  context={data.teamContext}
-                  pinnedTeams={data.profileTeamPins}
-                  onEnterTeam={onEnterTeam}
-                  onTogglePinnedTeam={onToggleTeamPin}
-                />
-              ))}
-            </div>
-          </section>
+          {followedTeams.length > 0 && (
+            <section className="global-section">
+              <SectionHeader title="Teams" />
+              <div className="followed-team-grid">
+                {followedTeams.map((team) => (
+                  <PublicTeamFollowCard
+                    key={team.id}
+                    team={team}
+                    followed={isFollowingTeam(data.profileFollows ?? [], team.id)}
+                    onOpenTeam={onOpenPublicTeam}
+                    onToggleFollow={onTogglePublicTeamFollow}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
           {followedOrganizations.length > 0 && (
             <section className="global-section">
-              <SectionHeader title="Following" />
-              <div className="organization-team-grid">
-              {followedOrganizations.map((organization) => (
-                <PublicOrganizationFollowCard
-                  key={organization.id}
-                  organization={organization}
-                  followed={isFollowingOrganization(data.profileFollows ?? [], organization.id)}
-                  onOpenTeam={onOpenPublicTeam}
-                  onOpenOrganization={onOpenPublicOrganization}
-                  isTeamFollowed={(team) =>
-                    isFollowingTeam(data.profileFollows ?? [], team.id) ||
-                    (team.organizationId
-                      ? isFollowingOrganization(data.profileFollows ?? [], team.organizationId) &&
-                        !isTeamExcludedFromFollow(data.profileFollowExclusions ?? [], team.organizationId, team.id)
-                      : false)
-                  }
-                  onToggleTeamFollow={onTogglePublicTeamFollow}
-                  onToggleOrganizationFollow={onTogglePublicOrganizationFollow}
-                />
-              ))}
+              <SectionHeader title="Organizations" />
+              <div className="followed-organization-grid">
+                {followedOrganizations.map((organization) => (
+                  <PublicOrganizationFollowCard
+                    key={organization.id}
+                    organization={organization}
+                    followed={isFollowingOrganization(data.profileFollows ?? [], organization.id)}
+                    onOpenTeam={onOpenPublicTeam}
+                    onOpenOrganization={onOpenPublicOrganization}
+                    isTeamFollowed={(team) => isFollowingTeam(data.profileFollows ?? [], team.id)}
+                    onToggleTeamFollow={onTogglePublicTeamFollow}
+                    onToggleOrganizationFollow={onTogglePublicOrganizationFollow}
+                  />
+                ))}
               </div>
             </section>
           )}
@@ -3621,7 +3584,6 @@ function DiscoverView({
   onOpenPublicTeam,
   onOpenPublicOrganization,
   onTogglePublicTeamFollow,
-  onTogglePublicOrganizationFollow,
   onCreateTeam,
 }: {
   data: AppData;
@@ -3629,7 +3591,6 @@ function DiscoverView({
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
   onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
-  onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
   onCreateTeam: () => void;
 }) {
   const [query, setQuery] = useState("");
@@ -3670,9 +3631,7 @@ function DiscoverView({
               <PublicOrganizationMiniRow
                 key={organization.id}
                 organization={organization}
-                followed={isFollowingOrganization(data.profileFollows ?? [], organization.id)}
                 onOpenOrganization={onOpenPublicOrganization}
-                onToggleFollow={onTogglePublicOrganizationFollow}
               />
             )) : null}
             {!organizations.length && !publicOrganizations.length && <CompactEmpty title="No organizations found" />}
@@ -3688,13 +3647,7 @@ function DiscoverView({
               <PublicTeamMiniRow
                 key={team.id}
                 team={team}
-                followed={
-                  isFollowingTeam(data.profileFollows ?? [], team.id) ||
-                  (team.organizationId
-                    ? isFollowingOrganization(data.profileFollows ?? [], team.organizationId) &&
-                      !isTeamExcludedFromFollow(data.profileFollowExclusions ?? [], team.organizationId, team.id)
-                    : false)
-                }
+                followed={isFollowingTeam(data.profileFollows ?? [], team.id)}
                 onOpenTeam={onOpenPublicTeam}
                 onToggleFollow={onTogglePublicTeamFollow}
               />
@@ -3946,6 +3899,37 @@ function PublicOrganizationFollowCard({
   );
 }
 
+function PublicTeamFollowCard({
+  team,
+  followed,
+  onOpenTeam,
+  onToggleFollow,
+}: {
+  team: PublicDirectoryTeamSummary;
+  followed: boolean;
+  onOpenTeam: (team: PublicDirectoryTeamSummary) => void;
+  onToggleFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
+}) {
+  const metadata = [team.organizationName, team.seasonName ?? "Current season"].filter(Boolean).join(" - ");
+  return (
+    <article className="panel public-follow-team-card">
+      <button className="public-follow-team-card__main" type="button" onClick={() => onOpenTeam(team)}>
+        <OrganizationLogo name={team.organizationName} logoUrl={team.logoUrl} />
+        <span>
+          <strong>{team.name}</strong>
+          <small>{metadata}</small>
+        </span>
+      </button>
+      <FollowButton
+        followed={followed}
+        label={followed ? `Unfollow ${team.name}` : `Follow ${team.name}`}
+        onClick={() => void onToggleFollow(team)}
+      />
+      <ChevronRight className="public-follow-team-card__chevron" size={18} aria-hidden="true" />
+    </article>
+  );
+}
+
 function OrganizationMiniRow({ organization, onEnterTeam }: { organization: OrganizationSummary; onEnterTeam: (team: TeamOption) => void | Promise<void> }) {
   return (
     <button className="team-mini-row" type="button" onClick={() => organization.teams[0] && void onEnterTeam(organization.teams[0])}>
@@ -3974,26 +3958,18 @@ function TeamMiniRow({
 
 function PublicOrganizationMiniRow({
   organization,
-  followed,
   onOpenOrganization,
-  onToggleFollow,
 }: {
   organization: PublicDirectoryOrganizationSummary;
-  followed: boolean;
   onOpenOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
-  onToggleFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
 }) {
   return (
-    <div className="team-mini-row team-mini-row--follow">
-      <button className="team-mini-row__main" type="button" onClick={() => onOpenOrganization(organization)}>
+    <div className="team-mini-row">
+      <button className="team-mini-row__main team-mini-row__main--with-chevron" type="button" onClick={() => onOpenOrganization(organization)}>
         <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
         <span><strong>{organization.name}</strong><small>{organizationLocation(organization) || `${organization.teams.length} teams`}</small></span>
+        <ChevronRight size={15} aria-hidden="true" />
       </button>
-      <FollowButton
-        followed={followed}
-        label={followed ? `Unfollow ${organization.name}` : `Follow ${organization.name}`}
-        onClick={() => void onToggleFollow(organization)}
-      />
     </div>
   );
 }
@@ -4042,52 +4018,24 @@ function FollowButton({
 
 function FollowSummary({
   data,
-  onEnterTeam,
   onOpenPublicTeam,
-  onOpenPublicOrganization,
   onTogglePublicTeamFollow,
-  onTogglePublicOrganizationFollow,
-  onToggleTeamPin,
 }: {
   data: AppData;
-  onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
-  onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
-  onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
-  onToggleTeamPin: (team: TeamOption) => void | Promise<void>;
 }) {
-  const managedTeams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
-  const publicOrganizations = followedPublicOrganizationGroups(data);
-  if (!managedTeams.length && !publicOrganizations.length) return <CompactEmpty title="No followed teams yet" />;
+  const teams = followedPublicTeams(data);
+  if (!teams.length) return <CompactEmpty title="No followed teams yet" />;
   return (
-    <div className="organization-team-grid organization-team-grid--summary">
-      {managedTeams.slice(0, 3).map((team) => (
-        <ManagedTeamCard
-          key={teamValue(team)}
+    <div className="followed-team-grid followed-team-grid--summary">
+      {teams.slice(0, 3).map((team) => (
+        <PublicTeamFollowCard
+          key={team.id}
           team={team}
-          context={data.teamContext}
-          onEnterTeam={onEnterTeam}
-          pinnedTeams={data.profileTeamPins}
-          onTogglePinnedTeam={onToggleTeamPin}
-        />
-      ))}
-      {publicOrganizations.slice(0, 2).map((organization) => (
-        <PublicOrganizationFollowCard
-          key={organization.id}
-          organization={organization}
-          followed={isFollowingOrganization(data.profileFollows ?? [], organization.id)}
+          followed={isFollowingTeam(data.profileFollows ?? [], team.id)}
           onOpenTeam={onOpenPublicTeam}
-          onOpenOrganization={onOpenPublicOrganization}
-          isTeamFollowed={(team) =>
-            isFollowingTeam(data.profileFollows ?? [], team.id) ||
-            (team.organizationId
-              ? isFollowingOrganization(data.profileFollows ?? [], team.organizationId) &&
-                !isTeamExcludedFromFollow(data.profileFollowExclusions ?? [], team.organizationId, team.id)
-              : false)
-          }
-          onToggleTeamFollow={onTogglePublicTeamFollow}
-          onToggleOrganizationFollow={onTogglePublicOrganizationFollow}
+          onToggleFollow={onTogglePublicTeamFollow}
         />
       ))}
     </div>
@@ -8811,26 +8759,22 @@ function isFollowingOrganization(follows: ProfileFollow[] | undefined, organizat
   return Boolean(follows?.some((follow) => follow.organizationId === organizationId && !follow.teamId));
 }
 
-function isTeamExcludedFromFollow(exclusions: AppData["profileFollowExclusions"] | undefined, organizationId: ID | undefined, teamId: ID) {
-  if (!organizationId) return false;
-  return Boolean(exclusions?.some((exclusion) => exclusion.organizationId === organizationId && exclusion.teamId === teamId));
-}
-
-function followedPublicOrganizationGroups(data: AppData) {
+function followedPublicTeams(data: AppData) {
   const managedTeamIds = new Set((data.teamContext?.availableTeams ?? []).map((team) => team.teamId));
   const follows = data.profileFollows ?? [];
-  const followedTeamIds = new Set(follows.map((follow) => follow.teamId).filter(Boolean));
-  const followedOrganizationIds = new Set(follows.map((follow) => follow.organizationId).filter(Boolean));
+  const followedTeamIds = new Set(follows.map((follow) => follow.teamId).filter((teamId): teamId is ID => Boolean(teamId)));
+  return (data.publicTeams ?? []).filter((team) => followedTeamIds.has(team.id) && !managedTeamIds.has(team.id));
+}
 
-  return (data.publicOrganizations ?? [])
-    .map((organization) => {
-      const teams = organization.teams.filter((team) => {
-        if (managedTeamIds.has(team.id)) return false;
-        return followedTeamIds.has(team.id);
-      });
-      return { ...organization, teams };
-    })
-    .filter((organization) => followedOrganizationIds.has(organization.id) || organization.teams.length > 0);
+function followedPublicOrganizations(data: AppData) {
+  const follows = data.profileFollows ?? [];
+  const followedOrganizationIds = new Set(
+    follows
+      .filter((follow) => follow.organizationId && !follow.teamId)
+      .map((follow) => follow.organizationId)
+      .filter((organizationId): organizationId is ID => Boolean(organizationId)),
+  );
+  return (data.publicOrganizations ?? []).filter((organization) => followedOrganizationIds.has(organization.id));
 }
 
 function organizationLocation(source: { city?: string; state?: string }) {
