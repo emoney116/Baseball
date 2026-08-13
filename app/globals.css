@@ -2540,6 +2540,7 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
   border-radius: 999px;
   color: var(--text);
   font-weight: 750;
@@ -11481,7 +11482,6 @@ body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .recent-activity-card,
   .team-snapshot-bar,
   .profile-overview-main {
     grid-column: 1 / -1;
@@ -12074,7 +12074,6 @@ body,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .recent-activity-card,
   .team-snapshot-bar,
   .weekly-grid {
     grid-column: 1 / -1;
@@ -12336,7 +12335,6 @@ body,
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .recent-activity-card,
   .team-snapshot-bar,
   .weekly-grid,
   .profile-overview-main {

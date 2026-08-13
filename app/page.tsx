@@ -1652,7 +1652,7 @@ export default function MetrolinaBaseballApp() {
           {inTeamContext && (
             <button className="context-back-button" type="button" onClick={returnToClubhouseHome}>
               <ChevronLeft size={14} aria-hidden="true" />
-              <span>Clubhouse Home</span>
+              <span>Clubhouse</span>
             </button>
           )}
         </div>
