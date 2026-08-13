@@ -245,8 +245,8 @@ const DEFENSE_STATIONS: DefenseStation[] = ["Infield", "Outfield", "Catching", "
 const GAME_TYPES: GameType[] = ["Fall Game", "Scrimmage", "Showcase", "Regular Season", "Tournament", "Other"];
 const SCHEDULE_EVENT_TYPES: ScheduleEventType[] = ["Game", "Practice", "Lift", "Scrimmage", "Tournament", "Other"];
 const SCHEDULE_EVENT_ACCENTS: Record<ScheduleEventType, string> = {
-  Practice: "practice",
   Game: "game",
+  Practice: "practice",
   Lift: "lift",
   Scrimmage: "scrimmage",
   Meeting: "meeting",
@@ -4728,23 +4728,33 @@ function TimePickerField({
   label,
   value,
   onChange,
-  suggestions = [],
   optional = false,
   align = "left",
+  fallbackValue,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  suggestions?: string[];
   optional?: boolean;
   align?: "left" | "right";
+  fallbackValue?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(() => formatPickerTime(value));
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const suggestionValues = useMemo(() => Array.from(new Set(suggestions.filter(Boolean))), [suggestions]);
+  const activeHourRef = useRef<HTMLButtonElement | null>(null);
+  const activeMinuteRef = useRef<HTMLButtonElement | null>(null);
   const displayValue = open ? draft : formatPickerTime(value);
-  const pickerParts = timePickerParts(value || parseTimeInput(draft) || suggestionValues[0] || "18:00");
+  const pickerParts = timePickerParts(value || parseTimeInput(draft) || fallbackValue || "18:00");
+
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(() => {
+      activeHourRef.current?.scrollIntoView({ block: "center" });
+      activeMinuteRef.current?.scrollIntoView({ block: "center" });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [open, pickerParts.hour, pickerParts.minute]);
 
   function commitDraft() {
     const parsed = parseTimeInput(draft);
@@ -4812,20 +4822,17 @@ function TimePickerField({
       </span>
       {open && (
         <div className="schedule-time-popover" role="dialog" aria-label={`${label} picker`}>
-          {suggestionValues.length > 0 && (
-            <div className="schedule-time-suggestions">
-              {suggestionValues.map((timeValue) => (
-                <button key={timeValue} type="button" onClick={() => chooseTime(timeValue)}>
-                  {formatPickerTime(timeValue)}
-                </button>
-              ))}
-            </div>
-          )}
           <div className="schedule-time-scroll-picker">
             <div className="schedule-time-column" role="listbox" aria-label={`${label} hour`}>
               <span>Hour</span>
               {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => (
-                <button key={hour} type="button" className={pickerParts.hour === hour ? "is-selected" : ""} onClick={() => updatePart({ hour })}>
+                <button
+                  key={hour}
+                  type="button"
+                  ref={pickerParts.hour === hour ? activeHourRef : undefined}
+                  className={pickerParts.hour === hour ? "is-selected" : ""}
+                  onClick={() => updatePart({ hour })}
+                >
                   {hour}
                 </button>
               ))}
@@ -4833,7 +4840,13 @@ function TimePickerField({
             <div className="schedule-time-column" role="listbox" aria-label={`${label} minute`}>
               <span>Minute</span>
               {Array.from({ length: 60 }, (_, minute) => minute).map((minute) => (
-                <button key={minute} type="button" className={pickerParts.minute === minute ? "is-selected" : ""} onClick={() => updatePart({ minute })}>
+                <button
+                  key={minute}
+                  type="button"
+                  ref={pickerParts.minute === minute ? activeMinuteRef : undefined}
+                  className={pickerParts.minute === minute ? "is-selected" : ""}
+                  onClick={() => updatePart({ minute })}
+                >
                   {String(minute).padStart(2, "0")}
                 </button>
               ))}
@@ -6811,7 +6824,7 @@ function ScheduleEventModal({
   const currentTeam = data.teamContext?.currentTeam;
   const availablePlayers = data.players.filter((player) => !player.archived && player.rosterStatus !== "Cut");
   const starters = availablePlayers.slice(0, 9).map((player) => player.id);
-  const [eventType, setEventType] = useState<ScheduleEventType>("Practice");
+  const [eventType, setEventType] = useState<ScheduleEventType>("Game");
   const [selectedOpponentTeamId, setSelectedOpponentTeamId] = useState<ID | undefined>();
   const [opponentResultsOpen, setOpponentResultsOpen] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -6825,7 +6838,7 @@ function ScheduleEventModal({
     notes: "",
     opponent: "",
     homeAway: "Home" as Game["homeAway"],
-    visibility: "TEAM_ONLY" as ScheduleEventVisibility,
+    visibility: defaultScheduleVisibility("Game", currentTeam),
   });
   const eventTypeOptions: ChoiceOption[] = SCHEDULE_EVENT_TYPES.map((type) => ({
     value: type,
@@ -7108,7 +7121,7 @@ function ScheduleEventModal({
           <DatePickerField label="End Date" value={form.endDate} onChange={(value) => setForm({ ...form, endDate: value })} />
         )}
         <TimePickerField label="Start" value={form.startTime} onChange={(value) => setForm({ ...form, startTime: value })} />
-        <TimePickerField label="End" value={form.endTime} onChange={(value) => setForm({ ...form, endTime: value })} suggestions={suggestedEndTimes(form.startTime)} optional align="right" />
+        <TimePickerField label="End" value={form.endTime} onChange={(value) => setForm({ ...form, endTime: value })} fallbackValue={defaultEndTime(form.startTime)} optional align="right" />
         <label className="wide schedule-control-field">
           <span>Location</span>
           <span className="schedule-input-shell schedule-input-shell--with-action">
@@ -9946,10 +9959,10 @@ function parseTimeInput(value: string) {
   return formatMinutesAsTimeValue(hours * 60 + minutes);
 }
 
-function suggestedEndTimes(startTime: string) {
+function defaultEndTime(startTime: string) {
   const startMinutes = parseTimeValue(startTime);
-  if (startMinutes === undefined) return [];
-  return [60, 90, 120].map((offset) => formatMinutesAsTimeValue(startMinutes + offset));
+  if (startMinutes === undefined) return "19:00";
+  return formatMinutesAsTimeValue(startMinutes + 60);
 }
 
 function groupScheduleItemsByDate(items: ScheduleItem[]) {

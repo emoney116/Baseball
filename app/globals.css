@@ -9551,14 +9551,18 @@ body {
 }
 
 .schedule-chip--practice {
-  border-color: rgba(195, 50, 99, 0.3);
-  background: rgba(195, 50, 99, 0.12);
+  border-color: rgba(96, 165, 250, 0.28);
+  background: rgba(96, 165, 250, 0.11);
 }
 
-.schedule-chip--game,
+.schedule-chip--game {
+  border-color: rgba(255, 107, 126, 0.34);
+  background: rgba(255, 107, 126, 0.14);
+}
+
 .schedule-chip--tournament {
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.075);
+  border-color: rgba(245, 158, 11, 0.32);
+  background: rgba(245, 158, 11, 0.12);
 }
 
 .schedule-chip--lift {
@@ -9781,7 +9785,7 @@ body {
 }
 
 .schedule-type-icon--practice {
-  --schedule-icon-accent: #d94c79;
+  --schedule-icon-accent: #60a5fa;
 }
 
 .schedule-type-icon--game {
@@ -9875,7 +9879,7 @@ body {
 }
 
 .schedule-event-modal--practice {
-  --schedule-accent: #d94c79;
+  --schedule-accent: #60a5fa;
 }
 
 .schedule-event-modal--game {
@@ -10186,105 +10190,87 @@ body {
 }
 
 .schedule-time-popover {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  right: auto;
-  transform: translate(-50%, -50%);
-  width: min(310px, calc(100vw - 40px));
-  padding: 10px;
-}
-
-.schedule-time-suggestions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 7px;
-  padding-bottom: 7px;
-}
-
-.schedule-time-suggestions button {
-  min-height: 34px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 820;
-}
-
-.schedule-time-suggestions button {
-  border-color: color-mix(in srgb, var(--burgundy) 30%, transparent);
-  background: color-mix(in srgb, var(--burgundy) 10%, transparent);
-  color: var(--burgundy-bright);
+  width: min(226px, calc(100vw - 36px));
+  padding: 7px;
 }
 
 .schedule-picker-field--align-right .schedule-time-popover {
-  right: auto;
+  left: auto;
+  right: 0;
 }
 
 .schedule-time-scroll-picker {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 72px;
+  grid-template-columns: 58px 66px 48px;
   align-items: stretch;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
 }
 
 .schedule-time-column {
   min-width: 0;
-  max-height: 154px;
+  height: 128px;
   overflow-y: auto;
-  border: 1px solid color-mix(in srgb, var(--line-strong) 68%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface) 48%, transparent);
+  scroll-snap-type: y proximity;
+  scrollbar-width: thin;
+  border: 0;
+  border-radius: 13px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 28%, transparent 72%, rgba(255, 255, 255, 0.03)),
+    color-mix(in srgb, var(--surface) 50%, transparent);
   display: grid;
-  gap: 4px;
+  align-content: start;
+  gap: 2px;
   padding: 5px;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--line-strong) 52%, transparent),
+    inset 0 48px 30px -44px rgba(255, 255, 255, 0.12),
+    inset 0 -48px 30px -44px rgba(0, 0, 0, 0.74);
 }
 
 .schedule-time-column span {
   position: sticky;
   top: -5px;
   z-index: 1;
-  background: color-mix(in srgb, var(--surface) 88%, var(--panel));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, var(--panel)), color-mix(in srgb, var(--surface) 78%, transparent));
   color: var(--muted);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 850;
-  padding: 3px 0 5px;
+  padding: 4px 0 6px;
   text-align: center;
   text-transform: uppercase;
 }
 
 .schedule-time-column button {
   width: 100%;
-  min-height: 32px;
+  min-height: 30px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 9px;
   background: transparent;
   color: var(--text);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 850;
   text-align: center;
+  scroll-snap-align: center;
 }
 
 .schedule-time-column button:hover,
 .schedule-time-column button:focus-visible,
 .schedule-time-column button.is-selected {
-  border-color: color-mix(in srgb, var(--burgundy) 38%, transparent);
-  background: color-mix(in srgb, var(--burgundy) 18%, transparent);
+  border-color: color-mix(in srgb, var(--schedule-accent, var(--burgundy)) 42%, transparent);
+  background: color-mix(in srgb, var(--schedule-accent, var(--burgundy)) 20%, transparent);
   outline: 0;
 }
 
 .schedule-period-toggle {
-  border: 1px solid color-mix(in srgb, var(--line-strong) 68%, transparent);
-  border-radius: 10px;
+  border: 0;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--surface) 52%, transparent);
   display: grid;
   grid-template-columns: 1fr;
   overflow: hidden;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line-strong) 52%, transparent);
 }
 
 .schedule-period-toggle button {
@@ -10298,7 +10284,7 @@ body {
 }
 
 .schedule-period-toggle button.is-selected {
-  background: color-mix(in srgb, var(--burgundy) 82%, #fff 4%);
+  background: color-mix(in srgb, var(--schedule-accent, var(--burgundy)) 76%, #fff 5%);
   color: #fff;
 }
 
@@ -10316,9 +10302,7 @@ body {
 }
 
 .schedule-time-clear:hover,
-.schedule-time-clear:focus-visible,
-.schedule-time-suggestions button:hover,
-.schedule-time-suggestions button:focus-visible {
+.schedule-time-clear:focus-visible {
   border-color: color-mix(in srgb, var(--burgundy) 42%, transparent);
   background: color-mix(in srgb, var(--burgundy) 16%, transparent);
   outline: 0;
@@ -10459,6 +10443,12 @@ body {
 
 .schedule-event-type-select .choice-select__menu button {
   min-height: 42px;
+}
+
+.schedule-event-type-select .choice-select__icon .schedule-type-icon,
+.schedule-event-type-select .choice-select__button .schedule-type-icon svg,
+.schedule-event-type-select .choice-select__menu .schedule-type-icon svg {
+  color: var(--schedule-icon-accent);
 }
 
 .schedule-team-pill {
