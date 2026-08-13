@@ -4730,12 +4730,14 @@ function TimePickerField({
   onChange,
   suggestions = [],
   optional = false,
+  align = "left",
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   suggestions?: string[];
   optional?: boolean;
+  align?: "left" | "right";
 }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(() => formatPickerTime(value));
@@ -4780,7 +4782,7 @@ function TimePickerField({
   }
 
   return (
-    <div ref={rootRef} className="form-field schedule-control-field schedule-picker-field" onBlur={handleBlur}>
+    <div ref={rootRef} className={`form-field schedule-control-field schedule-picker-field schedule-picker-field--align-${align}`} onBlur={handleBlur}>
       <span>{label} {optional && <small>optional</small>}</span>
       <span className="schedule-input-shell schedule-picker-anchor">
         <ClockIcon />
@@ -4819,31 +4821,23 @@ function TimePickerField({
               ))}
             </div>
           )}
-          <div className="schedule-time-parts">
-            <label className="schedule-time-part">
+          <div className="schedule-time-scroll-picker">
+            <div className="schedule-time-column" role="listbox" aria-label={`${label} hour`}>
               <span>Hour</span>
-              <input
-                value={String(pickerParts.hour)}
-                inputMode="numeric"
-                aria-label={`${label} hour`}
-                onChange={(event) => {
-                  const next = parseInt(event.target.value.replace(/\D/g, ""), 10);
-                  if (Number.isFinite(next)) updatePart({ hour: clampNumber(next, 1, 12) });
-                }}
-              />
-            </label>
-            <label className="schedule-time-part">
+              {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => (
+                <button key={hour} type="button" className={pickerParts.hour === hour ? "is-selected" : ""} onClick={() => updatePart({ hour })}>
+                  {hour}
+                </button>
+              ))}
+            </div>
+            <div className="schedule-time-column" role="listbox" aria-label={`${label} minute`}>
               <span>Minute</span>
-              <input
-                value={String(pickerParts.minute).padStart(2, "0")}
-                inputMode="numeric"
-                aria-label={`${label} minute`}
-                onChange={(event) => {
-                  const next = parseInt(event.target.value.replace(/\D/g, ""), 10);
-                  if (Number.isFinite(next)) updatePart({ minute: clampNumber(next, 0, 59) });
-                }}
-              />
-            </label>
+              {Array.from({ length: 60 }, (_, minute) => minute).map((minute) => (
+                <button key={minute} type="button" className={pickerParts.minute === minute ? "is-selected" : ""} onClick={() => updatePart({ minute })}>
+                  {String(minute).padStart(2, "0")}
+                </button>
+              ))}
+            </div>
             <div className="schedule-period-toggle" role="group" aria-label={`${label} period`}>
               {(["AM", "PM"] as TimePeriod[]).map((period) => (
                 <button
@@ -6819,6 +6813,7 @@ function ScheduleEventModal({
   const starters = availablePlayers.slice(0, 9).map((player) => player.id);
   const [eventType, setEventType] = useState<ScheduleEventType>("Practice");
   const [selectedOpponentTeamId, setSelectedOpponentTeamId] = useState<ID | undefined>();
+  const [opponentResultsOpen, setOpponentResultsOpen] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [form, setForm] = useState({
     title: "",
@@ -6909,6 +6904,7 @@ function ScheduleEventModal({
 
   function updateOpponent(value: string) {
     setSelectedOpponentTeamId(undefined);
+    setOpponentResultsOpen(Boolean(value.trim()));
     setForm((current) => ({ ...current, opponent: value, title: defaultScheduleTitle(eventType, value, current.homeAway) }));
   }
 
@@ -6922,12 +6918,14 @@ function ScheduleEventModal({
 
   function chooseOpponent(team: (typeof opponentTeams)[number]) {
     setSelectedOpponentTeamId(team.id);
+    setOpponentResultsOpen(false);
     setForm((current) => ({ ...current, opponent: team.name, title: defaultScheduleTitle(eventType, team.name, current.homeAway) }));
   }
 
   function chooseTypedOpponent() {
     const opponent = form.opponent.trim();
     setSelectedOpponentTeamId(undefined);
+    setOpponentResultsOpen(false);
     setForm((current) => ({ ...current, opponent, title: defaultScheduleTitle(eventType, opponent, current.homeAway) }));
   }
 
@@ -6950,9 +6948,10 @@ function ScheduleEventModal({
             value={form.opponent}
             placeholder={optional ? "Search teams or enter opponent" : "Search teams or enter opponent"}
             onChange={(event) => updateOpponent(event.target.value)}
+            onFocus={() => setOpponentResultsOpen(Boolean(typedOpponent))}
           />
         </span>
-        {typedOpponent && (
+        {typedOpponent && opponentResultsOpen && (
           <div className="schedule-opponent-results">
             {opponentSuggestions.map((team) => (
               <button
@@ -7109,7 +7108,7 @@ function ScheduleEventModal({
           <DatePickerField label="End Date" value={form.endDate} onChange={(value) => setForm({ ...form, endDate: value })} />
         )}
         <TimePickerField label="Start" value={form.startTime} onChange={(value) => setForm({ ...form, startTime: value })} />
-        <TimePickerField label="End" value={form.endTime} onChange={(value) => setForm({ ...form, endTime: value })} suggestions={suggestedEndTimes(form.startTime)} optional />
+        <TimePickerField label="End" value={form.endTime} onChange={(value) => setForm({ ...form, endTime: value })} suggestions={suggestedEndTimes(form.startTime)} optional align="right" />
         <label className="wide schedule-control-field">
           <span>Location</span>
           <span className="schedule-input-shell schedule-input-shell--with-action">

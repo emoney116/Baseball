@@ -9866,6 +9866,7 @@ body {
   --schedule-accent: var(--burgundy);
   width: min(720px, calc(100vw - 28px));
   height: min(650px, calc(100dvh - 32px));
+  overflow: hidden;
   border-color: color-mix(in srgb, var(--schedule-accent) 34%, var(--line-strong));
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--schedule-accent) 13%, transparent),
@@ -9904,7 +9905,23 @@ body {
   gap: 14px;
   align-content: start;
   padding-right: 3px;
-  padding-bottom: 100px;
+  padding-bottom: 10px;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.schedule-event-modal .modal-title {
+  position: relative;
+  top: auto;
+  z-index: 95;
+  margin: -14px -14px 0;
+}
+
+.schedule-event-modal .modal-actions {
+  position: relative;
+  bottom: auto;
+  z-index: 94;
 }
 
 .schedule-event-form label,
@@ -10061,6 +10078,14 @@ body {
   padding: 10px;
 }
 
+.schedule-date-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(320px, calc(100vw - 36px));
+}
+
 .schedule-date-popover__header {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) 34px;
@@ -10161,7 +10186,12 @@ body {
 }
 
 .schedule-time-popover {
-  width: min(286px, calc(100vw - 40px));
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  transform: translate(-50%, -50%);
+  width: min(310px, calc(100vw - 40px));
   padding: 10px;
 }
 
@@ -10191,58 +10221,74 @@ body {
   color: var(--burgundy-bright);
 }
 
-.schedule-time-parts {
+.schedule-picker-field--align-right .schedule-time-popover {
+  right: auto;
+}
+
+.schedule-time-scroll-picker {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  align-items: end;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 72px;
+  align-items: stretch;
   gap: 8px;
 }
 
-.schedule-time-part {
+.schedule-time-column {
+  min-width: 0;
+  max-height: 154px;
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 68%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface) 48%, transparent);
   display: grid;
-  gap: 5px;
+  gap: 4px;
+  padding: 5px;
 }
 
-.schedule-time-part span {
+.schedule-time-column span {
+  position: sticky;
+  top: -5px;
+  z-index: 1;
+  background: color-mix(in srgb, var(--surface) 88%, var(--panel));
   color: var(--muted);
   font-size: 10px;
   font-weight: 850;
+  padding: 3px 0 5px;
+  text-align: center;
   text-transform: uppercase;
 }
 
-.schedule-time-part input {
+.schedule-time-column button {
   width: 100%;
-  min-height: 42px;
-  border: 1px solid color-mix(in srgb, var(--line-strong) 68%, transparent);
-  border-radius: 10px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 74%, transparent), color-mix(in srgb, var(--panel) 94%, transparent)),
-    var(--panel);
+  min-height: 32px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
   color: var(--text);
-  font-size: 18px;
-  font-weight: 880;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 850;
   text-align: center;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
-.schedule-time-part input:focus-visible {
-  border-color: color-mix(in srgb, var(--burgundy) 76%, var(--line));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 18%, transparent);
+.schedule-time-column button:hover,
+.schedule-time-column button:focus-visible,
+.schedule-time-column button.is-selected {
+  border-color: color-mix(in srgb, var(--burgundy) 38%, transparent);
+  background: color-mix(in srgb, var(--burgundy) 18%, transparent);
   outline: 0;
 }
 
 .schedule-period-toggle {
-  min-height: 42px;
   border: 1px solid color-mix(in srgb, var(--line-strong) 68%, transparent);
   border-radius: 10px;
   background: color-mix(in srgb, var(--surface) 52%, transparent);
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   overflow: hidden;
 }
 
 .schedule-period-toggle button {
-  min-width: 44px;
+  min-height: 50%;
   border: 0;
   background: transparent;
   color: var(--muted-strong);
@@ -11645,9 +11691,16 @@ body {
     grid-column: auto;
   }
 
-  .schedule-date-popover,
+  .schedule-date-popover {
+    width: min(320px, calc(100vw - 36px));
+  }
+
   .schedule-time-popover {
-    width: min(100%, calc(100vw - 36px));
+    width: min(310px, calc(100vw - 36px));
+  }
+
+  .schedule-time-scroll-picker {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 64px;
   }
 
   .team-snapshot-bar > div {
