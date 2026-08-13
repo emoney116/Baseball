@@ -3597,12 +3597,24 @@ function DiscoverView({
   const needle = query.trim().toLowerCase();
   const visibleTeams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
   const organizations = organizationSummariesFromContext(data.teamContext).filter((organization) =>
-    !needle || `${organization.name} ${organization.teams.map((team) => team.teamName).join(" ")}`.toLowerCase().includes(needle),
+    !needle || `${organization.name} ${organization.location ?? ""} ${organization.teams.map((team) => team.teamName).join(" ")}`.toLowerCase().includes(needle),
   );
   const teams = visibleTeams.filter((team) =>
     !needle || `${team.organizationName} ${team.teamName} ${team.seasonName ?? ""}`.toLowerCase().includes(needle),
   );
-  const publicOrganizations = (data.publicOrganizations ?? []).filter((organization) => !needle || publicOrganizationSearchText(organization).includes(needle));
+  const managedOrganizationKeys = new Set(
+    organizations.flatMap((organization) => [
+      organization.id,
+      organization.slug ?? "",
+      organization.name.trim().toLowerCase(),
+    ]),
+  );
+  const publicOrganizations = (data.publicOrganizations ?? []).filter((organization) => {
+    const duplicateManagedOrganization = managedOrganizationKeys.has(organization.id) ||
+      (organization.slug ? managedOrganizationKeys.has(organization.slug) : false) ||
+      managedOrganizationKeys.has(organization.name.trim().toLowerCase());
+    return !duplicateManagedOrganization && (!needle || publicOrganizationSearchText(organization).includes(needle));
+  });
   const publicTeams = (data.publicTeams ?? []).filter((team) => !needle || publicTeamSearchText(team).includes(needle));
 
   return (
@@ -3929,10 +3941,11 @@ function PublicTeamFollowCard({
 }
 
 function OrganizationMiniRow({ organization, onEnterTeam }: { organization: OrganizationSummary; onEnterTeam: (team: TeamOption) => void | Promise<void> }) {
+  const subtitle = organization.location || `${organization.teams.length} team${organization.teams.length === 1 ? "" : "s"}`;
   return (
     <button className="team-mini-row" type="button" onClick={() => organization.teams[0] && void onEnterTeam(organization.teams[0])}>
       <OrganizationLogo name={organization.name} />
-      <span><strong>{organization.name}</strong><small>{organization.teams.map((team) => shortTeamName(team.teamName)).join(", ")}</small></span>
+      <span><strong>{organization.name}</strong><small>{subtitle}</small></span>
       <ChevronRight size={15} aria-hidden="true" />
     </button>
   );
