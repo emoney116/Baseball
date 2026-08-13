@@ -2582,6 +2582,7 @@ textarea:focus-visible {
 .pinned-team-shortcuts {
   display: grid;
   gap: 7px;
+  margin-top: -4px;
 }
 
 .pinned-team-shortcut {
@@ -2679,7 +2680,9 @@ textarea:focus-visible {
 
 .rail-nav {
   display: grid;
+  align-content: start;
   gap: 4px;
+  flex: 1;
 }
 
 .rail-nav button,
@@ -4620,6 +4623,12 @@ textarea:focus-visible {
   gap: 12px;
 }
 
+.managed-team-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
 .organization-team-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 320px));
@@ -4633,8 +4642,8 @@ textarea:focus-visible {
 }
 
 .organization-grid {
-  grid-template-columns: repeat(auto-fill, minmax(230px, 320px));
-  justify-content: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 430px), 1fr));
+  justify-content: stretch;
 }
 
 .team-card-grid {
@@ -4663,7 +4672,8 @@ textarea:focus-visible {
 
 .organization-card,
 .team-workspace-card,
-.organization-team-card {
+.organization-team-card,
+.managed-team-card {
   display: grid;
   gap: 10px;
   text-align: left;
@@ -4819,12 +4829,77 @@ textarea:focus-visible {
   background: var(--panel-strong);
 }
 
+.managed-team-card {
+  min-height: 76px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+}
+
+.managed-team-card__main {
+  min-width: 0;
+  min-height: 52px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.managed-team-card__main .organization-logo {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+}
+
+.managed-team-card__main span {
+  min-width: 0;
+}
+
+.managed-team-card__main strong,
+.managed-team-card__main small {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.managed-team-card__main strong {
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.managed-team-card__main small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.managed-team-card:hover {
+  border-color: var(--line-strong);
+  background: var(--panel-strong);
+}
+
+.managed-team-card:hover .managed-team-card__main strong {
+  color: var(--brand-light);
+}
+
+.managed-team-card__chevron {
+  color: var(--muted);
+}
+
 .organization-card__top,
 .team-workspace-card__top {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
 }
 
 .organization-card__top {
@@ -4835,6 +4910,12 @@ textarea:focus-visible {
   padding: 0;
   text-align: left;
   cursor: pointer;
+}
+
+.organization-card__top .organization-logo {
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
 }
 
 .organization-card__top svg,
@@ -4895,6 +4976,22 @@ textarea:focus-visible {
 .team-mini-row strong,
 .player-mini-row strong {
   display: block;
+}
+
+.organization-card__top span,
+.team-workspace-card__top span,
+.recent-team-row span,
+.team-mini-row span,
+.player-mini-row span {
+  min-width: 0;
+}
+
+.organization-card__top strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  font-size: 17px;
+  line-height: 1.15;
 }
 
 .organization-card__top small,
@@ -10213,11 +10310,18 @@ body {
   }
 
   .organization-grid,
+  .managed-team-grid,
   .team-card-grid,
   .global-two-column,
   .discover-grid,
   .profile-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .organization-card__top strong,
+  .managed-team-card__main strong,
+  .managed-team-card__main small {
+    text-overflow: ellipsis;
   }
 
   .section-header {
