@@ -4409,9 +4409,9 @@ function ScheduleView({
 
       <section className="panel schedule-toolbar">
         <div className="schedule-toolbar__date">
-          <button type="button" className="icon-button" onClick={() => moveCursor(-1)} aria-label="Previous period"><ChevronLeft size={17} aria-hidden="true" /></button>
+          <button type="button" className="icon-button schedule-period-button" onClick={() => moveCursor(-1)} aria-label="Previous period"><ChevronLeft size={17} aria-hidden="true" /></button>
           <strong>{mode === "Week" ? weekRangeLabel(cursor) : cursorMonthLabel}</strong>
-          <button type="button" className="icon-button" onClick={() => moveCursor(1)} aria-label="Next period"><ChevronRight size={17} aria-hidden="true" /></button>
+          <button type="button" className="icon-button schedule-period-button" onClick={() => moveCursor(1)} aria-label="Next period"><ChevronRight size={17} aria-hidden="true" /></button>
         </div>
         <SegmentedControl values={["Calendar", "Week", "Agenda"] as ScheduleViewMode[]} active={mode} onChange={setMode} />
         <button type="button" className="secondary-button" onClick={() => setCursor(new Date())}>Today</button>
@@ -6568,12 +6568,14 @@ function ScheduleEventModal({
   const availablePlayers = data.players.filter((player) => !player.archived && player.rosterStatus !== "Cut");
   const starters = availablePlayers.slice(0, 9).map((player) => player.id);
   const [eventType, setEventType] = useState<ScheduleEventType>("Practice");
+  const [selectedOpponentTeamId, setSelectedOpponentTeamId] = useState<ID | undefined>();
   const [errors, setErrors] = useState<string[]>([]);
   const [form, setForm] = useState({
     title: "",
     date: today,
+    endDate: today,
     startTime: "18:00",
-    endTime: "20:00",
+    endTime: "",
     location: currentTeam?.city && currentTeam?.state ? `${currentTeam.city}, ${currentTeam.state}` : "",
     notes: "",
     opponent: "",
@@ -6593,13 +6595,61 @@ function ScheduleEventModal({
     icon: <ScheduleTypeIcon type={type} />,
   }));
   const isGenericTitleType = eventType === "Meeting" || eventType === "Team Event" || eventType === "Other";
+  const opponentTeams = useMemo(() => {
+    const seen = new Set<ID>();
+    const teams: Array<{
+      id: ID;
+      name: string;
+      organizationName?: string;
+      seasonName?: string;
+      city?: string;
+      state?: string;
+      logoUrl?: string;
+    }> = [];
+    function addTeam(team: {
+      id: ID;
+      name: string;
+      organizationName?: string;
+      seasonName?: string;
+      city?: string;
+      state?: string;
+      logoUrl?: string;
+    }) {
+      if (!team.id || seen.has(team.id) || team.id === currentTeam?.teamId) return;
+      seen.add(team.id);
+      teams.push(team);
+    }
+    data.publicTeams?.forEach((team) => addTeam(team));
+    data.teamContext?.availableTeams.forEach((team) => addTeam({
+      id: team.teamId,
+      name: team.teamName,
+      organizationName: team.organizationName,
+      seasonName: team.seasonName,
+      city: team.city,
+      state: team.state,
+      logoUrl: team.logoUrl,
+    }));
+    return teams.sort((left, right) => left.name.localeCompare(right.name));
+  }, [currentTeam?.teamId, data.publicTeams, data.teamContext?.availableTeams]);
+  const opponentQuery = form.opponent.trim().toLowerCase();
+  const opponentSuggestions = useMemo(() => {
+    if (!opponentQuery) return [];
+    return opponentTeams
+      .filter((team) => [team.name, team.organizationName, team.seasonName, team.city, team.state].filter(Boolean).join(" ").toLowerCase().includes(opponentQuery))
+      .slice(0, 5);
+  }, [opponentQuery, opponentTeams]);
+  const hasExactOpponentMatch = opponentTeams.some((team) => team.name.toLowerCase() === opponentQuery);
+  const mapsQuery = form.location.trim() || [currentTeam?.city, currentTeam?.state].filter(Boolean).join(", ");
+  const mapsUrl = mapsQuery ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}` : "";
 
   function chooseType(type: ScheduleEventType) {
     setErrors([]);
     setEventType(type);
     setForm((current) => ({
       ...current,
-      title: shouldResetScheduleTitle(type, current.title)
+      title: type === "Tournament" && shouldResetScheduleTitle(type, current.title)
+        ? ""
+        : shouldResetScheduleTitle(type, current.title)
         ? defaultScheduleTitle(type, current.opponent, current.homeAway)
         : current.title,
       visibility: defaultScheduleVisibility(type, currentTeam),
@@ -6607,11 +6657,91 @@ function ScheduleEventModal({
     }));
   }
 
+  function updateOpponent(value: string) {
+    setSelectedOpponentTeamId(undefined);
+    setForm((current) => ({ ...current, opponent: value, title: defaultScheduleTitle(eventType, value, current.homeAway) }));
+  }
+
+  function updateHomeAway(value: Game["homeAway"]) {
+    setForm((current) => ({
+      ...current,
+      homeAway: value,
+      title: defaultScheduleTitle(eventType, current.opponent, value),
+    }));
+  }
+
+  function chooseOpponent(team: (typeof opponentTeams)[number]) {
+    setSelectedOpponentTeamId(team.id);
+    setForm((current) => ({ ...current, opponent: team.name, title: defaultScheduleTitle(eventType, team.name, current.homeAway) }));
+  }
+
+  function chooseTypedOpponent() {
+    const opponent = form.opponent.trim();
+    setSelectedOpponentTeamId(undefined);
+    setForm((current) => ({ ...current, opponent, title: defaultScheduleTitle(eventType, opponent, current.homeAway) }));
+  }
+
+  function updateDate(value: string) {
+    setForm((current) => ({
+      ...current,
+      date: value,
+      endDate: current.endDate && current.endDate >= value ? current.endDate : value,
+    }));
+  }
+
+  function renderOpponentLookup(optional = false) {
+    const typedOpponent = form.opponent.trim();
+    return (
+      <div className="form-field schedule-opponent-field wide">
+        <span>Opponent {optional && <small>optional</small>}</span>
+        <span className="schedule-input-shell">
+          <Search size={15} aria-hidden="true" />
+          <input
+            value={form.opponent}
+            placeholder={optional ? "Search teams or enter opponent" : "Search teams or enter opponent"}
+            onChange={(event) => updateOpponent(event.target.value)}
+          />
+        </span>
+        {typedOpponent && (
+          <div className="schedule-opponent-results">
+            {opponentSuggestions.map((team) => (
+              <button
+                key={team.id}
+                type="button"
+                className={`schedule-opponent-option ${selectedOpponentTeamId === team.id ? "is-selected" : ""}`}
+                onClick={() => chooseOpponent(team)}
+              >
+                <OrganizationLogo name={team.name} logoUrl={team.logoUrl} />
+                <span>
+                  <strong>{team.name}</strong>
+                  <small>{[team.organizationName, team.seasonName].filter(Boolean).join(" - ") || [team.city, team.state].filter(Boolean).join(", ")}</small>
+                </span>
+                {selectedOpponentTeamId === team.id && <Check size={14} aria-hidden="true" />}
+              </button>
+            ))}
+            {!hasExactOpponentMatch && (
+              <button type="button" className="schedule-opponent-option schedule-opponent-option--create" onClick={chooseTypedOpponent}>
+                <span className="schedule-result-mark"><Plus size={14} aria-hidden="true" /></span>
+                <span>
+                  <strong>Create New: {typedOpponent}</strong>
+                  <small>Use this opponent name</small>
+                </span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function submit() {
     const validationErrors: string[] = [];
     if (!form.date) validationErrors.push("Date is required.");
     if (!form.startTime) validationErrors.push("Start time is required.");
     if (eventType === "Game" && !form.opponent.trim()) validationErrors.push("Opponent is required for Game.");
+    if (eventType === "Tournament" && !form.title.trim()) validationErrors.push("Tournament name is required.");
+    if (eventType === "Tournament" && !form.endDate) validationErrors.push("End date is required for Tournament.");
+    if (eventType === "Tournament" && form.endDate && form.date && form.endDate < form.date) validationErrors.push("End date cannot be before start date.");
     if (isGenericTitleType && !form.title.trim()) validationErrors.push("Title is required for this event type.");
     if (validationErrors.length) {
       setErrors(validationErrors);
@@ -6619,7 +6749,9 @@ function ScheduleEventModal({
     }
     const now = new Date().toISOString();
     const startAt = toLocalIso(form.date, form.startTime || "18:00");
-    const endAt = form.endTime ? toLocalIso(form.date, form.endTime) : undefined;
+    const endAt = eventType === "Tournament"
+      ? toLocalIso(form.endDate || form.date, form.endTime || "23:59")
+      : form.endTime ? toLocalIso(form.date, form.endTime) : undefined;
     if (eventType === "Practice") {
       const selectedPlayers = availablePlayers;
       const practice: Practice = {
@@ -6706,15 +6838,15 @@ function ScheduleEventModal({
         </div>
         {eventType === "Game" && (
           <>
-            <label className="wide"><span>Opponent</span><input value={form.opponent} placeholder="Charlotte Christian" onChange={(event) => setForm({ ...form, opponent: event.target.value, title: defaultScheduleTitle("Game", event.target.value, form.homeAway) })} /></label>
-            <div className="form-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, homeAway: value as Game["homeAway"] })} aria-label="Home or away" /></div>
+            {renderOpponentLookup(false)}
+            <div className="form-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => updateHomeAway(value as Game["homeAway"])} aria-label="Home or away" /></div>
             <div className="form-field"><span>Tournament/Event</span><ChoiceSelect value={form.gameType} className="form-choice" options={GAME_TYPES.map((type) => ({ value: type, label: type }))} onChange={(value) => setForm({ ...form, gameType: value as GameType })} aria-label="Game event type" /></div>
           </>
         )}
         {eventType === "Scrimmage" && (
           <>
-            <label><span>Opponent</span><input value={form.opponent} placeholder="Optional" onChange={(event) => setForm({ ...form, opponent: event.target.value, title: defaultScheduleTitle("Scrimmage", event.target.value, form.homeAway) })} /></label>
-            <div className="form-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, homeAway: value as Game["homeAway"] })} aria-label="Scrimmage home or away" /></div>
+            {renderOpponentLookup(true)}
+            <div className="form-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => updateHomeAway(value as Game["homeAway"])} aria-label="Scrimmage home or away" /></div>
           </>
         )}
         {eventType === "Tournament" && (
@@ -6723,10 +6855,44 @@ function ScheduleEventModal({
         {isGenericTitleType && (
           <label className="wide"><span>Title</span><input value={form.title} placeholder="Film Review" onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
         )}
-        <label><span>Date</span><input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
-        <label><span>Start</span><input type="time" value={form.startTime} onChange={(event) => setForm({ ...form, startTime: event.target.value })} /></label>
-        <label><span>End <small>optional</small></span><input type="time" value={form.endTime} onChange={(event) => setForm({ ...form, endTime: event.target.value })} /></label>
-        <label className="wide"><span>Location</span><input value={form.location} placeholder="Varsity Field" onChange={(event) => setForm({ ...form, location: event.target.value })} /></label>
+        <label className="schedule-control-field">
+          <span>{eventType === "Tournament" ? "Start Date" : "Date"}</span>
+          <span className="schedule-input-shell">
+            <CalendarDays size={15} aria-hidden="true" />
+            <input type="date" value={form.date} onChange={(event) => updateDate(event.target.value)} />
+          </span>
+        </label>
+        {eventType === "Tournament" && (
+          <label className="schedule-control-field">
+            <span>End Date</span>
+            <span className="schedule-input-shell">
+              <CalendarDays size={15} aria-hidden="true" />
+              <input type="date" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} />
+            </span>
+          </label>
+        )}
+        <label className="schedule-control-field">
+          <span>Start</span>
+          <span className="schedule-input-shell">
+            <ClockIcon />
+            <input type="time" value={form.startTime} onChange={(event) => setForm({ ...form, startTime: event.target.value })} />
+          </span>
+        </label>
+        <label className="schedule-control-field">
+          <span>End <small>optional</small></span>
+          <span className="schedule-input-shell">
+            <ClockIcon />
+            <input type="time" value={form.endTime} onChange={(event) => setForm({ ...form, endTime: event.target.value })} />
+          </span>
+        </label>
+        <label className="wide schedule-control-field">
+          <span>Location</span>
+          <span className="schedule-input-shell schedule-input-shell--with-action">
+            <MapPin size={15} aria-hidden="true" />
+            <input value={form.location} placeholder="Varsity Field or address" onChange={(event) => setForm({ ...form, location: event.target.value })} />
+            {mapsUrl && <a className="schedule-map-link" href={mapsUrl} target="_blank" rel="noreferrer">Search Maps</a>}
+          </span>
+        </label>
         {currentTeam && (
           <div className="form-field schedule-team-field">
             <span>Team</span>
