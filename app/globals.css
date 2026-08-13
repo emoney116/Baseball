@@ -13516,7 +13516,7 @@ body,
 .practice-avatar-row {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 5px;
+  gap: 6px 5px;
   overflow: visible;
   padding: 4px 0 2px;
 }
@@ -13570,7 +13570,7 @@ body,
 
 .attendance-avatar {
   min-width: 0;
-  min-height: 46px;
+  min-height: 51px;
   border: 1px solid transparent;
   border-radius: 10px;
   background: transparent;
@@ -13636,9 +13636,10 @@ body,
 
 .attendance-avatar__meta strong {
   color: var(--text);
-  font-size: 9px;
-  line-height: 1.05;
+  font-size: 8px;
+  line-height: 1;
   font-weight: 900;
+  max-width: 100%;
 }
 
 .attendance-avatar__meta small {

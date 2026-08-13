@@ -5723,17 +5723,22 @@ function PracticeHome({
   onStatus: (playerId: ID, status: PracticeAttendanceStatus) => void;
   onOpenPlayer: (playerId: ID) => void;
 }) {
+  const [attendancePage, setAttendancePage] = useState(0);
   const recentPractices = data.practices.slice(0, 4);
+  const practiceAttendance = practice ? data.attendance.filter((item) => item.practiceId === practice.id) : [];
+  const attendancePlayerIds = practice ? new Set([...practice.playerIds, ...practiceAttendance.map((item) => item.playerId)]) : undefined;
   const attendancePlayers = sortPlayersByRecent(
-    practice ? data.players.filter((player) => !player.archived && practice.playerIds.includes(player.id)) : data.players.filter((player) => !player.archived),
+    practice && attendancePlayerIds ? data.players.filter((player) => attendancePlayerIds.has(player.id)) : data.players.filter((player) => !player.archived),
     data.settings.recentPlayerIds,
   );
-  const attendancePageSize = 25;
-  const [attendancePage, setAttendancePage] = useState(0);
-  const practiceAttendance = practice ? data.attendance.filter((item) => item.practiceId === practice.id) : [];
-  const activeAttendance = practiceAttendance.filter((item) => item.status === "Present" || item.status === "Late");
-  const rosterCount = practice?.playerIds.length || data.players.filter((player) => !player.archived).length;
-  const attendancePct = pct(activeAttendance.length, practiceAttendance.length || data.players.filter((player) => !player.archived).length);
+  const attendancePageSize = 20;
+  const visibleAttendanceIds = new Set(attendancePlayers.map((player) => player.id));
+  const visiblePracticeAttendance = practiceAttendance.filter((item) => visibleAttendanceIds.has(item.playerId));
+  const attendanceByPlayerId = new Map(visiblePracticeAttendance.map((item) => [item.playerId, item]));
+  const activeAttendance = visiblePracticeAttendance.filter((item) => item.status === "Present" || item.status === "Late");
+  const rosterCount = attendancePlayers.length || data.players.filter((player) => !player.archived).length;
+  const attendanceDenominator = Math.max(visiblePracticeAttendance.length, attendancePlayers.length, rosterCount);
+  const attendancePct = pct(activeAttendance.length, attendanceDenominator);
   const attendancePageCount = Math.max(1, Math.ceil(attendancePlayers.length / attendancePageSize));
   const activeAttendancePage = Math.min(attendancePage, attendancePageCount - 1);
   const pagedAttendancePlayers = attendancePlayers.slice(activeAttendancePage * attendancePageSize, activeAttendancePage * attendancePageSize + attendancePageSize);
@@ -5800,9 +5805,9 @@ function PracticeHome({
             </div>
             <div className="practice-summary-strip__stat">
               <small>Attendance</small>
-              <strong>{activeAttendance.length || 0} / {practiceAttendance.length || rosterCount}</strong>
+              <strong>{activeAttendance.length || 0} / {attendanceDenominator}</strong>
               <span className="attendance-dots" aria-hidden="true">
-                {Array.from({ length: Math.min(20, Math.max(1, practiceAttendance.length || rosterCount)) }).map((_, index) => (
+                {Array.from({ length: Math.min(20, Math.max(1, attendanceDenominator)) }).map((_, index) => (
                   <i key={index} className={index < activeAttendance.length ? "active" : ""} />
                 ))}
               </span>
@@ -5835,12 +5840,12 @@ function PracticeHome({
                         <span><i className="excused" />E</span>
                       </span>
                     </div>
-                    <span>{practiceAttendance.length || rosterCount} players</span>
+                    <span>{attendanceDenominator} players</span>
                   </div>
                 </div>
                 <div className="practice-avatar-row">
                   {pagedAttendancePlayers.map((player) => {
-                    const status = practiceAttendance.find((item) => item.playerId === player.id)?.status ?? "Present";
+                    const status = attendanceByPlayerId.get(player.id)?.status ?? "Present";
                     return (
                       <button
                         key={player.id}
@@ -5851,7 +5856,7 @@ function PracticeHome({
                       >
                         <PlayerAvatar player={player} size="sm" compact />
                         <span className="attendance-avatar__meta">
-                          <strong>{attendancePlayerCode(player)}</strong>
+                          <strong>{player.name}</strong>
                           <small>{status}</small>
                         </span>
                       </button>
@@ -6080,14 +6085,6 @@ function PracticeRecentCard({ data, recentPractices }: { data: AppData; recentPr
       )}
     </article>
   );
-}
-
-function attendancePlayerCode(player: Player) {
-  const parts = player.name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? "";
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
-  const initials = `${first}${last}`.toUpperCase() || "?";
-  return player.jerseyNumber ? `${initials} #${player.jerseyNumber}` : initials;
 }
 
 function PracticeLeadersCard({
