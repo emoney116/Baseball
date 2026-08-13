@@ -5222,6 +5222,10 @@ textarea:focus-visible {
   gap: 10px;
 }
 
+.team-mini-row--public-organization {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .team-mini-row--follow {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;

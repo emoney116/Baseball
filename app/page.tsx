@@ -3962,7 +3962,7 @@ function PublicOrganizationMiniRow({
   onOpenOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
 }) {
   return (
-    <div className="team-mini-row">
+    <div className="team-mini-row team-mini-row--public-organization">
       <button className="team-mini-row__main team-mini-row__main--with-chevron" type="button" onClick={() => onOpenOrganization(organization)}>
         <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
         <span><strong>{organization.name}</strong><small>{organizationLocation(organization) || `${organization.teams.length} teams`}</small></span>
