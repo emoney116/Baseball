@@ -2355,6 +2355,8 @@ function TopCommand({
 type ChoiceOption = {
   value: string;
   label: string;
+  description?: string;
+  icon?: React.ReactNode;
 };
 
 function ChoiceSelect({
@@ -2396,7 +2398,11 @@ function ChoiceSelect({
         disabled={disabled}
         onClick={() => setOpen((current) => !current)}
       >
-        <strong>{selected?.label ?? "Select"}</strong>
+        {selected?.icon && <span className="choice-select__icon">{selected.icon}</span>}
+        <strong>
+          {selected?.label ?? "Select"}
+          {selected?.description && <small>{selected.description}</small>}
+        </strong>
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {open && !disabled && (
@@ -2413,7 +2419,11 @@ function ChoiceSelect({
                 setOpen(false);
               }}
             >
-              {option.label}
+              {option.icon && <span className="choice-select__icon">{option.icon}</span>}
+              <span>
+                {option.label}
+                {option.description && <small>{option.description}</small>}
+              </span>
             </button>
           ))}
         </div>
@@ -6558,37 +6568,55 @@ function ScheduleEventModal({
   const availablePlayers = data.players.filter((player) => !player.archived && player.rosterStatus !== "Cut");
   const starters = availablePlayers.slice(0, 9).map((player) => player.id);
   const [eventType, setEventType] = useState<ScheduleEventType>("Practice");
+  const [errors, setErrors] = useState<string[]>([]);
   const [form, setForm] = useState({
-    title: "Team Practice",
+    title: "",
     date: today,
     startTime: "18:00",
     endTime: "20:00",
     location: currentTeam?.city && currentTeam?.state ? `${currentTeam.city}, ${currentTeam.state}` : "",
     notes: "",
-    practiceType: "Team Practice" as PracticeType,
     opponent: "",
     homeAway: "Home" as Game["homeAway"],
     gameType: "Scrimmage" as GameType,
     visibility: "TEAM_ONLY" as ScheduleEventVisibility,
   });
+  const eventTypeOptions: ChoiceOption[] = SCHEDULE_EVENT_TYPES.map((type) => ({
+    value: type,
+    label: type,
+    description:
+      type === "Practice" ? "Team work" :
+      type === "Game" ? "Opponent matchup" :
+      type === "Lift" ? "Weight room" :
+      type === "Tournament" ? "Multi-game event" :
+      undefined,
+    icon: <ScheduleTypeIcon type={type} />,
+  }));
+  const isGenericTitleType = eventType === "Meeting" || eventType === "Team Event" || eventType === "Other";
 
   function chooseType(type: ScheduleEventType) {
+    setErrors([]);
     setEventType(type);
     setForm((current) => ({
       ...current,
-      title:
-        type === "Practice" ? "Team Practice" :
-        type === "Game" ? (current.opponent ? `${current.homeAway === "Away" ? "at" : "vs."} ${current.opponent}` : "Game") :
-        type === "Lift" ? "Team Lift" :
-        type === "Scrimmage" ? "Scrimmage" :
-        type === "Meeting" ? "Team Meeting" :
-        type,
+      title: shouldResetScheduleTitle(type, current.title)
+        ? defaultScheduleTitle(type, current.opponent, current.homeAway)
+        : current.title,
       visibility: defaultScheduleVisibility(type, currentTeam),
       gameType: type === "Tournament" ? "Tournament" : type === "Scrimmage" ? "Scrimmage" : current.gameType,
     }));
   }
 
   function submit() {
+    const validationErrors: string[] = [];
+    if (!form.date) validationErrors.push("Date is required.");
+    if (!form.startTime) validationErrors.push("Start time is required.");
+    if (eventType === "Game" && !form.opponent.trim()) validationErrors.push("Opponent is required for Game.");
+    if (isGenericTitleType && !form.title.trim()) validationErrors.push("Title is required for this event type.");
+    if (validationErrors.length) {
+      setErrors(validationErrors);
+      return;
+    }
     const now = new Date().toISOString();
     const startAt = toLocalIso(form.date, form.startTime || "18:00");
     const endAt = form.endTime ? toLocalIso(form.date, form.endTime) : undefined;
@@ -6597,8 +6625,8 @@ function ScheduleEventModal({
       const practice: Practice = {
         id: createId("practice"),
         date: form.date,
-        name: form.title || form.practiceType,
-        type: form.practiceType,
+        name: "Practice",
+        type: "Team Practice",
         location: form.location,
         notes: form.notes,
         playerIds: selectedPlayers.map((player) => player.id),
@@ -6648,7 +6676,7 @@ function ScheduleEventModal({
       });
       return;
     }
-    const title = form.title.trim() || eventType;
+    const title = form.title.trim() || defaultScheduleTitle(eventType, form.opponent, form.homeAway);
     onCreateEvent({
       id: createId("schedule"),
       organizationId: currentTeam?.organizationId,
@@ -6671,41 +6699,51 @@ function ScheduleEventModal({
 
   return (
     <ModalFrame title="Add Event" onClose={onClose} panelClassName="schedule-event-modal">
-      <div className="schedule-event-type-grid">
-        {SCHEDULE_EVENT_TYPES.map((type) => (
-          <button key={type} type="button" className={eventType === type ? "active" : ""} onClick={() => chooseType(type)}>
-            <ScheduleTypeIcon type={type} />
-            <span>{type}</span>
-          </button>
-        ))}
-      </div>
       <div className="schedule-event-form">
-        {eventType === "Practice" && (
-          <div className="form-field"><span>Practice Type</span><ChoiceSelect value={form.practiceType} className="form-choice" options={PRACTICE_TYPES.map((type) => ({ value: type, label: type }))} onChange={(value) => setForm({ ...form, practiceType: value as PracticeType, title: value })} aria-label="Practice type" /></div>
-        )}
+        <div className="form-field schedule-event-type-field wide">
+          <span>Event Type</span>
+          <ChoiceSelect value={eventType} className="form-choice schedule-event-type-select" options={eventTypeOptions} onChange={(value) => chooseType(value as ScheduleEventType)} aria-label="Event type" />
+        </div>
         {eventType === "Game" && (
           <>
-            <label className="wide"><span>Opponent</span><input value={form.opponent} onChange={(event) => setForm({ ...form, opponent: event.target.value, title: `${form.homeAway === "Away" ? "at" : "vs."} ${event.target.value}` })} /></label>
+            <label className="wide"><span>Opponent</span><input value={form.opponent} placeholder="Charlotte Christian" onChange={(event) => setForm({ ...form, opponent: event.target.value, title: defaultScheduleTitle("Game", event.target.value, form.homeAway) })} /></label>
             <div className="form-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, homeAway: value as Game["homeAway"] })} aria-label="Home or away" /></div>
-            <div className="form-field"><span>Game Type</span><ChoiceSelect value={form.gameType} className="form-choice" options={GAME_TYPES.map((type) => ({ value: type, label: type }))} onChange={(value) => setForm({ ...form, gameType: value as GameType })} aria-label="Game type" /></div>
+            <div className="form-field"><span>Tournament/Event</span><ChoiceSelect value={form.gameType} className="form-choice" options={GAME_TYPES.map((type) => ({ value: type, label: type }))} onChange={(value) => setForm({ ...form, gameType: value as GameType })} aria-label="Game event type" /></div>
           </>
         )}
-        {eventType !== "Practice" && eventType !== "Game" && (
-          <label className="wide"><span>Title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
+        {eventType === "Scrimmage" && (
+          <>
+            <label><span>Opponent</span><input value={form.opponent} placeholder="Optional" onChange={(event) => setForm({ ...form, opponent: event.target.value, title: defaultScheduleTitle("Scrimmage", event.target.value, form.homeAway) })} /></label>
+            <div className="form-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, homeAway: value as Game["homeAway"] })} aria-label="Scrimmage home or away" /></div>
+          </>
+        )}
+        {eventType === "Tournament" && (
+          <label className="wide"><span>Tournament Name</span><input value={form.title} placeholder="Tournament name" onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
+        )}
+        {isGenericTitleType && (
+          <label className="wide"><span>Title</span><input value={form.title} placeholder="Film Review" onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
         )}
         <label><span>Date</span><input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
         <label><span>Start</span><input type="time" value={form.startTime} onChange={(event) => setForm({ ...form, startTime: event.target.value })} /></label>
-        <label><span>End</span><input type="time" value={form.endTime} onChange={(event) => setForm({ ...form, endTime: event.target.value })} /></label>
-        <label className="wide"><span>Location</span><input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} /></label>
-        <div className="form-field"><span>Visibility</span><ChoiceSelect value={form.visibility} className="form-choice" options={SCHEDULE_VISIBILITIES.map((value) => ({ value, label: scheduleVisibilityLabel(value) }))} onChange={(value) => setForm({ ...form, visibility: value as ScheduleEventVisibility })} aria-label="Event visibility" /></div>
+        <label><span>End <small>optional</small></span><input type="time" value={form.endTime} onChange={(event) => setForm({ ...form, endTime: event.target.value })} /></label>
+        <label className="wide"><span>Location</span><input value={form.location} placeholder="Varsity Field" onChange={(event) => setForm({ ...form, location: event.target.value })} /></label>
         {currentTeam && (
-          <section className="practice-team-context wide" aria-label="Event team">
+          <div className="form-field schedule-team-field">
             <span>Team</span>
-            <strong>{currentTeam.teamName}</strong>
-            <small>{currentTeam.seasonName ?? data.settings.rosterSeason}</small>
-          </section>
+            <button type="button" className="schedule-team-pill" disabled>
+              <Users size={16} aria-hidden="true" />
+              <strong>{currentTeam.teamName}<small>{currentTeam.seasonName ?? data.settings.rosterSeason}</small></strong>
+              <ChevronDown size={14} aria-hidden="true" />
+            </button>
+          </div>
         )}
-        <label className="wide"><span>Notes</span><textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
+        <div className="form-field"><span>Visibility</span><ChoiceSelect value={form.visibility} className="form-choice" options={SCHEDULE_VISIBILITIES.map((value) => ({ value, label: scheduleVisibilityLabel(value) }))} onChange={(value) => setForm({ ...form, visibility: value as ScheduleEventVisibility })} aria-label="Event visibility" /></div>
+        <label className="wide"><span>Notes <small>optional</small></span><textarea value={form.notes} placeholder="Add notes..." onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label>
+        {errors.length > 0 && (
+          <div className="form-errors wide" role="alert">
+            {errors.map((error) => <span key={error}>{error}</span>)}
+          </div>
+        )}
       </div>
       <div className="modal-actions">
         <button type="button" className="secondary-button" onClick={onClose}>Cancel</button>
@@ -9486,6 +9524,29 @@ function scheduleVisibilityLabel(value: ScheduleEventVisibility) {
   if (value === "TEAM_ONLY") return "Team only";
   if (value === "PUBLIC") return "Public";
   return "Private";
+}
+
+function defaultScheduleTitle(type: ScheduleEventType, opponent = "", homeAway: Game["homeAway"] = "Home") {
+  const trimmedOpponent = opponent.trim();
+  if (type === "Practice") return "Practice";
+  if (type === "Game") return trimmedOpponent ? `${homeAway === "Away" ? "at" : "vs."} ${trimmedOpponent}` : "Game";
+  if (type === "Lift") return "Team Lift";
+  if (type === "Scrimmage") return trimmedOpponent ? `${homeAway === "Away" ? "at" : "vs."} ${trimmedOpponent} Scrimmage` : "Scrimmage";
+  if (type === "Meeting") return "Team Meeting";
+  if (type === "Team Event") return "Team Event";
+  if (type === "Tournament") return "Tournament";
+  return "Other";
+}
+
+function isDefaultScheduleTitle(title: string) {
+  const normalized = title.trim();
+  if (!normalized) return true;
+  return SCHEDULE_EVENT_TYPES.some((type) => normalized === defaultScheduleTitle(type));
+}
+
+function shouldResetScheduleTitle(nextType: ScheduleEventType, currentTitle: string) {
+  if (nextType === "Practice" || nextType === "Lift") return true;
+  return isDefaultScheduleTitle(currentTitle);
 }
 
 function weeklyRepCount(data: AppData) {

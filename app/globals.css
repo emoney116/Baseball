@@ -3327,6 +3327,16 @@ textarea:focus-visible {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
+.choice-select__button:has(.choice-select__icon) {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.choice-select__icon {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
 .choice-select__button strong {
   min-width: 0;
   overflow: hidden;
@@ -3334,6 +3344,15 @@ textarea:focus-visible {
   white-space: nowrap;
   font-size: 12px;
   font-weight: 760;
+}
+
+.choice-select__button strong small,
+.choice-select__menu button small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 720;
 }
 
 .choice-select__button svg {
@@ -3375,7 +3394,9 @@ textarea:focus-visible {
   border-radius: 8px;
   background: transparent;
   color: var(--text);
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 0 10px;
   text-align: left;
   font-size: 12px;
@@ -9812,38 +9833,13 @@ body {
 }
 
 .schedule-event-modal {
-  width: min(760px, calc(100vw - 28px));
-}
-
-.schedule-event-type-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.schedule-event-type-grid button {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--text);
-  min-height: 76px;
-  display: grid;
-  place-items: center;
-  gap: 7px;
-  cursor: pointer;
-  font-weight: 850;
-}
-
-.schedule-event-type-grid button.active {
-  border-color: rgba(195, 50, 99, 0.55);
-  background: rgba(195, 50, 99, 0.16);
+  width: min(720px, calc(100vw - 28px));
 }
 
 .schedule-event-form {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;
 }
 
 .schedule-event-form label,
@@ -9852,13 +9848,118 @@ body {
   gap: 6px;
 }
 
+.schedule-event-form label > span,
+.schedule-event-form .form-field > span {
+  color: color-mix(in srgb, var(--text) 84%, var(--muted));
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.schedule-event-form label > span small,
+.schedule-event-form .form-field > span small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 740;
+}
+
 .schedule-event-form .wide {
   grid-column: 1 / -1;
 }
 
+.schedule-event-form input,
+.schedule-event-form textarea,
+.schedule-team-pill,
+.schedule-event-form .choice-select__button {
+  min-height: 46px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 66%, transparent);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 76%, transparent), color-mix(in srgb, var(--panel) 92%, transparent)),
+    var(--panel);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.schedule-event-form input,
 .schedule-event-form textarea {
-  min-height: 86px;
+  width: 100%;
+  padding: 0 12px;
+  color-scheme: dark;
+}
+
+.schedule-event-form input::placeholder,
+.schedule-event-form textarea::placeholder {
+  color: color-mix(in srgb, var(--muted) 72%, transparent);
+}
+
+.schedule-event-form input:focus-visible,
+.schedule-event-form textarea:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy) 76%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 18%, transparent);
+  outline: 0;
+}
+
+.schedule-event-type-select .choice-select__button {
+  min-height: 54px;
+  padding: 0 14px;
+}
+
+.schedule-event-type-select .choice-select__menu {
+  width: 100%;
+  max-width: none;
+}
+
+.schedule-event-type-select .choice-select__menu button {
+  min-height: 42px;
+}
+
+.schedule-team-pill {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 0 12px;
+  text-align: left;
+  opacity: 1;
+}
+
+.schedule-team-pill svg {
+  color: var(--burgundy-bright);
+}
+
+.schedule-team-pill strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 820;
+}
+
+.schedule-team-pill small {
+  display: block;
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.schedule-event-form textarea {
+  min-height: 76px;
+  padding-top: 10px;
   resize: vertical;
+}
+
+.form-errors {
+  display: grid;
+  gap: 5px;
+  border: 1px solid color-mix(in srgb, #ff557c 48%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, #ff557c 11%, transparent);
+  color: #ff9cb2;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 780;
 }
 
 .award-card {
@@ -11031,10 +11132,6 @@ body {
   .schedule-agenda-row .schedule-status {
     grid-column: 2 / -1;
     width: fit-content;
-  }
-
-  .schedule-event-type-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .schedule-event-form {
