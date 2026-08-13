@@ -151,6 +151,7 @@ type ScheduleViewMode = "Calendar" | "Week" | "Agenda";
 type ScheduleSource = "practice" | "game" | "lift" | "event";
 type ScheduleDateFieldMode = "desktop" | "native";
 type TimePeriod = "AM" | "PM";
+type ScheduleEventFilter = "All" | ScheduleEventType;
 
 interface ScheduleItem {
   id: ID;
@@ -394,6 +395,7 @@ export default function MetrolinaBaseballApp() {
   const [startPracticeOpen, setStartPracticeOpen] = useState(false);
   const [startGameOpen, setStartGameOpen] = useState(false);
   const [scheduleEventOpen, setScheduleEventOpen] = useState(false);
+  const [scheduleEventInitialDate, setScheduleEventInitialDate] = useState<string | undefined>();
   const [playerEditorOpen, setPlayerEditorOpen] = useState(false);
   const [rosterImportOpen, setRosterImportOpen] = useState(false);
   const [staffInviteOpen, setStaffInviteOpen] = useState(false);
@@ -1595,7 +1597,10 @@ export default function MetrolinaBaseballApp() {
         {view === "schedule" && (
           <ScheduleView
             data={data}
-            onAddEvent={() => setScheduleEventOpen(true)}
+            onAddEvent={(date) => {
+              setScheduleEventInitialDate(date);
+              setScheduleEventOpen(true);
+            }}
             onView={goToView}
             onOpenGame={(gameId) => {
               setSelectedGameId(gameId);
@@ -1880,18 +1885,25 @@ export default function MetrolinaBaseballApp() {
       {scheduleEventOpen && (
         <ScheduleEventModal
           data={data}
-          onClose={() => setScheduleEventOpen(false)}
+          initialDate={scheduleEventInitialDate}
+          onClose={() => {
+            setScheduleEventOpen(false);
+            setScheduleEventInitialDate(undefined);
+          }}
           onCreatePractice={(practiceDraft, attendanceDraft) => {
             createPracticeRecord(practiceDraft, attendanceDraft);
             setScheduleEventOpen(false);
+            setScheduleEventInitialDate(undefined);
           }}
           onCreateGame={(game) => {
             createGameRecord(game);
             setScheduleEventOpen(false);
+            setScheduleEventInitialDate(undefined);
           }}
           onCreateEvent={(event) => {
             createScheduleEvent(event);
             setScheduleEventOpen(false);
+            setScheduleEventInitialDate(undefined);
           }}
         />
       )}
@@ -2133,12 +2145,10 @@ function AuthGate({
 }
 
 function SyncStatusBanner({ status, error }: { status: "idle" | "saving" | "saved" | "error"; error: string | null }) {
-  if (status === "idle") return null;
+  if (status !== "error") return null;
   return (
-    <div className={`sync-banner sync-banner--${status}`} role={status === "error" ? "alert" : "status"}>
-      {status === "saving" && "Saving..."}
-      {status === "saved" && "Saved"}
-      {status === "error" && `Save failed: ${error ?? "Check your connection and permissions."}`}
+    <div className="sync-banner sync-banner--error" role="alert">
+      {`Save failed: ${error ?? "Check your connection and permissions."}`}
     </div>
   );
 }
@@ -4376,7 +4386,7 @@ function ScheduleView({
   onUpdateScheduleEvent,
 }: {
   data: AppData;
-  onAddEvent: () => void;
+  onAddEvent: (date?: string) => void;
   onView: (view: ViewKey) => void;
   onOpenGame: (gameId: ID) => void;
   onUpdateScheduleEvent: (event: ScheduleEvent) => void;
@@ -4386,9 +4396,19 @@ function ScheduleView({
   );
   const [cursor, setCursor] = useState(() => new Date());
   const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
+  const [eventFilter, setEventFilter] = useState<ScheduleEventFilter>("All");
   const items = useMemo(() => buildScheduleItems(data), [data]);
-  const upcomingItems = items.filter((item) => isUpcomingScheduleItem(item) && item.status !== "Cancelled").slice(0, 6);
+  const visibleItems = useMemo(
+    () => eventFilter === "All" ? items : items.filter((item) => item.eventType === eventFilter),
+    [eventFilter, items],
+  );
+  const upcomingItems = visibleItems.filter((item) => isUpcomingScheduleItem(item) && item.status !== "Cancelled").slice(0, 6);
   const cursorMonthLabel = cursor.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const selectedVisibleItem = selectedItem && visibleItems.some((item) => item.id === selectedItem.id) ? selectedItem : null;
+  const filterOptions: ChoiceOption[] = useMemo(() => [
+    { value: "All", label: "All Events", icon: <CalendarDays size={15} aria-hidden="true" /> },
+    ...SCHEDULE_EVENT_TYPES.map((type) => ({ value: type, label: type, icon: <ScheduleTypeIcon type={type} /> })),
+  ], []);
 
   function moveCursor(amount: number) {
     setCursor((current) => {
@@ -4405,7 +4425,7 @@ function ScheduleView({
         title="Schedule"
         context={teamContextLine(data.teamContext?.currentTeam)}
         action={(
-          <button type="button" className="primary-button" onClick={onAddEvent}>
+          <button type="button" className="primary-button" onClick={() => onAddEvent()}>
             <CalendarPlus size={16} aria-hidden="true" />
             Add Event
           </button>
@@ -4418,15 +4438,27 @@ function ScheduleView({
           <strong>{mode === "Week" ? weekRangeLabel(cursor) : cursorMonthLabel}</strong>
           <button type="button" className="icon-button schedule-period-button" onClick={() => moveCursor(1)} aria-label="Next period"><ChevronRight size={17} aria-hidden="true" /></button>
         </div>
-        <SegmentedControl values={["Calendar", "Week", "Agenda"] as ScheduleViewMode[]} active={mode} onChange={setMode} />
-        <button type="button" className="secondary-button" onClick={() => setCursor(new Date())}>Today</button>
+        <div className="schedule-toolbar__controls">
+          <ChoiceSelect
+            value={eventFilter}
+            className="schedule-filter-choice"
+            options={filterOptions}
+            onChange={(value) => {
+              setEventFilter(value as ScheduleEventFilter);
+              setSelectedItem(null);
+            }}
+            aria-label="Filter schedule by event type"
+          />
+          <SegmentedControl values={["Calendar", "Week", "Agenda"] as ScheduleViewMode[]} active={mode} onChange={setMode} />
+          <button type="button" className="secondary-button" onClick={() => setCursor(new Date())}>Today</button>
+        </div>
       </section>
 
       <section className="schedule-layout">
         <div className="schedule-main">
-          {mode === "Calendar" && <ScheduleMonthView cursor={cursor} items={items} onSelect={setSelectedItem} />}
-          {mode === "Week" && <ScheduleWeekView cursor={cursor} items={items} onSelect={setSelectedItem} />}
-          {mode === "Agenda" && <ScheduleAgendaView items={items} onSelect={setSelectedItem} />}
+          {mode === "Calendar" && <ScheduleMonthView cursor={cursor} items={visibleItems} onSelect={setSelectedItem} onAddEvent={onAddEvent} />}
+          {mode === "Week" && <ScheduleWeekView cursor={cursor} items={visibleItems} onSelect={setSelectedItem} />}
+          {mode === "Agenda" && <ScheduleAgendaView items={visibleItems} onSelect={setSelectedItem} />}
         </div>
         <aside className="schedule-side">
           <article className="panel schedule-next-card">
@@ -4451,7 +4483,7 @@ function ScheduleView({
           </article>
           <ScheduleDetailCard
             data={data}
-            item={selectedItem}
+            item={selectedVisibleItem}
             onView={onView}
             onOpenGame={onOpenGame}
             onUpdateScheduleEvent={onUpdateScheduleEvent}
@@ -4462,7 +4494,17 @@ function ScheduleView({
   );
 }
 
-function ScheduleMonthView({ cursor, items, onSelect }: { cursor: Date; items: ScheduleItem[]; onSelect: (item: ScheduleItem) => void }) {
+function ScheduleMonthView({
+  cursor,
+  items,
+  onSelect,
+  onAddEvent,
+}: {
+  cursor: Date;
+  items: ScheduleItem[];
+  onSelect: (item: ScheduleItem) => void;
+  onAddEvent: (date?: string) => void;
+}) {
   const days = calendarDaysForMonth(cursor);
   const currentMonth = cursor.getMonth();
   return (
@@ -4475,7 +4517,14 @@ function ScheduleMonthView({ cursor, items, onSelect }: { cursor: Date; items: S
           const dateKey = isoDate(date);
           const dayItems = items.filter((item) => item.date === dateKey);
           return (
-            <div key={dateKey} className={`schedule-day ${date.getMonth() !== currentMonth ? "schedule-day--muted" : ""} ${isToday(dateKey) ? "schedule-day--today" : ""}`}>
+            <div
+              key={dateKey}
+              className={`schedule-day ${date.getMonth() !== currentMonth ? "schedule-day--muted" : ""} ${isToday(dateKey) ? "schedule-day--today" : ""}`}
+              onDoubleClick={(event) => {
+                if ((event.target as HTMLElement).closest("button")) return;
+                onAddEvent(dateKey);
+              }}
+            >
               <span className="schedule-day__number">{date.getDate()}</span>
               <div className="schedule-day__events">
                 {dayItems.slice(0, 3).map((item) => (
@@ -6808,18 +6857,20 @@ function StartGameModal({ data, onClose, onCreate }: { data: AppData; onClose: (
 
 function ScheduleEventModal({
   data,
+  initialDate,
   onClose,
   onCreatePractice,
   onCreateGame,
   onCreateEvent,
 }: {
   data: AppData;
+  initialDate?: string;
   onClose: () => void;
   onCreatePractice: (practice: Practice, attendance: PracticeAttendance[]) => void;
   onCreateGame: (game: Game) => void;
   onCreateEvent: (event: ScheduleEvent) => void;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = initialDate ?? new Date().toISOString().slice(0, 10);
   const currentTeam = data.teamContext?.currentTeam;
   const availablePlayers = data.players.filter((player) => !player.archived && player.rosterStatus !== "Cut");
   const starters = availablePlayers.slice(0, 9).map((player) => player.id);
@@ -6992,7 +7043,6 @@ function ScheduleEventModal({
             onFocus={() => setOpponentResultsOpen(Boolean(typedOpponent) && !form.intersquad)}
           />
         </span>
-        {form.intersquad && <small className="schedule-intersquad-note">This will save as an intersquad scrimmage.</small>}
         {typedOpponent && opponentResultsOpen && !form.intersquad && (
           <div className="schedule-opponent-results">
             {opponentSuggestions.map((team) => (
@@ -7029,7 +7079,6 @@ function ScheduleEventModal({
     const validationErrors: string[] = [];
     if (!form.date) validationErrors.push("Date is required.");
     if (!form.startTime) validationErrors.push("Start time is required.");
-    if (eventType === "Game" && !form.opponent.trim()) validationErrors.push("Opponent is required for Game.");
     if (eventType === "Tournament" && !form.title.trim()) validationErrors.push("Tournament name is required.");
     if (eventType === "Tournament" && !form.endDate) validationErrors.push("End date is required for Tournament.");
     if (eventType === "Tournament" && form.endDate && form.date && form.endDate < form.date) validationErrors.push("End date cannot be before start date.");
@@ -7072,7 +7121,7 @@ function ScheduleEventModal({
       return;
     }
     if (eventType === "Game") {
-      const opponent = form.opponent.trim() || "Opponent";
+      const opponent = form.opponent.trim() || "TBD";
       onCreateGame({
         id: createId("game"),
         date: form.date,

@@ -9388,7 +9388,7 @@ body {
 .schedule-toolbar {
   min-height: 62px;
   display: grid;
-  grid-template-columns: minmax(210px, 1fr) auto auto;
+  grid-template-columns: minmax(210px, 1fr) auto;
   align-items: center;
   gap: 12px;
 }
@@ -9424,6 +9424,32 @@ body {
   border-color: color-mix(in srgb, var(--burgundy) 62%, var(--line));
   background: color-mix(in srgb, var(--burgundy) 12%, var(--panel));
   color: var(--text);
+}
+
+.schedule-toolbar__controls {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.schedule-filter-choice {
+  min-width: 154px;
+}
+
+.schedule-filter-choice .choice-select__button {
+  min-height: 38px;
+  border-radius: 10px;
+  padding: 0 10px;
+}
+
+.schedule-filter-choice .choice-select__button strong {
+  font-size: 12px;
+}
+
+.schedule-filter-choice .choice-select__menu {
+  min-width: 180px;
 }
 
 .schedule-layout {
@@ -10380,13 +10406,6 @@ body {
   height: 13px;
   min-height: 0;
   accent-color: var(--schedule-accent, var(--burgundy));
-}
-
-.schedule-intersquad-note {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 720;
-  margin-top: -2px;
 }
 
 .schedule-opponent-results {
@@ -11577,8 +11596,13 @@ body {
     grid-template-columns: 1fr auto;
   }
 
-  .schedule-toolbar .segmented-control {
+  .schedule-toolbar__controls {
     grid-column: 1 / -1;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .schedule-toolbar .segmented-control {
     justify-self: start;
   }
 
@@ -11660,6 +11684,16 @@ body {
   .schedule-toolbar {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .schedule-toolbar__controls {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-filter-choice {
+    min-width: 0;
   }
 
   .schedule-toolbar__date {
