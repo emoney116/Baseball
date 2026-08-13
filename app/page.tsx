@@ -1863,6 +1863,7 @@ export default function MetrolinaBaseballApp() {
             onOpenSession={resumePracticeSession}
             onOpenAttendance={() => (practice ? setPracticeDrilldown({ kind: "attendance" }) : setStartPracticeOpen(true))}
             onEndPractice={endPractice}
+            onStatus={updatePracticeAttendance}
             onOpenPlayer={openPlayer}
           />
         )}
@@ -5706,6 +5707,7 @@ function PracticeHome({
   onOpenSession,
   onOpenAttendance,
   onEndPractice,
+  onStatus,
   onOpenPlayer,
 }: {
   data: AppData;
@@ -5718,29 +5720,36 @@ function PracticeHome({
   onOpenSession: (session: PracticeActiveSessionRow) => void;
   onOpenAttendance: () => void;
   onEndPractice: () => void;
+  onStatus: (playerId: ID, status: PracticeAttendanceStatus) => void;
   onOpenPlayer: (playerId: ID) => void;
 }) {
   const recentPractices = data.practices.slice(0, 4);
-  const recentPlayers = sortPlayersByRecent(
+  const attendancePlayers = sortPlayersByRecent(
     practice ? data.players.filter((player) => !player.archived && practice.playerIds.includes(player.id)) : data.players.filter((player) => !player.archived),
     data.settings.recentPlayerIds,
-  ).slice(0, 9);
+  );
+  const attendancePageSize = 8;
+  const [attendancePage, setAttendancePage] = useState(0);
   const practiceAttendance = practice ? data.attendance.filter((item) => item.practiceId === practice.id) : [];
   const activeAttendance = practiceAttendance.filter((item) => item.status === "Present" || item.status === "Late");
-  const presentAttendance = practiceAttendance.filter((item) => item.status === "Present");
-  const lateAttendance = practiceAttendance.filter((item) => item.status === "Late");
-  const absentAttendance = practiceAttendance.filter((item) => item.status === "Absent");
-  const excusedAttendance = practiceAttendance.filter((item) => item.status === "Excused");
   const rosterCount = practice?.playerIds.length || data.players.filter((player) => !player.archived).length;
   const attendancePct = pct(activeAttendance.length, practiceAttendance.length || data.players.filter((player) => !player.archived).length);
+  const attendancePageCount = Math.max(1, Math.ceil(attendancePlayers.length / attendancePageSize));
+  const activeAttendancePage = Math.min(attendancePage, attendancePageCount - 1);
+  const pagedAttendancePlayers = attendancePlayers.slice(activeAttendancePage * attendancePageSize, activeAttendancePage * attendancePageSize + attendancePageSize);
   const hittingLeaders = buildHittingLeaders(data, "hardHitPct", 4).slice(0, 3);
   const pitchingLeaders = buildPitchingLeaders(data, "strikePct", 6).slice(0, 3);
-  const defensePlayers = practice ? data.players.filter((player) => practice.playerIds.includes(player.id)).length : rosterCount;
   const practiceTime = practice ? formatPracticeTimeRange(practice) : "";
   const statusLabel = practice ? (practice.endedAt ? "Completed Practice" : "Today's Practice") : "Practice Hub";
   const activeSessions = practice ? buildActivePracticeSessions(data, practice.id) : [];
   const mySession = activeSessions.find((session) => session.isMine);
   const recentActivity = practice ? buildPracticeActivityFeed(data, practice.id).slice(0, 5) : [];
+  const attendanceCycle: PracticeAttendanceStatus[] = ["Present", "Late", "Absent", "Excused"];
+
+  function toggleAttendanceStatus(playerId: ID, currentStatus: PracticeAttendanceStatus) {
+    const nextIndex = (attendanceCycle.indexOf(currentStatus) + 1) % attendanceCycle.length;
+    onStatus(playerId, attendanceCycle[nextIndex]);
+  }
 
   return (
     <div className="page-stack practice-home">
@@ -5798,9 +5807,6 @@ function PracticeHome({
                 ))}
               </span>
             </div>
-            <StatTile label="Pitchers" value={activeTotals.pitchers || practice?.pitcherIds.length || 0} />
-            <StatTile label="Hitters" value={activeTotals.hitters || practice?.hitterIds.length || 0} />
-            <StatTile label="Defense" value={defensePlayers} />
             <div className="attendance-ring" style={{ ["--value" as string]: `${attendancePct}%` }}>
               <strong>{formatPct(attendancePct, 0)}</strong>
               <small>Attendance</small>
@@ -5824,24 +5830,37 @@ function PracticeHome({
                     <span>{practiceAttendance.length || rosterCount} players</span>
                   </div>
                 </div>
-                <div className="practice-attendance-stats">
-                  <span className="present"><strong>{presentAttendance.length}</strong><small>Present</small></span>
-                  <span className="late"><strong>{lateAttendance.length}</strong><small>Late</small></span>
-                  <span className="absent"><strong>{absentAttendance.length}</strong><small>Absent</small></span>
-                  <span className="excused"><strong>{excusedAttendance.length}</strong><small>Excused</small></span>
-                </div>
                 <div className="practice-avatar-row">
-                  {recentPlayers.map((player) => {
+                  {pagedAttendancePlayers.map((player) => {
                     const status = practiceAttendance.find((item) => item.playerId === player.id)?.status ?? "Present";
                     return (
-                      <button key={player.id} type="button" onClick={() => onOpenPlayer(player.id)} className={`attendance-avatar attendance-avatar--${status.toLowerCase()}`}>
+                      <button
+                        key={player.id}
+                        type="button"
+                        onClick={() => toggleAttendanceStatus(player.id, status)}
+                        className={`attendance-avatar attendance-avatar--${status.toLowerCase()}`}
+                        aria-label={`${player.name}: ${status}. Click to change status.`}
+                      >
                         <PlayerAvatar player={player} size="sm" compact />
-                        <span>{playerInitials(player.name)}</span>
+                        <span className="attendance-avatar__meta">
+                          <strong>{player.name}</strong>
+                          <small>{status}</small>
+                        </span>
                       </button>
                     );
                   })}
-                  {Math.max(0, rosterCount - recentPlayers.length) > 0 && <span className="attendance-more">+{rosterCount - recentPlayers.length} more</span>}
                 </div>
+                {attendancePageCount > 1 && (
+                  <div className="practice-attendance-pager" aria-label="Attendance pages">
+                    <button type="button" onClick={() => setAttendancePage(Math.max(0, activeAttendancePage - 1))} disabled={activeAttendancePage === 0}>
+                      <ChevronLeft size={14} aria-hidden="true" />
+                    </button>
+                    <span>{activeAttendancePage * attendancePageSize + 1}-{Math.min(attendancePlayers.length, (activeAttendancePage + 1) * attendancePageSize)} of {attendancePlayers.length}</span>
+                    <button type="button" onClick={() => setAttendancePage(Math.min(attendancePageCount - 1, activeAttendancePage + 1))} disabled={activeAttendancePage >= attendancePageCount - 1}>
+                      <ChevronRight size={14} aria-hidden="true" />
+                    </button>
+                  </div>
+                )}
                 <button className="text-button practice-card-link" type="button" onClick={onOpenAttendance}>
                   View Attendance
                   <ChevronRight size={15} aria-hidden="true" />
@@ -6036,8 +6055,8 @@ function PracticeRecentCard({ data, recentPractices }: { data: AppData; recentPr
             return (
               <button key={item.id} type="button">
                 <span>
-                  <small>{shortDate(item.date)} - {item.location || "Field"}</small>
-                  <strong>{item.type}</strong>
+                  <strong>{shortDate(item.date)}</strong>
+                  <small>{item.location || "Field"}</small>
                 </span>
                 <em>{active.length || item.playerIds.length} players</em>
                 <em>{totals.pitches} pitches</em>
@@ -6207,8 +6226,8 @@ function PracticeHistoryTab({ data }: { data: AppData }) {
           return (
             <button key={practice.id} type="button">
               <span>
-                <small>{shortDate(practice.date)} - {practice.location || "Field"}</small>
-                <strong>{practice.name}</strong>
+                <strong>{shortDate(practice.date)}</strong>
+                <small>{practice.location || "Field"}</small>
               </span>
               <em>{active.length || practice.playerIds.length} players</em>
               <em>{totals.pitches} pitches</em>
@@ -10745,14 +10764,6 @@ function baseLine(game: Game) {
 
 function positionLine(player: Player) {
   return player.secondaryPosition ? `${player.primaryPosition} / ${player.secondaryPosition}` : player.primaryPosition;
-}
-
-function playerInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "?";
-  const first = parts[0]?.[0] ?? "";
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? "" : "";
-  return `${first}${last}`.toUpperCase();
 }
 
 function practiceModeClass(mode: PracticeMode) {

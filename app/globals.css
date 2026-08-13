@@ -13169,9 +13169,9 @@ body,
 
 .practice-summary-strip {
   display: grid;
-  grid-template-columns: minmax(320px, 1.5fr) minmax(190px, 0.8fr) repeat(3, minmax(92px, 0.42fr)) 100px;
+  grid-template-columns: minmax(320px, 1fr) minmax(220px, 0.6fr) 78px;
   align-items: center;
-  gap: 14px;
+  gap: 18px;
   padding: 16px;
 }
 
@@ -13247,8 +13247,8 @@ body,
 .attendance-ring {
   --value: 0%;
   justify-self: end;
-  width: 86px;
-  height: 86px;
+  width: 72px;
+  height: 72px;
   border-radius: 999px;
   display: grid;
   place-items: center;
@@ -13259,7 +13259,7 @@ body,
 .attendance-ring::before {
   content: "";
   position: absolute;
-  inset: 8px;
+  inset: 7px;
   border-radius: inherit;
   background: var(--panel);
 }
@@ -13274,14 +13274,14 @@ body,
 
 .attendance-ring strong {
   align-self: end;
-  font-size: 22px;
+  font-size: 17px;
   font-weight: 950;
 }
 
 .attendance-ring small {
   align-self: start;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 800;
 }
 
@@ -13513,105 +13513,119 @@ body,
   grid-column: span 2;
 }
 
-.practice-attendance-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.practice-attendance-stats span {
-  min-height: 74px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel-soft);
-  padding: 11px;
-  display: grid;
-  align-content: center;
-  gap: 4px;
-}
-
-.practice-attendance-stats strong {
-  font-size: 30px;
-  line-height: 1;
-  font-weight: 950;
-}
-
-.practice-attendance-stats small {
-  color: var(--muted);
-  font-weight: 850;
-}
-
-.practice-attendance-stats .present strong {
-  color: var(--green);
-}
-
-.practice-attendance-stats .late strong {
-  color: var(--gold-strong);
-}
-
-.practice-attendance-stats .absent strong {
-  color: var(--danger);
-}
-
-.practice-attendance-stats .excused strong {
-  color: var(--blue);
-}
-
 .practice-avatar-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 8px;
-  overflow-x: auto;
-  padding: 12px 0 8px;
+  overflow: visible;
+  padding: 8px 0 4px;
 }
 
 .attendance-avatar {
-  min-width: 48px;
-  border: 0;
-  background: transparent;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-soft);
   color: var(--text);
   display: grid;
-  justify-items: center;
-  gap: 4px;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
   cursor: pointer;
   position: relative;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.attendance-avatar:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--panel-soft) 74%, var(--burgundy-soft));
 }
 
 .attendance-avatar::after {
+  display: none;
+}
+
+.attendance-avatar__meta {
+  min-width: 0;
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding-left: 12px;
+}
+
+.attendance-avatar__meta::before {
   content: "";
   position: absolute;
-  right: 4px;
-  top: 28px;
-  width: 8px;
-  height: 8px;
-  border: 2px solid var(--panel);
+  left: 0;
+  top: 4px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
   background: var(--green);
 }
 
-.attendance-avatar--late::after {
+.attendance-avatar--late .attendance-avatar__meta::before {
   background: var(--gold-strong);
 }
 
-.attendance-avatar--absent::after {
+.attendance-avatar--absent .attendance-avatar__meta::before {
   background: var(--danger);
 }
 
-.attendance-avatar--excused::after {
+.attendance-avatar--excused .attendance-avatar__meta::before {
   background: var(--blue);
 }
 
-.attendance-avatar span {
+.attendance-avatar__meta strong,
+.attendance-avatar__meta small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attendance-avatar__meta strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.attendance-avatar__meta small {
   color: var(--muted);
   font-size: 10px;
   font-weight: 900;
 }
 
-.attendance-more {
-  align-self: center;
+.practice-attendance-pager {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 850;
-  white-space: nowrap;
+}
+
+.practice-attendance-pager button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.practice-attendance-pager button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
 }
 
 .practice-card-link {
@@ -13728,7 +13742,16 @@ body,
 
 .practice-plan-list strong,
 .practice-history-rows strong {
-  overflow-wrap: anywhere;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.practice-history-rows button > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
 }
 
 .practice-plan-dot {
@@ -14046,7 +14069,7 @@ body,
 
 @media (max-width: 1180px) {
   .practice-summary-strip {
-    grid-template-columns: minmax(280px, 1fr) repeat(3, minmax(100px, 0.5fr));
+    grid-template-columns: minmax(280px, 1fr) minmax(180px, 0.58fr) 72px;
   }
 
   .practice-summary-strip__stat,
@@ -14103,10 +14126,6 @@ body,
     grid-template-columns: 1fr;
   }
 
-  .practice-attendance-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .practice-history-rows button {
     grid-template-columns: minmax(0, 1fr) 18px;
   }
@@ -14140,7 +14159,7 @@ body,
   .practice-summary-strip,
   .practice-dashboard-strip,
   .practice-activity-grid,
-  .practice-attendance-stats {
+  .practice-avatar-row {
     grid-template-columns: 1fr;
   }
 
