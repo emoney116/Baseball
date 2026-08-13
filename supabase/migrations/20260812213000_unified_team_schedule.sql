@@ -150,7 +150,10 @@ select
     when coalesce(t.visibility, 'PRIVATE') = 'PUBLIC' then 'PUBLIC'
     else 'TEAM_ONLY'
   end,
-  case when g.result is not null or lower(coalesce(g.status, '')) = 'final' then 'Completed' else 'Scheduled' end,
+  case
+    when g.result is not null or lower(coalesce(g.status::text, '')) = 'final' then 'Completed'
+    else 'Scheduled'
+  end,
   g.id,
   g.created_at,
   g.updated_at
