@@ -22,6 +22,7 @@ import {
   Moon,
   MoreHorizontal,
   Plus,
+  Pin,
   RefreshCw,
   Save,
   Search,
@@ -107,6 +108,7 @@ import type {
   PracticeAttendanceStatus,
   PracticeType,
   ProfileFollow,
+  ProfileTeamPin,
   PublicDirectoryOrganizationSummary,
   PublicDirectoryTeamSummary,
   RosterStatus,
@@ -448,6 +450,10 @@ export default function MetrolinaBaseballApp() {
 
   const weeklyMvp = useMemo(() => (data ? buildWeeklyMvp(data) : undefined), [data]);
   const weightLeader = useMemo(() => (data ? buildWeightLeader(data) : undefined), [data]);
+  const pinnedTeams = useMemo(
+    () => (data ? pinnedTeamsFromContext(data.teamContext, data.profileTeamPins) : []),
+    [data],
+  );
 
   async function loadApplicationData(
     isCancelled: () => boolean = () => false,
@@ -847,6 +853,35 @@ export default function MetrolinaBaseballApp() {
     } catch (error) {
       setSaveStatus("error");
       setSaveError(error instanceof Error ? error.message : "Unable to update follow.");
+    }
+  }
+
+  async function toggleTeamPin(team: TeamOption, options: { forceUnpin?: boolean } = {}) {
+    const pinned = isPinnedTeam(data?.profileTeamPins, team);
+    const shouldPin = options.forceUnpin ? false : !pinned;
+    if (!shouldPin && !pinned) return;
+    if (shouldPin && pinnedTeamsFromContext(data?.teamContext, data?.profileTeamPins).length >= 3) {
+      setSaveStatus("error");
+      setSaveError("You can pin up to 3 teams.");
+      return;
+    }
+
+    setSaveStatus("saving");
+    setSaveError(null);
+    try {
+      const result = await supabaseAppRepository.toggleTeamPin({ teamId: team.teamId, seasonId: team.seasonId, pin: shouldPin });
+      setData((current) => {
+        if (!current) return current;
+        const remaining = (current.profileTeamPins ?? []).filter((pin) => !profileTeamPinMatchesTeam(pin, team));
+        return {
+          ...current,
+          profileTeamPins: shouldPin && result ? [result, ...remaining] : remaining,
+        };
+      });
+      setSaveStatus("saved");
+    } catch (error) {
+      setSaveStatus("error");
+      setSaveError(error instanceof Error ? error.message : "Unable to update pinned team.");
     }
   }
 
@@ -1306,7 +1341,12 @@ export default function MetrolinaBaseballApp() {
               </button>
             </>
           ) : (
-            <GlobalContextSummary context={data.teamContext} onView={goToView} />
+            <PinnedTeamShortcuts
+              teams={pinnedTeams}
+              context={data.teamContext}
+              onEnterTeam={enterTeam}
+              onUnpin={(team) => void toggleTeamPin(team, { forceUnpin: true })}
+            />
           )}
         </div>
 
@@ -1382,10 +1422,11 @@ export default function MetrolinaBaseballApp() {
               onOpenPublicOrganization={openPublicOrganization}
               onOpenManagedOrganization={openManagedOrganization}
               onTogglePublicTeamFollow={togglePublicTeamFollow}
-            onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
-            onView={goToView}
-            onCreateTeam={() => openTeamCreator(undefined, "existing")}
-          />
+              onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
+              onToggleTeamPin={toggleTeamPin}
+              onView={goToView}
+              onCreateTeam={() => openTeamCreator(undefined, "existing")}
+            />
         )}
 
         {view === "organizations" && (
@@ -1400,6 +1441,7 @@ export default function MetrolinaBaseballApp() {
           <MyTeamsView
             data={data}
             onEnterTeam={enterTeam}
+            onToggleTeamPin={toggleTeamPin}
             onCreateTeam={() => openTeamCreator(undefined, "existing")}
           />
         )}
@@ -1412,6 +1454,7 @@ export default function MetrolinaBaseballApp() {
             onOpenPublicOrganization={openPublicOrganization}
             onTogglePublicTeamFollow={togglePublicTeamFollow}
             onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
+            onToggleTeamPin={toggleTeamPin}
             onCreateTeam={() => openTeamCreator(undefined, "existing")}
           />
         )}
@@ -2859,17 +2902,68 @@ function loadImageElement(sourceUrl: string) {
   });
 }
 
-function GlobalContextSummary({ context, onView }: { context?: TeamContext; onView: (view: ViewKey) => void }) {
-  const teams = displayWorkspaceTeams(context?.availableTeams ?? []);
-  const organizations = organizationSummariesFromContext(context);
+function PinnedTeamShortcuts({
+  teams,
+  context,
+  onEnterTeam,
+  onUnpin,
+}: {
+  teams: TeamOption[];
+  context?: TeamContext;
+  onEnterTeam: (team: TeamOption) => void | Promise<void>;
+  onUnpin: (team: TeamOption) => void;
+}) {
+  const longPressTimer = useRef<number | undefined>(undefined);
+  const suppressNextClick = useRef(false);
+
+  const clearLongPress = () => {
+    if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = undefined;
+  };
+
+  if (!teams.length) return null;
+
   return (
-    <button className="global-context-card" type="button" onClick={() => onView("organizations")}>
-      <OrganizationLogo name={organizations[0]?.name ?? APP_NAME} logoUrl={organizations[0]?.logoUrl} />
-      <span>
-        <small>{organizations.length || 0} organization{organizations.length === 1 ? "" : "s"}</small>
-        <strong>{teams.length || 0} team{teams.length === 1 ? "" : "s"}</strong>
-      </span>
-    </button>
+    <div className="pinned-team-shortcuts" aria-label="Pinned teams">
+      {teams.slice(0, 3).map((team) => (
+        <button
+          key={teamValue(team)}
+          className="pinned-team-shortcut"
+          type="button"
+          title={`${team.teamName} - hold to unpin`}
+          onPointerDown={() => {
+            clearLongPress();
+            suppressNextClick.current = false;
+            longPressTimer.current = window.setTimeout(() => {
+              suppressNextClick.current = true;
+              onUnpin(team);
+              clearLongPress();
+            }, 650);
+          }}
+          onPointerUp={clearLongPress}
+          onPointerLeave={clearLongPress}
+          onPointerCancel={clearLongPress}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            onUnpin(team);
+          }}
+          onClick={(event) => {
+            if (suppressNextClick.current) {
+              suppressNextClick.current = false;
+              event.preventDefault();
+              return;
+            }
+            void onEnterTeam(team);
+          }}
+        >
+          <OrganizationLogo name={team.organizationName} logoUrl={team.logoUrl ?? teamOrganizationLogo(team, context)} />
+          <span>
+            <strong>{shortTeamName(team.teamName)}</strong>
+            <small>{team.seasonName ?? "Current season"}</small>
+          </span>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -2881,6 +2975,7 @@ function ClubhouseHome({
   onOpenManagedOrganization,
   onTogglePublicTeamFollow,
   onTogglePublicOrganizationFollow,
+  onToggleTeamPin,
   onView,
   onCreateTeam,
 }: {
@@ -2891,6 +2986,7 @@ function ClubhouseHome({
   onOpenManagedOrganization: (organization: OrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
+  onToggleTeamPin: (team: TeamOption) => void | Promise<void>;
   onView: (view: ViewKey) => void;
   onCreateTeam: () => void;
 }) {
@@ -2933,6 +3029,8 @@ function ClubhouseHome({
               organization={organization}
               onEnterTeam={onEnterTeam}
               onOpenOrganization={onOpenManagedOrganization}
+              pinnedTeams={data.profileTeamPins}
+              onTogglePinnedTeam={onToggleTeamPin}
             />
           )) : <CompactEmpty title="No teams yet" />}
         </div>
@@ -2951,6 +3049,7 @@ function ClubhouseHome({
             onOpenPublicOrganization={onOpenPublicOrganization}
             onTogglePublicTeamFollow={onTogglePublicTeamFollow}
             onTogglePublicOrganizationFollow={onTogglePublicOrganizationFollow}
+            onToggleTeamPin={onToggleTeamPin}
           />
         </article>
         <article className="panel compact-panel">
@@ -3013,10 +3112,12 @@ function OrganizationsView({
 function MyTeamsView({
   data,
   onEnterTeam,
+  onToggleTeamPin,
   onCreateTeam,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
+  onToggleTeamPin: (team: TeamOption) => void | Promise<void>;
   onCreateTeam: () => void;
 }) {
   const organizations = organizationSummariesFromContext(data.teamContext).filter((organization) => organization.teams.length > 0);
@@ -3033,7 +3134,13 @@ function MyTeamsView({
       />
       <section className="organization-team-grid">
         {organizations.length ? organizations.map((organization) => (
-          <ManagedOrganizationTeamCard key={organization.id} organization={organization} onEnterTeam={onEnterTeam} />
+          <ManagedOrganizationTeamCard
+            key={organization.id}
+            organization={organization}
+            onEnterTeam={onEnterTeam}
+            pinnedTeams={data.profileTeamPins}
+            onTogglePinnedTeam={onToggleTeamPin}
+          />
         )) : <CompactEmpty title="No team memberships yet" />}
       </section>
     </div>
@@ -3432,6 +3539,7 @@ function FollowingView({
   onOpenPublicOrganization,
   onTogglePublicTeamFollow,
   onTogglePublicOrganizationFollow,
+  onToggleTeamPin,
   onCreateTeam,
 }: {
   data: AppData;
@@ -3440,6 +3548,7 @@ function FollowingView({
   onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
+  onToggleTeamPin: (team: TeamOption) => void | Promise<void>;
   onCreateTeam: () => void;
 }) {
   const managedOrganizations = organizationSummariesFromContext(data.teamContext).filter((organization) => organization.teams.length > 0);
@@ -3461,7 +3570,13 @@ function FollowingView({
             <SectionHeader title="My teams" />
             <div className="organization-team-grid">
               {managedOrganizations.map((organization) => (
-                <ManagedOrganizationTeamCard key={organization.id} organization={organization} onEnterTeam={onEnterTeam} />
+                <ManagedOrganizationTeamCard
+                  key={organization.id}
+                  organization={organization}
+                  onEnterTeam={onEnterTeam}
+                  pinnedTeams={data.profileTeamPins}
+                  onTogglePinnedTeam={onToggleTeamPin}
+                />
               ))}
             </div>
           </section>
@@ -3672,10 +3787,14 @@ function ManagedOrganizationTeamCard({
   organization,
   onEnterTeam,
   onOpenOrganization,
+  pinnedTeams,
+  onTogglePinnedTeam,
 }: {
   organization: OrganizationSummary;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenOrganization?: (organization: OrganizationSummary) => void;
+  pinnedTeams?: ProfileTeamPin[];
+  onTogglePinnedTeam?: (team: TeamOption) => void | Promise<void>;
 }) {
   return (
     <article className="panel organization-team-card">
@@ -3697,16 +3816,28 @@ function ManagedOrganizationTeamCard({
       </div>
       <div className="organization-team-card__list">
         {organization.teams.length ? organization.teams.map((team) => (
-          <button key={teamValue(team)} type="button" onClick={() => void onEnterTeam(team)}>
-            <span>
-              <strong>{team.teamName}</strong>
-              <small>{team.seasonName ?? "Current season"}</small>
-            </span>
-            <span className="team-workspace-meta">
-              <span>{roleLabel(team.role)}</span>
-              {team.title && <span>{team.title}</span>}
-            </span>
-          </button>
+          <div key={teamValue(team)} className="organization-team-row organization-team-row--managed">
+            <button className="organization-team-row__main" type="button" onClick={() => void onEnterTeam(team)}>
+              <span>
+                <strong>{team.teamName}</strong>
+                <small>{team.seasonName ?? "Current season"}</small>
+              </span>
+            </button>
+            {onTogglePinnedTeam && (
+              <button
+                className={`pin-team-button${isPinnedTeam(pinnedTeams, team) ? " pin-team-button--active" : ""}`}
+                type="button"
+                aria-label={isPinnedTeam(pinnedTeams, team) ? `Unpin ${team.teamName}` : `Pin ${team.teamName}`}
+                title={isPinnedTeam(pinnedTeams, team) ? "Pinned to sidebar" : "Pin to sidebar"}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void onTogglePinnedTeam(team);
+                }}
+              >
+                <Pin size={14} aria-hidden="true" />
+              </button>
+            )}
+          </div>
         )) : <CompactEmpty title="No teams yet" />}
       </div>
     </article>
@@ -3874,6 +4005,7 @@ function FollowSummary({
   onOpenPublicOrganization,
   onTogglePublicTeamFollow,
   onTogglePublicOrganizationFollow,
+  onToggleTeamPin,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
@@ -3881,6 +4013,7 @@ function FollowSummary({
   onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
+  onToggleTeamPin: (team: TeamOption) => void | Promise<void>;
 }) {
   const managedOrganizations = organizationSummariesFromContext(data.teamContext);
   const publicOrganizations = followedPublicOrganizationGroups(data);
@@ -3888,7 +4021,13 @@ function FollowSummary({
   return (
     <div className="organization-team-grid organization-team-grid--summary">
       {managedOrganizations.slice(0, 1).map((organization) => (
-        <ManagedOrganizationTeamCard key={organization.id} organization={organization} onEnterTeam={onEnterTeam} />
+        <ManagedOrganizationTeamCard
+          key={organization.id}
+          organization={organization}
+          onEnterTeam={onEnterTeam}
+          pinnedTeams={data.profileTeamPins}
+          onTogglePinnedTeam={onToggleTeamPin}
+        />
       ))}
       {publicOrganizations.slice(0, 2).map((organization) => (
         <PublicOrganizationFollowCard
@@ -8598,6 +8737,23 @@ function teamLevelFromName(teamName: string) {
 
 function teamValue(team?: TeamOption) {
   return team ? `${team.teamId}:${team.seasonId ?? "all"}` : "";
+}
+
+function profileTeamPinMatchesTeam(pin: ProfileTeamPin, team: TeamOption) {
+  return pin.teamId === team.teamId && (pin.seasonId ?? "") === (team.seasonId ?? "");
+}
+
+function isPinnedTeam(pins: ProfileTeamPin[] | undefined, team: TeamOption) {
+  return Boolean(pins?.some((pin) => profileTeamPinMatchesTeam(pin, team)));
+}
+
+function pinnedTeamsFromContext(context?: TeamContext, pins: ProfileTeamPin[] = []) {
+  const teams = displayWorkspaceTeams(context?.availableTeams ?? []);
+  const teamsByValue = new Map(teams.map((team) => [teamValue(team), team]));
+  return pins
+    .map((pin) => teamsByValue.get(`${pin.teamId}:${pin.seasonId ?? "all"}`))
+    .filter((team): team is TeamOption => Boolean(team))
+    .slice(0, 3);
 }
 
 function teamOrganizationLogo(team: TeamOption, context?: TeamContext) {

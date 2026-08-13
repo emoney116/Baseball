@@ -2579,6 +2579,62 @@ textarea:focus-visible {
   font-size: 13px;
 }
 
+.pinned-team-shortcuts {
+  display: grid;
+  gap: 7px;
+}
+
+.pinned-team-shortcut {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pinned-team-shortcut:hover,
+.pinned-team-shortcut:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy) 42%, var(--line));
+  background: var(--panel-strong);
+}
+
+.pinned-team-shortcut .organization-logo {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+}
+
+.pinned-team-shortcut span {
+  min-width: 0;
+}
+
+.pinned-team-shortcut strong,
+.pinned-team-shortcut small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pinned-team-shortcut strong {
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.pinned-team-shortcut small {
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 1px;
+}
+
 [data-theme="light"] .ops-sidebar {
   background: var(--sidebar);
 }
@@ -4650,6 +4706,9 @@ textarea:focus-visible {
 .organization-team-card__header strong,
 .organization-team-card__list strong {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .organization-team-card__header small,
@@ -4657,6 +4716,14 @@ textarea:focus-visible {
   display: block;
   margin-top: 2px;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.organization-team-card__main span,
+.organization-team-row span {
+  min-width: 0;
 }
 
 .organization-team-card__list {
@@ -4695,18 +4762,55 @@ textarea:focus-visible {
   padding: 6px;
 }
 
-.organization-team-row > button:not(.follow-heart) {
+.organization-team-row > button:not(.follow-heart),
+.organization-team-row__main {
   min-width: 0;
   border: 0;
   background: transparent;
   color: var(--text);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   padding: 2px 4px;
   text-align: left;
   cursor: pointer;
+}
+
+.pin-team-button {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+}
+
+.pin-team-button svg {
+  display: block;
+}
+
+.pin-team-button:hover,
+.pin-team-button:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy) 44%, var(--line));
+  color: var(--burgundy-strong);
+  background: var(--panel-strong);
+}
+
+.pin-team-button--active {
+  color: var(--burgundy);
+  border-color: color-mix(in srgb, var(--burgundy) 40%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 18%, var(--panel-soft));
+}
+
+.pin-team-button--active svg {
+  fill: currentColor;
 }
 
 .organization-team-card__list > button:hover,
@@ -4847,25 +4951,6 @@ textarea:focus-visible {
   padding: 8px 10px;
   text-align: left;
   cursor: pointer;
-}
-
-.team-workspace-meta span {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.team-workspace-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.team-workspace-meta span {
-  border-radius: 999px;
-  background: var(--panel-soft);
-  border: 1px solid var(--line);
-  padding: 5px 8px;
-  color: var(--muted-strong);
 }
 
 .follow-heart {

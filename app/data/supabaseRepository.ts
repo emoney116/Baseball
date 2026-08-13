@@ -36,6 +36,7 @@ import type {
   TeamContext,
   TeamMembershipRole,
   TeamOption,
+  ProfileTeamPin,
   WorkoutEntry,
   WorkoutSession,
 } from "../types";
@@ -379,6 +380,49 @@ export const supabaseAppRepository = {
       .single();
     if (error) throw new PersistenceError("save-failed", error.message);
     return mapProfileFollowExclusion(data);
+  },
+
+  async toggleTeamPin(input: { teamId: string; seasonId?: string; pin: boolean }) {
+    const supabase = createClient();
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      throw new PersistenceError("auth-required", "Sign in before pinning teams.");
+    }
+
+    if (!input.pin) {
+      let query = supabase
+        .from("profile_team_pins")
+        .delete()
+        .eq("profile_id", userData.user.id)
+        .eq("team_id", input.teamId);
+      query = input.seasonId ? query.eq("season_id", input.seasonId) : query.is("season_id", null);
+      const { error } = await query;
+      if (error) throw new PersistenceError("save-failed", error.message);
+      return undefined;
+    }
+
+    let existingQuery = supabase
+      .from("profile_team_pins")
+      .select("*")
+      .eq("profile_id", userData.user.id)
+      .eq("team_id", input.teamId)
+      .limit(1);
+    existingQuery = input.seasonId ? existingQuery.eq("season_id", input.seasonId) : existingQuery.is("season_id", null);
+    const { data: existing, error: existingError } = await existingQuery.maybeSingle();
+    if (existingError) throw new PersistenceError("save-failed", existingError.message);
+    if (existing) return mapProfileTeamPin(existing);
+
+    const { data, error } = await supabase
+      .from("profile_team_pins")
+      .insert({
+        profile_id: userData.user.id,
+        team_id: input.teamId,
+        season_id: input.seasonId ?? null,
+      })
+      .select("*")
+      .single();
+    if (error) throw new PersistenceError("save-failed", error.message);
+    return mapProfileTeamPin(data);
   },
 
   async inviteStaff(input: {
@@ -777,9 +821,10 @@ function normalizeTeamRole(role: unknown): TeamMembershipRole {
 
 async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Promise<AppData> {
   if (!foundation.teamId || !foundation.seasonId) {
-    const [profileFollows, profileFollowExclusions, publicDirectory] = await Promise.all([
+    const [profileFollows, profileFollowExclusions, profileTeamPins, publicDirectory] = await Promise.all([
       loadProfileFollows(supabase, foundation.teamContext.profile?.id),
       loadProfileFollowExclusions(supabase, foundation.teamContext.profile?.id),
+      loadProfileTeamPins(supabase, foundation.teamContext.profile?.id),
       loadPublicDirectory(),
     ]);
 
@@ -792,6 +837,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
       staffInvitations: [],
       profileFollows,
       profileFollowExclusions,
+      profileTeamPins,
       publicOrganizations: publicDirectory.organizations,
       publicTeams: publicDirectory.teams,
       rosterImports: [],
@@ -945,9 +991,10 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
   const goalsRows = (goalsResult.data ?? []).filter((row: any) => playerIdsSet.has(row.player_id));
   const rosterImports = await loadRosterImports(supabase, foundation);
   const staffData = await loadStaffData(supabase, foundation);
-  const [profileFollows, profileFollowExclusions, publicDirectory] = await Promise.all([
+  const [profileFollows, profileFollowExclusions, profileTeamPins, publicDirectory] = await Promise.all([
     loadProfileFollows(supabase, foundation.teamContext.profile?.id),
     loadProfileFollowExclusions(supabase, foundation.teamContext.profile?.id),
+    loadProfileTeamPins(supabase, foundation.teamContext.profile?.id),
     loadPublicDirectory(),
   ]);
 
@@ -960,6 +1007,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     staffInvitations: staffData.staffInvitations,
     profileFollows,
     profileFollowExclusions,
+    profileTeamPins,
     publicOrganizations: publicDirectory.organizations,
     publicTeams: publicDirectory.teams,
     practices,
@@ -1046,6 +1094,20 @@ async function loadProfileFollowExclusions(supabase: SupabaseClient, profileId?:
     throw new PersistenceError("load-failed", error.message);
   }
   return (data ?? []).map(mapProfileFollowExclusion);
+}
+
+async function loadProfileTeamPins(supabase: SupabaseClient, profileId?: string): Promise<ProfileTeamPin[]> {
+  if (!profileId) return [];
+  const { data, error } = await supabase
+    .from("profile_team_pins")
+    .select("*")
+    .eq("profile_id", profileId)
+    .order("created_at", { ascending: false });
+  if (error) {
+    if (isMissingProfilePinsTable(error)) return [];
+    throw new PersistenceError("load-failed", error.message);
+  }
+  return (data ?? []).map(mapProfileTeamPin);
 }
 
 async function loadPublicDirectory(): Promise<{ organizations: PublicDirectoryOrganizationSummary[]; teams: PublicDirectoryTeamSummary[] }> {
@@ -1690,6 +1752,17 @@ function mapProfileFollowExclusion(row: any): ProfileFollowExclusion {
   };
 }
 
+function mapProfileTeamPin(row: any): ProfileTeamPin {
+  return {
+    id: row.id,
+    profileId: row.profile_id,
+    teamId: row.team_id,
+    seasonId: row.season_id ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function mapRosterImportRecord(row: any): RosterImportRecord {
   const summary = row.summary ?? {};
   return {
@@ -1800,6 +1873,11 @@ function isMissingRosterImportsTable(error: { code?: string; message?: string })
 function isMissingProfileFollowsTable(error: { code?: string; message?: string }) {
   const message = String(error.message ?? "").toLowerCase();
   return error.code === "42P01" || message.includes("profile_follows") || message.includes("profile_follow_exclusions");
+}
+
+function isMissingProfilePinsTable(error: { code?: string; message?: string }) {
+  const message = String(error.message ?? "").toLowerCase();
+  return error.code === "42P01" || message.includes("profile_team_pins");
 }
 
 function isMissingStaffTables(error: { code?: string; message?: string }) {

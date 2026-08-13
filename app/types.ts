@@ -352,6 +352,15 @@ export interface ProfileFollowExclusion {
   createdAt: string;
 }
 
+export interface ProfileTeamPin {
+  id: ID;
+  profileId: ID;
+  teamId: ID;
+  seasonId?: ID;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PublicDirectoryTeamSummary {
   id: ID;
   organizationId?: ID;
@@ -677,6 +686,7 @@ export interface AppData {
   staffInvitations?: StaffInvitation[];
   profileFollows?: ProfileFollow[];
   profileFollowExclusions?: ProfileFollowExclusion[];
+  profileTeamPins?: ProfileTeamPin[];
   publicOrganizations?: PublicDirectoryOrganizationSummary[];
   publicTeams?: PublicDirectoryTeamSummary[];
   rosterImports?: RosterImportRecord[];
