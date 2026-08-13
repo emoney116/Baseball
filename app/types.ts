@@ -419,7 +419,7 @@ export interface PitchingSession {
   id: ID;
   practiceId: ID;
   pitcherId: ID;
-  type: "Bullpen" | "Live BP";
+  type: "Bullpen" | "Flat Ground" | "Live" | "Live BP" | "Other";
   catcherId?: ID;
   hitterId?: ID;
   focusTags: PitchFocusTag[];

@@ -13009,3 +13009,831 @@ body,
     width: min(100%, calc(100vw - 16px));
   }
 }
+
+/* Practice hub redesign */
+.practice-home {
+  gap: 14px;
+}
+
+.practice-title-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.practice-title-actions time {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  color: var(--muted-strong);
+  font-weight: 900;
+}
+
+.practice-tabs {
+  min-height: 46px;
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.practice-tabs button {
+  min-height: 44px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.practice-tabs button.active {
+  color: var(--burgundy-strong);
+  border-bottom-color: var(--burgundy-strong);
+}
+
+.practice-summary-strip {
+  display: grid;
+  grid-template-columns: minmax(320px, 1.5fr) minmax(190px, 0.8fr) repeat(3, minmax(92px, 0.42fr)) 100px;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+}
+
+.practice-summary-strip__identity {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.practice-summary-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: var(--burgundy-strong);
+  background: var(--burgundy-soft);
+  border: 1px solid rgba(159, 36, 76, 0.28);
+}
+
+.practice-summary-strip__identity small,
+.practice-summary-strip__stat small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.practice-summary-strip__identity strong,
+.practice-summary-strip__stat strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1.05;
+  font-weight: 950;
+}
+
+.practice-summary-strip__identity em {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted-strong);
+  font-style: normal;
+  font-size: 14px;
+}
+
+.practice-summary-strip__stat {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.attendance-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.attendance-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.attendance-dots i.active {
+  background: var(--green);
+  box-shadow: 0 0 0 2px rgba(63, 191, 107, 0.08);
+}
+
+.attendance-ring {
+  --value: 0%;
+  justify-self: end;
+  width: 86px;
+  height: 86px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  background: conic-gradient(var(--burgundy-strong) var(--value), rgba(255, 255, 255, 0.08) 0);
+}
+
+.attendance-ring::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: inherit;
+  background: var(--panel);
+}
+
+.attendance-ring strong,
+.attendance-ring small {
+  position: relative;
+  z-index: 1;
+  display: block;
+  text-align: center;
+}
+
+.attendance-ring strong {
+  align-self: end;
+  font-size: 22px;
+  font-weight: 950;
+}
+
+.attendance-ring small {
+  align-self: start;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.practice-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(270px, 1fr) minmax(270px, 0.9fr) minmax(300px, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.practice-attendance-overview,
+.practice-entry-overview,
+.practice-plan-card,
+.practice-recent-card,
+.practice-leaders-card,
+.practice-empty-hub,
+.practice-history-panel,
+.practice-drill-card,
+.practice-throwing-card {
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015)),
+    var(--panel);
+}
+
+.practice-recent-card {
+  grid-column: span 2;
+}
+
+.practice-attendance-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.practice-attendance-stats span {
+  min-height: 74px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  padding: 11px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+}
+
+.practice-attendance-stats strong {
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.practice-attendance-stats small {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.practice-attendance-stats .present strong {
+  color: var(--green);
+}
+
+.practice-attendance-stats .late strong {
+  color: var(--gold-strong);
+}
+
+.practice-attendance-stats .absent strong {
+  color: var(--danger);
+}
+
+.practice-attendance-stats .excused strong {
+  color: var(--blue);
+}
+
+.practice-avatar-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 12px 0 8px;
+}
+
+.attendance-avatar {
+  min-width: 48px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  cursor: pointer;
+  position: relative;
+}
+
+.attendance-avatar::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 28px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--panel);
+  border-radius: 999px;
+  background: var(--green);
+}
+
+.attendance-avatar--late::after {
+  background: var(--gold-strong);
+}
+
+.attendance-avatar--absent::after {
+  background: var(--danger);
+}
+
+.attendance-avatar--excused::after {
+  background: var(--blue);
+}
+
+.attendance-avatar span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.attendance-more {
+  align-self: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.practice-card-link {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.practice-entry-overview {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+
+.practice-activity-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.practice-activity-card {
+  min-height: 88px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),
+    var(--panel-soft);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  align-items: center;
+  gap: 2px 12px;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.practice-activity-card:hover,
+.practice-activity-card:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(159, 36, 76, 0.42);
+}
+
+.practice-activity-card > span {
+  grid-row: 1 / span 2;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--burgundy-soft);
+  color: var(--burgundy-strong);
+}
+
+.practice-activity-card strong {
+  font-size: 16px;
+  font-weight: 950;
+}
+
+.practice-activity-card small {
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.practice-activity-card--pitching > span {
+  background: rgba(63, 191, 107, 0.13);
+  color: var(--green);
+}
+
+.practice-activity-card--defense > span {
+  background: rgba(215, 168, 75, 0.13);
+  color: var(--gold-strong);
+}
+
+.practice-activity-card--live-bp > span {
+  background: rgba(95, 143, 217, 0.14);
+  color: var(--blue);
+}
+
+.practice-plan-card,
+.practice-recent-card,
+.practice-leaders-card,
+.practice-attendance-overview {
+  display: grid;
+  gap: 12px;
+}
+
+.practice-plan-list {
+  display: grid;
+}
+
+.practice-plan-list > div {
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: 10px 74px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.practice-plan-list time,
+.practice-plan-list small,
+.practice-history-rows small,
+.practice-history-rows em {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  font-style: normal;
+}
+
+.practice-plan-list strong,
+.practice-history-rows strong {
+  overflow-wrap: anywhere;
+}
+
+.practice-plan-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--green);
+}
+
+.practice-plan-dot--1 {
+  background: var(--gold-strong);
+}
+
+.practice-plan-dot--2 {
+  background: var(--burgundy-strong);
+}
+
+.practice-plan-dot--3 {
+  background: var(--blue);
+}
+
+.practice-history-rows {
+  display: grid;
+  gap: 7px;
+}
+
+.practice-history-rows button {
+  min-height: 56px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.028);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(4, auto) 18px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.practice-history-rows button:hover {
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.practice-dashboard-strip {
+  display: grid;
+  grid-template-columns: 58px repeat(4, minmax(120px, 1fr));
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+}
+
+.practice-dashboard-strip > span {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: var(--muted-strong);
+  background: var(--panel-soft);
+}
+
+.practice-empty-hub {
+  min-height: 280px;
+  place-items: center;
+  text-align: center;
+  padding: 36px 18px;
+}
+
+.practice-empty-hub p {
+  max-width: 480px;
+  margin: 0;
+  color: var(--muted);
+}
+
+.practice-tab-grid,
+.practice-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.practice-tab-grid--wide {
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+}
+
+.practice-drill-card {
+  display: grid;
+  gap: 9px;
+}
+
+.practice-drill-card > span {
+  color: var(--burgundy-strong);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.practice-drill-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.practice-throwing-card {
+  min-height: 78px;
+  border: 1px solid var(--line);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.practice-throwing-card strong,
+.practice-throwing-card small {
+  display: block;
+}
+
+.practice-throwing-card small,
+.practice-throwing-card em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.practice-metrics-grid article {
+  display: grid;
+  gap: 10px;
+}
+
+.practice-attendance-page,
+.practice-setup-page {
+  gap: 14px;
+}
+
+.practice-drilldown-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.practice-drilldown-header > div span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.practice-drilldown-header h2 {
+  margin: 2px 0 0;
+  font-size: 26px;
+}
+
+.practice-drilldown-header--hitting {
+  border-color: rgba(183, 44, 89, 0.34);
+}
+
+.practice-drilldown-header--pitching {
+  border-color: rgba(63, 191, 107, 0.3);
+}
+
+.practice-drilldown-header--defense {
+  border-color: rgba(215, 168, 75, 0.3);
+}
+
+.practice-drilldown-header--live-bp {
+  border-color: rgba(95, 143, 217, 0.34);
+}
+
+.practice-setup-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.45fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.practice-setup-options,
+.practice-player-select,
+.practice-livebp-setup {
+  display: grid;
+  gap: 12px;
+}
+
+.practice-setup-options > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.practice-setup-choice-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.practice-setup-choice-grid button {
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  color: var(--text);
+  padding: 0 12px;
+  text-align: left;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.practice-setup-choice-grid button.active {
+  border-color: rgba(183, 44, 89, 0.44);
+  background: var(--burgundy-soft);
+  color: #fff;
+}
+
+.practice-player-actions,
+.practice-player-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.practice-player-toolbar label {
+  min-height: 40px;
+  flex: 1 1 220px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  color: var(--muted);
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+}
+
+.practice-player-toolbar input {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  outline: 0;
+}
+
+.practice-player-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+}
+
+.practice-player-grid button,
+.player-picker-column button {
+  min-height: 58px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.practice-player-grid button.active,
+.player-picker-column button.active {
+  border-color: rgba(63, 191, 107, 0.38);
+  background: rgba(63, 191, 107, 0.1);
+}
+
+.practice-player-grid strong,
+.practice-player-grid small,
+.player-picker-column strong,
+.player-picker-column small {
+  display: block;
+}
+
+.practice-player-grid small,
+.player-picker-column small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.live-bp-select-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 52px minmax(240px, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.live-bp-vs {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--panel-soft);
+  color: var(--muted-strong);
+  font-weight: 950;
+}
+
+.player-picker-column {
+  display: grid;
+  gap: 8px;
+}
+
+.player-picker-column > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+@media (max-width: 1180px) {
+  .practice-summary-strip {
+    grid-template-columns: minmax(280px, 1fr) repeat(3, minmax(100px, 0.5fr));
+  }
+
+  .practice-summary-strip__stat,
+  .attendance-ring {
+    grid-row: auto;
+  }
+
+  .attendance-ring {
+    justify-self: start;
+  }
+
+  .practice-overview-grid,
+  .practice-tab-grid,
+  .practice-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .practice-recent-card {
+    grid-column: span 1;
+  }
+
+  .practice-setup-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 860px) {
+  .practice-title-actions {
+    justify-content: flex-start;
+  }
+
+  .practice-summary-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .practice-summary-strip__identity {
+    grid-column: 1 / -1;
+  }
+
+  .practice-overview-grid,
+  .practice-tab-grid,
+  .practice-metrics-grid,
+  .practice-tab-grid--wide {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-attendance-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .practice-history-rows button {
+    grid-template-columns: minmax(0, 1fr) 18px;
+  }
+
+  .practice-history-rows em {
+    display: none;
+  }
+
+  .practice-dashboard-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .practice-dashboard-strip > span {
+    display: none;
+  }
+
+  .practice-drilldown-header {
+    grid-template-columns: 1fr;
+  }
+
+  .live-bp-select-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .live-bp-vs {
+    justify-self: center;
+  }
+}
+
+@media (max-width: 560px) {
+  .practice-summary-strip,
+  .practice-dashboard-strip,
+  .practice-activity-grid,
+  .practice-attendance-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-plan-list > div {
+    grid-template-columns: 10px 66px minmax(0, 1fr);
+  }
+
+  .practice-plan-list small {
+    display: none;
+  }
+
+  .practice-player-grid,
+  .practice-throwing-card {
+    grid-template-columns: 1fr;
+  }
+}

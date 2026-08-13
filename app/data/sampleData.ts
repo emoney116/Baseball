@@ -744,7 +744,7 @@ function makePitchingSession(
   id: string,
   practiceId: string,
   pitcherId: string,
-  type: "Bullpen" | "Live BP",
+  type: PitchingSession["type"],
   focusTags: Array<PitchFocusTag | "Slider">,
   hitterId?: string,
   ended = false,
