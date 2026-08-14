@@ -55,7 +55,6 @@ export function calculateWeightRoomScore(player: Player, sessions: WorkoutSessio
   const volume = completedEntries.reduce((sum, entry) => sum + workoutEntryVolume(entry), 0);
   const progressPct = cappedAverageImprovement(completedEntries);
   const completionPct = sessions.length ? percent(completedSessions, sessions.length) : 0;
-  const attendancePct = sessions.length ? percent(completedSessions, Math.max(2, sessions.length)) : 0;
   const relativeValues = completedEntries
     .filter((entry) => typeof entry.weight === "number" && typeof player.weight === "number" && player.weight > 0)
     .map((entry) => (entry.weight ?? 0) / Math.max(1, player.weight ?? 1));
@@ -65,10 +64,9 @@ export function calculateWeightRoomScore(player: Player, sessions: WorkoutSessio
 
   const weightedParts = [
     { label: "Improvement", value: Math.min(100, progressPct * 5), max: 35, available: completedEntries.some((entry) => hasComparablePrior(entry)) },
-    { label: "Consistency", value: completionPct, max: 25, available: sessions.length > 0 },
+    { label: "Workout Completion", value: completionPct, max: 35, available: sessions.length > 0 },
     { label: "Relative Performance", value: relativeScore ?? 0, max: 20, available: relativeScore !== undefined },
     { label: "Effort", value: effortScore ?? 0, max: 10, available: effortScore !== undefined },
-    { label: "Attendance", value: attendancePct, max: 10, available: sessions.length > 0 },
   ];
   const availableWeight = weightedParts.filter((part) => part.available).reduce((sum, part) => sum + part.max, 0);
   const score = qualified && availableWeight > 0
@@ -98,7 +96,7 @@ export function calculateWeightRoomScore(player: Player, sessions: WorkoutSessio
     volume,
     progressPct,
     completionPct,
-    attendancePct,
+    attendancePct: completionPct,
   };
 }
 

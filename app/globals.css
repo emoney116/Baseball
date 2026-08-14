@@ -17145,3 +17145,337 @@ body,
     padding-inline: 7px;
   }
 }
+
+/* Auth and Weight Room interaction refinements */
+.auth-screen {
+  width: min(100%, 456px);
+  padding-inline: 24px;
+}
+
+.auth-form {
+  gap: 14px;
+  padding: 18px;
+  border-color: color-mix(in srgb, var(--burgundy) 20%, var(--line));
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--burgundy) 11%, transparent), transparent 44%),
+    color-mix(in srgb, var(--bg-elevated) 72%, transparent);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.26);
+}
+
+.auth-tabs {
+  padding: 3px;
+  border-color: color-mix(in srgb, var(--burgundy) 22%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-elevated) 62%, transparent);
+}
+
+.auth-tabs button {
+  border-radius: 999px;
+  font-weight: var(--weight-ui);
+}
+
+.auth-tabs button.active {
+  background: color-mix(in srgb, var(--burgundy) 88%, #ffffff 4%);
+  color: #ffffff;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--burgundy) 28%, transparent);
+}
+
+.auth-form label {
+  gap: 7px;
+}
+
+.auth-form label span {
+  color: var(--muted-strong);
+  font-size: var(--text-label);
+  font-weight: var(--weight-ui);
+  letter-spacing: 0.015em;
+}
+
+.auth-form input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 70%, transparent);
+  border-radius: 10px;
+  outline: 0;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  color: var(--text);
+  padding: 0 13px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.auth-form input:hover {
+  border-color: color-mix(in srgb, var(--burgundy) 38%, var(--line-strong));
+}
+
+.auth-form input:focus {
+  border-color: color-mix(in srgb, var(--burgundy) 82%, var(--line));
+  background: color-mix(in srgb, var(--bg) 92%, var(--burgundy) 5%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 18%, transparent);
+}
+
+.auth-form .primary-button.stretch-button {
+  min-height: 46px;
+  border-color: color-mix(in srgb, var(--burgundy-strong) 90%, #ffffff 8%);
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--burgundy-strong), color-mix(in srgb, var(--burgundy) 78%, #11151b));
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--burgundy) 34%, transparent);
+}
+
+.auth-link-button {
+  color: var(--muted-strong);
+  font-weight: var(--weight-ui);
+}
+
+.weight-room-player-list {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.weight-room-player-list__scroll,
+.weight-room-workout-dates,
+.weight-room-workout-detail-table,
+.weight-room-exercise-box-table {
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.weight-room-player-list__scroll::-webkit-scrollbar,
+.weight-room-workout-dates::-webkit-scrollbar,
+.weight-room-workout-detail-table::-webkit-scrollbar,
+.weight-room-exercise-box-table::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-player-list__scroll {
+  overflow-y: auto;
+  padding-right: 0;
+}
+
+.weight-room-player-list__pager {
+  display: none;
+}
+
+.weight-room-workout-browser {
+  display: grid;
+  grid-template-columns: minmax(180px, 230px) minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+}
+
+.weight-room-workout-dates {
+  max-height: 380px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.weight-room-workout-dates button {
+  width: 100%;
+  min-height: 68px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text);
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-workout-dates button.active,
+.weight-room-workout-dates button:hover {
+  border-color: color-mix(in srgb, var(--burgundy) 54%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 18%, var(--panel-soft));
+}
+
+.weight-room-workout-dates strong {
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-heading);
+}
+
+.weight-room-workout-dates span,
+.weight-room-workout-dates small {
+  color: var(--muted-strong);
+  font-size: var(--text-secondary-body);
+  font-weight: var(--weight-body);
+}
+
+.weight-room-workout-detail {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.weight-room-workout-detail__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.weight-room-workout-detail__head span {
+  display: grid;
+  gap: 2px;
+}
+
+.weight-room-workout-detail__head span:last-child {
+  text-align: right;
+}
+
+.weight-room-workout-detail-table,
+.weight-room-exercise-box-table {
+  max-height: 360px;
+  display: grid;
+  gap: 5px;
+}
+
+.weight-room-workout-detail-table > div,
+.weight-room-exercise-box-table > div,
+.weight-room-exercise-box-table > button {
+  min-width: 820px;
+  display: grid;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.weight-room-workout-detail-table > div {
+  grid-template-columns: minmax(150px, 1.2fr) 42px repeat(6, minmax(74px, 0.7fr));
+}
+
+.weight-room-exercise-box-table > div,
+.weight-room-exercise-box-table > button {
+  grid-template-columns: minmax(155px, 1.25fr) repeat(7, minmax(78px, 0.7fr));
+}
+
+.weight-room-workout-detail-table > div:first-child,
+.weight-room-exercise-box-table > div:first-child {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--panel-strong);
+}
+
+.weight-room-exercise-box-table > button {
+  width: 100%;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-exercise-box-table > button:hover {
+  border-color: color-mix(in srgb, var(--burgundy) 44%, var(--line));
+}
+
+.weight-room-workout-detail-table span,
+.weight-room-workout-detail-table em,
+.weight-room-exercise-box-table span,
+.weight-room-exercise-box-table em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-secondary-body);
+  font-style: normal;
+}
+
+.weight-room-workout-detail-table strong,
+.weight-room-exercise-box-table strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-player-tools,
+.weight-room-library-toolbar,
+.weight-room-custom-exercise {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 132px);
+  gap: 8px;
+}
+
+.weight-room-player-tools {
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 132px) minmax(132px, 132px);
+  margin-bottom: 10px;
+}
+
+.weight-room-player-tools input,
+.weight-room-library-toolbar input,
+.weight-room-custom-exercise input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  outline: 0;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--text);
+  padding: 9px 10px;
+}
+
+.weight-room-player-tools input::placeholder,
+.weight-room-library-toolbar input::placeholder,
+.weight-room-custom-exercise input::placeholder {
+  color: color-mix(in srgb, var(--muted) 78%, transparent);
+}
+
+.weight-room-player-tools input:focus,
+.weight-room-library-toolbar input:focus,
+.weight-room-custom-exercise input:focus {
+  border-color: color-mix(in srgb, var(--burgundy) 70%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 16%, transparent);
+}
+
+.weight-room-player-tools .choice-select__button,
+.weight-room-library-toolbar .choice-select__button,
+.weight-room-custom-exercise .secondary-button {
+  min-height: 42px;
+}
+
+.weight-room-custom-exercise {
+  margin-bottom: 8px;
+}
+
+.weight-room-exercise-box {
+  display: grid;
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .weight-room-workout-browser {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-workout-dates {
+    max-height: 220px;
+  }
+
+  .weight-room-player-tools {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .auth-screen {
+    padding-inline: 18px;
+  }
+
+  .auth-name-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-library-toolbar,
+  .weight-room-custom-exercise {
+    grid-template-columns: 1fr;
+  }
+}
