@@ -7285,7 +7285,7 @@ function WeightRoomView({
           <WeightLeaderCard leaders={leaderRows} onOpenPlayer={onOpenPlayer} />
           <WeightRoomWeighInCard data={data} players={players} date={workoutDate} onOpen={() => onWeighInOpen(true)} />
           <WeightRoomRecentWorkouts data={data} players={players} onStart={startWorkoutFromSelection} onReview={reviewWorkout} onViewAll={openWorkoutBuilder} />
-          <WeightRoomTeamOverview overview={teamOverview} onTab={onTab} onViewWorkouts={openWorkoutBuilder} onStartWorkout={() => startWorkoutFromSelection()} />
+          <WeightRoomTeamOverview overview={teamOverview} onViewWorkouts={openWorkoutBuilder} onStartWorkout={() => startWorkoutFromSelection()} />
           <article className="panel weight-room-actions-card">
             <div className="panel-heading tight">
               <div>
@@ -7692,17 +7692,13 @@ function WeightRoomRecentWorkouts({
 
 function WeightRoomTeamOverview({
   overview,
-  onTab,
   onViewWorkouts,
   onStartWorkout,
 }: {
   overview: ReturnType<typeof buildWeightRoomTeamOverview>;
-  onTab: (tab: WeightRoomTab) => void;
   onViewWorkouts: () => void;
   onStartWorkout: () => void;
 }) {
-  const workoutLabel = `${overview.completedWorkoutCount} completed workout${overview.completedWorkoutCount === 1 ? "" : "s"}`;
-  const athleteLabel = `${overview.athletes} athlete${overview.athletes === 1 ? "" : "s"}`;
   const setsPerAthlete = overview.completedAthletes ? overview.sets / overview.completedAthletes : 0;
   const volumeTrend = overview.volumeChangePct !== undefined
     ? `${overview.volumeChangePct >= 0 ? "+" : ""}${formatNumber(overview.volumeChangePct, 0)}% vs last week`
@@ -7711,19 +7707,12 @@ function WeightRoomTeamOverview({
     ? `${overview.strengthTrendPct >= 0 ? "+" : ""}${formatNumber(overview.strengthTrendPct, 0)}%`
     : "--";
   const strengthTrendDetail = overview.strengthTrendPct !== undefined ? "own-baseline trend" : "Need more data";
-  const insight = overview.trackedImprovements > 0
-    ? `${overview.improvingAthletes} athlete${overview.improvingAthletes === 1 ? "" : "s"} improved this week - ${overview.trackedImprovements} tracked improvement${overview.trackedImprovements === 1 ? "" : "s"}`
-    : "More development insights will appear after another workout.";
 
   return (
     <article className="panel weight-room-team-overview weight-room-pulse-card">
       <div className="weight-room-pulse-header">
-        <div>
-          <span>Weight Room</span>
-          <h2>This Week</h2>
-          <p>{workoutLabel} - {athleteLabel}</p>
-        </div>
-        <button className="text-button" type="button" onClick={() => onTab("Leaderboard")}>View Leaderboard <ChevronRight size={15} aria-hidden="true" /></button>
+        <h2>This Week Weight Room</h2>
+        <button className="text-button" type="button" onClick={onViewWorkouts}>View All Workouts <ChevronRight size={15} aria-hidden="true" /></button>
       </div>
       {overview.completedWorkoutCount === 0 ? (
         <div className="weight-room-pulse-empty">
@@ -7757,10 +7746,6 @@ function WeightRoomTeamOverview({
               <strong className={overview.strengthTrendPct && overview.strengthTrendPct > 0 ? "positive" : ""}>{strengthTrend}</strong>
               <small>{strengthTrendDetail}</small>
             </div>
-          </div>
-          <div className="weight-room-pulse-insight">
-            <span>{insight}</span>
-            <button className="text-button" type="button" onClick={onViewWorkouts}>View All Workouts <ChevronRight size={15} aria-hidden="true" /></button>
           </div>
         </>
       )}

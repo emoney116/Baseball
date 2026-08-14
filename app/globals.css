@@ -8391,7 +8391,7 @@ select option {
 }
 
 .weight-room-team-overview {
-  grid-column: span 2;
+  grid-column: span 1;
 }
 
 .weight-room-recent-card,
@@ -8625,25 +8625,21 @@ select option {
 .weight-room-pulse-card {
   min-height: 0;
   display: grid;
-  gap: 14px;
+  gap: 10px;
+  align-content: start;
 }
 
 .weight-room-pulse-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px;
 }
 
 .weight-room-pulse-header h2 {
-  margin: 2px 0 0;
-  font-size: 21px;
-}
-
-.weight-room-pulse-header p {
-  margin: 3px 0 0;
-  color: var(--muted);
-  font-weight: 850;
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.1;
 }
 
 .weight-room-pulse-header .text-button,
@@ -8657,20 +8653,19 @@ select option {
 .weight-room-pulse-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
 }
 
 .weight-room-pulse-metric {
   min-width: 0;
-  padding: 12px 16px;
+  padding: 10px 9px 4px;
   display: grid;
-  gap: 4px;
+  gap: 3px;
   align-content: center;
 }
 
 .weight-room-pulse-metric + .weight-room-pulse-metric {
-  border-left: 1px solid var(--line);
+  border-left: 1px solid rgba(148, 163, 184, 0.12);
 }
 
 .weight-room-pulse-metric span {
@@ -8682,7 +8677,7 @@ select option {
 
 .weight-room-pulse-metric strong {
   color: var(--text);
-  font-size: clamp(24px, 2.2vw, 34px);
+  font-size: clamp(20px, 1.7vw, 27px);
   font-weight: 1000;
   letter-spacing: 0;
   line-height: 1;
@@ -8690,8 +8685,9 @@ select option {
 
 .weight-room-pulse-metric small {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 850;
+  line-height: 1.2;
 }
 
 .weight-room-pulse-metric .positive,
