@@ -8380,9 +8380,9 @@ select option {
 
 .weight-room-overview-grid {
   display: grid;
-  grid-template-columns: minmax(300px, 1.05fr) minmax(260px, 0.95fr) minmax(360px, 1.25fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .weight-room-today-card,
@@ -8393,7 +8393,7 @@ select option {
 
 .weight-room-recent-card,
 .weight-room-weigh-card {
-  min-height: 100%;
+  min-height: 0;
 }
 
 .weight-room-plan-row {
@@ -8424,7 +8424,7 @@ select option {
 .weight-room-action-grid button,
 .weight-room-template-grid button,
 .weight-room-exercise-chip-list button,
-.weight-room-library-list button,
+.weight-room-library-row,
 .weight-room-workout-list button,
 .weight-room-player-list button,
 .weight-room-read-row,
@@ -8446,7 +8446,6 @@ select option {
 .weight-room-action-grid button,
 .weight-room-template-grid button,
 .weight-room-exercise-chip-list button,
-.weight-room-library-list button,
 .weight-room-workout-list button,
 .weight-room-player-list button,
 .weight-room-result-table button,
@@ -8461,14 +8460,19 @@ select option {
 .weight-room-action-grid button:hover,
 .weight-room-template-grid button:hover,
 .weight-room-exercise-chip-list button:hover,
-.weight-room-library-list button:hover,
 .weight-room-workout-list button:hover,
 .weight-room-player-list button:hover,
 .weight-room-result-table button:hover,
 .weight-room-leaderboard-table button:hover,
 .weight-room-template-grid button.active,
-.weight-room-library-list button.active,
 .weight-room-player-list button.active {
+  border-color: rgba(191, 45, 92, 0.42);
+  background: var(--burgundy-soft);
+}
+
+.weight-room-library-row:hover,
+.weight-room-library-row.active,
+.weight-room-library-row.confirming {
   border-color: rgba(191, 45, 92, 0.42);
   background: var(--burgundy-soft);
 }
@@ -8497,10 +8501,41 @@ select option {
 .weight-room-mini-table > div,
 .weight-room-mini-table button {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) 72px 72px 58px;
+  grid-template-columns: minmax(170px, 1.2fr) repeat(4, minmax(72px, 0.72fr));
   gap: 8px;
   align-items: center;
   padding: 8px 10px;
+}
+
+.weight-room-mini-table > div span:not(:first-child),
+.weight-room-mini-table button > span,
+.weight-room-mini-table button > em {
+  text-align: center;
+}
+
+.weight-room-mini-table button strong {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.weight-room-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.weight-room-pager-button {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
 }
 
 .weight-room-mini-table > div,
@@ -8964,10 +8999,70 @@ select option {
   padding: 9px 10px;
 }
 
-.weight-room-library-list button {
+.weight-room-library-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 8px 10px;
+}
+
+.weight-room-library-select {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-library-select strong,
+.weight-room-library-select small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-remove-exercise,
+.weight-room-inline-confirm button {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted-strong);
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.weight-room-remove-exercise {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.weight-room-inline-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.weight-room-inline-confirm button {
+  min-height: 28px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
+.weight-room-inline-confirm button:first-child {
+  border-color: rgba(191, 45, 92, 0.45);
+  background: rgba(191, 45, 92, 0.2);
+  color: var(--text);
 }
 
 .weight-room-custom-exercise {

@@ -2083,7 +2083,6 @@ export default function MetrolinaBaseballApp() {
             workoutDate={weightRoomWorkoutDate}
             workoutTitle={weightRoomWorkoutTitle}
             workoutStatus={weightRoomWorkoutStatus}
-            activeEventId={weightRoomActiveEventId}
             activeExercise={weightRoomActiveExercise}
             setForm={weightRoomSetForm}
             weighInOpen={weightRoomWeighInOpen}
@@ -7125,7 +7124,6 @@ function WeightRoomView({
   workoutDate,
   workoutTitle,
   workoutStatus,
-  activeEventId,
   activeExercise,
   setForm,
   weighInOpen,
@@ -7152,7 +7150,6 @@ function WeightRoomView({
   workoutDate: string;
   workoutTitle: string;
   workoutStatus: "Idle" | "In Progress" | "Completed";
-  activeEventId?: ID;
   activeExercise: string;
   setForm: { weight: string; reps: string; rpe: string; value: string };
   weighInOpen: boolean;
@@ -7176,11 +7173,6 @@ function WeightRoomView({
   const team = data.teamContext?.currentTeam;
   const exercises = buildWeightRoomExerciseLibrary(data);
   const selectedExercise = exercises.find((exercise) => exercise.name === activeExercise) ?? exercises[0];
-  const activeEvent = activeEventId ? data.scheduleEvents.find((event) => event.id === activeEventId) : undefined;
-  const scheduleLifts = buildScheduleItems(data).filter((item) => item.eventType === "Lift");
-  const workoutLift = activeEvent
-    ? scheduleLifts.find((item) => item.sourceId === activeEvent.id || item.id === `event-${activeEvent.id}`)
-    : scheduleLifts.find((item) => item.date === workoutDate) ?? scheduleLifts.find((item) => item.date >= todayKey());
   const sessionsForDate = data.workoutSessions.filter((session) => session.date === workoutDate);
   const entriesForDate = data.workoutEntries.filter((entry) => entrySessionDate(data, entry) === workoutDate);
   const teamOverview = buildWeightRoomTeamOverview(data, players, workoutDate);
@@ -7245,9 +7237,7 @@ function WeightRoomView({
         <div className="weight-room-shell-header__identity">
           {team && <OrganizationLogo name={team.teamName} imageUrl={team.logoUrl} size="lg" />}
           <span>
-            <small>{team?.seasonName ?? "Current season"}</small>
             <h2>Weight Room</h2>
-            <em>{team ? `${team.teamName} - ${teamLocation(team) || "Team strength"}` : "Team strength development"}</em>
           </span>
         </div>
         <SegmentedControl values={WEIGHT_ROOM_TABS} active={tab} onChange={onTab} />
@@ -7265,53 +7255,6 @@ function WeightRoomView({
 
       {tab === "Overview" && (
         <section className="weight-room-overview-grid">
-          <article className="panel weight-room-today-card">
-            <div className="panel-heading tight">
-              <div>
-                <span>Today</span>
-                <h2>{workoutLift?.title ?? workoutTitle}</h2>
-                <p>{workoutLift ? `${shortDate(workoutLift.date)} - ${formatTime(workoutLift.startAt)}${workoutLift.location ? ` - ${workoutLift.location}` : ""}` : "No scheduled lift yet."}</p>
-              </div>
-              <ScheduleTypeIcon type="Lift" />
-            </div>
-            <div className="weight-room-plan-row">
-              <DatePickerField label="Workout date" value={workoutDate} onChange={onWorkoutDate} />
-              <ChoiceSelect
-                value={workoutTitle}
-                className="form-choice weight-template-choice"
-                options={WEIGHT_ROOM_TEMPLATES.map((item) => ({
-                  value: item.name,
-                  label: item.name,
-                  description: `${item.exercises.length} exercises`,
-                  icon: <Dumbbell size={15} aria-hidden="true" />,
-                }))}
-                onChange={onWorkoutTitle}
-                aria-label="Workout template"
-              />
-              <button
-                className="primary-button"
-                type="button"
-                onClick={() =>
-                  startWorkoutFromSelection({
-                    title: workoutLift?.title ?? workoutTitle,
-                    date: workoutLift?.date ?? workoutDate,
-                    location: workoutLift?.location ?? teamLocation(team),
-                    eventId: workoutLift?.source === "event" ? workoutLift.sourceId : undefined,
-                  })
-                }
-              >
-                Start
-              </button>
-            </div>
-            <div className="weight-room-template-preview">
-              {(template?.exercises ?? []).slice(0, 6).map((exercise) => (
-                <button key={exercise} type="button" onClick={() => onActiveExercise(exercise)}>
-                  {exercise}
-                </button>
-              ))}
-            </div>
-          </article>
-
           <WeightLeaderCard leader={featuredLeader} onOpenPlayer={onOpenPlayer} />
           <WeightRoomWeighInCard data={data} players={players} date={workoutDate} onOpen={() => onWeighInOpen(true)} />
           <WeightRoomRecentWorkouts data={data} players={players} onStart={startWorkoutFromSelection} />
@@ -7579,13 +7522,20 @@ function LegacyWeightRoomView({
 }
 
 function WeightRoomWeighInCard({ data, players, date, onOpen }: { data: AppData; players: Player[]; date: string; onOpen: () => void }) {
-  const rows = players.slice(0, 8).map((player) => {
-    const today = latestBodyWeight(data, player.id, date, true);
-    const previous = previousBodyWeight(data, player.id, date);
-    const change = typeof today === "number" && typeof previous === "number" ? today - previous : undefined;
-    return { player, today, previous, change };
+  const [page, setPage] = useState(0);
+  const currentWeek = weekStart(date);
+  const rows = players.map((player) => {
+    const thisWeek = latestWeeklyBodyWeight(data, player.id, currentWeek, date);
+    const lastWeek = latestBodyWeightBeforeWeek(data, player.id, currentWeek);
+    const starting = startingBodyWeight(data, player.id);
+    const change = typeof thisWeek === "number" && typeof lastWeek === "number" ? thisWeek - lastWeek : undefined;
+    return { player, thisWeek, lastWeek, starting, change };
   });
-  const weighed = rows.filter((row) => typeof row.today === "number").length;
+  const pageSize = 5;
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+  const visibleRows = rows.slice(safePage * pageSize, safePage * pageSize + pageSize);
+  const weighed = rows.filter((row) => typeof row.thisWeek === "number").length;
 
   return (
     <article className="panel weight-room-weigh-card">
@@ -7594,23 +7544,34 @@ function WeightRoomWeighInCard({ data, players, date, onOpen }: { data: AppData;
           <span>Weekly Weigh-Ins</span>
           <h2>{weighed}/{players.length} logged</h2>
         </div>
-        <button className="text-button" type="button" onClick={onOpen}>View All</button>
+        <div className="weight-room-card-actions">
+          <button className="icon-button weight-room-pager-button" type="button" disabled={safePage === 0} onClick={() => setPage(Math.max(0, safePage - 1))} aria-label="Previous weigh-in page">
+            <ChevronLeft size={15} aria-hidden="true" />
+          </button>
+          <span>{safePage + 1}/{pageCount}</span>
+          <button className="icon-button weight-room-pager-button" type="button" disabled={safePage >= pageCount - 1} onClick={() => setPage(Math.min(pageCount - 1, safePage + 1))} aria-label="Next weigh-in page">
+            <ChevronRight size={15} aria-hidden="true" />
+          </button>
+          <button className="text-button" type="button" onClick={onOpen}>View All</button>
+        </div>
       </div>
       <div className="weight-room-mini-table">
         <div>
           <span>Player</span>
           <span>This Week</span>
-          <span>Last</span>
+          <span>Last Week</span>
           <span>Change</span>
+          <span>Starting</span>
         </div>
-        {rows.map((row) => (
+        {visibleRows.map((row) => (
           <button key={row.player.id} type="button" onClick={onOpen}>
-            <strong>{row.player.name}</strong>
-            <span>{row.today ? `${formatNumber(row.today, 1)} lb` : "-"}</span>
-            <span>{row.previous ? `${formatNumber(row.previous, 1)} lb` : "-"}</span>
+            <strong><PlayerAvatar player={row.player} size="sm" compact />{row.player.name}</strong>
+            <span>{row.thisWeek ? `${formatNumber(row.thisWeek, 1)} lb` : "-"}</span>
+            <span>{row.lastWeek ? `${formatNumber(row.lastWeek, 1)} lb` : "-"}</span>
             <em className={row.change && row.change > 0 ? "positive" : row.change && row.change < 0 ? "negative" : ""}>
               {typeof row.change === "number" ? `${row.change > 0 ? "+" : ""}${formatNumber(row.change, 1)}` : "-"}
             </em>
+            <span>{row.starting ? `${formatNumber(row.starting, 1)} lb` : "-"}</span>
           </button>
         ))}
       </div>
@@ -8125,8 +8086,11 @@ function WeightRoomExerciseLibraryCard({
 }) {
   const [category, setCategory] = useState<WeightRoomExerciseCategory | "All">("All");
   const [query, setQuery] = useState("");
+  const [confirmingExercise, setConfirmingExercise] = useState<string | undefined>();
+  const [hiddenExercises, setHiddenExercises] = useState<Set<string>>(() => new Set());
   const filtered = exercises.filter((exercise) =>
-    (category === "All" || exercise.category === category)
+    !hiddenExercises.has(exercise.name.toLowerCase())
+    && (category === "All" || exercise.category === category)
     && `${exercise.name} ${exercise.category} ${exercise.equipment ?? ""}`.toLowerCase().includes(query.toLowerCase()),
   );
   const categories: Array<WeightRoomExerciseCategory | "All"> = ["All", "Lower Body", "Upper Body", "Power", "Core", "Speed", "Conditioning", "Mobility", "Other"];
@@ -8137,7 +8101,6 @@ function WeightRoomExerciseLibraryCard({
         <div>
           <span>Exercise Library</span>
           <h2>Team exercises</h2>
-          <p>Starter library plus exercises already used by this team.</p>
         </div>
       </div>
       <div className="weight-room-library-toolbar">
@@ -8151,15 +8114,34 @@ function WeightRoomExerciseLibraryCard({
         />
       </div>
       <div className="weight-room-library-list">
-        {filtered.map((exercise) => (
-          <button key={exercise.name} type="button" className={exercise.name === activeExercise ? "active" : ""} onClick={() => onExercise(exercise.name)}>
-            <span>
-              <strong>{exercise.name}</strong>
-              <small>{exercise.category} - {measurementTypeLabel(exercise.measurementType)}</small>
-            </span>
-            <em>{exercise.active ? "Active" : "Archived"}</em>
-          </button>
-        ))}
+        {filtered.map((exercise) => {
+          const confirming = confirmingExercise === exercise.name;
+          return (
+            <div key={exercise.name} className={`weight-room-library-row ${exercise.name === activeExercise ? "active" : ""} ${confirming ? "confirming" : ""}`}>
+              <button type="button" className="weight-room-library-select" onClick={() => onExercise(exercise.name)}>
+                <span>
+                  <strong>{exercise.name}</strong>
+                  <small>{exercise.category} - {measurementTypeLabel(exercise.measurementType)}</small>
+                </span>
+              </button>
+              {confirming ? (
+                <span className="weight-room-inline-confirm">
+                  <button type="button" onClick={() => setHiddenExercises((current) => new Set([...current, exercise.name.toLowerCase()]))}>Yes</button>
+                  <button type="button" onClick={() => setConfirmingExercise(undefined)}>No</button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="weight-room-remove-exercise"
+                  onClick={() => setConfirmingExercise(exercise.name)}
+                  aria-label={`Remove ${exercise.name} from team exercises`}
+                >
+                  -
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
       <div className="weight-room-custom-exercise">
         <label>
@@ -11483,6 +11465,29 @@ function previousBodyWeight(data: AppData, playerId: ID, beforeDate: string) {
   const sessions = data.workoutSessions
     .filter((session) => session.playerId === playerId && typeof session.bodyWeight === "number" && session.date < beforeDate)
     .sort((left, right) => right.date.localeCompare(left.date) || right.updatedAt.localeCompare(left.updatedAt));
+  return sessions[0]?.bodyWeight;
+}
+
+function latestWeeklyBodyWeight(data: AppData, playerId: ID, weekOf: string, throughDate: string) {
+  const sessions = data.workoutSessions
+    .filter((session) => session.playerId === playerId && typeof session.bodyWeight === "number")
+    .filter((session) => (session.weekOf || weekStart(session.date)) === weekOf && session.date <= throughDate)
+    .sort((left, right) => right.date.localeCompare(left.date) || right.updatedAt.localeCompare(left.updatedAt));
+  return sessions[0]?.bodyWeight;
+}
+
+function latestBodyWeightBeforeWeek(data: AppData, playerId: ID, weekOf: string) {
+  const sessions = data.workoutSessions
+    .filter((session) => session.playerId === playerId && typeof session.bodyWeight === "number")
+    .filter((session) => (session.weekOf || weekStart(session.date)) < weekOf)
+    .sort((left, right) => right.date.localeCompare(left.date) || right.updatedAt.localeCompare(left.updatedAt));
+  return sessions[0]?.bodyWeight;
+}
+
+function startingBodyWeight(data: AppData, playerId: ID) {
+  const sessions = data.workoutSessions
+    .filter((session) => session.playerId === playerId && typeof session.bodyWeight === "number")
+    .sort((left, right) => left.date.localeCompare(right.date) || left.createdAt.localeCompare(right.createdAt));
   return sessions[0]?.bodyWeight;
 }
 
