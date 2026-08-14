@@ -156,7 +156,7 @@ type PracticeHubTab = "Overview" | "Drills" | "Throwing" | "Metrics" | "History"
 type PracticeDrilldown = { kind: "hub" } | { kind: "attendance" };
 type LiveBpOutcomeLabel = "K" | "BB" | "HBP" | "1B" | "2B" | "3B" | "HR" | "Out" | "Error" | "FC";
 type AppIcon = React.ComponentType<{ size?: number | string; "aria-hidden"?: boolean | "true" | "false"; className?: string }>;
-type WeightRoomTab = "Overview" | "Workouts" | "Athletes" | "Exercises" | "Leaderboard";
+type WeightRoomTab = "Overview" | "Athletes" | "Exercises" | "Leaderboard" | "WorkoutSession";
 type WeightRoomExerciseCategory = "Lower Body" | "Upper Body" | "Power" | "Core" | "Conditioning" | "Speed" | "Mobility" | "Other";
 type WorkoutMeasurementType = "WEIGHT_REPS" | "BODYWEIGHT_REPS" | "TIME" | "DISTANCE" | "HEIGHT" | "COUNT" | "RPE_ONLY";
 type WeightRoomExercise = {
@@ -326,7 +326,7 @@ const GAME_PITCH_BUTTONS: GamePitchOutcome[] = ["Ball", "Called Strike", "Swingi
 const BIP_OUTCOMES: GameBallInPlayOutcome[] = ["Single", "Double", "Triple", "Home Run", "Ground Out", "Fly Out", "Line Out", "Pop Out", "Error", "Fielder's Choice", "Sac Fly", "Sac Bunt"];
 const LIVE_BP_OUTCOMES: LiveBpOutcomeLabel[] = ["K", "BB", "HBP", "1B", "2B", "3B", "HR", "Out", "Error", "FC"];
 const EXERCISES = ["Back Squat", "Front Squat", "Bench Press", "Incline Bench", "Deadlift", "Trap Bar Deadlift", "Power Clean", "Hang Clean", "Push Press", "Pull Ups", "DB Bench", "Bulgarian Split Squat", "Sprint", "Broad Jump", "Vertical Jump"];
-const WEIGHT_ROOM_TABS: WeightRoomTab[] = ["Overview", "Workouts", "Athletes", "Exercises", "Leaderboard"];
+const WEIGHT_ROOM_TABS: WeightRoomTab[] = ["Overview", "Athletes", "Exercises", "Leaderboard"];
 const WEIGHT_ROOM_BASE_EXERCISES: WeightRoomExercise[] = [
   { name: "Back Squat", category: "Lower Body", measurementType: "WEIGHT_REPS", kind: "Lift", unit: "lb", equipment: "Barbell", active: true, targetSets: 4, targetReps: 6 },
   { name: "Romanian Deadlift", category: "Lower Body", measurementType: "WEIGHT_REPS", kind: "Lift", unit: "lb", equipment: "Barbell", active: true, targetSets: 3, targetReps: 8 },
@@ -7190,7 +7190,7 @@ function WeightRoomView({
       location: input?.location ?? teamLocation(team),
       eventId: input?.eventId,
     });
-    onTab("Workouts");
+    onTab("WorkoutSession");
   }
 
   function completeSet(status: WorkoutEntry["status"] = "Completed") {
@@ -7267,7 +7267,7 @@ function WeightRoomView({
               </div>
             </div>
             <div className="weight-room-action-grid">
-              <button type="button" onClick={() => onTab("Workouts")}><Plus size={16} aria-hidden="true" />Create Workout</button>
+              <button type="button" onClick={() => onTab("WorkoutSession")}><Plus size={16} aria-hidden="true" />Build Workout</button>
               <button type="button" onClick={() => onWeighInOpen(true)}><Gauge size={16} aria-hidden="true" />Log Weigh-Ins</button>
               <button type="button" onClick={() => onTab("Athletes")}><Users size={16} aria-hidden="true" />View Athletes</button>
               <button type="button" onClick={() => onTab("Exercises")}><Dumbbell size={16} aria-hidden="true" />Exercise Library</button>
@@ -7276,7 +7276,7 @@ function WeightRoomView({
         </section>
       )}
 
-      {tab === "Workouts" && (
+      {tab === "WorkoutSession" && (
         <section className="weight-room-workout-stack">
           {workoutStatus === "In Progress" ? (
             <WeightRoomActiveWorkout
@@ -7331,7 +7331,7 @@ function WeightRoomView({
             onCustomExercise={(value) => onForm({ ...form, exercise: value })}
             onExercise={(exercise) => {
               onActiveExercise(exercise);
-              onTab("Workouts");
+              onTab("WorkoutSession");
             }}
           />
           <WeightRoomExerciseResults data={data} players={players} exercise={activeExercise} onPlayer={onPlayer} />
@@ -7986,8 +7986,14 @@ function WeightRoomPlayerPanel({
   onOpenPlayer: (playerId: ID) => void;
 }) {
   const [playerTab, setPlayerTab] = useState<"Overview" | "Workouts" | "Exercises" | "Progress">("Overview");
+  const [playerPage, setPlayerPage] = useState(0);
   const profile = buildWeightRoomPlayerProfile(data, player);
   const entries = data.workoutEntries.filter((entry) => entry.playerId === player.id);
+  const playerPageSize = 6;
+  const totalPlayerPages = Math.max(1, Math.ceil(players.length / playerPageSize));
+  const safePlayerPage = Math.min(playerPage, totalPlayerPages - 1);
+  const playerPageStart = safePlayerPage * playerPageSize;
+  const visiblePlayers = players.slice(playerPageStart, playerPageStart + playerPageSize);
 
   return (
     <section className="weight-room-player-layout">
@@ -7999,12 +8005,21 @@ function WeightRoomPlayerPanel({
           </div>
         </div>
         <div className="weight-room-player-list__scroll">
-          {players.map((item) => (
+          {visiblePlayers.map((item) => (
             <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => onPlayer(item.id)}>
               <PlayerAvatar player={item} size="sm" compact />
               <span><strong>{item.name}</strong><small>#{item.jerseyNumber} - {item.primaryPosition}</small></span>
             </button>
           ))}
+        </div>
+        <div className="weight-room-player-list__pager">
+          <button type="button" disabled={safePlayerPage === 0} onClick={() => setPlayerPage((current) => Math.max(0, current - 1))} aria-label="Previous athletes">
+            <ChevronLeft size={15} aria-hidden="true" />
+          </button>
+          <span>{players.length ? `${playerPageStart + 1}-${Math.min(playerPageStart + playerPageSize, players.length)} of ${players.length}` : "0 players"}</span>
+          <button type="button" disabled={safePlayerPage >= totalPlayerPages - 1} onClick={() => setPlayerPage((current) => Math.min(totalPlayerPages - 1, current + 1))} aria-label="Next athletes">
+            <ChevronRight size={15} aria-hidden="true" />
+          </button>
         </div>
       </aside>
       <article className="panel weight-room-player-profile">
