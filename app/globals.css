@@ -13537,12 +13537,15 @@ body,
   align-items: center;
   justify-self: end;
   gap: 5px;
+  border: 0;
+  font: inherit;
   color: var(--muted);
   font-size: 8px;
   font-weight: 900;
   letter-spacing: 0.02em;
   text-transform: uppercase;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .practice-attendance-overview .panel-heading .attendance-status-key {
@@ -13553,6 +13556,12 @@ body,
   border: 1px solid var(--line);
   border-radius: 999px;
   background: color-mix(in srgb, var(--panel-soft) 82%, transparent);
+}
+
+.practice-attendance-overview .panel-heading .attendance-status-key:hover,
+.practice-attendance-overview .panel-heading .attendance-status-key:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy-strong) 58%, var(--line));
+  color: var(--text);
 }
 
 .practice-attendance-overview .panel-heading .attendance-status-key span {
@@ -13581,6 +13590,49 @@ body,
 }
 
 .attendance-status-key i.excused {
+  background: var(--blue);
+}
+
+.attendance-status-key-popover {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 5px;
+  margin-top: -3px;
+  margin-bottom: 4px;
+}
+
+.attendance-status-key-popover span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 22px;
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.attendance-status-key-popover i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--green);
+}
+
+.attendance-status-key-popover i.late {
+  background: var(--gold-strong);
+}
+
+.attendance-status-key-popover i.absent {
+  background: var(--danger);
+}
+
+.attendance-status-key-popover i.excused {
   background: var(--blue);
 }
 

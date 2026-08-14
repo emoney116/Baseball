@@ -252,6 +252,12 @@ const POSITIONS: Position[] = ["P", "RHP", "LHP", "C", "1B", "2B", "3B", "SS", "
 const SECONDARY_POSITIONS: Array<Position | ""> = ["", ...POSITIONS];
 const PRACTICE_TYPES: PracticeType[] = ["Team Practice", "Hitting", "Pitching", "Defense", "Live BP", "Scrimmage", "Bullpen Day", "Full Practice", "Hitting Day", "Pitcher Development", "Hitter Development", "Custom"];
 const ATTENDANCE_STATUSES: PracticeAttendanceStatus[] = ["Present", "Absent", "Excused", "Late"];
+const ATTENDANCE_STATUS_KEY: Array<{ status: PracticeAttendanceStatus; short: string; className: string }> = [
+  { status: "Present", short: "P", className: "present" },
+  { status: "Late", short: "L", className: "late" },
+  { status: "Absent", short: "A", className: "absent" },
+  { status: "Excused", short: "E", className: "excused" },
+];
 const PITCH_TYPES: PitchType[] = ["4-Seam", "2-Seam", "Sinker", "Cutter", "Slider", "Curveball", "Changeup", "Splitter", "Other"];
 const PITCH_TYPE_LABELS: Record<PitchType, string> = {
   "4-Seam": "4S",
@@ -5724,6 +5730,7 @@ function PracticeHome({
   onOpenPlayer: (playerId: ID) => void;
 }) {
   const [attendancePage, setAttendancePage] = useState(0);
+  const [attendanceKeyOpen, setAttendanceKeyOpen] = useState(false);
   const recentPractices = data.practices.slice(0, 4);
   const practiceAttendance = practice ? data.attendance.filter((item) => item.practiceId === practice.id) : [];
   const attendancePlayerIds = practice ? new Set([...practice.playerIds, ...practiceAttendance.map((item) => item.playerId)]) : undefined;
@@ -5836,13 +5843,25 @@ function PracticeHome({
                     </div>
                     <span>{attendanceDenominator} players</span>
                   </div>
-                  <span className="attendance-status-key" aria-label="Attendance color key">
-                    <span><i className="present" />P</span>
-                    <span><i className="late" />L</span>
-                    <span><i className="absent" />A</span>
-                    <span><i className="excused" />E</span>
-                  </span>
+                  <button
+                    type="button"
+                    className="attendance-status-key"
+                    aria-label="Attendance color key"
+                    aria-expanded={attendanceKeyOpen}
+                    onClick={() => setAttendanceKeyOpen((open) => !open)}
+                  >
+                    {ATTENDANCE_STATUS_KEY.map((item) => (
+                      <span key={item.status}><i className={item.className} />{item.short}</span>
+                    ))}
+                  </button>
                 </div>
+                {attendanceKeyOpen && (
+                  <div className="attendance-status-key-popover" role="status">
+                    {ATTENDANCE_STATUS_KEY.map((item) => (
+                      <span key={item.status}><i className={item.className} />{item.status}</span>
+                    ))}
+                  </div>
+                )}
                 <div className="practice-avatar-row">
                   {pagedAttendancePlayers.map((player) => {
                     const status = attendanceByPlayerId.get(player.id)?.status ?? "Present";
