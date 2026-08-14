@@ -8958,7 +8958,9 @@ select option {
 }
 
 .weight-room-player-list {
-  max-height: min(640px, calc(100vh - 188px));
+  align-self: stretch;
+  height: 100%;
+  min-height: 0;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
 }
