@@ -7732,29 +7732,25 @@ function WeightRoomTeamOverview({
       ) : (
         <>
           <div className="weight-room-pulse-metrics">
-            <div className="weight-room-pulse-metric weight-room-pulse-metric--completion">
+            <div className="weight-room-pulse-metric weight-room-pulse-metric--completion" aria-label={`Completion ${Math.round(overview.completionPct)} percent, ${overview.completedAthletes} of ${overview.athletes} athletes`}>
               <span className="weight-room-pulse-icon" aria-hidden="true"><Check size={15} /></span>
               <span className="weight-room-pulse-label">Completion</span>
               <strong>{Math.round(overview.completionPct)}%</strong>
-              <small>{overview.completedAthletes}/{overview.athletes} athletes</small>
             </div>
-            <div className="weight-room-pulse-metric weight-room-pulse-metric--sets">
+            <div className="weight-room-pulse-metric weight-room-pulse-metric--sets" aria-label={`${formatNumber(setsPerAthlete, setsPerAthlete % 1 ? 1 : 0)} sets per athlete, ${overview.sets} total sets`}>
               <span className="weight-room-pulse-icon" aria-hidden="true"><BarChart3 size={15} /></span>
               <span className="weight-room-pulse-label">Sets / Athlete</span>
               <strong>{formatNumber(setsPerAthlete, setsPerAthlete % 1 ? 1 : 0)}</strong>
-              <small>{overview.sets} total sets</small>
             </div>
-            <div className="weight-room-pulse-metric weight-room-pulse-metric--volume">
+            <div className="weight-room-pulse-metric weight-room-pulse-metric--volume" aria-label={`Total volume ${formatWorkoutVolume(overview.volume)}, ${volumeTrend}`}>
               <span className="weight-room-pulse-icon" aria-hidden="true"><Dumbbell size={15} /></span>
               <span className="weight-room-pulse-label">Total Volume</span>
               <strong>{formatWorkoutVolume(overview.volume)}</strong>
-              <small className={overview.volumeChangePct && overview.volumeChangePct > 0 ? "positive" : ""}>{volumeTrend}</small>
             </div>
-            <div className="weight-room-pulse-metric weight-room-pulse-metric--trend">
+            <div className="weight-room-pulse-metric weight-room-pulse-metric--trend" aria-label={`Strength trend ${strengthTrend}, ${strengthTrendDetail}`}>
               <span className="weight-room-pulse-icon" aria-hidden="true"><TrendingUp size={15} /></span>
               <span className="weight-room-pulse-label">Strength Trend</span>
               <strong className={overview.strengthTrendPct && overview.strengthTrendPct > 0 ? "positive" : ""}>{strengthTrend}</strong>
-              <small>{strengthTrendDetail}</small>
             </div>
           </div>
         </>
