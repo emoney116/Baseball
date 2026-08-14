@@ -18430,3 +18430,744 @@ button.weight-room-athlete-table__row:hover {
     display: none;
   }
 }
+
+/* Weight Room leaderboard refinement */
+.weight-room-athlete-workspace .weight-room-player-list {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.weight-room-athlete-workspace .weight-room-player-search {
+  min-height: 34px;
+  padding: 0 9px;
+}
+
+.weight-room-athlete-workspace .weight-room-player-list__scroll {
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  align-content: start;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.weight-room-athlete-workspace .weight-room-player-list__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-library-toolbar {
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 132px) minmax(132px, 132px);
+  align-items: stretch;
+}
+
+.weight-room-add-exercise-button {
+  justify-content: center;
+}
+
+.weight-room-exercise-modal {
+  max-width: 460px;
+}
+
+.weight-room-exercise-modal__body {
+  display: grid;
+  gap: 14px;
+}
+
+.weight-room-exercise-modal__body label {
+  display: grid;
+  gap: 7px;
+}
+
+.weight-room-exercise-modal__body label span,
+.weight-room-scoring-modal__body span {
+  color: var(--muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.weight-room-exercise-modal__body input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  outline: 0;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  color: var(--text);
+  padding: 9px 11px;
+  font-size: var(--text-body);
+}
+
+.weight-room-exercise-modal__body input:focus {
+  border-color: color-mix(in srgb, var(--burgundy) 68%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 14%, transparent);
+}
+
+.weight-room-leaderboard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.weight-room-leaderboard-layout.has-detail {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+}
+
+.weight-room-leaderboard-card {
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+  padding: 22px 24px 24px;
+  overflow: visible;
+}
+
+.weight-room-leaderboard-hero {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.weight-room-leaderboard-hero h2 {
+  margin: 0;
+  font-size: var(--text-page-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-page-title);
+}
+
+.weight-room-leaderboard-hero p {
+  max-width: 620px;
+  margin: 6px 0 0;
+  color: var(--muted-strong);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+
+.weight-room-leaderboard-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.weight-room-score-help {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted-strong);
+  padding: 0 6px;
+  font-size: var(--text-tab);
+  font-weight: var(--weight-ui);
+  cursor: pointer;
+}
+
+.weight-room-score-help:hover,
+.weight-room-score-help:focus-visible {
+  color: var(--text);
+}
+
+.weight-room-leaderboard-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-soft) 62%, transparent);
+  overflow: hidden;
+}
+
+.weight-room-leaderboard-summary span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-right: 1px solid var(--line);
+}
+
+.weight-room-leaderboard-summary span:last-child {
+  border-right: 0;
+}
+
+.weight-room-leaderboard-summary small,
+.weight-room-leaderboard-summary em,
+.weight-room-leaderboard-toolbar > small,
+.weight-room-leaderboard-row small,
+.weight-room-not-qualified p,
+.weight-room-not-qualified small,
+.weight-room-score-drawer small,
+.weight-room-score-drawer__notes span,
+.weight-room-score-drawer__metrics dt,
+.weight-room-score-drawer__why p,
+.weight-room-scoring-modal__body p,
+.weight-room-scoring-modal__body small {
+  color: var(--muted);
+  font-size: var(--text-secondary-body);
+  font-style: normal;
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
+}
+
+.weight-room-leaderboard-summary small {
+  font-size: var(--text-label);
+  font-weight: var(--weight-ui);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.weight-room-leaderboard-summary strong {
+  color: var(--text);
+  font-size: clamp(1.35rem, 0.52vw + 1.14rem, 1.7rem);
+  font-weight: var(--weight-metric);
+  line-height: 1.05;
+}
+
+.weight-room-leaderboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.weight-room-leaderboard-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.weight-room-leaderboard-filter::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-leaderboard-filter button {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-strong) 62%, transparent);
+  color: var(--muted-strong);
+  padding: 0 12px;
+  font-size: var(--text-tab);
+  font-weight: var(--weight-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.weight-room-leaderboard-filter button.active,
+.weight-room-leaderboard-filter button:hover,
+.weight-room-leaderboard-filter button:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy) 54%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 17%, var(--panel-strong));
+  color: var(--text);
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-soft) 46%, transparent);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table > .weight-room-leaderboard-table__body {
+  min-width: 760px;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table .weight-room-leaderboard-table__head,
+.weight-room-leaderboard-card .weight-room-leaderboard-table .weight-room-leaderboard-row {
+  min-width: 760px;
+  display: grid;
+  grid-template-columns: 54px minmax(178px, 1.24fr) 78px 86px 108px 92px 104px;
+  align-items: center;
+  gap: 10px;
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table > .weight-room-leaderboard-table__head {
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--panel-strong) 82%, var(--bg));
+}
+
+.weight-room-leaderboard-table__head > span,
+.weight-room-leaderboard-table__head button {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-strong);
+  padding: 0;
+  text-align: left;
+  font-size: var(--text-table-header);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.weight-room-leaderboard-table__head button {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.weight-room-leaderboard-table__head button[aria-sort="ascending"],
+.weight-room-leaderboard-table__head button[aria-sort="descending"] {
+  color: var(--text);
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table button.weight-room-leaderboard-row {
+  width: 100%;
+  min-width: 760px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 13px 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table button.weight-room-leaderboard-row:last-child {
+  border-bottom: 0;
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table button.weight-room-leaderboard-row:hover,
+.weight-room-leaderboard-card .weight-room-leaderboard-table button.weight-room-leaderboard-row:focus-visible,
+.weight-room-leaderboard-card .weight-room-leaderboard-table button.weight-room-leaderboard-row.selected {
+  background: color-mix(in srgb, var(--burgundy) 8%, transparent);
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table button.weight-room-leaderboard-row.top-ranked {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--burgundy) 74%, var(--line));
+}
+
+.weight-room-leaderboard-rank {
+  color: var(--text);
+  font-size: var(--text-body);
+  font-weight: var(--weight-heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.weight-room-leaderboard-athlete {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.weight-room-leaderboard-athlete > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.weight-room-leaderboard-athlete strong,
+.weight-room-leaderboard-row > span > strong,
+.weight-room-not-qualified strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-selected);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-leaderboard-score i {
+  width: 42px;
+  aspect-ratio: 1;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle closest-side, var(--panel) 68%, transparent 70%),
+    conic-gradient(var(--burgundy-strong) var(--score), color-mix(in srgb, var(--muted) 18%, transparent) 0);
+  color: var(--text);
+  font-size: var(--text-card-title);
+  font-style: normal;
+  font-weight: var(--weight-metric);
+  font-variant-numeric: tabular-nums;
+}
+
+.weight-room-leaderboard-row > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.weight-room-leaderboard-trend strong {
+  color: var(--muted-strong);
+}
+
+.weight-room-leaderboard-trend.trend-improving strong {
+  color: var(--green);
+}
+
+.weight-room-leaderboard-trend.trend-attention strong {
+  color: color-mix(in srgb, var(--danger) 82%, var(--muted-strong));
+}
+
+.weight-room-not-qualified {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--line-strong);
+  padding-top: 4px;
+}
+
+.weight-room-not-qualified h3 {
+  margin: 0;
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+}
+
+.weight-room-not-qualified p {
+  margin: 4px 0 0;
+}
+
+.weight-room-not-qualified > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.weight-room-not-qualified button {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 46%, transparent);
+  color: var(--text);
+  padding: 9px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-not-qualified button:hover,
+.weight-room-not-qualified button:focus-visible,
+.weight-room-not-qualified button.selected {
+  border-color: color-mix(in srgb, var(--burgundy) 45%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 9%, var(--panel-strong));
+}
+
+.weight-room-not-qualified button > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.weight-room-score-drawer {
+  position: sticky;
+  top: 14px;
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.weight-room-score-drawer__close {
+  justify-self: end;
+  margin-bottom: -8px;
+}
+
+.weight-room-score-drawer__player {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.weight-room-score-drawer__player > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.weight-room-score-drawer__player span,
+.weight-room-score-drawer__score span,
+.weight-room-score-drawer__why h4 {
+  color: var(--muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.weight-room-score-drawer__player h3 {
+  margin: 0;
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+}
+
+.weight-room-score-drawer__score {
+  display: grid;
+  gap: 5px;
+  border-block: 1px solid var(--line-strong);
+  padding: 14px 0;
+}
+
+.weight-room-score-drawer__score strong {
+  color: var(--text);
+  font-size: clamp(2rem, 1.4vw + 1.45rem, 2.8rem);
+  font-weight: var(--weight-metric);
+  line-height: 1;
+}
+
+.weight-room-score-drawer__score small {
+  margin-left: 2px;
+  font-size: 0.95rem;
+}
+
+.weight-room-score-drawer__score em {
+  color: var(--muted-strong);
+  font-style: normal;
+  font-weight: var(--weight-ui);
+}
+
+.weight-room-score-lines.compact {
+  gap: 12px;
+}
+
+.weight-room-score-drawer__why {
+  display: grid;
+  gap: 10px;
+}
+
+.weight-room-score-drawer__why h4 {
+  margin: 0;
+}
+
+.weight-room-score-drawer__notes {
+  display: grid;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 40%, transparent);
+  padding: 10px;
+}
+
+.weight-room-score-drawer__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.weight-room-score-drawer__metrics div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+
+.weight-room-score-drawer__metrics dd {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-secondary-body);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-scoring-modal {
+  max-width: 520px;
+}
+
+.weight-room-scoring-modal__body {
+  display: grid;
+  gap: 14px;
+}
+
+.weight-room-scoring-modal__body h3 {
+  margin: 4px 0 0;
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+}
+
+.weight-room-scoring-modal__body dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.weight-room-scoring-modal__body dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 44%, transparent);
+  padding: 10px 12px;
+}
+
+.weight-room-scoring-modal__body dt,
+.weight-room-scoring-modal__body dd {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-body);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-scoring-modal__body p {
+  margin: 0;
+}
+
+@media (max-width: 1240px) {
+  .weight-room-leaderboard-layout.has-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-score-drawer {
+    position: static;
+  }
+}
+
+@media (max-width: 820px) {
+  .weight-room-leaderboard-card {
+    padding: 18px;
+  }
+
+  .weight-room-leaderboard-hero {
+    display: grid;
+  }
+
+  .weight-room-leaderboard-actions {
+    justify-content: start;
+  }
+
+  .weight-room-leaderboard-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weight-room-leaderboard-summary span:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .weight-room-leaderboard-summary span:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 680px) {
+  .weight-room-library-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-leaderboard-card {
+    padding: 16px;
+  }
+
+  .weight-room-leaderboard-actions,
+  .weight-room-leaderboard-actions .segmented-control,
+  .weight-room-score-help {
+    width: 100%;
+  }
+
+  .weight-room-score-help {
+    justify-content: center;
+    border-color: var(--line);
+    background: color-mix(in srgb, var(--panel-strong) 54%, transparent);
+  }
+
+  .weight-room-leaderboard-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-leaderboard-summary span {
+    border-right: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .weight-room-leaderboard-summary span:first-child {
+    border-top: 0;
+  }
+
+  .weight-room-leaderboard-card .weight-room-leaderboard-table {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .weight-room-leaderboard-card .weight-room-leaderboard-table .weight-room-leaderboard-table__head {
+    display: none;
+  }
+
+  .weight-room-leaderboard-card .weight-room-leaderboard-table > .weight-room-leaderboard-table__body {
+    min-width: 0;
+  }
+
+  .weight-room-leaderboard-card .weight-room-leaderboard-table button.weight-room-leaderboard-row {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rank athlete score"
+      "rank progress trend"
+      "rank workouts completion";
+    gap: 8px 12px;
+    margin-bottom: 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--panel-soft) 48%, transparent);
+    padding: 12px;
+  }
+
+  .weight-room-leaderboard-rank {
+    grid-area: rank;
+    align-self: start;
+  }
+
+  .weight-room-leaderboard-athlete {
+    grid-area: athlete;
+  }
+
+  .weight-room-leaderboard-score {
+    grid-area: score;
+    justify-items: end;
+  }
+
+  .weight-room-leaderboard-row > span:nth-of-type(3) {
+    grid-area: workouts;
+  }
+
+  .weight-room-leaderboard-row > span:nth-of-type(4) {
+    grid-area: progress;
+  }
+
+  .weight-room-leaderboard-row > span:nth-of-type(5) {
+    grid-area: completion;
+    justify-items: end;
+  }
+
+  .weight-room-leaderboard-trend {
+    grid-area: trend;
+    justify-items: end;
+  }
+
+  .weight-room-not-qualified > div:last-child,
+  .weight-room-score-drawer__metrics {
+    grid-template-columns: 1fr;
+  }
+}

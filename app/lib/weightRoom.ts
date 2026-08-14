@@ -2,6 +2,16 @@ import type { Player, WorkoutEntry, WorkoutSession } from "../types";
 
 export type WeightRoomWindow = "This Week" | "This Month" | "This Season";
 
+export const WEIGHT_ROOM_SCORE_VERSION = "development-v1";
+export const WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS = 2;
+export const WEIGHT_ROOM_MIN_TRACKED_SETS = 4;
+export const WEIGHT_ROOM_SCORE_COMPONENTS = [
+  { key: "improvement", label: "Improvement", max: 35, optional: false },
+  { key: "completion", label: "Workout Completion", max: 35, optional: false },
+  { key: "relativePerformance", label: "Relative Performance", max: 20, optional: true },
+  { key: "effort", label: "Effort", max: 10, optional: true },
+] as const;
+
 export interface WeightRoomScoreBreakdown {
   label: string;
   value: number;
@@ -20,6 +30,10 @@ export interface WeightRoomScoreResult {
   progressPct: number;
   completionPct: number;
   attendancePct: number;
+  hasComparableHistory: boolean;
+  relativePerformanceAvailable: boolean;
+  effortAvailable: boolean;
+  scoreVersion: string;
 }
 
 export interface WeightRoomScoredPlayer extends WeightRoomScoreResult {
@@ -27,6 +41,18 @@ export interface WeightRoomScoredPlayer extends WeightRoomScoreResult {
 }
 
 export function buildWeightRoomLeaderboard(
+  players: Player[],
+  sessions: WorkoutSession[],
+  entries: WorkoutEntry[],
+  window: WeightRoomWindow,
+  anchorDate?: string,
+): WeightRoomScoredPlayer[] {
+  return buildWeightRoomScoreRows(players, sessions, entries, window, anchorDate)
+    .filter((result) => result.qualified)
+    .sort(sortWeightRoomScoreRows);
+}
+
+export function buildWeightRoomScoreRows(
   players: Player[],
   sessions: WorkoutSession[],
   entries: WorkoutEntry[],
@@ -42,28 +68,28 @@ export function buildWeightRoomLeaderboard(
         filterWorkoutSessionsByWindow(sessions.filter((session) => session.playerId === player.id), window, anchorDate),
         filterWorkoutEntriesByWindow(entries.filter((entry) => entry.playerId === player.id), sessions, window, anchorDate),
       ),
-    }))
-    .filter((result) => result.qualified)
-    .sort((left, right) => right.score - left.score || right.progressPct - left.progressPct || left.player.name.localeCompare(right.player.name));
+    }));
 }
 
-export function calculateWeightRoomScore(player: Player, sessions: WorkoutSession[], entries: WorkoutEntry[]): WeightRoomScoreResult {
+export function calculateWeightRoomScore(_player: Player, sessions: WorkoutSession[], entries: WorkoutEntry[]): WeightRoomScoreResult {
   const completedSessions = sessions.filter((session) => session.completed).length;
   const completedEntries = entries.filter((entry) => (entry.status ?? "Completed") !== "Skipped");
   const setCount = completedEntries.reduce((sum, entry) => sum + Math.max(1, entry.sets ?? 1), 0);
-  const qualified = completedSessions >= 2 || completedEntries.length >= 4;
+  const qualified = completedSessions >= WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS || setCount >= WEIGHT_ROOM_MIN_TRACKED_SETS;
   const volume = completedEntries.reduce((sum, entry) => sum + workoutEntryVolume(entry), 0);
   const progressPct = cappedAverageImprovement(completedEntries);
   const completionPct = sessions.length ? percent(completedSessions, sessions.length) : 0;
+  const recentBodyWeight = latestValidBodyWeight(sessions);
   const relativeValues = completedEntries
-    .filter((entry) => typeof entry.weight === "number" && typeof player.weight === "number" && player.weight > 0)
-    .map((entry) => (entry.weight ?? 0) / Math.max(1, player.weight ?? 1));
+    .filter((entry) => typeof entry.weight === "number" && typeof recentBodyWeight === "number" && recentBodyWeight > 0)
+    .map((entry) => (entry.weight ?? 0) / Math.max(1, recentBodyWeight ?? 1));
   const relativeScore = relativeValues.length ? Math.min(100, average(relativeValues) * 62) : undefined;
   const rpeValues = completedEntries.filter((entry) => typeof entry.rpe === "number").map((entry) => entry.rpe ?? 0);
   const effortScore = rpeValues.length ? percent(average(rpeValues), 10) : undefined;
+  const hasComparableHistory = completedEntries.some((entry) => hasComparablePrior(entry));
 
   const weightedParts = [
-    { label: "Improvement", value: Math.min(100, progressPct * 5), max: 35, available: completedEntries.some((entry) => hasComparablePrior(entry)) },
+    { label: "Improvement", value: hasComparableHistory ? Math.min(100, Math.max(0, progressPct * 5)) : 0, max: 35, available: qualified },
     { label: "Workout Completion", value: completionPct, max: 35, available: sessions.length > 0 },
     { label: "Relative Performance", value: relativeScore ?? 0, max: 20, available: relativeScore !== undefined },
     { label: "Effort", value: effortScore ?? 0, max: 10, available: effortScore !== undefined },
@@ -78,13 +104,20 @@ export function calculateWeightRoomScore(player: Player, sessions: WorkoutSessio
     value: part.available && availableWeight > 0 ? Math.round((part.value / 100) * part.max) : 0,
     max: part.max,
   }));
+  const progressReason = hasComparableHistory && completedSessions >= WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS
+    ? progressPct > 0
+      ? `+${formatScoreNumber(progressPct)}% own-baseline progress`
+      : progressPct < 0
+        ? `${formatScoreNumber(progressPct)}% own-baseline change`
+        : "No comparable change yet"
+    : "Baseline established";
 
   return {
     score,
     qualified,
     reasons: qualified
       ? [
-          progressPct > 0 ? `+${formatScoreNumber(progressPct)}% own-baseline progress` : "Baseline held steady",
+          progressReason,
           `${Math.round(completionPct)}% workout completion`,
           `${setCount} tracked set${setCount === 1 ? "" : "s"}`,
         ]
@@ -97,6 +130,10 @@ export function calculateWeightRoomScore(player: Player, sessions: WorkoutSessio
     progressPct,
     completionPct,
     attendancePct: completionPct,
+    hasComparableHistory,
+    relativePerformanceAvailable: relativeScore !== undefined,
+    effortAvailable: effortScore !== undefined,
+    scoreVersion: WEIGHT_ROOM_SCORE_VERSION,
   };
 }
 
@@ -159,6 +196,16 @@ function weightRoomWindowCutoff(window: WeightRoomWindow, anchorDate?: string) {
   }
   const date = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
   return date.toISOString().slice(0, 10);
+}
+
+function sortWeightRoomScoreRows(left: WeightRoomScoredPlayer, right: WeightRoomScoredPlayer) {
+  return right.score - left.score || right.progressPct - left.progressPct || left.player.name.localeCompare(right.player.name);
+}
+
+function latestValidBodyWeight(sessions: WorkoutSession[]) {
+  return sessions
+    .filter((session) => typeof session.bodyWeight === "number" && session.bodyWeight > 0)
+    .sort((left, right) => right.date.localeCompare(left.date) || right.updatedAt.localeCompare(left.updatedAt))[0]?.bodyWeight;
 }
 
 function parseDate(value?: string) {

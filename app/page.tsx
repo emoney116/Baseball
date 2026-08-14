@@ -19,6 +19,7 @@ import {
   Handshake,
   Heart,
   Home,
+  Info,
   Lock,
   LogOut,
   Mail,
@@ -86,8 +87,13 @@ import {
 import { deriveConcurrentPracticeTotals, nextSessionSequence, touchSessionContributor } from "./lib/practiceConcurrency";
 import {
   buildWeightRoomLeaderboard as buildScoredWeightRoomLeaderboard,
+  buildWeightRoomScoreRows,
   estimatedOneRepMax,
+  WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS,
+  WEIGHT_ROOM_MIN_TRACKED_SETS,
+  WEIGHT_ROOM_SCORE_COMPONENTS,
   workoutEntryVolume,
+  type WeightRoomScoredPlayer,
   type WeightRoomWindow,
 } from "./lib/weightRoom";
 import type {
@@ -162,6 +168,8 @@ type WeightRoomAthleteTab = "Overview" | "Workouts" | "Exercises" | "Progress";
 type WeightRoomExerciseCategory = "Lower Body" | "Upper Body" | "Power" | "Core" | "Conditioning" | "Speed" | "Mobility" | "Other";
 type WeightRoomExerciseSortKey = "exercise" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "best" | "sets";
 type WeightRoomWorkoutSortKey = "exercise" | "set" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "rpe";
+type WeightRoomLeaderboardSortKey = "athlete" | "score" | "workouts" | "progress" | "completion" | "trend";
+type WeightRoomLeaderboardFilter = "All Athletes" | "Qualified" | "Improving" | "Needs Attention";
 type WeightRoomSortState<K extends string> = { key: K; direction: SortDirection };
 type WorkoutMeasurementType = "WEIGHT_REPS" | "BODYWEIGHT_REPS" | "TIME" | "DISTANCE" | "HEIGHT" | "COUNT" | "RPE_ONLY";
 type WeightRoomExercise = {
@@ -7483,7 +7491,7 @@ function WeightRoomView({
       )}
 
       {tab === "Leaderboard" && (
-        <WeightRoomLeaderboardPanel players={players} sessions={data.workoutSessions} entries={data.workoutEntries} onOpenPlayer={onOpenPlayer} />
+        <WeightRoomLeaderboardPanel players={players} sessions={data.workoutSessions} entries={data.workoutEntries} onPlayer={onPlayer} onTab={onTab} />
       )}
 
       {weighInOpen && (
@@ -8358,10 +8366,6 @@ function WeightRoomPlayerPanel({
   return (
     <section className="weight-room-player-layout weight-room-athlete-workspace">
       <aside className="panel weight-room-player-list">
-        <div className="weight-room-player-list__header">
-          <h2>{players.length} players</h2>
-          {filteredPlayers.length !== players.length && <span>{filteredPlayers.length} shown</span>}
-        </div>
         <label className="weight-room-player-search">
           <Search size={15} aria-hidden="true" />
           <input value={playerQuery} onChange={(event) => setPlayerQuery(event.target.value)} placeholder="Search players..." aria-label="Search athletes" />
@@ -8941,14 +8945,35 @@ function WeightRoomExerciseLibraryCard({
   const [category, setCategory] = useState<WeightRoomExerciseCategory | "All">("All");
   const [query, setQuery] = useState("");
   const [draftExercise, setDraftExercise] = useState("");
+  const [draftCategory, setDraftCategory] = useState<WeightRoomExerciseCategory>("Other");
+  const [addingExercise, setAddingExercise] = useState(false);
+  const [customExercises, setCustomExercises] = useState<WeightRoomExercise[]>([]);
   const [confirmingExercise, setConfirmingExercise] = useState<string | undefined>();
   const [hiddenExercises, setHiddenExercises] = useState<Set<string>>(() => new Set());
-  const filtered = exercises.filter((exercise) =>
+  const exerciseRows = [...exercises, ...customExercises].filter((exercise, index, all) =>
+    all.findIndex((item) => item.name.toLowerCase() === exercise.name.toLowerCase()) === index
+  );
+  const filtered = exerciseRows.filter((exercise) =>
     !hiddenExercises.has(exercise.name.toLowerCase())
     && (category === "All" || exercise.category === category)
     && `${exercise.name} ${exercise.category} ${exercise.equipment ?? ""}`.toLowerCase().includes(query.toLowerCase()),
   );
   const categories: Array<WeightRoomExerciseCategory | "All"> = ["All", "Lower Body", "Upper Body", "Power", "Core", "Speed", "Conditioning", "Mobility", "Other"];
+  const exerciseCategoryOptions = categories.filter((item): item is WeightRoomExerciseCategory => item !== "All");
+
+  function saveExercise() {
+    const nextExerciseName = draftExercise.trim();
+    if (!nextExerciseName) return;
+    const nextExercise = { ...makeWeightRoomExercise(nextExerciseName), category: draftCategory };
+    setCustomExercises((current) => {
+      const withoutDuplicate = current.filter((item) => item.name.toLowerCase() !== nextExercise.name.toLowerCase());
+      return [...withoutDuplicate, nextExercise].sort((left, right) => left.category.localeCompare(right.category) || left.name.localeCompare(right.name));
+    });
+    onExercise(nextExercise.name);
+    setDraftExercise("");
+    setDraftCategory("Other");
+    setAddingExercise(false);
+  }
 
   return (
     <article className="panel weight-room-library-card">
@@ -8967,19 +8992,8 @@ function WeightRoomExerciseLibraryCard({
           onChange={(value) => setCategory(value as WeightRoomExerciseCategory | "All")}
           aria-label="Exercise category"
         />
-      </div>
-      <div className="weight-room-custom-exercise">
-        <input aria-label="Exercise name" value={draftExercise} onChange={(event) => setDraftExercise(event.target.value)} placeholder="Add Exercise" />
-        <button
-          className="secondary-button"
-          type="button"
-          onClick={() => {
-            const nextExercise = draftExercise.trim();
-            if (!nextExercise) return;
-            onExercise(nextExercise);
-            setDraftExercise("");
-          }}
-        >
+        <button className="secondary-button weight-room-add-exercise-button" type="button" onClick={() => setAddingExercise(true)}>
+          <Plus size={14} aria-hidden="true" />
           Add Exercise
         </button>
       </div>
@@ -9013,6 +9027,31 @@ function WeightRoomExerciseLibraryCard({
           );
         })}
       </div>
+      {addingExercise && (
+        <ModalFrame title="Add Exercise" onClose={() => setAddingExercise(false)} panelClassName="weight-room-exercise-modal">
+          <div className="weight-room-exercise-modal__body">
+            <label>
+              <span>Exercise Name</span>
+              <input value={draftExercise} onChange={(event) => setDraftExercise(event.target.value)} placeholder="Back Squat" />
+            </label>
+            <ChoiceSelect
+              label="Category"
+              value={draftCategory}
+              className="form-choice"
+              options={exerciseCategoryOptions.map((item) => ({ value: item, label: item }))}
+              onChange={(value) => setDraftCategory(value as WeightRoomExerciseCategory)}
+              aria-label="New exercise category"
+            />
+          </div>
+          <div className="modal-actions">
+            <button className="secondary-button" type="button" onClick={() => setAddingExercise(false)}>Cancel</button>
+            <button className="primary-button" type="button" onClick={saveExercise} disabled={!draftExercise.trim()}>
+              <Plus size={16} aria-hidden="true" />
+              Add Exercise
+            </button>
+          </div>
+        </ModalFrame>
+      )}
     </article>
   );
 }
@@ -9064,76 +9103,405 @@ function WeightRoomLeaderboardPanel({
   players,
   sessions,
   entries,
-  onOpenPlayer,
+  onPlayer,
+  onTab,
 }: {
   players: Player[];
   sessions: WorkoutSession[];
   entries: WorkoutEntry[];
-  onOpenPlayer: (playerId: ID) => void;
+  onPlayer: (playerId: ID) => void;
+  onTab: (tab: WeightRoomTab) => void;
 }) {
   const [window, setWindow] = useState<WeightRoomWindow>("This Week");
-  const rows = buildScoredWeightRoomLeaderboard(players, sessions, entries, window);
-  const selected = rows[0];
+  const [sort, setSort] = useState<WeightRoomSortState<WeightRoomLeaderboardSortKey>>({ key: "score", direction: "desc" });
+  const [filter, setFilter] = useState<WeightRoomLeaderboardFilter>("All Athletes");
+  const [selectedPlayerId, setSelectedPlayerId] = useState<ID | undefined>();
+  const [scoringOpen, setScoringOpen] = useState(false);
+  const scoreRows = buildWeightRoomScoreRows(players, sessions, entries, window);
+  const rankedRows = scoreRows.filter((row) => row.qualified).sort(sortWeightRoomLeaderboardRows({ key: "score", direction: "desc" }));
+  const rankedIndex = new Map(rankedRows.map((row, index) => [row.player.id, index + 1]));
+  const visibleRows = scoreRows
+    .filter((row) => row.qualified)
+    .filter((row) => filterWeightRoomLeaderboardRow(row, filter))
+    .sort(sortWeightRoomLeaderboardRows(sort));
+  const notQualifiedRows = scoreRows
+    .filter((row) => !row.qualified)
+    .sort((left, right) => right.completedSessions - left.completedSessions || right.sets - left.sets || left.player.name.localeCompare(right.player.name));
+  const selected = selectedPlayerId ? scoreRows.find((row) => row.player.id === selectedPlayerId) : undefined;
+  const summary = buildWeightRoomLeaderboardSummary(scoreRows);
+
+  function updateSort(key: WeightRoomLeaderboardSortKey) {
+    setSort((current) => {
+      if (current.key !== key) return { key, direction: defaultWeightRoomLeaderboardSortDirection(key) };
+      return { key, direction: current.direction === "asc" ? "desc" : "asc" };
+    });
+  }
+
+  function viewAthlete(playerId: ID) {
+    onPlayer(playerId);
+    syncWeightRoomAthleteUrl(playerId, "Progress");
+    onTab("Athletes");
+  }
 
   return (
-    <section className="weight-room-leaderboard-layout">
+    <section className={`weight-room-leaderboard-layout ${selected ? "has-detail" : ""}`}>
       <article className="panel weight-room-leaderboard-card">
-        <div className="panel-heading tight">
+        <div className="weight-room-leaderboard-hero">
           <div>
-            <span>Weight Room Leaderboard</span>
-            <h2>Development score, not raw volume</h2>
+            <h2>Development Leaderboard</h2>
+            <p>Ranks athletes by improvement, consistency, and performance - not simply how much weight they lift.</p>
           </div>
-          <SegmentedControl values={[...WEIGHT_ROOM_LEADER_WINDOWS] as WeightRoomWindow[]} active={window} onChange={setWindow} />
-        </div>
-        <div className="weight-room-leaderboard-table">
-          <div>
-            <span>Rank</span>
-            <span>Athlete</span>
-            <span>Score</span>
-            <span>Workouts</span>
-            <span>Progress</span>
-            <span>Volume</span>
-          </div>
-          {rows.map((row, index) => (
-            <button key={row.player.id} type="button" onClick={() => onOpenPlayer(row.player.id)}>
-              <strong>{index + 1}</strong>
-              <span><PlayerAvatar player={row.player} size="sm" compact />{row.player.name}</span>
-              <em>{row.score}</em>
-              <span>{row.completedSessions}</span>
-              <span>{row.progressPct > 0 ? `+${formatNumber(row.progressPct, 1)}%` : "Baseline"}</span>
-              <span>{formatWorkoutVolume(row.volume)}</span>
+          <div className="weight-room-leaderboard-actions">
+            <SegmentedControl values={[...WEIGHT_ROOM_LEADER_WINDOWS] as WeightRoomWindow[]} active={window} onChange={setWindow} />
+            <button className="weight-room-score-help" type="button" onClick={() => setScoringOpen(true)}>
+              How scoring works
+              <Info size={15} aria-hidden="true" />
             </button>
-          ))}
-          {!rows.length && <CompactEmpty title="Not enough workout samples yet." />}
+          </div>
         </div>
-        <small className="weight-room-algorithm-note">Formula: improvement 35%, workout completion 35%, relative performance 20%, effort 10%. Missing RPE/bodyweight groups are reweighted.</small>
+
+        <section className="weight-room-leaderboard-summary" aria-label="Leaderboard summary">
+          <span>
+            <small>Top Score</small>
+            <strong>{summary.topScore ?? "--"}</strong>
+            <em>{summary.topPlayer ?? "No qualifier"}</em>
+          </span>
+          <span>
+            <small>Qualified</small>
+            <strong>{summary.qualifiedLabel}</strong>
+            <em>{summary.unqualified ? `${summary.unqualified} building sample` : "Ready to rank"}</em>
+          </span>
+          <span>
+            <small>Team Avg</small>
+            <strong>{summary.teamAverage ?? "--"}</strong>
+            <em>Qualified athletes</em>
+          </span>
+          <span>
+            <small>Completion</small>
+            <strong>{summary.completionLabel}</strong>
+            <em>{window}</em>
+          </span>
+        </section>
+
+        <div className="weight-room-leaderboard-toolbar">
+          <div className="weight-room-leaderboard-filter" role="group" aria-label="Leaderboard filters">
+            {WEIGHT_ROOM_LEADERBOARD_FILTERS.map((item) => (
+              <button key={item} type="button" className={filter === item ? "active" : ""} onClick={() => setFilter(item)}>
+                {item}
+              </button>
+            ))}
+          </div>
+          <small>{rankedRows.length ? `${rankedRows.length} ranked athlete${rankedRows.length === 1 ? "" : "s"}` : "Rankings unlock after minimum samples"}</small>
+        </div>
+
+        {rankedRows.length ? (
+          <div className="weight-room-leaderboard-table" role="table" aria-label={`${window} development leaderboard`}>
+            <div className="weight-room-leaderboard-table__head" role="row">
+              <span role="columnheader">Rank</span>
+              <WeightRoomSortHeader label="Athlete" sortKey="athlete" sort={sort} onSort={updateSort} />
+              <WeightRoomSortHeader label="Score" sortKey="score" sort={sort} onSort={updateSort} />
+              <WeightRoomSortHeader label="Workouts" sortKey="workouts" sort={sort} onSort={updateSort} />
+              <WeightRoomSortHeader label="Progress" sortKey="progress" sort={sort} onSort={updateSort} />
+              <WeightRoomSortHeader label="Completion" sortKey="completion" sort={sort} onSort={updateSort} />
+              <WeightRoomSortHeader label="Trend" sortKey="trend" sort={sort} onSort={updateSort} />
+            </div>
+            <div className="weight-room-leaderboard-table__body" role="rowgroup">
+              {visibleRows.map((row) => {
+                const rank = rankedIndex.get(row.player.id) ?? 0;
+                const trend = weightRoomLeaderboardTrend(row);
+                return (
+                  <button
+                    key={row.player.id}
+                    type="button"
+                    className={`weight-room-leaderboard-row ${rank === 1 ? "top-ranked" : ""} ${selectedPlayerId === row.player.id ? "selected" : ""}`}
+                    role="row"
+                    onClick={() => setSelectedPlayerId(row.player.id)}
+                  >
+                    <strong className="weight-room-leaderboard-rank">#{rank}</strong>
+                    <span className="weight-room-leaderboard-athlete">
+                      <PlayerAvatar player={row.player} size="sm" compact />
+                      <span>
+                        <strong>{row.player.name}</strong>
+                        <small>#{row.player.jerseyNumber} - {row.player.primaryPosition} - {row.player.graduationYear}</small>
+                      </span>
+                    </span>
+                    <span className="weight-room-leaderboard-score">
+                      <i style={{ ["--score" as string]: `${Math.max(0, Math.min(100, row.score))}%` }}>{row.score}</i>
+                    </span>
+                    <span>
+                      <strong>{formatWeightRoomLeaderboardWorkouts(row)}</strong>
+                      {row.sessions > 0 && <small>completed</small>}
+                    </span>
+                    <span>
+                      <strong className={weightRoomDeltaClass(row.hasComparableHistory ? row.progressPct : undefined)}>{formatWeightRoomLeaderboardProgress(row)}</strong>
+                      <small>{weightRoomLeaderboardProgressMeta(row)}</small>
+                    </span>
+                    <span>
+                      <strong>{row.sessions ? formatPct(row.completionPct, 0) : "--"}</strong>
+                      <small>assigned</small>
+                    </span>
+                    <span className={`weight-room-leaderboard-trend trend-${trend.kind}`}>
+                      <strong>{trend.label}</strong>
+                      <small>{trend.meta}</small>
+                    </span>
+                  </button>
+                );
+              })}
+              {!visibleRows.length && <CompactEmpty title="No ranked athletes match this filter." />}
+            </div>
+          </div>
+        ) : (
+          <CompactEmpty
+            title="Not enough workout data yet. Athletes will begin ranking after they meet the minimum workout requirement."
+            action={<button className="secondary-button" type="button" onClick={() => onTab("Athletes")}>View Athletes</button>}
+          />
+        )}
+
+        {filter === "All Athletes" && notQualifiedRows.length > 0 && (
+          <section className="weight-room-not-qualified">
+            <div>
+              <h3>Not Yet Qualified</h3>
+              <p>{notQualifiedRows.length} athlete{notQualifiedRows.length === 1 ? "" : "s"} need additional workout data before receiving a ranked Development Score.</p>
+            </div>
+            <div>
+              {notQualifiedRows.map((row) => (
+                <button key={row.player.id} type="button" className={selectedPlayerId === row.player.id ? "selected" : ""} onClick={() => setSelectedPlayerId(row.player.id)}>
+                  <PlayerAvatar player={row.player} size="sm" compact />
+                  <span>
+                    <strong>{row.player.name}</strong>
+                    <small>{formatWeightRoomQualificationNeed(row)}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
       </article>
-      <WeightScoreBreakdown score={selected} />
+      {selected && (
+        <WeightRoomLeaderboardDetail
+          row={selected}
+          rank={rankedIndex.get(selected.player.id)}
+          onClose={() => setSelectedPlayerId(undefined)}
+          onViewAthlete={() => viewAthlete(selected.player.id)}
+        />
+      )}
+      {scoringOpen && <WeightRoomScoringModal onClose={() => setScoringOpen(false)} />}
     </section>
   );
 }
 
-function WeightScoreBreakdown({ score }: { score?: WeightLeaderResult }) {
+function WeightRoomLeaderboardDetail({
+  row,
+  rank,
+  onClose,
+  onViewAthlete,
+}: {
+  row: WeightRoomScoredPlayer;
+  rank?: number;
+  onClose: () => void;
+  onViewAthlete: () => void;
+}) {
+  const trend = weightRoomLeaderboardTrend(row);
+  const missingNotes = [
+    row.relativePerformanceAvailable ? undefined : "Bodyweight not recorded. Relative strength metrics are excluded from this score.",
+    row.effortAvailable ? undefined : "RPE not recorded. Effort is excluded from this score.",
+  ].filter((note): note is string => Boolean(note));
+
   return (
-    <article className="panel weight-score-breakdown">
-      <div className="panel-heading tight">
+    <aside className="panel weight-room-score-drawer" aria-label={`${row.player.name} score detail`}>
+      <button className="ghost-button weight-room-score-drawer__close" type="button" onClick={onClose} aria-label="Close score detail">
+        <X size={16} aria-hidden="true" />
+      </button>
+      <div className="weight-room-score-drawer__player">
+        <PlayerAvatar player={row.player} size="lg" />
         <div>
-          <span>Score Breakdown</span>
-          <h2>{score ? `${score.score}/100` : "No qualifier"}</h2>
+          <span>{row.qualified ? `Rank #${rank ?? "-"}` : "Not Yet Qualified"}</span>
+          <h3>{row.player.name}</h3>
+          <small>#{row.player.jerseyNumber} - {row.player.primaryPosition} - Class of {row.player.graduationYear}</small>
         </div>
       </div>
-      {score ? (
-        <div className="metric-list">
-          {score.breakdown?.map((part) => (
-            <MetricBar key={part.label} label={part.label} value={part.value} max={part.max} helper={`${part.value}/${part.max}`} />
-          ))}
-          <div className="reason-list">{score.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
-        </div>
+
+      {row.qualified ? (
+        <>
+          <div className="weight-room-score-drawer__score">
+            <span>Development Score</span>
+            <strong>{row.score}<small>/100</small></strong>
+            <em>{trend.label}</em>
+          </div>
+          <div className="weight-room-score-lines compact">
+            {row.breakdown.map((part) => (
+              <div key={part.label}>
+                <span><strong>{part.label}</strong><em>{formatWeightRoomBreakdownValue(row, part)}</em></span>
+                <i style={{ ["--value" as string]: `${isWeightRoomBreakdownAvailable(row, part) ? pct(part.value, part.max) : 0}%` }} />
+              </div>
+            ))}
+          </div>
+          <section className="weight-room-score-drawer__why">
+            <h4>Why this score</h4>
+            <div className="reason-list">{row.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
+            <p>{buildWeightRoomLeaderboardTakeaway(row)}</p>
+          </section>
+          {missingNotes.length > 0 && (
+            <section className="weight-room-score-drawer__notes">
+              {missingNotes.map((note) => <span key={note}>{note}</span>)}
+            </section>
+          )}
+          <dl className="weight-room-score-drawer__metrics">
+            <div><dt>Workouts</dt><dd>{formatWeightRoomLeaderboardWorkouts(row)}</dd></div>
+            <div><dt>Tracked Sets</dt><dd>{row.sets}</dd></div>
+            <div><dt>Total Volume</dt><dd>{formatWorkoutVolume(row.volume)}</dd></div>
+          </dl>
+        </>
       ) : (
-        <CompactEmpty title="Two workouts or four tracked sets are required to qualify." />
+        <CompactEmpty title={formatWeightRoomQualificationNeed(row)} />
       )}
-    </article>
+      <button className="primary-button stretch-button" type="button" onClick={onViewAthlete}>
+        View Athlete
+        <ChevronRight size={16} aria-hidden="true" />
+      </button>
+    </aside>
   );
+}
+
+function WeightRoomScoringModal({ onClose }: { onClose: () => void }) {
+  return (
+    <ModalFrame title="How scoring works" onClose={onClose} panelClassName="weight-room-scoring-modal">
+      <section className="weight-room-scoring-modal__body">
+        <div>
+          <span>Development Score</span>
+          <h3>Improvement, consistency, performance, and effort.</h3>
+        </div>
+        <dl>
+          {WEIGHT_ROOM_SCORE_COMPONENTS.map((component) => (
+            <div key={component.key}>
+              <dt>{component.label}</dt>
+              <dd>{component.max}%</dd>
+            </div>
+          ))}
+        </dl>
+        <p>Scores are normalized around each athlete&apos;s own development. Missing optional data such as bodyweight or RPE is reweighted rather than automatically penalized.</p>
+        <small>Athletes qualify with {WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS} completed workouts or {WEIGHT_ROOM_MIN_TRACKED_SETS} tracked sets in the selected period.</small>
+      </section>
+      <div className="modal-actions">
+        <button className="primary-button stretch-button" type="button" onClick={onClose}>Got it</button>
+      </div>
+    </ModalFrame>
+  );
+}
+
+const WEIGHT_ROOM_LEADERBOARD_FILTERS: WeightRoomLeaderboardFilter[] = ["All Athletes", "Qualified", "Improving", "Needs Attention"];
+
+function buildWeightRoomLeaderboardSummary(rows: WeightRoomScoredPlayer[]) {
+  const qualifiedRows = rows.filter((row) => row.qualified).sort(sortWeightRoomLeaderboardRows({ key: "score", direction: "desc" }));
+  const top = qualifiedRows[0];
+  const teamAverage = qualifiedRows.length ? Math.round(qualifiedRows.reduce((sum, row) => sum + row.score, 0) / qualifiedRows.length) : undefined;
+  const completionAverage = qualifiedRows.length
+    ? qualifiedRows.reduce((sum, row) => sum + row.completionPct, 0) / qualifiedRows.length
+    : undefined;
+  return {
+    topScore: top?.score,
+    topPlayer: top?.player.name,
+    qualifiedLabel: `${qualifiedRows.length}/${rows.length}`,
+    unqualified: rows.length - qualifiedRows.length,
+    teamAverage,
+    completionLabel: typeof completionAverage === "number" ? formatPct(completionAverage, 0) : "--",
+  };
+}
+
+function isWeightRoomBreakdownAvailable(row: WeightRoomScoredPlayer, part: { label: string }) {
+  if (part.label === "Relative Performance") return row.relativePerformanceAvailable;
+  if (part.label === "Effort") return row.effortAvailable;
+  return true;
+}
+
+function formatWeightRoomBreakdownValue(row: WeightRoomScoredPlayer, part: { label: string; value: number; max: number }) {
+  return isWeightRoomBreakdownAvailable(row, part) ? `${part.value}/${part.max}` : "Excluded";
+}
+
+function filterWeightRoomLeaderboardRow(row: WeightRoomScoredPlayer, filter: WeightRoomLeaderboardFilter) {
+  if (filter === "All Athletes" || filter === "Qualified") return true;
+  const trend = weightRoomLeaderboardTrend(row);
+  if (filter === "Improving") return trend.kind === "improving";
+  if (filter === "Needs Attention") return trend.kind === "attention";
+  return true;
+}
+
+function sortWeightRoomLeaderboardRows(sort: WeightRoomSortState<WeightRoomLeaderboardSortKey>) {
+  return (left: WeightRoomScoredPlayer, right: WeightRoomScoredPlayer) => {
+    let result = 0;
+    if (sort.key === "athlete") result = left.player.name.localeCompare(right.player.name);
+    if (sort.key === "score") result = compareOptionalNumbers(left.score, right.score, "asc");
+    if (sort.key === "workouts") result = compareOptionalNumbers(left.completedSessions, right.completedSessions, "asc");
+    if (sort.key === "progress") result = compareOptionalNumbers(left.hasComparableHistory ? left.progressPct : undefined, right.hasComparableHistory ? right.progressPct : undefined, "asc");
+    if (sort.key === "completion") result = compareOptionalNumbers(left.completionPct, right.completionPct, "asc");
+    if (sort.key === "trend") result = weightRoomTrendRank(left) - weightRoomTrendRank(right);
+    return applySortDirection(result, sort.direction)
+      || right.score - left.score
+      || right.progressPct - left.progressPct
+      || left.player.name.localeCompare(right.player.name);
+  };
+}
+
+function defaultWeightRoomLeaderboardSortDirection(key: WeightRoomLeaderboardSortKey): SortDirection {
+  return key === "athlete" ? "asc" : "desc";
+}
+
+function weightRoomTrendRank(row: WeightRoomScoredPlayer) {
+  const trend = weightRoomLeaderboardTrend(row);
+  if (trend.kind === "improving") return 3;
+  if (trend.kind === "steady") return 2;
+  if (trend.kind === "attention") return 1;
+  return 0;
+}
+
+function weightRoomLeaderboardTrend(row: WeightRoomScoredPlayer) {
+  if (!row.hasComparableHistory || row.completedSessions < WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS) {
+    return { kind: "baseline", label: "No Trend Yet", meta: "Baseline" };
+  }
+  if (row.progressPct > 1) return { kind: "improving", label: "Improving", meta: `+${formatNumber(row.progressPct, 1)}%` };
+  if (row.progressPct < -4 && row.completedSessions >= WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS + 1) {
+    return { kind: "attention", label: "Needs Attention", meta: `${formatNumber(row.progressPct, 1)}%` };
+  }
+  return { kind: "steady", label: "Steady", meta: "Stable" };
+}
+
+function formatWeightRoomLeaderboardWorkouts(row: WeightRoomScoredPlayer) {
+  if (row.sessions > 0) return `${row.completedSessions} / ${row.sessions}`;
+  return `${row.completedSessions} workout${row.completedSessions === 1 ? "" : "s"}`;
+}
+
+function formatWeightRoomLeaderboardProgress(row: WeightRoomScoredPlayer) {
+  if (!row.hasComparableHistory || row.completedSessions < WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS) return "Baseline";
+  if (Math.abs(row.progressPct) < 0.05) return "Baseline";
+  return `${row.progressPct > 0 ? "+" : ""}${formatNumber(row.progressPct, 1)}%`;
+}
+
+function weightRoomLeaderboardProgressMeta(row: WeightRoomScoredPlayer) {
+  if (!row.hasComparableHistory || row.completedSessions < WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS) return "Need more data";
+  return "vs baseline";
+}
+
+function formatWeightRoomQualificationNeed(row: WeightRoomScoredPlayer) {
+  const workoutText = `${Math.min(row.completedSessions, WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS)} of ${WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS} workouts`;
+  const setText = `${Math.min(row.sets, WEIGHT_ROOM_MIN_TRACKED_SETS)} of ${WEIGHT_ROOM_MIN_TRACKED_SETS} tracked sets`;
+  if (!row.completedSessions && !row.sets) return "Needs first tracked workout";
+  return `${workoutText} or ${setText} needed`;
+}
+
+function buildWeightRoomLeaderboardTakeaway(row: WeightRoomScoredPlayer) {
+  if (!row.hasComparableHistory || row.completedSessions < WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS) {
+    return "Baseline established. Improvement scoring becomes more meaningful after another comparable workout.";
+  }
+  if (row.progressPct > 1 && row.completionPct >= 90) {
+    return "Strong completion and positive athlete-relative progress are driving this score.";
+  }
+  if (row.completionPct >= 90) {
+    return "Strong workout completion is carrying the score while comparable progress stays near baseline.";
+  }
+  if (row.progressPct > 1) {
+    return "Progress is moving in the right direction. More completed assigned work will lift the score.";
+  }
+  return "The next score move comes from completing assigned workouts and creating cleaner comparable progress.";
 }
 
 function WeightRoomWeighInModal({
@@ -12126,6 +12494,10 @@ interface WeightLeaderResult {
   progressPct?: number;
   completionPct?: number;
   attendancePct?: number;
+  hasComparableHistory?: boolean;
+  relativePerformanceAvailable?: boolean;
+  effortAvailable?: boolean;
+  scoreVersion?: string;
 }
 
 interface TeamActivity {
