@@ -8382,7 +8382,7 @@ select option {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  align-items: stretch;
+  align-items: start;
 }
 
 .weight-room-today-card,
@@ -8394,6 +8394,10 @@ select option {
 .weight-room-recent-card,
 .weight-room-weigh-card {
   min-height: 0;
+}
+
+.weight-room-weigh-card {
+  grid-column: span 2;
 }
 
 .weight-room-plan-row {
@@ -8501,10 +8505,10 @@ select option {
 .weight-room-mini-table > div,
 .weight-room-mini-table button {
   display: grid;
-  grid-template-columns: minmax(170px, 1.2fr) repeat(4, minmax(72px, 0.72fr));
-  gap: 8px;
+  grid-template-columns: minmax(150px, 1.25fr) repeat(4, minmax(62px, 0.55fr));
+  gap: 6px;
   align-items: center;
-  padding: 8px 10px;
+  padding: 7px 9px;
 }
 
 .weight-room-mini-table > div span:not(:first-child),
@@ -8517,25 +8521,41 @@ select option {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   overflow: hidden;
   white-space: nowrap;
+  font-size: 12px;
+}
+
+.weight-room-mini-table button strong .player-avatar {
+  flex: 0 0 auto;
 }
 
 .weight-room-card-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 7px;
   color: var(--muted);
   font-size: 11px;
   font-weight: 950;
 }
 
 .weight-room-pager-button {
-  width: 30px;
-  height: 30px;
-  min-width: 30px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.035);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--muted-strong);
+  box-shadow: none;
+}
+
+.weight-room-pager-button:not(:disabled):hover {
+  border-color: rgba(191, 45, 92, 0.42);
+  background: rgba(191, 45, 92, 0.14);
+  color: var(--text);
 }
 
 .weight-room-mini-table > div,
@@ -8581,6 +8601,15 @@ select option {
 
 .weight-room-team-overview .mini-stat-grid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.weight-room-team-overview .stat-tile {
+  min-height: 78px;
+  align-content: space-between;
+}
+
+.weight-room-team-overview .stat-tile strong {
+  align-self: end;
 }
 
 .weight-room-workout-stack,
@@ -8931,11 +8960,31 @@ select option {
   gap: 8px;
 }
 
+.weight-room-player-list button > span {
+  display: grid;
+  gap: 3px;
+}
+
 .weight-room-profile-header {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
+}
+
+.weight-room-profile-header .player-avatar {
+  overflow: visible;
+}
+
+.weight-room-profile-header .player-avatar img {
+  border-radius: 50%;
+}
+
+.weight-room-profile-header .player-avatar small {
+  right: -2px;
+  bottom: -2px;
+  border: 1px solid var(--panel);
+  padding: 2px 5px;
 }
 
 .weight-room-player-profile .segmented-control {
@@ -8981,9 +9030,15 @@ select option {
 
 .weight-room-library-toolbar {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 200px;
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 120px);
   gap: 8px;
-  margin: 10px 0;
+  margin: 10px 0 8px;
+}
+
+.weight-room-library-toolbar .choice-select,
+.weight-room-library-toolbar .choice-select__button {
+  width: 100%;
+  min-width: 0;
 }
 
 .weight-room-library-toolbar input,
@@ -9053,6 +9108,13 @@ select option {
   gap: 5px;
 }
 
+.weight-room-inline-confirm small {
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
 .weight-room-inline-confirm button {
   min-height: 28px;
   padding: 0 9px;
@@ -9070,19 +9132,7 @@ select option {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: end;
-  margin-top: 10px;
-}
-
-.weight-room-custom-exercise label {
-  display: grid;
-  gap: 5px;
-}
-
-.weight-room-custom-exercise label span {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 950;
-  text-transform: uppercase;
+  margin: 0 0 10px;
 }
 
 .weight-room-result-table > div,
@@ -10030,6 +10080,10 @@ select option {
 
   .weight-room-overview-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weight-room-weigh-card {
+    grid-column: auto;
   }
 
   .weight-room-active-layout {
@@ -12267,10 +12321,17 @@ body {
   background:
     linear-gradient(145deg, rgba(47, 196, 154, 0.06), transparent 60%),
     var(--panel);
+  min-height: 0;
+  align-content: start;
 }
 
 .weight-leader .reason-list span::before {
   background: var(--teal);
+}
+
+.weight-leader .compact-empty {
+  min-height: 54px;
+  padding: 8px;
 }
 
 .recent-activity-card {

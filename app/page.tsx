@@ -7541,14 +7541,13 @@ function WeightRoomWeighInCard({ data, players, date, onOpen }: { data: AppData;
     <article className="panel weight-room-weigh-card">
       <div className="panel-heading tight">
         <div>
-          <span>Weekly Weigh-Ins</span>
-          <h2>{weighed}/{players.length} logged</h2>
+          <span>{weighed}/{players.length} logged</span>
+          <h2>Weigh-ins</h2>
         </div>
         <div className="weight-room-card-actions">
           <button className="icon-button weight-room-pager-button" type="button" disabled={safePage === 0} onClick={() => setPage(Math.max(0, safePage - 1))} aria-label="Previous weigh-in page">
             <ChevronLeft size={15} aria-hidden="true" />
           </button>
-          <span>{safePage + 1}/{pageCount}</span>
           <button className="icon-button weight-room-pager-button" type="button" disabled={safePage >= pageCount - 1} onClick={() => setPage(Math.min(pageCount - 1, safePage + 1))} aria-label="Next weigh-in page">
             <ChevronRight size={15} aria-hidden="true" />
           </button>
@@ -7644,7 +7643,7 @@ function WeightRoomTeamOverview({ overview, onTab }: { overview: ReturnType<type
       </div>
       <div className="mini-stat-grid">
         <StatTile label="Athletes" value={overview.athletes} />
-        <StatTile label="This Week" value={overview.workoutsThisWeek} sub="workouts" />
+        <StatTile label="Workouts this week" value={overview.workoutsThisWeek} />
         <StatTile label="Sets Logged" value={overview.sets} />
         <StatTile label="Volume" value={formatWorkoutVolume(overview.volume)} />
         <StatTile label="Avg Completion" value={`${Math.round(overview.completionPct)}%`} accent />
@@ -8113,6 +8112,10 @@ function WeightRoomExerciseLibraryCard({
           aria-label="Exercise category"
         />
       </div>
+      <div className="weight-room-custom-exercise">
+        <input aria-label="Exercise name" value={customExercise} onChange={(event) => onCustomExercise(event.target.value)} placeholder="Exercise name" />
+        <button className="secondary-button" type="button" onClick={() => customExercise.trim() && onExercise(customExercise.trim())}>Add Exercise</button>
+      </div>
       <div className="weight-room-library-list">
         {filtered.map((exercise) => {
           const confirming = confirmingExercise === exercise.name;
@@ -8121,11 +8124,11 @@ function WeightRoomExerciseLibraryCard({
               <button type="button" className="weight-room-library-select" onClick={() => onExercise(exercise.name)}>
                 <span>
                   <strong>{exercise.name}</strong>
-                  <small>{exercise.category} - {measurementTypeLabel(exercise.measurementType)}</small>
                 </span>
               </button>
               {confirming ? (
                 <span className="weight-room-inline-confirm">
+                  <small>Remove?</small>
                   <button type="button" onClick={() => setHiddenExercises((current) => new Set([...current, exercise.name.toLowerCase()]))}>Yes</button>
                   <button type="button" onClick={() => setConfirmingExercise(undefined)}>No</button>
                 </span>
@@ -8142,13 +8145,6 @@ function WeightRoomExerciseLibraryCard({
             </div>
           );
         })}
-      </div>
-      <div className="weight-room-custom-exercise">
-        <label>
-          <span>Add exercise for this workout</span>
-          <input value={customExercise} onChange={(event) => onCustomExercise(event.target.value)} placeholder="Exercise name" />
-        </label>
-        <button className="secondary-button" type="button" onClick={() => customExercise.trim() && onExercise(customExercise.trim())}>Use Exercise</button>
       </div>
     </article>
   );
@@ -11395,16 +11391,6 @@ function weightRoomMeasurementType(name: string): WorkoutMeasurementType {
   if (/(pull up|push up|sit up|bodyweight)/.test(normalized)) return "BODYWEIGHT_REPS";
   if (/(rpe|mobility|stretch)/.test(normalized)) return "RPE_ONLY";
   return "WEIGHT_REPS";
-}
-
-function measurementTypeLabel(type: WorkoutMeasurementType) {
-  if (type === "WEIGHT_REPS") return "Weight + reps";
-  if (type === "BODYWEIGHT_REPS") return "Bodyweight reps";
-  if (type === "TIME") return "Time";
-  if (type === "DISTANCE") return "Distance";
-  if (type === "HEIGHT") return "Height";
-  if (type === "COUNT") return "Count";
-  return "RPE only";
 }
 
 function weightRoomUnitForType(type: WorkoutMeasurementType): WorkoutEntry["unit"] | undefined {
