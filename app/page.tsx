@@ -5752,7 +5752,6 @@ function PracticeHome({
   const hittingLeaders = buildHittingLeaders(data, "hardHitPct", 4).slice(0, 3);
   const pitchingLeaders = buildPitchingLeaders(data, "strikePct", 6).slice(0, 3);
   const practiceTime = practice ? formatPracticeTimeRange(practice) : "";
-  const statusLabel = practice ? (practice.endedAt ? "Completed Practice" : "Today's Practice") : "Practice Hub";
   const activeSessions = practice ? buildActivePracticeSessions(data, practice.id) : [];
   const mySession = activeSessions.find((session) => session.isMine);
   const recentActivity = practice ? buildPracticeActivityFeed(data, practice.id).slice(0, 5) : [];
@@ -5805,19 +5804,15 @@ function PracticeHome({
             <div className="practice-summary-strip__identity">
               <span className="practice-summary-icon"><ClipboardList size={24} aria-hidden="true" /></span>
               <span>
-                <small>{statusLabel}</small>
-                <strong>{practice?.type ?? "Practice"}</strong>
+                <small>Practice</small>
                 <em>{practice ? `${practice.location || "Field"}${practiceTime ? ` - ${practiceTime}` : ""}` : "Start practice to begin today's development work"}</em>
               </span>
             </div>
-            <div className="practice-summary-strip__stat">
-              <small>Attendance</small>
-              <strong>{activeAttendance.length || 0} / {attendanceDenominator}</strong>
-              <span className="attendance-dots" aria-hidden="true">
-                {Array.from({ length: Math.min(20, Math.max(1, attendanceDenominator)) }).map((_, index) => (
-                  <i key={index} className={index < activeAttendance.length ? "active" : ""} />
-                ))}
-              </span>
+            <div className="practice-summary-actions" aria-label="Practice quick entry">
+              <PracticeActivityCard mode="Hitting" icon={Swords} title="Hitting" compact onClick={() => onOpenStation("Hitting")} />
+              <PracticeActivityCard mode="Pitching" icon={BaseballIcon} title="Pitching" compact onClick={() => onOpenStation("Pitching")} />
+              <PracticeActivityCard mode="Defense" icon={Shield} title="Defense" compact onClick={() => onOpenStation("Defense")} />
+              <PracticeActivityCard mode="Live BP" icon={Gauge} title="Live BP" compact onClick={() => onOpenStation("Live BP")} />
             </div>
             <div className="attendance-ring" style={{ ["--value" as string]: `${attendancePct}%` }}>
               <strong>{formatPct(attendancePct, 0)}</strong>
@@ -5899,21 +5894,6 @@ function PracticeHome({
                 </button>
               </article>
 
-              <article className="panel practice-entry-overview">
-                <div className="panel-heading tight">
-                  <div>
-                    <h2>One Tap Entry</h2>
-                    <span>Track reps, throws, and live matchups.</span>
-                  </div>
-                </div>
-                <div className="practice-activity-grid">
-                  <PracticeActivityCard mode="Hitting" icon={Swords} title="Hitting" onClick={() => onOpenStation("Hitting")} />
-                  <PracticeActivityCard mode="Pitching" icon={BaseballIcon} title="Pitching" onClick={() => onOpenStation("Pitching")} />
-                  <PracticeActivityCard mode="Defense" icon={Shield} title="Defense" onClick={() => onOpenStation("Defense")} />
-                  <PracticeActivityCard mode="Live BP" icon={Gauge} title="Live BP" onClick={() => onOpenStation("Live BP")} />
-                </div>
-              </article>
-
               <PracticePlanCard practice={practice} />
               <PracticeRecentCard data={data} recentPractices={recentPractices} />
               <PracticeLeadersCard hittingLeaders={hittingLeaders} pitchingLeaders={pitchingLeaders} onOpenPlayer={onOpenPlayer} />
@@ -5938,16 +5918,18 @@ function PracticeActivityCard({
   mode,
   icon: Icon,
   title,
+  compact = false,
   onClick,
 }: {
   mode: PracticeMode;
   icon: AppIcon;
   title: string;
+  compact?: boolean;
   onClick: () => void;
 }) {
   return (
-    <button type="button" className={`practice-activity-card practice-activity-card--${practiceModeClass(mode)}`} onClick={onClick}>
-      <span><Icon size={22} aria-hidden="true" /></span>
+    <button type="button" className={`practice-activity-card ${compact ? "practice-activity-card--compact" : ""} practice-activity-card--${practiceModeClass(mode)}`} onClick={onClick}>
+      <span><Icon size={compact ? 15 : 22} aria-hidden="true" /></span>
       <strong>{title}</strong>
     </button>
   );
@@ -11160,10 +11142,7 @@ function formatPracticeStartTime(practice: Practice) {
 function formatPracticeTimeRange(practice: Practice) {
   const start = formatTime(practice.startedAt);
   if (practice.endedAt) return `${start}-${formatTime(practice.endedAt)}`;
-  const startDate = new Date(practice.startedAt);
-  if (Number.isNaN(startDate.getTime())) return start;
-  startDate.setHours(startDate.getHours() + 2);
-  return `${start}-${formatTime(startDate.toISOString())}`;
+  return start;
 }
 
 function sortPlayersByRecent(players: Player[], recentIds: ID[]) {
