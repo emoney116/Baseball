@@ -241,6 +241,82 @@ interface WeightRoomWorkoutSummary {
   completed: boolean;
 }
 
+const LOCAL_AUTH_BYPASS_QUERY = "devBypass";
+const LOCAL_AUTH_BYPASS_EMAIL = "local.preview@clubhouse9.dev";
+
+function isLocalDevAuthBypass() {
+  if (process.env.NODE_ENV !== "development" || typeof window === "undefined") return false;
+  const hostname = window.location.hostname.toLowerCase();
+  const isLocalHost = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  return isLocalHost && new URLSearchParams(window.location.search).get(LOCAL_AUTH_BYPASS_QUERY) === "1";
+}
+
+function localPreviewAuthState(): AuthState {
+  return { status: "authenticated", email: LOCAL_AUTH_BYPASS_EMAIL };
+}
+
+function withLocalPreviewContext(data: AppData): AppData {
+  if (data.teamContext?.currentTeam) return data;
+
+  const team: TeamOption = {
+    organizationId: "local-metrolina-baseball",
+    organizationName: "Metrolina Baseball",
+    teamId: "local-metrolina-varsity",
+    teamName: "Metrolina Varsity",
+    teamLevel: "Varsity",
+    teamType: "School",
+    city: "Indian Trail",
+    state: "NC",
+    logoUrl: "/brand/metrolina-baseball-alpha.png",
+    seasonId: "local-fall-2026",
+    seasonName: "Fall 2026",
+    role: "HEAD_COACH",
+    title: "Head Coach",
+    active: true,
+  };
+
+  return {
+    ...data,
+    teamContext: {
+      profile: {
+        id: "local-preview-coach",
+        email: LOCAL_AUTH_BYPASS_EMAIL,
+        firstName: "Local",
+        lastName: "Coach",
+        displayName: "Local Coach",
+      },
+      organizations: [
+        {
+          id: "local-metrolina-baseball",
+          name: "Metrolina Baseball",
+          city: "Indian Trail",
+          state: "NC",
+          logoUrl: "/brand/metrolina-baseball-alpha.png",
+          role: "HEAD_COACH",
+          active: true,
+        },
+      ],
+      availableTeams: [team],
+      currentTeam: team,
+    },
+    settings: {
+      ...data.settings,
+      selectedTeamId: team.teamId,
+      selectedSeasonId: team.seasonId,
+    },
+  };
+}
+
+async function loadLocalPreviewData() {
+  const { localPracticeRepository: localRepo } = await import("./data/repository");
+  return withLocalPreviewContext(localRepo.load());
+}
+
+async function saveLocalPreviewData(data: AppData) {
+  const { localPracticeRepository: localRepo } = await import("./data/repository");
+  localRepo.save(data);
+}
+
 const GLOBAL_NAV_ITEMS: Array<{ key: ViewKey; label: string; shortLabel: string; icon: AppIcon }> = [
   { key: "home", label: "Home", shortLabel: "Home", icon: Home },
   { key: "following", label: "Following", shortLabel: "Following", icon: Star },
@@ -668,6 +744,35 @@ export default function MetrolinaBaseballApp() {
     setLoadError(null);
     setSaveError(null);
 
+    if (isLocalDevAuthBypass()) {
+      const loaded = await loadLocalPreviewData();
+      const params = new URLSearchParams(window.location.search);
+      const requestedView = params.get("view") as ViewKey | null;
+      const requestedPlayer = params.get("player");
+      setAuthState(localPreviewAuthState());
+      setData(loaded);
+      setHydrated(true);
+      document.documentElement.dataset.theme = loaded.settings.theme;
+
+      const active = activePractice(loaded);
+      const firstPlayer = loaded.settings.recentPlayerIds[0] ?? active?.playerIds[0] ?? loaded.players[0]?.id ?? "";
+      const firstGame = loaded.games.find((game) => !game.result)?.id ?? loaded.games[0]?.id ?? "";
+
+      if (!options.silent) {
+        setSelectedPlayerId(requestedPlayer && loaded.players.some((player) => player.id === requestedPlayer) ? requestedPlayer : firstPlayer);
+        setPracticePlayerId(firstPlayer);
+        setSelectedWeightPlayerId(firstPlayer);
+        setSelectedGameId(firstGame);
+        setLiveBpPitcherId(loaded.players.find((player) => player.isPitcher && !player.archived)?.id ?? firstPlayer);
+        setLiveBpHitterId(loaded.players.find((player) => player.isHitter && !player.archived && player.id !== firstPlayer)?.id ?? firstPlayer);
+
+        if (requestedView && [...GLOBAL_NAV_ITEMS.map((item) => item.key), ...TEAM_NAV_ITEMS.map((item) => item.key), "profile", "account"].includes(requestedView)) {
+          setView(requestedView);
+        }
+      }
+      return;
+    }
+
     const auth = await authRepository.getState();
     if (isCancelled()) return;
     setAuthState(auth);
@@ -728,6 +833,11 @@ export default function MetrolinaBaseballApp() {
     setSaveStatus("saving");
     setSaveError(null);
     try {
+      if (isLocalDevAuthBypass()) {
+        await saveLocalPreviewData(next);
+        setSaveStatus("saved");
+        return;
+      }
       await supabaseAppRepository.sync(previous, next);
       setSaveStatus("saved");
     } catch (error) {
@@ -1171,6 +1281,15 @@ export default function MetrolinaBaseballApp() {
   async function signOut() {
     setTopAccountMenuOpen(false);
     setSidebarAccountMenuOpen(false);
+    if (isLocalDevAuthBypass()) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete(LOCAL_AUTH_BYPASS_QUERY);
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+      setData(null);
+      setAuthState({ status: "anonymous" });
+      navigateToView("home", { replace: true });
+      return;
+    }
     await authRepository.signOut();
     setData(null);
     setAuthState({ status: "anonymous" });

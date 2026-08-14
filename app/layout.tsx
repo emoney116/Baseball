@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
+import { Geist } from "next/font/google";
 import type React from "react";
 import { APP_DESCRIPTION, APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
 import { absoluteUrl, productionSiteUrl } from "./lib/siteUrl";
 import "./globals.css";
+
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(productionSiteUrl()),
@@ -44,7 +51,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="dark">
+    <html lang="en" data-theme="dark" className={geist.variable}>
       <body>{children}</body>
     </html>
   );

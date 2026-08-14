@@ -24,7 +24,29 @@
   --danger: #e45d5d;
   --shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
   --radius: 8px;
-  --font: "Inter", "Geist", "Segoe UI", system-ui, sans-serif;
+  --font: var(--font-geist), "Inter", "Segoe UI", system-ui, sans-serif;
+  --text-page-title: clamp(1.5rem, 1.05vw + 1.18rem, 2rem);
+  --text-section-title: clamp(1rem, 0.32vw + 0.94rem, 1.125rem);
+  --text-card-title: 0.9375rem;
+  --text-body: 0.875rem;
+  --text-secondary-body: 0.8125rem;
+  --text-label: 0.6875rem;
+  --text-caption: 0.75rem;
+  --text-button: 0.8125rem;
+  --text-tab: 0.8125rem;
+  --text-table-header: 0.6875rem;
+  --text-table-row: 0.8125rem;
+  --text-metric: clamp(1.5rem, 1vw + 1.1rem, 2rem);
+  --weight-body: 400;
+  --weight-ui: 500;
+  --weight-selected: 600;
+  --weight-heading: 600;
+  --weight-page-title: 650;
+  --weight-metric: 700;
+  --leading-page-title: 1.15;
+  --leading-section-title: 1.25;
+  --leading-body: 1.45;
+  --leading-compact: 1.2;
 }
 
 [data-theme="light"] {
@@ -58,7 +80,12 @@ body {
   min-height: 100%;
   color: var(--text);
   font-family: var(--font);
+  font-size: var(--text-body);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
   background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -75,6 +102,58 @@ button {
 img {
   display: block;
   max-width: 100%;
+}
+
+.type-page-title {
+  font-size: var(--text-page-title);
+  font-weight: var(--weight-page-title);
+  line-height: var(--leading-page-title);
+}
+
+.type-section-title {
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-section-title);
+}
+
+.type-card-title {
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-section-title);
+}
+
+.type-body {
+  font-size: var(--text-body);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
+}
+
+.type-secondary-body {
+  color: var(--muted);
+  font-size: var(--text-secondary-body);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
+}
+
+.type-label {
+  color: var(--muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.025em;
+  line-height: var(--leading-compact);
+}
+
+.type-caption {
+  color: var(--muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-ui);
+  line-height: var(--leading-body);
+}
+
+.type-metric {
+  font-size: var(--text-metric);
+  font-weight: var(--weight-metric);
+  line-height: 1;
 }
 
 button:focus-visible,
@@ -16465,5 +16544,604 @@ body,
   .practice-player-grid,
   .practice-throwing-card {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Clubhouse 9 application typography system */
+.top-command h1,
+.section-header h2,
+.weight-room-shell-header__identity h2,
+.practice-command__main h2,
+.practice-header h2,
+.practice-drilldown-header h2,
+.profile-header h2,
+.org-manage-hero h1,
+.public-hero h1,
+.public-team-identity h1,
+.public-team-identity h2,
+.setup-panel h1 {
+  font-size: var(--text-page-title);
+  font-weight: var(--weight-page-title);
+  line-height: var(--leading-page-title);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.team-identity-switcher__button strong {
+  font-size: clamp(1.125rem, 0.6vw + 1rem, 1.375rem);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-page-title);
+}
+
+.team-identity-switcher--compact .team-identity-switcher__button strong,
+.team-compact-title strong {
+  font-size: 1rem;
+  font-weight: var(--weight-heading);
+}
+
+.panel-heading h2,
+.today-panel h2,
+.recent-activity-card h2,
+.team-snapshot-bar h2,
+.weight-room-pulse-header h2,
+.weight-room-review-table h3,
+.practice-history-panel > h2,
+.practice-empty-hub h2,
+.practice-drill-card h2,
+.roster-command h2,
+.public-section__heading h2,
+.modal-title h2,
+.no-team-card h1 {
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-section-title);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.panel > h2,
+.development-card h2,
+.home-info-card strong,
+.schedule-detail-card__top strong,
+.upcoming-schedule-list strong,
+.practice-activity-card strong,
+.practice-my-session strong,
+.practice-active-session-card strong,
+.practice-plan-list strong,
+.practice-history-rows strong,
+.practice-throwing-card strong,
+.weight-room-workout-list strong,
+.weight-room-template-grid strong,
+.weight-room-exercise-chip-list strong,
+.weight-room-library-select strong,
+.weight-room-review-table strong,
+.weight-room-read-row strong,
+.org-team-admin-card__summary strong,
+.org-member-row strong,
+.org-invite-row strong,
+.staff-edit-summary strong,
+.staff-team-picker strong {
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-section-title);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.primary-button,
+.secondary-button,
+.ghost-button,
+.text-button,
+.context-back-button,
+.public-follow-button,
+.public-manage-link,
+.action-card,
+.theme-toggle,
+.schedule-picker-button,
+.schedule-picker-text,
+.schedule-picker-today,
+.schedule-time-clear,
+.schedule-map-link,
+.attendance-bulk-row button,
+.attendance-status-grid button,
+.player-cycle-row button,
+.weight-room-bodyweight button,
+.weight-room-suggestion-row button,
+.weight-room-set-table button,
+.weight-room-remove-exercise,
+.weight-room-inline-confirm button,
+.row-action-button,
+.row-menu-button,
+.staff-invite-inline {
+  font-size: var(--text-button);
+  font-weight: var(--weight-ui);
+  line-height: var(--leading-compact);
+}
+
+.primary-button,
+.segmented-control button.active,
+.practice-tabs button.active,
+.practice-tracker-tabs button.active,
+.profile-tabs button.active,
+.tab-row button.active,
+.auth-tabs button.active,
+.org-manage-tabs button.active,
+.bottom-nav button.active {
+  font-weight: var(--weight-selected);
+}
+
+.segmented-control button,
+.practice-tabs button,
+.practice-tracker-tabs button,
+.profile-tabs button,
+.tab-row button,
+.auth-tabs button,
+.org-manage-tabs button,
+.bottom-nav button,
+.mobile-more-sheet button,
+.status-toggle button,
+.direction-row button,
+.pitch-type-row button,
+.manual-row button,
+.bip-grid button,
+.practice-setup-choice-grid button,
+.weight-room-template-preview button,
+.weight-room-template-grid button,
+.weight-room-exercise-chip-list button,
+.weight-room-workout-list button,
+.weight-room-player-list button,
+.weight-room-result-table button,
+.weight-room-leaderboard-table button {
+  font-size: var(--text-tab);
+  font-weight: var(--weight-ui);
+  line-height: var(--leading-compact);
+}
+
+.top-command span,
+.section-header > div > span,
+.panel-heading span,
+.section-kicker,
+.practice-header span,
+.practice-command__main span,
+.practice-preset-panel span,
+.practice-leader-columns > div > span,
+.practice-team-picker > span,
+.attendance-roster__head,
+.practice-start-grid label span,
+.practice-start-grid .form-field > span,
+.practice-team-context > span,
+.practice-drill-card > span,
+.practice-setup-options > span,
+.practice-drilldown-header > div span,
+.weight-room-shell-header__identity small,
+.weight-room-shell-header__identity em,
+.weight-room-active-header small,
+.weight-room-active-header span,
+.weight-room-card-actions,
+.weight-room-pulse-label,
+.weight-room-session-stats span,
+.weight-number-stepper > span,
+.weight-room-suggestion-row > span,
+.weight-room-insight-card span,
+.weight-room-player-list__pager span,
+.schedule-calendar__weekdays,
+.schedule-agenda-group h3,
+.schedule-event-form label > span,
+.schedule-event-form .form-field > span,
+.schedule-date-weekdays span,
+.filter-select span,
+.status-select-wrap span,
+.roster-row__metrics span,
+.profile-line > span,
+.choice-select__label,
+.field-control > span,
+.auth-form label span,
+.sync-banner,
+.visibility-badge,
+.team-switcher small {
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.025em;
+  line-height: var(--leading-compact);
+}
+
+.panel small,
+.section-header p,
+.section-header small,
+.compact-leader-list p,
+.home-info-card small,
+.home-info-card em,
+.activity-feed small,
+.activity-feed time,
+.snapshot-stat small,
+.schedule-chip small,
+.schedule-week-event small,
+.schedule-week-day header span,
+.schedule-week-empty,
+.schedule-agenda-row small,
+.schedule-mini-row small,
+.upcoming-schedule-list small,
+.public-roster-row small,
+.public-roster-row em,
+.public-game-row span,
+.public-game-row small,
+.staff-person-cell small,
+.staff-table-row > span,
+.staff-edit-summary small,
+.staff-team-picker small,
+.weight-room-workout-list small,
+.weight-room-template-grid small,
+.weight-room-exercise-chip-list small,
+.weight-room-library-list small,
+.weight-room-result-table span,
+.weight-room-leaderboard-table span,
+.weight-room-leaderboard-table small,
+.weight-room-set-table span,
+.weight-room-set-table em,
+.weight-room-weigh-table span,
+.weight-room-weigh-table em,
+.weight-room-athlete-card small,
+.weight-room-player-list button small,
+.weight-room-pulse-metric small,
+.weight-room-pulse-empty small,
+.weight-room-review-table span,
+.practice-plan-list time,
+.practice-plan-list small,
+.practice-history-rows small,
+.practice-history-rows em,
+.practice-active-session-card em,
+.practice-session-meta,
+.practice-session-contributors small,
+.practice-activity-feed em,
+.practice-throwing-card small,
+.practice-throwing-card em,
+.practice-player-grid small,
+.player-picker-column small,
+.recent-practice-list small,
+.recent-practice-list span,
+.attendance-row small {
+  font-size: var(--text-secondary-body);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
+}
+
+.roster-player-cell strong,
+.roster-row__identity strong,
+.staff-person-cell strong,
+.current-player-card strong,
+.switcher-list strong,
+.compact-player-grid strong,
+.practice-player-grid strong,
+.player-picker-column strong,
+.attendance-row b,
+.award-player strong,
+.weight-leader-list strong,
+.weight-room-mini-table button strong,
+.weight-room-athlete-card strong,
+.weight-room-player-list button strong,
+.weight-room-leaderboard-table button > span:nth-child(2),
+.schedule-opponent-option strong,
+.schedule-team-pill strong,
+.public-roster-row b,
+.public-game-row strong,
+.activity-feed strong,
+.leader-rows strong,
+.compact-leader-list strong,
+.global-context-card strong,
+.pinned-team-shortcut strong,
+.profile-menu__identity strong,
+.team-switcher strong,
+.team-switch-choice .choice-select__button strong,
+.choice-select__button strong,
+.choice-select__menu button strong {
+  font-size: clamp(0.875rem, 0.18vw + 0.82rem, 1rem);
+  font-weight: var(--weight-selected);
+  line-height: var(--leading-section-title);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.roster-table__head,
+.staff-table__head,
+.workout-table__header,
+.manual-roster-head,
+.single-player-head,
+.import-preview__head,
+.weight-room-mini-table > div,
+.weight-room-result-table > div,
+.weight-room-leaderboard-table > div,
+.weight-room-weigh-table > div,
+.weight-room-set-table > div:first-child,
+.practice-recent-event-table > div:first-child,
+.schedule-calendar__weekdays {
+  font-size: var(--text-table-header);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.035em;
+  line-height: var(--leading-compact);
+}
+
+.roster-table-row > span,
+.staff-table-row > span,
+.weight-room-mini-table button,
+.weight-room-result-table button,
+.weight-room-leaderboard-table button,
+.weight-room-weigh-table label,
+.workout-row,
+.manual-roster-row,
+.single-player-row,
+.import-row {
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
+}
+
+.stat-tile strong,
+.snapshot-stat strong,
+.live-metrics strong,
+.score-line strong,
+.scoreboard strong,
+.count-card strong,
+.attendance-ring strong,
+.status-mini strong,
+.public-stat-strip strong,
+.public-org-summary strong,
+.weight-room-pulse-metric strong,
+.weight-room-session-stats strong,
+.weight-room-leaderboard-table em,
+.weight-number-stepper input,
+.velo-input input,
+.account-avatar,
+.jersey-number {
+  font-size: var(--text-metric);
+  font-weight: var(--weight-metric);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.scoreboard strong,
+.score-line strong,
+.count-card strong {
+  font-size: clamp(1.75rem, 1.8vw + 1.1rem, 2.25rem);
+}
+
+.weight-room-pulse-metric strong {
+  font-size: clamp(1.375rem, 0.7vw + 1rem, 1.75rem);
+}
+
+.stat-tile__top,
+.live-metrics span,
+.score-line span,
+.schedule-row span,
+.compact-empty span,
+.count-card span,
+.scoreboard span,
+.snapshot-stat small,
+.public-stat-strip small {
+  font-size: var(--text-label);
+  font-weight: var(--weight-ui);
+  line-height: var(--leading-compact);
+  letter-spacing: 0.015em;
+  text-transform: none;
+}
+
+.award-player strong,
+.station-grid strong,
+.compact-leader-list h3,
+.public-hero span,
+.public-kicker,
+.schedule-agenda-group h3,
+.weight-room-mini-table > div,
+.weight-room-result-table > div,
+.weight-room-leaderboard-table > div,
+.weight-room-weigh-table > div,
+.weight-room-set-table > div:first-child,
+.practice-recent-event-table > div:first-child span,
+.practice-my-session small,
+.practice-active-session-card .practice-session-type,
+.practice-activity-feed > span,
+.attendance-status-key,
+.attendance-status-key-popover span,
+.team-switcher small,
+.status-select-wrap .choice-select__button strong,
+.status-select-wrap select {
+  text-transform: none;
+}
+
+.brand-lockup strong,
+.setup-brand strong {
+  font-weight: 700;
+}
+
+.auth-tabs button,
+.auth-link-button,
+.public-brand,
+.public-follow-button,
+.org-manage-tabs button,
+.org-manage-message,
+.visibility-badge,
+.file-drop,
+.attendance-avatar__meta strong,
+.attendance-avatar__meta small,
+.practice-session-contributors i,
+.weight-room-pager-button,
+.weight-room-rest-timer,
+.weight-room-exercise-rail__list em,
+.weight-room-inline-confirm small,
+.form-errors,
+.tooltip-trigger::after {
+  font-weight: var(--weight-selected);
+}
+
+.attendance-avatar__meta strong {
+  font-size: 0.625rem;
+}
+
+.practice-tabs,
+.segmented-control,
+.org-manage-tabs {
+  gap: 4px;
+}
+
+.weight-room-page,
+.practice-home,
+.schedule-page,
+.roster-page,
+.games-page {
+  gap: 12px;
+}
+
+.weight-room-shell-header {
+  gap: 10px;
+}
+
+.award-card__top span,
+.weight-room-weigh-card .panel-heading h2,
+.weight-room-recent-card .panel-heading h2,
+.weight-room-template-builder h2,
+.weight-room-library-card h2,
+.weight-room-exercise-results h2,
+.weight-room-leaderboard-card h2,
+.weight-room-active-summary h2,
+.weight-room-active-header h2,
+.weight-room-athlete-panel h2,
+.weight-room-set-console h2,
+.weight-room-exercise-rail h2,
+.weight-room-player-list h2,
+.weight-room-player-profile h2,
+.weight-room-pulse-header h2 {
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-section-title);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.award-card__top span,
+.weight-room-weigh-card .panel-heading h2,
+.weight-room-recent-card .panel-heading h2,
+.weight-room-pulse-header h2 {
+  font-size: var(--text-card-title);
+}
+
+.weight-leader-list strong,
+.weight-room-mini-table button strong,
+.weight-room-workout-list strong,
+.weight-room-result-table button strong,
+.weight-room-review-table strong,
+.weight-room-read-row strong {
+  font-size: clamp(0.875rem, 0.15vw + 0.82rem, 0.975rem);
+  font-weight: var(--weight-selected);
+  line-height: var(--leading-section-title);
+}
+
+.weight-room-mini-table button,
+.weight-room-result-table button,
+.weight-room-leaderboard-table button,
+.weight-room-weigh-table label,
+.weight-room-review-table button {
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-body);
+}
+
+.weight-room-mini-table > div,
+.weight-room-result-table > div,
+.weight-room-leaderboard-table > div,
+.weight-room-weigh-table > div,
+.weight-room-set-table > div:first-child,
+.weight-room-pulse-label {
+  font-size: var(--text-table-header);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.025em;
+}
+
+.weight-room-pulse-metric {
+  grid-template-rows: 28px 14px 26px;
+}
+
+.weight-room-pulse-metric strong {
+  font-size: clamp(1.25rem, 0.62vw + 1rem, 1.625rem);
+  font-weight: var(--weight-metric);
+}
+
+.weight-room-pulse-metric small,
+.weight-room-pulse-empty small,
+.weight-room-workout-list small,
+.weight-room-mini-table button span,
+.weight-room-mini-table button em {
+  font-size: var(--text-secondary-body);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
+}
+
+.weight-room-athlete-card > span {
+  display: grid;
+  gap: 2px;
+}
+
+@media (min-width: 981px) and (max-width: 1280px) {
+  .section-header h2,
+  .weight-room-shell-header__identity h2,
+  .practice-command__main h2,
+  .practice-header h2,
+  .profile-header h2 {
+    font-size: clamp(1.625rem, 0.9vw + 1.25rem, 1.875rem);
+  }
+}
+
+@media (max-width: 980px) {
+  .section-header h2,
+  .weight-room-shell-header__identity h2,
+  .practice-command__main h2,
+  .practice-header h2,
+  .practice-drilldown-header h2,
+  .profile-header h2,
+  .public-hero h1,
+  .public-team-identity h1,
+  .public-team-identity h2 {
+    font-size: clamp(1.625rem, 1vw + 1.35rem, 1.875rem);
+  }
+
+  .team-identity-switcher__button strong {
+    font-size: 1.125rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .section-header h2,
+  .weight-room-shell-header__identity h2,
+  .practice-command__main h2,
+  .practice-header h2,
+  .practice-drilldown-header h2,
+  .profile-header h2,
+  .public-hero h1,
+  .public-team-identity h1,
+  .public-team-identity h2 {
+    font-size: clamp(1.5rem, 5.2vw, 1.75rem);
+  }
+
+  .panel-heading h2,
+  .today-panel h2,
+  .recent-activity-card h2,
+  .team-snapshot-bar h2,
+  .modal-title h2 {
+    font-size: 1rem;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .ghost-button,
+  .text-button,
+  .segmented-control button,
+  .practice-tabs button,
+  .practice-tracker-tabs button,
+  .bottom-nav button {
+    font-size: 0.75rem;
+  }
+
+  .weight-room-mini-table > div,
+  .weight-room-mini-table button {
+    grid-template-columns: minmax(136px, 1.6fr) repeat(4, minmax(42px, 0.45fr));
+    gap: 4px;
+    padding-inline: 7px;
   }
 }
