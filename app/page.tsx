@@ -163,7 +163,6 @@ type WeightRoomExerciseCategory = "Lower Body" | "Upper Body" | "Power" | "Core"
 type WeightRoomExerciseSortKey = "exercise" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "best" | "sets";
 type WeightRoomWorkoutSortKey = "exercise" | "set" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "rpe";
 type WeightRoomSortState<K extends string> = { key: K; direction: SortDirection };
-type WeightRoomExerciseDataView = "data" | "all";
 type WorkoutMeasurementType = "WEIGHT_REPS" | "BODYWEIGHT_REPS" | "TIME" | "DISTANCE" | "HEIGHT" | "COUNT" | "RPE_ONLY";
 type WeightRoomExercise = {
   name: string;
@@ -8309,7 +8308,6 @@ function WeightRoomPlayerPanel({
   const [collapsedWorkoutExercises, setCollapsedWorkoutExercises] = useState<Set<string>>(() => new Set());
   const [exerciseQuery, setExerciseQuery] = useState("");
   const [exerciseCategory, setExerciseCategory] = useState<WeightRoomExerciseCategory | "All">("All");
-  const [exerciseDataView, setExerciseDataView] = useState<WeightRoomExerciseDataView>("data");
   const [exerciseSort, setExerciseSort] = useState<WeightRoomSortState<WeightRoomExerciseSortKey>>({ key: "exercise", direction: "asc" });
   const [expandedExercise, setExpandedExercise] = useState<string | undefined>();
   const [progressWindow, setProgressWindow] = useState<WeightRoomWindow>("This Week");
@@ -8328,7 +8326,6 @@ function WeightRoomPlayerPanel({
     .filter((row) => {
       const query = exerciseQuery.trim().toLowerCase();
       return (exerciseCategory === "All" || row.exercise.category === exerciseCategory)
-        && (exerciseDataView === "all" || row.sets > 0)
         && (!query || `${row.exercise.name} ${row.exercise.category} ${row.exercise.equipment ?? ""}`.toLowerCase().includes(query));
     }), exerciseSort);
   const progressScore = buildScoredWeightRoomLeaderboard([player], data.workoutSessions, data.workoutEntries, progressWindow)[0];
@@ -8363,7 +8360,7 @@ function WeightRoomPlayerPanel({
       <aside className="panel weight-room-player-list">
         <div className="weight-room-player-list__header">
           <h2>{players.length} players</h2>
-          <span>{filteredPlayers.length !== players.length ? `${filteredPlayers.length} shown` : "Roster rail"}</span>
+          {filteredPlayers.length !== players.length && <span>{filteredPlayers.length} shown</span>}
         </div>
         <label className="weight-room-player-search">
           <Search size={15} aria-hidden="true" />
@@ -8423,8 +8420,6 @@ function WeightRoomPlayerPanel({
             category={exerciseCategory}
             onCategory={setExerciseCategory}
             categories={exerciseCategories}
-            dataView={exerciseDataView}
-            onDataView={setExerciseDataView}
             sort={exerciseSort}
             onSort={(key) => setExerciseSort((current) => nextWeightRoomSortState(current, key, { key: "exercise", direction: "asc" }))}
             expandedExercise={expandedExercise}
@@ -8599,10 +8594,6 @@ function WeightRoomAthleteWorkouts({
           onChange={onWorkout}
           aria-label="Select workout"
         />
-        <div className="weight-room-workout-command__title">
-          <h3>{selectedWorkout ? workoutSessionTitle(data, selectedWorkout) : "No workout selected"}</h3>
-          <span>{selectedWorkout ? (selectedWorkout.completed ? "Completed" : "Open") : "Log a workout to view sets"}</span>
-        </div>
         <div className="weight-room-workout-command__metrics">
           <span><strong>{formatWorkoutVolume(volume)}</strong><small>Total Volume</small></span>
           <span><strong>{trackedEntries.length}</strong><small>Sets Tracked</small></span>
@@ -8677,9 +8668,9 @@ function WeightRoomWorkoutDetail({
           <WeightRoomSortHeader label="Set" sortKey="set" sort={sort} onSort={onSort} />
           <WeightRoomSortHeader label="Current" sortKey="current" sort={sort} onSort={onSort} />
           <WeightRoomSortHeader label="Last" sortKey="previous" sort={sort} onSort={onSort} />
-          <WeightRoomSortHeader label="Chg" sortKey="changeLast" sort={sort} onSort={onSort} />
+          <WeightRoomSortHeader label="Change" sortKey="changeLast" sort={sort} onSort={onSort} />
           <WeightRoomSortHeader label="Start" sortKey="start" sort={sort} onSort={onSort} />
-          <WeightRoomSortHeader label="Since" sortKey="changeStart" sort={sort} onSort={onSort} />
+          <WeightRoomSortHeader label="Since Start" sortKey="changeStart" sort={sort} onSort={onSort} />
           <WeightRoomSortHeader label="RPE" sortKey="rpe" sort={sort} onSort={onSort} />
         </div>
         {groupedRows.map((group) => {
@@ -8691,9 +8682,9 @@ function WeightRoomWorkoutDetail({
                 <small>{group.rows.length} set{group.rows.length === 1 ? "" : "s"}</small>
                 {collapsed ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronUp size={16} aria-hidden="true" />}
               </button>
-              {!collapsed && group.rows.map((row, index) => (
+              {!collapsed && group.rows.map((row) => (
                 <div key={row.entry.id} className="weight-room-athlete-table__row" role="row">
-                  <strong>{index === 0 ? row.entry.exercise : ""}</strong>
+                  <span className="weight-room-workout-set-exercise-cell" aria-hidden="true" />
                   <span>{row.entry.setNumber ?? row.entry.sets ?? "-"}</span>
                   <span>{formatWorkoutEntryValue(row.entry)}</span>
                   <span>{row.previous ? formatWorkoutEntryValue(row.previous) : "--"}</span>
@@ -8721,8 +8712,6 @@ function WeightRoomAthleteExercises({
   category,
   onCategory,
   categories,
-  dataView,
-  onDataView,
   sort,
   onSort,
   expandedExercise,
@@ -8736,8 +8725,6 @@ function WeightRoomAthleteExercises({
   category: WeightRoomExerciseCategory | "All";
   onCategory: (value: WeightRoomExerciseCategory | "All") => void;
   categories: Array<WeightRoomExerciseCategory | "All">;
-  dataView: WeightRoomExerciseDataView;
-  onDataView: (value: WeightRoomExerciseDataView) => void;
   sort: WeightRoomSortState<WeightRoomExerciseSortKey>;
   onSort: (key: WeightRoomExerciseSortKey) => void;
   expandedExercise?: string;
@@ -8748,10 +8735,9 @@ function WeightRoomAthleteExercises({
       <div className="weight-room-athlete-section-title">
         <div>
           <h3>Exercise Progress</h3>
-          <p>Track how {firstName(player)} is developing across the team exercise library.</p>
         </div>
       </div>
-      <div className="weight-room-athlete-controls weight-room-athlete-controls--wide">
+      <div className="weight-room-athlete-controls weight-room-athlete-controls--wide weight-room-athlete-controls--exercise-box">
         <label>
           <Search size={16} aria-hidden="true" />
           <input value={query} onChange={(event) => onQuery(event.target.value)} placeholder="Search exercises..." aria-label="Search athlete exercises" />
@@ -8763,25 +8749,15 @@ function WeightRoomAthleteExercises({
           onChange={(value) => onCategory(value as WeightRoomExerciseCategory | "All")}
           aria-label="Exercise category"
         />
-        <ChoiceSelect
-          value={dataView}
-          className="form-choice"
-          options={[
-            { value: "data", label: "Exercises with Data" },
-            { value: "all", label: "All Exercises" },
-          ]}
-          onChange={(value) => onDataView(value as WeightRoomExerciseDataView)}
-          aria-label="Exercise rows"
-        />
       </div>
       <div className="weight-room-athlete-table weight-room-exercise-box-table" role="table" aria-label={`${player.name} exercise box score`}>
         <div className="weight-room-athlete-table__head" role="row">
           <WeightRoomSortHeader label="Exercise" sortKey="exercise" sort={sort} onSort={onSort} />
           <WeightRoomSortHeader label="Current" sortKey="current" sort={sort} onSort={onSort} />
           <WeightRoomSortHeader label="Last" sortKey="previous" sort={sort} onSort={onSort} />
-          <WeightRoomSortHeader label="Chg" sortKey="changeLast" sort={sort} onSort={onSort} />
+          <WeightRoomSortHeader label="Change" sortKey="changeLast" sort={sort} onSort={onSort} />
           <WeightRoomSortHeader label="Start" sortKey="start" sort={sort} onSort={onSort} />
-          <WeightRoomSortHeader label="Since" sortKey="changeStart" sort={sort} onSort={onSort} />
+          <WeightRoomSortHeader label="Since Start" sortKey="changeStart" sort={sort} onSort={onSort} />
           <WeightRoomSortHeader label="Best" sortKey="best" sort={sort} onSort={onSort} />
           <WeightRoomSortHeader label="Sets" sortKey="sets" sort={sort} onSort={onSort} />
         </div>
@@ -8800,9 +8776,8 @@ function WeightRoomAthleteExercises({
             {expandedExercise === row.exercise.name && <WeightRoomExerciseDrilldown data={data} row={row} />}
           </div>
         ))}
-        {!rows.length && <CompactEmpty title={dataView === "data" ? "No exercises with data match the current filters." : "No exercise rows match the current filters."} />}
+        {!rows.length && <CompactEmpty title="No exercise rows match the current filters." />}
       </div>
-      {dataView === "data" && <small className="weight-room-table-footnote">Only exercises with data are shown. Use All Exercises to scan the full library.</small>}
     </div>
   );
 }
@@ -12737,17 +12712,19 @@ function buildWeightRoomAthleteFocus(player: Player, profile: ReturnType<typeof 
 }
 
 function buildWeightRoomProgressInsight(player: Player, rows: ReturnType<typeof buildWeightRoomPlayerProgressRows>, score?: WeightLeaderResult) {
-  if (!score && !rows.length) return "Not enough history yet to generate a development insight.";
+  if (!score && !rows.length) return "Log two comparable workouts, then use the same exercises and units so the system can identify the next lift to push.";
   const improving = rows.filter((row) => typeof row.changePct === "number" && row.changePct > 1);
   const flat = rows.filter((row) => typeof row.changePct === "number" && Math.abs(row.changePct) <= 1);
   const declining = rows.filter((row) => typeof row.changePct === "number" && row.changePct < -1);
   if (improving.length && flat.length) {
-    return `${firstName(player)} is trending up on ${improving[0].exercise.name}, while ${flat[0].exercise.name} has stayed near baseline.`;
+    return `Next best move: keep ${improving[0].exercise.name} progressing, then give ${flat[0].exercise.name} a small overload target so it stops sitting at baseline.`;
   }
-  if (improving.length) return `${firstName(player)} is trending up on ${improving[0].exercise.name} based on comparable workout history.`;
-  if (declining.length) return `${declining[0].exercise.name} is below baseline; review load, reps, and recent workload before adjusting the plan.`;
-  if (score) return `${firstName(player)} has a ${score.score}/100 development score with the current scoring components shown above.`;
-  return "Not enough history yet to generate a development insight.";
+  if (improving.length) return `Next best move: build the week around ${improving[0].exercise.name}, then add one secondary lift with a clear load or rep target.`;
+  if (declining.length) return `Next best move: reset ${declining[0].exercise.name} with a manageable target and check whether load, recovery, or missed sets caused the dip.`;
+  const lowestScorePart = score?.breakdown?.slice().sort((left, right) => (left.value / Math.max(1, left.max)) - (right.value / Math.max(1, right.max)))[0];
+  if (lowestScorePart) return `Next best move: attack ${lowestScorePart.label.toLowerCase()} first. Keep the completed-workout rhythm, but add one measurable overload target to create a cleaner progress signal.`;
+  if (score) return `Next best move: keep the workout rhythm, then add one comparable set target so ${firstName(player)} can turn the ${score.score}/100 score into visible week-over-week movement.`;
+  return "Log another comparable workout so the next recommendation can point to a specific lift, load, and trend.";
 }
 
 function formatWeightRoomTrend(value: number | undefined, suffix: string) {
