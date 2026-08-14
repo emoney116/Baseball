@@ -145,7 +145,7 @@ type AnalyticsContext = "All" | "Practice" | "Game" | "Live BP" | "Weight Room";
 type DateFilter = "Last Week" | "Last 30 Days" | "Fall";
 type PracticeRosterPreset = "All" | "Varsity" | "JV" | "Custom";
 type PracticeHubTab = "Overview" | "Drills" | "Throwing" | "Metrics" | "History";
-type PracticeDrilldown = { kind: "hub" } | { kind: "attendance" } | { kind: "setup"; mode: PracticeMode };
+type PracticeDrilldown = { kind: "hub" } | { kind: "attendance" };
 type LiveBpOutcomeLabel = "K" | "BB" | "HBP" | "1B" | "2B" | "3B" | "HR" | "Out" | "Error" | "FC";
 type AppIcon = React.ComponentType<{ size?: number | string; "aria-hidden"?: boolean | "true" | "false"; className?: string }>;
 type ScheduleViewMode = "Calendar" | "Week" | "Agenda";
@@ -686,8 +686,34 @@ export default function MetrolinaBaseballApp() {
 
   function openPracticeStation(mode: PracticeMode) {
     setPracticeMode(mode);
-    setPracticeDrilldown({ kind: "setup", mode });
-    setPracticeTrackingOpen(false);
+    if (!practice || !data) {
+      setPracticeDrilldown({ kind: "hub" });
+      setPracticeTrackingOpen(false);
+      setStartPracticeOpen(true);
+      return;
+    }
+    const availablePlayers = availablePracticePlayers(data, practice);
+    const nextPlayer =
+      mode === "Pitching"
+        ? availablePlayers.find((player) => player.isPitcher)
+        : mode === "Hitting"
+          ? availablePlayers.find((player) => player.isHitter)
+          : mode === "Live BP"
+            ? availablePlayers.find((player) => player.isPitcher)
+            : availablePlayers[0];
+    if (nextPlayer) {
+      setPracticePlayerId(nextPlayer.id);
+      setSelectedPlayerId(nextPlayer.id);
+      if (mode === "Live BP") {
+        const nextHitter = availablePlayers.find((player) => player.isHitter && player.id !== nextPlayer.id);
+        setPitchingStation("Live BP");
+        setHittingStation("Live BP");
+        setLiveBpPitcherId(nextPlayer.id);
+        if (nextHitter) setLiveBpHitterId(nextHitter.id);
+      }
+    }
+    setPracticeDrilldown({ kind: "hub" });
+    setPracticeTrackingOpen(true);
   }
 
   function resumePracticeSession(session: PracticeActiveSessionRow) {
@@ -714,51 +740,6 @@ export default function MetrolinaBaseballApp() {
       const pitchingNext = ensurePitchingSession(current, practice, session.primaryPlayerId, "Live BP", profileId, session.secondaryPlayerId);
       if (!session.secondaryPlayerId) return pitchingNext.data;
       return ensureHittingSession(pitchingNext.data, practice, session.secondaryPlayerId, "Live BP", profileId).data;
-    });
-  }
-
-  function startConfiguredPracticeSession(input: {
-    mode: PracticeMode;
-    station?: HittingSession["type"] | PitchingSession["type"] | DefenseStation;
-    playerIds: ID[];
-    liveBpPitcherId?: ID;
-    liveBpHitterId?: ID;
-  }) {
-    const firstPlayerId = input.liveBpPitcherId ?? input.playerIds[0];
-    if (!firstPlayerId) return;
-
-    setPracticeMode(input.mode);
-    if (input.mode === "Hitting" && input.station) setHittingStation(input.station as HittingSession["type"]);
-    if (input.mode === "Pitching" && input.station) setPitchingStation(input.station as PitchingSession["type"]);
-    if (input.mode === "Defense" && input.station) setDefenseStation(input.station as DefenseStation);
-    if (input.mode === "Live BP") {
-      setPitchingStation("Live BP");
-      setHittingStation("Live BP");
-      if (input.liveBpPitcherId) setLiveBpPitcherId(input.liveBpPitcherId);
-      if (input.liveBpHitterId) setLiveBpHitterId(input.liveBpHitterId);
-    }
-    setPracticePlayerId(firstPlayerId);
-    setSelectedPlayerId(firstPlayerId);
-    setPracticeDrilldown({ kind: "hub" });
-    setPracticeTrackingOpen(true);
-
-    if (!practice) return;
-    commit((current) => {
-      const profileId = current.teamContext?.profile?.id;
-      if (input.mode === "Live BP" && input.liveBpPitcherId && input.liveBpHitterId) {
-        const pitchingNext = ensurePitchingSession(current, practice, input.liveBpPitcherId, "Live BP", profileId, input.liveBpHitterId);
-        const hittingNext = ensureHittingSession(pitchingNext.data, practice, input.liveBpHitterId, "Live BP", profileId);
-        return touchRecentPlayers(touchRecentPlayers(hittingNext.data, input.liveBpPitcherId), input.liveBpHitterId);
-      }
-      return input.playerIds.reduce((nextData, playerId) => {
-        const next =
-          input.mode === "Hitting"
-            ? ensureHittingSession(nextData, practice, playerId, (input.station as HittingSession["type"]) ?? hittingStation, profileId)
-            : input.mode === "Pitching"
-              ? ensurePitchingSession(nextData, practice, playerId, (input.station as PitchingSession["type"]) ?? pitchingStation, profileId)
-              : ensureDefenseSession(nextData, practice, playerId, (input.station as DefenseStation) ?? defenseStation, profileId);
-        return touchRecentPlayers(next.data, playerId);
-      }, current);
     });
   }
 
@@ -1885,22 +1866,6 @@ export default function MetrolinaBaseballApp() {
           />
         )}
 
-        {view === "practice" && practicePlayer && practice && !practiceTrackingOpen && practiceDrilldown.kind === "setup" && (
-          <PracticeSessionSetup
-            data={data}
-            practice={practice}
-            mode={practiceDrilldown.mode}
-            currentPlayerId={practicePlayer.id}
-            hittingStation={hittingStation}
-            pitchingStation={pitchingStation}
-            defenseStation={defenseStation}
-            liveBpPitcherId={liveBpPitcherId}
-            liveBpHitterId={liveBpHitterId}
-            onBack={() => setPracticeDrilldown({ kind: "hub" })}
-            onStart={startConfiguredPracticeSession}
-          />
-        )}
-
         {view === "practice" && practicePlayer && practiceTrackingOpen && (
           <PracticeConsole
             data={data}
@@ -2744,22 +2709,14 @@ function TeamWorkspaceHeader({
   const current = context?.currentTeam;
   if (!current) return null;
   const isTeamHome = view === "teamHome";
+  if (!isTeamHome) return null;
   return (
-    <section className={`team-workspace-header ${isTeamHome ? "team-workspace-header--home" : "team-workspace-header--compact"}`}>
+    <section className="team-workspace-header team-workspace-header--home">
       <OrganizationLogo name={current.organizationName} logoUrl={teamOrganizationLogo(current, context)} />
       <div className="team-workspace-header__identity">
-        {isTeamHome ? (
-          <>
-            <span>{current.organizationName}</span>
-            <TeamIdentitySwitcher context={context} current={current} onSwitch={onSwitch} onClubhouseHome={onClubhouseHome} />
-            <small>{current.seasonName ?? "Current season"}</small>
-          </>
-        ) : (
-          <div className="team-compact-title">
-            <TeamIdentitySwitcher context={context} current={current} onSwitch={onSwitch} onClubhouseHome={onClubhouseHome} compact />
-            <small>{current.seasonName ?? "Current season"}</small>
-          </div>
-        )}
+        <span>{current.organizationName}</span>
+        <TeamIdentitySwitcher context={context} current={current} onSwitch={onSwitch} onClubhouseHome={onClubhouseHome} />
+        <small>{current.seasonName ?? "Current season"}</small>
       </div>
       <div className="team-workspace-header__actions">
         <button type="button" className="primary-button" onClick={onStartPractice}>
@@ -6288,179 +6245,6 @@ function PracticeAttendanceDrilldown({
         </button>
       </section>
       <AttendanceRoster players={roster} statuses={statuses} onStatus={onStatus} />
-    </div>
-  );
-}
-
-function PracticeSessionSetup({
-  data,
-  practice,
-  mode,
-  currentPlayerId,
-  hittingStation,
-  pitchingStation,
-  defenseStation,
-  liveBpPitcherId,
-  liveBpHitterId,
-  onBack,
-  onStart,
-}: {
-  data: AppData;
-  practice: Practice;
-  mode: PracticeMode;
-  currentPlayerId: ID;
-  hittingStation: HittingSession["type"];
-  pitchingStation: PitchingSession["type"];
-  defenseStation: DefenseStation;
-  liveBpPitcherId: ID;
-  liveBpHitterId: ID;
-  onBack: () => void;
-  onStart: (input: { mode: PracticeMode; station?: HittingSession["type"] | PitchingSession["type"] | DefenseStation; playerIds: ID[]; liveBpPitcherId?: ID; liveBpHitterId?: ID }) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<"All" | "Pitchers" | "Catchers" | "Infield" | "Outfield">("All");
-  const [station, setStation] = useState<HittingSession["type"] | PitchingSession["type"] | DefenseStation>(
-    mode === "Hitting" ? hittingStation : mode === "Pitching" ? pitchingStation : mode === "Defense" ? defenseStation : "Live BP",
-  );
-  const attendanceAvailablePlayers = availablePracticePlayers(data, practice);
-  const eligiblePlayers = attendanceAvailablePlayers
-    .filter((player) => mode !== "Hitting" || player.isHitter)
-    .filter((player) => mode !== "Pitching" || player.isPitcher)
-    .filter((player) => {
-      if (filter === "Pitchers") return player.isPitcher;
-      if (filter === "Catchers") return player.primaryPosition === "C" || player.secondaryPosition === "C";
-      if (filter === "Infield") return ["1B", "2B", "3B", "SS", "INF"].includes(player.primaryPosition) || ["1B", "2B", "3B", "SS", "INF"].includes(player.secondaryPosition ?? "");
-      if (filter === "Outfield") return ["LF", "CF", "RF", "OF"].includes(player.primaryPosition) || ["LF", "CF", "RF", "OF"].includes(player.secondaryPosition ?? "");
-      return true;
-    })
-    .filter((player) => `${player.name} ${player.jerseyNumber} ${player.primaryPosition} ${player.secondaryPosition ?? ""}`.toLowerCase().includes(query.toLowerCase()));
-  const initialSelection = eligiblePlayers.some((player) => player.id === currentPlayerId) ? currentPlayerId : eligiblePlayers[0]?.id ?? currentPlayerId;
-  const [selectedIds, setSelectedIds] = useState<ID[]>(mode === "Live BP" ? [] : initialSelection ? [initialSelection] : []);
-  const [pitcherId, setPitcherId] = useState(liveBpPitcherId || attendanceAvailablePlayers.find((player) => player.isPitcher)?.id || "");
-  const [hitterId, setHitterId] = useState(liveBpHitterId || attendanceAvailablePlayers.find((player) => player.isHitter && player.id !== pitcherId)?.id || "");
-  const stations: Array<HittingSession["type"] | PitchingSession["type"] | DefenseStation> =
-    mode === "Hitting" ? HITTING_STATIONS : mode === "Pitching" ? PITCHING_STATIONS : mode === "Defense" ? DEFENSE_STATIONS : ["Live BP"];
-  const isMultiSelect = mode !== "Pitching";
-
-  function togglePlayer(playerId: ID) {
-    setSelectedIds((current) => {
-      if (!isMultiSelect) return [playerId];
-      return current.includes(playerId) ? current.filter((id) => id !== playerId) : [...current, playerId];
-    });
-  }
-
-  function selectAll() {
-    setSelectedIds(eligiblePlayers.map((player) => player.id));
-  }
-
-  function startSession() {
-    if (mode === "Live BP") {
-      onStart({ mode, playerIds: [pitcherId, hitterId].filter(Boolean), liveBpPitcherId: pitcherId, liveBpHitterId: hitterId });
-      return;
-    }
-    onStart({ mode, station, playerIds: selectedIds.length ? selectedIds : eligiblePlayers.slice(0, 1).map((player) => player.id) });
-  }
-
-  return (
-    <div className="page-stack practice-setup-page">
-      <section className={`practice-drilldown-header panel practice-drilldown-header--${practiceModeClass(mode)}`}>
-        <button className="ghost-button" type="button" onClick={onBack}>
-          <ChevronLeft size={16} aria-hidden="true" />
-          Practice
-        </button>
-        <div>
-          <span>{practice.name} - {shortDate(practice.date)}</span>
-          <h2>{mode}</h2>
-        </div>
-        <button className="primary-button" type="button" onClick={startSession} disabled={mode === "Live BP" ? !pitcherId || !hitterId : selectedIds.length === 0}>
-          Start Session
-          <ChevronRight size={16} aria-hidden="true" />
-        </button>
-      </section>
-
-      {mode === "Live BP" ? (
-        <section className="practice-livebp-setup panel">
-          <h2>Start Matchup</h2>
-          <div className="live-bp-select-grid">
-            <PlayerPickerColumn label="Pitcher" players={data.players.filter((player) => !player.archived && practice.playerIds.includes(player.id) && player.isPitcher)} selectedId={pitcherId} onSelect={setPitcherId} />
-            <div className="live-bp-vs">vs</div>
-            <PlayerPickerColumn label="Hitter" players={data.players.filter((player) => !player.archived && practice.playerIds.includes(player.id) && player.isHitter && player.id !== pitcherId)} selectedId={hitterId} onSelect={setHitterId} />
-          </div>
-        </section>
-      ) : (
-        <section className="practice-setup-grid">
-          <article className="panel practice-setup-options">
-            <span>What are you tracking?</span>
-            <div className="practice-setup-choice-grid">
-              {stations.map((item) => (
-                <button key={item} type="button" className={station === item ? "active" : ""} onClick={() => setStation(item)}>
-                  {item}
-                </button>
-              ))}
-            </div>
-          </article>
-
-          <article className="panel practice-player-select">
-            <div className="panel-heading tight">
-              <div>
-                <h2>Select Players</h2>
-                <span>{selectedIds.length} selected</span>
-              </div>
-              <div className="practice-player-actions">
-                {isMultiSelect && <button type="button" className="text-button" onClick={selectAll}>Select All</button>}
-                <button type="button" className="text-button" onClick={() => setSelectedIds([])}>Clear</button>
-              </div>
-            </div>
-            <div className="practice-player-toolbar">
-              <label>
-                <Search size={15} aria-hidden="true" />
-                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search roster..." />
-              </label>
-              <SegmentedControl values={["All", "Pitchers", "Catchers", "Infield", "Outfield"] as const} active={filter} onChange={setFilter} />
-            </div>
-            <div className="practice-player-grid">
-              {eligiblePlayers.map((player) => (
-                <button key={player.id} type="button" className={selectedIds.includes(player.id) ? "active" : ""} onClick={() => togglePlayer(player.id)}>
-                  <PlayerAvatar player={player} size="sm" compact />
-                  <span>
-                    <strong>#{player.jerseyNumber} {player.name}</strong>
-                    <small>{positionLine(player)}</small>
-                  </span>
-                  {selectedIds.includes(player.id) && <Check size={16} aria-hidden="true" />}
-                </button>
-              ))}
-              {!eligiblePlayers.length && <CompactEmpty title="No players match this setup" />}
-            </div>
-          </article>
-        </section>
-      )}
-    </div>
-  );
-}
-
-function PlayerPickerColumn({
-  label,
-  players,
-  selectedId,
-  onSelect,
-}: {
-  label: string;
-  players: Player[];
-  selectedId: ID;
-  onSelect: (playerId: ID) => void;
-}) {
-  return (
-    <div className="player-picker-column">
-      <span>{label}</span>
-      {players.map((player) => (
-        <button key={player.id} type="button" className={player.id === selectedId ? "active" : ""} onClick={() => onSelect(player.id)}>
-          <PlayerAvatar player={player} size="sm" compact />
-          <span>
-            <strong>#{player.jerseyNumber} {player.name}</strong>
-            <small>{positionLine(player)}</small>
-          </span>
-        </button>
-      ))}
     </div>
   );
 }
