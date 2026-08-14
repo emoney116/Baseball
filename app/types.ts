@@ -578,17 +578,26 @@ export interface WorkoutSession {
   updatedAt: string;
 }
 
+export type WorkoutSetStatus = "Completed" | "Modified" | "Skipped";
+export type WorkoutEntrySource = "COACH" | "PLAYER" | "IMPORT" | "DEVICE";
+
 export interface WorkoutEntry {
   id: ID;
   sessionId: ID;
   playerId: ID;
   exercise: string;
   kind: ExerciseKind;
+  setNumber?: number;
   weight?: number;
   reps?: number;
   sets?: number;
   value?: number;
   unit?: "lb" | "in" | "sec" | "mph" | "reps";
+  rpe?: number;
+  status?: WorkoutSetStatus;
+  notes?: string;
+  createdByProfileId?: ID;
+  entrySource?: WorkoutEntrySource;
   priorValue?: number;
   createdAt: string;
 }

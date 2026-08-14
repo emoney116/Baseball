@@ -25,6 +25,7 @@ export interface GameRepository {
 export interface WorkoutRepository {
   upsertSession(data: AppData, session: WorkoutSession): AppData;
   logEntry(data: AppData, session: WorkoutSession, entry: WorkoutEntry): AppData;
+  removeEntry(data: AppData, entryId: ID): AppData;
 }
 
 export const localPracticeRepository: PracticeRepository = {
@@ -170,6 +171,12 @@ export const workoutRepository: WorkoutRepository = {
     return {
       ...nextData,
       workoutEntries: [entry, ...nextData.workoutEntries],
+    };
+  },
+  removeEntry(data, entryId) {
+    return {
+      ...data,
+      workoutEntries: data.workoutEntries.filter((entry) => entry.id !== entryId),
     };
   },
 };

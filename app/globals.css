@@ -8318,6 +8318,785 @@ select option {
   color: var(--muted);
 }
 
+.weight-room-page {
+  gap: 14px;
+}
+
+.weight-room-shell-header {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.weight-room-shell-header__identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.weight-room-shell-header__identity h2,
+.weight-room-shell-header__identity small,
+.weight-room-shell-header__identity em {
+  display: block;
+}
+
+.weight-room-shell-header__identity h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 0.95;
+}
+
+.weight-room-shell-header__identity small,
+.weight-room-shell-header__identity em,
+.weight-room-active-header small,
+.weight-room-active-header span,
+.weight-room-bodyweight span,
+.weight-room-read-row small {
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 850;
+}
+
+.weight-room-shell-header__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.organization-logo--lg {
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+}
+
+.organization-logo--sm {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+}
+
+.weight-room-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 1.05fr) minmax(260px, 0.95fr) minmax(360px, 1.25fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.weight-room-today-card,
+.weight-room-team-overview,
+.weight-room-actions-card {
+  grid-column: span 1;
+}
+
+.weight-room-recent-card,
+.weight-room-weigh-card {
+  min-height: 100%;
+}
+
+.weight-room-plan-row {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.65fr) minmax(220px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  margin-top: 10px;
+}
+
+.weight-room-template-preview,
+.weight-room-action-grid,
+.weight-room-template-grid,
+.weight-room-exercise-chip-list,
+.weight-room-library-list,
+.weight-room-player-list,
+.weight-room-workout-list {
+  display: grid;
+  gap: 8px;
+}
+
+.weight-room-template-preview {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 10px;
+}
+
+.weight-room-template-preview button,
+.weight-room-action-grid button,
+.weight-room-template-grid button,
+.weight-room-exercise-chip-list button,
+.weight-room-library-list button,
+.weight-room-workout-list button,
+.weight-room-player-list button,
+.weight-room-read-row,
+.weight-room-mini-table button,
+.weight-room-mini-table > div,
+.weight-room-result-table button,
+.weight-room-result-table > div,
+.weight-room-leaderboard-table button,
+.weight-room-leaderboard-table > div,
+.weight-room-weigh-table label,
+.weight-room-weigh-table > div {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+}
+
+.weight-room-template-preview button,
+.weight-room-action-grid button,
+.weight-room-template-grid button,
+.weight-room-exercise-chip-list button,
+.weight-room-library-list button,
+.weight-room-workout-list button,
+.weight-room-player-list button,
+.weight-room-result-table button,
+.weight-room-leaderboard-table button {
+  min-height: 48px;
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-template-preview button:hover,
+.weight-room-action-grid button:hover,
+.weight-room-template-grid button:hover,
+.weight-room-exercise-chip-list button:hover,
+.weight-room-library-list button:hover,
+.weight-room-workout-list button:hover,
+.weight-room-player-list button:hover,
+.weight-room-result-table button:hover,
+.weight-room-leaderboard-table button:hover,
+.weight-room-template-grid button.active,
+.weight-room-library-list button.active,
+.weight-room-player-list button.active {
+  border-color: rgba(191, 45, 92, 0.42);
+  background: var(--burgundy-soft);
+}
+
+.weight-room-action-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.weight-room-action-grid button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+  font-weight: 950;
+}
+
+.weight-room-mini-table,
+.weight-room-result-table,
+.weight-room-leaderboard-table,
+.weight-room-weigh-table,
+.weight-room-set-table {
+  display: grid;
+  gap: 6px;
+}
+
+.weight-room-mini-table > div,
+.weight-room-mini-table button {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 72px 72px 58px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+}
+
+.weight-room-mini-table > div,
+.weight-room-result-table > div,
+.weight-room-leaderboard-table > div,
+.weight-room-weigh-table > div,
+.weight-room-set-table > div:first-child {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.weight-room-workout-list button {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.weight-room-workout-list span,
+.weight-room-template-grid span,
+.weight-room-exercise-chip-list span,
+.weight-room-library-list span {
+  min-width: 0;
+}
+
+.weight-room-workout-list small,
+.weight-room-template-grid small,
+.weight-room-exercise-chip-list small,
+.weight-room-library-list small,
+.weight-room-result-table span,
+.weight-room-leaderboard-table span,
+.weight-room-leaderboard-table small,
+.weight-room-set-table span,
+.weight-room-set-table em,
+.weight-room-weigh-table span,
+.weight-room-weigh-table em {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.weight-room-team-overview .mini-stat-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.weight-room-workout-stack,
+.weight-room-template-builder {
+  display: grid;
+  gap: 12px;
+}
+
+.weight-room-create-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(170px, 0.45fr);
+  gap: 10px;
+  margin: 8px 0 12px;
+}
+
+.weight-room-template-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.weight-room-exercise-chip-list {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.weight-room-active-layout {
+  display: grid;
+  grid-template-columns: minmax(210px, 0.56fr) minmax(420px, 1.38fr) minmax(220px, 0.62fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.weight-room-athlete-panel,
+.weight-room-set-console,
+.weight-room-exercise-rail {
+  min-height: 100%;
+}
+
+.weight-room-athlete-card {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  min-height: 82px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-athlete-card span,
+.weight-room-active-header > div:first-child,
+.weight-room-player-list span,
+.weight-room-profile-header div {
+  min-width: 0;
+}
+
+.weight-room-athlete-card strong,
+.weight-room-active-header h2,
+.weight-room-player-profile h2 {
+  color: var(--text);
+  font-weight: 950;
+}
+
+.weight-room-athlete-card small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.weight-room-bodyweight,
+.weight-room-next-up,
+.weight-room-progress-block {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.15);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.weight-room-bodyweight {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.weight-room-bodyweight button,
+.weight-room-suggestion-row button,
+.weight-room-set-table button {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.weight-room-active-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.weight-room-active-header h2 {
+  margin: 2px 0 0;
+  font-size: clamp(28px, 4vw, 48px);
+}
+
+.weight-room-session-stats {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 3px 8px;
+  align-items: baseline;
+  justify-items: end;
+}
+
+.weight-room-session-stats strong {
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.weight-room-session-stats span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.weight-room-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0 12px;
+}
+
+.weight-number-stepper {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.028);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.weight-number-stepper > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.weight-number-stepper > div {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.weight-number-stepper button {
+  border: 0;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.weight-number-stepper input {
+  min-width: 0;
+  border: 0;
+  border-inline: 1px solid var(--line);
+  outline: 0;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--text);
+  font-size: 30px;
+  font-weight: 950;
+  text-align: center;
+}
+
+.weight-number-stepper small {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.weight-room-set-actions,
+.weight-room-suggestion-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.weight-room-rest-timer {
+  margin-left: auto;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.weight-room-suggestion-row {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+}
+
+.weight-room-suggestion-row > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.weight-room-suggestion-row button {
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.weight-room-set-table > div,
+.weight-room-set-table [role="row"] {
+  display: grid;
+  grid-template-columns: 44px minmax(130px, 1fr) 70px 60px 90px 34px;
+  gap: 8px;
+  align-items: center;
+  min-height: 38px;
+  border-bottom: 1px solid var(--line);
+}
+
+.weight-room-set-table [role="row"] strong {
+  color: var(--text);
+}
+
+.weight-room-exercise-rail__list {
+  display: grid;
+  gap: 7px;
+}
+
+.weight-room-exercise-rail__list button {
+  min-height: 58px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-exercise-rail__list button.active {
+  border-color: rgba(191, 45, 92, 0.45);
+  background: var(--burgundy-soft);
+}
+
+.weight-room-exercise-rail__list em {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.weight-room-athlete-strip {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.weight-room-athlete-strip > div {
+  min-width: 0;
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.weight-room-athlete-strip > div::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-athlete-strip button {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text);
+  min-height: 50px;
+  padding: 6px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.weight-room-athlete-strip button.active {
+  border-color: rgba(191, 45, 92, 0.46);
+  background: var(--burgundy-soft);
+}
+
+.weight-room-athlete-strip button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.weight-room-active-summary {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.weight-room-player-layout,
+.weight-room-exercise-grid,
+.weight-room-leaderboard-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.36fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.weight-room-player-list button {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.weight-room-profile-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.weight-room-player-profile .segmented-control {
+  margin: 12px 0;
+}
+
+.weight-room-player-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.weight-room-player-overview .mini-chart,
+.weight-room-insight-card,
+.weight-score-breakdown {
+  grid-column: span 2;
+}
+
+.weight-room-insight-card {
+  padding: 12px;
+}
+
+.weight-room-insight-card span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.weight-room-insight-card p {
+  margin: 6px 0 0;
+  color: var(--muted-strong);
+  font-weight: 850;
+}
+
+.weight-room-read-row {
+  padding: 10px;
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.weight-room-library-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 200px;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.weight-room-library-toolbar input,
+.weight-room-custom-exercise input,
+.weight-room-weigh-table input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  outline: 0;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text);
+  padding: 9px 10px;
+}
+
+.weight-room-library-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.weight-room-custom-exercise {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  margin-top: 10px;
+}
+
+.weight-room-custom-exercise label {
+  display: grid;
+  gap: 5px;
+}
+
+.weight-room-custom-exercise label span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.weight-room-result-table > div,
+.weight-room-result-table button {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) repeat(4, minmax(76px, 0.35fr));
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+}
+
+.weight-room-leaderboard-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.38fr);
+}
+
+.weight-room-leaderboard-table > div,
+.weight-room-leaderboard-table button {
+  display: grid;
+  grid-template-columns: 46px minmax(190px, 1fr) 78px 82px 96px 100px;
+  gap: 8px;
+  align-items: center;
+  padding: 9px 10px;
+}
+
+.weight-room-leaderboard-table button > span:nth-child(2) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+
+.weight-room-leaderboard-table em {
+  color: var(--text);
+  font-size: 22px;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.weight-room-algorithm-note {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.weight-score-breakdown {
+  align-self: start;
+}
+
+.reason-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.reason-list span {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted-strong);
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.weight-room-weigh-modal {
+  width: min(760px, calc(100vw - 28px));
+}
+
+.weight-room-weigh-modal__date {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.4fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: end;
+  padding: 12px 0;
+}
+
+.weight-room-weigh-modal__date small {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.weight-room-weigh-table {
+  max-height: min(56vh, 520px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.weight-room-weigh-table > div,
+.weight-room-weigh-table label {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) 90px 110px 70px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+}
+
+.positive {
+  color: var(--green) !important;
+}
+
+.negative {
+  color: var(--red) !important;
+}
+
+.muted {
+  color: var(--muted) !important;
+}
+
 .games-layout {
   display: grid;
   grid-template-columns: 270px minmax(0, 1fr);
@@ -9145,6 +9924,40 @@ select option {
   }
 }
 
+@media (max-width: 1320px) {
+  .weight-room-shell-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .weight-room-shell-header__actions {
+    justify-content: flex-start;
+  }
+
+  .weight-room-overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weight-room-active-layout {
+    grid-template-columns: minmax(190px, 0.42fr) minmax(0, 1fr);
+  }
+
+  .weight-room-exercise-rail {
+    grid-column: 1 / -1;
+  }
+
+  .weight-room-exercise-rail__list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .weight-room-active-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weight-room-active-summary .primary-button {
+    justify-self: start;
+  }
+}
+
 @media (max-width: 1220px) {
   .dashboard-grid,
   .weights-grid,
@@ -9179,6 +9992,23 @@ select option {
   }
 
   .quick-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weight-room-overview-grid,
+  .weight-room-player-layout,
+  .weight-room-exercise-grid,
+  .weight-room-leaderboard-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-template-grid,
+  .weight-room-exercise-rail__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weight-room-team-overview .mini-stat-grid,
+  .weight-room-player-overview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -9336,6 +10166,57 @@ select option {
 
   .single-player-table {
     overflow-x: auto;
+  }
+
+  .weight-room-shell-header__identity h2 {
+    font-size: 32px;
+  }
+
+  .weight-room-plan-row,
+  .weight-room-create-grid,
+  .weight-room-active-layout,
+  .weight-room-entry-grid,
+  .weight-room-profile-header,
+  .weight-room-library-toolbar,
+  .weight-room-custom-exercise,
+  .weight-room-weigh-modal__date,
+  .weight-room-active-header,
+  .weight-room-athlete-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-template-preview,
+  .weight-room-action-grid,
+  .weight-room-template-grid,
+  .weight-room-exercise-chip-list,
+  .weight-room-exercise-rail__list,
+  .weight-room-team-overview .mini-stat-grid,
+  .weight-room-player-overview,
+  .weight-room-active-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-active-summary .primary-button {
+    width: 100%;
+  }
+
+  .weight-room-result-table,
+  .weight-room-leaderboard-table,
+  .weight-room-set-table,
+  .weight-room-weigh-table {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .weight-room-result-table > div,
+  .weight-room-result-table button,
+  .weight-room-leaderboard-table > div,
+  .weight-room-leaderboard-table button,
+  .weight-room-set-table > div,
+  .weight-room-set-table [role="row"],
+  .weight-room-weigh-table > div,
+  .weight-room-weigh-table label {
+    min-width: 620px;
   }
 }
 
