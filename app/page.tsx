@@ -7287,20 +7287,6 @@ function WeightRoomView({
           <WeightRoomWeighInCard data={data} players={players} date={workoutDate} onOpen={() => onWeighInOpen(true)} />
           <WeightRoomRecentWorkouts data={data} players={players} onStart={startWorkoutFromSelection} onReview={reviewWorkout} onViewAll={openWorkoutBuilder} />
           <WeightRoomTeamOverview overview={teamOverview} onViewWorkouts={openWorkoutBuilder} onStartWorkout={() => startWorkoutFromSelection()} />
-          <article className="panel weight-room-actions-card">
-            <div className="panel-heading tight">
-              <div>
-                <span>Quick Actions</span>
-                <h2>Coach Tools</h2>
-              </div>
-            </div>
-            <div className="weight-room-action-grid">
-              <button type="button" onClick={openWorkoutBuilder}><Plus size={16} aria-hidden="true" />Build Workout</button>
-              <button type="button" onClick={() => onWeighInOpen(true)}><Gauge size={16} aria-hidden="true" />Log Weigh-Ins</button>
-              <button type="button" onClick={() => onTab("Athletes")}><Users size={16} aria-hidden="true" />View Athletes</button>
-              <button type="button" onClick={() => onTab("Exercises")}><Dumbbell size={16} aria-hidden="true" />Exercise Library</button>
-            </div>
-          </article>
         </section>
       )}
 

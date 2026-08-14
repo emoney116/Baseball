@@ -8385,18 +8385,12 @@ select option {
   align-items: stretch;
 }
 
-.weight-room-today-card,
-.weight-room-actions-card {
+.weight-room-today-card {
   grid-column: span 1;
-}
-
-.weight-room-actions-card {
-  display: grid;
-  grid-template-rows: auto 1fr;
 }
 
 .weight-room-team-overview {
-  grid-column: span 1;
+  grid-column: span 2;
 }
 
 .weight-room-recent-card,
@@ -8417,7 +8411,6 @@ select option {
 }
 
 .weight-room-template-preview,
-.weight-room-action-grid,
 .weight-room-template-grid,
 .weight-room-exercise-chip-list,
 .weight-room-library-list,
@@ -8433,7 +8426,6 @@ select option {
 }
 
 .weight-room-template-preview button,
-.weight-room-action-grid button,
 .weight-room-template-grid button,
 .weight-room-exercise-chip-list button,
 .weight-room-library-row,
@@ -8455,7 +8447,6 @@ select option {
 }
 
 .weight-room-template-preview button,
-.weight-room-action-grid button,
 .weight-room-template-grid button,
 .weight-room-exercise-chip-list button,
 .weight-room-workout-list button,
@@ -8469,7 +8460,6 @@ select option {
 }
 
 .weight-room-template-preview button:hover,
-.weight-room-action-grid button:hover,
 .weight-room-template-grid button:hover,
 .weight-room-exercise-chip-list button:hover,
 .weight-room-workout-list button:hover,
@@ -8487,21 +8477,6 @@ select option {
 .weight-room-library-row.confirming {
   border-color: rgba(191, 45, 92, 0.42);
   background: var(--burgundy-soft);
-}
-
-.weight-room-action-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  min-height: 0;
-}
-
-.weight-room-action-grid button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: flex-start;
-  font-weight: 950;
-  min-height: 0;
 }
 
 .weight-room-mini-table,
@@ -10427,6 +10402,10 @@ select option {
     grid-column: auto;
   }
 
+  .weight-room-team-overview {
+    grid-column: auto;
+  }
+
   .weight-room-active-layout {
     grid-template-columns: minmax(190px, 0.42fr) minmax(0, 1fr);
   }
@@ -10686,7 +10665,6 @@ select option {
   }
 
   .weight-room-template-preview,
-  .weight-room-action-grid,
   .weight-room-template-grid,
   .weight-room-exercise-chip-list,
   .weight-room-exercise-rail__list,
