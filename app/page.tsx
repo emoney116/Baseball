@@ -133,6 +133,7 @@ import type {
 
 type ViewKey = "home" | "organizations" | "teams" | "following" | "discover" | "teamHome" | "schedule" | "roster" | "practice" | "weights" | "games" | "analytics" | "profile" | "account";
 type PracticeMode = "Hitting" | "Pitching" | "Defense" | "Live BP";
+type PracticeTrackerPlayerFilter = "All" | "Pitchers" | "Hitters" | "Infield" | "Outfield";
 type RosterFilter = "All" | RosterStatus;
 type RosterSection = "Players" | "Staff";
 type RosterPositionFilter = "All" | Position;
@@ -270,7 +271,7 @@ const PITCH_TYPE_LABELS: Record<PitchType, string> = {
   Splitter: "SP",
   Other: "OT",
 };
-const HITTING_STATIONS: HittingSession["type"][] = ["Tee", "Front Toss", "Machine", "Coach BP", "Live BP"];
+const HITTING_STATIONS: HittingSession["type"][] = ["Tee", "Front Toss", "Hack Attack - FB", "Hack Attack - CB", "Coach BP", "Live BP", "Other"];
 const PITCHING_STATIONS: PitchingSession["type"][] = ["Bullpen", "Flat Ground", "Live", "Other"];
 const DEFENSE_STATIONS: DefenseStation[] = ["Infield", "Outfield", "Catching", "PFP", "Situational defense", "Team defense"];
 const GAME_TYPES: GameType[] = ["Fall Game", "Scrimmage", "Showcase", "Regular Season", "Tournament", "Other"];
@@ -408,7 +409,7 @@ export default function MetrolinaBaseballApp() {
   const [practiceDrilldown, setPracticeDrilldown] = useState<PracticeDrilldown>({ kind: "hub" });
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("Hitting");
   const [practicePlayerId, setPracticePlayerId] = useState<ID>("p-jackson-smith");
-  const [hittingStation, setHittingStation] = useState<HittingSession["type"]>("Machine");
+  const [hittingStation, setHittingStation] = useState<HittingSession["type"]>("Hack Attack - FB");
   const [pitchingStation, setPitchingStation] = useState<PitchingSession["type"]>("Bullpen");
   const [defenseStation, setDefenseStation] = useState<DefenseStation>("Infield");
   const [selectedPitchType, setSelectedPitchType] = useState<PitchType>("4-Seam");
@@ -693,7 +694,7 @@ export default function MetrolinaBaseballApp() {
     setPracticeMode(session.mode);
     setPracticePlayerId(session.primaryPlayerId);
     setSelectedPlayerId(session.primaryPlayerId);
-    if (session.mode === "Hitting") setHittingStation((session.station as HittingSession["type"]) || "Machine");
+    if (session.mode === "Hitting") setHittingStation(normalizeHittingStation(session.station));
     if (session.mode === "Pitching") setPitchingStation((session.station as PitchingSession["type"]) || "Bullpen");
     if (session.mode === "Defense") setDefenseStation((session.station as DefenseStation) || "Infield");
     if (session.mode === "Live BP") {
@@ -707,7 +708,7 @@ export default function MetrolinaBaseballApp() {
     if (!practice) return;
     commit((current) => {
       const profileId = current.teamContext?.profile?.id;
-      if (session.mode === "Hitting") return ensureHittingSession(current, practice, session.primaryPlayerId, (session.station as HittingSession["type"]) || "Machine", profileId).data;
+      if (session.mode === "Hitting") return ensureHittingSession(current, practice, session.primaryPlayerId, normalizeHittingStation(session.station), profileId).data;
       if (session.mode === "Pitching") return ensurePitchingSession(current, practice, session.primaryPlayerId, (session.station as PitchingSession["type"]) || "Bullpen", profileId).data;
       if (session.mode === "Defense") return ensureDefenseSession(current, practice, session.primaryPlayerId, (session.station as DefenseStation) || "Infield", profileId).data;
       const pitchingNext = ensurePitchingSession(current, practice, session.primaryPlayerId, "Live BP", profileId, session.secondaryPlayerId);
@@ -1143,8 +1144,8 @@ export default function MetrolinaBaseballApp() {
         contactQuality: isBip ? contactQuality : undefined,
         direction: isBip ? direction : undefined,
         fieldLocation: isBip ? fieldLocation : undefined,
-        pitchType: hittingStation === "Machine" || hittingStation === "Live BP" ? selectedPitchType : undefined,
-        velocity: hittingStation === "Machine" && velocity ? Number(velocity) : undefined,
+        pitchType: isMachineHittingStation(hittingStation) || hittingStation === "Live BP" ? selectedPitchType : undefined,
+        velocity: isMachineHittingStation(hittingStation) && velocity ? Number(velocity) : undefined,
         isLiveBp: hittingStation === "Live BP",
         createdAt,
         createdByProfileId: profileId,
@@ -1332,7 +1333,7 @@ export default function MetrolinaBaseballApp() {
 
   function advanceLiveBpHitter() {
     if (!data) return;
-    const hitters = data.players.filter((player) => !player.archived && player.isHitter && player.id !== liveBpPitcherId);
+    const hitters = availablePracticePlayers(data, practice).filter((player) => player.isHitter && player.id !== liveBpPitcherId);
     if (!hitters.length) return;
     const currentIndex = hitters.findIndex((player) => player.id === liveBpHitterId);
     const next = hitters[(currentIndex + 1) % hitters.length] ?? hitters[0];
@@ -6321,8 +6322,8 @@ function PracticeSessionSetup({
   const [station, setStation] = useState<HittingSession["type"] | PitchingSession["type"] | DefenseStation>(
     mode === "Hitting" ? hittingStation : mode === "Pitching" ? pitchingStation : mode === "Defense" ? defenseStation : "Live BP",
   );
-  const eligiblePlayers = data.players
-    .filter((player) => !player.archived && practice.playerIds.includes(player.id))
+  const attendanceAvailablePlayers = availablePracticePlayers(data, practice);
+  const eligiblePlayers = attendanceAvailablePlayers
     .filter((player) => mode !== "Hitting" || player.isHitter)
     .filter((player) => mode !== "Pitching" || player.isPitcher)
     .filter((player) => {
@@ -6335,8 +6336,8 @@ function PracticeSessionSetup({
     .filter((player) => `${player.name} ${player.jerseyNumber} ${player.primaryPosition} ${player.secondaryPosition ?? ""}`.toLowerCase().includes(query.toLowerCase()));
   const initialSelection = eligiblePlayers.some((player) => player.id === currentPlayerId) ? currentPlayerId : eligiblePlayers[0]?.id ?? currentPlayerId;
   const [selectedIds, setSelectedIds] = useState<ID[]>(mode === "Live BP" ? [] : initialSelection ? [initialSelection] : []);
-  const [pitcherId, setPitcherId] = useState(liveBpPitcherId || data.players.find((player) => player.isPitcher)?.id || "");
-  const [hitterId, setHitterId] = useState(liveBpHitterId || data.players.find((player) => player.isHitter && player.id !== pitcherId)?.id || "");
+  const [pitcherId, setPitcherId] = useState(liveBpPitcherId || attendanceAvailablePlayers.find((player) => player.isPitcher)?.id || "");
+  const [hitterId, setHitterId] = useState(liveBpHitterId || attendanceAvailablePlayers.find((player) => player.isHitter && player.id !== pitcherId)?.id || "");
   const stations: Array<HittingSession["type"] | PitchingSession["type"] | DefenseStation> =
     mode === "Hitting" ? HITTING_STATIONS : mode === "Pitching" ? PITCHING_STATIONS : mode === "Defense" ? DEFENSE_STATIONS : ["Live BP"];
   const isMultiSelect = mode !== "Pitching";
@@ -6554,16 +6555,20 @@ function PracticeConsole({
   onStartPractice: () => void;
 }) {
   const [switcherQuery, setSwitcherQuery] = useState("");
-  const [switcherFilter, setSwitcherFilter] = useState<RosterFilter>("All");
-  const players = sortPlayersByRecent(
-    data.players.filter((item) => !item.archived),
-    data.settings.recentPlayerIds,
-  );
-  const playerPool = players
+  const [switcherFilter, setSwitcherFilter] = useState<PracticeTrackerPlayerFilter>("All");
+  const availablePlayers = useMemo(() => availablePracticePlayers(data, practice), [data, practice]);
+  const fallbackPlayers = useMemo(() => sortPlayersByRecent(data.players.filter((item) => !item.archived), data.settings.recentPlayerIds), [data.players, data.settings.recentPlayerIds]);
+  const players = availablePlayers.length ? availablePlayers : fallbackPlayers;
+  const playerPool = useMemo(() => players
     .filter((item) => mode !== "Pitching" || item.isPitcher)
     .filter((item) => mode !== "Hitting" || item.isHitter)
-    .filter((item) => switcherFilter === "All" || item.rosterStatus === switcherFilter)
-    .filter((item) => `${item.name} ${item.jerseyNumber} ${item.primaryPosition} ${item.secondaryPosition ?? ""}`.toLowerCase().includes(switcherQuery.toLowerCase()));
+    .filter((item) => mode !== "Live BP" || item.isPitcher || item.isHitter)
+    .filter((item) => switcherFilter === "All"
+      || (switcherFilter === "Pitchers" && item.isPitcher)
+      || (switcherFilter === "Hitters" && item.isHitter)
+      || (switcherFilter === "Infield" && ["P", "C", "1B", "2B", "3B", "SS"].includes(item.primaryPosition))
+      || (switcherFilter === "Outfield" && ["LF", "CF", "RF", "OF"].includes(item.primaryPosition)))
+    .filter((item) => `${item.name} ${item.jerseyNumber} ${item.primaryPosition} ${item.secondaryPosition ?? ""}`.toLowerCase().includes(switcherQuery.toLowerCase())), [players, mode, switcherFilter, switcherQuery]);
   const hittingSession = practice
     ? data.hittingSessions.find((session) => session.practiceId === practice.id && session.hitterId === player.id && session.type === hittingStation && !session.endedAt)
       ?? data.hittingSessions.find((session) => session.practiceId === practice.id && session.hitterId === player.id && session.type === hittingStation)
@@ -6586,6 +6591,10 @@ function PracticeConsole({
   const hitStats = calculateHittingStats(hittingEvents);
   const cleanDefenseReps = defenseEvents.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
   const defenseCleanPct = pct(cleanDefenseReps, defenseEvents.length);
+  const activeSessions = practice ? buildActivePracticeSessions(data, practice.id) : [];
+  const activeModeSessions = activeSessions.filter((session) => session.mode === mode);
+  const currentSession = mode === "Hitting" ? hittingSession : mode === "Pitching" ? pitchingSession : mode === "Defense" ? defenseSession : data.pitchingSessions.find((session) => session.practiceId === practice?.id && session.pitcherId === liveBpPitcher?.id && session.type === "Live BP");
+  const presentCount = practice ? availablePlayers.length : activeTotals.players;
   const roundNumber = practice
     ? Math.max(1, data.hittingSessions.filter((session) => session.practiceId === practice.id && session.hitterId === player.id && session.type === hittingStation).length || 1)
     : 1;
@@ -6608,7 +6617,12 @@ function PracticeConsole({
       ? activeTotals.pitchers
       : mode === "Defense"
         ? activeTotals.defenders
-        : [liveBpPitcher?.id, liveBpHitter?.id].filter(Boolean).length;
+      : [liveBpPitcher?.id, liveBpHitter?.id].filter(Boolean).length;
+
+  useEffect(() => {
+    if (!playerPool.length || playerPool.some((item) => item.id === player.id)) return;
+    onSelectPlayer(playerPool[0].id);
+  }, [player.id, playerPool, onSelectPlayer]);
 
   function changeMode(nextMode: PracticeMode) {
     onMode(nextMode);
@@ -6619,27 +6633,50 @@ function PracticeConsole({
     }
   }
 
+  function selectSession(row: PracticeActiveSessionRow) {
+    changeMode(row.mode);
+    onSelectPlayer(row.primaryPlayerId);
+    if (row.mode === "Hitting") onHittingStation(normalizeHittingStation(row.station));
+    if (row.mode === "Pitching") onPitchingStation((row.station as PitchingSession["type"]) || "Bullpen");
+    if (row.mode === "Defense") onDefenseStation((row.station as DefenseStation) || "Infield");
+    if (row.mode === "Live BP") {
+      onPitchingStation("Live BP");
+      onHittingStation("Live BP");
+      onLiveBpPitcher(row.primaryPlayerId);
+      if (row.secondaryPlayerId) onLiveBpHitter(row.secondaryPlayerId);
+    }
+  }
+
+  function adjustVelocity(delta: number) {
+    const next = Math.max(0, Math.round((Number(velocity) || 0) + delta));
+    onVelocity(String(next));
+  }
+
+  const sessionStarted = currentSession?.startedAt ? formatTime(currentSession.startedAt) : practice ? formatTime(practice.startedAt) : "--";
+
   return (
-    <div className="page-stack practice-console">
-      <section className="practice-header panel">
-        <div>
-          <span>{practice ? `${sessionName} - ${shortDate(practice.date)}` : "Practice Console"}</span>
-          <h2>{mode === "Live BP" && liveBpPitcher && liveBpHitter ? `${liveBpPitcher.name} vs ${liveBpHitter.name}` : player.name}</h2>
-          <small>
-            {practice
-              ? `${sessionReps} ${mode === "Pitching" || mode === "Live BP" ? "pitches" : mode === "Hitting" ? "swings" : "reps"} - ${sessionParticipants || 1} ${sessionParticipants === 1 ? "player" : "players"}`
-              : "Start a practice to unlock tracking"}
-          </small>
+    <div className={`page-stack practice-console practice-console--active practice-console--${practiceModeClass(mode)}`}>
+      <section className="practice-tracker-header panel">
+        <div className="practice-tracker-title">
+          <button className="icon-button" type="button" onClick={onExitTracking} aria-label="Back to practice overview">
+            <ChevronLeft size={18} aria-hidden="true" />
+          </button>
+          <div>
+            <span>Practice {practice ? `- ${fullDate(practice.date)}` : ""}</span>
+            <h2>{practice ? `${practice.location || "No location"} - ${formatPracticeTimeRange(practice)}` : "Active Practice"}</h2>
+          </div>
         </div>
-        <div className="practice-header__metrics">
-          <StatTile label="Pitches" value={activeTotals.pitches} />
-          <StatTile label="Swings" value={activeTotals.swings} />
-          <StatTile label="Defense" value={activeTotals.defenseReps} />
-          <StatTile label="Players" value={activeTotals.players} accent />
+        <div className="practice-tracker-presence">
+          <strong>{practice ? presentCount : activeTotals.players}</strong>
+          <span>Present</span>
         </div>
         {practice ? (
           <div className="practice-header__buttons">
             <button className="ghost-button" type="button" onClick={onExitTracking}>Practice Home</button>
+            <button className="ghost-button" type="button" onClick={onUndo}>
+              <Undo2 size={16} aria-hidden="true" />
+              Undo Last
+            </button>
             <button className="secondary-button" type="button" onClick={onEndPractice}>End Practice</button>
           </div>
         ) : (
@@ -6650,84 +6687,117 @@ function PracticeConsole({
         )}
       </section>
 
-      <section className="tracker-shell">
-        <aside className="player-switcher panel">
+      <nav className="practice-tracker-tabs panel" aria-label="Practice tracker modes">
+        {(["Hitting", "Pitching", "Defense", "Live BP"] as PracticeMode[]).map((tab) => (
+          <button key={tab} type="button" className={mode === tab ? `active practice-mode-${practiceModeClass(tab)}` : ""} onClick={() => changeMode(tab)}>
+            {practiceModeIcon(tab)}
+            <span>{tab}</span>
+          </button>
+        ))}
+      </nav>
+
+      <section className="practice-tracker-grid">
+        <aside className="practice-session-panel panel">
           <div className="panel-heading tight">
             <div>
-              <span>Current Player</span>
-              <h2>Fast Switch</h2>
+              <span>Session</span>
+              <h2>{sessionName}</h2>
             </div>
-            <button className="ghost-button" type="button" onClick={() => onOpenPlayer(player.id)} aria-label={`Open ${player.name} profile`}>
-              <ChevronRight size={16} aria-hidden="true" />
+            <button className="ghost-button" type="button" onClick={onEndSession}>
+              <Save size={15} aria-hidden="true" />
+              End
             </button>
           </div>
-          <button className="current-player-card" type="button" onClick={() => onOpenPlayer(player.id)}>
-            <PlayerAvatar player={player} size="lg" />
+          <div className="practice-session-meta-stack">
+            <span><b>Status</b><em>{currentSession?.status ?? "ACTIVE"}</em></span>
+            <span><b>Started</b><em>{sessionStarted}</em></span>
+            <span><b>Players</b><em>{sessionParticipants || 1}</em></span>
+            <span><b>Reps</b><em>{sessionReps}</em></span>
+          </div>
+          <div className="practice-session-contributor-card">
+            <i>{initialsFor(profileDisplayName(data.teamContext))}</i>
             <span>
-              <strong>#{player.jerseyNumber} {player.name}</strong>
-              <small>{positionLine(player)} - {player.rosterStatus}</small>
+              <strong>{profileDisplayName(data.teamContext)}</strong>
+              <small>Tracking</small>
             </span>
-          </button>
-          <div className="player-cycle-row" aria-label="Cycle practice players">
-            <button type="button" disabled={!previousPlayer} onClick={() => previousPlayer && onSelectPlayer(previousPlayer.id)}>
-              <ChevronLeft size={15} aria-hidden="true" />
-              <span>{previousPlayer?.name.split(" ").slice(-1)[0] ?? "Prev"}</span>
-            </button>
-            <button type="button" disabled={!nextPlayer} onClick={() => nextPlayer && onSelectPlayer(nextPlayer.id)}>
-              <span>{nextPlayer?.name.split(" ").slice(-1)[0] ?? "Next"}</span>
-              <ChevronRight size={15} aria-hidden="true" />
-            </button>
           </div>
-          <label className="switcher-search">
-            <Search size={14} aria-hidden="true" />
-            <input value={switcherQuery} onChange={(event) => setSwitcherQuery(event.target.value)} placeholder="Switch player..." />
-          </label>
-          <SegmentedControl values={["All", "Varsity", "JV"] as RosterFilter[]} active={switcherFilter} onChange={setSwitcherFilter} />
-          <div className="switcher-list">
-            {playerPool.slice(0, 14).map((item) => (
-              <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => onSelectPlayer(item.id)}>
-                <PlayerAvatar player={item} size="sm" compact />
-                <span>{item.name.split(" ").slice(-1)[0]}</span>
-                <small>#{item.jerseyNumber}</small>
+          <div className="practice-active-mini-list">
+            <div className="mini-list-heading">
+              <span>Active {mode} Sessions</span>
+              <b>{activeModeSessions.length}</b>
+            </div>
+            {activeModeSessions.slice(0, 4).map((session) => (
+              <button key={session.id} type="button" className={session.sessionId === currentSession?.id ? "active" : ""} onClick={() => selectSession(session)}>
+                <span>
+                  <strong>{session.title}</strong>
+                  <small>{session.playerLine} - {session.count}</small>
+                </span>
+                <ChevronRight size={14} aria-hidden="true" />
               </button>
             ))}
-            {!playerPool.length && <CompactEmpty title="No players found" />}
+            {!activeModeSessions.length && <CompactEmpty title="No active sessions" />}
           </div>
         </aside>
 
         <section className="tracker-console panel">
-          <div className="mode-row">
-            <SegmentedControl values={["Hitting", "Pitching", "Defense", "Live BP"] as PracticeMode[]} active={mode} onChange={changeMode} />
-            <div className="tracker-actions">
-              <button className="ghost-button" type="button" onClick={onUndo}>
-                <Undo2 size={16} aria-hidden="true" />
-                Undo
-              </button>
-              <button className="secondary-button" type="button" onClick={onEndSession}>
-                <Save size={16} aria-hidden="true" />
-                {mode === "Hitting" ? "End Round" : mode === "Defense" ? "End Drill" : "End Session"}
-              </button>
-            </div>
+          <div className="tracker-player-banner">
+            {mode === "Live BP" ? (
+              <>
+                <TrackerPlayerCard label="Pitcher" player={liveBpPitcher} stat={`${liveBpPitchStats.totalPitches} pitches`} onOpenPlayer={onOpenPlayer} />
+                <div className="tracker-count-card">
+                  <span>Count</span>
+                  <strong>{liveBpCount.balls}-{liveBpCount.strikes}</strong>
+                  <small>PA {liveBpPaNumber}</small>
+                </div>
+                <TrackerPlayerCard label="Hitter" player={liveBpHitter} stat={`${liveBpHitEvents.length} swings`} onOpenPlayer={onOpenPlayer} />
+              </>
+            ) : (
+              <>
+                <TrackerPlayerCard label={mode === "Pitching" ? "Pitcher" : mode === "Defense" ? "Defender" : "Hitter"} player={player} stat={`${sessionReps} ${mode === "Pitching" ? "pitches" : mode === "Hitting" ? "swings" : "reps"}`} onOpenPlayer={onOpenPlayer} />
+                <div className="tracker-player-statline">
+                  {mode === "Hitting" && (
+                    <>
+                      <span><strong>{hitStats.totalSwings}</strong><small>Swings</small></span>
+                      <span><strong>{Math.round((hitStats.hardHitPct / 100) * hitStats.ballsInPlay)}</strong><small>Hard</small></span>
+                      <span><strong>{formatPct(hitStats.hardHitPct)}</strong><small>Hard %</small></span>
+                    </>
+                  )}
+                  {mode === "Pitching" && (
+                    <>
+                      <span><strong>{pitchStats.totalPitches}</strong><small>Pitches</small></span>
+                      <span><strong>{pitchStats.strikes}</strong><small>Strikes</small></span>
+                      <span><strong>{formatPct(pitchStats.zonePct)}</strong><small>Zone %</small></span>
+                    </>
+                  )}
+                  {mode === "Defense" && (
+                    <>
+                      <span><strong>{defenseEvents.length}</strong><small>Reps</small></span>
+                      <span><strong>{cleanDefenseReps}</strong><small>Clean</small></span>
+                      <span><strong>{formatPct(defenseCleanPct)}</strong><small>Clean %</small></span>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {mode === "Hitting" && (
-            <div className="tracking-layout">
+            <div className="tracking-layout tracking-layout--dense">
               <div className="tracking-main">
                 <div className="session-context">
                   <div>
-                    <span>{hittingStation}</span>
-                    <strong>Round {roundNumber}</strong>
+                    <span>Hitting Session</span>
+                    <strong>{hittingStation}</strong>
                     <small>{hittingEvents.length} reps logged</small>
                   </div>
                   <SegmentedControl values={HITTING_STATIONS} active={hittingStation} onChange={onHittingStation} />
                 </div>
-                  <LiveMetrics
+                <LiveMetrics
                   items={[
-                    { label: "Swings", value: hitStats.totalSwings, detail: `${hitStats.pitchesSeen} pitches` },
+                    { label: "Swings", value: hitStats.totalSwings, detail: `Round ${roundNumber}` },
                     { label: "Contact", value: formatPct(hitStats.contactPct), detail: `${Math.round((hitStats.contactPct / 100) * hitStats.totalSwings)}/${hitStats.totalSwings}` },
                     { label: "Hard Hit", value: formatPct(hitStats.hardHitPct), detail: `${Math.round((hitStats.hardHitPct / 100) * hitStats.ballsInPlay)}/${hitStats.ballsInPlay} BIP` },
-                    { label: "Barrel", value: formatPct(hitStats.barrelPct), detail: `${Math.round((hitStats.barrelPct / 100) * hitStats.ballsInPlay)}/${hitStats.ballsInPlay} BIP` },
-                    { label: "LD %", value: formatPct(hitStats.lineDrivePct), detail: `${Math.round((hitStats.lineDrivePct / 100) * hitStats.ballsInPlay)}/${hitStats.ballsInPlay} BIP` },
+                    { label: "Miss", value: formatPct(hitStats.whiffPct), detail: `${Math.round((hitStats.whiffPct / 100) * hitStats.totalSwings)}/${hitStats.totalSwings}` },
                   ]}
                 />
                 <div className="quick-pad quick-pad--hitting">
@@ -6736,16 +6806,32 @@ function PracticeConsole({
                   <button type="button" onClick={() => onLogHitting("Ball in play", "Ground ball", "Weak")}>Weak Contact</button>
                   <button type="button" onClick={() => onLogHitting("Miss")}>Miss</button>
                   <button type="button" onClick={() => onLogHitting("Foul")}>Foul</button>
+                </div>
+                <span className="tracker-subhead">Ball type</span>
+                <div className="direction-row">
+                  <button type="button" onClick={() => onLogHitting("Ball in play", "Ground ball", "Solid")}>Ground Ball</button>
+                  <button type="button" onClick={() => onLogHitting("Ball in play", "Line drive", "Hard")}>Line Drive</button>
+                  <button type="button" onClick={() => onLogHitting("Ball in play", "Fly ball", "Solid")}>Fly Ball</button>
                   <button type="button" onClick={() => onLogHitting("Ball in play", "Pop up", "Weak")}>Pop Up</button>
                 </div>
-                <div className="direction-row">
+                <span className="tracker-subhead">Direction</span>
+                <div className="direction-row direction-row--compact">
                   {(["Pull", "Middle", "Opposite"] as Direction[]).map((direction) => (
                     <button key={direction} type="button" className={hitDirection === direction ? "active" : ""} onClick={() => onHitDirection(direction)}>
                       {direction === "Opposite" ? "Oppo" : direction}
                     </button>
                   ))}
                 </div>
-                <RoundStrip events={hittingEvents} />
+                <PracticeRecentEventTable
+                  title="Recent Swings"
+                  rows={hittingEvents.slice(0, 6).map((event) => ({
+                    id: event.id,
+                    time: formatTime(event.createdAt),
+                    primary: event.contactQuality ?? event.action,
+                    secondary: [event.contactResult, event.direction].filter(Boolean).join(" - ") || "--",
+                    tone: event.contactQuality === "Hard" || event.action === "Foul" ? "positive" : event.action === "Miss" ? "negative" : undefined,
+                  }))}
+                />
               </div>
               <div className="tracking-visual">
                 <BaseballField points={hittingEvents.map((event) => event.fieldLocation).filter(isZonePoint)} activePoint={fieldLocation} onSelect={onFieldLocation} />
@@ -6754,16 +6840,23 @@ function PracticeConsole({
           )}
 
           {mode === "Pitching" && (
-            <div className="tracking-layout">
+            <div className="tracking-layout tracking-layout--dense tracking-layout--pitching">
               <div className="tracking-main">
-                <SegmentedControl values={PITCHING_STATIONS} active={pitchingStation} onChange={onPitchingStation} />
+                <div className="session-context">
+                  <div>
+                    <span>Pitching Session</span>
+                    <strong>{pitchingStation}</strong>
+                    <small>{pitchEvents.length} pitches logged</small>
+                  </div>
+                  <SegmentedControl values={PITCHING_STATIONS} active={pitchingStation} onChange={onPitchingStation} />
+                </div>
                 <LiveMetrics
                   items={[
                     { label: "Pitches", value: pitchStats.totalPitches, detail: `${pitchStats.strikes}/${pitchStats.totalPitches} strikes` },
                     { label: "Strike %", value: formatPct(pitchStats.strikePct), detail: `${pitchStats.strikes}/${pitchStats.totalPitches}` },
                     { label: "Zone %", value: formatPct(pitchStats.zonePct), detail: `${Math.round((pitchStats.zonePct / 100) * pitchStats.totalPitches)}/${pitchStats.totalPitches}` },
                     { label: "CSW %", value: formatPct(pitchStats.cswPct), detail: `${Math.round((pitchStats.cswPct / 100) * pitchStats.totalPitches)}/${pitchStats.totalPitches}` },
-                    { label: "Avg Velo", value: formatNumber(pitchStats.avgVelocity, 1), detail: pitchStats.maxVelocity ? `Max ${formatNumber(pitchStats.maxVelocity, 1)}` : "Optional" },
+                    ...(pitchStats.avgVelocity ? [{ label: "Avg Velo", value: formatNumber(pitchStats.avgVelocity, 1), detail: pitchStats.maxVelocity ? `Max ${formatNumber(pitchStats.maxVelocity, 1)}` : "Optional" }] : []),
                   ]}
                 />
                 <div className="pitch-type-row">
@@ -6773,25 +6866,42 @@ function PracticeConsole({
                     </button>
                   ))}
                 </div>
-                <label className="velo-input">
-                  <span>Velocity</span>
-                  <input inputMode="numeric" value={velocity} onChange={(event) => onVelocity(event.target.value.replace(/[^0-9.]/g, ""))} />
-                </label>
-                <div className="quick-pad quick-pad--pitching">
-                  <button type="button" onClick={() => onLogPitch("Ball")}>Ball</button>
-                  <button type="button" onClick={() => onLogPitch("Called Strike")}>Called Strike</button>
-                  <button type="button" className="impact" onClick={() => onLogPitch("Whiff")}>Whiff</button>
-                  <button type="button" onClick={() => onLogPitch("Foul")}>Foul</button>
-                  <button type="button" onClick={() => onLogPitch("Ball in play", "Ground ball")}>GB</button>
-                  <button type="button" onClick={() => onLogPitch("Ball in play", "Line drive")}>LD</button>
-                  <button type="button" onClick={() => onLogPitch("Ball in play", "Fly ball")}>FB</button>
+                <div className="velo-stepper">
+                  <button type="button" onClick={() => adjustVelocity(-1)} aria-label="Decrease velocity">-</button>
+                  <label>
+                    <span>Velo</span>
+                    <input inputMode="numeric" value={velocity} onChange={(event) => onVelocity(event.target.value.replace(/[^0-9.]/g, ""))} />
+                  </label>
+                  <button type="button" onClick={() => adjustVelocity(1)} aria-label="Increase velocity">+</button>
                 </div>
+                <div className="quick-pad quick-pad--pitching">
+                  <button type="button" className="impact" onClick={() => onLogPitch("Called Strike")}>Strike</button>
+                  <button type="button" onClick={() => onLogPitch("Ball")}>Ball</button>
+                  <button type="button" onClick={() => onLogPitch("Ball in play", "Line drive")}>In Play</button>
+                  <button type="button" onClick={() => onLogPitch("Whiff")}>Whiff</button>
+                </div>
+                <PracticeRecentEventTable
+                  title="Recent Pitches"
+                  rows={pitchEvents.slice(0, 6).map((event) => ({
+                    id: event.id,
+                    time: formatTime(event.createdAt),
+                    primary: `${event.pitchNumber}  ${PITCH_TYPE_LABELS[event.pitchType]}`,
+                    secondary: [event.velocity ? `${event.velocity}` : undefined, event.location ? zoneLabel(event.location) : undefined, event.outcome].filter(Boolean).join(" - "),
+                    tone: event.isStrike ? "positive" : event.outcome === "Ball" ? "negative" : undefined,
+                  }))}
+                />
               </div>
               <div className="tracking-visual zone-stack">
                 <span>Actual location</span>
                 <StrikeZone points={pitchEvents.map((event) => event.location).filter(isZonePoint)} activePoint={pitchLocation} onSelect={onPitchLocation} />
-                <button className="text-button" type="button" onClick={() => onPitchLocation(undefined)}>Skip actual location</button>
-                <span>Target location</span>
+                <div className="outside-zone-controls">
+                  <button type="button" onClick={() => onPitchLocation({ x: 0.5, y: 0.08 })}>High</button>
+                  <button type="button" onClick={() => onPitchLocation({ x: 0.5, y: 0.92 })}>Low</button>
+                  <button type="button" onClick={() => onPitchLocation({ x: 0.08, y: 0.5 })}>Arm Side</button>
+                  <button type="button" onClick={() => onPitchLocation({ x: 0.92, y: 0.5 })}>Glove Side</button>
+                </div>
+                <button className="text-button" type="button" onClick={() => onPitchLocation(undefined)}>Clear location</button>
+                <span>Target</span>
                 <StrikeZone compact activePoint={targetLocation} onSelect={onTargetLocation} />
                 <button className="text-button" type="button" onClick={() => onTargetLocation(undefined)}>Clear target</button>
               </div>
@@ -6799,9 +6909,16 @@ function PracticeConsole({
           )}
 
           {mode === "Defense" && (
-            <div className="tracking-layout">
+            <div className="tracking-layout tracking-layout--dense">
               <div className="tracking-main">
-                <SegmentedControl values={DEFENSE_STATIONS} active={defenseStation} onChange={onDefenseStation} />
+                <div className="session-context">
+                  <div>
+                    <span>Defense Session</span>
+                    <strong>{defenseStation}</strong>
+                    <small>{defenseEvents.length} reps logged</small>
+                  </div>
+                  <SegmentedControl values={DEFENSE_STATIONS} active={defenseStation} onChange={onDefenseStation} />
+                </div>
                 <LiveMetrics
                   items={[
                     { label: "Attempts", value: defenseEvents.length },
@@ -6812,15 +6929,29 @@ function PracticeConsole({
                 />
                 <div className="quick-pad quick-pad--defense">
                   <button type="button" onClick={() => onLogDefense("Clean")}>Clean</button>
-                  <button type="button" onClick={() => onLogDefense("Missed Rep")}>Missed Rep</button>
                   <button type="button" onClick={() => onLogDefense("Error")}>Error</button>
-                  <button type="button" onClick={() => onLogDefense("Good Play")}>Good Play</button>
                   <button type="button" className="impact" onClick={() => onLogDefense("Great Play")}>Great Play</button>
+                  <button type="button" onClick={() => onLogDefense("Missed Rep")}>Missed Rep</button>
                 </div>
+                <span className="tracker-subhead">Play type</span>
                 <div className="direction-row">
+                  <button type="button" onClick={() => onLogDefense("Clean")}>Ground Ball</button>
+                  <button type="button" onClick={() => onLogDefense("Clean")}>Fly Ball</button>
+                  <button type="button" onClick={() => onLogDefense("Clean")}>Throw</button>
+                  <button type="button" onClick={() => onLogDefense("Good Play")}>Double Play</button>
                   <button type="button" onClick={() => onLogDefense("Error", "Fielding")}>Fielding Error</button>
                   <button type="button" onClick={() => onLogDefense("Error", "Throwing")}>Throwing Error</button>
                 </div>
+                <PracticeRecentEventTable
+                  title="Recent Reps"
+                  rows={defenseEvents.slice(0, 6).map((event) => ({
+                    id: event.id,
+                    time: formatTime(event.createdAt),
+                    primary: event.outcome,
+                    secondary: [event.station, event.errorType].filter(Boolean).join(" - ") || "--",
+                    tone: event.outcome === "Error" || event.outcome === "Missed Rep" ? "negative" : "positive",
+                  }))}
+                />
               </div>
               <div className="tracking-visual defense-visual">
                 <Shield size={42} aria-hidden="true" />
@@ -6832,26 +6963,8 @@ function PracticeConsole({
           )}
 
           {mode === "Live BP" && (
-            <div className="tracking-layout live-bp-layout">
+            <div className="tracking-layout live-bp-layout tracking-layout--dense">
               <div className="tracking-main">
-                <section className="live-bp-matchup">
-                  <div className="matchup-player">
-                    <span>Pitcher</span>
-                    <strong>{liveBpPitcher ? `#${liveBpPitcher.jerseyNumber} ${liveBpPitcher.name}` : "Select pitcher"}</strong>
-                    <small>{liveBpPitcher ? positionLine(liveBpPitcher) : "Live BP"}</small>
-                  </div>
-                  <div className="count-badge">
-                    <span>Count</span>
-                    <strong>{liveBpCount.balls}-{liveBpCount.strikes}</strong>
-                    <small>PA {liveBpPaNumber}</small>
-                  </div>
-                  <div className="matchup-player">
-                    <span>Hitter</span>
-                    <strong>{liveBpHitter ? `#${liveBpHitter.jerseyNumber} ${liveBpHitter.name}` : "Select hitter"}</strong>
-                    <small>{liveBpHitter ? positionLine(liveBpHitter) : "Live BP"}</small>
-                  </div>
-                </section>
-
                 <div className="matchup-switch-grid">
                   <div>
                     <span>Pitcher</span>
@@ -6874,13 +6987,12 @@ function PracticeConsole({
                     </div>
                   </div>
                 </div>
-
                 <LiveMetrics
                   items={[
                     { label: "Pitches", value: liveBpPitchStats.totalPitches, detail: `${liveBpPitchStats.strikes}/${liveBpPitchStats.totalPitches} strikes` },
                     { label: "Strike %", value: formatPct(liveBpPitchStats.strikePct), detail: `${liveBpPitchStats.strikes}/${liveBpPitchStats.totalPitches}` },
-                    { label: "CSW %", value: formatPct(liveBpPitchStats.cswPct), detail: `${Math.round((liveBpPitchStats.cswPct / 100) * liveBpPitchStats.totalPitches)}/${liveBpPitchStats.totalPitches}` },
-                    { label: "Avg Velo", value: formatNumber(liveBpPitchStats.avgVelocity, 1), detail: liveBpPitchStats.maxVelocity ? `Max ${formatNumber(liveBpPitchStats.maxVelocity, 1)}` : "Optional" },
+                    { label: "PAs", value: liveBpPaNumber, detail: `${data.plateAppearances.filter((item) => item.practiceId === practice?.id && item.pitcherId === liveBpPitcher?.id && item.hitterId === liveBpHitter?.id).length} complete` },
+                    ...(liveBpPitchStats.avgVelocity ? [{ label: "Avg Velo", value: formatNumber(liveBpPitchStats.avgVelocity, 1), detail: liveBpPitchStats.maxVelocity ? `Max ${formatNumber(liveBpPitchStats.maxVelocity, 1)}` : "Optional" }] : []),
                   ]}
                 />
                 <div className="pitch-type-row">
@@ -6890,18 +7002,27 @@ function PracticeConsole({
                     </button>
                   ))}
                 </div>
-                <label className="velo-input">
-                  <span>Velocity</span>
-                  <input inputMode="numeric" value={velocity} onChange={(event) => onVelocity(event.target.value.replace(/[^0-9.]/g, ""))} />
-                </label>
+                <div className="velo-stepper">
+                  <button type="button" onClick={() => adjustVelocity(-1)} aria-label="Decrease velocity">-</button>
+                  <label>
+                    <span>Velo</span>
+                    <input inputMode="numeric" value={velocity} onChange={(event) => onVelocity(event.target.value.replace(/[^0-9.]/g, ""))} />
+                  </label>
+                  <button type="button" onClick={() => adjustVelocity(1)} aria-label="Increase velocity">+</button>
+                </div>
                 <div className="quick-pad quick-pad--pitching">
                   <button type="button" onClick={() => onLogLiveBpPitch("Ball")}>Ball</button>
                   <button type="button" onClick={() => onLogLiveBpPitch("Called Strike")}>Called Strike</button>
                   <button type="button" className="impact" onClick={() => onLogLiveBpPitch("Whiff")}>Whiff</button>
                   <button type="button" onClick={() => onLogLiveBpPitch("Foul")}>Foul</button>
-                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Ground ball")}>GB</button>
-                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Line drive")}>LD</button>
-                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Fly ball")}>FB</button>
+                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Line drive")}>In Play</button>
+                </div>
+                <span className="tracker-subhead">If in play</span>
+                <div className="direction-row">
+                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Ground ball")}>Hard Ground</button>
+                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Ground ball")}>Soft Ground</button>
+                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Line drive")}>Line Drive</button>
+                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Fly ball")}>Fly Ball</button>
                 </div>
                 <div className="pa-outcome-grid">
                   {LIVE_BP_OUTCOMES.map((outcome) => (
@@ -6909,20 +7030,139 @@ function PracticeConsole({
                   ))}
                   <button type="button" className="secondary-button" onClick={onNextLiveBpHitter}>Next Hitter</button>
                 </div>
-                <RoundStrip events={liveBpHitEvents} />
+                <PracticeRecentEventTable
+                  title="Live BP Log"
+                  rows={liveBpPitchEvents.slice(0, 6).map((event) => ({
+                    id: event.id,
+                    time: formatTime(event.createdAt),
+                    primary: event.outcome,
+                    secondary: event.countAfter ? `${event.countAfter.balls}-${event.countAfter.strikes}` : PITCH_TYPE_LABELS[event.pitchType],
+                    tone: event.isStrike ? "positive" : event.outcome === "Ball" ? "negative" : undefined,
+                  }))}
+                />
               </div>
               <div className="tracking-visual zone-stack">
                 <span>Actual location</span>
                 <StrikeZone points={liveBpPitchEvents.map((event) => event.location).filter(isZonePoint)} activePoint={pitchLocation} onSelect={onPitchLocation} />
-                <button className="text-button" type="button" onClick={() => onPitchLocation(undefined)}>Skip actual location</button>
-                <span>Target location</span>
+                <div className="outside-zone-controls">
+                  <button type="button" onClick={() => onPitchLocation({ x: 0.5, y: 0.08 })}>High</button>
+                  <button type="button" onClick={() => onPitchLocation({ x: 0.5, y: 0.92 })}>Low</button>
+                  <button type="button" onClick={() => onPitchLocation({ x: 0.08, y: 0.5 })}>Arm Side</button>
+                  <button type="button" onClick={() => onPitchLocation({ x: 0.92, y: 0.5 })}>Glove Side</button>
+                </div>
+                <button className="text-button" type="button" onClick={() => onPitchLocation(undefined)}>Clear location</button>
+                <span>Target</span>
                 <StrikeZone compact activePoint={targetLocation} onSelect={onTargetLocation} />
                 <button className="text-button" type="button" onClick={() => onTargetLocation(undefined)}>Clear target</button>
               </div>
             </div>
           )}
         </section>
+
+        <aside className="practice-tracker-side panel">
+          <div className="panel-heading tight">
+            <div>
+              <span>Session Totals</span>
+              <h2>{sessionName}</h2>
+            </div>
+          </div>
+          {mode === "Hitting" && (
+            <LiveMetrics items={[
+              { label: "Total Swings", value: hittingEvents.length },
+              { label: "Hard Contact", value: Math.round((hitStats.hardHitPct / 100) * hitStats.ballsInPlay), detail: formatPct(hitStats.hardHitPct) },
+              { label: "Misses", value: Math.round((hitStats.whiffPct / 100) * hitStats.totalSwings), detail: formatPct(hitStats.whiffPct) },
+            ]} />
+          )}
+          {mode === "Pitching" && (
+            <LiveMetrics items={[
+              { label: "Pitches", value: pitchStats.totalPitches },
+              { label: "Strikes", value: pitchStats.strikes, detail: formatPct(pitchStats.strikePct) },
+              { label: "Zone", value: formatPct(pitchStats.zonePct), detail: "current session" },
+            ]} />
+          )}
+          {mode === "Defense" && (
+            <LiveMetrics items={[
+              { label: "Total Reps", value: defenseEvents.length },
+              { label: "Clean", value: cleanDefenseReps, detail: formatPct(defenseCleanPct) },
+              { label: "Great Plays", value: defenseEvents.filter((event) => event.outcome === "Great Play").length },
+            ]} />
+          )}
+          {mode === "Live BP" && (
+            <LiveMetrics items={[
+              { label: "Pitches", value: liveBpPitchStats.totalPitches },
+              { label: "Strikes", value: liveBpPitchStats.strikes, detail: formatPct(liveBpPitchStats.strikePct) },
+              { label: "Swings", value: liveBpHitEvents.filter((event) => event.action !== "Took pitch").length },
+            ]} />
+          )}
+          <div className="practice-on-deck">
+            <span>On Deck</span>
+            {(mode === "Live BP" ? hitters : playerPool).filter((item) => item.id !== player.id && item.id !== liveBpHitter?.id).slice(0, 5).map((item) => (
+              <button key={item.id} type="button" onClick={() => mode === "Live BP" ? onLiveBpHitter(item.id) : onSelectPlayer(item.id)}>
+                <PlayerAvatar player={item} size="sm" compact />
+                <strong>{item.name.split(" ").slice(-1)[0]}</strong>
+              </button>
+            ))}
+          </div>
+        </aside>
       </section>
+
+      <section className="practice-player-strip panel" aria-label="Practice player switcher">
+        <button type="button" disabled={!previousPlayer} onClick={() => previousPlayer && onSelectPlayer(previousPlayer.id)}>
+          <ChevronLeft size={16} aria-hidden="true" />
+          Previous
+        </button>
+        <label className="switcher-search practice-player-strip__search">
+          <Search size={14} aria-hidden="true" />
+          <input value={switcherQuery} onChange={(event) => setSwitcherQuery(event.target.value)} placeholder="Search present players..." />
+        </label>
+        <SegmentedControl values={["All", "Pitchers", "Hitters", "Infield", "Outfield"] as PracticeTrackerPlayerFilter[]} active={switcherFilter} onChange={setSwitcherFilter} />
+        <div className="practice-player-strip__players">
+          {playerPool.slice(0, 18).map((item) => (
+            <button key={item.id} type="button" className={item.id === player.id || item.id === liveBpPitcher?.id || item.id === liveBpHitter?.id ? "active" : ""} onClick={() => mode === "Live BP" && item.isHitter ? onLiveBpHitter(item.id) : onSelectPlayer(item.id)} title={`${item.name}: ${practicePlayerStatus(data, practice, item.id)}`}>
+              <PlayerAvatar player={item} size="sm" compact />
+              <span>{lastName(item.name)}</span>
+              <small>#{item.jerseyNumber}</small>
+            </button>
+          ))}
+          {!playerPool.length && <CompactEmpty title="No available players" />}
+        </div>
+        <button type="button" disabled={!nextPlayer} onClick={() => nextPlayer && onSelectPlayer(nextPlayer.id)}>
+          Next
+          <ChevronRight size={16} aria-hidden="true" />
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function TrackerPlayerCard({ label, player, stat, onOpenPlayer }: { label: string; player?: Player; stat?: string; onOpenPlayer: (playerId: ID) => void }) {
+  return (
+    <button className="tracker-player-card" type="button" disabled={!player} onClick={() => player && onOpenPlayer(player.id)}>
+      {player ? <PlayerAvatar player={player} size="md" /> : <span className="player-avatar player-avatar--md">--</span>}
+      <span>
+        <small>{label}</small>
+        <strong>{player ? `${player.name}` : `Select ${label.toLowerCase()}`}</strong>
+        <em>{player ? `${player.jerseyNumber ? `#${player.jerseyNumber} - ` : ""}${positionLine(player)}${stat ? ` - ${stat}` : ""}` : "--"}</em>
+      </span>
+    </button>
+  );
+}
+
+function PracticeRecentEventTable({ title, rows }: { title: string; rows: Array<{ id: ID; time: string; primary: string; secondary: string; tone?: "positive" | "negative" }> }) {
+  return (
+    <div className="practice-recent-event-table">
+      <div>
+        <span>{title}</span>
+        <small>{rows.length ? "Newest first" : "No events yet"}</small>
+      </div>
+      {rows.map((row) => (
+        <span key={row.id} className={row.tone ? `practice-recent-event-row practice-recent-event-row--${row.tone}` : "practice-recent-event-row"}>
+          <small>{row.time}</small>
+          <strong>{row.primary}</strong>
+          <em>{row.secondary}</em>
+        </span>
+      ))}
+      {!rows.length && <CompactEmpty title="Ready when you are" />}
     </div>
   );
 }
@@ -9848,18 +10088,6 @@ function LiveMetrics({ items }: { items: Array<{ label: string; value: string | 
   );
 }
 
-function RoundStrip({ events }: { events: HittingEvent[] }) {
-  return (
-    <div className="round-strip" aria-label="Recent round results">
-      {events.slice(0, 12).reverse().map((event) => (
-        <span key={event.id} className={event.contactQuality === "Barrel" ? "barrel" : ""}>
-          {event.action === "Miss" ? "MISS" : event.action === "Foul" ? "FOUL" : event.contactResult?.split(" ").map((part) => part[0]).join("") ?? "TAKE"}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 function PlayerGameChip({ label, player, onOpen }: { label: string; player?: Player; onOpen: (playerId: ID) => void }) {
   return (
     <button type="button" className="player-game-chip" onClick={() => player && onOpen(player.id)} disabled={!player}>
@@ -10156,6 +10384,39 @@ function buildPracticeStandouts(data: AppData, practiceId: ID) {
   ].filter(Boolean) as Array<{ label: string; player: Player; value: string }>;
 }
 
+function isMachineHittingStation(station: HittingSession["type"]) {
+  return station === "Machine" || station === "Hack Attack - FB" || station === "Hack Attack - CB";
+}
+
+function normalizeHittingStation(station?: string): HittingSession["type"] {
+  if (station === "Tee" || station === "Front Toss" || station === "Coach BP" || station === "Live BP" || station === "Other" || station === "Hack Attack - FB" || station === "Hack Attack - CB") {
+    return station;
+  }
+  if (station === "Machine") return "Hack Attack - FB";
+  return "Hack Attack - FB";
+}
+
+function practicePlayerStatus(data: AppData, practice: Practice | undefined, playerId: ID): PracticeAttendanceStatus {
+  if (!practice) return "Present";
+  return data.attendance.find((item) => item.practiceId === practice.id && item.playerId === playerId)?.status ?? "Present";
+}
+
+function availablePracticePlayers(data: AppData, practice: Practice | undefined) {
+  const basePlayers = sortPlayersByRecent(data.players.filter((player) => !player.archived), data.settings.recentPlayerIds);
+  if (!practice) return basePlayers;
+  const participatingIds = new Set<ID>([
+    ...practice.playerIds,
+    ...practice.pitcherIds,
+    ...practice.hitterIds,
+    ...data.attendance.filter((item) => item.practiceId === practice.id).map((item) => item.playerId),
+  ]);
+  return basePlayers.filter((player) => {
+    if (participatingIds.size && !participatingIds.has(player.id)) return false;
+    const status = practicePlayerStatus(data, practice, player.id);
+    return status === "Present" || status === "Late";
+  });
+}
+
 function buildActivePracticeSessions(data: AppData, practiceId: ID): PracticeActiveSessionRow[] {
   const playerById = new Map(data.players.map((player) => [player.id, player]));
   const currentProfileId = data.teamContext?.profile?.id;
@@ -10170,7 +10431,7 @@ function buildActivePracticeSessions(data: AppData, practiceId: ID): PracticeAct
           mode: "Hitting" as const,
           sessionId: session.id,
           title: session.title ?? `${session.type} Hitting`,
-          station: session.station ?? session.type,
+          station: session.type,
           primaryPlayerId: session.hitterId,
           playerLine: player?.name ?? "Hitter",
           count: `${events.filter((event) => event.action !== "Took pitch").length} swings`,
@@ -10546,8 +10807,8 @@ function ensureHittingSession(data: AppData, practice: Practice, playerId: ID, t
     type,
     roundGoals: ["Line drives"],
     plannedReps: 20,
-    machineVelocity: type === "Machine" ? 85 : undefined,
-    machinePitchType: type === "Machine" ? "4-Seam" : undefined,
+    machineVelocity: isMachineHittingStation(type) ? 85 : undefined,
+    machinePitchType: isMachineHittingStation(type) ? (type === "Hack Attack - CB" ? "Curveball" : "4-Seam") : undefined,
     startedAt: now,
     title: `${type} - Hitting`,
     status: "ACTIVE",
@@ -10777,8 +11038,23 @@ function positionLine(player: Player) {
   return player.secondaryPosition ? `${player.primaryPosition} / ${player.secondaryPosition}` : player.primaryPosition;
 }
 
+function lastName(name: string) {
+  return name.split(" ").filter(Boolean).slice(-1)[0] ?? name;
+}
+
 function practiceModeClass(mode: PracticeMode) {
   return mode.toLowerCase().replace(/\s+/g, "-");
+}
+
+function practiceModeIcon(mode: PracticeMode) {
+  const Icon = mode === "Hitting" ? Swords : mode === "Pitching" ? BaseballIcon : mode === "Defense" ? Shield : Gauge;
+  return <Icon size={16} aria-hidden="true" />;
+}
+
+function zoneLabel(point: ZonePoint) {
+  const column = point.x < 0.34 ? 0 : point.x > 0.66 ? 2 : 1;
+  const row = point.y < 0.34 ? 0 : point.y > 0.66 ? 2 : 1;
+  return String(row * 3 + column + 1);
 }
 
 function derivePlayerRoleFlags(primaryPosition?: Position, secondaryPosition?: Position) {

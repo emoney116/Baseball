@@ -11,6 +11,13 @@ test("practice hub routes coaches through setup before active tracking", () => {
   assert.match(page, /function PracticeHome\(/);
   assert.match(page, /function PracticeAttendanceDrilldown\(/);
   assert.match(page, /function PracticeSessionSetup\(/);
+  assert.match(page, /function PracticeConsole\(/);
+  assert.match(page, /function availablePracticePlayers\(/);
+  assert.match(page, /return status === "Present" \|\| status === "Late"/);
+  assert.match(page, /"Hack Attack - FB", "Hack Attack - CB"/);
+  assert.match(page, /practice-tracker-tabs/);
+  assert.match(page, /PracticeRecentEventTable/);
+  assert.match(page, /Undo Last/);
   assert.match(page, /setPracticeDrilldown\(\{ kind: "setup", mode \}\)/);
   assert.match(page, /onOpenAttendance=\{\(\) => \(practice \? setPracticeDrilldown\(\{ kind: "attendance" \}\)/);
   assert.match(page, /startConfiguredPracticeSession/);

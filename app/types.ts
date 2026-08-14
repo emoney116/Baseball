@@ -502,7 +502,7 @@ export type HittingSession = {
   id: ID;
   practiceId: ID;
   hitterId: ID;
-  type: "Tee" | "Front Toss" | "Machine" | "Coach BP" | "Live BP";
+  type: "Tee" | "Front Toss" | "Machine" | "Hack Attack - FB" | "Hack Attack - CB" | "Coach BP" | "Live BP" | "Other";
   machineVelocity?: number;
   machinePitchType?: PitchType;
   machineLocation?: string;
