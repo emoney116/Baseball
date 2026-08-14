@@ -13169,7 +13169,7 @@ body,
 
 .practice-summary-strip {
   display: grid;
-  grid-template-columns: minmax(270px, 1fr) minmax(360px, 0.95fr) 72px;
+  grid-template-columns: minmax(230px, 0.82fr) minmax(440px, 1.1fr) 72px;
   align-items: center;
   gap: 14px;
   padding: 16px;
@@ -13758,15 +13758,10 @@ body,
 
 .practice-activity-card--compact {
   min-height: 44px;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: 0 8px;
-  padding: 8px 9px;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 0 10px;
+  padding: 8px 10px;
   border-radius: 10px;
-}
-
-.practice-activity-card--compact > span {
-  width: 28px;
-  height: 28px;
 }
 
 .practice-activity-card--compact strong {
@@ -13788,6 +13783,11 @@ body,
   place-items: center;
   background: var(--burgundy-soft);
   color: var(--burgundy-strong);
+}
+
+.practice-activity-card--compact > span {
+  width: 30px;
+  height: 30px;
 }
 
 .practice-activity-card strong {
