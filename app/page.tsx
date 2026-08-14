@@ -7716,7 +7716,7 @@ function WeightRoomTeamOverview({
           <span className="weight-room-pulse-title-icon" aria-hidden="true">
             <Dumbbell size={17} />
           </span>
-          <h2>This Week Weight Room</h2>
+          <h2>This Week</h2>
         </div>
         <button className="text-button" type="button" onClick={onViewWorkouts}>View All Workouts <ChevronRight size={15} aria-hidden="true" /></button>
       </div>

@@ -8390,6 +8390,11 @@ select option {
   grid-column: span 1;
 }
 
+.weight-room-actions-card {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
 .weight-room-team-overview {
   grid-column: span 1;
 }
@@ -8486,6 +8491,8 @@ select option {
 
 .weight-room-action-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  min-height: 0;
 }
 
 .weight-room-action-grid button {
@@ -8494,6 +8501,7 @@ select option {
   gap: 8px;
   justify-content: flex-start;
   font-weight: 950;
+  min-height: 0;
 }
 
 .weight-room-mini-table,
