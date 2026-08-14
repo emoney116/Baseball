@@ -8627,6 +8627,11 @@ select option {
   display: grid;
   gap: 10px;
   align-content: start;
+  border-color: rgba(191, 45, 92, 0.24);
+  background:
+    radial-gradient(circle at 16% 16%, rgba(191, 45, 92, 0.13), transparent 30%),
+    radial-gradient(circle at 92% 18%, rgba(74, 222, 128, 0.08), transparent 24%),
+    var(--panel);
 }
 
 .weight-room-pulse-header {
@@ -8650,6 +8655,31 @@ select option {
   white-space: nowrap;
 }
 
+.weight-room-pulse-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.weight-room-pulse-title-icon,
+.weight-room-pulse-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(191, 45, 92, 0.34);
+  border-radius: 12px;
+  background: rgba(191, 45, 92, 0.15);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+}
+
+.weight-room-pulse-title-icon {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+}
+
 .weight-room-pulse-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -8662,17 +8692,50 @@ select option {
   display: grid;
   gap: 3px;
   align-content: center;
+  position: relative;
 }
 
 .weight-room-pulse-metric + .weight-room-pulse-metric {
   border-left: 1px solid rgba(148, 163, 184, 0.12);
 }
 
-.weight-room-pulse-metric span {
+.weight-room-pulse-icon {
+  width: 30px;
+  height: 30px;
+  margin-bottom: 4px;
+  border-radius: 999px;
+}
+
+.weight-room-pulse-metric--completion .weight-room-pulse-icon {
+  border-color: rgba(74, 222, 128, 0.26);
+  background: rgba(34, 197, 94, 0.13);
+  color: #5ee277;
+}
+
+.weight-room-pulse-metric--sets .weight-room-pulse-icon {
+  border-color: rgba(236, 72, 153, 0.28);
+  background: rgba(191, 45, 92, 0.16);
+  color: #f05280;
+}
+
+.weight-room-pulse-metric--volume .weight-room-pulse-icon {
+  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(148, 163, 184, 0.11);
+  color: #b6c6d8;
+}
+
+.weight-room-pulse-metric--trend .weight-room-pulse-icon {
+  border-color: rgba(74, 222, 128, 0.26);
+  background: rgba(34, 197, 94, 0.13);
+  color: #5ee277;
+}
+
+.weight-room-pulse-label {
   color: var(--muted);
   font-size: 11px;
   font-weight: 950;
   text-transform: uppercase;
+  line-height: 1.15;
 }
 
 .weight-room-pulse-metric strong {
@@ -8695,6 +8758,10 @@ select option {
 .weight-room-pulse-insight strong,
 .weight-room-pulse-insight span.positive {
   color: var(--success);
+}
+
+.weight-room-pulse-metric--trend strong.positive {
+  text-shadow: 0 0 18px rgba(74, 222, 128, 0.18);
 }
 
 .weight-room-pulse-insight,

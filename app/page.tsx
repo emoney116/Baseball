@@ -37,6 +37,7 @@ import {
   Swords,
   Trophy,
   Trash2,
+  TrendingUp,
   Undo2,
   Upload,
   User,
@@ -7711,7 +7712,12 @@ function WeightRoomTeamOverview({
   return (
     <article className="panel weight-room-team-overview weight-room-pulse-card">
       <div className="weight-room-pulse-header">
-        <h2>This Week Weight Room</h2>
+        <div className="weight-room-pulse-title">
+          <span className="weight-room-pulse-title-icon" aria-hidden="true">
+            <Dumbbell size={17} />
+          </span>
+          <h2>This Week Weight Room</h2>
+        </div>
         <button className="text-button" type="button" onClick={onViewWorkouts}>View All Workouts <ChevronRight size={15} aria-hidden="true" /></button>
       </div>
       {overview.completedWorkoutCount === 0 ? (
@@ -7726,23 +7732,27 @@ function WeightRoomTeamOverview({
       ) : (
         <>
           <div className="weight-room-pulse-metrics">
-            <div className="weight-room-pulse-metric">
-              <span>Completion</span>
+            <div className="weight-room-pulse-metric weight-room-pulse-metric--completion">
+              <span className="weight-room-pulse-icon" aria-hidden="true"><Check size={15} /></span>
+              <span className="weight-room-pulse-label">Completion</span>
               <strong>{Math.round(overview.completionPct)}%</strong>
               <small>{overview.completedAthletes}/{overview.athletes} athletes</small>
             </div>
-            <div className="weight-room-pulse-metric">
-              <span>Sets / Athlete</span>
+            <div className="weight-room-pulse-metric weight-room-pulse-metric--sets">
+              <span className="weight-room-pulse-icon" aria-hidden="true"><BarChart3 size={15} /></span>
+              <span className="weight-room-pulse-label">Sets / Athlete</span>
               <strong>{formatNumber(setsPerAthlete, setsPerAthlete % 1 ? 1 : 0)}</strong>
               <small>{overview.sets} total sets</small>
             </div>
-            <div className="weight-room-pulse-metric">
-              <span>Total Volume</span>
+            <div className="weight-room-pulse-metric weight-room-pulse-metric--volume">
+              <span className="weight-room-pulse-icon" aria-hidden="true"><Dumbbell size={15} /></span>
+              <span className="weight-room-pulse-label">Total Volume</span>
               <strong>{formatWorkoutVolume(overview.volume)}</strong>
               <small className={overview.volumeChangePct && overview.volumeChangePct > 0 ? "positive" : ""}>{volumeTrend}</small>
             </div>
-            <div className="weight-room-pulse-metric">
-              <span>Strength Trend</span>
+            <div className="weight-room-pulse-metric weight-room-pulse-metric--trend">
+              <span className="weight-room-pulse-icon" aria-hidden="true"><TrendingUp size={15} /></span>
+              <span className="weight-room-pulse-label">Strength Trend</span>
               <strong className={overview.strengthTrendPct && overview.strengthTrendPct > 0 ? "positive" : ""}>{strengthTrend}</strong>
               <small>{strengthTrendDetail}</small>
             </div>
