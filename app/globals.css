@@ -13714,7 +13714,7 @@ body,
 }
 
 .practice-activity-card {
-  min-height: 88px;
+  min-height: 74px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background:
@@ -13723,10 +13723,10 @@ body,
   color: var(--text);
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr);
-  grid-template-rows: auto auto;
+  grid-template-rows: auto;
   align-content: center;
   align-items: center;
-  gap: 2px 12px;
+  gap: 0 12px;
   padding: 14px;
   text-align: left;
   cursor: pointer;
@@ -13739,7 +13739,6 @@ body,
 }
 
 .practice-activity-card > span {
-  grid-row: 1 / span 2;
   width: 42px;
   height: 42px;
   border-radius: 999px;

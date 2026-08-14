@@ -5888,10 +5888,10 @@ function PracticeHome({
                   </div>
                 </div>
                 <div className="practice-activity-grid">
-                  <PracticeActivityCard mode="Hitting" icon={Swords} title="Hitting" description="BP, tee, machine" onClick={() => onOpenStation("Hitting")} />
-                  <PracticeActivityCard mode="Pitching" icon={BaseballIcon} title="Pitching" description="Bullpens, live reps" onClick={() => onOpenStation("Pitching")} />
-                  <PracticeActivityCard mode="Defense" icon={Shield} title="Defense" description="Fielding, reps, plays" onClick={() => onOpenStation("Defense")} />
-                  <PracticeActivityCard mode="Live BP" icon={Gauge} title="Live BP" description="Pitcher vs hitter" onClick={() => onOpenStation("Live BP")} />
+                  <PracticeActivityCard mode="Hitting" icon={Swords} title="Hitting" onClick={() => onOpenStation("Hitting")} />
+                  <PracticeActivityCard mode="Pitching" icon={BaseballIcon} title="Pitching" onClick={() => onOpenStation("Pitching")} />
+                  <PracticeActivityCard mode="Defense" icon={Shield} title="Defense" onClick={() => onOpenStation("Defense")} />
+                  <PracticeActivityCard mode="Live BP" icon={Gauge} title="Live BP" onClick={() => onOpenStation("Live BP")} />
                 </div>
               </article>
 
@@ -5919,20 +5919,17 @@ function PracticeActivityCard({
   mode,
   icon: Icon,
   title,
-  description,
   onClick,
 }: {
   mode: PracticeMode;
   icon: AppIcon;
   title: string;
-  description: string;
   onClick: () => void;
 }) {
   return (
     <button type="button" className={`practice-activity-card practice-activity-card--${practiceModeClass(mode)}`} onClick={onClick}>
       <span><Icon size={22} aria-hidden="true" /></span>
       <strong>{title}</strong>
-      <small>{description}</small>
     </button>
   );
 }
