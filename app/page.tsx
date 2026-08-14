@@ -7177,7 +7177,7 @@ function WeightRoomView({
   const entriesForDate = data.workoutEntries.filter((entry) => entrySessionDate(data, entry) === workoutDate);
   const teamOverview = buildWeightRoomTeamOverview(data, players, workoutDate);
   const leaderboard = buildScoredWeightRoomLeaderboard(players, data.workoutSessions, data.workoutEntries, "This Season");
-  const featuredLeader = leaderboard[0] ?? leader;
+  const leaderRows = leaderboard.length ? leaderboard.slice(0, 5) : leader ? [leader] : [];
   const template = WEIGHT_ROOM_TEMPLATES.find((item) => item.name === workoutTitle) ?? WEIGHT_ROOM_TEMPLATES[0];
   const workoutExercises = uniqueStrings([activeExercise, ...template.exercises])
     .map((name) => exercises.find((exercise) => exercise.name === name) ?? makeWeightRoomExercise(name))
@@ -7255,7 +7255,7 @@ function WeightRoomView({
 
       {tab === "Overview" && (
         <section className="weight-room-overview-grid">
-          <WeightLeaderCard leader={featuredLeader} onOpenPlayer={onOpenPlayer} />
+          <WeightLeaderCard leaders={leaderRows} onOpenPlayer={onOpenPlayer} />
           <WeightRoomWeighInCard data={data} players={players} date={workoutDate} onOpen={() => onWeighInOpen(true)} />
           <WeightRoomRecentWorkouts data={data} players={players} onStart={startWorkoutFromSelection} />
           <WeightRoomTeamOverview overview={teamOverview} onTab={onTab} />
@@ -7998,12 +7998,14 @@ function WeightRoomPlayerPanel({
             <h2>{players.length} players</h2>
           </div>
         </div>
-        {players.map((item) => (
-          <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => onPlayer(item.id)}>
-            <PlayerAvatar player={item} size="sm" compact />
-            <span><strong>{item.name}</strong><small>#{item.jerseyNumber} - {item.primaryPosition}</small></span>
-          </button>
-        ))}
+        <div className="weight-room-player-list__scroll">
+          {players.map((item) => (
+            <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => onPlayer(item.id)}>
+              <PlayerAvatar player={item} size="sm" compact />
+              <span><strong>{item.name}</strong><small>#{item.jerseyNumber} - {item.primaryPosition}</small></span>
+            </button>
+          ))}
+        </div>
       </aside>
       <article className="panel weight-room-player-profile">
         <div className="profile-header weight-room-profile-header">
@@ -11032,28 +11034,41 @@ function AwardCard({ title, award, onOpenPlayer, icon: Icon }: { title: string; 
   );
 }
 
-function WeightLeaderCard({ leader, onOpenPlayer }: { leader?: WeightLeaderResult; onOpenPlayer: (playerId: ID) => void }) {
+function WeightLeaderCard({
+  leader,
+  leaders,
+  onOpenPlayer,
+}: {
+  leader?: WeightLeaderResult;
+  leaders?: WeightLeaderResult[];
+  onOpenPlayer: (playerId: ID) => void;
+}) {
+  const rows = leaders?.length ? leaders.slice(0, 5) : leader ? [leader] : [];
   return (
     <article className="panel award-card weight-leader">
       <div className="award-card__top">
-        <span>Weight Room Leader</span>
+        <span>Weight Room Leaders</span>
         <Dumbbell size={18} aria-hidden="true" />
       </div>
-      {leader ? (
-        <>
-          <button type="button" className="award-player" onClick={() => onOpenPlayer(leader.player.id)}>
-            <PlayerAvatar player={leader.player} size="lg" />
-            <span><small>#{leader.player.jerseyNumber}</small><strong>{leader.player.name}</strong><em>Development Score {leader.score}</em></span>
-          </button>
-          <div className="reason-list">{leader.reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
-        </>
+      {rows.length ? (
+        <div className="weight-leader-list">
+          {rows.map((row, index) => (
+            <button type="button" key={row.player.id} onClick={() => onOpenPlayer(row.player.id)}>
+              <em>{index + 1}</em>
+              <PlayerAvatar player={row.player} size="sm" compact />
+              <span>
+                <strong>{row.player.name}</strong>
+                <small>{row.score} score{typeof row.volume === "number" ? ` - ${formatWorkoutVolume(row.volume)}` : ""}</small>
+              </span>
+            </button>
+          ))}
+        </div>
       ) : (
         <CompactEmpty title="No workouts yet" />
       )}
     </article>
   );
 }
-
 function UpcomingScheduleCard({ items, onView }: { items: ScheduleItem[]; onView: (view: ViewKey) => void }) {
   return (
     <article className="panel upcoming-schedule-card">
