@@ -24,7 +24,29 @@
   --danger: #e45d5d;
   --shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
   --radius: 8px;
-  --font: "Inter", "Geist", "Segoe UI", system-ui, sans-serif;
+  --font: var(--font-geist), "Inter", "Segoe UI", system-ui, sans-serif;
+  --text-page-title: clamp(1.5rem, 1.05vw + 1.18rem, 2rem);
+  --text-section-title: clamp(1rem, 0.32vw + 0.94rem, 1.125rem);
+  --text-card-title: 0.9375rem;
+  --text-body: 0.875rem;
+  --text-secondary-body: 0.8125rem;
+  --text-label: 0.6875rem;
+  --text-caption: 0.75rem;
+  --text-button: 0.8125rem;
+  --text-tab: 0.8125rem;
+  --text-table-header: 0.6875rem;
+  --text-table-row: 0.8125rem;
+  --text-metric: clamp(1.5rem, 1vw + 1.1rem, 2rem);
+  --weight-body: 400;
+  --weight-ui: 500;
+  --weight-selected: 600;
+  --weight-heading: 600;
+  --weight-page-title: 650;
+  --weight-metric: 700;
+  --leading-page-title: 1.15;
+  --leading-section-title: 1.25;
+  --leading-body: 1.45;
+  --leading-compact: 1.2;
 }
 
 [data-theme="light"] {
@@ -58,7 +80,12 @@ body {
   min-height: 100%;
   color: var(--text);
   font-family: var(--font);
+  font-size: var(--text-body);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
   background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -75,6 +102,58 @@ button {
 img {
   display: block;
   max-width: 100%;
+}
+
+.type-page-title {
+  font-size: var(--text-page-title);
+  font-weight: var(--weight-page-title);
+  line-height: var(--leading-page-title);
+}
+
+.type-section-title {
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-section-title);
+}
+
+.type-card-title {
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-section-title);
+}
+
+.type-body {
+  font-size: var(--text-body);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
+}
+
+.type-secondary-body {
+  color: var(--muted);
+  font-size: var(--text-secondary-body);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
+}
+
+.type-label {
+  color: var(--muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.025em;
+  line-height: var(--leading-compact);
+}
+
+.type-caption {
+  color: var(--muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-ui);
+  line-height: var(--leading-body);
+}
+
+.type-metric {
+  font-size: var(--text-metric);
+  font-weight: var(--weight-metric);
+  line-height: 1;
 }
 
 button:focus-visible,
@@ -16465,5 +16544,4335 @@ body,
   .practice-player-grid,
   .practice-throwing-card {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Clubhouse 9 application typography system */
+.top-command h1,
+.section-header h2,
+.weight-room-shell-header__identity h2,
+.practice-command__main h2,
+.practice-header h2,
+.practice-drilldown-header h2,
+.profile-header h2,
+.org-manage-hero h1,
+.public-hero h1,
+.public-team-identity h1,
+.public-team-identity h2,
+.setup-panel h1 {
+  font-size: var(--text-page-title);
+  font-weight: var(--weight-page-title);
+  line-height: var(--leading-page-title);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.team-identity-switcher__button strong {
+  font-size: clamp(1.125rem, 0.6vw + 1rem, 1.375rem);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-page-title);
+}
+
+.team-identity-switcher--compact .team-identity-switcher__button strong,
+.team-compact-title strong {
+  font-size: 1rem;
+  font-weight: var(--weight-heading);
+}
+
+.panel-heading h2,
+.today-panel h2,
+.recent-activity-card h2,
+.team-snapshot-bar h2,
+.weight-room-pulse-header h2,
+.weight-room-review-table h3,
+.practice-history-panel > h2,
+.practice-empty-hub h2,
+.practice-drill-card h2,
+.roster-command h2,
+.public-section__heading h2,
+.modal-title h2,
+.no-team-card h1 {
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-section-title);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.panel > h2,
+.development-card h2,
+.home-info-card strong,
+.schedule-detail-card__top strong,
+.upcoming-schedule-list strong,
+.practice-activity-card strong,
+.practice-my-session strong,
+.practice-active-session-card strong,
+.practice-plan-list strong,
+.practice-history-rows strong,
+.practice-throwing-card strong,
+.weight-room-workout-list strong,
+.weight-room-template-grid strong,
+.weight-room-exercise-chip-list strong,
+.weight-room-library-select strong,
+.weight-room-review-table strong,
+.weight-room-read-row strong,
+.org-team-admin-card__summary strong,
+.org-member-row strong,
+.org-invite-row strong,
+.staff-edit-summary strong,
+.staff-team-picker strong {
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-section-title);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.primary-button,
+.secondary-button,
+.ghost-button,
+.text-button,
+.context-back-button,
+.public-follow-button,
+.public-manage-link,
+.action-card,
+.theme-toggle,
+.schedule-picker-button,
+.schedule-picker-text,
+.schedule-picker-today,
+.schedule-time-clear,
+.schedule-map-link,
+.attendance-bulk-row button,
+.attendance-status-grid button,
+.player-cycle-row button,
+.weight-room-bodyweight button,
+.weight-room-suggestion-row button,
+.weight-room-set-table button,
+.weight-room-remove-exercise,
+.weight-room-inline-confirm button,
+.row-action-button,
+.row-menu-button,
+.staff-invite-inline {
+  font-size: var(--text-button);
+  font-weight: var(--weight-ui);
+  line-height: var(--leading-compact);
+}
+
+.primary-button,
+.segmented-control button.active,
+.practice-tabs button.active,
+.practice-tracker-tabs button.active,
+.profile-tabs button.active,
+.tab-row button.active,
+.auth-tabs button.active,
+.org-manage-tabs button.active,
+.bottom-nav button.active {
+  font-weight: var(--weight-selected);
+}
+
+.segmented-control button,
+.practice-tabs button,
+.practice-tracker-tabs button,
+.profile-tabs button,
+.tab-row button,
+.auth-tabs button,
+.org-manage-tabs button,
+.bottom-nav button,
+.mobile-more-sheet button,
+.status-toggle button,
+.direction-row button,
+.pitch-type-row button,
+.manual-row button,
+.bip-grid button,
+.practice-setup-choice-grid button,
+.weight-room-template-preview button,
+.weight-room-template-grid button,
+.weight-room-exercise-chip-list button,
+.weight-room-workout-list button,
+.weight-room-player-list button,
+.weight-room-result-table button,
+.weight-room-leaderboard-table button {
+  font-size: var(--text-tab);
+  font-weight: var(--weight-ui);
+  line-height: var(--leading-compact);
+}
+
+.top-command span,
+.section-header > div > span,
+.panel-heading span,
+.section-kicker,
+.practice-header span,
+.practice-command__main span,
+.practice-preset-panel span,
+.practice-leader-columns > div > span,
+.practice-team-picker > span,
+.attendance-roster__head,
+.practice-start-grid label span,
+.practice-start-grid .form-field > span,
+.practice-team-context > span,
+.practice-drill-card > span,
+.practice-setup-options > span,
+.practice-drilldown-header > div span,
+.weight-room-shell-header__identity small,
+.weight-room-shell-header__identity em,
+.weight-room-active-header small,
+.weight-room-active-header span,
+.weight-room-card-actions,
+.weight-room-pulse-label,
+.weight-room-session-stats span,
+.weight-number-stepper > span,
+.weight-room-suggestion-row > span,
+.weight-room-insight-card span,
+.weight-room-player-list__pager span,
+.schedule-calendar__weekdays,
+.schedule-agenda-group h3,
+.schedule-event-form label > span,
+.schedule-event-form .form-field > span,
+.schedule-date-weekdays span,
+.filter-select span,
+.status-select-wrap span,
+.roster-row__metrics span,
+.profile-line > span,
+.choice-select__label,
+.field-control > span,
+.auth-form label span,
+.sync-banner,
+.visibility-badge,
+.team-switcher small {
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.025em;
+  line-height: var(--leading-compact);
+}
+
+.panel small,
+.section-header p,
+.section-header small,
+.compact-leader-list p,
+.home-info-card small,
+.home-info-card em,
+.activity-feed small,
+.activity-feed time,
+.snapshot-stat small,
+.schedule-chip small,
+.schedule-week-event small,
+.schedule-week-day header span,
+.schedule-week-empty,
+.schedule-agenda-row small,
+.schedule-mini-row small,
+.upcoming-schedule-list small,
+.public-roster-row small,
+.public-roster-row em,
+.public-game-row span,
+.public-game-row small,
+.staff-person-cell small,
+.staff-table-row > span,
+.staff-edit-summary small,
+.staff-team-picker small,
+.weight-room-workout-list small,
+.weight-room-template-grid small,
+.weight-room-exercise-chip-list small,
+.weight-room-library-list small,
+.weight-room-result-table span,
+.weight-room-leaderboard-table span,
+.weight-room-leaderboard-table small,
+.weight-room-set-table span,
+.weight-room-set-table em,
+.weight-room-weigh-table span,
+.weight-room-weigh-table em,
+.weight-room-athlete-card small,
+.weight-room-player-list button small,
+.weight-room-pulse-metric small,
+.weight-room-pulse-empty small,
+.weight-room-review-table span,
+.practice-plan-list time,
+.practice-plan-list small,
+.practice-history-rows small,
+.practice-history-rows em,
+.practice-active-session-card em,
+.practice-session-meta,
+.practice-session-contributors small,
+.practice-activity-feed em,
+.practice-throwing-card small,
+.practice-throwing-card em,
+.practice-player-grid small,
+.player-picker-column small,
+.recent-practice-list small,
+.recent-practice-list span,
+.attendance-row small {
+  font-size: var(--text-secondary-body);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
+}
+
+.roster-player-cell strong,
+.roster-row__identity strong,
+.staff-person-cell strong,
+.current-player-card strong,
+.switcher-list strong,
+.compact-player-grid strong,
+.practice-player-grid strong,
+.player-picker-column strong,
+.attendance-row b,
+.award-player strong,
+.weight-leader-list strong,
+.weight-room-mini-table button strong,
+.weight-room-athlete-card strong,
+.weight-room-player-list button strong,
+.weight-room-leaderboard-table button > span:nth-child(2),
+.schedule-opponent-option strong,
+.schedule-team-pill strong,
+.public-roster-row b,
+.public-game-row strong,
+.activity-feed strong,
+.leader-rows strong,
+.compact-leader-list strong,
+.global-context-card strong,
+.pinned-team-shortcut strong,
+.profile-menu__identity strong,
+.team-switcher strong,
+.team-switch-choice .choice-select__button strong,
+.choice-select__button strong,
+.choice-select__menu button strong {
+  font-size: clamp(0.875rem, 0.18vw + 0.82rem, 1rem);
+  font-weight: var(--weight-selected);
+  line-height: var(--leading-section-title);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.roster-table__head,
+.staff-table__head,
+.workout-table__header,
+.manual-roster-head,
+.single-player-head,
+.import-preview__head,
+.weight-room-mini-table > div,
+.weight-room-result-table > div,
+.weight-room-leaderboard-table > div,
+.weight-room-weigh-table > div,
+.weight-room-set-table > div:first-child,
+.practice-recent-event-table > div:first-child,
+.schedule-calendar__weekdays {
+  font-size: var(--text-table-header);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.035em;
+  line-height: var(--leading-compact);
+}
+
+.roster-table-row > span,
+.staff-table-row > span,
+.weight-room-mini-table button,
+.weight-room-result-table button,
+.weight-room-leaderboard-table button,
+.weight-room-weigh-table label,
+.workout-row,
+.manual-roster-row,
+.single-player-row,
+.import-row {
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
+}
+
+.stat-tile strong,
+.snapshot-stat strong,
+.live-metrics strong,
+.score-line strong,
+.scoreboard strong,
+.count-card strong,
+.attendance-ring strong,
+.status-mini strong,
+.public-stat-strip strong,
+.public-org-summary strong,
+.weight-room-pulse-metric strong,
+.weight-room-session-stats strong,
+.weight-room-leaderboard-table em,
+.weight-number-stepper input,
+.velo-input input,
+.account-avatar,
+.jersey-number {
+  font-size: var(--text-metric);
+  font-weight: var(--weight-metric);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.scoreboard strong,
+.score-line strong,
+.count-card strong {
+  font-size: clamp(1.75rem, 1.8vw + 1.1rem, 2.25rem);
+}
+
+.weight-room-pulse-metric strong {
+  font-size: clamp(1.375rem, 0.7vw + 1rem, 1.75rem);
+}
+
+.stat-tile__top,
+.live-metrics span,
+.score-line span,
+.schedule-row span,
+.compact-empty span,
+.count-card span,
+.scoreboard span,
+.snapshot-stat small,
+.public-stat-strip small {
+  font-size: var(--text-label);
+  font-weight: var(--weight-ui);
+  line-height: var(--leading-compact);
+  letter-spacing: 0.015em;
+  text-transform: none;
+}
+
+.award-player strong,
+.station-grid strong,
+.compact-leader-list h3,
+.public-hero span,
+.public-kicker,
+.schedule-agenda-group h3,
+.weight-room-mini-table > div,
+.weight-room-result-table > div,
+.weight-room-leaderboard-table > div,
+.weight-room-weigh-table > div,
+.weight-room-set-table > div:first-child,
+.practice-recent-event-table > div:first-child span,
+.practice-my-session small,
+.practice-active-session-card .practice-session-type,
+.practice-activity-feed > span,
+.attendance-status-key,
+.attendance-status-key-popover span,
+.team-switcher small,
+.status-select-wrap .choice-select__button strong,
+.status-select-wrap select {
+  text-transform: none;
+}
+
+.brand-lockup strong,
+.setup-brand strong {
+  font-weight: 700;
+}
+
+.auth-tabs button,
+.auth-link-button,
+.public-brand,
+.public-follow-button,
+.org-manage-tabs button,
+.org-manage-message,
+.visibility-badge,
+.file-drop,
+.attendance-avatar__meta strong,
+.attendance-avatar__meta small,
+.practice-session-contributors i,
+.weight-room-pager-button,
+.weight-room-rest-timer,
+.weight-room-exercise-rail__list em,
+.weight-room-inline-confirm small,
+.form-errors,
+.tooltip-trigger::after {
+  font-weight: var(--weight-selected);
+}
+
+.attendance-avatar__meta strong {
+  font-size: 0.625rem;
+}
+
+.practice-tabs,
+.segmented-control,
+.org-manage-tabs {
+  gap: 4px;
+}
+
+.weight-room-page,
+.practice-home,
+.schedule-page,
+.roster-page,
+.games-page {
+  gap: 12px;
+}
+
+.weight-room-shell-header {
+  gap: 10px;
+}
+
+.award-card__top span,
+.weight-room-weigh-card .panel-heading h2,
+.weight-room-recent-card .panel-heading h2,
+.weight-room-template-builder h2,
+.weight-room-library-card h2,
+.weight-room-exercise-results h2,
+.weight-room-leaderboard-card h2,
+.weight-room-active-summary h2,
+.weight-room-active-header h2,
+.weight-room-athlete-panel h2,
+.weight-room-set-console h2,
+.weight-room-exercise-rail h2,
+.weight-room-player-list h2,
+.weight-room-player-profile h2,
+.weight-room-pulse-header h2 {
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-section-title);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.award-card__top span,
+.weight-room-weigh-card .panel-heading h2,
+.weight-room-recent-card .panel-heading h2,
+.weight-room-pulse-header h2 {
+  font-size: var(--text-card-title);
+}
+
+.weight-leader-list strong,
+.weight-room-mini-table button strong,
+.weight-room-workout-list strong,
+.weight-room-result-table button strong,
+.weight-room-review-table strong,
+.weight-room-read-row strong {
+  font-size: clamp(0.875rem, 0.15vw + 0.82rem, 0.975rem);
+  font-weight: var(--weight-selected);
+  line-height: var(--leading-section-title);
+}
+
+.weight-room-mini-table button,
+.weight-room-result-table button,
+.weight-room-leaderboard-table button,
+.weight-room-weigh-table label,
+.weight-room-review-table button {
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-body);
+}
+
+.weight-room-mini-table > div,
+.weight-room-result-table > div,
+.weight-room-leaderboard-table > div,
+.weight-room-weigh-table > div,
+.weight-room-set-table > div:first-child,
+.weight-room-pulse-label {
+  font-size: var(--text-table-header);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.025em;
+}
+
+.weight-room-pulse-metric {
+  grid-template-rows: 28px 14px 26px;
+}
+
+.weight-room-pulse-metric strong {
+  font-size: clamp(1.25rem, 0.62vw + 1rem, 1.625rem);
+  font-weight: var(--weight-metric);
+}
+
+.weight-room-pulse-metric small,
+.weight-room-pulse-empty small,
+.weight-room-workout-list small,
+.weight-room-mini-table button span,
+.weight-room-mini-table button em {
+  font-size: var(--text-secondary-body);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
+}
+
+.weight-room-athlete-card > span {
+  display: grid;
+  gap: 2px;
+}
+
+@media (min-width: 981px) and (max-width: 1280px) {
+  .section-header h2,
+  .weight-room-shell-header__identity h2,
+  .practice-command__main h2,
+  .practice-header h2,
+  .profile-header h2 {
+    font-size: clamp(1.625rem, 0.9vw + 1.25rem, 1.875rem);
+  }
+}
+
+@media (max-width: 980px) {
+  .section-header h2,
+  .weight-room-shell-header__identity h2,
+  .practice-command__main h2,
+  .practice-header h2,
+  .practice-drilldown-header h2,
+  .profile-header h2,
+  .public-hero h1,
+  .public-team-identity h1,
+  .public-team-identity h2 {
+    font-size: clamp(1.625rem, 1vw + 1.35rem, 1.875rem);
+  }
+
+  .team-identity-switcher__button strong {
+    font-size: 1.125rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .section-header h2,
+  .weight-room-shell-header__identity h2,
+  .practice-command__main h2,
+  .practice-header h2,
+  .practice-drilldown-header h2,
+  .profile-header h2,
+  .public-hero h1,
+  .public-team-identity h1,
+  .public-team-identity h2 {
+    font-size: clamp(1.5rem, 5.2vw, 1.75rem);
+  }
+
+  .panel-heading h2,
+  .today-panel h2,
+  .recent-activity-card h2,
+  .team-snapshot-bar h2,
+  .modal-title h2 {
+    font-size: 1rem;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .ghost-button,
+  .text-button,
+  .segmented-control button,
+  .practice-tabs button,
+  .practice-tracker-tabs button,
+  .bottom-nav button {
+    font-size: 0.75rem;
+  }
+
+  .weight-room-mini-table > div,
+  .weight-room-mini-table button {
+    grid-template-columns: minmax(136px, 1.6fr) repeat(4, minmax(42px, 0.45fr));
+    gap: 4px;
+    padding-inline: 7px;
+  }
+}
+
+/* Auth and Weight Room interaction refinements */
+.auth-screen {
+  width: min(100%, 456px);
+  padding-inline: 24px;
+}
+
+.auth-form {
+  gap: 14px;
+  padding: 18px;
+  border-color: color-mix(in srgb, var(--burgundy) 20%, var(--line));
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--burgundy) 11%, transparent), transparent 44%),
+    color-mix(in srgb, var(--bg-elevated) 72%, transparent);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.26);
+}
+
+.auth-tabs {
+  padding: 3px;
+  border-color: color-mix(in srgb, var(--burgundy) 22%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-elevated) 62%, transparent);
+}
+
+.auth-tabs button {
+  border-radius: 999px;
+  font-weight: var(--weight-ui);
+}
+
+.auth-tabs button.active {
+  background: color-mix(in srgb, var(--burgundy) 88%, #ffffff 4%);
+  color: #ffffff;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--burgundy) 28%, transparent);
+}
+
+.auth-form label {
+  gap: 7px;
+}
+
+.auth-form label span {
+  color: var(--muted-strong);
+  font-size: var(--text-label);
+  font-weight: var(--weight-ui);
+  letter-spacing: 0.015em;
+}
+
+.auth-form input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 70%, transparent);
+  border-radius: 10px;
+  outline: 0;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  color: var(--text);
+  padding: 0 13px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.auth-form input:hover {
+  border-color: color-mix(in srgb, var(--burgundy) 38%, var(--line-strong));
+}
+
+.auth-form input:focus {
+  border-color: color-mix(in srgb, var(--burgundy) 82%, var(--line));
+  background: color-mix(in srgb, var(--bg) 92%, var(--burgundy) 5%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 18%, transparent);
+}
+
+.auth-form .primary-button.stretch-button {
+  min-height: 46px;
+  border-color: color-mix(in srgb, var(--burgundy-strong) 90%, #ffffff 8%);
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--burgundy-strong), color-mix(in srgb, var(--burgundy) 78%, #11151b));
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--burgundy) 34%, transparent);
+}
+
+.auth-link-button {
+  color: var(--muted-strong);
+  font-weight: var(--weight-ui);
+}
+
+.weight-room-player-list {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.weight-room-player-list__scroll,
+.weight-room-workout-dates,
+.weight-room-workout-detail-table,
+.weight-room-exercise-box-table {
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.weight-room-player-list__scroll::-webkit-scrollbar,
+.weight-room-workout-dates::-webkit-scrollbar,
+.weight-room-workout-detail-table::-webkit-scrollbar,
+.weight-room-exercise-box-table::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-player-list__scroll {
+  overflow-y: auto;
+  padding-right: 0;
+}
+
+.weight-room-player-list__pager {
+  display: none;
+}
+
+.weight-room-workout-browser {
+  display: grid;
+  grid-template-columns: minmax(180px, 230px) minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+}
+
+.weight-room-workout-dates {
+  max-height: 380px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.weight-room-workout-dates button {
+  width: 100%;
+  min-height: 68px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text);
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-workout-dates button.active,
+.weight-room-workout-dates button:hover {
+  border-color: color-mix(in srgb, var(--burgundy) 54%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 18%, var(--panel-soft));
+}
+
+.weight-room-workout-dates strong {
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-heading);
+}
+
+.weight-room-workout-dates span,
+.weight-room-workout-dates small {
+  color: var(--muted-strong);
+  font-size: var(--text-secondary-body);
+  font-weight: var(--weight-body);
+}
+
+.weight-room-workout-detail {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.weight-room-workout-detail__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.weight-room-workout-detail__head span {
+  display: grid;
+  gap: 2px;
+}
+
+.weight-room-workout-detail__head span:last-child {
+  text-align: right;
+}
+
+.weight-room-workout-detail-table,
+.weight-room-exercise-box-table {
+  max-height: 360px;
+  display: grid;
+  gap: 5px;
+}
+
+.weight-room-workout-detail-table > div,
+.weight-room-exercise-box-table > div,
+.weight-room-exercise-box-table > button {
+  min-width: 820px;
+  display: grid;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.weight-room-workout-detail-table > div {
+  grid-template-columns: minmax(150px, 1.2fr) 42px repeat(6, minmax(74px, 0.7fr));
+}
+
+.weight-room-exercise-box-table > div,
+.weight-room-exercise-box-table > button {
+  grid-template-columns: minmax(155px, 1.25fr) repeat(7, minmax(78px, 0.7fr));
+}
+
+.weight-room-workout-detail-table > div:first-child,
+.weight-room-exercise-box-table > div:first-child {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--panel-strong);
+}
+
+.weight-room-exercise-box-table > button {
+  width: 100%;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-exercise-box-table > button:hover {
+  border-color: color-mix(in srgb, var(--burgundy) 44%, var(--line));
+}
+
+.weight-room-workout-detail-table span,
+.weight-room-workout-detail-table em,
+.weight-room-exercise-box-table span,
+.weight-room-exercise-box-table em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-secondary-body);
+  font-style: normal;
+}
+
+.weight-room-workout-detail-table strong,
+.weight-room-exercise-box-table strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-player-tools,
+.weight-room-library-toolbar,
+.weight-room-custom-exercise {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 132px);
+  gap: 8px;
+}
+
+.weight-room-player-tools {
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 132px) minmax(132px, 132px);
+  margin-bottom: 10px;
+}
+
+.weight-room-player-tools input,
+.weight-room-library-toolbar input,
+.weight-room-custom-exercise input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  outline: 0;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--text);
+  padding: 9px 10px;
+}
+
+.weight-room-player-tools input::placeholder,
+.weight-room-library-toolbar input::placeholder,
+.weight-room-custom-exercise input::placeholder {
+  color: color-mix(in srgb, var(--muted) 78%, transparent);
+}
+
+.weight-room-player-tools input:focus,
+.weight-room-library-toolbar input:focus,
+.weight-room-custom-exercise input:focus {
+  border-color: color-mix(in srgb, var(--burgundy) 70%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 16%, transparent);
+}
+
+.weight-room-player-tools .choice-select__button,
+.weight-room-library-toolbar .choice-select__button,
+.weight-room-custom-exercise .secondary-button {
+  min-height: 42px;
+}
+
+.weight-room-custom-exercise {
+  margin-bottom: 8px;
+}
+
+.weight-room-exercise-box {
+  display: grid;
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .weight-room-workout-browser {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-workout-dates {
+    max-height: 220px;
+  }
+
+  .weight-room-player-tools {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .auth-screen {
+    padding-inline: 18px;
+  }
+
+  .auth-name-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-library-toolbar,
+  .weight-room-custom-exercise {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Weight Room athlete analytics workspace */
+.weight-room-athlete-workspace {
+  --weight-room-athlete-min-height: clamp(520px, calc(100vh - 170px), 680px);
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  align-items: stretch;
+  grid-auto-rows: auto;
+}
+
+.weight-room-athlete-workspace .weight-room-player-list {
+  align-self: stretch;
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  grid-template-rows: auto auto minmax(0, auto);
+  min-height: var(--weight-room-athlete-min-height);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--burgundy) 8%, transparent), transparent 42%),
+    color-mix(in srgb, var(--panel) 92%, transparent);
+}
+
+.weight-room-player-list__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.weight-room-player-list__header h2 {
+  margin: 0;
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-section-title);
+}
+
+.weight-room-player-list__header span {
+  color: var(--muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-ui);
+}
+
+.weight-room-player-search,
+.weight-room-athlete-controls label {
+  min-width: 0;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg) 68%, transparent);
+  color: var(--muted);
+  padding: 0 10px;
+}
+
+.weight-room-player-search input,
+.weight-room-athlete-controls input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--text-secondary-body);
+}
+
+.weight-room-player-search:focus-within,
+.weight-room-athlete-controls label:focus-within {
+  border-color: color-mix(in srgb, var(--burgundy) 68%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 14%, transparent);
+}
+
+.weight-room-athlete-workspace .weight-room-player-list__scroll {
+  max-height: 342px;
+  overflow-y: auto;
+  display: grid;
+  gap: 6px;
+  padding-right: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.weight-room-athlete-workspace .weight-room-player-list button {
+  min-height: 52px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 9px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--panel-strong) 74%, transparent);
+  box-shadow: none;
+}
+
+.weight-room-athlete-workspace .weight-room-player-list button:hover,
+.weight-room-athlete-workspace .weight-room-player-list button:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy) 30%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 8%, var(--panel-strong));
+}
+
+.weight-room-athlete-workspace .weight-room-player-list button.active {
+  border-color: color-mix(in srgb, var(--burgundy) 56%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 18%, var(--panel-strong));
+}
+
+.weight-room-athlete-workspace .weight-room-player-list button > span {
+  display: grid;
+  gap: 2px;
+}
+
+.weight-room-athlete-workspace .weight-room-player-list button strong {
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-selected);
+  line-height: var(--leading-compact);
+}
+
+.weight-room-athlete-workspace .weight-room-player-list button small {
+  color: var(--muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-body);
+}
+
+.weight-room-athlete-panel {
+  min-height: var(--weight-room-athlete-min-height);
+  padding: 22px 24px 24px;
+  overflow: visible;
+  background:
+    radial-gradient(circle at 22% 0%, color-mix(in srgb, var(--blue) 7%, transparent), transparent 36%),
+    color-mix(in srgb, var(--panel) 94%, transparent);
+}
+
+.weight-room-mobile-player-select {
+  display: none;
+  margin-bottom: 14px;
+}
+
+.weight-room-profile-header {
+  padding-bottom: 20px;
+}
+
+.weight-room-profile-header h2 {
+  margin: 2px 0;
+  font-size: clamp(1.35rem, 0.5vw + 1.16rem, 1.75rem);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-page-title);
+}
+
+.weight-room-profile-header div > span {
+  color: var(--muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.weight-room-profile-header small {
+  color: var(--muted-strong);
+  font-size: var(--text-body);
+  font-weight: var(--weight-body);
+}
+
+.weight-room-profile-header .secondary-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-inline: 22px;
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-athlete-tabs {
+  display: flex;
+  align-items: center;
+  gap: clamp(18px, 3vw, 44px);
+  border-bottom: 1px solid var(--line-strong);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.weight-room-athlete-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-athlete-tabs button {
+  position: relative;
+  min-height: 46px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-strong);
+  padding: 0;
+  font-size: var(--text-tab);
+  font-weight: var(--weight-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.weight-room-athlete-tabs button::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.weight-room-athlete-tabs button.active {
+  color: var(--burgundy-strong);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-athlete-tabs button.active::after {
+  background: var(--burgundy-strong);
+}
+
+.weight-room-athlete-overview,
+.weight-room-athlete-tab-panel {
+  padding-top: 22px;
+}
+
+.weight-room-week-summary {
+  display: grid;
+  gap: 16px;
+}
+
+.weight-room-week-summary h3,
+.weight-room-athlete-section-title h3,
+.weight-room-progress-card h3,
+.weight-room-progress-insight h3 {
+  margin: 0;
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-section-title);
+}
+
+.weight-room-week-summary__metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-block: 1px solid var(--line-strong);
+}
+
+.weight-room-week-summary__metrics > span {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 20px 24px 20px 0;
+  border-right: 1px solid var(--line-strong);
+}
+
+.weight-room-week-summary__metrics > span + span {
+  padding-left: 24px;
+}
+
+.weight-room-week-summary__metrics > span:last-child {
+  border-right: 0;
+  justify-items: center;
+  text-align: center;
+}
+
+.weight-room-week-summary__metrics svg {
+  color: var(--burgundy-strong);
+}
+
+.weight-room-week-summary__metrics small,
+.weight-room-week-summary__metrics em,
+.weight-room-athlete-section-title p,
+.weight-room-progress-card__head span,
+.weight-room-table-footnote {
+  color: var(--muted);
+  font-size: var(--text-secondary-body);
+  font-style: normal;
+  font-weight: var(--weight-body);
+}
+
+.weight-room-week-summary__metrics strong {
+  color: var(--text);
+  font-size: clamp(1.45rem, 0.82vw + 1.08rem, 1.95rem);
+  font-weight: var(--weight-metric);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.weight-room-week-summary__score i {
+  width: 72px;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle closest-side, var(--panel) 70%, transparent 72%),
+    conic-gradient(var(--burgundy-strong) var(--score), color-mix(in srgb, var(--muted) 18%, transparent) 0);
+  font-style: normal;
+}
+
+.weight-room-week-summary__score i strong {
+  font-size: 1.35rem;
+}
+
+.weight-room-focus-panel,
+.weight-room-next-workout,
+.weight-room-progress-card,
+.weight-room-progress-insight {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-soft) 72%, transparent);
+}
+
+.weight-room-focus-panel {
+  min-height: 170px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 36%);
+  gap: 22px;
+  align-items: center;
+  margin-top: 26px;
+  padding: 22px 26px;
+}
+
+.weight-room-focus-panel span,
+.weight-room-next-workout span {
+  color: var(--burgundy-strong);
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.weight-room-focus-panel h3 {
+  margin: 8px 0 6px;
+  font-size: 1.25rem;
+  font-weight: var(--weight-heading);
+}
+
+.weight-room-focus-panel p,
+.weight-room-progress-insight p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: var(--text-body);
+}
+
+.weight-room-focus-panel .mini-chart {
+  min-height: 120px;
+  border: 0;
+  background: transparent;
+}
+
+.weight-room-next-workout {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 14px 16px;
+}
+
+.weight-room-next-workout svg {
+  color: var(--burgundy-strong);
+}
+
+.weight-room-next-workout strong {
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-heading);
+}
+
+.weight-room-next-workout small {
+  color: var(--muted);
+}
+
+.weight-room-workout-command {
+  display: grid;
+  grid-template-columns: minmax(210px, 260px) minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.weight-room-workout-command__title h3 {
+  margin: 0;
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+}
+
+.weight-room-workout-command__title span {
+  color: var(--muted);
+  font-size: var(--text-secondary-body);
+}
+
+.weight-room-workout-command__metrics {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: 16px;
+}
+
+.weight-room-workout-command__metrics span {
+  display: grid;
+  gap: 2px;
+  min-width: 78px;
+}
+
+.weight-room-workout-command__metrics strong {
+  font-size: 1.2rem;
+  font-weight: var(--weight-metric);
+  line-height: 1;
+}
+
+.weight-room-workout-command__metrics small {
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
+.weight-room-athlete-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 190px);
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.weight-room-athlete-controls--wide {
+  grid-template-columns: minmax(240px, 1fr) minmax(170px, 220px);
+}
+
+.weight-room-athlete-controls--exercise-box .choice-select.open .choice-select__menu {
+  top: auto;
+  bottom: calc(100% + 5px);
+  max-height: min(260px, 54vh);
+}
+
+.weight-room-athlete-controls .choice-select__button,
+.weight-room-workout-picker .choice-select__button {
+  min-height: 40px;
+}
+
+.weight-room-athlete-table {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.weight-room-athlete-table.weight-room-workout-detail-table {
+  --weight-room-workout-columns:
+    24%
+    7%
+    14%
+    12%
+    10%
+    14%
+    11%
+    8%;
+  display: block;
+  gap: 0;
+}
+
+.weight-room-athlete-table::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-athlete-table.weight-room-workout-detail-table > .weight-room-workout-group,
+.weight-room-athlete-table.weight-room-exercise-box-table > .weight-room-exercise-row-group {
+  min-width: 0;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.weight-room-athlete-table__head,
+.weight-room-athlete-table__row {
+  width: 100%;
+  min-width: 1080px;
+  display: grid;
+  align-items: center;
+  gap: 12px;
+}
+
+.weight-room-workout-detail-table .weight-room-athlete-table__head,
+.weight-room-workout-detail-table .weight-room-athlete-table__row {
+  width: max(100%, 1080px);
+  min-width: 1080px;
+  grid-template-columns: var(--weight-room-workout-columns);
+  gap: 0;
+}
+
+.weight-room-exercise-box-table .weight-room-athlete-table__head,
+.weight-room-exercise-box-table .weight-room-athlete-table__row {
+  grid-template-columns: minmax(230px, 1.35fr) repeat(7, minmax(118px, 0.75fr));
+}
+
+.weight-room-athlete-table__head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--panel-strong) 86%, var(--bg));
+}
+
+.weight-room-athlete-table__head button {
+  width: 100%;
+  min-width: 0;
+  justify-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-strong);
+  padding: 0;
+  text-align: left;
+  font-size: var(--text-table-header);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.weight-room-athlete-table__head button:not(:first-child) {
+  border-left: 1px solid var(--line);
+  padding-left: 8px;
+}
+
+.weight-room-athlete-table__head button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-athlete-table__head button[aria-sort="ascending"],
+.weight-room-athlete-table__head button[aria-sort="descending"] {
+  color: var(--text);
+}
+
+.weight-room-workout-detail-table .weight-room-athlete-table__head button,
+.weight-room-workout-detail-table .weight-room-athlete-table__row > * {
+  padding-inline: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.weight-room-workout-detail-table .weight-room-athlete-table__head button:not(:first-child) {
+  border-left: 0;
+  padding-left: 6px;
+}
+
+.weight-room-workout-detail-table .weight-room-athlete-table__head > :nth-child(2),
+.weight-room-workout-detail-table .weight-room-athlete-table__row > :nth-child(2),
+.weight-room-workout-detail-table .weight-room-athlete-table__head > :nth-child(8),
+.weight-room-workout-detail-table .weight-room-athlete-table__row > :nth-child(8) {
+  justify-content: center;
+  text-align: center;
+}
+
+.weight-room-athlete-table__row {
+  width: 100%;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted-strong);
+  font-size: var(--text-table-row);
+  text-align: left;
+}
+
+button.weight-room-athlete-table__row {
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+button.weight-room-athlete-table__row:hover {
+  background: color-mix(in srgb, var(--burgundy) 7%, transparent);
+}
+
+.weight-room-athlete-table__row strong {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-selected);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-athlete-table__row span,
+.weight-room-athlete-table__row em {
+  min-width: 0;
+  overflow: hidden;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-workout-group {
+  border-bottom: 1px solid var(--line);
+}
+
+.weight-room-workout-group:last-child,
+.weight-room-exercise-row-group:last-child .weight-room-athlete-table__row {
+  border-bottom: 0;
+}
+
+.weight-room-workout-group__toggle {
+  width: max(100%, 1080px);
+  min-width: 1080px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel-strong) 44%, transparent);
+  color: var(--text);
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-workout-group__toggle span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.weight-room-workout-group__toggle strong {
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-workout-group__toggle small {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
+.weight-room-exercise-icon {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--burgundy) 32%, var(--panel-strong));
+  color: #ffffff;
+  font-style: normal;
+}
+
+.weight-room-athlete-section-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.weight-room-athlete-section-title p {
+  margin: 4px 0 0;
+}
+
+.weight-room-exercise-detail {
+  min-width: 1080px;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 18px;
+  padding: 12px 18px 16px 52px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 28%, transparent);
+}
+
+.weight-room-exercise-detail div {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+}
+
+.weight-room-exercise-detail span {
+  color: var(--muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.weight-room-exercise-detail strong {
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-exercise-detail small {
+  color: var(--muted-strong);
+  font-size: var(--text-caption);
+}
+
+.weight-room-table-footnote {
+  display: block;
+  margin-top: 10px;
+}
+
+.weight-room-progress-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.weight-room-progress-card {
+  padding: 20px;
+}
+
+.weight-room-progress-card__head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.weight-room-progress-card__head > div > strong {
+  display: block;
+  margin-top: 20px;
+  font-size: 2rem;
+  font-weight: var(--weight-metric);
+  line-height: 1;
+}
+
+.weight-room-score-lines {
+  display: grid;
+  gap: 18px;
+}
+
+.weight-room-score-lines > div {
+  display: grid;
+  gap: 8px;
+}
+
+.weight-room-score-lines span {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.weight-room-score-lines strong,
+.weight-room-score-lines em {
+  font-size: var(--text-secondary-body);
+  font-style: normal;
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-score-lines i,
+.weight-room-exercise-breakdown i {
+  height: 7px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, var(--burgundy-strong) var(--value), transparent 0),
+    color-mix(in srgb, var(--muted) 16%, transparent);
+}
+
+.weight-room-exercise-breakdown {
+  display: grid;
+}
+
+.weight-room-exercise-breakdown button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(100px, 34%) 76px auto;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  padding: 12px 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-exercise-breakdown button:last-child {
+  border-bottom: 0;
+}
+
+.weight-room-exercise-breakdown span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.weight-room-exercise-breakdown strong {
+  overflow: hidden;
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-selected);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-exercise-breakdown em {
+  font-style: normal;
+  font-weight: var(--weight-selected);
+  text-align: right;
+}
+
+.weight-room-progress-insight {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.weight-room-progress-insight svg {
+  flex: 0 0 auto;
+  color: var(--burgundy-strong);
+}
+
+.positive {
+  color: var(--green) !important;
+}
+
+.negative {
+  color: color-mix(in srgb, var(--danger) 76%, var(--muted-strong)) !important;
+}
+
+@media (max-width: 1180px) {
+  .weight-room-athlete-workspace {
+    grid-template-columns: minmax(210px, 236px) minmax(0, 1fr);
+  }
+
+  .weight-room-athlete-panel {
+    padding: 20px;
+  }
+
+  .weight-room-week-summary__metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .weight-room-week-summary__metrics > span:nth-child(3) {
+    border-right: 0;
+  }
+
+  .weight-room-week-summary__metrics > span:nth-child(n + 4) {
+    border-top: 1px solid var(--line-strong);
+  }
+
+  .weight-room-week-summary__metrics > span:nth-child(4) {
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .weight-room-athlete-workspace {
+    --weight-room-athlete-min-height: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-athlete-workspace .weight-room-player-list {
+    display: none;
+  }
+
+  .weight-room-mobile-player-select {
+    display: block;
+  }
+
+  .weight-room-workout-command {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-workout-command__metrics {
+    justify-content: start;
+    justify-self: start;
+  }
+
+  .weight-room-progress-grid,
+  .weight-room-focus-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .weight-room-athlete-controls--wide {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-athlete-controls--exercise-box .choice-select.open .choice-select__menu {
+    left: 0;
+    right: auto;
+    width: min(280px, 88vw);
+    max-width: 88vw;
+  }
+
+  .weight-room-athlete-panel {
+    padding: 16px;
+  }
+
+  .weight-room-profile-header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .weight-room-profile-header .secondary-button {
+    grid-column: 1 / -1;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .weight-room-athlete-tabs {
+    gap: 24px;
+  }
+
+  .weight-room-week-summary__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weight-room-week-summary__metrics > span,
+  .weight-room-week-summary__metrics > span + span {
+    padding: 16px 14px 16px 0;
+    border-top: 1px solid var(--line-strong);
+  }
+
+  .weight-room-week-summary__metrics > span:nth-child(odd) {
+    padding-left: 0;
+  }
+
+  .weight-room-week-summary__metrics > span:nth-child(even) {
+    padding-left: 14px;
+    border-right: 0;
+  }
+
+  .weight-room-week-summary__metrics > span:first-child,
+  .weight-room-week-summary__metrics > span:nth-child(2) {
+    border-top: 0;
+  }
+
+  .weight-room-athlete-controls,
+  .weight-room-athlete-controls--wide {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-exercise-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-exercise-breakdown button {
+    grid-template-columns: minmax(0, 1fr) 72px auto;
+  }
+
+  .weight-room-exercise-breakdown button i {
+    display: none;
+  }
+}
+
+/* Weight Room leaderboard refinement */
+.weight-room-athlete-workspace .weight-room-player-list {
+  grid-template-rows: auto minmax(0, 1fr);
+  height: var(--weight-room-athlete-min-height);
+  max-height: var(--weight-room-athlete-min-height);
+  overflow: hidden;
+}
+
+.weight-room-athlete-workspace .weight-room-player-search {
+  min-height: 34px;
+  padding: 0 9px;
+}
+
+.weight-room-athlete-workspace .weight-room-player-list__scroll {
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  align-content: start;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.weight-room-athlete-workspace .weight-room-player-list__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-athlete-panel {
+  height: var(--weight-room-athlete-min-height);
+  max-height: var(--weight-room-athlete-min-height);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.weight-room-athlete-panel .weight-room-athlete-overview,
+.weight-room-athlete-panel .weight-room-athlete-tab-panel {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.weight-room-athlete-panel .weight-room-athlete-overview::-webkit-scrollbar,
+.weight-room-athlete-panel .weight-room-athlete-tab-panel::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .weight-room-athlete-panel {
+    height: auto;
+    max-height: none;
+    display: block;
+    overflow: visible;
+  }
+
+  .weight-room-athlete-panel .weight-room-athlete-overview,
+  .weight-room-athlete-panel .weight-room-athlete-tab-panel {
+    overflow: visible;
+  }
+}
+
+.weight-room-library-toolbar {
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 132px) minmax(132px, 132px);
+  align-items: stretch;
+}
+
+.weight-room-add-exercise-button {
+  justify-content: center;
+}
+
+.weight-room-exercise-modal {
+  max-width: 460px;
+}
+
+.weight-room-exercise-modal__body {
+  display: grid;
+  gap: 14px;
+}
+
+.weight-room-exercise-modal__body label {
+  display: grid;
+  gap: 7px;
+}
+
+.weight-room-exercise-modal__body label span,
+.weight-room-scoring-modal__body span {
+  color: var(--muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.weight-room-exercise-modal__body input {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  outline: 0;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  color: var(--text);
+  padding: 9px 11px;
+  font-size: var(--text-body);
+}
+
+.weight-room-exercise-modal__body input:focus {
+  border-color: color-mix(in srgb, var(--burgundy) 68%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 14%, transparent);
+}
+
+.weight-room-leaderboard-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.weight-room-leaderboard-layout.has-detail {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+}
+
+.weight-room-leaderboard-card {
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+  padding: 22px 24px 24px;
+  overflow: visible;
+}
+
+.weight-room-leaderboard-hero {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.weight-room-leaderboard-hero h2 {
+  margin: 0;
+  font-size: var(--text-page-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-page-title);
+}
+
+.weight-room-leaderboard-hero p {
+  max-width: 620px;
+  margin: 6px 0 0;
+  color: var(--muted-strong);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+
+.weight-room-leaderboard-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.weight-room-score-help {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted-strong);
+  padding: 0 6px;
+  font-size: var(--text-tab);
+  font-weight: var(--weight-ui);
+  cursor: pointer;
+}
+
+.weight-room-score-help:hover,
+.weight-room-score-help:focus-visible {
+  color: var(--text);
+}
+
+.weight-room-leaderboard-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-soft) 62%, transparent);
+  overflow: hidden;
+}
+
+.weight-room-leaderboard-summary > span {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+  padding: 14px 16px;
+  border-right: 1px solid var(--line);
+}
+
+.weight-room-leaderboard-summary > span:last-child {
+  border-right: 0;
+}
+
+.weight-room-leaderboard-summary > span > i {
+  width: 32px;
+  aspect-ratio: 1;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--burgundy) 22%, var(--panel-strong));
+  color: var(--burgundy-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--burgundy) 30%, transparent);
+}
+
+.weight-room-leaderboard-summary > span > span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.weight-room-leaderboard-summary small,
+.weight-room-leaderboard-summary em,
+.weight-room-leaderboard-toolbar > small,
+.weight-room-leaderboard-row small,
+.weight-room-not-qualified p,
+.weight-room-not-qualified small,
+.weight-room-score-drawer small,
+.weight-room-score-drawer__notes span,
+.weight-room-score-drawer__metrics dt,
+.weight-room-score-drawer__why p,
+.weight-room-scoring-modal__body p,
+.weight-room-scoring-modal__body small {
+  color: var(--muted);
+  font-size: var(--text-secondary-body);
+  font-style: normal;
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
+}
+
+.weight-room-leaderboard-summary small {
+  font-size: var(--text-label);
+  font-weight: var(--weight-ui);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.weight-room-leaderboard-summary strong {
+  color: var(--text);
+  font-size: clamp(1.35rem, 0.52vw + 1.14rem, 1.7rem);
+  font-weight: var(--weight-metric);
+  line-height: 1.05;
+}
+
+.weight-room-leaderboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.weight-room-leaderboard-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.weight-room-leaderboard-filter::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-leaderboard-filter button {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-strong) 62%, transparent);
+  color: var(--muted-strong);
+  padding: 0 12px;
+  font-size: var(--text-tab);
+  font-weight: var(--weight-ui);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.weight-room-leaderboard-filter button.active,
+.weight-room-leaderboard-filter button:hover,
+.weight-room-leaderboard-filter button:focus-visible {
+  border-color: color-mix(in srgb, var(--burgundy) 54%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 17%, var(--panel-strong));
+  color: var(--text);
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-soft) 46%, transparent);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table > .weight-room-leaderboard-table__body {
+  min-width: 760px;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table .weight-room-leaderboard-table__head,
+.weight-room-leaderboard-card .weight-room-leaderboard-table .weight-room-leaderboard-row {
+  min-width: 760px;
+  display: grid;
+  grid-template-columns: 54px minmax(178px, 1.24fr) 78px 86px 108px 92px 104px;
+  align-items: center;
+  gap: 10px;
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table > .weight-room-leaderboard-table__head {
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--panel-strong) 82%, var(--bg));
+}
+
+.weight-room-leaderboard-table__head > span,
+.weight-room-leaderboard-table__head button {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-strong);
+  padding: 0;
+  text-align: left;
+  font-size: var(--text-table-header);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.weight-room-leaderboard-table__head button {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.weight-room-leaderboard-table__head button[aria-sort="ascending"],
+.weight-room-leaderboard-table__head button[aria-sort="descending"] {
+  color: var(--text);
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table button.weight-room-leaderboard-row {
+  width: 100%;
+  min-width: 760px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 13px 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table button.weight-room-leaderboard-row:last-child {
+  border-bottom: 0;
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table button.weight-room-leaderboard-row:hover,
+.weight-room-leaderboard-card .weight-room-leaderboard-table button.weight-room-leaderboard-row:focus-visible,
+.weight-room-leaderboard-card .weight-room-leaderboard-table button.weight-room-leaderboard-row.selected {
+  background: color-mix(in srgb, var(--burgundy) 8%, transparent);
+}
+
+.weight-room-leaderboard-card .weight-room-leaderboard-table button.weight-room-leaderboard-row.top-ranked {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--burgundy) 74%, var(--line));
+}
+
+.weight-room-leaderboard-rank {
+  color: var(--text);
+  font-size: var(--text-body);
+  font-weight: var(--weight-heading);
+  font-variant-numeric: tabular-nums;
+}
+
+.weight-room-leaderboard-athlete {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.weight-room-leaderboard-athlete > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.weight-room-leaderboard-athlete strong,
+.weight-room-leaderboard-row > span > strong,
+.weight-room-not-qualified strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-selected);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-leaderboard-score i {
+  width: 42px;
+  aspect-ratio: 1;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle closest-side, var(--panel) 68%, transparent 70%),
+    conic-gradient(var(--burgundy-strong) var(--score), color-mix(in srgb, var(--muted) 18%, transparent) 0);
+  color: var(--text);
+  font-size: var(--text-card-title);
+  font-style: normal;
+  font-weight: var(--weight-metric);
+  font-variant-numeric: tabular-nums;
+}
+
+.weight-room-leaderboard-row > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.weight-room-leaderboard-trend strong {
+  color: var(--muted-strong);
+}
+
+.weight-room-leaderboard-trend.trend-improving strong {
+  color: var(--green);
+}
+
+.weight-room-leaderboard-trend.trend-attention strong {
+  color: color-mix(in srgb, var(--danger) 82%, var(--muted-strong));
+}
+
+.weight-room-not-qualified {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--line-strong);
+  padding-top: 4px;
+}
+
+.weight-room-not-qualified h3 {
+  margin: 0;
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+}
+
+.weight-room-not-qualified p {
+  margin: 4px 0 0;
+}
+
+.weight-room-not-qualified > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 7px;
+}
+
+.weight-room-not-qualified button {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 46%, transparent);
+  color: var(--text);
+  padding: 7px 9px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-not-qualified button:hover,
+.weight-room-not-qualified button:focus-visible,
+.weight-room-not-qualified button.selected {
+  border-color: color-mix(in srgb, var(--burgundy) 45%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 9%, var(--panel-strong));
+}
+
+.weight-room-not-qualified button > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-score-drawer {
+  position: sticky;
+  top: 14px;
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.weight-room-score-drawer__close {
+  justify-self: end;
+  margin-bottom: -8px;
+}
+
+.weight-room-score-drawer__player {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.weight-room-score-drawer__player > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.weight-room-score-drawer__player span,
+.weight-room-score-drawer__score span,
+.weight-room-score-drawer__why h4 {
+  color: var(--muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.weight-room-score-drawer__player h3 {
+  margin: 0;
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+}
+
+.weight-room-score-drawer__score {
+  display: grid;
+  gap: 5px;
+  border-block: 1px solid var(--line-strong);
+  padding: 14px 0;
+}
+
+.weight-room-score-drawer__score strong {
+  color: var(--text);
+  font-size: clamp(2rem, 1.4vw + 1.45rem, 2.8rem);
+  font-weight: var(--weight-metric);
+  line-height: 1;
+}
+
+.weight-room-score-drawer__score small {
+  margin-left: 2px;
+  font-size: 0.95rem;
+}
+
+.weight-room-score-drawer__score em {
+  color: var(--muted-strong);
+  font-style: normal;
+  font-weight: var(--weight-ui);
+}
+
+.weight-room-score-lines.compact {
+  gap: 12px;
+}
+
+.weight-room-score-drawer__why {
+  display: grid;
+  gap: 10px;
+}
+
+.weight-room-score-drawer__why h4 {
+  margin: 0;
+}
+
+.weight-room-score-drawer__notes {
+  display: grid;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 40%, transparent);
+  padding: 10px;
+}
+
+.weight-room-score-drawer__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.weight-room-score-drawer__metrics div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+
+.weight-room-score-drawer__metrics dd {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-secondary-body);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-scoring-modal {
+  max-width: 520px;
+}
+
+.weight-room-scoring-modal__body {
+  display: grid;
+  gap: 14px;
+}
+
+.weight-room-scoring-modal__body h3 {
+  margin: 4px 0 0;
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+}
+
+.weight-room-scoring-modal__body dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.weight-room-scoring-modal__body dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 44%, transparent);
+  padding: 10px 12px;
+}
+
+.weight-room-scoring-modal__body dt,
+.weight-room-scoring-modal__body dd {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-body);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-scoring-modal__body p {
+  margin: 0;
+}
+
+@media (max-width: 1240px) {
+  .weight-room-leaderboard-layout.has-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-score-drawer {
+    position: static;
+  }
+}
+
+@media (max-width: 820px) {
+  .weight-room-leaderboard-card {
+    padding: 18px;
+  }
+
+  .weight-room-leaderboard-hero {
+    display: grid;
+  }
+
+  .weight-room-leaderboard-actions {
+    justify-content: start;
+  }
+
+  .weight-room-leaderboard-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weight-room-leaderboard-summary > span:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .weight-room-leaderboard-summary > span:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 680px) {
+  .weight-room-library-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-leaderboard-card {
+    padding: 16px;
+  }
+
+  .weight-room-leaderboard-actions,
+  .weight-room-leaderboard-actions .segmented-control,
+  .weight-room-score-help {
+    width: 100%;
+  }
+
+  .weight-room-score-help {
+    justify-content: center;
+    border-color: var(--line);
+    background: color-mix(in srgb, var(--panel-strong) 54%, transparent);
+  }
+
+  .weight-room-leaderboard-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-leaderboard-summary > span {
+    border-right: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .weight-room-leaderboard-summary > span:first-child {
+    border-top: 0;
+  }
+
+  .weight-room-leaderboard-card .weight-room-leaderboard-table {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  .weight-room-leaderboard-card .weight-room-leaderboard-table .weight-room-leaderboard-table__head {
+    display: none;
+  }
+
+  .weight-room-leaderboard-card .weight-room-leaderboard-table > .weight-room-leaderboard-table__body {
+    min-width: 0;
+  }
+
+  .weight-room-leaderboard-card .weight-room-leaderboard-table button.weight-room-leaderboard-row {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rank athlete score"
+      "rank progress trend"
+      "rank workouts completion";
+    gap: 8px 12px;
+    margin-bottom: 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--panel-soft) 48%, transparent);
+    padding: 12px;
+  }
+
+  .weight-room-leaderboard-rank {
+    grid-area: rank;
+    align-self: start;
+  }
+
+  .weight-room-leaderboard-athlete {
+    grid-area: athlete;
+  }
+
+  .weight-room-leaderboard-score {
+    grid-area: score;
+    justify-items: end;
+  }
+
+  .weight-room-leaderboard-row > span:nth-of-type(3) {
+    grid-area: workouts;
+  }
+
+  .weight-room-leaderboard-row > span:nth-of-type(4) {
+    grid-area: progress;
+  }
+
+  .weight-room-leaderboard-row > span:nth-of-type(5) {
+    grid-area: completion;
+    justify-items: end;
+  }
+
+  .weight-room-leaderboard-trend {
+    grid-area: trend;
+    justify-items: end;
+  }
+
+  .weight-room-not-qualified > div:last-child,
+  .weight-room-score-drawer__metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Weight Room active workout workflow */
+.weight-room-active-shell {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.weight-room-active-top {
+  display: grid;
+  grid-template-columns: minmax(250px, 1fr) auto auto;
+  align-items: center;
+  gap: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(140deg, color-mix(in srgb, var(--blue) 7%, transparent), transparent 45%),
+    color-mix(in srgb, var(--panel) 94%, transparent);
+  padding: 16px 18px;
+}
+
+.weight-room-active-top__title {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.weight-room-active-back {
+  width: fit-content;
+  min-height: 32px;
+  padding: 0 10px;
+  justify-self: start;
+}
+
+.weight-room-active-top__title > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.weight-room-active-top h1 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-page-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-page-title);
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.weight-room-live-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 1px solid color-mix(in srgb, var(--burgundy) 35%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--burgundy) 15%, transparent);
+  color: var(--burgundy-strong);
+  padding: 0 8px;
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-live-status.status-paused {
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--line));
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--warning);
+}
+
+.weight-room-live-status.status-completed {
+  border-color: color-mix(in srgb, var(--green) 35%, var(--line));
+  background: color-mix(in srgb, var(--green) 11%, transparent);
+  color: var(--green);
+}
+
+.weight-room-active-top small,
+.weight-room-active-footer small,
+.weight-room-active-section-head small,
+.weight-room-group-strip small,
+.weight-room-group-matrix small,
+.weight-room-active-side small,
+.weight-room-individual-mode small,
+.weight-room-active-activity small,
+.weight-room-completed-summary small {
+  color: var(--muted);
+  font-size: var(--text-secondary-body);
+  font-weight: var(--weight-body);
+  line-height: var(--leading-body);
+}
+
+.weight-room-active-top__title small,
+.weight-room-active-top__metrics,
+.weight-room-active-top__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.weight-room-active-top__metrics {
+  flex-wrap: wrap;
+  justify-content: end;
+}
+
+.weight-room-active-top__metrics span,
+.weight-room-active-top__metrics button,
+.weight-room-active-footer span {
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 2px 6px;
+  color: var(--muted-strong);
+}
+
+.weight-room-active-top__metrics button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-active-top__metrics button:hover strong,
+.weight-room-active-top__metrics button:focus-visible strong {
+  color: var(--burgundy-strong);
+}
+
+.weight-room-active-top__metrics small,
+.weight-room-active-top__metrics button small,
+.weight-room-active-footer small {
+  grid-column: 2;
+}
+
+.weight-room-active-top__metrics strong,
+.weight-room-active-top__metrics button strong,
+.weight-room-active-footer strong {
+  color: var(--text);
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-selected);
+  font-variant-numeric: tabular-nums;
+}
+
+.weight-room-active-setup-pill {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--green) 32%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--green) 10%, var(--panel-strong));
+  color: var(--green);
+  padding: 0 12px;
+  font-size: var(--text-tab);
+  font-weight: var(--weight-ui);
+}
+
+.weight-room-active-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.weight-room-active-tabs,
+.weight-room-workout-mode-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 66%, transparent);
+  overflow: hidden;
+}
+
+.weight-room-active-tabs {
+  justify-self: start;
+}
+
+.weight-room-active-tabs button,
+.weight-room-workout-mode-tabs button {
+  min-height: 38px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted-strong);
+  padding: 0 18px;
+  font-size: var(--text-tab);
+  font-weight: var(--weight-ui);
+  cursor: pointer;
+}
+
+.weight-room-workout-mode-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.weight-room-active-tabs button.active,
+.weight-room-workout-mode-tabs button.active {
+  background: color-mix(in srgb, var(--burgundy) 55%, var(--panel-strong));
+  color: var(--text);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-workout-mode-tabs {
+  justify-self: start;
+}
+
+.weight-room-workout-mode-tabs > span {
+  color: var(--green);
+  padding: 0 12px;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-ui);
+}
+
+.weight-room-active-workspace {
+  display: grid;
+  gap: 12px;
+}
+
+.weight-room-active-workspace.is-paused {
+  opacity: 0.82;
+}
+
+.weight-room-group-mode {
+  display: grid;
+  gap: 12px;
+}
+
+.weight-room-group-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.weight-room-group-strip article {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 54%, transparent);
+  padding: 10px;
+}
+
+.weight-room-group-strip article.active {
+  border-color: color-mix(in srgb, var(--burgundy) 58%, var(--line));
+  background:
+    linear-gradient(140deg, color-mix(in srgb, var(--burgundy) 16%, transparent), transparent 66%),
+    color-mix(in srgb, var(--panel-strong) 58%, transparent);
+}
+
+.weight-room-group-strip article > button {
+  display: grid;
+  gap: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-group-strip strong,
+.weight-room-station-list strong,
+.weight-room-group-setup strong,
+.weight-room-active-activity strong,
+.weight-room-individual-set-list strong {
+  color: var(--text);
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-active-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(292px, 350px);
+  gap: 12px;
+  align-items: start;
+}
+
+.weight-room-active-main-column {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.weight-room-station-board,
+.weight-room-active-side,
+.weight-room-active-weigh,
+.weight-room-individual-mode,
+.weight-room-completed-summary {
+  min-width: 0;
+  padding: 16px;
+}
+
+.weight-room-station-board__header,
+.weight-room-active-section-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.weight-room-station-board__header > div:last-child {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: end;
+}
+
+.weight-room-station-board__header span,
+.weight-room-active-section-head span,
+.weight-room-station-list > div > span,
+.weight-room-group-setup > div > span,
+.weight-room-active-activity > div > span {
+  color: var(--muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.weight-room-station-board__header h2,
+.weight-room-active-section-head h2 {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-section-title);
+}
+
+.weight-room-group-matrix {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  scrollbar-width: none;
+}
+
+.weight-room-group-matrix::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-group-matrix [role="row"] {
+  width: max(100%, var(--active-matrix-width, 820px));
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(170px, 1.25fr) repeat(var(--active-set-count, 4), minmax(104px, 0.75fr)) minmax(82px, 0.5fr);
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding: 9px 10px;
+}
+
+.weight-room-group-matrix [role="row"]:first-child {
+  background: color-mix(in srgb, var(--panel-strong) 78%, var(--bg));
+}
+
+.weight-room-group-matrix [role="row"]:last-child {
+  border-bottom: 0;
+}
+
+.weight-room-group-matrix [role="row"]:first-child span {
+  color: var(--muted-strong);
+  font-size: var(--text-table-header);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.weight-room-active-athlete-cell {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 9px;
+}
+
+.weight-room-active-athlete-cell .player-avatar {
+  grid-row: span 2;
+}
+
+.weight-room-active-athlete-cell strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-selected);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-inline-set-cell,
+.weight-room-individual-set-row {
+  min-height: 52px;
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg) 54%, transparent);
+  color: var(--text);
+  padding: 7px 9px;
+  text-align: left;
+}
+
+.weight-room-inline-set-cell.complete {
+  border-color: color-mix(in srgb, var(--green) 36%, var(--line));
+  background: color-mix(in srgb, var(--green) 8%, var(--panel-strong));
+}
+
+.weight-room-inline-set-fields {
+  display: grid;
+  gap: 6px;
+}
+
+.weight-room-inline-set-fields.two {
+  grid-template-columns: minmax(0, 1fr) minmax(56px, 0.7fr);
+}
+
+.weight-room-inline-set-fields label {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.weight-room-inline-set-fields label span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: var(--weight-ui);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.weight-room-inline-set-fields input {
+  width: 100%;
+  min-height: 28px;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  color: var(--text);
+  padding: 4px 6px;
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-ui);
+  font-variant-numeric: tabular-nums;
+}
+
+.weight-room-inline-set-fields input:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.weight-room-inline-set-cell > small {
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
+.weight-room-group-status {
+  display: grid;
+  gap: 2px;
+  color: var(--muted-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.weight-room-active-side {
+  display: grid;
+  gap: 12px;
+}
+
+.weight-room-active-side-actions,
+.weight-room-editor-actions,
+.weight-room-setup-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.weight-room-active-side-actions button,
+.weight-room-editor-actions button,
+.weight-room-editor-head button,
+.weight-room-setup-actions button,
+.weight-room-create-station button,
+.weight-room-active-activity > button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 58%, transparent);
+  color: var(--muted-strong);
+  padding: 0 11px;
+  font-size: var(--text-tab);
+  font-weight: var(--weight-ui);
+  cursor: pointer;
+}
+
+.weight-room-active-side-actions button.active,
+.weight-room-active-side-actions button:hover,
+.weight-room-editor-head button:hover,
+.weight-room-editor-actions button:hover,
+.weight-room-create-station button:hover {
+  border-color: color-mix(in srgb, var(--burgundy) 50%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 15%, var(--panel-strong));
+  color: var(--text);
+}
+
+.weight-room-setup-intro {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.weight-room-setup-intro__head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.weight-room-setup-intro__head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.weight-room-setup-intro__head span,
+.weight-room-editor-head span,
+.weight-room-saved-workouts label span {
+  color: var(--muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.weight-room-setup-intro__head h2 {
+  margin: 2px 0 4px;
+  color: var(--text);
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-section-title);
+}
+
+.weight-room-setup-intro__head p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+
+.weight-room-setup-message {
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--burgundy) 35%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--burgundy) 12%, transparent);
+  color: var(--text);
+  padding: 9px 11px;
+  font-size: var(--text-secondary-body);
+  font-weight: var(--weight-ui);
+}
+
+.weight-room-setup-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.weight-room-setup-summary span {
+  display: grid;
+  gap: 2px;
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel-strong) 34%, transparent);
+  padding: 10px 12px;
+}
+
+.weight-room-setup-summary span:last-child {
+  border-right: 0;
+}
+
+.weight-room-setup-summary strong {
+  color: var(--text);
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-selected);
+  font-variant-numeric: tabular-nums;
+}
+
+.weight-room-setup-summary small {
+  color: var(--muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-ui);
+}
+
+.weight-room-setup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.weight-room-workout-editor,
+.weight-room-group-editor {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 44%, transparent);
+  padding: 12px;
+}
+
+.weight-room-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.weight-room-editor-head > div {
+  display: grid;
+  gap: 2px;
+}
+
+.weight-room-builder-empty {
+  display: grid;
+  gap: 8px;
+  border: 1px dashed color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg) 38%, transparent);
+  padding: 16px;
+}
+
+.weight-room-builder-empty > svg {
+  color: var(--burgundy-strong);
+}
+
+.weight-room-builder-empty strong {
+  color: var(--text);
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-builder-empty p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: var(--text-secondary-body);
+  line-height: var(--leading-body);
+}
+
+.weight-room-builder-empty > div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.weight-room-builder-empty button,
+.weight-room-preset-save button,
+.weight-room-picker-filters button,
+.weight-room-preset-list article > span button,
+.weight-room-auto-groups button,
+.weight-room-station-actions button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 58%, transparent);
+  color: var(--muted-strong);
+  padding: 0 10px;
+  font-size: var(--text-tab);
+  font-weight: var(--weight-ui);
+  cursor: pointer;
+}
+
+.weight-room-builder-empty button:hover,
+.weight-room-preset-save button:hover,
+.weight-room-picker-filters button.active,
+.weight-room-picker-filters button:hover,
+.weight-room-preset-list article > span button:hover,
+.weight-room-auto-groups button:hover,
+.weight-room-station-actions button:hover {
+  border-color: color-mix(in srgb, var(--burgundy) 48%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 14%, var(--panel-strong));
+  color: var(--text);
+}
+
+.weight-room-preset-save {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.weight-room-preset-save span {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.weight-room-preset-save input {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg) 64%, transparent);
+  color: var(--text);
+  padding: 6px 8px;
+}
+
+.weight-room-exercise-search {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  color: var(--muted);
+  padding: 0 10px;
+}
+
+.weight-room-exercise-search input,
+.weight-room-saved-workouts input,
+.weight-room-group-editor select {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg) 64%, transparent);
+  color: var(--text);
+  padding: 6px 8px;
+}
+
+.weight-room-exercise-search input {
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  outline: 0;
+}
+
+.weight-room-exercise-options,
+.weight-room-current-stations,
+.weight-room-group-editor__list,
+.weight-room-saved-workouts {
+  display: grid;
+  gap: 8px;
+}
+
+.weight-room-exercise-options {
+  max-height: 240px;
+  overflow: auto;
+  scrollbar-width: none;
+}
+
+.weight-room-exercise-options::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-exercise-options > button,
+.weight-room-current-stations > span,
+.weight-room-group-editor__list section,
+.weight-room-saved-workouts > button {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg) 42%, transparent);
+  color: var(--text);
+  padding: 8px 9px;
+}
+
+.weight-room-exercise-options > button {
+  cursor: pointer;
+  text-align: left;
+}
+
+.weight-room-exercise-options > button:disabled {
+  cursor: default;
+  opacity: 0.64;
+}
+
+.weight-room-exercise-options span,
+.weight-room-current-stations strong,
+.weight-room-saved-workouts button,
+.weight-room-group-editor__list section > div:first-child {
+  min-width: 0;
+}
+
+.weight-room-exercise-options > button span {
+  display: grid;
+  gap: 2px;
+}
+
+.weight-room-exercise-options strong,
+.weight-room-current-stations strong,
+.weight-room-saved-workouts strong,
+.weight-room-group-editor__list strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-selected);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-current-stations em {
+  width: 26px;
+  aspect-ratio: 1;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--burgundy) 16%, var(--panel-strong));
+  color: var(--muted-strong);
+  font-style: normal;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-exercise-options em {
+  min-width: 46px;
+  justify-self: end;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--burgundy) 16%, var(--panel-strong));
+  color: var(--muted-strong);
+  font-style: normal;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-selected);
+  padding: 3px 8px;
+  text-align: center;
+}
+
+.weight-room-create-station {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.weight-room-current-stations {
+  max-height: 260px;
+  overflow: auto;
+  scrollbar-width: none;
+}
+
+.weight-room-current-stations::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-current-stations--builder {
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.weight-room-current-stations--builder > div,
+.weight-room-current-stations--builder > [data-station-row] {
+  min-width: 760px;
+  display: grid;
+  grid-template-columns: 44px minmax(150px, 1fr) minmax(110px, 0.55fr) minmax(300px, 1.5fr) 108px;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  background: color-mix(in srgb, var(--bg) 42%, transparent);
+  padding: 8px 10px;
+}
+
+.weight-room-current-stations--builder > div {
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: color-mix(in srgb, var(--panel-strong) 72%, var(--bg));
+  color: var(--muted-strong);
+  font-size: var(--text-table-header);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.weight-room-current-stations--builder > [data-station-row]:last-child {
+  border-bottom: 1px solid var(--line);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.weight-room-target-controls {
+  display: grid;
+  grid-template-columns: minmax(128px, 1.1fr) repeat(2, minmax(70px, 0.55fr));
+  gap: 7px;
+  align-items: center;
+}
+
+.weight-room-target-controls label {
+  display: grid;
+  gap: 3px;
+}
+
+.weight-room-target-controls label span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: var(--weight-ui);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.weight-room-target-controls input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg) 64%, transparent);
+  color: var(--text);
+  padding: 6px 8px;
+}
+
+.weight-room-station-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: end;
+}
+
+.weight-room-station-actions button {
+  width: 30px;
+  padding: 0;
+}
+
+.weight-room-current-stations > span button,
+.weight-room-group-editor__list section > div:first-child button {
+  width: 28px;
+  aspect-ratio: 1;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 56%, transparent);
+  color: var(--muted-strong);
+  cursor: pointer;
+}
+
+.weight-room-saved-workouts label {
+  display: grid;
+  gap: 5px;
+}
+
+.weight-room-saved-workouts > button {
+  grid-template-columns: minmax(0, 1fr);
+  cursor: pointer;
+  text-align: left;
+}
+
+.weight-room-group-editor__list {
+  max-height: 420px;
+  overflow: auto;
+  scrollbar-width: none;
+}
+
+.weight-room-group-editor__list::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-group-editor__list section {
+  grid-template-columns: 1fr;
+}
+
+.weight-room-group-editor__list section > div:first-child {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.weight-room-group-members {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px;
+}
+
+.weight-room-group-members button {
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-strong) 58%, transparent);
+  color: var(--text);
+  padding: 5px 8px 5px 5px;
+  font-size: var(--text-secondary-body);
+  cursor: pointer;
+}
+
+.weight-room-group-members button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-unassigned-list {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.weight-room-unassigned-list > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.weight-room-unassigned-list > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: 6px;
+}
+
+.weight-room-unassigned-list span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted-strong);
+  font-size: var(--text-secondary-body);
+}
+
+.weight-room-quick-create {
+  display: grid;
+  gap: 8px;
+}
+
+.weight-room-quick-create summary {
+  color: var(--muted-strong);
+  font-size: var(--text-secondary-body);
+  font-weight: var(--weight-ui);
+  cursor: pointer;
+}
+
+.weight-room-exercise-picker-modal,
+.weight-room-preset-modal,
+.weight-room-auto-groups-modal {
+  width: min(720px, calc(100vw - 28px));
+}
+
+.weight-room-picker-toolbar,
+.weight-room-preset-list,
+.weight-room-auto-groups {
+  display: grid;
+  gap: 10px;
+}
+
+.weight-room-picker-filters {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.weight-room-picker-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-exercise-picker-list {
+  max-height: min(520px, 58vh);
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+  scrollbar-width: none;
+}
+
+.weight-room-exercise-picker-list::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-exercise-picker-list > button,
+.weight-room-preset-list article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 46%, transparent);
+  color: var(--text);
+  padding: 10px 11px;
+}
+
+.weight-room-exercise-picker-list > button {
+  cursor: pointer;
+  text-align: left;
+}
+
+.weight-room-exercise-picker-list > button.active {
+  border-color: color-mix(in srgb, var(--burgundy) 55%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 16%, var(--panel-strong));
+}
+
+.weight-room-exercise-picker-list > button:disabled {
+  cursor: default;
+  opacity: 0.58;
+}
+
+.weight-room-exercise-picker-list strong,
+.weight-room-preset-list strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-selected);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-exercise-picker-list small,
+.weight-room-preset-list small {
+  color: var(--muted);
+  font-size: var(--text-secondary-body);
+}
+
+.weight-room-exercise-picker-list em {
+  color: var(--muted-strong);
+  font-size: var(--text-caption);
+  font-style: normal;
+}
+
+.weight-room-preset-list article {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.weight-room-preset-list article > button {
+  display: grid;
+  gap: 3px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-preset-list article > span {
+  display: flex;
+  gap: 6px;
+}
+
+.weight-room-auto-groups > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 46%, transparent);
+  padding: 10px;
+}
+
+.weight-room-auto-groups span {
+  color: var(--muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.weight-room-auto-groups strong {
+  min-width: 34px;
+  text-align: center;
+  color: var(--text);
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-completion-cell {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--green) 10%, var(--panel-strong));
+  color: var(--text);
+  font-size: var(--text-tab);
+  font-weight: var(--weight-ui);
+}
+
+.weight-room-station-list,
+.weight-room-group-setup,
+.weight-room-active-activity {
+  display: grid;
+  gap: 8px;
+}
+
+.weight-room-station-list > div:first-child,
+.weight-room-group-setup > div:first-child,
+.weight-room-active-activity > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.weight-room-station-list button,
+.weight-room-group-setup > div:not(:first-child),
+.weight-room-active-activity > span,
+.weight-room-station-list.compact > span {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 44%, transparent);
+  color: var(--text);
+  padding: 8px 9px;
+  text-align: left;
+}
+
+.weight-room-station-list button {
+  cursor: pointer;
+}
+
+.weight-room-station-list button > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.weight-room-station-list button.active {
+  border-color: color-mix(in srgb, var(--burgundy) 54%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 14%, var(--panel-strong));
+}
+
+.weight-room-station-list em {
+  width: 26px;
+  aspect-ratio: 1;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--burgundy) 16%, var(--panel-strong));
+  color: var(--muted-strong);
+  font-style: normal;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-selected);
+}
+
+.weight-room-add-station {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.weight-room-group-setup > div:not(:first-child) {
+  grid-template-columns: minmax(70px, 0.5fr) minmax(0, 1fr);
+}
+
+.weight-room-group-setup > div:not(:first-child) span {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.weight-room-active-activity > span {
+  grid-template-columns: 54px minmax(0, 1fr);
+}
+
+.weight-room-active-activity em {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: var(--text-caption);
+  font-style: normal;
+}
+
+.weight-room-active-footer {
+  position: sticky;
+  bottom: 8px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  padding: 10px 12px;
+  backdrop-filter: blur(12px);
+}
+
+.weight-room-active-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.weight-room-active-controls label {
+  min-width: min(320px, 100%);
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg) 62%, transparent);
+  color: var(--muted);
+  padding: 0 10px;
+}
+
+.weight-room-active-controls input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.weight-room-active-controls button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-strong);
+  padding: 0 12px;
+  font-size: var(--text-tab);
+  font-weight: var(--weight-ui);
+}
+
+.weight-room-active-controls button.active {
+  border-color: color-mix(in srgb, var(--burgundy) 52%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 16%, transparent);
+  color: var(--text);
+}
+
+.weight-room-active-weigh-table {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.weight-room-active-weigh-table > div,
+.weight-room-active-weigh-table__row {
+  min-width: 680px;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 120px 120px 100px;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  padding: 8px 10px;
+}
+
+.weight-room-active-weigh-table__head {
+  background: color-mix(in srgb, var(--panel-strong) 78%, var(--bg));
+  color: var(--muted-strong);
+  font-size: var(--text-table-header);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.weight-room-active-weigh-table__row:last-child {
+  border-bottom: 0;
+}
+
+.weight-room-active-weigh-table input,
+.weight-room-set-editor input {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--bg) 64%, transparent);
+  color: var(--text);
+  padding: 6px 8px;
+}
+
+.weight-room-autosave-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--green);
+}
+
+.weight-room-individual-mode {
+  display: grid;
+  gap: 12px;
+}
+
+.weight-room-individual-selectors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.weight-room-individual-strip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.weight-room-individual-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.weight-room-individual-strip button {
+  min-width: 76px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 48%, transparent);
+  color: var(--muted-strong);
+  padding: 7px;
+}
+
+.weight-room-individual-strip button.active {
+  border-color: color-mix(in srgb, var(--burgundy) 54%, var(--line));
+  color: var(--text);
+}
+
+.weight-room-individual-set-list {
+  display: grid;
+  gap: 8px;
+}
+
+.weight-room-individual-set-list > span {
+  color: var(--muted);
+  font-size: var(--text-secondary-body);
+}
+
+.weight-room-individual-set-row {
+  grid-template-columns: 80px minmax(0, 1fr);
+  align-items: center;
+}
+
+.weight-room-individual-set-row > .weight-room-inline-set-cell {
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.weight-room-set-editor {
+  max-width: 520px;
+}
+
+.weight-room-set-editor__body {
+  display: grid;
+  gap: 12px;
+}
+
+.weight-room-copy-previous {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--green) 9%, var(--panel-strong));
+  color: var(--text);
+  padding: 0 12px;
+  text-align: left;
+}
+
+.weight-room-finish-summary,
+.weight-room-completed-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.weight-room-finish-summary span {
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 48%, transparent);
+  padding: 10px;
+}
+
+.weight-room-finish-modal p {
+  color: var(--muted-strong);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+}
+
+.weight-room-completed-summary {
+  display: grid;
+  gap: 14px;
+}
+
+.weight-room-completed-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.weight-room-station-list.compact {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.weight-room-station-list.compact > span {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 1180px) {
+  .weight-room-active-top {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-active-top__metrics,
+  .weight-room-active-top__actions {
+    justify-content: start;
+  }
+
+  .weight-room-active-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-setup-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 820px) {
+  .weight-room-active-top {
+    padding: 14px;
+  }
+
+  .weight-room-group-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weight-room-active-footer {
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weight-room-individual-selectors,
+  .weight-room-finish-summary,
+  .weight-room-completed-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .weight-room-active-shell {
+    padding-bottom: 84px;
+  }
+
+  .weight-room-active-top h1 {
+    white-space: normal;
+  }
+
+  .weight-room-active-tabs,
+  .weight-room-workout-mode-tabs,
+  .weight-room-active-top__actions,
+  .weight-room-setup-intro__head-actions {
+    width: 100%;
+  }
+
+  .weight-room-active-tabs button,
+  .weight-room-workout-mode-tabs button,
+  .weight-room-active-top__actions button,
+  .weight-room-setup-intro__head-actions button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .weight-room-setup-intro__head {
+    display: grid;
+  }
+
+  .weight-room-create-station {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-group-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .weight-room-group-matrix {
+    overflow: visible;
+    border: 0;
+  }
+
+  .weight-room-group-matrix [role="row"]:first-child {
+    display: none;
+  }
+
+  .weight-room-group-matrix [role="row"] {
+    min-width: 0;
+    grid-template-columns: 1fr;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    background: color-mix(in srgb, var(--panel-soft) 48%, transparent);
+  }
+
+  .weight-room-group-status {
+    grid-template-columns: auto auto;
+  }
+
+  .weight-room-active-weigh-table__head {
+    display: none !important;
+  }
+
+  .weight-room-active-weigh-table__row {
+    min-width: 0;
+    grid-template-columns: 1fr 88px;
+    grid-template-areas:
+      "athlete athlete"
+      "previous change"
+      "today today";
+  }
+
+  .weight-room-active-weigh-table .weight-room-active-athlete-cell {
+    grid-area: athlete;
+  }
+
+  .weight-room-active-weigh-table__row > span:nth-child(2) {
+    grid-area: previous;
+  }
+
+  .weight-room-active-weigh-table input {
+    grid-area: today;
+  }
+
+  .weight-room-active-weigh-table em {
+    grid-area: change;
+    justify-self: end;
   }
 }

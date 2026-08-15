@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildWeightRoomLeaderboard, calculateWeightRoomScore } from "../app/lib/weightRoom.ts";
+import {
+  WEIGHT_ROOM_MIN_TRACKED_SETS,
+  buildWeightRoomLeaderboard,
+  calculateWeightRoomScore,
+} from "../app/lib/weightRoom.ts";
 
 const now = "2026-08-13T22:00:00.000Z";
 
@@ -22,7 +26,7 @@ function player(id, name, weight) {
   };
 }
 
-function session(id, playerId, date, completed = true, effortScore = 8) {
+function session(id, playerId, date, completed = true, effortScore = 8, overrides = {}) {
   return {
     id,
     playerId,
@@ -33,6 +37,7 @@ function session(id, playerId, date, completed = true, effortScore = 8) {
     effortScore,
     createdAt: now,
     updatedAt: now,
+    ...overrides,
   };
 }
 
@@ -59,10 +64,10 @@ test("weight room leaderboard rewards development over raw size", () => {
   const improving = player("p1", "Improving Sophomore", 150);
   const strong = player("p2", "Big Senior", 220);
   const sessions = [
-    session("ws1", improving.id, "2026-08-11", true, 9),
-    session("ws2", improving.id, "2026-08-13", true, 9),
-    session("ws3", strong.id, "2026-08-11", true, 7),
-    session("ws4", strong.id, "2026-08-13", false, 7),
+    session("ws1", improving.id, "2026-08-11", true, 9, { bodyWeight: 150 }),
+    session("ws2", improving.id, "2026-08-13", true, 9, { bodyWeight: 150 }),
+    session("ws3", strong.id, "2026-08-11", true, 7, { bodyWeight: 220 }),
+    session("ws4", strong.id, "2026-08-13", false, 7, { bodyWeight: 220 }),
   ];
   const entries = [
     entry("we1", "ws1", improving.id, "Back Squat", { weight: 180, reps: 5, priorValue: 150 }),
@@ -97,6 +102,8 @@ test("weight room scoring tolerates missing optional weigh-in and RPE data", () 
   assert.equal(score.qualified, true);
   assert.ok(score.score > 0);
   assert.equal(score.breakdown.find((part) => part.label === "Relative Performance")?.value, 0);
+  assert.equal(score.relativePerformanceAvailable, false);
+  assert.equal(score.effortAvailable, false);
 });
 
 test("weight room scoring treats lower timed results as improvement", () => {
@@ -129,4 +136,114 @@ test("weight room entries remain append-shaped across concurrent station logging
   assert.equal(rows.length, 1);
   assert.equal(rows[0].sets, 40);
   assert.equal(rows[0].volume, [...squatEntries, ...benchEntries].reduce((total, item) => total + item.weight * item.reps, 0));
+});
+
+test("weight room qualification keeps athletes below minimum samples out of ranking", () => {
+  const athlete = player("p6", "Building Sample", 180);
+  const sessions = [session("ws8", athlete.id, "2026-08-13", true, 8)];
+  const entries = Array.from({ length: WEIGHT_ROOM_MIN_TRACKED_SETS - 1 }, (_, index) =>
+    entry(`we-qual-${index}`, "ws8", athlete.id, "Back Squat", { weight: 185 + index, reps: 5 }),
+  );
+
+  const score = calculateWeightRoomScore(athlete, sessions, entries);
+  const rows = buildWeightRoomLeaderboard([athlete], sessions, entries, "This Season");
+
+  assert.equal(score.qualified, false);
+  assert.equal(score.score, 0);
+  assert.equal(rows.length, 0);
+});
+
+test("weight room scoring does not turn one no-comparison workout into a perfect leader", () => {
+  const athlete = player("p7", "Single Lift", 180);
+  const sessions = [session("ws9", athlete.id, "2026-08-13", true, 8)];
+  const entries = Array.from({ length: WEIGHT_ROOM_MIN_TRACKED_SETS }, (_, index) =>
+    entry(`we-single-${index}`, "ws9", athlete.id, "Back Squat", {
+      weight: 400,
+      reps: 5,
+      rpe: undefined,
+      priorValue: undefined,
+    }),
+  );
+
+  const score = calculateWeightRoomScore(athlete, sessions, entries);
+
+  assert.equal(score.qualified, true);
+  assert.ok(score.score < 100);
+  assert.equal(score.hasComparableHistory, false);
+  assert.ok(score.reasons.includes("Baseline established"));
+});
+
+test("weight room scoring uses recent workout bodyweight for relative performance", () => {
+  const athlete = player("p8", "Recent Weigh In", 120);
+  const sessions = [session("ws10", athlete.id, "2026-08-13", true, 8, { bodyWeight: 200 })];
+  const entries = Array.from({ length: WEIGHT_ROOM_MIN_TRACKED_SETS }, (_, index) =>
+    entry(`we-relative-${index}`, "ws10", athlete.id, "Back Squat", {
+      weight: 200,
+      reps: 5,
+      priorValue: 200,
+    }),
+  );
+
+  const score = calculateWeightRoomScore(athlete, sessions, entries);
+  const relative = score.breakdown.find((part) => part.label === "Relative Performance");
+
+  assert.equal(score.relativePerformanceAvailable, true);
+  assert.equal(relative?.value, 12);
+});
+
+test("weight room leaderboard periods can rank different athletes", () => {
+  const week = player("p9", "Week Mover", 175);
+  const month = player("p10", "Month Mover", 175);
+  const season = player("p11", "Season Mover", 175);
+  const sessions = [
+    session("ws-week-1", week.id, "2026-08-11", true, 8, { bodyWeight: 175 }),
+    session("ws-week-2", week.id, "2026-08-13", true, 8, { bodyWeight: 175 }),
+    session("ws-month-1", month.id, "2026-08-02", true, 9, { bodyWeight: 175 }),
+    session("ws-month-2", month.id, "2026-08-04", true, 9, { bodyWeight: 175 }),
+    session("ws-season-1", season.id, "2026-07-12", true, 10, { bodyWeight: 175 }),
+    session("ws-season-2", season.id, "2026-07-14", true, 10, { bodyWeight: 175 }),
+  ];
+  const entries = [
+    entry("we-week-1", "ws-week-1", week.id, "Back Squat", { weight: 190, priorValue: 175 }),
+    entry("we-week-2", "ws-week-2", week.id, "Back Squat", { weight: 192, priorValue: 178 }),
+    entry("we-month-1", "ws-month-1", month.id, "Back Squat", { weight: 205, priorValue: 175 }),
+    entry("we-month-2", "ws-month-2", month.id, "Back Squat", { weight: 207, priorValue: 177 }),
+    entry("we-season-1", "ws-season-1", season.id, "Back Squat", { weight: 220, priorValue: 175 }),
+    entry("we-season-2", "ws-season-2", season.id, "Back Squat", { weight: 222, priorValue: 177 }),
+  ];
+
+  const weekRows = buildWeightRoomLeaderboard([week, month, season], sessions, entries, "This Week", "2026-08-14");
+  const monthRows = buildWeightRoomLeaderboard([week, month, season], sessions, entries, "This Month", "2026-08-14");
+  const seasonRows = buildWeightRoomLeaderboard([week, month, season], sessions, entries, "This Season", "2026-08-14");
+
+  assert.equal(weekRows[0].player.id, week.id);
+  assert.equal(monthRows[0].player.id, month.id);
+  assert.equal(seasonRows[0].player.id, season.id);
+});
+
+test("weight room scoring counts modified tracked sets without treating skipped sets as complete", () => {
+  const athlete = player("p12", "Modified Athlete", 180);
+  const sessions = [session("ws11", athlete.id, "2026-08-13", true, 8, { bodyWeight: 180 })];
+  const entries = [
+    entry("we-mod-1", "ws11", athlete.id, "Back Squat", { status: "Modified", sets: WEIGHT_ROOM_MIN_TRACKED_SETS, weight: 160, priorValue: 150 }),
+    entry("we-skip-1", "ws11", athlete.id, "Back Squat", { status: "Skipped", sets: 10, weight: 500, priorValue: 450 }),
+  ];
+
+  const score = calculateWeightRoomScore(athlete, sessions, entries);
+
+  assert.equal(score.qualified, true);
+  assert.equal(score.sets, WEIGHT_ROOM_MIN_TRACKED_SETS);
+});
+
+test("weight room scoring caps extreme improvement outliers", () => {
+  const athlete = player("p13", "Outlier Athlete", 180);
+  const sessions = [session("ws12", athlete.id, "2026-08-11", true, 8), session("ws13", athlete.id, "2026-08-13", true, 8)];
+  const entries = [
+    entry("we-outlier-1", "ws12", athlete.id, "Back Squat", { weight: 1000, priorValue: 10 }),
+    entry("we-outlier-2", "ws13", athlete.id, "Back Squat", { weight: 1200, priorValue: 10 }),
+  ];
+
+  const score = calculateWeightRoomScore(athlete, sessions, entries);
+
+  assert.equal(score.progressPct, 20);
 });

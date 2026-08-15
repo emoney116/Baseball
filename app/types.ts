@@ -602,6 +602,166 @@ export interface WorkoutEntry {
   createdAt: string;
 }
 
+export type ActiveWeightRoomWorkoutStatus = "SCHEDULED" | "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED";
+export type WeightRoomMeasurementType =
+  | "WEIGHT_REPS"
+  | "BODYWEIGHT_REPS"
+  | "REPS_ONLY"
+  | "TIME"
+  | "DISTANCE"
+  | "HEIGHT"
+  | "WEIGHT_ONLY"
+  | "COUNT"
+  | "COMPLETION"
+  | "RPE_ONLY"
+  | "CUSTOM";
+export type WeightRoomPerformanceDirection = "HIGHER_IS_BETTER" | "LOWER_IS_BETTER";
+export type WeightRoomTargetStyle =
+  | "Standard"
+  | "Max Reps"
+  | "Target Reps"
+  | "Max Time"
+  | "Target Time"
+  | "Best Time"
+  | "Best Distance"
+  | "Max Weight"
+  | "Completion";
+
+export interface WeightRoomExerciseDefinition {
+  id: ID;
+  organizationId?: ID;
+  name: string;
+  kind: ExerciseKind;
+  category?: string;
+  measurementType?: WeightRoomMeasurementType;
+  performanceDirection?: WeightRoomPerformanceDirection;
+  defaultTargetStyle?: WeightRoomTargetStyle;
+  unit?: WorkoutEntry["unit"];
+  equipment?: string;
+  active: boolean;
+  archivedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeightRoomWorkout {
+  id: ID;
+  organizationId?: ID;
+  teamId?: ID;
+  seasonId?: ID;
+  scheduleEventId?: ID;
+  title: string;
+  date: string;
+  status: ActiveWeightRoomWorkoutStatus;
+  startedAt?: string;
+  pausedAt?: string;
+  endedAt?: string;
+  createdBy?: ID;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeightRoomWorkoutStation {
+  id: ID;
+  workoutId: ID;
+  exerciseId?: ID;
+  exerciseName: string;
+  displayOrder: number;
+  targetSets?: number;
+  targetReps?: number;
+  targetWeight?: number;
+  targetValue?: number;
+  targetStyle?: WeightRoomTargetStyle;
+  measurementType?: WeightRoomMeasurementType;
+  performanceDirection?: WeightRoomPerformanceDirection;
+  unit?: WorkoutEntry["unit"];
+  notes?: string;
+  archivedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeightRoomWorkoutGroup {
+  id: ID;
+  workoutId: ID;
+  name: string;
+  displayOrder: number;
+  currentStationId?: ID;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type WeightRoomWorkoutParticipantStatus = "ASSIGNED" | "MODIFIED" | "SKIPPED" | "NOT_ASSIGNED" | "NOT_PARTICIPATING";
+
+export interface WeightRoomWorkoutGroupMember {
+  id: ID;
+  workoutId: ID;
+  groupId: ID;
+  playerId: ID;
+  participantStatus: WeightRoomWorkoutParticipantStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeightRoomExercisePreset {
+  id: ID;
+  organizationId?: ID;
+  teamId?: ID;
+  name: string;
+  archivedAt?: string;
+  createdBy?: ID;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeightRoomExercisePresetItem {
+  id: ID;
+  presetId: ID;
+  exerciseId?: ID;
+  exerciseName: string;
+  displayOrder: number;
+  targetSets?: number;
+  targetReps?: number;
+  targetWeight?: number;
+  targetValue?: number;
+  targetStyle?: WeightRoomTargetStyle;
+  measurementType?: WeightRoomMeasurementType;
+  performanceDirection?: WeightRoomPerformanceDirection;
+  unit?: WorkoutEntry["unit"];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeightRoomGroupPreset {
+  id: ID;
+  organizationId?: ID;
+  teamId?: ID;
+  name: string;
+  archivedAt?: string;
+  createdBy?: ID;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeightRoomGroupPresetGroup {
+  id: ID;
+  presetId: ID;
+  name: string;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WeightRoomGroupPresetMember {
+  id: ID;
+  presetId: ID;
+  groupId: ID;
+  playerId: ID;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type ScheduleEventType = "Practice" | "Game" | "Lift" | "Scrimmage" | "Meeting" | "Team Event" | "Tournament" | "Other";
 export type ScheduleEventStatus = "Scheduled" | "Completed" | "Cancelled" | "Postponed";
 export type ScheduleEventVisibility = "PUBLIC" | "TEAM_ONLY" | "PRIVATE";
@@ -773,6 +933,16 @@ export interface AppData {
   hittingEvents: HittingEvent[];
   defenseSessions: DefenseSession[];
   defenseEvents: DefenseEvent[];
+  weightRoomExercises?: WeightRoomExerciseDefinition[];
+  weightRoomWorkouts?: WeightRoomWorkout[];
+  weightRoomWorkoutStations?: WeightRoomWorkoutStation[];
+  weightRoomWorkoutGroups?: WeightRoomWorkoutGroup[];
+  weightRoomWorkoutGroupMembers?: WeightRoomWorkoutGroupMember[];
+  weightRoomExercisePresets?: WeightRoomExercisePreset[];
+  weightRoomExercisePresetItems?: WeightRoomExercisePresetItem[];
+  weightRoomGroupPresets?: WeightRoomGroupPreset[];
+  weightRoomGroupPresetGroups?: WeightRoomGroupPresetGroup[];
+  weightRoomGroupPresetMembers?: WeightRoomGroupPresetMember[];
   workoutSessions: WorkoutSession[];
   workoutEntries: WorkoutEntry[];
   scheduleEvents: ScheduleEvent[];
