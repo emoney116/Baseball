@@ -168,7 +168,7 @@ type WeightRoomAthleteTab = "Overview" | "Workouts" | "Exercises" | "Progress";
 type WeightRoomExerciseCategory = "Lower Body" | "Upper Body" | "Power" | "Core" | "Conditioning" | "Speed" | "Mobility" | "Other";
 type WeightRoomExerciseSortKey = "exercise" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "best" | "sets";
 type WeightRoomWorkoutSortKey = "exercise" | "set" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "rpe";
-type WeightRoomLeaderboardSortKey = "athlete" | "score" | "workouts" | "progress" | "completion" | "trend";
+type WeightRoomLeaderboardSortKey = "rank" | "athlete" | "score" | "workouts" | "progress" | "completion" | "trend";
 type WeightRoomLeaderboardFilter = "All Athletes" | "Qualified" | "Improving" | "Needs Attention";
 type WeightRoomSortState<K extends string> = { key: K; direction: SortDirection };
 type WorkoutMeasurementType = "WEIGHT_REPS" | "BODYWEIGHT_REPS" | "TIME" | "DISTANCE" | "HEIGHT" | "COUNT" | "RPE_ONLY";
@@ -9149,7 +9149,6 @@ function WeightRoomLeaderboardPanel({
         <div className="weight-room-leaderboard-hero">
           <div>
             <h2>Development Leaderboard</h2>
-            <p>Ranks athletes by improvement, consistency, and performance - not simply how much weight they lift.</p>
           </div>
           <div className="weight-room-leaderboard-actions">
             <SegmentedControl values={[...WEIGHT_ROOM_LEADER_WINDOWS] as WeightRoomWindow[]} active={window} onChange={setWindow} />
@@ -9162,24 +9161,36 @@ function WeightRoomLeaderboardPanel({
 
         <section className="weight-room-leaderboard-summary" aria-label="Leaderboard summary">
           <span>
-            <small>Top Score</small>
-            <strong>{summary.topScore ?? "--"}</strong>
-            <em>{summary.topPlayer ?? "No qualifier"}</em>
+            <i><Trophy size={18} aria-hidden="true" /></i>
+            <span>
+              <small>Top Score</small>
+              <strong>{summary.topScore ?? "--"}</strong>
+              <em>{summary.topPlayer ?? "No qualifier"}</em>
+            </span>
           </span>
           <span>
-            <small>Qualified</small>
-            <strong>{summary.qualifiedLabel}</strong>
-            <em>{summary.unqualified ? `${summary.unqualified} building sample` : "Ready to rank"}</em>
+            <i><Users size={18} aria-hidden="true" /></i>
+            <span>
+              <small>Qualified</small>
+              <strong>{summary.qualifiedLabel}</strong>
+              <em>{summary.unqualified ? `${summary.unqualified} building sample` : "Ready to rank"}</em>
+            </span>
           </span>
           <span>
-            <small>Team Avg</small>
-            <strong>{summary.teamAverage ?? "--"}</strong>
-            <em>Qualified athletes</em>
+            <i><BarChart3 size={18} aria-hidden="true" /></i>
+            <span>
+              <small>Team Avg</small>
+              <strong>{summary.teamAverage ?? "--"}</strong>
+              <em>Qualified athletes</em>
+            </span>
           </span>
           <span>
-            <small>Completion</small>
-            <strong>{summary.completionLabel}</strong>
-            <em>{window}</em>
+            <i><Check size={18} aria-hidden="true" /></i>
+            <span>
+              <small>Completion</small>
+              <strong>{summary.completionLabel}</strong>
+              <em>{window}</em>
+            </span>
           </span>
         </section>
 
@@ -9191,13 +9202,12 @@ function WeightRoomLeaderboardPanel({
               </button>
             ))}
           </div>
-          <small>{rankedRows.length ? `${rankedRows.length} ranked athlete${rankedRows.length === 1 ? "" : "s"}` : "Rankings unlock after minimum samples"}</small>
         </div>
 
         {rankedRows.length ? (
           <div className="weight-room-leaderboard-table" role="table" aria-label={`${window} development leaderboard`}>
             <div className="weight-room-leaderboard-table__head" role="row">
-              <span role="columnheader">Rank</span>
+              <WeightRoomSortHeader label="Rank" sortKey="rank" sort={sort} onSort={updateSort} />
               <WeightRoomSortHeader label="Athlete" sortKey="athlete" sort={sort} onSort={updateSort} />
               <WeightRoomSortHeader label="Score" sortKey="score" sort={sort} onSort={updateSort} />
               <WeightRoomSortHeader label="Workouts" sortKey="workouts" sort={sort} onSort={updateSort} />
@@ -9267,10 +9277,7 @@ function WeightRoomLeaderboardPanel({
               {notQualifiedRows.map((row) => (
                 <button key={row.player.id} type="button" className={selectedPlayerId === row.player.id ? "selected" : ""} onClick={() => setSelectedPlayerId(row.player.id)}>
                   <PlayerAvatar player={row.player} size="sm" compact />
-                  <span>
-                    <strong>{row.player.name}</strong>
-                    <small>{formatWeightRoomQualificationNeed(row)}</small>
-                  </span>
+                  <strong>{row.player.name}</strong>
                 </button>
               ))}
             </div>
@@ -9429,6 +9436,7 @@ function filterWeightRoomLeaderboardRow(row: WeightRoomScoredPlayer, filter: Wei
 function sortWeightRoomLeaderboardRows(sort: WeightRoomSortState<WeightRoomLeaderboardSortKey>) {
   return (left: WeightRoomScoredPlayer, right: WeightRoomScoredPlayer) => {
     let result = 0;
+    if (sort.key === "rank") result = compareOptionalNumbers(left.score, right.score, "desc");
     if (sort.key === "athlete") result = left.player.name.localeCompare(right.player.name);
     if (sort.key === "score") result = compareOptionalNumbers(left.score, right.score, "asc");
     if (sort.key === "workouts") result = compareOptionalNumbers(left.completedSessions, right.completedSessions, "asc");
@@ -9443,7 +9451,7 @@ function sortWeightRoomLeaderboardRows(sort: WeightRoomSortState<WeightRoomLeade
 }
 
 function defaultWeightRoomLeaderboardSortDirection(key: WeightRoomLeaderboardSortKey): SortDirection {
-  return key === "athlete" ? "asc" : "desc";
+  return key === "athlete" || key === "rank" ? "asc" : "desc";
 }
 
 function weightRoomTrendRank(row: WeightRoomScoredPlayer) {

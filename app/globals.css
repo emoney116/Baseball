@@ -18434,6 +18434,9 @@ button.weight-room-athlete-table__row:hover {
 /* Weight Room leaderboard refinement */
 .weight-room-athlete-workspace .weight-room-player-list {
   grid-template-rows: auto minmax(0, 1fr);
+  height: var(--weight-room-athlete-min-height);
+  max-height: var(--weight-room-athlete-min-height);
+  overflow: hidden;
 }
 
 .weight-room-athlete-workspace .weight-room-player-search {
@@ -18453,6 +18456,41 @@ button.weight-room-athlete-table__row:hover {
 
 .weight-room-athlete-workspace .weight-room-player-list__scroll::-webkit-scrollbar {
   display: none;
+}
+
+.weight-room-athlete-panel {
+  height: var(--weight-room-athlete-min-height);
+  max-height: var(--weight-room-athlete-min-height);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.weight-room-athlete-panel .weight-room-athlete-overview,
+.weight-room-athlete-panel .weight-room-athlete-tab-panel {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.weight-room-athlete-panel .weight-room-athlete-overview::-webkit-scrollbar,
+.weight-room-athlete-panel .weight-room-athlete-tab-panel::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .weight-room-athlete-panel {
+    height: auto;
+    max-height: none;
+    display: block;
+    overflow: visible;
+  }
+
+  .weight-room-athlete-panel .weight-room-athlete-overview,
+  .weight-room-athlete-panel .weight-room-athlete-tab-panel {
+    overflow: visible;
+  }
 }
 
 .weight-room-library-toolbar {
@@ -18582,16 +18620,35 @@ button.weight-room-athlete-table__row:hover {
   overflow: hidden;
 }
 
-.weight-room-leaderboard-summary span {
+.weight-room-leaderboard-summary > span {
   min-width: 0;
   display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
   gap: 4px;
   padding: 14px 16px;
   border-right: 1px solid var(--line);
 }
 
-.weight-room-leaderboard-summary span:last-child {
+.weight-room-leaderboard-summary > span:last-child {
   border-right: 0;
+}
+
+.weight-room-leaderboard-summary > span > i {
+  width: 32px;
+  aspect-ratio: 1;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--burgundy) 22%, var(--panel-strong));
+  color: var(--burgundy-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--burgundy) 30%, transparent);
+}
+
+.weight-room-leaderboard-summary > span > span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
 }
 
 .weight-room-leaderboard-summary small,
@@ -18848,20 +18905,20 @@ button.weight-room-athlete-table__row:hover {
 
 .weight-room-not-qualified > div:last-child {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 7px;
 }
 
 .weight-room-not-qualified button {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--panel-strong) 46%, transparent);
   color: var(--text);
-  padding: 9px 10px;
+  padding: 7px 9px;
   text-align: left;
   cursor: pointer;
 }
@@ -18873,10 +18930,11 @@ button.weight-room-athlete-table__row:hover {
   background: color-mix(in srgb, var(--burgundy) 9%, var(--panel-strong));
 }
 
-.weight-room-not-qualified button > span {
+.weight-room-not-qualified button > strong {
   min-width: 0;
-  display: grid;
-  gap: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .weight-room-score-drawer {
@@ -19061,11 +19119,11 @@ button.weight-room-athlete-table__row:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .weight-room-leaderboard-summary span:nth-child(2n) {
+  .weight-room-leaderboard-summary > span:nth-child(2n) {
     border-right: 0;
   }
 
-  .weight-room-leaderboard-summary span:nth-child(n + 3) {
+  .weight-room-leaderboard-summary > span:nth-child(n + 3) {
     border-top: 1px solid var(--line);
   }
 }
@@ -19095,12 +19153,12 @@ button.weight-room-athlete-table__row:hover {
     grid-template-columns: 1fr;
   }
 
-  .weight-room-leaderboard-summary span {
+  .weight-room-leaderboard-summary > span {
     border-right: 0;
     border-top: 1px solid var(--line);
   }
 
-  .weight-room-leaderboard-summary span:first-child {
+  .weight-room-leaderboard-summary > span:first-child {
     border-top: 0;
   }
 
