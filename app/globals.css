@@ -9429,7 +9429,7 @@ select option {
 
 .weight-room-library-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(96px, 120px);
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 120px) auto;
   gap: 8px;
   margin: 10px 0 8px;
 }
@@ -9462,6 +9462,39 @@ select option {
   padding: 8px 10px;
 }
 
+.weight-room-library-presets {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 42%, transparent);
+  padding: 9px;
+  margin-bottom: 8px;
+}
+
+.weight-room-library-presets > span {
+  display: grid;
+  gap: 2px;
+  grid-column: 1 / -1;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.weight-room-library-presets strong,
+.weight-room-library-presets small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-library-presets small {
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
 .weight-room-library-select {
   width: 100%;
   border: 0;
@@ -9481,16 +9514,24 @@ select option {
   white-space: nowrap;
 }
 
+.weight-room-library-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.weight-room-edit-exercise,
 .weight-room-remove-exercise,
 .weight-room-inline-confirm button {
   border: 1px solid var(--line);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.04);
   color: var(--muted-strong);
-  font-weight: 950;
+  font-weight: 650;
   cursor: pointer;
 }
 
+.weight-room-edit-exercise,
 .weight-room-remove-exercise {
   width: 28px;
   height: 28px;
@@ -9499,6 +9540,12 @@ select option {
   place-items: center;
   font-size: 18px;
   line-height: 1;
+}
+
+.weight-room-edit-exercise:hover,
+.weight-room-remove-exercise:hover {
+  border-color: color-mix(in srgb, var(--burgundy) 44%, var(--line));
+  color: var(--text);
 }
 
 .weight-room-inline-confirm {
@@ -18507,7 +18554,7 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .weight-room-exercise-modal {
-  max-width: 460px;
+  max-width: 560px;
 }
 
 .weight-room-exercise-modal__body {
@@ -18544,6 +18591,62 @@ button.weight-room-athlete-table__row:hover {
 .weight-room-exercise-modal__body input:focus {
   border-color: color-mix(in srgb, var(--burgundy) 68%, var(--line));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 14%, transparent);
+}
+
+.weight-room-modal-wide {
+  grid-column: 1 / -1;
+}
+
+.weight-room-preset-exercise-picker {
+  max-height: min(420px, 58vh);
+  overflow: auto;
+  display: grid;
+  gap: 7px;
+  padding-right: 3px;
+  scrollbar-width: thin;
+}
+
+.weight-room-preset-exercise-picker button {
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 48%, transparent);
+  color: var(--text);
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-preset-exercise-picker button.active {
+  border-color: color-mix(in srgb, var(--burgundy) 60%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 18%, var(--panel-strong));
+}
+
+.weight-room-preset-exercise-picker button > span {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--burgundy) 24%, transparent);
+  color: var(--text);
+}
+
+.weight-room-preset-exercise-picker strong,
+.weight-room-preset-exercise-picker small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-preset-exercise-picker small {
+  color: var(--muted);
+  font-size: var(--text-caption);
 }
 
 .weight-room-leaderboard-layout {
@@ -20947,7 +21050,7 @@ button.weight-room-athlete-table__row:hover {
 .weight-room-finish-summary,
 .weight-room-completed-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -20971,6 +21074,62 @@ button.weight-room-athlete-table__row:hover {
   gap: 14px;
 }
 
+.weight-room-completed-metric {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "icon label"
+    "icon value"
+    "icon meta";
+  align-items: center;
+  column-gap: 9px;
+  row-gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 42%, transparent);
+  padding: 10px;
+}
+
+.weight-room-completed-metric i {
+  grid-area: icon;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--burgundy) 28%, transparent);
+  color: var(--pink);
+  font-style: normal;
+}
+
+.weight-room-completed-metric small {
+  grid-area: label;
+  color: var(--muted);
+  font-size: var(--text-label);
+  font-weight: var(--weight-ui);
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.weight-room-completed-metric strong {
+  grid-area: value;
+  color: var(--text);
+  font-size: clamp(18px, 2vw, 24px);
+  font-weight: var(--weight-heading-strong);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.weight-room-completed-metric em {
+  grid-area: meta;
+  color: var(--muted);
+  font-size: var(--text-caption);
+  font-style: normal;
+  white-space: nowrap;
+}
+
 .weight-room-completed-title,
 .weight-room-completed-section-head {
   display: flex;
@@ -20986,6 +21145,7 @@ button.weight-room-athlete-table__row:hover {
   font-size: var(--text-section-title);
   font-weight: var(--weight-heading);
   line-height: var(--leading-section-title);
+  white-space: nowrap;
 }
 
 .weight-room-completed-title p {
@@ -21058,7 +21218,7 @@ button.weight-room-athlete-table__row:hover {
   gap: 12px;
 }
 
-.weight-room-completed-section-head button {
+.weight-room-completed-section-head > button {
   min-height: 32px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -21068,6 +21228,14 @@ button.weight-room-athlete-table__row:hover {
   font-size: var(--text-tab);
   font-weight: var(--weight-ui);
   cursor: pointer;
+}
+
+.weight-room-completed-section-head .choice-select {
+  min-width: min(280px, 100%);
+}
+
+.weight-room-completed-section-head .choice-select__button {
+  width: 100%;
 }
 
 .weight-room-completed-exercise-table,
@@ -21120,7 +21288,7 @@ button.weight-room-athlete-table__row:hover {
 .weight-room-completed-athlete-table > div,
 .weight-room-completed-drill-table > div,
 .weight-room-completed-weigh-table > div {
-  background: color-mix(in srgb, var(--panel-strong) 74%, var(--bg));
+  background: transparent;
   color: var(--muted-strong);
   font-size: var(--text-table-header);
   font-weight: var(--weight-selected);
@@ -21175,6 +21343,31 @@ button.weight-room-athlete-table__row:hover {
   letter-spacing: inherit;
   font: inherit;
   cursor: pointer;
+  border-radius: 0;
+  box-shadow: none;
+  white-space: nowrap;
+}
+
+.weight-room-completed-exercise-table > div > button:hover,
+.weight-room-completed-athlete-table > div > button:hover {
+  color: var(--text);
+  background: transparent;
+}
+
+.weight-room-completed-exercise-table span,
+.weight-room-completed-athlete-table span,
+.weight-room-completed-drill-table span,
+.weight-room-completed-weigh-table span {
+  min-width: 0;
+}
+
+.weight-room-completed-drill-table > button > span,
+.weight-room-completed-drill-table > div > span,
+.weight-room-completed-exercise-table > button > span,
+.weight-room-completed-athlete-table > button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .weight-room-completed-table strong,
@@ -21201,6 +21394,9 @@ button.weight-room-athlete-table__row:hover {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .weight-room-pr-row,
@@ -21306,9 +21502,12 @@ button.weight-room-athlete-table__row:hover {
   }
 
   .weight-room-individual-selectors,
-  .weight-room-finish-summary,
-  .weight-room-completed-metrics {
+  .weight-room-finish-summary {
     grid-template-columns: 1fr;
+  }
+
+  .weight-room-completed-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .weight-room-completed-title,

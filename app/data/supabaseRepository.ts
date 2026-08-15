@@ -1684,10 +1684,17 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       ...data.workoutEntries.map((entry) => entry.exercise),
     ].filter(Boolean));
     const exerciseDefinitionByName = new Map(exerciseDefinitions.map((exercise) => [exercise.name.toLowerCase(), exercise]));
+    const { data: existingExerciseRows, error: existingExerciseError } = await supabase
+      .from("exercises")
+      .select("id,name")
+      .eq("organization_id", foundation.organizationId);
+    if (existingExerciseError) throw existingExerciseError;
+    const existingExerciseIdByName = new Map<string, string>((existingExerciseRows ?? []).map((exercise: any) => [String(exercise.name).toLowerCase(), exercise.id]));
     if (setupExerciseNames.size > 0) {
       const exerciseRows = [...setupExerciseNames].map((name) => {
         const definition = exerciseDefinitionByName.get(name.toLowerCase());
         return {
+          id: definition?.id ?? existingExerciseIdByName.get(name.toLowerCase()) ?? createRemoteId(),
           organization_id: foundation.organizationId,
           name,
           kind: definition?.kind ?? data.workoutEntries.find((entry) => entry.exercise === name)?.kind ?? "Custom",
@@ -1708,6 +1715,7 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       if (error) {
         if (!isMissingExerciseMetadataColumns(error)) throw error;
         const legacyExerciseRows = exerciseRows.map((row) => ({
+          id: row.id,
           organization_id: row.organization_id,
           name: row.name,
           kind: row.kind,
@@ -2226,7 +2234,8 @@ async function upsertOrderedWorkoutRows(
   rows: Array<Record<string, unknown> & { id: string; workout_id: string; display_order: number }>,
 ) {
   if (rows.length === 0) return;
-  const workoutIds = [...new Set(rows.map((row) => row.workout_id))];
+  const normalizedRows = normalizeWorkoutDisplayOrder(rows);
+  const workoutIds = [...new Set(normalizedRows.map((row) => row.workout_id))];
   const { data: existingRows, error: existingError } = await supabase
     .from(table)
     .select("id,workout_id,display_order")
@@ -2242,11 +2251,11 @@ async function upsertOrderedWorkoutRows(
     if (error) throw new PersistenceError("save-failed", error.message);
   }
 
-  await upsertRows(supabase, table, rows);
+  await upsertRows(supabase, table, normalizedRows);
 
-  const incomingIds = new Set(rows.map((row) => row.id));
+  const incomingIds = new Set(normalizedRows.map((row) => row.id));
   const maxOrderByWorkout = new Map<string, number>();
-  rows.forEach((row) => {
+  normalizedRows.forEach((row) => {
     maxOrderByWorkout.set(row.workout_id, Math.max(maxOrderByWorkout.get(row.workout_id) ?? 0, row.display_order));
   });
 
@@ -2259,6 +2268,27 @@ async function upsertOrderedWorkoutRows(
       .eq("id", row.id);
     if (error) throw new PersistenceError("save-failed", error.message);
   }
+}
+
+function normalizeWorkoutDisplayOrder<T extends Record<string, unknown> & { workout_id: string; display_order: number }>(rows: T[]): T[] {
+  const indexed = rows.map((row, index) => ({ row, index }));
+  const grouped = new Map<string, typeof indexed>();
+  indexed.forEach((item) => {
+    const group = grouped.get(item.row.workout_id) ?? [];
+    group.push(item);
+    grouped.set(item.row.workout_id, group);
+  });
+
+  const nextRows = [...rows];
+  grouped.forEach((group) => {
+    group
+      .sort((left, right) => left.row.display_order - right.row.display_order || left.index - right.index)
+      .forEach((item, index) => {
+        nextRows[item.index] = { ...item.row, display_order: index + 1 };
+      });
+  });
+
+  return nextRows;
 }
 
 function mapPlayer(row: any, membership?: any): Player {
@@ -3226,6 +3256,11 @@ function toNumber(value: unknown): number | undefined {
   if (value === null || value === undefined || value === "") return undefined;
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : undefined;
+}
+
+function createRemoteId(): ID {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `remote-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function findPosition(game: Game, playerId: ID) {
