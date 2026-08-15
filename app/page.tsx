@@ -54,7 +54,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BaseballField, DonutChart, Heatmap, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
-import { APP_NAME, APP_SECONDARY_TAGLINE, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
+import { APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
 import { cityOptionsForState, US_STATE_OPTIONS } from "./lib/locations";
 import {
   applyRosterImportPlan,
@@ -90,6 +90,7 @@ import { deriveConcurrentPracticeTotals, nextSessionSequence, touchSessionContri
 import {
   advanceWorkoutGroupStation,
   createWorkoutGroups,
+  moveWorkoutGroupMember,
   setWorkoutGroupStation,
   type ActiveWorkoutGroupSeed,
 } from "./lib/activeWorkout";
@@ -176,6 +177,7 @@ type WeightRoomAthleteTab = "Overview" | "Workouts" | "Exercises" | "Progress";
 type WeightRoomWorkoutStatus = "Idle" | "In Progress" | "Paused" | "Completed";
 type ActiveWorkoutTab = "Weigh-Ins" | "Workout";
 type ActiveWorkoutEntryMode = "Groups" | "Individual";
+type ActiveWorkoutSideMode = "Stations" | "Groups" | "Workout";
 type WeightRoomExerciseCategory = "Lower Body" | "Upper Body" | "Power" | "Core" | "Conditioning" | "Speed" | "Mobility" | "Other";
 type WeightRoomExerciseSortKey = "exercise" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "best" | "sets";
 type WeightRoomWorkoutSortKey = "exercise" | "set" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "rpe";
@@ -1802,10 +1804,6 @@ export default function MetrolinaBaseballApp() {
     });
   }
 
-  function removeWorkoutEntry(entryId: ID) {
-    commit((current) => workoutRepository.removeEntry(current, entryId));
-  }
-
   function logWeightRoomWeighIns(rows: Array<{ playerId: ID; weight?: number }>, date: string) {
     const usableRows = rows.filter((row) => typeof row.weight === "number" && row.weight > 0);
     if (!usableRows.length) return;
@@ -1936,7 +1934,6 @@ export default function MetrolinaBaseballApp() {
         <img className="brand-wordmark" src={BRAND_ASSETS.wordmark} alt="" />
         <img className="asset-preload" src="/brand/metrolina-warriors-alpha.png" alt="" aria-hidden="true" />
         <strong>{APP_TAGLINE}</strong>
-        <span>{APP_SECONDARY_TAGLINE}</span>
       </main>
     );
   }
@@ -1956,7 +1953,6 @@ export default function MetrolinaBaseballApp() {
       <main className="loading-screen">
         <img className="brand-wordmark" src={BRAND_ASSETS.wordmark} alt="" />
         <strong>{APP_NAME}</strong>
-        <span>Database is connected, but no app data was returned.</span>
       </main>
     );
   }
@@ -2275,6 +2271,7 @@ export default function MetrolinaBaseballApp() {
             workoutDate={weightRoomWorkoutDate}
             workoutTitle={weightRoomWorkoutTitle}
             workoutStatus={weightRoomWorkoutStatus}
+            activeEventId={weightRoomActiveEventId}
             activeExercise={weightRoomActiveExercise}
             weighInOpen={weightRoomWeighInOpen}
             onPlayer={setSelectedWeightPlayerId}
@@ -2284,7 +2281,6 @@ export default function MetrolinaBaseballApp() {
             onWorkoutDate={setWeightRoomWorkoutDate}
             onActiveExercise={setWeightRoomActiveExercise}
             onAddEntry={addWorkoutEntry}
-            onRemoveEntry={removeWorkoutEntry}
             onStartWorkout={startWeightRoomWorkout}
             onCompleteWorkout={completeWeightRoomWorkout}
             onPauseWorkout={pauseWeightRoomWorkout}
@@ -2629,7 +2625,6 @@ function AuthGate({
     <main className="loading-screen auth-screen">
       <img className="brand-wordmark" src={BRAND_ASSETS.wordmark} alt="" />
       <strong>{APP_TAGLINE}</strong>
-      <span>{APP_SECONDARY_TAGLINE}</span>
 
       {authState.status === "not-configured" && <p className="auth-message">{authState.message}</p>}
       {error && !needsMembership && <p className="auth-message">{error.message}</p>}
@@ -7314,6 +7309,7 @@ function WeightRoomView({
   workoutDate,
   workoutTitle,
   workoutStatus,
+  activeEventId,
   activeExercise,
   weighInOpen,
   onPlayer,
@@ -7323,7 +7319,6 @@ function WeightRoomView({
   onWorkoutDate,
   onActiveExercise,
   onAddEntry,
-  onRemoveEntry,
   onStartWorkout,
   onCompleteWorkout,
   onPauseWorkout,
@@ -7338,6 +7333,7 @@ function WeightRoomView({
   workoutDate: string;
   workoutTitle: string;
   workoutStatus: WeightRoomWorkoutStatus;
+  activeEventId?: ID;
   activeExercise: string;
   weighInOpen: boolean;
   onPlayer: (playerId: ID) => void;
@@ -7347,7 +7343,6 @@ function WeightRoomView({
   onWorkoutDate: (value: string) => void;
   onActiveExercise: (value: string) => void;
   onAddEntry: (draft?: WeightRoomSetDraft) => void;
-  onRemoveEntry: (entryId: ID) => void;
   onStartWorkout: (input: { title: string; date: string; location?: string; eventId?: ID }) => void;
   onCompleteWorkout: () => void;
   onPauseWorkout: () => void;
@@ -7371,6 +7366,8 @@ function WeightRoomView({
   const [reviewWorkoutDate, setReviewWorkoutDate] = useState<string | undefined>();
   const reviewSessionsForDate = reviewWorkoutDate ? data.workoutSessions.filter((session) => session.date === reviewWorkoutDate) : [];
   const reviewEntriesForDate = reviewWorkoutDate ? data.workoutEntries.filter((entry) => entrySessionDate(data, entry) === reviewWorkoutDate) : [];
+  const activeWorkoutRunning = workoutStatus === "In Progress" || workoutStatus === "Paused";
+  const workoutActionLabel = workoutStatus === "Paused" ? "Resume Workout" : activeWorkoutRunning ? "Enter Workout" : "Start Workout";
 
   function startWorkoutFromSelection(input?: { title?: string; date?: string; location?: string; eventId?: ID }) {
     setReviewWorkoutDate(undefined);
@@ -7409,7 +7406,6 @@ function WeightRoomView({
           sessionsForDate={sessionsForDate}
           onBack={() => onTab("Overview")}
           onAddEntry={onAddEntry}
-          onRemoveEntry={onRemoveEntry}
           onSaveWeighIns={onSaveWeighIns}
           onPauseWorkout={onPauseWorkout}
           onResumeWorkout={onResumeWorkout}
@@ -7448,8 +7444,8 @@ function WeightRoomView({
             Log Weigh-Ins
           </button>
           <button className="primary-button" type="button" onClick={() => startWorkoutFromSelection()}>
-            <Plus size={16} aria-hidden="true" />
-            Start Workout
+            {activeWorkoutRunning ? <Play size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}
+            {workoutActionLabel}
           </button>
         </div>
       </section>
@@ -7458,7 +7454,14 @@ function WeightRoomView({
         <section className="weight-room-overview-grid">
           <WeightLeaderCard leaders={leaderRows} onOpenPlayer={onOpenPlayer} />
           <WeightRoomWeighInCard data={data} players={players} date={workoutDate} onOpen={() => onWeighInOpen(true)} />
-          <WeightRoomRecentWorkouts data={data} players={players} onStart={startWorkoutFromSelection} onReview={reviewWorkout} onViewAll={openWorkoutBuilder} />
+          <WeightRoomRecentWorkouts
+            data={data}
+            players={players}
+            activeWorkout={{ status: workoutStatus, date: workoutDate, title: workoutTitle, eventId: activeEventId }}
+            onStart={startWorkoutFromSelection}
+            onReview={reviewWorkout}
+            onViewAll={openWorkoutBuilder}
+          />
           <WeightRoomTeamOverview overview={teamOverview} onViewWorkouts={openWorkoutBuilder} onStartWorkout={() => startWorkoutFromSelection()} />
         </section>
       )}
@@ -7487,7 +7490,14 @@ function WeightRoomView({
                 onExercise={onActiveExercise}
                 onStart={() => startWorkoutFromSelection()}
               />
-              <WeightRoomRecentWorkouts data={data} players={players} onStart={startWorkoutFromSelection} onReview={reviewWorkout} expanded />
+              <WeightRoomRecentWorkouts
+                data={data}
+                players={players}
+                activeWorkout={{ status: workoutStatus, date: workoutDate, title: workoutTitle, eventId: activeEventId }}
+                onStart={startWorkoutFromSelection}
+                onReview={reviewWorkout}
+                expanded
+              />
             </>
           )}
         </section>
@@ -7751,6 +7761,7 @@ function WeightRoomWeighInCard({ data, players, date, onOpen }: { data: AppData;
 function WeightRoomRecentWorkouts({
   data,
   players,
+  activeWorkout,
   onStart,
   onReview,
   onViewAll,
@@ -7758,6 +7769,7 @@ function WeightRoomRecentWorkouts({
 }: {
   data: AppData;
   players: Player[];
+  activeWorkout?: { status: WeightRoomWorkoutStatus; date: string; title: string; eventId?: ID };
   onStart: (input?: { title?: string; date?: string; location?: string; eventId?: ID }) => void;
   onReview?: (row: WeightRoomWorkoutSummary) => void;
   onViewAll?: () => void;
@@ -7775,6 +7787,16 @@ function WeightRoomRecentWorkouts({
     ? [...openRows, ...completedRows].slice(0, 8)
     : completedRows.slice(0, 1);
   const totalRows = lifts.length + workoutRows.length;
+  const activeRunning = activeWorkout?.status === "In Progress" || activeWorkout?.status === "Paused";
+  const labelForLift = (item: ScheduleItem) => {
+    const activeMatch = activeRunning
+      && ((activeWorkout?.eventId && item.source === "event" && item.sourceId === activeWorkout.eventId)
+        || (item.date === activeWorkout?.date && item.title === activeWorkout?.title));
+    const hasStartedData = allWorkoutRows.some((row) => row.date === item.date && row.title === item.title && !row.completed && (row.sets > 0 || row.athletes > 0));
+    if (activeMatch) return activeWorkout?.status === "Paused" ? "Paused" : "Started";
+    if (hasStartedData) return "Started";
+    return "Scheduled";
+  };
 
   return (
     <article className="panel weight-room-recent-card">
@@ -7799,7 +7821,7 @@ function WeightRoomRecentWorkouts({
               <strong>{item.title}</strong>
               <small>{formatWeightRoomSessionMeta(item.date, item.startAt)}</small>
             </span>
-            <em>Scheduled</em>
+            <em>{labelForLift(item)}</em>
           </button>
         ))}
         {workoutRows.map((row) => (
@@ -7813,7 +7835,7 @@ function WeightRoomRecentWorkouts({
               <strong>{row.title}</strong>
               <small>{formatWeightRoomSessionMeta(row.date, row.startAt)}</small>
             </span>
-            <em>{row.completed ? "Completed" : "Open"}</em>
+            <em>{row.completed ? "Completed" : "Started"}</em>
           </button>
         ))}
         {!totalRows && <CompactEmpty title="Start the first lift to begin tracking." />}
@@ -8063,7 +8085,6 @@ function WeightRoomActiveWorkout({
   sessionsForDate,
   onBack,
   onAddEntry,
-  onRemoveEntry,
   onSaveWeighIns,
   onPauseWorkout,
   onResumeWorkout,
@@ -8079,7 +8100,6 @@ function WeightRoomActiveWorkout({
   sessionsForDate: WorkoutSession[];
   onBack: () => void;
   onAddEntry: (draft?: WeightRoomSetDraft) => void;
-  onRemoveEntry: (entryId: ID) => void;
   onSaveWeighIns: (rows: Array<{ playerId: ID; weight?: number }>, date: string) => void;
   onPauseWorkout: () => void;
   onResumeWorkout: () => void;
@@ -8090,6 +8110,8 @@ function WeightRoomActiveWorkout({
   const defaultGroupCount = Math.min(4, Math.max(1, Math.ceil(Math.max(1, players.length) / 6)));
   const [activeTab, setActiveTab] = useState<ActiveWorkoutTab>("Workout");
   const [entryMode, setEntryMode] = useState<ActiveWorkoutEntryMode>("Groups");
+  const [setupOpen, setSetupOpen] = useState(() => entriesForDate.length === 0);
+  const [sideMode, setSideMode] = useState<ActiveWorkoutSideMode>("Stations");
   const [groups, setGroups] = useState<ActiveWorkoutGroupSeed[]>(() => createWorkoutGroups(participantIds, defaultGroupCount));
   const [selectedGroupId, setSelectedGroupId] = useState("group-1");
   const [stations, setStations] = useState<ActiveWorkoutStation[]>(() => exercises.slice(0, Math.min(6, Math.max(1, exercises.length))).map((exercise, index) => ({
@@ -8097,11 +8119,16 @@ function WeightRoomActiveWorkout({
     id: `station-${index + 1}-${exercise.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
     displayOrder: index + 1,
   })));
+  const [customExercises, setCustomExercises] = useState<WeightRoomExercise[]>([]);
   const [exerciseToAdd, setExerciseToAdd] = useState(exercises[0]?.name ?? "");
+  const [exerciseSearch, setExerciseSearch] = useState("");
+  const [newExerciseCategory, setNewExerciseCategory] = useState<WeightRoomExerciseCategory>("Other");
   const [individualPlayerId, setIndividualPlayerId] = useState(players[0]?.id ?? "");
   const [individualExercise, setIndividualExercise] = useState(stations[0]?.name ?? "");
-  const [editingCell, setEditingCell] = useState<ActiveWorkoutCell | undefined>();
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
+  const [activityExpanded, setActivityExpanded] = useState(false);
+  const [savedWorkouts, setSavedWorkouts] = useState<Array<{ name: string; exercises: string[] }>>([]);
+  const [savedWorkoutName, setSavedWorkoutName] = useState(workoutTitle);
   const paused = workoutStatus === "Paused";
   const completed = workoutStatus === "Completed";
   const selectedGroup = groups.find((group) => group.id === selectedGroupId) ?? groups[0];
@@ -8109,14 +8136,19 @@ function WeightRoomActiveWorkout({
   const completedSetCount = entriesForDate.filter((entry) => (entry.status ?? "Completed") !== "Skipped").length;
   const plannedSetCount = Math.max(1, players.length * stations.reduce((sum, station) => sum + (station.targetSets ?? 3), 0));
   const weighInCount = sessionsForDate.filter((session) => typeof session.bodyWeight === "number").length;
-  const recentActivity = entriesForDate.slice().sort((left, right) => right.createdAt.localeCompare(left.createdAt)).slice(0, 6);
+  const workoutVolume = entriesForDate.reduce((sum, entry) => sum + workoutEntryVolume(entry), 0);
+  const recentActivity = entriesForDate.slice().sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   const resolvedIndividualPlayerId = players.some((player) => player.id === individualPlayerId) ? individualPlayerId : players[0]?.id ?? "";
   const resolvedIndividualExercise = stations.some((station) => station.name === individualExercise) ? individualExercise : stations[0]?.name ?? "";
-
-  function autoBalanceGroups(groupCount = defaultGroupCount) {
-    setGroups(createWorkoutGroups(participantIds, groupCount));
-    setSelectedGroupId("group-1");
-  }
+  const availableExercises = [...exercises, ...customExercises].filter((exercise, index, all) =>
+    all.findIndex((item) => item.name.toLowerCase() === exercise.name.toLowerCase()) === index
+  );
+  const filteredExerciseOptions = availableExercises.filter((exercise) =>
+    `${exercise.name} ${exercise.category} ${exercise.equipment ?? ""}`.toLowerCase().includes(exerciseSearch.trim().toLowerCase()),
+  ).slice(0, 8);
+  const selectedGroupIndex = Math.max(0, groups.findIndex((group) => group.id === selectedGroup?.id));
+  const previousGroup = groups[selectedGroupIndex - 1];
+  const nextGroup = groups[selectedGroupIndex + 1];
 
   function addGroup() {
     setGroups((current) => [
@@ -8125,10 +8157,11 @@ function WeightRoomActiveWorkout({
     ]);
   }
 
-  function addStation() {
-    const exercise = exercises.find((item) => item.name === exerciseToAdd);
+  function addStation(exerciseName = exerciseToAdd) {
+    const exercise = availableExercises.find((item) => item.name === exerciseName);
     if (!exercise || stations.some((station) => station.name === exercise.name)) return;
     setStations((current) => [...current, { ...exercise, id: `station-${current.length + 1}-${exercise.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, displayOrder: current.length + 1 }]);
+    setExerciseToAdd(exercise.name);
   }
 
   function saveCell(cell: ActiveWorkoutCell, draft: { weight?: number; reps?: number; value?: number; rpe?: number; unit?: WorkoutEntry["unit"]; status?: WorkoutEntry["status"] }) {
@@ -8146,7 +8179,80 @@ function WeightRoomActiveWorkout({
       rpe: draft.rpe,
       status: draft.status ?? "Completed",
     });
-    setEditingCell(undefined);
+  }
+
+  function createAndAddExercise(name = exerciseSearch.trim()) {
+    if (!name) return;
+    const nextExercise = { ...makeWeightRoomExercise(name), category: newExerciseCategory };
+    setCustomExercises((current) => {
+      const withoutDuplicate = current.filter((item) => item.name.toLowerCase() !== nextExercise.name.toLowerCase());
+      return [...withoutDuplicate, nextExercise];
+    });
+    setExerciseSearch("");
+    setNewExerciseCategory("Other");
+    setExerciseToAdd(nextExercise.name);
+    if (!stations.some((station) => station.name.toLowerCase() === nextExercise.name.toLowerCase())) {
+      setStations((current) => [...current, { ...nextExercise, id: `station-${current.length + 1}-${nextExercise.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, displayOrder: current.length + 1 }]);
+    }
+  }
+
+  function removeStation(stationId: ID) {
+    setStations((current) => {
+      const next = current.filter((station) => station.id !== stationId).map((station, index) => ({ ...station, displayOrder: index + 1 }));
+      return next.length ? next : current;
+    });
+  }
+
+  function clearGroups() {
+    setGroups(createEmptyWorkoutGroups(Math.max(1, groups.length || defaultGroupCount), stations.length));
+    setSelectedGroupId("group-1");
+  }
+
+  function randomizeGroups() {
+    const shuffled = [...participantIds].sort(() => Math.random() - 0.5);
+    setGroups(createWorkoutGroups(shuffled, Math.max(1, groups.length || defaultGroupCount)));
+    setSelectedGroupId("group-1");
+  }
+
+  function removeGroup(groupId: string) {
+    setGroups((current) => {
+      const next = current.filter((group) => group.id !== groupId).map((group, index) => ({ ...group, name: `Group ${index + 1}` }));
+      return next.length ? next : createEmptyWorkoutGroups(1, stations.length);
+    });
+    if (selectedGroupId === groupId) setSelectedGroupId("group-1");
+  }
+
+  function addPlayerToGroup(groupId: string, playerId: string) {
+    if (!playerId) return;
+    setGroups((current) => moveWorkoutGroupMember(current, playerId, groupId));
+  }
+
+  function removePlayerFromGroup(groupId: string, playerId: string) {
+    setGroups((current) => current.map((group) => group.id === groupId ? { ...group, playerIds: group.playerIds.filter((id) => id !== playerId) } : group));
+  }
+
+  function startAfterSetup(mode: ActiveWorkoutEntryMode) {
+    setEntryMode(mode);
+    if (mode === "Individual") clearGroups();
+    setSetupOpen(false);
+    setActiveTab("Workout");
+  }
+
+  function loadWorkout(exerciseNames: string[]) {
+    const nextStations = exerciseNames
+      .map((name) => availableExercises.find((exercise) => exercise.name === name) ?? makeWeightRoomExercise(name))
+      .slice(0, 8)
+      .map((exercise, index) => ({ ...exercise, id: `station-${index + 1}-${exercise.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, displayOrder: index + 1 }));
+    if (nextStations.length) {
+      setStations(nextStations);
+      setExerciseToAdd(nextStations[0].name);
+    }
+  }
+
+  function saveCurrentWorkout() {
+    const name = savedWorkoutName.trim() || workoutTitle;
+    const nextWorkout = { name, exercises: stations.map((station) => station.name) };
+    setSavedWorkouts((current) => [nextWorkout, ...current.filter((item) => item.name.toLowerCase() !== name.toLowerCase())].slice(0, 8));
   }
 
   if (completed) {
@@ -8162,6 +8268,8 @@ function WeightRoomActiveWorkout({
           completedSetCount={completedSetCount}
           plannedSetCount={plannedSetCount}
           weighInCount={weighInCount}
+          workoutVolume={workoutVolume}
+          onOpenWeighIns={() => setActiveTab("Weigh-Ins")}
           onBack={onBack}
           onPause={onPauseWorkout}
           onResume={onResumeWorkout}
@@ -8191,22 +8299,21 @@ function WeightRoomActiveWorkout({
         completedSetCount={completedSetCount}
         plannedSetCount={plannedSetCount}
         weighInCount={weighInCount}
+        workoutVolume={workoutVolume}
+        onOpenWeighIns={() => setActiveTab("Weigh-Ins")}
         onBack={onBack}
         onPause={onPauseWorkout}
         onResume={onResumeWorkout}
         onFinish={() => setFinishConfirmOpen(true)}
       />
 
-      <div className="weight-room-active-tabs" role="tablist" aria-label="Active workout sections">
-        {(["Weigh-Ins", "Workout"] as ActiveWorkoutTab[]).map((item) => (
-          <button key={item} type="button" className={activeTab === item ? "active" : ""} onClick={() => setActiveTab(item)}>{item}</button>
-        ))}
-      </div>
-
-      {activeTab === "Weigh-Ins" ? (
-        <WeightRoomActiveWeighIns data={data} players={players} date={workoutDate} sessions={sessionsForDate} onSave={onSaveWeighIns} />
-      ) : (
-        <section className={`weight-room-active-workspace ${paused ? "is-paused" : ""}`}>
+      <div className="weight-room-active-nav-row">
+        <div className="weight-room-active-tabs" role="tablist" aria-label="Active workout sections">
+          {(["Weigh-Ins", "Workout"] as ActiveWorkoutTab[]).map((item) => (
+            <button key={item} type="button" className={activeTab === item ? "active" : ""} onClick={() => setActiveTab(item)}>{item}</button>
+          ))}
+        </div>
+        {activeTab === "Workout" && (
           <div className="weight-room-workout-mode-tabs" role="group" aria-label="Workout entry mode">
             {(["Groups", "Individual"] as ActiveWorkoutEntryMode[]).map((item) => (
               <button key={item} type="button" className={entryMode === item ? "active" : ""} onClick={() => setEntryMode(item)}>
@@ -8216,110 +8323,152 @@ function WeightRoomActiveWorkout({
             ))}
             <span>{paused ? "Paused - data preserved" : "Saved"}</span>
           </div>
+        )}
+      </div>
 
+      {activeTab === "Weigh-Ins" ? (
+        <WeightRoomActiveWeighIns data={data} players={players} date={workoutDate} sessions={sessionsForDate} onSave={onSaveWeighIns} />
+      ) : setupOpen ? (
+        <WeightRoomWorkoutSetupIntro
+          players={players}
+          stations={stations}
+          groups={groups}
+          availableExercises={availableExercises}
+          savedWorkouts={savedWorkouts}
+          savedWorkoutName={savedWorkoutName}
+          exerciseSearch={exerciseSearch}
+          newExerciseCategory={newExerciseCategory}
+          onSavedWorkoutName={setSavedWorkoutName}
+          onExerciseSearch={setExerciseSearch}
+          onNewExerciseCategory={setNewExerciseCategory}
+          onLoadWorkout={loadWorkout}
+          onSaveWorkout={saveCurrentWorkout}
+          onAddStation={addStation}
+          onCreateExercise={createAndAddExercise}
+          onRemoveStation={removeStation}
+          onAddGroup={addGroup}
+          onRemoveGroup={removeGroup}
+          onClearGroups={clearGroups}
+          onRandomizeGroups={randomizeGroups}
+          onAddPlayer={addPlayerToGroup}
+          onRemovePlayer={removePlayerFromGroup}
+          onStart={startAfterSetup}
+          onSkip={() => setSetupOpen(false)}
+        />
+      ) : (
+        <section className={`weight-room-active-workspace ${paused ? "is-paused" : ""}`}>
           {entryMode === "Groups" ? (
             <section className="weight-room-group-mode">
-              <div className="weight-room-group-strip">
-                {groups.map((group) => {
-                  const station = stations[group.stationIndex % Math.max(1, stations.length)] ?? stations[0];
-                  return (
-                    <article key={group.id} className={group.id === selectedGroup?.id ? "active" : ""}>
-                      <button type="button" onClick={() => setSelectedGroupId(group.id)}>
-                        <strong>{group.name}</strong>
-                        <small>{group.playerIds.length} athlete{group.playerIds.length === 1 ? "" : "s"}</small>
-                      </button>
-                      <ChoiceSelect
-                        value={String(group.stationIndex % Math.max(1, stations.length))}
-                        className="form-choice"
-                        options={stations.map((item, index) => ({ value: String(index), label: item.name, description: `${item.targetSets ?? 3} x ${item.targetReps ?? "-"}` }))}
-                        onChange={(value) => setGroups((current) => setWorkoutGroupStation(current, group.id, Number(value), stations.length))}
-                        aria-label={`${group.name} station`}
-                      />
-                      <small>{station?.category ?? "Station"}</small>
-                    </article>
-                  );
-                })}
-              </div>
-
               <div className="weight-room-active-grid">
-                <main className="panel weight-room-station-board">
-                  {selectedGroup && selectedStation ? (
-                    <>
-                      <div className="weight-room-station-board__header">
-                        <div>
-                          <span>{selectedGroup.name}</span>
-                          <h2>{selectedStation.name}</h2>
-                          <small>Station {(selectedGroup.stationIndex % Math.max(1, stations.length)) + 1} of {stations.length} - {selectedStation.targetSets ?? 3} x {selectedStation.targetReps ?? "-"}</small>
-                        </div>
-                        <div>
-                          <button className="secondary-button" type="button" onClick={() => setGroups((current) => advanceWorkoutGroupStation(current, selectedGroup.id, stations.length, -1))}>
-                            <ChevronLeft size={15} aria-hidden="true" />Previous
+                <div className="weight-room-active-main-column">
+                  <div className="weight-room-group-strip">
+                    {groups.map((group) => {
+                      const station = stations[group.stationIndex % Math.max(1, stations.length)] ?? stations[0];
+                      return (
+                        <article key={group.id} className={group.id === selectedGroup?.id ? "active" : ""}>
+                          <button type="button" onClick={() => setSelectedGroupId(group.id)}>
+                            <strong>{group.name}</strong>
+                            <small>{group.playerIds.length} athlete{group.playerIds.length === 1 ? "" : "s"}</small>
                           </button>
-                          <button className="secondary-button" type="button" onClick={() => setGroups((current) => advanceWorkoutGroupStation(current, selectedGroup.id, stations.length, 1))}>
-                            Next<ChevronRight size={15} aria-hidden="true" />
-                          </button>
+                          <ChoiceSelect
+                            value={String(group.stationIndex % Math.max(1, stations.length))}
+                            className="form-choice"
+                            options={stations.map((item, index) => ({ value: String(index), label: item.name, description: `${item.targetSets ?? 3} x ${item.targetReps ?? "-"}` }))}
+                            onChange={(value) => setGroups((current) => setWorkoutGroupStation(current, group.id, Number(value), stations.length))}
+                            aria-label={`${group.name} station`}
+                          />
+                          <small>{station?.category ?? "Station"}</small>
+                        </article>
+                      );
+                    })}
+                  </div>
+
+                  <main className="panel weight-room-station-board">
+                    {selectedGroup && selectedStation ? (
+                      <>
+                        <div className="weight-room-station-board__header">
+                          <div>
+                            <span>{selectedGroup.name}</span>
+                            <h2>{selectedStation.name}</h2>
+                            <small>Station {(selectedGroup.stationIndex % Math.max(1, stations.length)) + 1} of {stations.length} - {selectedStation.targetSets ?? 3} x {selectedStation.targetReps ?? "-"}</small>
+                          </div>
+                          <div>
+                            <button className="icon-button" type="button" disabled={!previousGroup} onClick={() => previousGroup && setSelectedGroupId(previousGroup.id)} aria-label="Previous group">
+                              <ChevronLeft size={15} aria-hidden="true" />
+                            </button>
+                            <button className="icon-button" type="button" disabled={!nextGroup} onClick={() => nextGroup && setSelectedGroupId(nextGroup.id)} aria-label="Next group">
+                              <ChevronRight size={15} aria-hidden="true" />
+                            </button>
+                            <button className="secondary-button" type="button" onClick={() => setGroups((current) => advanceWorkoutGroupStation(current, selectedGroup.id, stations.length, -1))}>
+                              <ChevronLeft size={15} aria-hidden="true" />Previous Station
+                            </button>
+                            <button className="secondary-button" type="button" onClick={() => setGroups((current) => advanceWorkoutGroupStation(current, selectedGroup.id, stations.length, 1))}>
+                              Next Station<ChevronRight size={15} aria-hidden="true" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <WeightRoomGroupStationTable
-                        players={players}
-                        group={selectedGroup}
-                        station={selectedStation}
-                        entries={entriesForDate}
-                        workoutDate={workoutDate}
-                        data={data}
-                        disabled={paused}
-                        onCell={setEditingCell}
-                      />
-                    </>
-                  ) : (
-                    <CompactEmpty title="Add a group and station to begin logging." />
-                  )}
-                </main>
+                        <WeightRoomGroupStationTable
+                          players={players}
+                          group={selectedGroup}
+                          station={selectedStation}
+                          entries={entriesForDate}
+                          workoutDate={workoutDate}
+                          data={data}
+                          disabled={paused}
+                          onSaveCell={saveCell}
+                        />
+                      </>
+                    ) : (
+                      <CompactEmpty title="Add a group and station to begin logging." />
+                    )}
+                  </main>
+                </div>
 
                 <aside className="panel weight-room-active-side">
-                  <div className="weight-room-station-list">
-                    <div>
-                      <span>Exercises / Stations</span>
-                      <strong>{stations.length} stations</strong>
-                    </div>
-                    {stations.map((station, index) => (
-                      <button key={station.id} type="button" className={station.name === selectedStation?.name ? "active" : ""} onClick={() => selectedGroup && setGroups((current) => setWorkoutGroupStation(current, selectedGroup.id, index, stations.length))}>
-                        <em>{index + 1}</em>
-                        <span><strong>{station.name}</strong><small>{station.targetSets ?? 3} x {station.targetReps ?? "-"}</small></span>
-                      </button>
-                    ))}
-                    <div className="weight-room-add-station">
-                      <ChoiceSelect
-                        value={exerciseToAdd}
-                        className="form-choice"
-                        options={exercises.map((item) => ({ value: item.name, label: item.name, description: item.category }))}
-                        onChange={setExerciseToAdd}
-                        aria-label="Exercise to add"
-                      />
-                      <button className="secondary-button" type="button" onClick={addStation}><Plus size={15} aria-hidden="true" />Add</button>
-                    </div>
+                  <div className="weight-room-active-side-actions">
+                    <button type="button" className={sideMode === "Groups" ? "active" : ""} onClick={() => setSideMode(sideMode === "Groups" ? "Stations" : "Groups")}>Edit Groups</button>
+                    <button type="button" className={sideMode === "Workout" ? "active" : ""} onClick={() => setSideMode(sideMode === "Workout" ? "Stations" : "Workout")}>Edit Workout</button>
                   </div>
-
-                  <div className="weight-room-group-setup">
-                    <div>
-                      <span>Groups Setup</span>
-                      <button type="button" onClick={() => autoBalanceGroups()}>Auto Balance</button>
-                    </div>
-                    {groups.map((group) => (
-                      <div key={group.id}>
-                        <strong>{group.name}</strong>
-                        <span>{group.playerIds.slice(0, 8).map((playerId) => {
-                          const player = players.find((item) => item.id === playerId);
-                          return player ? <PlayerAvatar key={player.id} player={player} size="sm" compact /> : null;
-                        })}</span>
-                      </div>
-                    ))}
-                    <button className="ghost-button stretch-button" type="button" onClick={addGroup}><Plus size={15} aria-hidden="true" />Add Group</button>
-                  </div>
-
-                  <WeightRoomActiveActivity entries={recentActivity} players={players} />
+                  {sideMode === "Groups" ? (
+                    <WeightRoomGroupEditor
+                      players={players}
+                      groups={groups}
+                      onAddGroup={addGroup}
+                      onRemoveGroup={removeGroup}
+                      onAddPlayer={addPlayerToGroup}
+                      onRemovePlayer={removePlayerFromGroup}
+                      onClearGroups={clearGroups}
+                      onRandomize={randomizeGroups}
+                    />
+                  ) : sideMode === "Workout" ? (
+                    <WeightRoomWorkoutEditor
+                      stations={stations}
+                      availableExercises={availableExercises}
+                      filteredExercises={filteredExerciseOptions}
+                      exerciseSearch={exerciseSearch}
+                      newExerciseCategory={newExerciseCategory}
+                      savedWorkouts={savedWorkouts}
+                      savedWorkoutName={savedWorkoutName}
+                      onExerciseSearch={setExerciseSearch}
+                      onNewExerciseCategory={setNewExerciseCategory}
+                      onSavedWorkoutName={setSavedWorkoutName}
+                      onAddStation={addStation}
+                      onCreateExercise={createAndAddExercise}
+                      onRemoveStation={removeStation}
+                      onLoadWorkout={loadWorkout}
+                      onSaveWorkout={saveCurrentWorkout}
+                    />
+                  ) : (
+                    <WeightRoomStationList
+                      stations={stations}
+                      selectedStation={selectedStation}
+                      selectedGroup={selectedGroup}
+                      onStation={(index) => selectedGroup && setGroups((current) => setWorkoutGroupStation(current, selectedGroup.id, index, stations.length))}
+                    />
+                  )}
                 </aside>
               </div>
+              <WeightRoomActiveActivity entries={recentActivity} players={players} expanded={activityExpanded} onToggle={() => setActivityExpanded((current) => !current)} />
             </section>
           ) : (
             <WeightRoomIndividualWorkout
@@ -8333,7 +8482,7 @@ function WeightRoomActiveWorkout({
               disabled={paused}
               onPlayer={setIndividualPlayerId}
               onExercise={setIndividualExercise}
-              onCell={setEditingCell}
+              onSaveCell={saveCell}
             />
           )}
 
@@ -8345,19 +8494,6 @@ function WeightRoomActiveWorkout({
             <span><strong>{groups.length}</strong><small>Groups</small></span>
           </section>
         </section>
-      )}
-
-      {editingCell && (
-        <WeightRoomActiveSetEditor
-          cell={editingCell}
-          station={stations.find((station) => station.name === editingCell.exercise) ?? makeWeightRoomExercise(editingCell.exercise)}
-          player={players.find((player) => player.id === editingCell.playerId)}
-          entry={workoutEntryForCell(entriesForDate, editingCell.playerId, editingCell.exercise, editingCell.setNumber)}
-          previousEntry={previousWorkoutEntry(data, editingCell.playerId, editingCell.exercise, workoutDate)}
-          onClose={() => setEditingCell(undefined)}
-          onRemoveEntry={onRemoveEntry}
-          onSave={(draft) => saveCell(editingCell, draft)}
-        />
       )}
 
       {finishConfirmOpen && (
@@ -8389,6 +8525,8 @@ function WeightRoomActiveHeader({
   completedSetCount,
   plannedSetCount,
   weighInCount,
+  workoutVolume,
+  onOpenWeighIns,
   onBack,
   onPause,
   onResume,
@@ -8403,6 +8541,8 @@ function WeightRoomActiveHeader({
   completedSetCount: number;
   plannedSetCount: number;
   weighInCount: number;
+  workoutVolume: number;
+  onOpenWeighIns: () => void;
   onBack: () => void;
   onPause: () => void;
   onResume: () => void;
@@ -8411,7 +8551,7 @@ function WeightRoomActiveHeader({
   return (
     <header className="weight-room-active-top">
       <div className="weight-room-active-top__title">
-        <button className="ghost-button" type="button" onClick={onBack}><ChevronLeft size={16} aria-hidden="true" />Weight Room</button>
+        <button className="ghost-button weight-room-active-back" type="button" onClick={onBack}><ChevronLeft size={16} aria-hidden="true" />Weight Room</button>
         <div>
           <h1>{workoutTitle}</h1>
           <span className={`weight-room-live-status status-${workoutStatus.toLowerCase().replace(/\s+/g, "-")}`}>{workoutStatus}</span>
@@ -8422,7 +8562,8 @@ function WeightRoomActiveHeader({
         <span><Users size={15} aria-hidden="true" /><strong>{athleteCount}</strong><small>Athletes</small></span>
         <span><ClipboardList size={15} aria-hidden="true" /><strong>{exerciseCount}</strong><small>Exercises</small></span>
         <span><Check size={15} aria-hidden="true" /><strong>{completedSetCount} / {plannedSetCount}</strong><small>Sets</small></span>
-        <span><Gauge size={15} aria-hidden="true" /><strong>{weighInCount} / {athleteCount}</strong><small>Weigh-Ins</small></span>
+        <button type="button" onClick={onOpenWeighIns}><Gauge size={15} aria-hidden="true" /><strong>{weighInCount} / {athleteCount}</strong><small>Weigh-Ins</small></button>
+        <span><Dumbbell size={15} aria-hidden="true" /><strong>{formatWorkoutVolume(workoutVolume)}</strong><small>Total Volume</small></span>
       </div>
       <div className="weight-room-active-top__actions">
         {workoutStatus === "Paused" ? (
@@ -8533,6 +8674,382 @@ function WeightRoomActiveWeighIns({
   );
 }
 
+function WeightRoomWorkoutSetupIntro({
+  players,
+  stations,
+  groups,
+  availableExercises,
+  savedWorkouts,
+  savedWorkoutName,
+  exerciseSearch,
+  newExerciseCategory,
+  onSavedWorkoutName,
+  onExerciseSearch,
+  onNewExerciseCategory,
+  onLoadWorkout,
+  onSaveWorkout,
+  onAddStation,
+  onCreateExercise,
+  onRemoveStation,
+  onAddGroup,
+  onRemoveGroup,
+  onClearGroups,
+  onRandomizeGroups,
+  onAddPlayer,
+  onRemovePlayer,
+  onStart,
+  onSkip,
+}: {
+  players: Player[];
+  stations: ActiveWorkoutStation[];
+  groups: ActiveWorkoutGroupSeed[];
+  availableExercises: WeightRoomExercise[];
+  savedWorkouts: Array<{ name: string; exercises: string[] }>;
+  savedWorkoutName: string;
+  exerciseSearch: string;
+  newExerciseCategory: WeightRoomExerciseCategory;
+  onSavedWorkoutName: (value: string) => void;
+  onExerciseSearch: (value: string) => void;
+  onNewExerciseCategory: (value: WeightRoomExerciseCategory) => void;
+  onLoadWorkout: (exerciseNames: string[]) => void;
+  onSaveWorkout: () => void;
+  onAddStation: (exerciseName?: string) => void;
+  onCreateExercise: (name?: string) => void;
+  onRemoveStation: (stationId: ID) => void;
+  onAddGroup: () => void;
+  onRemoveGroup: (groupId: string) => void;
+  onClearGroups: () => void;
+  onRandomizeGroups: () => void;
+  onAddPlayer: (groupId: string, playerId: string) => void;
+  onRemovePlayer: (groupId: string, playerId: string) => void;
+  onStart: (mode: ActiveWorkoutEntryMode) => void;
+  onSkip: () => void;
+}) {
+  const filteredExercises = availableExercises.filter((exercise) =>
+    `${exercise.name} ${exercise.category} ${exercise.equipment ?? ""}`.toLowerCase().includes(exerciseSearch.trim().toLowerCase()),
+  ).slice(0, 8);
+  return (
+    <section className="panel weight-room-setup-intro">
+      <div className="weight-room-setup-intro__head">
+        <div>
+          <span>Workout setup</span>
+          <h2>Set stations and groups</h2>
+          <p>Prepare the session now, or jump straight into logging and adjust it from the side tools.</p>
+        </div>
+        <div className="weight-room-setup-intro__head-actions">
+          <button type="button" className="secondary-button" onClick={() => onStart("Individual")}><User size={15} aria-hidden="true" />Individual</button>
+          <button type="button" className="primary-button" onClick={() => onStart("Groups")}><Users size={15} aria-hidden="true" />Start Groups</button>
+          <button type="button" className="ghost-button" onClick={onSkip}>Skip</button>
+        </div>
+      </div>
+      <div className="weight-room-setup-grid">
+        <WeightRoomWorkoutEditor
+          stations={stations}
+          availableExercises={availableExercises}
+          filteredExercises={filteredExercises}
+          exerciseSearch={exerciseSearch}
+          newExerciseCategory={newExerciseCategory}
+          savedWorkouts={savedWorkouts}
+          savedWorkoutName={savedWorkoutName}
+          onExerciseSearch={onExerciseSearch}
+          onNewExerciseCategory={onNewExerciseCategory}
+          onSavedWorkoutName={onSavedWorkoutName}
+          onAddStation={onAddStation}
+          onCreateExercise={onCreateExercise}
+          onRemoveStation={onRemoveStation}
+          onLoadWorkout={onLoadWorkout}
+          onSaveWorkout={onSaveWorkout}
+        />
+        <WeightRoomGroupEditor
+          players={players}
+          groups={groups}
+          onAddGroup={onAddGroup}
+          onRemoveGroup={onRemoveGroup}
+          onAddPlayer={onAddPlayer}
+          onRemovePlayer={onRemovePlayer}
+          onClearGroups={onClearGroups}
+          onRandomize={onRandomizeGroups}
+        />
+      </div>
+      <div className="weight-room-setup-actions">
+        <button className="secondary-button" type="button" onClick={() => onStart("Individual")}><User size={15} aria-hidden="true" />Start Individual</button>
+        <button className="primary-button" type="button" onClick={() => onStart("Groups")}><Users size={15} aria-hidden="true" />Start Group Workout</button>
+      </div>
+    </section>
+  );
+}
+
+function WeightRoomStationList({
+  stations,
+  selectedStation,
+  selectedGroup,
+  onStation,
+}: {
+  stations: ActiveWorkoutStation[];
+  selectedStation?: ActiveWorkoutStation;
+  selectedGroup?: ActiveWorkoutGroupSeed;
+  onStation: (index: number) => void;
+}) {
+  return (
+    <div className="weight-room-station-list">
+      <div><span>Exercises / Stations</span><small>{stations.length} station{stations.length === 1 ? "" : "s"}</small></div>
+      {stations.map((station, index) => (
+        <button key={station.id} type="button" className={station.id === selectedStation?.id ? "active" : ""} onClick={() => onStation(index)}>
+          <em>{index + 1}</em>
+          <span>
+            <strong>{station.name}</strong>
+            <small>{station.targetSets ?? 3} x {station.targetReps ?? weightRoomMeasurementLabel(station)}</small>
+          </span>
+        </button>
+      ))}
+      {selectedGroup && <small>{selectedGroup.name} changes stations here. Other groups stay where they are.</small>}
+    </div>
+  );
+}
+
+function WeightRoomGroupEditor({
+  players,
+  groups,
+  onAddGroup,
+  onRemoveGroup,
+  onAddPlayer,
+  onRemovePlayer,
+  onClearGroups,
+  onRandomize,
+}: {
+  players: Player[];
+  groups: ActiveWorkoutGroupSeed[];
+  onAddGroup: () => void;
+  onRemoveGroup: (groupId: string) => void;
+  onAddPlayer: (groupId: string, playerId: string) => void;
+  onRemovePlayer: (groupId: string, playerId: string) => void;
+  onClearGroups: () => void;
+  onRandomize: () => void;
+}) {
+  const assigned = new Set(groups.flatMap((group) => group.playerIds));
+  const unassigned = players.filter((player) => !assigned.has(player.id));
+  return (
+    <div className="weight-room-group-editor">
+      <div className="weight-room-editor-head">
+        <div><span>Groups</span><small>{groups.length} groups - {assigned.size}/{players.length} assigned</small></div>
+        <button type="button" onClick={onAddGroup}><Plus size={14} aria-hidden="true" />Add</button>
+      </div>
+      <div className="weight-room-editor-actions">
+        <button type="button" onClick={onRandomize}><RefreshCw size={14} aria-hidden="true" />Randomize</button>
+        <button type="button" onClick={onClearGroups}><X size={14} aria-hidden="true" />Clear</button>
+      </div>
+      <div className="weight-room-group-editor__list">
+        {groups.map((group) => {
+          const members = group.playerIds.map((playerId) => players.find((player) => player.id === playerId)).filter((player): player is Player => Boolean(player));
+          return (
+            <section key={group.id}>
+              <div>
+                <strong>{group.name}</strong>
+                <small>{members.length} athlete{members.length === 1 ? "" : "s"}</small>
+                {groups.length > 1 && <button type="button" onClick={() => onRemoveGroup(group.id)} aria-label={`Remove ${group.name}`}><Trash2 size={13} aria-hidden="true" /></button>}
+              </div>
+              <div className="weight-room-group-members">
+                {members.map((player) => (
+                  <button key={player.id} type="button" onClick={() => onRemovePlayer(group.id, player.id)} title={`Remove ${player.name}`}>
+                    <PlayerAvatar player={player} size="sm" compact />
+                    <span>{lastName(player.name)}</span>
+                    <X size={12} aria-hidden="true" />
+                  </button>
+                ))}
+                {!members.length && <small>Open group</small>}
+              </div>
+              <select aria-label={`Add athlete to ${group.name}`} value="" onChange={(event) => { onAddPlayer(group.id, event.target.value); event.currentTarget.value = ""; }}>
+                <option value="">Add athlete...</option>
+                {unassigned.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
+              </select>
+            </section>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function WeightRoomWorkoutEditor({
+  stations,
+  filteredExercises,
+  exerciseSearch,
+  newExerciseCategory,
+  savedWorkouts,
+  savedWorkoutName,
+  onExerciseSearch,
+  onNewExerciseCategory,
+  onSavedWorkoutName,
+  onAddStation,
+  onCreateExercise,
+  onRemoveStation,
+  onLoadWorkout,
+  onSaveWorkout,
+}: {
+  stations: ActiveWorkoutStation[];
+  availableExercises: WeightRoomExercise[];
+  filteredExercises: WeightRoomExercise[];
+  exerciseSearch: string;
+  newExerciseCategory: WeightRoomExerciseCategory;
+  savedWorkouts: Array<{ name: string; exercises: string[] }>;
+  savedWorkoutName: string;
+  onExerciseSearch: (value: string) => void;
+  onNewExerciseCategory: (value: WeightRoomExerciseCategory) => void;
+  onSavedWorkoutName: (value: string) => void;
+  onAddStation: (exerciseName?: string) => void;
+  onCreateExercise: (name?: string) => void;
+  onRemoveStation: (stationId: ID) => void;
+  onLoadWorkout: (exerciseNames: string[]) => void;
+  onSaveWorkout: () => void;
+}) {
+  const categories: WeightRoomExerciseCategory[] = ["Lower Body", "Upper Body", "Power", "Core", "Speed", "Conditioning", "Mobility", "Other"];
+  const exactMatch = filteredExercises.some((exercise) => exercise.name.toLowerCase() === exerciseSearch.trim().toLowerCase());
+  return (
+    <div className="weight-room-workout-editor">
+      <div className="weight-room-editor-head">
+        <div><span>Workout</span><small>{stations.length} station{stations.length === 1 ? "" : "s"}</small></div>
+        <button type="button" onClick={onSaveWorkout}><Save size={14} aria-hidden="true" />Save</button>
+      </div>
+      <label className="weight-room-exercise-search">
+        <Search size={15} aria-hidden="true" />
+        <input value={exerciseSearch} onChange={(event) => onExerciseSearch(event.target.value)} placeholder="Search or add exercise..." />
+      </label>
+      <div className="weight-room-exercise-options">
+        {filteredExercises.map((exercise) => {
+          const isSelected = stations.some((station) => station.name.toLowerCase() === exercise.name.toLowerCase());
+          return (
+            <button key={exercise.name} type="button" disabled={isSelected} onClick={() => onAddStation(exercise.name)}>
+              <Dumbbell size={14} aria-hidden="true" />
+              <span><strong>{exercise.name}</strong><small>{exercise.category}</small></span>
+              <em>{isSelected ? "Added" : "Add"}</em>
+            </button>
+          );
+        })}
+        {exerciseSearch.trim() && !exactMatch && (
+          <div className="weight-room-create-station">
+            <ChoiceSelect
+              value={newExerciseCategory}
+              className="form-choice"
+              options={categories.map((category) => ({ value: category, label: category }))}
+              onChange={(value) => onNewExerciseCategory(value as WeightRoomExerciseCategory)}
+              aria-label="New exercise category"
+            />
+            <button type="button" onClick={() => onCreateExercise(exerciseSearch.trim())}><Plus size={14} aria-hidden="true" />Create {exerciseSearch.trim()}</button>
+          </div>
+        )}
+      </div>
+      <div className="weight-room-current-stations">
+        {stations.map((station, index) => (
+          <span key={station.id}>
+            <em>{index + 1}</em>
+            <strong>{station.name}</strong>
+            <small>{station.targetSets ?? 3} x {station.targetReps ?? weightRoomMeasurementLabel(station)}</small>
+            <button type="button" onClick={() => onRemoveStation(station.id)} aria-label={`Remove ${station.name}`}><Trash2 size={13} aria-hidden="true" /></button>
+          </span>
+        ))}
+      </div>
+      <div className="weight-room-saved-workouts">
+        <label>
+          <span>Save current workout</span>
+          <input value={savedWorkoutName} onChange={(event) => onSavedWorkoutName(event.target.value)} placeholder="Workout name" />
+        </label>
+        {savedWorkouts.map((workout) => (
+          <button key={workout.name} type="button" onClick={() => onLoadWorkout(workout.exercises)}>
+            <strong>{workout.name}</strong>
+            <small>{workout.exercises.length} exercises</small>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WeightRoomInlineSetCell({
+  cell,
+  station,
+  entry,
+  previousEntry,
+  disabled,
+  onSaveCell,
+}: {
+  cell: ActiveWorkoutCell;
+  station: ActiveWorkoutStation;
+  entry?: WorkoutEntry;
+  previousEntry?: WorkoutEntry;
+  disabled: boolean;
+  onSaveCell: (cell: ActiveWorkoutCell, draft: { weight?: number; reps?: number; value?: number; rpe?: number; unit?: WorkoutEntry["unit"]; status?: WorkoutEntry["status"] }) => void;
+}) {
+  const [weight, setWeight] = useState(entry?.weight?.toString() ?? "");
+  const [reps, setReps] = useState(entry?.reps?.toString() ?? "");
+  const [value, setValue] = useState(entry?.value?.toString() ?? "");
+  const isWeightReps = station.measurementType === "WEIGHT_REPS";
+  const isBodyweightReps = station.measurementType === "BODYWEIGHT_REPS";
+
+  function clean(valueToClean: string) {
+    return valueToClean.replace(/[^0-9.]/g, "");
+  }
+
+  function save() {
+    const draft = {
+      weight: optionalNumber(weight),
+      reps: optionalNumber(reps),
+      value: optionalNumber(value),
+      unit: isWeightReps ? "lb" as const : isBodyweightReps ? "reps" as const : station.unit,
+      status: "Completed" as const,
+    };
+    if (typeof draft.weight === "number" || typeof draft.reps === "number" || typeof draft.value === "number") {
+      onSaveCell(cell, draft);
+    }
+  }
+
+  function handleKey(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.currentTarget.blur();
+      save();
+    }
+  }
+
+  const previousText = previousEntry ? formatWorkoutEntryValue(previousEntry) : undefined;
+  return (
+    <div className={entry ? "weight-room-inline-set-cell complete" : "weight-room-inline-set-cell"} aria-label={`${station.name} set ${cell.setNumber}`}>
+      {isWeightReps ? (
+        <div className="weight-room-inline-set-fields two">
+          <label>
+            <span>lbs</span>
+            <input disabled={disabled} inputMode="decimal" value={weight} placeholder={previousEntry?.weight?.toString() ?? "Weight"} onBlur={save} onKeyDown={handleKey} onChange={(event) => setWeight(clean(event.target.value))} />
+          </label>
+          <label>
+            <span>reps</span>
+            <input disabled={disabled} inputMode="numeric" value={reps} placeholder={station.targetReps ? `${station.targetReps}` : previousEntry?.reps?.toString() ?? "Reps"} onBlur={save} onKeyDown={handleKey} onChange={(event) => setReps(clean(event.target.value))} />
+          </label>
+        </div>
+      ) : isBodyweightReps ? (
+        <div className="weight-room-inline-set-fields">
+          <label>
+            <span>reps</span>
+            <input disabled={disabled} inputMode="numeric" value={reps} placeholder={station.targetReps ? `${station.targetReps}` : "Reps"} onBlur={save} onKeyDown={handleKey} onChange={(event) => setReps(clean(event.target.value))} />
+          </label>
+        </div>
+      ) : station.measurementType === "RPE_ONLY" ? (
+        <div className="weight-room-inline-set-fields">
+          <label>
+            <span>score</span>
+            <input disabled={disabled} inputMode="decimal" value={value} placeholder="1-10" onBlur={save} onKeyDown={handleKey} onChange={(event) => setValue(clean(event.target.value))} />
+          </label>
+        </div>
+      ) : (
+        <div className="weight-room-inline-set-fields">
+          <label>
+            <span>{station.unit ?? weightRoomMeasurementLabel(station)}</span>
+            <input disabled={disabled} inputMode="decimal" value={value} placeholder={previousEntry?.value?.toString() ?? weightRoomMeasurementLabel(station)} onBlur={save} onKeyDown={handleKey} onChange={(event) => setValue(clean(event.target.value))} />
+          </label>
+        </div>
+      )}
+      <small>{entry ? formatWorkoutEntryValue(entry) : previousText ? `Prev ${previousText}` : station.targetReps ? `${station.targetReps} target` : "Enter"}</small>
+    </div>
+  );
+}
+
 function WeightRoomGroupStationTable({
   players,
   group,
@@ -8541,7 +9058,7 @@ function WeightRoomGroupStationTable({
   workoutDate,
   data,
   disabled,
-  onCell,
+  onSaveCell,
 }: {
   players: Player[];
   group: ActiveWorkoutGroupSeed;
@@ -8550,7 +9067,7 @@ function WeightRoomGroupStationTable({
   workoutDate: string;
   data: AppData;
   disabled: boolean;
-  onCell: (cell: ActiveWorkoutCell) => void;
+  onSaveCell: (cell: ActiveWorkoutCell, draft: { weight?: number; reps?: number; value?: number; rpe?: number; unit?: WorkoutEntry["unit"]; status?: WorkoutEntry["status"] }) => void;
 }) {
   const targetSets = station.targetSets ?? 3;
   const members = group.playerIds.map((playerId) => players.find((player) => player.id === playerId)).filter((player): player is Player => Boolean(player));
@@ -8581,11 +9098,17 @@ function WeightRoomGroupStationTable({
             {Array.from({ length: targetSets }, (_, index) => {
               const setNumber = index + 1;
               const entry = workoutEntryForCell(entries, player.id, station.name, setNumber);
+              const previousEntry = previousWorkoutEntry(data, player.id, station.name, workoutDate);
               return (
-                <button key={setNumber} type="button" disabled={disabled} className={entry ? "complete" : ""} onClick={() => onCell({ playerId: player.id, exercise: station.name, setNumber })}>
-                  <strong>{entry ? formatWorkoutEntryValue(entry) : "Enter"}</strong>
-                  <small>{entry?.rpe ? `RPE ${entry.rpe}` : station.targetReps ? `${station.targetReps} target` : "Tap"}</small>
-                </button>
+                <WeightRoomInlineSetCell
+                  key={`${setNumber}-${entry?.id ?? "empty"}`}
+                  cell={{ playerId: player.id, exercise: station.name, setNumber }}
+                  station={station}
+                  entry={entry}
+                  previousEntry={previousEntry}
+                  disabled={disabled}
+                  onSaveCell={onSaveCell}
+                />
               );
             })}
             <span className="weight-room-group-status"><strong>{complete} / {targetSets}</strong><small>{Math.round((complete / targetSets) * 100)}%</small></span>
@@ -8607,7 +9130,7 @@ function WeightRoomIndividualWorkout({
   disabled,
   onPlayer,
   onExercise,
-  onCell,
+  onSaveCell,
 }: {
   data: AppData;
   players: Player[];
@@ -8619,7 +9142,7 @@ function WeightRoomIndividualWorkout({
   disabled: boolean;
   onPlayer: (playerId: ID) => void;
   onExercise: (exercise: string) => void;
-  onCell: (cell: ActiveWorkoutCell) => void;
+  onSaveCell: (cell: ActiveWorkoutCell, draft: { weight?: number; reps?: number; value?: number; rpe?: number; unit?: WorkoutEntry["unit"]; status?: WorkoutEntry["status"] }) => void;
 }) {
   const player = players.find((item) => item.id === playerId) ?? players[0];
   const station = stations.find((item) => item.name === exerciseName) ?? stations[0];
@@ -8663,12 +9186,19 @@ function WeightRoomIndividualWorkout({
           {Array.from({ length: targetSets }, (_, index) => {
             const setNumber = index + 1;
             const entry = workoutEntryForCell(entries, player.id, station.name, setNumber);
+            const previousEntry = previousWorkoutEntry(data, player.id, station.name, workoutDate);
             return (
-              <button key={setNumber} type="button" disabled={disabled} className={entry ? "complete" : ""} onClick={() => onCell({ playerId: player.id, exercise: station.name, setNumber })}>
+              <div key={`${setNumber}-${entry?.id ?? "empty"}`} className="weight-room-individual-set-row">
                 <strong>Set {setNumber}</strong>
-                <span>{entry ? formatWorkoutEntryValue(entry) : "Enter result"}</span>
-                <small>{entry?.rpe ? `RPE ${entry.rpe}` : entry?.status ?? "Open"}</small>
-              </button>
+                <WeightRoomInlineSetCell
+                  cell={{ playerId: player.id, exercise: station.name, setNumber }}
+                  station={station}
+                  entry={entry}
+                  previousEntry={previousEntry}
+                  disabled={disabled}
+                  onSaveCell={onSaveCell}
+                />
+              </div>
             );
           })}
         </div>
@@ -8677,11 +9207,25 @@ function WeightRoomIndividualWorkout({
   );
 }
 
-function WeightRoomActiveActivity({ entries, players }: { entries: WorkoutEntry[]; players: Player[] }) {
+function WeightRoomActiveActivity({
+  entries,
+  players,
+  expanded,
+  onToggle,
+}: {
+  entries: WorkoutEntry[];
+  players: Player[];
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const visibleEntries = expanded ? entries : entries.slice(0, 5);
   return (
-    <div className="weight-room-active-activity">
-      <div><span>Recent Activity</span><small>{entries.length ? "Newest first" : "No sets yet"}</small></div>
-      {entries.map((entry) => {
+    <section className="panel weight-room-active-activity">
+      <div>
+        <span>Recent Activity</span>
+        <small>{entries.length ? `${entries.length} logged set${entries.length === 1 ? "" : "s"}` : "No sets yet"}</small>
+      </div>
+      {visibleEntries.map((entry) => {
         const player = players.find((item) => item.id === entry.playerId);
         return (
           <span key={entry.id}>
@@ -8691,71 +9235,9 @@ function WeightRoomActiveActivity({ entries, players }: { entries: WorkoutEntry[
           </span>
         );
       })}
-    </div>
-  );
-}
-
-function WeightRoomActiveSetEditor({
-  cell,
-  station,
-  player,
-  entry,
-  previousEntry,
-  onClose,
-  onRemoveEntry,
-  onSave,
-}: {
-  cell: ActiveWorkoutCell;
-  station: WeightRoomExercise;
-  player?: Player;
-  entry?: WorkoutEntry;
-  previousEntry?: WorkoutEntry;
-  onClose: () => void;
-  onRemoveEntry: (entryId: ID) => void;
-  onSave: (draft: { weight?: number; reps?: number; value?: number; rpe?: number; unit?: WorkoutEntry["unit"]; status?: WorkoutEntry["status"] }) => void;
-}) {
-  const [weight, setWeight] = useState(entry?.weight?.toString() ?? previousEntry?.weight?.toString() ?? "");
-  const [reps, setReps] = useState(entry?.reps?.toString() ?? previousEntry?.reps?.toString() ?? station.targetReps?.toString() ?? "");
-  const [value, setValue] = useState(entry?.value?.toString() ?? previousEntry?.value?.toString() ?? "");
-  const [rpe, setRpe] = useState(entry?.rpe?.toString() ?? previousEntry?.rpe?.toString() ?? "");
-  const isWeightReps = station.measurementType === "WEIGHT_REPS";
-  const isBodyweightReps = station.measurementType === "BODYWEIGHT_REPS";
-  return (
-    <ModalFrame title={`${player?.name ?? "Athlete"} - ${station.name} Set ${cell.setNumber}`} onClose={onClose} panelClassName="weight-room-set-editor">
-      <section className="weight-room-set-editor__body">
-        {previousEntry && <button type="button" className="weight-room-copy-previous" onClick={() => {
-          setWeight(previousEntry.weight?.toString() ?? "");
-          setReps(previousEntry.reps?.toString() ?? "");
-          setValue(previousEntry.value?.toString() ?? "");
-          setRpe(previousEntry.rpe?.toString() ?? "");
-        }}>Use previous: {formatWorkoutEntryValue(previousEntry)}</button>}
-        <div className="weight-room-entry-grid">
-          {isWeightReps && (
-            <>
-              <WeightNumberStepper label="Weight" suffix="lbs" value={weight} step={5} onChange={setWeight} />
-              <WeightNumberStepper label="Reps" value={reps} step={1} onChange={setReps} />
-            </>
-          )}
-          {isBodyweightReps && <WeightNumberStepper label="Reps" value={reps} step={1} onChange={setReps} />}
-          {!isWeightReps && !isBodyweightReps && station.measurementType !== "RPE_ONLY" && (
-            <WeightNumberStepper label={weightRoomMeasurementLabel(station)} suffix={station.unit} value={value} step={station.measurementType === "TIME" ? 5 : 1} onChange={setValue} />
-          )}
-          <WeightNumberStepper label="RPE" value={rpe} step={1} min={0} max={10} onChange={setRpe} optional />
-        </div>
-      </section>
-      <div className="modal-actions">
-        {entry && <button className="ghost-button" type="button" onClick={() => { onRemoveEntry(entry.id); onClose(); }}><Trash2 size={15} aria-hidden="true" />Remove</button>}
-        <button className="secondary-button" type="button" onClick={() => onSave({ status: "Skipped" })}>Mark Skipped</button>
-        <button className="primary-button" type="button" onClick={() => onSave({
-          weight: optionalNumber(weight),
-          reps: optionalNumber(reps),
-          value: optionalNumber(value),
-          rpe: optionalNumber(rpe),
-          unit: isWeightReps ? "lb" : isBodyweightReps ? "reps" : station.unit,
-          status: "Completed",
-        })}><Check size={15} aria-hidden="true" />Complete</button>
-      </div>
-    </ModalFrame>
+      {!entries.length && <CompactEmpty title="Sets will appear here as they are logged." />}
+      {entries.length > 5 && <button type="button" onClick={onToggle}>{expanded ? "Show less" : `View all ${entries.length}`}</button>}
+    </section>
   );
 }
 
@@ -8817,40 +9299,14 @@ function previousWorkoutEntry(data: AppData, playerId: ID, exercise: string, bef
     .sort((left, right) => entrySessionDate(data, right).localeCompare(entrySessionDate(data, left)) || right.createdAt.localeCompare(left.createdAt))[0];
 }
 
-function WeightNumberStepper({
-  label,
-  value,
-  suffix,
-  step,
-  min = 0,
-  max = 9999,
-  optional = false,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  suffix?: string;
-  step: number;
-  min?: number;
-  max?: number;
-  optional?: boolean;
-  onChange: (value: string) => void;
-}) {
-  const numeric = optionalNumber(value) ?? 0;
-  function adjust(delta: number) {
-    onChange(String(Math.max(min, Math.min(max, numeric + delta))));
-  }
-  return (
-    <label className="weight-number-stepper">
-      <span>{label}{optional ? " optional" : ""}</span>
-      <div>
-        <button type="button" onClick={() => adjust(-step)} aria-label={`Decrease ${label}`}>-</button>
-        <input inputMode="decimal" value={value} onChange={(event) => onChange(event.target.value.replace(/[^0-9.]/g, ""))} />
-        <button type="button" onClick={() => adjust(step)} aria-label={`Increase ${label}`}>+</button>
-      </div>
-      {suffix && <small>{suffix}</small>}
-    </label>
-  );
+function createEmptyWorkoutGroups(groupCount: number, stationCount: number): ActiveWorkoutGroupSeed[] {
+  const resolvedGroupCount = Math.max(1, Math.floor(groupCount) || 1);
+  return Array.from({ length: resolvedGroupCount }, (_, index) => ({
+    id: `group-${index + 1}`,
+    name: `Group ${index + 1}`,
+    playerIds: [],
+    stationIndex: stationCount > 0 ? index % stationCount : 0,
+  }));
 }
 
 function WeightRoomPlayerPanel({
