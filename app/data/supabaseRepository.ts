@@ -1688,7 +1688,6 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       const exerciseRows = [...setupExerciseNames].map((name) => {
         const definition = exerciseDefinitionByName.get(name.toLowerCase());
         return {
-          id: definition?.id,
           organization_id: foundation.organizationId,
           name,
           kind: definition?.kind ?? data.workoutEntries.find((entry) => entry.exercise === name)?.kind ?? "Custom",
@@ -1709,7 +1708,6 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       if (error) {
         if (!isMissingExerciseMetadataColumns(error)) throw error;
         const legacyExerciseRows = exerciseRows.map((row) => ({
-          id: row.id,
           organization_id: row.organization_id,
           name: row.name,
           kind: row.kind,

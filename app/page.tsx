@@ -8275,8 +8275,8 @@ function WeightRoomActiveWorkout({
   const [groupPresets, setGroupPresets] = useState<WeightRoomGroupPreset[]>(() => persistedGroupPresets);
   const setupHydratedRef = useRef(false);
   const saveSetupRef = useRef(onSaveSetup);
-  const [exercisePresetName, setExercisePresetName] = useState(workoutTitle);
-  const [groupPresetName, setGroupPresetName] = useState("Workout Groups");
+  const [exercisePresetName, setExercisePresetName] = useState("");
+  const [groupPresetName, setGroupPresetName] = useState("");
   const paused = workoutStatus === "Paused";
   const completed = workoutStatus === "Completed";
   const selectedGroup = groups.find((group) => group.id === selectedGroupId) ?? groups[0];
@@ -8360,9 +8360,19 @@ function WeightRoomActiveWorkout({
     });
   }
 
-  function createAndAddExercise(name = exerciseSearch.trim()) {
+  function createAndAddExercise(name = exerciseSearch.trim(), options?: { category?: WeightRoomExerciseCategory; measurementType?: WorkoutMeasurementType }) {
     if (!name) return;
-    const nextExercise = { ...makeWeightRoomExercise(name), category: newExerciseCategory, active: true };
+    const measurementType = options?.measurementType ?? weightRoomMeasurementType(name);
+    const targetStyle = defaultTargetStyle(name, measurementType);
+    const nextExercise: WeightRoomExercise = {
+      ...makeWeightRoomExercise(name),
+      category: options?.category ?? newExerciseCategory,
+      measurementType,
+      unit: weightRoomUnitForType(measurementType),
+      targetSets: defaultTargetSetsForStyle(targetStyle),
+      targetReps: measurementType === "WEIGHT_REPS" || measurementType === "BODYWEIGHT_REPS" || measurementType === "REPS_ONLY" ? 8 : undefined,
+      active: true,
+    };
     setCustomExercises((current) => {
       const withoutDuplicate = current.filter((item) => item.name.toLowerCase() !== nextExercise.name.toLowerCase());
       return [...withoutDuplicate, nextExercise];
@@ -8377,6 +8387,17 @@ function WeightRoomActiveWorkout({
 
   function removeStation(stationId: ID) {
     setStations((current) => normalizeActiveStations(current.filter((station) => station.id !== stationId)));
+  }
+
+  function reorderStation(stationId: ID, targetIndex: number) {
+    setStations((current) => {
+      const fromIndex = current.findIndex((station) => station.id === stationId);
+      if (fromIndex < 0 || fromIndex === targetIndex) return current;
+      const next = [...current];
+      const [station] = next.splice(fromIndex, 1);
+      next.splice(Math.max(0, Math.min(targetIndex, next.length)), 0, station);
+      return normalizeActiveStations(next);
+    });
   }
 
   function clearGroups() {
@@ -8418,18 +8439,6 @@ function WeightRoomActiveWorkout({
     setStations((current) => normalizeActiveStations(current.map((station) => station.id === stationId ? { ...station, ...patch } : station)));
   }
 
-  function moveStation(stationId: ID, step: -1 | 1) {
-    setStations((current) => {
-      const index = current.findIndex((station) => station.id === stationId);
-      const targetIndex = index + step;
-      if (index < 0 || targetIndex < 0 || targetIndex >= current.length) return current;
-      const next = [...current];
-      const [station] = next.splice(index, 1);
-      next.splice(targetIndex, 0, station);
-      return normalizeActiveStations(next);
-    });
-  }
-
   function startAfterSetup(mode: ActiveWorkoutEntryMode) {
     if (!stations.length) {
       setSetupMessage("Add at least one exercise before beginning tracking.");
@@ -8459,7 +8468,11 @@ function WeightRoomActiveWorkout({
       setSetupMessage("Add exercises before saving an exercise preset.");
       return;
     }
-    const name = exercisePresetName.trim() || workoutTitle;
+    const name = exercisePresetName.trim();
+    if (!name) {
+      setSetupMessage("Enter a preset name before saving.");
+      return;
+    }
     const nextPreset: WeightRoomExercisePreset = {
       id: createId("wep"),
       name,
@@ -8487,7 +8500,11 @@ function WeightRoomActiveWorkout({
       setSetupMessage("Create groups before saving a group preset.");
       return;
     }
-    const name = groupPresetName.trim() || "Workout Groups";
+    const name = groupPresetName.trim();
+    if (!name) {
+      setSetupMessage("Enter a preset name before saving.");
+      return;
+    }
     const nextPreset: WeightRoomGroupPreset = {
       id: createId("wgp"),
       name,
@@ -8582,8 +8599,6 @@ function WeightRoomActiveWorkout({
           stations={stations}
           groups={groups}
           availableExercises={availableExercises}
-          exercisePresets={exercisePresets.filter((preset) => !preset.archived)}
-          groupPresets={groupPresets.filter((preset) => !preset.archived)}
           exercisePresetName={exercisePresetName}
           groupPresetName={groupPresetName}
           exerciseSearch={exerciseSearch}
@@ -8604,7 +8619,7 @@ function WeightRoomActiveWorkout({
           onCreateExercise={createAndAddExercise}
           onRemoveStation={removeStation}
           onUpdateStation={updateStation}
-          onMoveStation={moveStation}
+          onReorderStation={reorderStation}
           onAddGroup={addGroup}
           onRemoveGroup={removeGroup}
           onClearGroups={clearGroups}
@@ -8711,7 +8726,6 @@ function WeightRoomActiveWorkout({
                       exerciseSearch={exerciseSearch}
                       exerciseFilter={exerciseFilter}
                       newExerciseCategory={newExerciseCategory}
-                      exercisePresets={exercisePresets.filter((preset) => !preset.archived)}
                       exercisePresetName={exercisePresetName}
                       onExerciseSearch={setExerciseSearch}
                       onExerciseFilter={setExerciseFilter}
@@ -8723,7 +8737,7 @@ function WeightRoomActiveWorkout({
                       onCreateExercise={createAndAddExercise}
                       onRemoveStation={removeStation}
                       onUpdateStation={updateStation}
-                      onMoveStation={moveStation}
+                      onReorderStation={reorderStation}
                       onSaveExercisePreset={saveExercisePreset}
                     />
                   ) : (
@@ -8857,11 +8871,13 @@ function WeightRoomAddExercisesModal({
   onCategory: (value: WeightRoomExerciseCategory | "All") => void;
   onNewExerciseCategory: (value: WeightRoomExerciseCategory) => void;
   onToggle: (exerciseName: string) => void;
-  onCreateExercise: (name?: string) => void;
+  onCreateExercise: (name?: string, options?: { category?: WeightRoomExerciseCategory; measurementType?: WorkoutMeasurementType }) => void;
   onAdd: () => void;
   onClose: () => void;
 }) {
   const categories: Array<WeightRoomExerciseCategory | "All"> = ["All", "Lower Body", "Upper Body", "Power", "Core", "Conditioning", "Speed", "Mobility", "Other"];
+  const measurementTypes: WorkoutMeasurementType[] = ["WEIGHT_REPS", "REPS_ONLY", "TIME", "DISTANCE", "WEIGHT_ONLY", "COUNT", "COMPLETION"];
+  const [newExerciseMeasurementType, setNewExerciseMeasurementType] = useState<WorkoutMeasurementType>("WEIGHT_REPS");
   const existing = new Set(existingExerciseNames.map((name) => name.toLowerCase()));
   const exactMatch = exercises.some((exercise) => exercise.name.toLowerCase() === query.trim().toLowerCase()) || existing.has(query.trim().toLowerCase());
   return (
@@ -8899,7 +8915,14 @@ function WeightRoomAddExercisesModal({
               onChange={(value) => onNewExerciseCategory(value as WeightRoomExerciseCategory)}
               aria-label="New exercise category"
             />
-            <button type="button" onClick={() => { onCreateExercise(query.trim()); onClose(); }}><Plus size={14} aria-hidden="true" />Create and add {query.trim()}</button>
+            <ChoiceSelect
+              value={newExerciseMeasurementType}
+              className="form-choice"
+              options={measurementTypes.map((type) => ({ value: type, label: workoutMeasurementTypeLabel(type) }))}
+              onChange={(value) => setNewExerciseMeasurementType(value as WorkoutMeasurementType)}
+              aria-label="New exercise measurement type"
+            />
+            <button type="button" onClick={() => { onCreateExercise(query.trim(), { category: newExerciseCategory, measurementType: newExerciseMeasurementType }); onClose(); }}><Plus size={14} aria-hidden="true" />Create and add {query.trim()}</button>
           </div>
         )}
       </div>
@@ -9063,14 +9086,13 @@ function WeightRoomActiveHeader({
   onFinish: () => void;
 }) {
   return (
-    <header className="weight-room-active-top">
+    <header className="weight-room-active-top" aria-label={`${workoutTitle}${teamName ? ` for ${teamName}` : ""}`}>
       <div className="weight-room-active-top__title">
         <button className="ghost-button weight-room-active-back" type="button" onClick={onBack}><ChevronLeft size={16} aria-hidden="true" />Weight Room</button>
         <div>
-          <h1>{workoutTitle}</h1>
+          <h1>{formatPickerDate(workoutDate)}</h1>
           <span className={`weight-room-live-status status-${workoutStatus.toLowerCase().replace(/\s+/g, "-")}`}>{workoutStatus}</span>
         </div>
-        <small><CalendarDays size={14} aria-hidden="true" />{formatPickerDate(workoutDate)}{teamName ? ` - ${teamName}` : ""}</small>
       </div>
       <div className="weight-room-active-top__metrics" aria-label="Workout progress summary">
         <span><Users size={15} aria-hidden="true" /><strong>{athleteCount}</strong><small>Athletes</small></span>
@@ -9195,8 +9217,6 @@ function WeightRoomWorkoutSetupIntro({
   stations,
   groups,
   availableExercises,
-  exercisePresets,
-  groupPresets,
   exercisePresetName,
   groupPresetName,
   exerciseSearch,
@@ -9217,7 +9237,7 @@ function WeightRoomWorkoutSetupIntro({
   onCreateExercise,
   onRemoveStation,
   onUpdateStation,
-  onMoveStation,
+  onReorderStation,
   onAddGroup,
   onRemoveGroup,
   onClearGroups,
@@ -9231,8 +9251,6 @@ function WeightRoomWorkoutSetupIntro({
   stations: ActiveWorkoutStation[];
   groups: ActiveWorkoutGroupSeed[];
   availableExercises: WeightRoomExercise[];
-  exercisePresets: WeightRoomExercisePreset[];
-  groupPresets: WeightRoomGroupPreset[];
   exercisePresetName: string;
   groupPresetName: string;
   exerciseSearch: string;
@@ -9250,10 +9268,10 @@ function WeightRoomWorkoutSetupIntro({
   onSaveExercisePreset: () => void;
   onSaveGroupPreset: () => void;
   onAddStations: (exerciseNames?: string[]) => void;
-  onCreateExercise: (name?: string) => void;
+  onCreateExercise: (name?: string, options?: { category?: WeightRoomExerciseCategory; measurementType?: WorkoutMeasurementType }) => void;
   onRemoveStation: (stationId: ID) => void;
   onUpdateStation: (stationId: ID, patch: Partial<Pick<ActiveWorkoutStation, "targetSets" | "targetReps" | "targetValue" | "targetStyle" | "measurementType" | "performanceDirection" | "notes">>) => void;
-  onMoveStation: (stationId: ID, step: -1 | 1) => void;
+  onReorderStation: (stationId: ID, targetIndex: number) => void;
   onAddGroup: () => void;
   onRemoveGroup: (groupId: string) => void;
   onClearGroups: () => void;
@@ -9267,15 +9285,12 @@ function WeightRoomWorkoutSetupIntro({
     (exerciseFilter === "All" || exercise.category === exerciseFilter)
     && `${exercise.name} ${exercise.category} ${exercise.equipment ?? ""}`.toLowerCase().includes(exerciseSearch.trim().toLowerCase()),
   );
-  const assignedCount = new Set(groups.flatMap((group) => group.playerIds)).size;
-  const unassignedCount = Math.max(0, players.length - assignedCount);
   return (
     <section className="panel weight-room-setup-intro">
       <div className="weight-room-setup-intro__head">
         <div>
-          <span>Workout Setup</span>
           <h2>Build today&apos;s workout</h2>
-          <p>Exercises and groups are independent. Load either preset, build manually, or start Individual Mode with only exercises configured.</p>
+          <p>Load a preset, build manually, or start Individual Mode with only exercises configured.</p>
         </div>
         <div className="weight-room-setup-intro__head-actions">
           <button type="button" className="secondary-button" onClick={() => onStart("Individual")}><User size={15} aria-hidden="true" />Use Individual Mode</button>
@@ -9284,12 +9299,6 @@ function WeightRoomWorkoutSetupIntro({
         </div>
       </div>
       {setupMessage && <p className="weight-room-setup-message">{setupMessage}</p>}
-      <div className="weight-room-setup-summary" aria-label="Workout setup preview">
-        <span><strong>{stations.length}</strong><small>Exercises</small></span>
-        <span><strong>{groups.length}</strong><small>Groups</small></span>
-        <span><strong>{assignedCount}/{players.length}</strong><small>Assigned</small></span>
-        <span><strong>{unassignedCount}</strong><small>Unassigned</small></span>
-      </div>
       <div className="weight-room-setup-grid">
         <WeightRoomWorkoutEditor
           stations={stations}
@@ -9298,7 +9307,6 @@ function WeightRoomWorkoutSetupIntro({
           exerciseSearch={exerciseSearch}
           exerciseFilter={exerciseFilter}
           newExerciseCategory={newExerciseCategory}
-          exercisePresets={exercisePresets}
           exercisePresetName={exercisePresetName}
           onExerciseSearch={onExerciseSearch}
           onExerciseFilter={onExerciseFilter}
@@ -9310,7 +9318,7 @@ function WeightRoomWorkoutSetupIntro({
           onCreateExercise={onCreateExercise}
           onRemoveStation={onRemoveStation}
           onUpdateStation={onUpdateStation}
-          onMoveStation={onMoveStation}
+          onReorderStation={onReorderStation}
           onSaveExercisePreset={onSaveExercisePreset}
         />
         <WeightRoomGroupEditor
@@ -9327,11 +9335,6 @@ function WeightRoomWorkoutSetupIntro({
           onSaveGroupPreset={onSaveGroupPreset}
           onGroupPresetName={onGroupPresetName}
         />
-      </div>
-      <div className="weight-room-setup-actions">
-        <small>{exercisePresets.length} exercise preset{exercisePresets.length === 1 ? "" : "s"} - {groupPresets.length} group preset{groupPresets.length === 1 ? "" : "s"}</small>
-        <button className="secondary-button" type="button" onClick={() => onStart("Individual")}><User size={15} aria-hidden="true" />Start Individual</button>
-        <button className="primary-button" type="button" onClick={() => onStart("Groups")}><Users size={15} aria-hidden="true" />Start Group Workout</button>
       </div>
     </section>
   );
@@ -9399,7 +9402,6 @@ function WeightRoomGroupEditor({
     <div className="weight-room-group-editor">
       <div className="weight-room-editor-head">
         <div><span>Groups</span><small>{groups.length} groups - {assigned.size}/{players.length} assigned</small></div>
-        <button type="button" onClick={onAddGroup}><Plus size={14} aria-hidden="true" />Create Group</button>
       </div>
       <div className="weight-room-editor-actions">
         <button type="button" onClick={onOpenAutoCreate}><RefreshCw size={14} aria-hidden="true" />Auto Create</button>
@@ -9408,7 +9410,7 @@ function WeightRoomGroupEditor({
       </div>
       <label className="weight-room-preset-save">
         <span>Save Group Preset</span>
-        <input value={groupPresetName} onChange={(event) => onGroupPresetName(event.target.value)} placeholder="Fall Groups A" />
+        <input value={groupPresetName} onChange={(event) => onGroupPresetName(event.target.value)} placeholder="Enter preset name..." />
         <button type="button" onClick={onSaveGroupPreset} disabled={!groups.length}><Save size={14} aria-hidden="true" />Save</button>
       </label>
       {!groups.length && (
@@ -9418,12 +9420,11 @@ function WeightRoomGroupEditor({
           <p>Create groups for station rotation, load a saved group preset, or use Individual Mode.</p>
           <div>
             <button type="button" onClick={onAddGroup}><Plus size={14} aria-hidden="true" />Create Group</button>
-            <button type="button" onClick={onOpenAutoCreate}><RefreshCw size={14} aria-hidden="true" />Auto Create Groups</button>
-            <button type="button" onClick={onOpenGroupPresets}><Download size={14} aria-hidden="true" />Load Group Preset</button>
           </div>
         </div>
       )}
       <div className="weight-room-group-editor__list">
+        {!!groups.length && <button type="button" className="weight-room-group-add-row" onClick={onAddGroup}><Plus size={14} aria-hidden="true" />Create Group</button>}
         {groups.map((group) => {
           const members = group.playerIds.map((playerId) => players.find((player) => player.id === playerId)).filter((player): player is Player => Boolean(player));
           return (
@@ -9475,7 +9476,6 @@ function WeightRoomWorkoutEditor({
   exerciseSearch,
   exerciseFilter,
   newExerciseCategory,
-  exercisePresets,
   exercisePresetName,
   onExerciseSearch,
   onExerciseFilter,
@@ -9487,7 +9487,7 @@ function WeightRoomWorkoutEditor({
   onCreateExercise,
   onRemoveStation,
   onUpdateStation,
-  onMoveStation,
+  onReorderStation,
   onSaveExercisePreset,
 }: {
   stations: ActiveWorkoutStation[];
@@ -9496,7 +9496,6 @@ function WeightRoomWorkoutEditor({
   exerciseSearch: string;
   exerciseFilter: WeightRoomExerciseCategory | "All";
   newExerciseCategory: WeightRoomExerciseCategory;
-  exercisePresets: WeightRoomExercisePreset[];
   exercisePresetName: string;
   onExerciseSearch: (value: string) => void;
   onExerciseFilter: (value: WeightRoomExerciseCategory | "All") => void;
@@ -9505,19 +9504,21 @@ function WeightRoomWorkoutEditor({
   onOpenExercisePicker: () => void;
   onOpenExercisePresets: () => void;
   onAddStations: (exerciseNames?: string[]) => void;
-  onCreateExercise: (name?: string) => void;
+  onCreateExercise: (name?: string, options?: { category?: WeightRoomExerciseCategory; measurementType?: WorkoutMeasurementType }) => void;
   onRemoveStation: (stationId: ID) => void;
   onUpdateStation: (stationId: ID, patch: Partial<Pick<ActiveWorkoutStation, "targetSets" | "targetReps" | "targetValue" | "targetStyle" | "measurementType" | "performanceDirection" | "notes">>) => void;
-  onMoveStation: (stationId: ID, step: -1 | 1) => void;
+  onReorderStation: (stationId: ID, targetIndex: number) => void;
   onSaveExercisePreset: () => void;
 }) {
   const categories: WeightRoomExerciseCategory[] = ["Lower Body", "Upper Body", "Power", "Core", "Speed", "Conditioning", "Mobility", "Other"];
+  const measurementTypes: WorkoutMeasurementType[] = ["WEIGHT_REPS", "REPS_ONLY", "TIME", "DISTANCE", "WEIGHT_ONLY", "COUNT", "COMPLETION"];
+  const [newExerciseMeasurementType, setNewExerciseMeasurementType] = useState<WorkoutMeasurementType>("WEIGHT_REPS");
+  const [draggedStationId, setDraggedStationId] = useState<ID | undefined>();
   const exactMatch = filteredExercises.some((exercise) => exercise.name.toLowerCase() === exerciseSearch.trim().toLowerCase());
   return (
     <div className="weight-room-workout-editor">
       <div className="weight-room-editor-head">
         <div><span>Exercises / Stations</span><small>{stations.length} selected</small></div>
-        <button type="button" onClick={onOpenExercisePicker}><Plus size={14} aria-hidden="true" />Add Exercises</button>
       </div>
       <div className="weight-room-editor-actions">
         <button type="button" onClick={onOpenExercisePicker}><Search size={14} aria-hidden="true" />Choose From Library</button>
@@ -9525,7 +9526,7 @@ function WeightRoomWorkoutEditor({
       </div>
       <label className="weight-room-preset-save">
         <span>Save Exercise Preset</span>
-        <input value={exercisePresetName} onChange={(event) => onExercisePresetName(event.target.value)} placeholder="Lower Body A" />
+        <input value={exercisePresetName} onChange={(event) => onExercisePresetName(event.target.value)} placeholder="Enter preset name..." />
         <button type="button" onClick={onSaveExercisePreset} disabled={!stations.length}><Save size={14} aria-hidden="true" />Save</button>
       </label>
       {!stations.length && (
@@ -9535,33 +9536,56 @@ function WeightRoomWorkoutEditor({
           <p>Build today&apos;s workout from the team exercise library or load an exercise preset.</p>
           <div>
             <button type="button" onClick={onOpenExercisePicker}><Plus size={14} aria-hidden="true" />Add Exercises</button>
-            <button type="button" onClick={onOpenExercisePresets}><Download size={14} aria-hidden="true" />Load Exercise Preset</button>
           </div>
         </div>
       )}
       {!!stations.length && (
         <div className="weight-room-current-stations weight-room-current-stations--builder" role="table" aria-label="Selected workout exercises">
-          <div role="row">
+          <button type="button" className="weight-room-station-add-row" onClick={onOpenExercisePicker}><Plus size={14} aria-hidden="true" />Add Exercise</button>
+          <div className="weight-room-current-stations__head" role="row">
             <span>#</span>
             <span>Exercise</span>
-            <span>Measurement</span>
-            <span>Target</span>
-            <span>Actions</span>
+            <span>Style</span>
+            <span>Sets</span>
+            <span>Reps / Value</span>
           </div>
           {stations.map((station, index) => (
-            <div key={station.id} role="row" data-station-row>
+            <div
+              key={station.id}
+              role="row"
+              data-station-row
+              draggable
+              tabIndex={0}
+              className={`weight-room-current-stations__row${draggedStationId === station.id ? " is-dragging" : ""}`}
+              onDragStart={() => setDraggedStationId(station.id)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                if (draggedStationId) onReorderStation(draggedStationId, index);
+                setDraggedStationId(undefined);
+              }}
+              onDragEnd={() => setDraggedStationId(undefined)}
+              onKeyDown={(event) => {
+                if (!event.altKey) return;
+                if (event.key === "ArrowUp" && index > 0) {
+                  event.preventDefault();
+                  onReorderStation(station.id, index - 1);
+                }
+                if (event.key === "ArrowDown" && index < stations.length - 1) {
+                  event.preventDefault();
+                  onReorderStation(station.id, index + 1);
+                }
+              }}
+            >
               <em>{index + 1}</em>
-              <span>
-                <strong>{station.name}</strong>
+              <span className="weight-room-station-main">
+                <span>
+                  <strong>{station.name}</strong>
+                  <button type="button" onClick={() => onRemoveStation(station.id)} aria-label={`Remove ${station.name}`}><Trash2 size={13} aria-hidden="true" /></button>
+                </span>
                 <small>{station.equipment ?? station.category}</small>
               </span>
-              <span>{weightRoomMeasurementLabel(station)}</span>
               <WorkoutStationTargetControls station={station} onUpdate={(patch) => onUpdateStation(station.id, patch)} />
-              <span className="weight-room-station-actions">
-                <button type="button" onClick={() => onMoveStation(station.id, -1)} disabled={index === 0} aria-label={`Move ${station.name} up`}><ChevronUp size={13} aria-hidden="true" /></button>
-                <button type="button" onClick={() => onMoveStation(station.id, 1)} disabled={index === stations.length - 1} aria-label={`Move ${station.name} down`}><ChevronDown size={13} aria-hidden="true" /></button>
-                <button type="button" onClick={() => onRemoveStation(station.id)} aria-label={`Remove ${station.name}`}><Trash2 size={13} aria-hidden="true" /></button>
-              </span>
             </div>
           ))}
         </div>
@@ -9599,19 +9623,18 @@ function WeightRoomWorkoutEditor({
                 onChange={(value) => onNewExerciseCategory(value as WeightRoomExerciseCategory)}
                 aria-label="New exercise category"
               />
-              <button type="button" onClick={() => onCreateExercise(exerciseSearch.trim())}><Plus size={14} aria-hidden="true" />Create {exerciseSearch.trim()}</button>
+              <ChoiceSelect
+                value={newExerciseMeasurementType}
+                className="form-choice"
+                options={measurementTypes.map((type) => ({ value: type, label: workoutMeasurementTypeLabel(type) }))}
+                onChange={(value) => setNewExerciseMeasurementType(value as WorkoutMeasurementType)}
+                aria-label="New exercise measurement type"
+              />
+              <button type="button" onClick={() => onCreateExercise(exerciseSearch.trim(), { category: newExerciseCategory, measurementType: newExerciseMeasurementType })}><Plus size={14} aria-hidden="true" />Create {exerciseSearch.trim()}</button>
             </div>
           )}
         </div>
       </details>
-      <div className="weight-room-saved-workouts">
-        {exercisePresets.slice(0, 3).map((preset) => (
-          <button key={preset.id} type="button" onClick={onOpenExercisePresets}>
-            <strong>{preset.name}</strong>
-            <small>{preset.stations.length} exercises</small>
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
@@ -9627,7 +9650,6 @@ function WorkoutStationTargetControls({
   const usesReps = station.targetStyle === "Standard" || station.targetStyle === "Target Reps";
   const usesTargetValue = station.targetStyle === "Target Time";
   const attemptLabel = stationAttemptLabel(station);
-  const valueLabel = station.measurementType === "TIME" ? "sec" : weightRoomMeasurementLabel(station).toLowerCase();
 
   function cleanInt(value: string, fallback: number) {
     const parsed = Number(value.replace(/\D/g, ""));
@@ -9635,7 +9657,7 @@ function WorkoutStationTargetControls({
   }
 
   return (
-    <div className="weight-room-target-controls">
+    <>
       <ChoiceSelect
         value={station.targetStyle}
         className="form-choice"
@@ -9643,40 +9665,35 @@ function WorkoutStationTargetControls({
         onChange={(value) => onUpdate({ targetStyle: value as WorkoutTargetStyle, performanceDirection: defaultPerformanceDirection(station.name, station.measurementType, value as WorkoutTargetStyle) })}
         aria-label={`${station.name} target style`}
       />
-      <label>
-        <span>{attemptLabel}</span>
-        <input
-          inputMode="numeric"
-          value={station.targetSets ?? 1}
-          onChange={(event) => onUpdate({ targetSets: cleanInt(event.target.value, station.targetSets ?? 1) })}
-          aria-label={`${station.name} ${attemptLabel.toLowerCase()}`}
-        />
-      </label>
+      <input
+        className="weight-room-target-input"
+        inputMode="numeric"
+        value={station.targetSets ?? 1}
+        onChange={(event) => onUpdate({ targetSets: cleanInt(event.target.value, station.targetSets ?? 1) })}
+        aria-label={`${station.name} ${attemptLabel.toLowerCase()}`}
+      />
       {usesReps && (
-        <label>
-          <span>Reps</span>
-          <input
-            inputMode="numeric"
-            value={station.targetReps ?? ""}
-            placeholder="Max"
-            onChange={(event) => onUpdate({ targetReps: optionalNumber(event.target.value.replace(/\D/g, "")) })}
-            aria-label={`${station.name} target reps`}
-          />
-        </label>
+        <input
+          className="weight-room-target-input"
+          inputMode="numeric"
+          value={station.targetReps ?? ""}
+          placeholder="Max"
+          onChange={(event) => onUpdate({ targetReps: optionalNumber(event.target.value.replace(/\D/g, "")) })}
+          aria-label={`${station.name} target reps`}
+        />
       )}
       {usesTargetValue && (
-        <label>
-          <span>{valueLabel}</span>
-          <input
-            inputMode="decimal"
-            value={station.targetValue ?? ""}
-            placeholder="Target"
-            onChange={(event) => onUpdate({ targetValue: optionalNumber(event.target.value.replace(/[^0-9.]/g, "")) })}
-            aria-label={`${station.name} target value`}
-          />
-        </label>
+        <input
+          className="weight-room-target-input"
+          inputMode="decimal"
+          value={station.targetValue ?? ""}
+          placeholder="Target"
+          onChange={(event) => onUpdate({ targetValue: optionalNumber(event.target.value.replace(/[^0-9.]/g, "")) })}
+          aria-label={`${station.name} target value`}
+        />
       )}
-    </div>
+      {!usesReps && !usesTargetValue && <span className="weight-room-target-placeholder">--</span>}
+    </>
   );
 }
 
@@ -10105,17 +10122,8 @@ function activeGroupsFromPersistedSetup(data: AppData, workoutId: ID, stations: 
   });
 }
 
-function exercisePresetsFromTemplates(templates: typeof WEIGHT_ROOM_TEMPLATES, exerciseLibrary: WeightRoomExercise[]): WeightRoomExercisePreset[] {
-  return templates.map((template, templateIndex) => ({
-    id: `preset-${templateIndex + 1}-${template.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-    name: template.name,
-    stations: template.exercises
-      .map((exerciseName, index) => createActiveWorkoutStation(exerciseLibrary.find((exercise) => exercise.name === exerciseName) ?? makeWeightRoomExercise(exerciseName), index)),
-  }));
-}
-
 function exercisePresetsFromPersistedSetup(data: AppData, exerciseLibrary: WeightRoomExercise[]) {
-  const savedPresets = (data.weightRoomExercisePresets ?? [])
+  return (data.weightRoomExercisePresets ?? [])
     .filter((preset) => !preset.archivedAt)
     .map((preset) => ({
       id: preset.id,
@@ -10125,11 +10133,6 @@ function exercisePresetsFromPersistedSetup(data: AppData, exerciseLibrary: Weigh
         .sort((left, right) => left.displayOrder - right.displayOrder)
         .map((item, index) => activeStationFromPersistedStation(item, exerciseLibrary, index)),
     }));
-  const savedNames = new Set(savedPresets.map((preset) => preset.name.toLowerCase()));
-  return [
-    ...savedPresets,
-    ...exercisePresetsFromTemplates(WEIGHT_ROOM_TEMPLATES, exerciseLibrary).filter((preset) => !savedNames.has(preset.name.toLowerCase())),
-  ];
 }
 
 function groupPresetsFromPersistedSetup(data: AppData) {
@@ -14622,6 +14625,20 @@ function weightRoomMeasurementLabel(exercise?: WeightRoomExercise) {
   if (exercise.measurementType === "COMPLETION") return "Completion";
   if (exercise.measurementType === "BODYWEIGHT_REPS" || exercise.measurementType === "REPS_ONLY" || exercise.measurementType === "COUNT") return "Reps";
   return "Value";
+}
+
+function workoutMeasurementTypeLabel(type: WorkoutMeasurementType) {
+  if (type === "WEIGHT_REPS") return "Weight + Reps";
+  if (type === "BODYWEIGHT_REPS") return "Bodyweight Reps";
+  if (type === "REPS_ONLY") return "Reps Only";
+  if (type === "TIME") return "Time";
+  if (type === "DISTANCE") return "Distance";
+  if (type === "HEIGHT") return "Height";
+  if (type === "WEIGHT_ONLY") return "Weight Only";
+  if (type === "COUNT") return "Count";
+  if (type === "COMPLETION") return "Completion";
+  if (type === "RPE_ONLY") return "RPE Only";
+  return "Custom";
 }
 
 function uniqueStrings(values: string[]) {
