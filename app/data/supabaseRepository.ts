@@ -44,6 +44,16 @@ import type {
   TeamMembershipRole,
   TeamOption,
   ProfileTeamPin,
+  WeightRoomExerciseDefinition,
+  WeightRoomExercisePreset,
+  WeightRoomExercisePresetItem,
+  WeightRoomGroupPreset,
+  WeightRoomGroupPresetGroup,
+  WeightRoomGroupPresetMember,
+  WeightRoomWorkout,
+  WeightRoomWorkoutGroup,
+  WeightRoomWorkoutGroupMember,
+  WeightRoomWorkoutStation,
   WorkoutEntry,
   WorkoutSession,
 } from "../types";
@@ -243,6 +253,7 @@ export const supabaseAppRepository = {
     await syncPracticeSessions(supabase, next);
     await syncPracticeSessionContributors(supabase, next);
     await syncPracticeEvents(supabase, next);
+    await syncActiveWeightRoomSetup(supabase, foundation, next);
     await syncWorkoutData(supabase, foundation, next);
     await syncGames(supabase, foundation, next);
     await syncScheduleEvents(supabase, foundation, next);
@@ -897,6 +908,9 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     practicesResult,
     exercisesResult,
     workoutSessionsResult,
+    weightRoomWorkoutsResult,
+    exercisePresetsResult,
+    groupPresetsResult,
     gamesResult,
     notesResult,
     goalsResult,
@@ -906,6 +920,23 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
       ? supabase.from("exercises").select("*").eq("organization_id", foundation.organizationId)
       : Promise.resolve({ data: [], error: null }),
     supabase.from("workout_sessions").select("*").eq("season_id", foundation.seasonId).order("session_date", { ascending: false }),
+    supabase.from("weight_room_workouts").select("*").eq("team_id", foundation.teamId).eq("season_id", foundation.seasonId).order("workout_date", { ascending: false }),
+    organizationScoped
+      ? supabase
+          .from("weight_room_exercise_presets")
+          .select("*")
+          .eq("organization_id", foundation.organizationId)
+          .or(`team_id.eq.${foundation.teamId},team_id.is.null`)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    organizationScoped
+      ? supabase
+          .from("weight_room_group_presets")
+          .select("*")
+          .eq("organization_id", foundation.organizationId)
+          .or(`team_id.eq.${foundation.teamId},team_id.is.null`)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
     supabase.from("games").select("*").eq("season_id", foundation.seasonId).order("game_date", { ascending: false }),
     organizationScoped
       ? supabase
@@ -937,8 +968,48 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
   const practiceIds = new Set<string>(practiceRows.map((practice: any) => practice.id));
   const workoutSessionRows = workoutSessionsResult.data ?? [];
   const workoutSessionIds = new Set<string>(workoutSessionRows.map((session: any) => session.id));
+  const weightRoomWorkoutRows = isMissingActiveWeightRoomTables(weightRoomWorkoutsResult.error ?? {})
+    ? []
+    : weightRoomWorkoutsResult.data ?? [];
+  const weightRoomWorkoutIds = new Set<string>(weightRoomWorkoutRows.map((workout: any) => workout.id));
+  const exercisePresetRows = isMissingActiveWeightRoomTables(exercisePresetsResult.error ?? {})
+    ? []
+    : exercisePresetsResult.data ?? [];
+  const exercisePresetIds = new Set<string>(exercisePresetRows.map((preset: any) => preset.id));
+  const groupPresetRows = isMissingActiveWeightRoomTables(groupPresetsResult.error ?? {})
+    ? []
+    : groupPresetsResult.data ?? [];
+  const groupPresetIds = new Set<string>(groupPresetRows.map((preset: any) => preset.id));
   const gameRows = gamesResult.data ?? [];
   const gameIds = new Set<string>(gameRows.map((game: any) => game.id));
+
+  const [
+    weightRoomStationsResult,
+    weightRoomGroupsResult,
+    weightRoomGroupMembersResult,
+    exercisePresetItemsResult,
+    groupPresetGroupsResult,
+    groupPresetMembersResult,
+  ] = await Promise.all([
+    weightRoomWorkoutIds.size
+      ? supabase.from("weight_room_workout_stations").select("*").in("workout_id", [...weightRoomWorkoutIds])
+      : Promise.resolve({ data: [], error: null }),
+    weightRoomWorkoutIds.size
+      ? supabase.from("weight_room_workout_groups").select("*").in("workout_id", [...weightRoomWorkoutIds])
+      : Promise.resolve({ data: [], error: null }),
+    weightRoomWorkoutIds.size
+      ? supabase.from("weight_room_workout_group_members").select("*").in("workout_id", [...weightRoomWorkoutIds])
+      : Promise.resolve({ data: [], error: null }),
+    exercisePresetIds.size
+      ? supabase.from("weight_room_exercise_preset_items").select("*").in("preset_id", [...exercisePresetIds])
+      : Promise.resolve({ data: [], error: null }),
+    groupPresetIds.size
+      ? supabase.from("weight_room_group_preset_groups").select("*").in("preset_id", [...groupPresetIds])
+      : Promise.resolve({ data: [], error: null }),
+    groupPresetIds.size
+      ? supabase.from("weight_room_group_preset_members").select("*").in("preset_id", [...groupPresetIds])
+      : Promise.resolve({ data: [], error: null }),
+  ]);
 
   const [
     attendanceResult,
@@ -975,6 +1046,15 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     defenseEventsResult,
     exercisesResult,
     workoutSessionsResult,
+    weightRoomWorkoutsResult,
+    weightRoomStationsResult,
+    weightRoomGroupsResult,
+    weightRoomGroupMembersResult,
+    exercisePresetsResult,
+    exercisePresetItemsResult,
+    groupPresetsResult,
+    groupPresetGroupsResult,
+    groupPresetMembersResult,
     workoutSetsResult,
     gamesResult,
     gameLineupsResult,
@@ -983,7 +1063,11 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     notesResult,
     goalsResult,
   ];
-  const failed = results.find((result) => result.error && !isMissingPracticeSessionContributorsTable(result.error));
+  const failed = results.find((result) =>
+    result.error &&
+    !isMissingPracticeSessionContributorsTable(result.error) &&
+    !isMissingActiveWeightRoomTables(result.error)
+  );
   if (failed?.error) throw new PersistenceError("load-failed", failed.error.message);
 
   const membershipByPlayer = new Map<string, any>(memberships.map((membership: any) => [membership.player_id, membership]));
@@ -1037,6 +1121,28 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     hittingEvents: (hittingEventsResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && sessionIds.has(row.session_id)).map(mapHittingEvent),
     defenseSessions: sessionRows.filter((row: any) => row.category === "defense").map(mapDefenseSession),
     defenseEvents: (defenseEventsResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && sessionIds.has(row.session_id)).map(mapDefenseEvent),
+    weightRoomExercises: (exercisesResult.data ?? []).map(mapWeightRoomExerciseDefinition),
+    weightRoomWorkouts: weightRoomWorkoutRows.map(mapWeightRoomWorkout),
+    weightRoomWorkoutStations: (weightRoomStationsResult.data ?? [])
+      .filter((row: any) => weightRoomWorkoutIds.has(row.workout_id))
+      .map(mapWeightRoomWorkoutStation),
+    weightRoomWorkoutGroups: (weightRoomGroupsResult.data ?? [])
+      .filter((row: any) => weightRoomWorkoutIds.has(row.workout_id))
+      .map(mapWeightRoomWorkoutGroup),
+    weightRoomWorkoutGroupMembers: (weightRoomGroupMembersResult.data ?? [])
+      .filter((row: any) => weightRoomWorkoutIds.has(row.workout_id) && playerIdsSet.has(row.player_id))
+      .map(mapWeightRoomWorkoutGroupMember),
+    weightRoomExercisePresets: exercisePresetRows.map(mapWeightRoomExercisePreset),
+    weightRoomExercisePresetItems: (exercisePresetItemsResult.data ?? [])
+      .filter((row: any) => exercisePresetIds.has(row.preset_id))
+      .map(mapWeightRoomExercisePresetItem),
+    weightRoomGroupPresets: groupPresetRows.map(mapWeightRoomGroupPreset),
+    weightRoomGroupPresetGroups: (groupPresetGroupsResult.data ?? [])
+      .filter((row: any) => groupPresetIds.has(row.preset_id))
+      .map(mapWeightRoomGroupPresetGroup),
+    weightRoomGroupPresetMembers: (groupPresetMembersResult.data ?? [])
+      .filter((row: any) => groupPresetIds.has(row.preset_id) && playerIdsSet.has(row.player_id))
+      .map(mapWeightRoomGroupPresetMember),
     workoutSessions: workoutSessionRows.filter((row: any) => playerIdsSet.has(row.player_id)).map(mapWorkoutSession),
     workoutEntries: (workoutSetsResult.data ?? [])
       .filter((row: any) => workoutSessionIds.has(row.workout_session_id) && playerIdsSet.has(row.player_id))
@@ -1297,6 +1403,15 @@ async function syncDeletedEvents(supabase: SupabaseClient, previous: AppData, ne
   await deleteMissing(supabase, "pitch_events", previous.pitchEvents, next.pitchEvents);
   await deleteMissing(supabase, "defense_events", previous.defenseEvents, next.defenseEvents);
   await deleteMissing(supabase, "workout_sets", previous.workoutEntries, next.workoutEntries);
+  await deleteMissing(supabase, "weight_room_workout_group_members", previous.weightRoomWorkoutGroupMembers ?? [], next.weightRoomWorkoutGroupMembers ?? [], isMissingActiveWeightRoomTables);
+  await deleteMissing(supabase, "weight_room_workout_groups", previous.weightRoomWorkoutGroups ?? [], next.weightRoomWorkoutGroups ?? [], isMissingActiveWeightRoomTables);
+  await deleteMissing(supabase, "weight_room_workout_stations", previous.weightRoomWorkoutStations ?? [], next.weightRoomWorkoutStations ?? [], isMissingActiveWeightRoomTables);
+  await deleteMissing(supabase, "weight_room_workouts", previous.weightRoomWorkouts ?? [], next.weightRoomWorkouts ?? [], isMissingActiveWeightRoomTables);
+  await deleteMissing(supabase, "weight_room_exercise_preset_items", previous.weightRoomExercisePresetItems ?? [], next.weightRoomExercisePresetItems ?? [], isMissingActiveWeightRoomTables);
+  await deleteMissing(supabase, "weight_room_exercise_presets", previous.weightRoomExercisePresets ?? [], next.weightRoomExercisePresets ?? [], isMissingActiveWeightRoomTables);
+  await deleteMissing(supabase, "weight_room_group_preset_members", previous.weightRoomGroupPresetMembers ?? [], next.weightRoomGroupPresetMembers ?? [], isMissingActiveWeightRoomTables);
+  await deleteMissing(supabase, "weight_room_group_preset_groups", previous.weightRoomGroupPresetGroups ?? [], next.weightRoomGroupPresetGroups ?? [], isMissingActiveWeightRoomTables);
+  await deleteMissing(supabase, "weight_room_group_presets", previous.weightRoomGroupPresets ?? [], next.weightRoomGroupPresets ?? [], isMissingActiveWeightRoomTables);
   await deleteMissing(supabase, "game_pitch_events", previous.gameEvents, next.gameEvents);
   await deleteMissing(
     supabase,
@@ -1556,6 +1671,209 @@ async function syncPracticeEvents(supabase: SupabaseClient, data: AppData) {
   await upsertRows(supabase, "pitch_events", data.pitchEvents.map(mapPitchEventToRow));
   await upsertRows(supabase, "hitting_events", data.hittingEvents.map(mapHittingEventToRow));
   await upsertRows(supabase, "defense_events", data.defenseEvents.map(mapDefenseEventToRow));
+}
+
+async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: Foundation, data: AppData) {
+  try {
+    const now = new Date().toISOString();
+    const exerciseDefinitions = data.weightRoomExercises ?? [];
+    const setupExerciseNames = new Set<string>([
+      ...exerciseDefinitions.map((exercise) => exercise.name),
+      ...(data.weightRoomWorkoutStations ?? []).map((station) => station.exerciseName),
+      ...(data.weightRoomExercisePresetItems ?? []).map((item) => item.exerciseName),
+      ...data.workoutEntries.map((entry) => entry.exercise),
+    ].filter(Boolean));
+    const exerciseDefinitionByName = new Map(exerciseDefinitions.map((exercise) => [exercise.name.toLowerCase(), exercise]));
+    if (setupExerciseNames.size > 0) {
+      const exerciseRows = [...setupExerciseNames].map((name) => {
+        const definition = exerciseDefinitionByName.get(name.toLowerCase());
+        return {
+          id: definition?.id,
+          organization_id: foundation.organizationId,
+          name,
+          kind: definition?.kind ?? data.workoutEntries.find((entry) => entry.exercise === name)?.kind ?? "Custom",
+          unit: definition?.unit ?? data.workoutEntries.find((entry) => entry.exercise === name)?.unit ?? "lb",
+          category: definition?.category ?? null,
+          equipment: definition?.equipment ?? null,
+          measurement_type: definition?.measurementType ?? null,
+          performance_direction: definition?.performanceDirection ?? null,
+          default_target_style: definition?.defaultTargetStyle ?? null,
+          archived_at: definition?.archivedAt ?? null,
+          built_in: false,
+          active: definition?.active ?? true,
+          created_at: definition?.createdAt ?? now,
+          updated_at: definition?.updatedAt ?? now,
+        };
+      });
+      const { error } = await supabase.from("exercises").upsert(exerciseRows, { onConflict: "organization_id,name" });
+      if (error) throw error;
+    }
+
+    const { data: exerciseRows, error: exerciseError } = await supabase
+      .from("exercises")
+      .select("id,name")
+      .eq("organization_id", foundation.organizationId);
+    if (exerciseError) throw exerciseError;
+    const exerciseByName = new Map<string, string>((exerciseRows ?? []).map((exercise: any) => [String(exercise.name).toLowerCase(), exercise.id]));
+
+    await upsertRows(
+      supabase,
+      "weight_room_workouts",
+      (data.weightRoomWorkouts ?? []).map((workout) => ({
+        id: workout.id,
+        organization_id: foundation.organizationId,
+        team_id: foundation.teamId,
+        season_id: foundation.seasonId,
+        schedule_event_id: workout.scheduleEventId ?? null,
+        title: workout.title,
+        workout_date: workout.date,
+        status: workout.status,
+        started_at: workout.startedAt ?? null,
+        paused_at: workout.pausedAt ?? null,
+        ended_at: workout.endedAt ?? null,
+        created_by: workout.createdBy ?? null,
+        created_at: workout.createdAt,
+        updated_at: workout.updatedAt,
+      })),
+    );
+
+    await upsertRows(
+      supabase,
+      "weight_room_workout_stations",
+      (data.weightRoomWorkoutStations ?? []).map((station) => ({
+        id: station.id,
+        workout_id: station.workoutId,
+        exercise_id: station.exerciseId ?? exerciseByName.get(station.exerciseName.toLowerCase()) ?? null,
+        exercise_name: station.exerciseName,
+        display_order: station.displayOrder,
+        target_sets: station.targetSets ?? null,
+        target_reps: station.targetReps ?? null,
+        target_weight: station.targetWeight ?? null,
+        target_value: station.targetValue ?? null,
+        target_style: station.targetStyle ?? null,
+        measurement_type: station.measurementType ?? null,
+        performance_direction: station.performanceDirection ?? null,
+        unit: station.unit ?? null,
+        notes: station.notes ?? null,
+        archived_at: station.archivedAt ?? null,
+        created_at: station.createdAt,
+        updated_at: station.updatedAt,
+      })),
+    );
+
+    await upsertRows(
+      supabase,
+      "weight_room_workout_groups",
+      (data.weightRoomWorkoutGroups ?? []).map((group) => ({
+        id: group.id,
+        workout_id: group.workoutId,
+        name: group.name,
+        display_order: group.displayOrder,
+        current_station_id: group.currentStationId ?? null,
+        created_at: group.createdAt,
+        updated_at: group.updatedAt,
+      })),
+    );
+
+    await upsertRows(
+      supabase,
+      "weight_room_workout_group_members",
+      (data.weightRoomWorkoutGroupMembers ?? []).map((member) => ({
+        id: member.id,
+        workout_id: member.workoutId,
+        group_id: member.groupId,
+        player_id: member.playerId,
+        participant_status: member.participantStatus,
+        created_at: member.createdAt,
+        updated_at: member.updatedAt,
+      })),
+    );
+
+    await upsertRows(
+      supabase,
+      "weight_room_exercise_presets",
+      (data.weightRoomExercisePresets ?? []).map((preset) => ({
+        id: preset.id,
+        organization_id: foundation.organizationId,
+        team_id: preset.teamId ?? foundation.teamId,
+        name: preset.name,
+        archived_at: preset.archivedAt ?? null,
+        created_by: preset.createdBy ?? null,
+        created_at: preset.createdAt,
+        updated_at: preset.updatedAt,
+      })),
+    );
+
+    await upsertRows(
+      supabase,
+      "weight_room_exercise_preset_items",
+      (data.weightRoomExercisePresetItems ?? []).map((item) => ({
+        id: item.id,
+        preset_id: item.presetId,
+        exercise_id: item.exerciseId ?? exerciseByName.get(item.exerciseName.toLowerCase()) ?? null,
+        exercise_name: item.exerciseName,
+        display_order: item.displayOrder,
+        target_sets: item.targetSets ?? null,
+        target_reps: item.targetReps ?? null,
+        target_weight: item.targetWeight ?? null,
+        target_value: item.targetValue ?? null,
+        target_style: item.targetStyle ?? null,
+        measurement_type: item.measurementType ?? null,
+        performance_direction: item.performanceDirection ?? null,
+        unit: item.unit ?? null,
+        notes: item.notes ?? null,
+        created_at: item.createdAt,
+        updated_at: item.updatedAt,
+      })),
+    );
+
+    await upsertRows(
+      supabase,
+      "weight_room_group_presets",
+      (data.weightRoomGroupPresets ?? []).map((preset) => ({
+        id: preset.id,
+        organization_id: foundation.organizationId,
+        team_id: preset.teamId ?? foundation.teamId,
+        name: preset.name,
+        archived_at: preset.archivedAt ?? null,
+        created_by: preset.createdBy ?? null,
+        created_at: preset.createdAt,
+        updated_at: preset.updatedAt,
+      })),
+    );
+
+    await upsertRows(
+      supabase,
+      "weight_room_group_preset_groups",
+      (data.weightRoomGroupPresetGroups ?? []).map((group) => ({
+        id: group.id,
+        preset_id: group.presetId,
+        name: group.name,
+        display_order: group.displayOrder,
+        created_at: group.createdAt,
+        updated_at: group.updatedAt,
+      })),
+    );
+
+    await upsertRows(
+      supabase,
+      "weight_room_group_preset_members",
+      (data.weightRoomGroupPresetMembers ?? []).map((member) => ({
+        id: member.id,
+        preset_id: member.presetId,
+        group_id: member.groupId,
+        player_id: member.playerId,
+        created_at: member.createdAt,
+        updated_at: member.updatedAt,
+      })),
+    );
+  } catch (error) {
+    if (isMissingActiveWeightRoomTables(error as { code?: string; message?: string })) return;
+    if (error && typeof error === "object" && "message" in error) {
+      throw new PersistenceError("save-failed", String((error as { message?: string }).message ?? "Unable to save weight room setup."));
+    }
+    throw error;
+  }
 }
 
 async function syncWorkoutData(supabase: SupabaseClient, foundation: Foundation, data: AppData) {
@@ -2081,6 +2399,14 @@ function isMissingPracticeSessionContributorsTable(error: { code?: string; messa
   );
 }
 
+function isMissingActiveWeightRoomTables(error: { code?: string; message?: string }) {
+  return (
+    error.code === "42P01" ||
+    error.code === "PGRST205" ||
+    /(relation|table).*(weight_room_workouts|weight_room_workout_stations|weight_room_workout_groups|weight_room_workout_group_members|weight_room_exercise_presets|weight_room_exercise_preset_items|weight_room_group_presets|weight_room_group_preset_groups|weight_room_group_preset_members).*(does not exist|not found)|could not find.*(weight_room_workouts|weight_room_workout_stations|weight_room_workout_groups|weight_room_workout_group_members|weight_room_exercise_presets|weight_room_exercise_preset_items|weight_room_group_presets|weight_room_group_preset_groups|weight_room_group_preset_members)/i.test(error.message ?? "")
+  );
+}
+
 function isMissingStaffTables(error: { code?: string; message?: string }) {
   return (
     error.code === "42P01" ||
@@ -2332,6 +2658,159 @@ function normalizePracticeSessionContributorRole(role: unknown): PracticeSession
   const value = String(role ?? "").trim().toUpperCase();
   if (value === "PLAYER" || value === "MANAGER" || value === "COACH") return value;
   return "COACH";
+}
+
+function mapWeightRoomExerciseDefinition(row: any): WeightRoomExerciseDefinition {
+  return {
+    id: row.id,
+    organizationId: row.organization_id ?? undefined,
+    name: row.name,
+    kind: row.kind ?? "Custom",
+    category: row.category ?? undefined,
+    measurementType: row.measurement_type ?? undefined,
+    performanceDirection: row.performance_direction ?? undefined,
+    defaultTargetStyle: row.default_target_style ?? undefined,
+    unit: row.unit ?? undefined,
+    equipment: row.equipment ?? undefined,
+    active: row.active ?? true,
+    archivedAt: row.archived_at ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapWeightRoomWorkout(row: any): WeightRoomWorkout {
+  return {
+    id: row.id,
+    organizationId: row.organization_id ?? undefined,
+    teamId: row.team_id ?? undefined,
+    seasonId: row.season_id ?? undefined,
+    scheduleEventId: row.schedule_event_id ?? undefined,
+    title: row.title,
+    date: row.workout_date,
+    status: row.status ?? "SCHEDULED",
+    startedAt: row.started_at ?? undefined,
+    pausedAt: row.paused_at ?? undefined,
+    endedAt: row.ended_at ?? undefined,
+    createdBy: row.created_by ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapWeightRoomWorkoutStation(row: any): WeightRoomWorkoutStation {
+  return {
+    id: row.id,
+    workoutId: row.workout_id,
+    exerciseId: row.exercise_id ?? undefined,
+    exerciseName: row.exercise_name,
+    displayOrder: row.display_order ?? 0,
+    targetSets: row.target_sets ?? undefined,
+    targetReps: row.target_reps ?? undefined,
+    targetWeight: toNumber(row.target_weight),
+    targetValue: toNumber(row.target_value),
+    targetStyle: row.target_style ?? undefined,
+    measurementType: row.measurement_type ?? undefined,
+    performanceDirection: row.performance_direction ?? undefined,
+    unit: row.unit ?? undefined,
+    notes: row.notes ?? undefined,
+    archivedAt: row.archived_at ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapWeightRoomWorkoutGroup(row: any): WeightRoomWorkoutGroup {
+  return {
+    id: row.id,
+    workoutId: row.workout_id,
+    name: row.name,
+    displayOrder: row.display_order ?? 0,
+    currentStationId: row.current_station_id ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapWeightRoomWorkoutGroupMember(row: any): WeightRoomWorkoutGroupMember {
+  return {
+    id: row.id ?? `${row.workout_id}:${row.player_id}`,
+    workoutId: row.workout_id,
+    groupId: row.group_id,
+    playerId: row.player_id,
+    participantStatus: row.participant_status ?? "ASSIGNED",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapWeightRoomExercisePreset(row: any): WeightRoomExercisePreset {
+  return {
+    id: row.id,
+    organizationId: row.organization_id ?? undefined,
+    teamId: row.team_id ?? undefined,
+    name: row.name,
+    archivedAt: row.archived_at ?? undefined,
+    createdBy: row.created_by ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapWeightRoomExercisePresetItem(row: any): WeightRoomExercisePresetItem {
+  return {
+    id: row.id,
+    presetId: row.preset_id,
+    exerciseId: row.exercise_id ?? undefined,
+    exerciseName: row.exercise_name,
+    displayOrder: row.display_order ?? 0,
+    targetSets: row.target_sets ?? undefined,
+    targetReps: row.target_reps ?? undefined,
+    targetWeight: toNumber(row.target_weight),
+    targetValue: toNumber(row.target_value),
+    targetStyle: row.target_style ?? undefined,
+    measurementType: row.measurement_type ?? undefined,
+    performanceDirection: row.performance_direction ?? undefined,
+    unit: row.unit ?? undefined,
+    notes: row.notes ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapWeightRoomGroupPreset(row: any): WeightRoomGroupPreset {
+  return {
+    id: row.id,
+    organizationId: row.organization_id ?? undefined,
+    teamId: row.team_id ?? undefined,
+    name: row.name,
+    archivedAt: row.archived_at ?? undefined,
+    createdBy: row.created_by ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapWeightRoomGroupPresetGroup(row: any): WeightRoomGroupPresetGroup {
+  return {
+    id: row.id,
+    presetId: row.preset_id,
+    name: row.name,
+    displayOrder: row.display_order ?? 0,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapWeightRoomGroupPresetMember(row: any): WeightRoomGroupPresetMember {
+  return {
+    id: row.id,
+    presetId: row.preset_id,
+    groupId: row.group_id,
+    playerId: row.player_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
 function mapWorkoutSession(row: any): WorkoutSession {

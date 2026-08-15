@@ -154,6 +154,16 @@ import type {
   StaffTeamMembership,
   TeamContext,
   TeamOption,
+  WeightRoomExerciseDefinition as PersistedWeightRoomExercise,
+  WeightRoomExercisePreset as PersistedWeightRoomExercisePreset,
+  WeightRoomExercisePresetItem as PersistedWeightRoomExercisePresetItem,
+  WeightRoomGroupPreset as PersistedWeightRoomGroupPreset,
+  WeightRoomGroupPresetGroup as PersistedWeightRoomGroupPresetGroup,
+  WeightRoomGroupPresetMember as PersistedWeightRoomGroupPresetMember,
+  WeightRoomWorkout as PersistedWeightRoomWorkout,
+  WeightRoomWorkoutGroup as PersistedWeightRoomWorkoutGroup,
+  WeightRoomWorkoutGroupMember as PersistedWeightRoomWorkoutGroupMember,
+  WeightRoomWorkoutStation as PersistedWeightRoomWorkoutStation,
   WorkoutEntry,
   WorkoutSession,
   ZonePoint,
@@ -237,6 +247,14 @@ type WeightRoomGroupPreset = {
   name: string;
   groups: ActiveWorkoutGroupSeed[];
   archived?: boolean;
+};
+type WeightRoomSetupPayload = {
+  workoutId: ID;
+  stations: ActiveWorkoutStation[];
+  groups: ActiveWorkoutGroupSeed[];
+  exercisePresets: WeightRoomExercisePreset[];
+  groupPresets: WeightRoomGroupPreset[];
+  exerciseDefinitions: WeightRoomExercise[];
 };
 type ActiveWorkoutCell = {
   playerId: ID;
@@ -630,6 +648,7 @@ export default function MetrolinaBaseballApp() {
   const [weightRoomWorkoutDate, setWeightRoomWorkoutDate] = useState(todayKey());
   const [weightRoomWorkoutTitle, setWeightRoomWorkoutTitle] = useState("Lower Body Strength");
   const [weightRoomWorkoutStatus, setWeightRoomWorkoutStatus] = useState<WeightRoomWorkoutStatus>("Idle");
+  const [weightRoomActiveWorkoutId, setWeightRoomActiveWorkoutId] = useState<ID | undefined>();
   const [weightRoomActiveEventId, setWeightRoomActiveEventId] = useState<ID | undefined>();
   const [weightRoomActiveExercise, setWeightRoomActiveExercise] = useState("Back Squat");
   const [weightRoomWeighInOpen, setWeightRoomWeighInOpen] = useState(false);
@@ -1860,27 +1879,53 @@ export default function MetrolinaBaseballApp() {
     }
     const now = new Date().toISOString();
     const startAt = `${input.date}T18:00:00.000Z`;
-    setWeightRoomWorkoutTitle(input.title);
-    setWeightRoomWorkoutDate(input.date);
-    setWeightRoomWorkoutStatus("In Progress");
-    if (input.eventId) {
-      setWeightRoomActiveEventId(input.eventId);
-      updateScheduleEventForWeightRoom(input.eventId, { status: "Scheduled" });
-      return;
-    }
+    const activeWorkout = (data?.weightRoomWorkouts ?? []).find((workout) => workout.status === "ACTIVE" || workout.status === "PAUSED")
+      ?? (data?.weightRoomWorkouts ?? []).find((workout) =>
+        workout.title === input.title
+        && workout.date === input.date
+        && workout.status !== "COMPLETED"
+        && workout.status !== "CANCELLED"
+      );
     const existingLiftEvent = data?.scheduleEvents.find((event) =>
       event.eventType === "Lift"
       && event.title === input.title
       && dateKeyFromIso(event.startAt) === input.date
       && event.status !== "Cancelled"
     );
-    if (existingLiftEvent) {
-      setWeightRoomActiveEventId(existingLiftEvent.id);
-      updateScheduleEventForWeightRoom(existingLiftEvent.id, { status: "Scheduled" });
+    const newEventId = activeWorkout?.scheduleEventId ?? input.eventId ?? existingLiftEvent?.id ?? createId("se");
+    const activeWorkoutId = activeWorkout?.id ?? createId("wrw");
+    setWeightRoomWorkoutTitle(input.title);
+    setWeightRoomWorkoutDate(input.date);
+    setWeightRoomWorkoutStatus(activeWorkout?.status === "PAUSED" ? "Paused" : "In Progress");
+    setWeightRoomActiveWorkoutId(activeWorkoutId);
+    setWeightRoomActiveEventId(newEventId);
+    commit((current) => {
+      const workout: PersistedWeightRoomWorkout = {
+        id: activeWorkoutId,
+        organizationId: current.teamContext?.currentTeam?.organizationId,
+        teamId: current.teamContext?.currentTeam?.teamId,
+        seasonId: current.teamContext?.currentTeam?.seasonId,
+        scheduleEventId: newEventId,
+        title: input.title,
+        date: input.date,
+        status: activeWorkout?.status === "PAUSED" ? "PAUSED" : "ACTIVE",
+        startedAt: activeWorkout?.startedAt ?? now,
+        pausedAt: activeWorkout?.status === "PAUSED" ? activeWorkout.pausedAt : undefined,
+        createdBy: current.teamContext?.profile?.id,
+        createdAt: activeWorkout?.createdAt ?? now,
+        updatedAt: now,
+      };
+      return {
+        ...current,
+        weightRoomWorkouts: upsertById(current.weightRoomWorkouts ?? [], workout),
+      };
+    });
+    if (input.eventId || existingLiftEvent) {
+      updateScheduleEventForWeightRoom(newEventId, { status: "Scheduled" });
       return;
     }
-    const event: ScheduleEvent = {
-      id: createId("se"),
+    createScheduleEvent({
+      id: newEventId,
       organizationId: data?.teamContext?.currentTeam?.organizationId,
       teamId: data?.teamContext?.currentTeam?.teamId,
       seasonId: data?.teamContext?.currentTeam?.seasonId,
@@ -1894,24 +1939,48 @@ export default function MetrolinaBaseballApp() {
       createdBy: data?.teamContext?.profile?.id,
       createdAt: now,
       updatedAt: now,
-    };
-    setWeightRoomActiveEventId(event.id);
-    createScheduleEvent(event);
+    });
   }
 
   function completeWeightRoomWorkout() {
     setWeightRoomWorkoutStatus("Completed");
     if (weightRoomActiveEventId) updateScheduleEventForWeightRoom(weightRoomActiveEventId, { status: "Completed" });
+    updateActiveWeightRoomWorkoutStatus("COMPLETED");
   }
 
   function pauseWeightRoomWorkout() {
     setWeightRoomWorkoutStatus("Paused");
     if (weightRoomActiveEventId) updateScheduleEventForWeightRoom(weightRoomActiveEventId, { status: "Scheduled" });
+    updateActiveWeightRoomWorkoutStatus("PAUSED");
   }
 
   function resumeWeightRoomWorkout() {
     setWeightRoomWorkoutStatus("In Progress");
     setWeightRoomTab("WorkoutSession");
+    updateActiveWeightRoomWorkoutStatus("ACTIVE");
+  }
+
+  function updateActiveWeightRoomWorkoutStatus(status: PersistedWeightRoomWorkout["status"]) {
+    if (!weightRoomActiveWorkoutId) return;
+    const now = new Date().toISOString();
+    commit((current) => ({
+      ...current,
+      weightRoomWorkouts: (current.weightRoomWorkouts ?? []).map((workout) =>
+        workout.id === weightRoomActiveWorkoutId
+          ? {
+              ...workout,
+              status,
+              pausedAt: status === "PAUSED" ? now : workout.pausedAt,
+              endedAt: status === "COMPLETED" ? now : workout.endedAt,
+              updatedAt: now,
+            }
+          : workout,
+      ),
+    }));
+  }
+
+  function saveWeightRoomSetup(payload: WeightRoomSetupPayload) {
+    commit((current) => applyWeightRoomSetupToData(current, payload));
   }
 
   function updateScheduleEventForWeightRoom(eventId: ID, patch: Partial<ScheduleEvent>) {
@@ -2306,6 +2375,7 @@ export default function MetrolinaBaseballApp() {
             workoutDate={weightRoomWorkoutDate}
             workoutTitle={weightRoomWorkoutTitle}
             workoutStatus={weightRoomWorkoutStatus}
+            activeWorkoutId={weightRoomActiveWorkoutId}
             activeEventId={weightRoomActiveEventId}
             activeExercise={weightRoomActiveExercise}
             weighInOpen={weightRoomWeighInOpen}
@@ -2320,6 +2390,7 @@ export default function MetrolinaBaseballApp() {
             onCompleteWorkout={completeWeightRoomWorkout}
             onPauseWorkout={pauseWeightRoomWorkout}
             onResumeWorkout={resumeWeightRoomWorkout}
+            onSaveSetup={saveWeightRoomSetup}
             onWeighInOpen={setWeightRoomWeighInOpen}
             onSaveWeighIns={logWeightRoomWeighIns}
           />
@@ -7344,6 +7415,7 @@ function WeightRoomView({
   workoutDate,
   workoutTitle,
   workoutStatus,
+  activeWorkoutId,
   activeEventId,
   activeExercise,
   weighInOpen,
@@ -7358,6 +7430,7 @@ function WeightRoomView({
   onCompleteWorkout,
   onPauseWorkout,
   onResumeWorkout,
+  onSaveSetup,
   onWeighInOpen,
   onSaveWeighIns,
 }: {
@@ -7368,6 +7441,7 @@ function WeightRoomView({
   workoutDate: string;
   workoutTitle: string;
   workoutStatus: WeightRoomWorkoutStatus;
+  activeWorkoutId?: ID;
   activeEventId?: ID;
   activeExercise: string;
   weighInOpen: boolean;
@@ -7382,6 +7456,7 @@ function WeightRoomView({
   onCompleteWorkout: () => void;
   onPauseWorkout: () => void;
   onResumeWorkout: () => void;
+  onSaveSetup: (payload: WeightRoomSetupPayload) => void;
   onWeighInOpen: (open: boolean) => void;
   onSaveWeighIns: (rows: Array<{ playerId: ID; weight?: number }>, date: string) => void;
 }) {
@@ -7396,10 +7471,14 @@ function WeightRoomView({
   const leaderRows = leaderboard.length ? leaderboard.slice(0, 5) : leader ? [leader] : [];
   const recentWorkoutRows = buildRecentWeightRoomWorkouts(data, players);
   const openWorkoutRow = recentWorkoutRows.find((row) => !row.completed);
+  const persistedActiveWorkout =
+    (data.weightRoomWorkouts ?? []).find((workout) => workout.id === activeWorkoutId)
+    ?? (data.weightRoomWorkouts ?? []).find((workout) => workout.status === "ACTIVE" || workout.status === "PAUSED")
+    ?? (data.weightRoomWorkouts ?? []).find((workout) => workout.title === workoutTitle && workout.date === workoutDate && workout.status !== "COMPLETED" && workout.status !== "CANCELLED");
   const [reviewWorkoutDate, setReviewWorkoutDate] = useState<string | undefined>();
   const reviewSessionsForDate = reviewWorkoutDate ? data.workoutSessions.filter((session) => session.date === reviewWorkoutDate) : [];
   const reviewEntriesForDate = reviewWorkoutDate ? data.workoutEntries.filter((entry) => entrySessionDate(data, entry) === reviewWorkoutDate) : [];
-  const activeWorkoutRunning = workoutStatus === "In Progress" || workoutStatus === "Paused" || Boolean(openWorkoutRow);
+  const activeWorkoutRunning = workoutStatus === "In Progress" || workoutStatus === "Paused" || Boolean(openWorkoutRow) || Boolean(persistedActiveWorkout);
   const activeWorkoutSummary = activeWorkoutRunning ? {
     status: workoutStatus === "Paused" ? "Paused" as const : "In Progress" as const,
     date: openWorkoutRow?.date ?? workoutDate,
@@ -7409,7 +7488,10 @@ function WeightRoomView({
   const workoutActionLabel = workoutStatus === "Paused" ? "Resume Workout" : activeWorkoutRunning ? "Enter Workout" : "Start Workout";
 
   function startWorkoutFromSelection(input?: { title?: string; date?: string; location?: string; eventId?: ID }) {
-    const target = input ?? (openWorkoutRow ? { title: openWorkoutRow.title, date: openWorkoutRow.date, location: openWorkoutRow.location } : undefined);
+    const target = input
+      ?? (persistedActiveWorkout
+        ? { title: persistedActiveWorkout.title, date: persistedActiveWorkout.date, eventId: persistedActiveWorkout.scheduleEventId }
+        : openWorkoutRow ? { title: openWorkoutRow.title, date: openWorkoutRow.date, location: openWorkoutRow.location } : undefined);
     setReviewWorkoutDate(undefined);
     onStartWorkout({
       title: target?.title ?? workoutTitle,
@@ -7444,6 +7526,8 @@ function WeightRoomView({
           workoutStatus={workoutStatus}
           entriesForDate={entriesForDate}
           sessionsForDate={sessionsForDate}
+          activeWorkout={persistedActiveWorkout}
+          onSaveSetup={onSaveSetup}
           onBack={() => onTab("Overview")}
           onAddEntry={onAddEntry}
           onSaveWeighIns={onSaveWeighIns}
@@ -8130,6 +8214,8 @@ function WeightRoomActiveWorkout({
   workoutStatus,
   entriesForDate,
   sessionsForDate,
+  activeWorkout,
+  onSaveSetup,
   onBack,
   onAddEntry,
   onSaveWeighIns,
@@ -8145,6 +8231,8 @@ function WeightRoomActiveWorkout({
   workoutStatus: WeightRoomWorkoutStatus;
   entriesForDate: WorkoutEntry[];
   sessionsForDate: WorkoutSession[];
+  activeWorkout?: PersistedWeightRoomWorkout;
+  onSaveSetup: (payload: WeightRoomSetupPayload) => void;
   onBack: () => void;
   onAddEntry: (draft?: WeightRoomSetDraft) => void;
   onSaveWeighIns: (rows: Array<{ playerId: ID; weight?: number }>, date: string) => void;
@@ -8154,13 +8242,19 @@ function WeightRoomActiveWorkout({
 }) {
   const team = data.teamContext?.currentTeam;
   const participantIds = players.map((player) => player.id);
+  const persistedStations = activeWorkout
+    ? activeStationsFromPersistedSetup(data, activeWorkout.id, exercises, entriesForDate)
+    : activeStationsFromEntries(entriesForDate, exercises);
+  const persistedGroups = activeWorkout ? activeGroupsFromPersistedSetup(data, activeWorkout.id, persistedStations) : createBlankWorkoutSetup().groups;
+  const persistedExercisePresets = exercisePresetsFromPersistedSetup(data, exercises);
+  const persistedGroupPresets = groupPresetsFromPersistedSetup(data);
   const [activeTab, setActiveTab] = useState<ActiveWorkoutTab>("Workout");
   const [entryMode, setEntryMode] = useState<ActiveWorkoutEntryMode>("Groups");
   const [setupOpen, setSetupOpen] = useState(() => entriesForDate.length === 0);
   const [sideMode, setSideMode] = useState<ActiveWorkoutSideMode>("Stations");
-  const [groups, setGroups] = useState<ActiveWorkoutGroupSeed[]>(() => createBlankWorkoutSetup().groups);
+  const [groups, setGroups] = useState<ActiveWorkoutGroupSeed[]>(() => persistedGroups);
   const [selectedGroupId, setSelectedGroupId] = useState("");
-  const [stations, setStations] = useState<ActiveWorkoutStation[]>(() => activeStationsFromEntries(entriesForDate, exercises));
+  const [stations, setStations] = useState<ActiveWorkoutStation[]>(() => persistedStations);
   const [customExercises, setCustomExercises] = useState<WeightRoomExercise[]>([]);
   const [exerciseSearch, setExerciseSearch] = useState("");
   const [exerciseFilter, setExerciseFilter] = useState<WeightRoomExerciseCategory | "All">("All");
@@ -8177,8 +8271,10 @@ function WeightRoomActiveWorkout({
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
   const [activityExpanded, setActivityExpanded] = useState(false);
   const [setupMessage, setSetupMessage] = useState("");
-  const [exercisePresets, setExercisePresets] = useState<WeightRoomExercisePreset[]>(() => exercisePresetsFromTemplates(WEIGHT_ROOM_TEMPLATES, exercises));
-  const [groupPresets, setGroupPresets] = useState<WeightRoomGroupPreset[]>([]);
+  const [exercisePresets, setExercisePresets] = useState<WeightRoomExercisePreset[]>(() => persistedExercisePresets);
+  const [groupPresets, setGroupPresets] = useState<WeightRoomGroupPreset[]>(() => persistedGroupPresets);
+  const setupHydratedRef = useRef(false);
+  const saveSetupRef = useRef(onSaveSetup);
   const [exercisePresetName, setExercisePresetName] = useState(workoutTitle);
   const [groupPresetName, setGroupPresetName] = useState("Workout Groups");
   const paused = workoutStatus === "Paused";
@@ -8203,9 +8299,29 @@ function WeightRoomActiveWorkout({
   const previousGroup = groups[selectedGroupIndex - 1];
   const nextGroup = groups[selectedGroupIndex + 1];
 
+  useEffect(() => {
+    saveSetupRef.current = onSaveSetup;
+  }, [onSaveSetup]);
+
+  useEffect(() => {
+    if (!activeWorkout?.id) return;
+    if (!setupHydratedRef.current) {
+      setupHydratedRef.current = true;
+      return;
+    }
+    saveSetupRef.current({
+      workoutId: activeWorkout.id,
+      stations,
+      groups,
+      exercisePresets,
+      groupPresets,
+      exerciseDefinitions: customExercises,
+    });
+  }, [activeWorkout?.id, stations, groups, exercisePresets, groupPresets, customExercises]);
+
   function addGroup() {
     setGroups((current) => {
-      const nextGroup = { id: `group-${current.length + 1}`, name: `Group ${current.length + 1}`, playerIds: [], stationIndex: stations.length > 0 ? current.length % stations.length : 0 };
+      const nextGroup = { id: createId("wrg"), name: `Group ${current.length + 1}`, playerIds: [], stationIndex: stations.length > 0 ? current.length % stations.length : 0 };
       if (!selectedGroupId) setSelectedGroupId(nextGroup.id);
       return [...current, nextGroup];
     });
@@ -8272,6 +8388,7 @@ function WeightRoomActiveWorkout({
     const playerIds = autoAssignment === "Random" ? [...participantIds].sort(() => Math.random() - 0.5) : participantIds;
     const nextGroups = createWorkoutGroups(playerIds, autoGroupCount).map((group, index) => ({
       ...group,
+      id: createId("wrg"),
       stationIndex: stations.length > 0 ? index % stations.length : 0,
     }));
     setGroups(nextGroups);
@@ -8356,6 +8473,7 @@ function WeightRoomActiveWorkout({
     const rosterIds = new Set(participantIds);
     const nextGroups = copyGroupPresetToWorkout(preset.groups, stations.length).map((group) => ({
       ...group,
+      id: createId("wrg"),
       playerIds: group.playerIds.filter((playerId) => rosterIds.has(playerId)),
     }));
     setGroups(nextGroups);
@@ -9940,6 +10058,53 @@ function activeStationsFromEntries(entries: WorkoutEntry[], exerciseLibrary: Wei
   });
 }
 
+function activeStationsFromPersistedSetup(data: AppData, workoutId: ID, exerciseLibrary: WeightRoomExercise[], entries: WorkoutEntry[]) {
+  const stationRows = (data.weightRoomWorkoutStations ?? [])
+    .filter((station) => station.workoutId === workoutId && !station.archivedAt)
+    .sort((left, right) => left.displayOrder - right.displayOrder);
+  if (!stationRows.length) return activeStationsFromEntries(entries, exerciseLibrary);
+  return stationRows.map((station, index) => activeStationFromPersistedStation(station, exerciseLibrary, index));
+}
+
+function activeStationFromPersistedStation(station: PersistedWeightRoomWorkoutStation | PersistedWeightRoomExercisePresetItem, exerciseLibrary: WeightRoomExercise[], index: number) {
+  const baseExercise = exerciseLibrary.find((exercise) => exercise.name.toLowerCase() === station.exerciseName.toLowerCase())
+    ?? makeWeightRoomExercise(station.exerciseName);
+  const measurementType = station.measurementType ?? baseExercise.measurementType;
+  const targetStyle = station.targetStyle ?? defaultTargetStyle(station.exerciseName, measurementType);
+  return ensureActiveWorkoutStation({
+    ...baseExercise,
+    id: station.id,
+    name: station.exerciseName,
+    displayOrder: station.displayOrder,
+    targetSets: station.targetSets,
+    targetReps: station.targetReps,
+    targetValue: station.targetValue,
+    targetStyle,
+    measurementType,
+    performanceDirection: station.performanceDirection ?? defaultPerformanceDirection(station.exerciseName, measurementType, targetStyle),
+    unit: station.unit ?? baseExercise.unit,
+    notes: station.notes,
+  }, index);
+}
+
+function activeGroupsFromPersistedSetup(data: AppData, workoutId: ID, stations: ActiveWorkoutStation[]) {
+  const groupRows = (data.weightRoomWorkoutGroups ?? [])
+    .filter((group) => group.workoutId === workoutId)
+    .sort((left, right) => left.displayOrder - right.displayOrder);
+  const members = data.weightRoomWorkoutGroupMembers ?? [];
+  return groupRows.map((group, index) => {
+    const stationIndex = stations.findIndex((station) => station.id === group.currentStationId);
+    return {
+      id: group.id,
+      name: group.name || `Group ${index + 1}`,
+      playerIds: members
+        .filter((member) => member.workoutId === workoutId && member.groupId === group.id && member.participantStatus === "ASSIGNED")
+        .map((member) => member.playerId),
+      stationIndex: stationIndex >= 0 ? stationIndex : stations.length ? index % stations.length : 0,
+    };
+  });
+}
+
 function exercisePresetsFromTemplates(templates: typeof WEIGHT_ROOM_TEMPLATES, exerciseLibrary: WeightRoomExercise[]): WeightRoomExercisePreset[] {
   return templates.map((template, templateIndex) => ({
     id: `preset-${templateIndex + 1}-${template.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
@@ -9949,11 +10114,48 @@ function exercisePresetsFromTemplates(templates: typeof WEIGHT_ROOM_TEMPLATES, e
   }));
 }
 
+function exercisePresetsFromPersistedSetup(data: AppData, exerciseLibrary: WeightRoomExercise[]) {
+  const savedPresets = (data.weightRoomExercisePresets ?? [])
+    .filter((preset) => !preset.archivedAt)
+    .map((preset) => ({
+      id: preset.id,
+      name: preset.name,
+      stations: (data.weightRoomExercisePresetItems ?? [])
+        .filter((item) => item.presetId === preset.id)
+        .sort((left, right) => left.displayOrder - right.displayOrder)
+        .map((item, index) => activeStationFromPersistedStation(item, exerciseLibrary, index)),
+    }));
+  const savedNames = new Set(savedPresets.map((preset) => preset.name.toLowerCase()));
+  return [
+    ...savedPresets,
+    ...exercisePresetsFromTemplates(WEIGHT_ROOM_TEMPLATES, exerciseLibrary).filter((preset) => !savedNames.has(preset.name.toLowerCase())),
+  ];
+}
+
+function groupPresetsFromPersistedSetup(data: AppData) {
+  return (data.weightRoomGroupPresets ?? [])
+    .filter((preset) => !preset.archivedAt)
+    .map((preset) => {
+      const groups = (data.weightRoomGroupPresetGroups ?? [])
+        .filter((group) => group.presetId === preset.id)
+        .sort((left, right) => left.displayOrder - right.displayOrder)
+        .map((group, index) => ({
+          id: group.id,
+          name: group.name || `Group ${index + 1}`,
+          stationIndex: index,
+          playerIds: (data.weightRoomGroupPresetMembers ?? [])
+            .filter((member) => member.presetId === preset.id && member.groupId === group.id)
+            .map((member) => member.playerId),
+        }));
+      return { id: preset.id, name: preset.name, groups };
+    });
+}
+
 function createActiveWorkoutStation(exercise: WeightRoomExercise, index: number): ActiveWorkoutStation {
   const targetStyle = defaultTargetStyle(exercise.name, exercise.measurementType);
   return {
     ...exercise,
-    id: `station-${index + 1}-${exercise.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "exercise"}`,
+    id: createId("wrs"),
     displayOrder: index + 1,
     targetSets: exercise.targetSets ?? defaultTargetSetsForStyle(targetStyle),
     targetReps: exercise.targetReps,
@@ -9968,7 +10170,7 @@ function ensureActiveWorkoutStation(station: WeightRoomExercise | ActiveWorkoutS
     : createActiveWorkoutStation(station, index);
   return {
     ...activeStation,
-    id: `station-${index + 1}-${activeStation.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "exercise"}`,
+    id: isUuid(activeStation.id) ? activeStation.id : createId("wrs"),
     displayOrder: index + 1,
     targetStyle: activeStation.targetStyle ?? defaultTargetStyle(activeStation.name, activeStation.measurementType),
     performanceDirection: activeStation.performanceDirection ?? defaultPerformanceDirection(activeStation.name, activeStation.measurementType, activeStation.targetStyle),
@@ -9977,6 +10179,10 @@ function ensureActiveWorkoutStation(station: WeightRoomExercise | ActiveWorkoutS
 
 function normalizeActiveStations(stations: ActiveWorkoutStation[]) {
   return stations.map((station, index) => ensureActiveWorkoutStation(station, index));
+}
+
+function isUuid(value: unknown) {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function defaultTargetSetsForStyle(style: WorkoutTargetStyle) {
@@ -14339,6 +14545,18 @@ function buildWeightRoomExerciseLibrary(data: AppData): WeightRoomExercise[] {
   for (const exercise of WEIGHT_ROOM_BASE_EXERCISES) {
     byName.set(exercise.name.toLowerCase(), exercise);
   }
+  for (const exercise of data.weightRoomExercises ?? []) {
+    if (exercise.archivedAt || !exercise.active) continue;
+    byName.set(exercise.name.toLowerCase(), {
+      name: exercise.name,
+      category: (exercise.category as WeightRoomExerciseCategory | undefined) ?? weightRoomExerciseCategory(exercise.name, exercise.kind),
+      measurementType: exercise.measurementType ?? weightRoomMeasurementType(exercise.name),
+      kind: exercise.kind,
+      unit: exercise.unit ?? weightRoomUnitForType(exercise.measurementType ?? weightRoomMeasurementType(exercise.name)),
+      equipment: exercise.equipment,
+      active: exercise.active,
+    });
+  }
   for (const entry of data.workoutEntries) {
     const key = entry.exercise.toLowerCase();
     if (!byName.has(key)) byName.set(key, makeWeightRoomExercise(entry.exercise));
@@ -14408,6 +14626,192 @@ function weightRoomMeasurementLabel(exercise?: WeightRoomExercise) {
 
 function uniqueStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))];
+}
+
+function upsertById<T extends { id: ID }>(items: T[], item: T) {
+  return items.some((current) => current.id === item.id)
+    ? items.map((current) => current.id === item.id ? item : current)
+    : [item, ...items];
+}
+
+function applyWeightRoomSetupToData(data: AppData, payload: WeightRoomSetupPayload): AppData {
+  const now = new Date().toISOString();
+  const team = data.teamContext?.currentTeam;
+  const profileId = data.teamContext?.profile?.id;
+  const existingStations = new Map((data.weightRoomWorkoutStations ?? []).map((station) => [station.id, station]));
+  const existingGroups = new Map((data.weightRoomWorkoutGroups ?? []).map((group) => [group.id, group]));
+  const existingMembersByKey = new Map((data.weightRoomWorkoutGroupMembers ?? []).map((member) => [`${member.workoutId}:${member.groupId}:${member.playerId}`, member]));
+  const stationRows: PersistedWeightRoomWorkoutStation[] = payload.stations.map((station, index) => {
+    const existing = existingStations.get(station.id);
+    return {
+      id: station.id,
+      workoutId: payload.workoutId,
+      exerciseName: station.name,
+      displayOrder: index + 1,
+      targetSets: station.targetSets,
+      targetReps: station.targetReps,
+      targetValue: station.targetValue,
+      targetStyle: station.targetStyle,
+      measurementType: station.measurementType,
+      performanceDirection: station.performanceDirection,
+      unit: station.unit,
+      notes: station.notes,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+  });
+  const groupRows: PersistedWeightRoomWorkoutGroup[] = payload.groups.map((group, index) => {
+    const existing = existingGroups.get(group.id);
+    return {
+      id: group.id,
+      workoutId: payload.workoutId,
+      name: group.name || `Group ${index + 1}`,
+      displayOrder: index + 1,
+      currentStationId: stationRows[group.stationIndex]?.id,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+  });
+  const memberRows: PersistedWeightRoomWorkoutGroupMember[] = payload.groups.flatMap((group) =>
+    group.playerIds.map((playerId) => {
+      const existing = existingMembersByKey.get(`${payload.workoutId}:${group.id}:${playerId}`);
+      return {
+        id: existing?.id ?? createId("wrgm"),
+        workoutId: payload.workoutId,
+        groupId: group.id,
+        playerId,
+        participantStatus: "ASSIGNED",
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      };
+    }),
+  );
+  const nextExercises = mergePersistedExerciseDefinitions(data.weightRoomExercises ?? [], payload.exerciseDefinitions, team?.organizationId, now);
+  const savedExercisePresets = payload.exercisePresets.filter((preset) => isUuid(preset.id));
+  const savedGroupPresets = payload.groupPresets.filter((preset) => isUuid(preset.id));
+  const nextExercisePresets: PersistedWeightRoomExercisePreset[] = savedExercisePresets.map((preset) => {
+    const existing = (data.weightRoomExercisePresets ?? []).find((item) => item.id === preset.id);
+    return {
+      id: preset.id,
+      organizationId: team?.organizationId,
+      teamId: team?.teamId,
+      name: preset.name,
+      archivedAt: preset.archived ? now : existing?.archivedAt,
+      createdBy: existing?.createdBy ?? profileId,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+  });
+  const existingExercisePresetItemByKey = new Map((data.weightRoomExercisePresetItems ?? []).map((item) => [`${item.presetId}:${item.displayOrder}:${item.exerciseName.toLowerCase()}`, item]));
+  const nextExercisePresetItems: PersistedWeightRoomExercisePresetItem[] = savedExercisePresets.flatMap((preset) =>
+    preset.stations.map((station, index) => {
+      const existing = existingExercisePresetItemByKey.get(`${preset.id}:${index + 1}:${station.name.toLowerCase()}`);
+      return {
+        id: existing?.id ?? createId("wepi"),
+        presetId: preset.id,
+        exerciseName: station.name,
+        displayOrder: index + 1,
+        targetSets: station.targetSets,
+        targetReps: station.targetReps,
+        targetValue: station.targetValue,
+        targetStyle: station.targetStyle,
+        measurementType: station.measurementType,
+        performanceDirection: station.performanceDirection,
+        unit: station.unit,
+        notes: station.notes,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      };
+    }),
+  );
+  const nextGroupPresets: PersistedWeightRoomGroupPreset[] = savedGroupPresets.map((preset) => {
+    const existing = (data.weightRoomGroupPresets ?? []).find((item) => item.id === preset.id);
+    return {
+      id: preset.id,
+      organizationId: team?.organizationId,
+      teamId: team?.teamId,
+      name: preset.name,
+      archivedAt: preset.archived ? now : existing?.archivedAt,
+      createdBy: existing?.createdBy ?? profileId,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+  });
+  const existingGroupPresetGroupByKey = new Map((data.weightRoomGroupPresetGroups ?? []).map((group) => [`${group.presetId}:${group.displayOrder}:${group.name.toLowerCase()}`, group]));
+  const existingGroupPresetMemberByKey = new Map((data.weightRoomGroupPresetMembers ?? []).map((member) => [`${member.presetId}:${member.groupId}:${member.playerId}`, member]));
+  const nextGroupPresetGroups: PersistedWeightRoomGroupPresetGroup[] = [];
+  const nextGroupPresetMembers: PersistedWeightRoomGroupPresetMember[] = [];
+  for (const preset of savedGroupPresets) {
+    preset.groups.forEach((group, index) => {
+      const existingGroup = existingGroupPresetGroupByKey.get(`${preset.id}:${index + 1}:${group.name.toLowerCase()}`);
+      const groupId = existingGroup?.id ?? (isUuid(group.id) ? group.id : createId("wgpg"));
+      nextGroupPresetGroups.push({
+        id: groupId,
+        presetId: preset.id,
+        name: group.name || `Group ${index + 1}`,
+        displayOrder: index + 1,
+        createdAt: existingGroup?.createdAt ?? now,
+        updatedAt: now,
+      });
+      group.playerIds.forEach((playerId) => {
+        const existingMember = existingGroupPresetMemberByKey.get(`${preset.id}:${groupId}:${playerId}`);
+        nextGroupPresetMembers.push({
+          id: existingMember?.id ?? createId("wgpm"),
+          presetId: preset.id,
+          groupId,
+          playerId,
+          createdAt: existingMember?.createdAt ?? now,
+          updatedAt: now,
+        });
+      });
+    });
+  }
+  return {
+    ...data,
+    weightRoomExercises: nextExercises,
+    weightRoomWorkoutStations: [
+      ...(data.weightRoomWorkoutStations ?? []).filter((station) => station.workoutId !== payload.workoutId),
+      ...stationRows,
+    ],
+    weightRoomWorkoutGroups: [
+      ...(data.weightRoomWorkoutGroups ?? []).filter((group) => group.workoutId !== payload.workoutId),
+      ...groupRows,
+    ],
+    weightRoomWorkoutGroupMembers: [
+      ...(data.weightRoomWorkoutGroupMembers ?? []).filter((member) => member.workoutId !== payload.workoutId),
+      ...memberRows,
+    ],
+    weightRoomExercisePresets: nextExercisePresets,
+    weightRoomExercisePresetItems: nextExercisePresetItems,
+    weightRoomGroupPresets: nextGroupPresets,
+    weightRoomGroupPresetGroups: nextGroupPresetGroups,
+    weightRoomGroupPresetMembers: nextGroupPresetMembers,
+  };
+}
+
+function mergePersistedExerciseDefinitions(existing: PersistedWeightRoomExercise[], exercises: WeightRoomExercise[], organizationId: ID | undefined, now: string) {
+  const byName = new Map(existing.map((exercise) => [exercise.name.toLowerCase(), exercise]));
+  for (const exercise of exercises) {
+    const current = byName.get(exercise.name.toLowerCase());
+    const targetStyle = defaultTargetStyle(exercise.name, exercise.measurementType);
+    byName.set(exercise.name.toLowerCase(), {
+      id: current?.id ?? createId("wre"),
+      organizationId: current?.organizationId ?? organizationId,
+      name: exercise.name,
+      kind: exercise.kind,
+      category: exercise.category,
+      measurementType: exercise.measurementType,
+      performanceDirection: defaultPerformanceDirection(exercise.name, exercise.measurementType, targetStyle),
+      defaultTargetStyle: targetStyle,
+      unit: exercise.unit,
+      equipment: exercise.equipment,
+      active: exercise.active,
+      archivedAt: current?.archivedAt,
+      createdAt: current?.createdAt ?? now,
+      updatedAt: now,
+    });
+  }
+  return [...byName.values()];
 }
 
 function optionalNumber(value: string) {
