@@ -50,7 +50,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { BaseballField, DonutChart, Heatmap, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
@@ -3110,6 +3111,8 @@ function ChoiceSelect({
   className = "",
   disabled = false,
   showSelectedDescription = true,
+  open: controlledOpen,
+  onOpenChange,
   "aria-label": ariaLabel,
 }: {
   label?: string;
@@ -3119,39 +3122,184 @@ function ChoiceSelect({
   className?: string;
   disabled?: boolean;
   showSelectedDescription?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   "aria-label"?: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+    placement: "top" | "bottom" | "sheet";
+  } | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const selected = options.find((option) => option.value === value) ?? options[0];
+  const reactId = useId();
+  const listboxId = `choice-select-${reactId.replace(/[^a-z0-9_-]/gi, "")}`;
+  const open = controlledOpen ?? internalOpen;
+  const setSelectOpen = useCallback((nextOpen: boolean | ((current: boolean) => boolean)) => {
+    const resolved = typeof nextOpen === "function" ? nextOpen(open) : nextOpen;
+    if (controlledOpen === undefined) setInternalOpen(resolved);
+    onOpenChange?.(resolved);
+  }, [controlledOpen, onOpenChange, open]);
 
-  return (
-    <div
-      className={["choice-select", open ? "open" : "", className].filter(Boolean).join(" ")}
-      data-label={ariaLabel ?? label}
-      onBlur={(event) => {
-        const nextFocus = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-        if (!nextFocus || !event.currentTarget.contains(nextFocus)) setOpen(false);
-      }}
-    >
-      {label && <span className="choice-select__label">{label}</span>}
-      <button
-        type="button"
-        className="choice-select__button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={ariaLabel ?? label}
-        disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
-      >
-        {selected?.icon && <span className="choice-select__icon">{selected.icon}</span>}
-        <strong>
-          {selected?.label ?? "Select"}
-          {showSelectedDescription && selected?.description && <small>{selected.description}</small>}
-        </strong>
-        <ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {open && !disabled && (
-        <div className="choice-select__menu" role="listbox" aria-label={ariaLabel ?? label}>
+  const updateMenuPosition = useCallback(() => {
+    if (!buttonRef.current || typeof window === "undefined") return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const viewportPadding = 12;
+    const gap = 6;
+    const measuredHeight = menuRef.current?.offsetHeight ?? 320;
+    const availableBelow = window.innerHeight - rect.bottom - viewportPadding;
+    const availableAbove = rect.top - viewportPadding;
+    const bestAvailable = Math.max(availableBelow, availableAbove);
+    const shouldUseSheet = window.innerWidth <= 640 || bestAvailable < 180;
+    if (shouldUseSheet) {
+      const maxHeight = Math.min(320, Math.max(180, window.innerHeight - viewportPadding * 2));
+      setMenuPosition({
+        top: Math.max(viewportPadding, window.innerHeight - maxHeight - viewportPadding),
+        left: Math.min(8, viewportPadding),
+        width: window.innerWidth - 16,
+        maxHeight,
+        placement: "sheet",
+      });
+      return;
+    }
+
+    const placement = availableBelow < 180 && availableAbove > availableBelow ? "top" : "bottom";
+    const availableHeight = placement === "top" ? availableAbove : availableBelow;
+    const maxHeight = Math.max(132, Math.min(320, availableHeight));
+    const width = Math.min(Math.max(rect.width, 220), window.innerWidth - viewportPadding * 2);
+    const left = Math.min(Math.max(rect.left, viewportPadding), window.innerWidth - width - viewportPadding);
+    const top = placement === "top"
+      ? Math.max(viewportPadding, rect.top - gap - Math.min(measuredHeight, maxHeight))
+      : Math.min(rect.bottom + gap, window.innerHeight - Math.min(measuredHeight, maxHeight) - viewportPadding);
+    setMenuPosition({ top, left, width, maxHeight, placement });
+  }, []);
+
+  const focusOption = useCallback((index?: number) => {
+    const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
+    if (!buttons.length) return;
+    const selectedIndex = options.findIndex((option) => option.value === value);
+    const targetIndex = Math.max(0, Math.min(buttons.length - 1, index ?? selectedIndex));
+    buttons[targetIndex]?.focus();
+    buttons[targetIndex]?.scrollIntoView({ block: "nearest" });
+  }, [options, value]);
+
+  const closeMenu = useCallback((returnFocus = false) => {
+    setSelectOpen(false);
+    if (returnFocus) window.setTimeout(() => buttonRef.current?.focus(), 0);
+  }, [setSelectOpen]);
+
+  const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMenu(true);
+      return;
+    }
+    const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
+    if (!buttons.length) return;
+    const currentIndex = Math.max(0, buttons.findIndex((button) => button === document.activeElement));
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusOption(Math.min(buttons.length - 1, currentIndex + 1));
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusOption(Math.max(0, currentIndex - 1));
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      focusOption(0);
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      focusOption(buttons.length - 1);
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      const currentOption = options[currentIndex];
+      if (!currentOption) return;
+      onChange(currentOption.value);
+      closeMenu(true);
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+
+    updateMenuPosition();
+    const animationFrame = window.requestAnimationFrame(updateMenuPosition);
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (
+        target &&
+        (rootRef.current?.contains(target) || menuRef.current?.contains(target))
+      ) {
+        return;
+      }
+      closeMenu();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu(true);
+    };
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (
+        target &&
+        (rootRef.current?.contains(target) || menuRef.current?.contains(target))
+      ) {
+        return;
+      }
+      closeMenu();
+    };
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("focusin", handleFocusIn);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("focusin", handleFocusIn);
+    };
+  }, [closeMenu, open, updateMenuPosition]);
+
+  useEffect(() => {
+    if (!open || !menuPosition) return;
+    const timer = window.setTimeout(() => {
+      const selectedButton = menuRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+      selectedButton?.scrollIntoView({ block: "nearest" });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [menuPosition, open, value]);
+
+  const menu = open && !disabled && menuPosition && typeof document !== "undefined"
+    ? createPortal(
+      <>
+        {menuPosition.placement === "sheet" && <div className="choice-select__sheet-scrim" aria-hidden="true" />}
+        <div
+          ref={menuRef}
+          id={listboxId}
+          className={["choice-select__menu", "choice-select__menu--portal", className].filter(Boolean).join(" ")}
+          data-placement={menuPosition.placement}
+          role="listbox"
+          tabIndex={-1}
+          aria-label={ariaLabel ?? label}
+          onKeyDown={handleMenuKeyDown}
+          style={{
+            top: menuPosition.top,
+            left: menuPosition.left,
+            width: menuPosition.width,
+            maxHeight: menuPosition.maxHeight,
+          }}
+        >
           {options.map((option) => (
             <button
               key={option.value}
@@ -3161,7 +3309,7 @@ function ChoiceSelect({
               aria-selected={option.value === value}
               onClick={() => {
                 onChange(option.value);
-                setOpen(false);
+                closeMenu(true);
               }}
             >
               {option.icon && <span className="choice-select__icon">{option.icon}</span>}
@@ -3172,7 +3320,48 @@ function ChoiceSelect({
             </button>
           ))}
         </div>
-      )}
+      </>,
+      document.body,
+    )
+    : null;
+
+  return (
+    <div
+      ref={rootRef}
+      className={["choice-select", open ? "open" : "", className].filter(Boolean).join(" ")}
+      data-label={ariaLabel ?? label}
+    >
+      {label && <span className="choice-select__label">{label}</span>}
+      <button
+        ref={buttonRef}
+        type="button"
+        className="choice-select__button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
+        aria-label={ariaLabel ?? label}
+        disabled={disabled}
+        onClick={() => {
+          updateMenuPosition();
+          setSelectOpen((current) => !current);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            updateMenuPosition();
+            setSelectOpen(true);
+            window.setTimeout(() => focusOption(event.key === "ArrowUp" ? options.length - 1 : undefined), 0);
+          }
+        }}
+      >
+        {selected?.icon && <span className="choice-select__icon">{selected.icon}</span>}
+        <strong>
+          {selected?.label ?? "Select"}
+          {showSelectedDescription && selected?.description && <small>{selected.description}</small>}
+        </strong>
+        <ChevronDown size={14} aria-hidden="true" />
+      </button>
+      {menu}
     </div>
   );
 }
@@ -9160,7 +9349,7 @@ function WeightRoomAutoCreateGroupsModal({
         </div>
         <ChoiceSelect
           value={assignment}
-          className="form-choice"
+          className="form-choice weight-room-auto-group-choice"
           options={["Balanced", "Random"].map((item) => ({ value: item, label: item, description: item === "Balanced" ? "Distribute roster evenly" : "Shuffle first, then distribute" }))}
           onChange={(value) => onAssignment(value as "Balanced" | "Random")}
           aria-label="Assignment method"
@@ -14273,34 +14462,20 @@ function ImportChoiceField({
   onOpen: (open: boolean) => void;
   onChange: (value: string) => void;
 }) {
-  const selected = options.find((option) => option.value === value) ?? options[0];
   return (
-    <div className={`import-choice ${open ? "open" : ""}`}>
-      <span>{label}</span>
-      <button type="button" className="import-choice__button" aria-expanded={open} onClick={() => onOpen(!open)}>
-        <strong>{selected?.label ?? "Select"}</strong>
-        <ChevronDown size={15} aria-hidden="true" />
-      </button>
-      {open && (
-        <div className="import-choice__menu" role="listbox" aria-label={label}>
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={option.value === value ? "active" : ""}
-              role="option"
-              aria-selected={option.value === value}
-              onClick={() => {
-                onChange(option.value);
-                onOpen(false);
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <ChoiceSelect
+      label={label}
+      value={value}
+      options={options}
+      onChange={(nextValue) => {
+        onChange(nextValue);
+        onOpen(false);
+      }}
+      className="import-choice"
+      open={open}
+      onOpenChange={onOpen}
+      aria-label={label}
+    />
   );
 }
 

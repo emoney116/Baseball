@@ -36,3 +36,37 @@ test("active weight room setup keeps exercise saves and preset UI clean", () => 
   assert.match(page, /leaders=\{weightLeaderRows\}/);
   assert.doesNotMatch(page, /exercisePresetsFromTemplates/);
 });
+
+test("shared dropdown menus stay viewport safe inside modals and small screens", () => {
+  const page = readFileSync("app/page.tsx", "utf8");
+  const css = readFileSync("app/globals.css", "utf8");
+  const choiceSelect = page.match(/function ChoiceSelect[\s\S]*?function TeamSwitcher/)?.[0] ?? "";
+
+  assert.match(choiceSelect, /createPortal\(/);
+  assert.match(choiceSelect, /getBoundingClientRect\(\)/);
+  assert.match(choiceSelect, /window\.addEventListener\("scroll",\s*updateMenuPosition,\s*true\)/);
+  assert.match(choiceSelect, /data-placement=\{menuPosition\.placement\}/);
+  assert.match(choiceSelect, /choice-select__menu--portal/);
+  assert.match(choiceSelect, /placement:\s*"top"\s*\|\s*"bottom"\s*\|\s*"sheet"/);
+  assert.match(choiceSelect, /menuPosition\.placement === "sheet"/);
+  assert.match(choiceSelect, /choice-select__sheet-scrim/);
+  assert.match(choiceSelect, /event\.key === "Enter" \|\| event\.key === " "/);
+  assert.match(choiceSelect, /scrollIntoView\(\{\s*block:\s*"nearest"\s*\}\)/);
+  assert.match(choiceSelect, /maxHeight:\s*menuPosition\.maxHeight/);
+  assert.match(page, /function ImportChoiceField[\s\S]*?<ChoiceSelect/);
+  assert.doesNotMatch(page, /import-choice__menu/);
+  assert.match(page, /weight-room-auto-group-choice/);
+  assert.match(css, /\.choice-select__menu--portal\s*\{[\s\S]*position:\s*fixed/);
+  assert.match(css, /z-index:\s*10000/);
+  assert.match(css, /max-width:\s*calc\(100vw - 24px\)/);
+  assert.match(css, /overscroll-behavior:\s*contain/);
+  assert.match(css, /-webkit-overflow-scrolling:\s*touch/);
+  assert.match(css, /\.choice-select__sheet-scrim\s*\{/);
+  assert.match(css, /\.choice-select__menu--portal\.weight-room-auto-group-choice button small/);
+  assert.match(css, /\*\s*\{[\s\S]*scrollbar-width:\s*none/);
+  assert.match(css, /\*::-webkit-scrollbar\s*\{[\s\S]*display:\s*none/);
+  assert.match(css, /\.scrollbar-none\s*\{/);
+  assert.match(css, /\.scroll-fade-bottom::after/);
+  assert.doesNotMatch(css, /scrollbar-width:\s*(thin|auto)/);
+  assert.doesNotMatch(css, /import-choice__menu/);
+});
