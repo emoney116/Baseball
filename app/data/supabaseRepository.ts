@@ -1706,7 +1706,22 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
         };
       });
       const { error } = await supabase.from("exercises").upsert(exerciseRows, { onConflict: "organization_id,name" });
-      if (error) throw error;
+      if (error) {
+        if (!isMissingExerciseMetadataColumns(error)) throw error;
+        const legacyExerciseRows = exerciseRows.map((row) => ({
+          id: row.id,
+          organization_id: row.organization_id,
+          name: row.name,
+          kind: row.kind,
+          unit: row.unit,
+          built_in: row.built_in,
+          active: row.active,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        }));
+        const { error: legacyError } = await supabase.from("exercises").upsert(legacyExerciseRows, { onConflict: "organization_id,name" });
+        if (legacyError) throw legacyError;
+      }
     }
 
     const { data: exerciseRows, error: exerciseError } = await supabase
@@ -1737,29 +1752,50 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       })),
     );
 
-    await upsertRows(
-      supabase,
-      "weight_room_workout_stations",
-      (data.weightRoomWorkoutStations ?? []).map((station) => ({
-        id: station.id,
-        workout_id: station.workoutId,
-        exercise_id: station.exerciseId ?? exerciseByName.get(station.exerciseName.toLowerCase()) ?? null,
-        exercise_name: station.exerciseName,
-        display_order: station.displayOrder,
-        target_sets: station.targetSets ?? null,
-        target_reps: station.targetReps ?? null,
-        target_weight: station.targetWeight ?? null,
-        target_value: station.targetValue ?? null,
-        target_style: station.targetStyle ?? null,
-        measurement_type: station.measurementType ?? null,
-        performance_direction: station.performanceDirection ?? null,
-        unit: station.unit ?? null,
-        notes: station.notes ?? null,
-        archived_at: station.archivedAt ?? null,
-        created_at: station.createdAt,
-        updated_at: station.updatedAt,
-      })),
-    );
+    const stationRows = (data.weightRoomWorkoutStations ?? []).map((station) => ({
+      id: station.id,
+      workout_id: station.workoutId,
+      exercise_id: station.exerciseId ?? exerciseByName.get(station.exerciseName.toLowerCase()) ?? null,
+      exercise_name: station.exerciseName,
+      display_order: station.displayOrder,
+      target_sets: station.targetSets ?? null,
+      target_reps: station.targetReps ?? null,
+      target_weight: station.targetWeight ?? null,
+      target_value: station.targetValue ?? null,
+      target_style: station.targetStyle ?? null,
+      measurement_type: station.measurementType ?? null,
+      performance_direction: station.performanceDirection ?? null,
+      unit: station.unit ?? null,
+      notes: station.notes ?? null,
+      archived_at: station.archivedAt ?? null,
+      created_at: station.createdAt,
+      updated_at: station.updatedAt,
+    }));
+    try {
+      await upsertRows(supabase, "weight_room_workout_stations", stationRows);
+    } catch (error) {
+      if (!isMissingWorkoutStationMetadataColumns(error as { code?: string; message?: string })) throw error;
+      await upsertRows(
+        supabase,
+        "weight_room_workout_stations",
+        stationRows.map((row) => ({
+          id: row.id,
+          workout_id: row.workout_id,
+          exercise_id: row.exercise_id,
+          exercise_name: row.exercise_name,
+          display_order: row.display_order,
+          target_sets: row.target_sets,
+          target_reps: row.target_reps,
+          target_weight: row.target_weight,
+          measurement_type: row.measurement_type,
+          unit: row.unit,
+          notes: row.notes,
+          archived_at: row.archived_at,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        })),
+      );
+    }
 
     await upsertRows(
       supabase,
@@ -2404,6 +2440,34 @@ function isMissingActiveWeightRoomTables(error: { code?: string; message?: strin
     error.code === "42P01" ||
     error.code === "PGRST205" ||
     /(relation|table).*(weight_room_workouts|weight_room_workout_stations|weight_room_workout_groups|weight_room_workout_group_members|weight_room_exercise_presets|weight_room_exercise_preset_items|weight_room_group_presets|weight_room_group_preset_groups|weight_room_group_preset_members).*(does not exist|not found)|could not find.*(weight_room_workouts|weight_room_workout_stations|weight_room_workout_groups|weight_room_workout_group_members|weight_room_exercise_presets|weight_room_exercise_preset_items|weight_room_group_presets|weight_room_group_preset_groups|weight_room_group_preset_members)/i.test(error.message ?? "")
+  );
+}
+
+function isMissingExerciseMetadataColumns(error: { code?: string; message?: string }) {
+  return isMissingSchemaCacheColumn(error, "exercises", [
+    "archived_at",
+    "category",
+    "equipment",
+    "measurement_type",
+    "performance_direction",
+    "default_target_style",
+  ]);
+}
+
+function isMissingWorkoutStationMetadataColumns(error: { code?: string; message?: string }) {
+  return isMissingSchemaCacheColumn(error, "weight_room_workout_stations", [
+    "target_value",
+    "target_style",
+    "performance_direction",
+  ]);
+}
+
+function isMissingSchemaCacheColumn(error: { code?: string; message?: string }, table: string, columns: string[]) {
+  const message = String(error.message ?? "").toLowerCase();
+  return (
+    (error.code === "PGRST204" || message.includes("schema cache")) &&
+    message.includes(table.toLowerCase()) &&
+    columns.some((column) => message.includes(column.toLowerCase()))
   );
 }
 
