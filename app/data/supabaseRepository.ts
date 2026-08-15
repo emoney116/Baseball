@@ -1770,10 +1770,10 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       updated_at: station.updatedAt,
     }));
     try {
-      await upsertRows(supabase, "weight_room_workout_stations", stationRows);
+      await upsertOrderedWorkoutRows(supabase, "weight_room_workout_stations", stationRows);
     } catch (error) {
       if (!isMissingWorkoutStationMetadataColumns(error as { code?: string; message?: string })) throw error;
-      await upsertRows(
+      await upsertOrderedWorkoutRows(
         supabase,
         "weight_room_workout_stations",
         stationRows.map((row) => ({
@@ -1795,7 +1795,7 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       );
     }
 
-    await upsertRows(
+    await upsertOrderedWorkoutRows(
       supabase,
       "weight_room_workout_groups",
       (data.weightRoomWorkoutGroups ?? []).map((group) => ({
@@ -1821,6 +1821,7 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
         created_at: member.createdAt,
         updated_at: member.updatedAt,
       })),
+      "workout_id,player_id",
     );
 
     await upsertRows(
@@ -2208,10 +2209,56 @@ async function syncStaffData(foundation: Foundation, data: AppData) {
   }
 }
 
-async function upsertRows(supabase: SupabaseClient, table: string, rows: Array<Record<string, unknown>>) {
+async function upsertRows(
+  supabase: SupabaseClient,
+  table: string,
+  rows: Array<Record<string, unknown>>,
+  onConflict = "id",
+) {
   if (rows.length === 0) return;
-  const { error } = await supabase.from(table).upsert(rows, { onConflict: "id" });
+  const { error } = await supabase.from(table).upsert(rows, { onConflict });
   if (error) throw new PersistenceError("save-failed", error.message);
+}
+
+async function upsertOrderedWorkoutRows(
+  supabase: SupabaseClient,
+  table: string,
+  rows: Array<Record<string, unknown> & { id: string; workout_id: string; display_order: number }>,
+) {
+  if (rows.length === 0) return;
+  const workoutIds = [...new Set(rows.map((row) => row.workout_id))];
+  const { data: existingRows, error: existingError } = await supabase
+    .from(table)
+    .select("id,workout_id,display_order")
+    .in("workout_id", workoutIds);
+  if (existingError) throw new PersistenceError("save-failed", existingError.message);
+
+  const existing = (existingRows ?? []) as Array<{ id: string; workout_id: string; display_order: number }>;
+  for (const [index, row] of existing.entries()) {
+    const { error } = await supabase
+      .from(table)
+      .update({ display_order: -100000 - index })
+      .eq("id", row.id);
+    if (error) throw new PersistenceError("save-failed", error.message);
+  }
+
+  await upsertRows(supabase, table, rows);
+
+  const incomingIds = new Set(rows.map((row) => row.id));
+  const maxOrderByWorkout = new Map<string, number>();
+  rows.forEach((row) => {
+    maxOrderByWorkout.set(row.workout_id, Math.max(maxOrderByWorkout.get(row.workout_id) ?? 0, row.display_order));
+  });
+
+  for (const row of existing.filter((item) => !incomingIds.has(item.id)).sort((left, right) => left.display_order - right.display_order)) {
+    const nextOrder = (maxOrderByWorkout.get(row.workout_id) ?? 0) + 1;
+    maxOrderByWorkout.set(row.workout_id, nextOrder);
+    const { error } = await supabase
+      .from(table)
+      .update({ display_order: nextOrder })
+      .eq("id", row.id);
+    if (error) throw new PersistenceError("save-failed", error.message);
+  }
 }
 
 function mapPlayer(row: any, membership?: any): Player {
