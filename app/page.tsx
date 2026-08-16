@@ -10594,11 +10594,15 @@ function completedResultSummary(station: ActiveWorkoutStation, resultCount: numb
   return `${resultCount} ${stationAttemptLabel(station).toLowerCase()}`;
 }
 
-function bestWorkoutEntryForStation(entries: WorkoutEntry[], station?: ActiveWorkoutStation) {
+function bestWorkoutEntryForStation(entries: WorkoutEntry[], station?: Pick<ActiveWorkoutStation, "measurementType" | "targetStyle" | "performanceDirection">) {
   return entries.slice().sort((left, right) => compareWorkoutEntriesForStation(left, right, station))[0];
 }
 
-function compareWorkoutEntriesForStation(left: WorkoutEntry, right: WorkoutEntry, station?: ActiveWorkoutStation) {
+function compareWorkoutEntriesForStation(
+  left: WorkoutEntry,
+  right: WorkoutEntry,
+  station?: Pick<ActiveWorkoutStation, "measurementType" | "targetStyle" | "performanceDirection">,
+) {
   const leftValue = workoutEntryComparableForStation(left, station);
   const rightValue = workoutEntryComparableForStation(right, station);
   if (leftValue === rightValue) return right.createdAt.localeCompare(left.createdAt);
@@ -10606,7 +10610,7 @@ function compareWorkoutEntriesForStation(left: WorkoutEntry, right: WorkoutEntry
   return lowerIsBetter ? leftValue - rightValue : rightValue - leftValue;
 }
 
-function workoutEntryComparableForStation(entry: WorkoutEntry, station?: ActiveWorkoutStation) {
+function workoutEntryComparableForStation(entry: WorkoutEntry, station?: Pick<ActiveWorkoutStation, "measurementType" | "targetStyle">) {
   if (station?.measurementType === "WEIGHT_REPS" || (!station && typeof entry.weight === "number" && typeof entry.reps === "number")) {
     return estimatedOneRepMax(entry.weight, entry.reps) ?? entry.weight ?? 0;
   }
@@ -10913,8 +10917,34 @@ function WeightRoomPlayerPanel({
     });
   }
 
+  const athleteDetailsRef = useRef<HTMLElement | null>(null);
+  const [athleteDetailsHeight, setAthleteDetailsHeight] = useState<number>();
+
+  useEffect(() => {
+    const node = athleteDetailsRef.current;
+    if (!node) return;
+
+    const updateHeight = () => {
+      const nextHeight = Math.ceil(node.getBoundingClientRect().height);
+      setAthleteDetailsHeight((current) => current === nextHeight ? current : nextHeight);
+    };
+
+    updateHeight();
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateHeight) : null;
+    resizeObserver?.observe(node);
+    window.addEventListener("resize", updateHeight);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, []);
+
+  const athleteWorkspaceStyle = athleteDetailsHeight
+    ? { "--weight-room-athlete-detail-height": `${athleteDetailsHeight}px` } as React.CSSProperties
+    : undefined;
+
   return (
-    <section className="weight-room-player-layout weight-room-athlete-workspace">
+    <section className="weight-room-player-layout weight-room-athlete-workspace" style={athleteWorkspaceStyle}>
       <aside className="panel weight-room-player-list">
         <label className="weight-room-player-search">
           <Search size={15} aria-hidden="true" />
@@ -10930,7 +10960,7 @@ function WeightRoomPlayerPanel({
           {!filteredPlayers.length && <CompactEmpty title="No athletes match that search." />}
         </ScrollablePanel>
       </aside>
-      <article className="panel weight-room-player-profile weight-room-athlete-panel">
+      <article ref={athleteDetailsRef} className="panel weight-room-player-profile weight-room-athlete-panel">
         <div className="weight-room-mobile-player-select">
           <ChoiceSelect
             value={player.id}
@@ -11965,15 +11995,16 @@ function WeightRoomExerciseResults({
     measurementType: exerciseDefinition.measurementType,
     targetStyle: selectedResultMode ?? exerciseDefaultTargetStyle ?? defaultTargetStyle(exerciseDefinition.name, exerciseDefinition.measurementType),
     unit: exerciseDefinition.unit,
-    performanceDirection: defaultPerformanceDirection(exerciseDefinition.name, exerciseDefinition.measurementType, selectedResultMode ?? exerciseDefinition.defaultTargetStyle),
+    performanceDirection: exerciseDefinition.performanceDirection ?? defaultPerformanceDirection(exerciseDefinition.name, exerciseDefinition.measurementType, selectedResultMode ?? exerciseDefinition.defaultTargetStyle),
   } : undefined;
   const rows = players.map((player) => {
     const entries = data.workoutEntries
       .filter((entry) => entry.playerId === player.id && entry.exercise === exercise && (entry.status ?? "Completed") !== "Skipped")
+      .filter((entry) => workoutEntryMatchesResultMode(data, entry, selectedResultMode, exerciseDefinition))
       .sort((left, right) => entrySessionDate(data, right).localeCompare(entrySessionDate(data, left)) || right.createdAt.localeCompare(left.createdAt));
     const latest = entries[0];
     const previous = entries[1];
-    const best = bestWorkoutEntry(entries);
+    const best = bestWorkoutEntryForStation(entries, displayStation);
     const change = workoutEntryChangeDisplay(latest, previous, displayStation);
     return {
       player,
@@ -11981,9 +12012,9 @@ function WeightRoomExerciseResults({
       previous,
       best,
       change,
-      latestSort: latest ? workoutEntryComparableForDisplay(latest) : undefined,
-      previousSort: previous ? workoutEntryComparableForDisplay(previous) : undefined,
-      bestSort: best ? workoutEntryComparableForDisplay(best) : undefined,
+      latestSort: latest ? workoutEntryComparableForStation(latest, displayStation) : undefined,
+      previousSort: previous ? workoutEntryComparableForStation(previous, displayStation) : undefined,
+      bestSort: best ? workoutEntryComparableForStation(best, displayStation) : undefined,
     };
   }).filter((row) => row.latest || row.best);
   const sortedRows = rows.slice().sort((left, right) => {
@@ -16124,6 +16155,48 @@ function cleanWorkoutMeasurementDraft(value: string, measurementType: WorkoutMea
 
 function entrySessionDate(data: AppData, entry: WorkoutEntry) {
   return data.workoutSessions.find((session) => session.id === entry.sessionId)?.date ?? entry.createdAt.slice(0, 10);
+}
+
+function workoutEntryPersistedStation(data: AppData, entry: WorkoutEntry) {
+  const sessionDate = entrySessionDate(data, entry);
+  const workoutsForSession = (data.weightRoomWorkouts ?? [])
+    .filter((workout) => workout.date === sessionDate && workout.status !== "CANCELLED")
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt) || right.createdAt.localeCompare(left.createdAt));
+  const stationRows = (data.weightRoomWorkoutStations ?? []).filter((station) => !station.archivedAt);
+  for (const workout of workoutsForSession) {
+    const station = stationRows
+      .filter((item) => item.workoutId === workout.id && item.exerciseName.toLowerCase() === entry.exercise.toLowerCase())
+      .sort((left, right) => left.displayOrder - right.displayOrder)[0];
+    if (station) return station;
+  }
+  return undefined;
+}
+
+function workoutEntryStationContext(
+  data: AppData,
+  entry: WorkoutEntry,
+  exerciseDefinition?: WeightRoomExercise,
+): Pick<ActiveWorkoutStation, "measurementType" | "targetStyle" | "unit" | "performanceDirection"> | undefined {
+  const station = workoutEntryPersistedStation(data, entry);
+  const measurementType = station?.measurementType ?? exerciseDefinition?.measurementType;
+  if (!measurementType) return undefined;
+  const targetStyle = station?.targetStyle ?? exerciseDefinition?.defaultTargetStyle ?? defaultTargetStyle(entry.exercise, measurementType);
+  return {
+    measurementType,
+    targetStyle,
+    unit: station?.unit ?? exerciseDefinition?.unit,
+    performanceDirection: station?.performanceDirection ?? exerciseDefinition?.performanceDirection ?? defaultPerformanceDirection(entry.exercise, measurementType, targetStyle),
+  };
+}
+
+function workoutEntryMatchesResultMode(
+  data: AppData,
+  entry: WorkoutEntry,
+  targetStyle: WorkoutTargetStyle | undefined,
+  exerciseDefinition?: WeightRoomExercise,
+) {
+  if (!targetStyle) return true;
+  return workoutEntryStationContext(data, entry, exerciseDefinition)?.targetStyle === targetStyle;
 }
 
 function formatWorkoutEntryValue(entry: WorkoutEntry) {

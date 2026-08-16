@@ -67,6 +67,14 @@ test("active weight room setup keeps exercise saves and preset UI clean", () => 
   assert.match(page, /workoutEntryChangeDisplay/);
   assert.match(page, /weight-room-exercise-mode-select/);
   assert.match(page, /targetStyleOptionsForMeasurement\(exerciseDefinition\.measurementType\)/);
+  assert.match(page, /function workoutEntryStationContext/);
+  assert.match(page, /function workoutEntryMatchesResultMode/);
+  assert.match(page, /workoutEntryPersistedStation\(data, entry\)/);
+  assert.match(page, /\.filter\(\(entry\) => workoutEntryMatchesResultMode\(data, entry, selectedResultMode, exerciseDefinition\)\)/);
+  assert.match(page, /bestWorkoutEntryForStation\(entries, displayStation\)/);
+  assert.match(page, /workoutEntryComparableForStation\(latest, displayStation\)/);
+  assert.match(page, /athleteDetailsRef/);
+  assert.match(page, /getBoundingClientRect\(\)\.height/);
   assert.doesNotMatch(page, /e1RM/);
   assert.doesNotMatch(page, /All Categories/);
   assert.match(page, /const workoutActionLabel = activeWorkoutRunning \? "Resume Workout" : "Start Workout"/);
@@ -141,6 +149,9 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.match(css, /\.weight-room-current-stations--preset > \.weight-room-station-add-row/);
   assert.match(css, /\.weight-room-group-editor__list section\.is-athlete-drop-target/);
   assert.match(css, /\.weight-room-player-list__scroll-panel/);
+  assert.match(css, /--weight-room-athlete-detail-height/);
+  assert.match(css, /\.weight-room-athlete-workspace \.weight-room-player-list\s*\{[\s\S]*height:\s*var\(--weight-room-athlete-detail-height\)/);
+  assert.match(css, /\.weight-room-athlete-workspace \.weight-room-player-list\s*\{[\s\S]*max-height:\s*var\(--weight-room-athlete-detail-height\)/);
   assert.match(css, /\.weight-room-exercise-preset-modal/);
   assert.match(css, /height:\s*min\(680px,\s*calc\(100dvh - 28px\)\)/);
   assert.match(css, /\.weight-room-exercise-preset-modal \.weight-room-preset-builder__scroll \.scroll-cue-panel__body\s*\{[\s\S]*height:\s*100%/);
