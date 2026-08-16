@@ -197,6 +197,7 @@ type WeightRoomExerciseCategory = "Lower Body" | "Upper Body" | "Power" | "Core"
 type WeightRoomExerciseSortKey = "exercise" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "best" | "sets";
 type WeightRoomWorkoutSortKey = "exercise" | "set" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "rpe";
 type WeightRoomLeaderboardSortKey = "rank" | "athlete" | "score" | "workouts" | "progress" | "completion" | "trend";
+type WeightRoomExerciseResultSortKey = "player" | "latest" | "previous" | "change" | "best";
 type WeightRoomLeaderboardFilter = "All Athletes" | "Qualified" | "Improving" | "Needs Attention";
 type WeightRoomSortState<K extends string> = { key: K; direction: SortDirection };
 type WorkoutMeasurementType = "WEIGHT_REPS" | "BODYWEIGHT_REPS" | "REPS_ONLY" | "TIME" | "DISTANCE" | "HEIGHT" | "WEIGHT_ONLY" | "COUNT" | "COMPLETION" | "RPE_ONLY" | "CUSTOM";
@@ -7777,7 +7778,7 @@ function WeightRoomView({
     title: openWorkoutRow?.title ?? workoutTitle,
     eventId: activeEventId,
   } : undefined;
-  const workoutActionLabel = workoutStatus === "Paused" ? "Resume Workout" : activeWorkoutRunning ? "Enter Workout" : "Start Workout";
+  const workoutActionLabel = activeWorkoutRunning ? "Resume Workout" : "Start Workout";
 
   function startWorkoutFromSelection(input?: { title?: string; date?: string; location?: string; eventId?: ID }) {
     const target = input
@@ -11622,9 +11623,11 @@ function WeightRoomExerciseLibraryCard({
   const [draftTargetStyle, setDraftTargetStyle] = useState<WorkoutTargetStyle>("Standard");
   const [draftEquipment, setDraftEquipment] = useState("");
   const [presetOpen, setPresetOpen] = useState(false);
+  const [editingPreset, setEditingPreset] = useState<WeightRoomExercisePreset | undefined>();
   const [presetName, setPresetName] = useState("");
   const [presetSelection, setPresetSelection] = useState<Set<string>>(() => new Set(activeExercise ? [activeExercise.toLowerCase()] : []));
   const [confirmingExercise, setConfirmingExercise] = useState<string | undefined>();
+  const [confirmingPreset, setConfirmingPreset] = useState<ID | undefined>();
   const [hiddenExercises, setHiddenExercises] = useState<Set<string>>(() => new Set());
   const exerciseRows = exercises.filter((exercise, index, all) =>
     all.findIndex((item) => item.name.toLowerCase() === exercise.name.toLowerCase()) === index
@@ -11685,10 +11688,22 @@ function WeightRoomExerciseLibraryCard({
     setEditingExercise(undefined);
   }
 
-  function openPresetBuilder() {
-    setPresetSelection(new Set(activeExercise ? [activeExercise.toLowerCase()] : []));
-    setPresetName("");
+  function openPresetBuilder(preset?: WeightRoomExercisePreset) {
+    const selection = preset
+      ? preset.stations.map((station) => station.name.toLowerCase())
+      : activeExercise ? [activeExercise.toLowerCase()] : [];
+    setEditingPreset(preset);
+    setConfirmingPreset(undefined);
+    setPresetSelection(new Set(selection));
+    setPresetName(preset?.name ?? "");
     setPresetOpen(true);
+  }
+
+  function closePresetBuilder() {
+    setPresetOpen(false);
+    setEditingPreset(undefined);
+    setPresetName("");
+    setPresetSelection(new Set());
   }
 
   function togglePresetExercise(exercise: WeightRoomExercise) {
@@ -11704,101 +11719,149 @@ function WeightRoomExerciseLibraryCard({
   function savePreset() {
     const name = presetName.trim();
     if (!name || !presetSelection.size) return;
-    const stations = exerciseRows
-      .filter((exercise) => presetSelection.has(exercise.name.toLowerCase()))
+    const exerciseByKey = new Map(exerciseRows.map((exercise) => [exercise.name.toLowerCase(), exercise]));
+    const existingOrder = editingPreset?.stations.map((station) => station.name.toLowerCase()) ?? [];
+    const orderedKeys = [
+      ...existingOrder.filter((key) => presetSelection.has(key)),
+      ...exerciseRows.map((exercise) => exercise.name.toLowerCase()).filter((key) => presetSelection.has(key) && !existingOrder.includes(key)),
+    ];
+    const stations = orderedKeys
+      .map((key) => exerciseByKey.get(key))
+      .filter((exercise): exercise is WeightRoomExercise => Boolean(exercise))
       .map((exercise, index) => createActiveWorkoutStation(exercise, index));
-    onSavePreset({ id: createId("wep"), name, stations });
-    setPresetName("");
-    setPresetSelection(new Set());
-    setPresetOpen(false);
+    onSavePreset({ id: editingPreset?.id ?? createId("wep"), name, stations });
+    closePresetBuilder();
+  }
+
+  function archivePreset(preset: WeightRoomExercisePreset) {
+    onSavePreset({ ...preset, archived: true });
+    setConfirmingPreset(undefined);
+    if (editingPreset?.id === preset.id) closePresetBuilder();
   }
 
   return (
-    <article className="panel weight-room-library-card">
-      <div className="panel-heading tight">
-        <div>
-          <span>Exercise Library</span>
-          <h2>Team exercises</h2>
-        </div>
-      </div>
-      <div className="weight-room-library-presets">
-        <div>
-          <strong>Exercise Presets</strong>
-        </div>
-        <button className="secondary-button" type="button" onClick={openPresetBuilder}>
-          <Save size={14} aria-hidden="true" />
-          Create Preset
-        </button>
-        {presets.length ? (
-          <div className="weight-room-library-presets__list">
-            {presets.slice(0, 2).map((preset) => (
-              <span key={preset.id}>
-                <strong>{preset.name}</strong>
-                <small>{preset.stations.length} exercise{preset.stations.length === 1 ? "" : "s"}</small>
-              </span>
-            ))}
-            {presets.length > 2 && <small>{presets.length - 2} more preset{presets.length - 2 === 1 ? "" : "s"}</small>}
-          </div>
-        ) : (
-          <small>Create reusable exercise presets.</small>
-        )}
-      </div>
-      <div className="weight-room-library-toolbar">
-        <div className="weight-room-library-filters">
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search exercises..." />
-          <ChoiceSelect
-            value={category}
-            className="form-choice"
-            options={categories.map((item) => ({ value: item, label: item }))}
-            onChange={(value) => setCategory(value as WeightRoomExerciseCategory | "All")}
-            aria-label="Exercise category"
-          />
-        </div>
-        <button className="secondary-button weight-room-add-exercise-button" type="button" onClick={() => openExerciseEditor()}>
-          <Plus size={14} aria-hidden="true" />
-          Add Exercise
-        </button>
-      </div>
-      <div className="weight-room-library-list">
-        {filtered.map((exercise) => {
-          const confirming = confirmingExercise === exercise.name;
-          return (
-            <div key={exercise.name} className={`weight-room-library-row ${exercise.name === activeExercise ? "active" : ""} ${confirming ? "confirming" : ""}`}>
-              <button type="button" className="weight-room-library-select" onClick={() => onExercise(exercise.name)}>
-                <span>
-                  <strong>{exercise.name} - {exercise.category}</strong>
-                  <small>{exercise.equipment ?? "Team library"} - {exercise.defaultTargetStyle ?? defaultTargetStyle(exercise.name, exercise.measurementType)}</small>
-                </span>
-              </button>
-              {confirming ? (
-                <span className="weight-room-inline-confirm">
-                  <small>Remove?</small>
-                  <button type="button" onClick={() => setHiddenExercises((current) => new Set([...current, exercise.name.toLowerCase()]))}>Yes</button>
-                  <button type="button" onClick={() => setConfirmingExercise(undefined)}>No</button>
-                </span>
-              ) : (
-                <span className="weight-room-library-row-actions">
-                  <button
-                    type="button"
-                    className="weight-room-edit-exercise"
-                    onClick={() => openExerciseEditor(exercise)}
-                    aria-label={`Edit ${exercise.name}`}
-                  >
-                    <Edit3 size={13} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="weight-room-remove-exercise"
-                    onClick={() => setConfirmingExercise(exercise.name)}
-                    aria-label={`Remove ${exercise.name} from team exercises`}
-                  >
-                    -
-                  </button>
-                </span>
-              )}
+    <>
+      <div className="weight-room-exercise-left-column">
+        <article className="panel weight-room-presets-card">
+          <div className="weight-room-section-head">
+            <div>
+              <h2>Exercise Presets</h2>
+              <p>Reusable exercise plans for your team.</p>
             </div>
-          );
-        })}
+            <button className="secondary-button" type="button" onClick={() => openPresetBuilder()}>
+              <Plus size={14} aria-hidden="true" />
+              Create Preset
+            </button>
+          </div>
+          {presets.length ? (
+            <ScrollablePanel className="weight-room-presets-scroll" bodyClassName="weight-room-library-presets__list" ariaLabel="exercise presets">
+              {presets.map((preset) => {
+                const confirming = confirmingPreset === preset.id;
+                return (
+                  <div key={preset.id} className={`weight-room-preset-row ${confirming ? "confirming" : ""}`}>
+                    <button type="button" className="weight-room-preset-select" onClick={() => openPresetBuilder(preset)}>
+                      <strong>{preset.name}</strong>
+                      <small>{preset.stations.length} exercise{preset.stations.length === 1 ? "" : "s"}</small>
+                    </button>
+                    {confirming ? (
+                      <span className="weight-room-inline-confirm">
+                        <small>Remove?</small>
+                        <button type="button" onClick={() => archivePreset(preset)}>Yes</button>
+                        <button type="button" onClick={() => setConfirmingPreset(undefined)}>No</button>
+                      </span>
+                    ) : (
+                      <span className="weight-room-library-row-actions">
+                        <button type="button" className="weight-room-edit-exercise" onClick={() => openPresetBuilder(preset)} aria-label={`Edit ${preset.name} preset`}>
+                          <Edit3 size={13} aria-hidden="true" />
+                        </button>
+                        <button type="button" className="weight-room-remove-exercise" onClick={() => setConfirmingPreset(preset.id)} aria-label={`Remove ${preset.name} preset`}>
+                          -
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </ScrollablePanel>
+          ) : (
+            <CompactEmpty
+              title="No presets yet."
+            />
+          )}
+        </article>
+
+        <article className="panel weight-room-library-card">
+          <div className="weight-room-section-head">
+            <div>
+              <h2>Team Exercise Library</h2>
+              <p>All exercises available to your team.</p>
+            </div>
+            <button className="secondary-button weight-room-add-exercise-button" type="button" onClick={() => openExerciseEditor()}>
+              <Plus size={14} aria-hidden="true" />
+              Add Exercise
+            </button>
+          </div>
+          <div className="weight-room-library-toolbar">
+            <div className="weight-room-library-filters">
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search exercises..." />
+              <ChoiceSelect
+                value={category}
+                className="form-choice"
+                options={categories.map((item) => ({ value: item, label: item === "All" ? "All Categories" : item }))}
+                onChange={(value) => setCategory(value as WeightRoomExerciseCategory | "All")}
+                aria-label="Exercise category"
+              />
+            </div>
+          </div>
+          <ScrollablePanel className="weight-room-exercise-list-scroll" bodyClassName="weight-room-library-list" ariaLabel="team exercise library">
+            {filtered.map((exercise) => {
+              const confirming = confirmingExercise === exercise.name;
+              return (
+                <div key={exercise.name} className={`weight-room-library-row ${exercise.name === activeExercise ? "active" : ""} ${confirming ? "confirming" : ""}`}>
+                  <button type="button" className="weight-room-library-select" onClick={() => onExercise(exercise.name)} aria-current={exercise.name === activeExercise ? "true" : undefined}>
+                    <span className="weight-room-library-exercise-main">
+                      <strong>{exercise.name}</strong>
+                      <small>{workoutMeasurementTypeLabel(exercise.measurementType)} - {exercise.defaultTargetStyle ?? defaultTargetStyle(exercise.name, exercise.measurementType)}</small>
+                    </span>
+                    <span className="weight-room-library-category">{exercise.category}</span>
+                  </button>
+                  {confirming ? (
+                    <span className="weight-room-inline-confirm">
+                      <small>Remove?</small>
+                      <button type="button" onClick={() => setHiddenExercises((current) => new Set([...current, exercise.name.toLowerCase()]))}>Yes</button>
+                      <button type="button" onClick={() => setConfirmingExercise(undefined)}>No</button>
+                    </span>
+                  ) : (
+                    <span className="weight-room-library-row-actions">
+                      <button
+                        type="button"
+                        className="weight-room-edit-exercise"
+                        onClick={() => openExerciseEditor(exercise)}
+                        aria-label={`Edit ${exercise.name}`}
+                      >
+                        <Edit3 size={13} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="weight-room-remove-exercise"
+                        onClick={() => setConfirmingExercise(exercise.name)}
+                        aria-label={`Remove ${exercise.name} from team exercises`}
+                      >
+                        -
+                      </button>
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+            {!filtered.length && (
+              <CompactEmpty
+                title={query.trim() ? `No exercises match "${query.trim()}".` : "No exercises yet."}
+                action={query.trim() ? <button className="secondary-button" type="button" onClick={() => setQuery("")}>Clear Search</button> : undefined}
+              />
+            )}
+          </ScrollablePanel>
+        </article>
       </div>
       {editingExercise && (
         <ModalFrame title={editingExercise.name ? "Edit Exercise" : "Add Exercise"} onClose={() => setEditingExercise(undefined)} panelClassName="weight-room-exercise-modal">
@@ -11846,7 +11909,7 @@ function WeightRoomExerciseLibraryCard({
         </ModalFrame>
       )}
       {presetOpen && (
-        <ModalFrame title="Create Exercise Preset" onClose={() => setPresetOpen(false)} panelClassName="weight-room-exercise-modal">
+        <ModalFrame title={editingPreset ? "Edit Exercise Preset" : "Create Exercise Preset"} onClose={closePresetBuilder} panelClassName="weight-room-exercise-modal">
           <div className="weight-room-exercise-modal__body">
             <label className="weight-room-modal-wide">
               <span>Preset Name</span>
@@ -11866,7 +11929,7 @@ function WeightRoomExerciseLibraryCard({
             </div>
           </div>
           <div className="modal-actions">
-            <button className="secondary-button" type="button" onClick={() => setPresetOpen(false)}>Cancel</button>
+            <button className="secondary-button" type="button" onClick={closePresetBuilder}>Cancel</button>
             <button className="primary-button" type="button" onClick={savePreset} disabled={!presetName.trim() || !presetSelection.size}>
               <Save size={16} aria-hidden="true" />
               Save Preset
@@ -11874,7 +11937,7 @@ function WeightRoomExerciseLibraryCard({
           </div>
         </ModalFrame>
       )}
-    </article>
+    </>
   );
 }
 
@@ -11891,49 +11954,99 @@ function WeightRoomExerciseResults({
   exerciseDefinition?: WeightRoomExercise;
   onPlayer: (playerId: ID) => void;
 }) {
+  const [sort, setSort] = useState<WeightRoomSortState<WeightRoomExerciseResultSortKey>>({ key: "player", direction: "asc" });
   const displayStation = exerciseDefinition ? {
     measurementType: exerciseDefinition.measurementType,
     targetStyle: exerciseDefinition.defaultTargetStyle ?? defaultTargetStyle(exerciseDefinition.name, exerciseDefinition.measurementType),
     unit: exerciseDefinition.unit,
+    performanceDirection: exerciseDefinition.performanceDirection ?? defaultPerformanceDirection(exerciseDefinition.name, exerciseDefinition.measurementType, exerciseDefinition.defaultTargetStyle),
   } : undefined;
   const rows = players.map((player) => {
-    const entries = data.workoutEntries.filter((entry) => entry.playerId === player.id && entry.exercise === exercise);
+    const entries = data.workoutEntries
+      .filter((entry) => entry.playerId === player.id && entry.exercise === exercise && (entry.status ?? "Completed") !== "Skipped")
+      .sort((left, right) => entrySessionDate(data, right).localeCompare(entrySessionDate(data, left)) || right.createdAt.localeCompare(left.createdAt));
     const latest = entries[0];
     const previous = entries[1];
     const best = bestWorkoutEntry(entries);
-    const latestValue = latest ? workoutEntryComparableForDisplay(latest) : undefined;
-    const previousValue = previous ? workoutEntryComparableForDisplay(previous) : undefined;
-    const change = latestValue !== undefined && previousValue ? ((latestValue - previousValue) / Math.max(1, previousValue)) * 100 : undefined;
-    return { player, latest, previous, best, change };
+    const change = workoutEntryChangeDisplay(latest, previous, displayStation);
+    return {
+      player,
+      latest,
+      previous,
+      best,
+      change,
+      latestSort: latest ? workoutEntryComparableForDisplay(latest) : undefined,
+      previousSort: previous ? workoutEntryComparableForDisplay(previous) : undefined,
+      bestSort: best ? workoutEntryComparableForDisplay(best) : undefined,
+    };
   }).filter((row) => row.latest || row.best);
+  const sortedRows = rows.slice().sort((left, right) => {
+    let result = 0;
+    if (sort.key === "player") result = left.player.name.localeCompare(right.player.name);
+    if (sort.key === "latest") result = compareOptionalNumbers(left.latestSort, right.latestSort, "asc");
+    if (sort.key === "previous") result = compareOptionalNumbers(left.previousSort, right.previousSort, "asc");
+    if (sort.key === "change") result = compareOptionalNumbers(left.change?.sortValue, right.change?.sortValue, "asc");
+    if (sort.key === "best") result = compareOptionalNumbers(left.bestSort, right.bestSort, "asc");
+    return applySortDirection(result, sort.direction) || left.player.name.localeCompare(right.player.name);
+  });
+  const targetStyle = exerciseDefinition?.defaultTargetStyle ?? (exerciseDefinition ? defaultTargetStyle(exerciseDefinition.name, exerciseDefinition.measurementType) : undefined);
+  const infoItems = exerciseDefinition ? [
+    { label: "Category", value: exerciseDefinition.category },
+    { label: "Measurement", value: workoutMeasurementTypeLabel(exerciseDefinition.measurementType) },
+    { label: "Default Target", value: targetStyle },
+    { label: "Default Sets", value: `${exerciseDefinition.targetSets ?? defaultTargetSetsForStyle(targetStyle ?? "Standard")}` },
+    exerciseDefinition.targetReps ? { label: "Target Reps", value: `${exerciseDefinition.targetReps}` } : undefined,
+    exerciseDefinition.targetValue ? { label: "Target Value", value: formatNumber(exerciseDefinition.targetValue, 1) } : undefined,
+    exerciseDefinition.equipment ? { label: "Equipment", value: exerciseDefinition.equipment } : undefined,
+  ].filter((item): item is { label: string; value: string } => Boolean(item?.value)) : [];
+
+  function toggleResultSort(key: WeightRoomExerciseResultSortKey) {
+    setSort((current) => nextWeightRoomSortState(current, key, { key: "player", direction: "asc" }));
+  }
 
   return (
     <article className="panel weight-room-exercise-results">
       <div className="panel-heading tight">
         <div>
-          <span>Exercise View</span>
+          <span>Selected Exercise</span>
           <h2>{exercise}</h2>
         </div>
       </div>
+      <div className="weight-room-exercise-result-tabs" role="tablist" aria-label={`${exercise} detail sections`}>
+        <button type="button" className="active" role="tab" aria-selected="true">Results</button>
+      </div>
       <div className="weight-room-result-table">
-        <div>
-          <span>Player</span>
-          <span>Latest</span>
-          <span>Previous</span>
-          <span>Change</span>
-          <span>Best</span>
+        <div className="weight-room-result-table__head">
+          <WeightRoomSortHeader label="Player" sortKey="player" sort={sort} onSort={toggleResultSort} />
+          <WeightRoomSortHeader label="Latest" sortKey="latest" sort={sort} onSort={toggleResultSort} />
+          <WeightRoomSortHeader label="Previous" sortKey="previous" sort={sort} onSort={toggleResultSort} />
+          <WeightRoomSortHeader label="Change" sortKey="change" sort={sort} onSort={toggleResultSort} />
+          <WeightRoomSortHeader label="Best" sortKey="best" sort={sort} onSort={toggleResultSort} />
         </div>
-        {rows.map((row) => (
-            <button key={row.player.id} type="button" onClick={() => onPlayer(row.player.id)}>
+        {sortedRows.map((row) => (
+          <button key={row.player.id} type="button" onClick={() => onPlayer(row.player.id)}>
             <strong>{row.player.name}</strong>
             <span>{row.latest ? formatWorkoutEntryValueForStation(row.latest, displayStation) : "--"}</span>
             <span>{row.previous ? formatWorkoutEntryValueForStation(row.previous, displayStation) : "--"}</span>
-            <em className={row.change && row.change > 0 ? "positive" : row.change && row.change < 0 ? "negative" : ""}>{typeof row.change === "number" ? `${row.change > 0 ? "+" : ""}${formatNumber(row.change, 1)}%` : "--"}</em>
+            <em className={row.change?.className ?? ""}>{row.change?.label ?? "--"}</em>
             <span>{row.best ? formatWorkoutEntryValueForStation(row.best, displayStation) : "--"}</span>
           </button>
         ))}
         {!rows.length && <CompactEmpty title="No results for this exercise yet." />}
       </div>
+      {infoItems.length ? (
+        <section className="weight-room-exercise-info-panel">
+          <h3>Exercise Info</h3>
+          <div>
+            {infoItems.map((item) => (
+              <span key={item.label}>
+                <small>{item.label}</small>
+                <strong>{item.value}</strong>
+              </span>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </article>
   );
 }
@@ -15203,6 +15316,76 @@ function CompactEmpty({ title, action }: { title: string; action?: React.ReactNo
   return <div className="compact-empty"><span>{title}</span>{action}</div>;
 }
 
+function ScrollablePanel({
+  children,
+  className = "",
+  bodyClassName = "",
+  ariaLabel,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  bodyClassName?: string;
+  ariaLabel: string;
+}) {
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [scrollState, setScrollState] = useState({ canScrollUp: false, canScrollDown: false });
+
+  const updateScrollState = useCallback(() => {
+    const body = bodyRef.current;
+    const maxScroll = body ? body.scrollHeight - body.clientHeight : 0;
+    const nextState = {
+      canScrollUp: body ? body.scrollTop > 1 : false,
+      canScrollDown: body ? body.scrollTop < maxScroll - 1 : false,
+    };
+    setScrollState((current) => (
+      current.canScrollUp === nextState.canScrollUp && current.canScrollDown === nextState.canScrollDown
+        ? current
+        : nextState
+    ));
+  }, []);
+
+  useEffect(() => {
+    updateScrollState();
+    const body = bodyRef.current;
+    body?.addEventListener("scroll", updateScrollState, { passive: true });
+    window.addEventListener("resize", updateScrollState);
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateScrollState) : null;
+    if (body) resizeObserver?.observe(body);
+    const animationFrame = window.requestAnimationFrame(updateScrollState);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      body?.removeEventListener("scroll", updateScrollState);
+      window.removeEventListener("resize", updateScrollState);
+      resizeObserver?.disconnect();
+    };
+  }, [children, updateScrollState]);
+
+  function scrollDown() {
+    const body = bodyRef.current;
+    if (!body) return;
+    body.scrollBy({ top: Math.max(96, body.clientHeight * 0.82), behavior: "smooth" });
+  }
+
+  return (
+    <div className={[
+      "scroll-cue-panel",
+      scrollState.canScrollUp ? "has-scroll-up" : "",
+      scrollState.canScrollDown ? "has-scroll-down" : "",
+      className,
+    ].filter(Boolean).join(" ")}>
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Scrollable hidden-scrollbar regions need keyboard focus. */}
+      <div ref={bodyRef} className={["scroll-cue-panel__body", bodyClassName].filter(Boolean).join(" ")} role="region" tabIndex={0} aria-label={ariaLabel}>
+        {children}
+      </div>
+      <span className="scroll-cue-panel__fade scroll-cue-panel__fade--top" aria-hidden="true" />
+      <span className="scroll-cue-panel__fade scroll-cue-panel__fade--bottom" aria-hidden="true" />
+      <button className="scroll-cue-panel__more" type="button" onClick={scrollDown} aria-label={`Scroll ${ariaLabel} down`}>
+        <ChevronDown size={15} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 function ModalFrame({ title, onClose, children, panelClassName = "" }: { title: string; onClose: () => void; children: React.ReactNode; panelClassName?: string }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const titleRef = useRef<HTMLDivElement | null>(null);
@@ -16342,6 +16525,83 @@ function formatWorkoutDelta(value?: number) {
   if (typeof value !== "number") return "--";
   if (Math.abs(value) < 0.05) return "0%";
   return `${value > 0 ? "+" : ""}${formatNumber(value, 1)}%`;
+}
+
+function formatSignedSecondsDelta(value: number) {
+  if (Math.abs(value) < 0.005) return "0 sec";
+  return `${value > 0 ? "+" : "-"}${formatSecondsValue(Math.abs(value))}`;
+}
+
+function formatSignedInchesDelta(value: number) {
+  if (Math.abs(value) < 0.05) return "0 in";
+  return `${value > 0 ? "+" : "-"}${formatInchesValue(Math.abs(value))}`;
+}
+
+function workoutEntryChangeDisplay(
+  current?: WorkoutEntry,
+  baseline?: WorkoutEntry,
+  station?: Pick<ActiveWorkoutStation, "measurementType" | "targetStyle" | "unit" | "performanceDirection">,
+) {
+  if (!current || !baseline || current.id === baseline.id || !workoutEntriesComparable(current, baseline)) return undefined;
+  const measurementType = station?.measurementType;
+  const direction = station?.performanceDirection ?? (current.unit === "sec" ? "LOWER_IS_BETTER" : "HIGHER_IS_BETTER");
+
+  if (measurementType === "TIME" || current.unit === "sec") {
+    if (typeof current.value !== "number" || typeof baseline.value !== "number") return undefined;
+    const rawDelta = current.value - baseline.value;
+    const improvementValue = direction === "LOWER_IS_BETTER" ? -rawDelta : rawDelta;
+    return {
+      label: formatSignedSecondsDelta(rawDelta),
+      sortValue: improvementValue,
+      className: weightRoomDeltaClass(improvementValue),
+    };
+  }
+
+  if (measurementType === "DISTANCE" || measurementType === "HEIGHT" || current.unit === "in") {
+    if (typeof current.value !== "number" || typeof baseline.value !== "number") return undefined;
+    const rawDelta = current.value - baseline.value;
+    const improvementValue = direction === "LOWER_IS_BETTER" ? -rawDelta : rawDelta;
+    return {
+      label: formatSignedInchesDelta(rawDelta),
+      sortValue: improvementValue,
+      className: weightRoomDeltaClass(improvementValue),
+    };
+  }
+
+  if (measurementType === "WEIGHT_ONLY") {
+    const currentWeight = current.weight ?? current.value;
+    const baselineWeight = baseline.weight ?? baseline.value;
+    if (typeof currentWeight !== "number" || typeof baselineWeight !== "number") return undefined;
+    const rawDelta = currentWeight - baselineWeight;
+    return {
+      label: `${rawDelta > 0 ? "+" : ""}${formatNumber(rawDelta, 0)} lb`,
+      sortValue: rawDelta,
+      className: weightRoomDeltaClass(rawDelta),
+    };
+  }
+
+  if (measurementType === "REPS_ONLY" || measurementType === "BODYWEIGHT_REPS" || measurementType === "COUNT") {
+    const currentReps = current.reps ?? current.value;
+    const baselineReps = baseline.reps ?? baseline.value;
+    if (typeof currentReps !== "number" || typeof baselineReps !== "number") return undefined;
+    const rawDelta = currentReps - baselineReps;
+    return {
+      label: `${rawDelta > 0 ? "+" : ""}${formatNumber(rawDelta, 0)} reps`,
+      sortValue: rawDelta,
+      className: weightRoomDeltaClass(rawDelta),
+    };
+  }
+
+  const percent = workoutEntryPercentDelta(current, baseline);
+  if (typeof percent !== "number") return undefined;
+  const label = (measurementType === "WEIGHT_REPS" || (!measurementType && (typeof current.weight === "number" || typeof baseline.weight === "number")))
+    ? `e1RM ${formatWorkoutDelta(percent)}`
+    : formatWorkoutDelta(percent);
+  return {
+    label,
+    sortValue: percent,
+    className: weightRoomDeltaClass(percent),
+  };
 }
 
 function weightRoomDeltaClass(value?: number) {
