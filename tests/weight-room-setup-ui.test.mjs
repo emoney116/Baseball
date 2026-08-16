@@ -13,7 +13,11 @@ test("active weight room setup keeps exercise saves and preset UI clean", () => 
   assert.match(exerciseUpsertBlock, /from\("exercises"\)\.upsert\(exerciseRows,\s*\{\s*onConflict:\s*"organization_id,name"\s*\}\)/);
   assert.match(repository, /upsertOrderedWorkoutRows\(\s*supabase,\s*"weight_room_workout_stations"/);
   assert.match(repository, /upsertOrderedWorkoutRows\(\s*supabase,\s*"weight_room_workout_groups"/);
+  assert.match(repository, /upsertOrderedPresetRows\(\s*supabase,\s*"weight_room_exercise_preset_items"/);
+  assert.match(repository, /upsertOrderedPresetRows\(\s*supabase,\s*"weight_room_group_preset_groups"/);
+  assert.match(repository, /function upsertOrderedRowsByParent/);
   assert.match(repository, /normalizeWorkoutDisplayOrder\(rows\)/);
+  assert.match(repository, /normalizePresetDisplayOrder\(rows\)/);
   assert.match(repository, /display_order:\s*index \+ 1/);
   assert.match(repository, /"workout_id,player_id"/);
 
@@ -61,7 +65,10 @@ test("active weight room setup keeps exercise saves and preset UI clean", () => 
   assert.match(page, /type WeightRoomExerciseResultSortKey/);
   assert.match(page, /WeightRoomSortHeader label="Latest"/);
   assert.match(page, /workoutEntryChangeDisplay/);
-  assert.match(page, /e1RM/);
+  assert.match(page, /weight-room-exercise-mode-select/);
+  assert.match(page, /targetStyleOptionsForMeasurement\(exerciseDefinition\.measurementType\)/);
+  assert.doesNotMatch(page, /e1RM/);
+  assert.doesNotMatch(page, /All Categories/);
   assert.match(page, /const workoutActionLabel = activeWorkoutRunning \? "Resume Workout" : "Start Workout"/);
   assert.match(page, /Save Exercise/);
   assert.match(page, /placeholder="Enter exercise\.\.\."/);
@@ -131,9 +138,14 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.match(css, /\.weight-room-exercise-list-scroll \.scroll-cue-panel__body/);
   assert.match(css, /\.weight-room-individual-strip-panel/);
   assert.match(css, /\.weight-room-current-stations--preset/);
+  assert.match(css, /\.weight-room-current-stations--preset > \.weight-room-station-add-row/);
   assert.match(css, /\.weight-room-group-editor__list section\.is-athlete-drop-target/);
   assert.match(css, /\.weight-room-player-list__scroll-panel/);
   assert.match(css, /\.weight-room-exercise-preset-modal/);
+  assert.match(css, /height:\s*min\(680px,\s*calc\(100dvh - 28px\)\)/);
+  assert.match(css, /\.weight-room-exercise-preset-modal \.weight-room-preset-builder__scroll \.scroll-cue-panel__body\s*\{[\s\S]*height:\s*100%/);
+  assert.match(css, /\.weight-room-exercise-mode-select/);
+  assert.match(css, /\.weight-room-exercise-info-panel > div\s*\{[\s\S]*grid-auto-flow:\s*column/);
   assert.match(css, /\.weight-room-exercise-results \.weight-room-result-table__head button/);
   assert.match(css, /\.modal-body\s*\{[\s\S]*overflow:\s*auto/);
   assert.match(css, /\.modal-panel\.has-scroll-bottom \.modal-scroll-fade--bottom/);

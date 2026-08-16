@@ -1982,22 +1982,30 @@ export default function MetrolinaBaseballApp() {
         createdAt: existingPreset?.createdAt ?? now,
         updatedAt: now,
       };
-      const items: PersistedWeightRoomExercisePresetItem[] = preset.stations.map((station, index) => ({
-        id: createId("wepi"),
-        presetId: preset.id,
-        exerciseName: station.name,
-        displayOrder: index + 1,
-        targetSets: station.targetSets,
-        targetReps: station.targetReps,
-        targetValue: station.targetValue,
-        targetStyle: station.targetStyle,
-        measurementType: station.measurementType,
-        performanceDirection: station.performanceDirection,
-        unit: station.unit,
-        notes: station.notes,
-        createdAt: now,
-        updatedAt: now,
-      }));
+      const existingPresetItemByExercise = new Map(
+        (current.weightRoomExercisePresetItems ?? [])
+          .filter((item) => item.presetId === preset.id)
+          .map((item) => [item.exerciseName.toLowerCase(), item]),
+      );
+      const items: PersistedWeightRoomExercisePresetItem[] = preset.stations.map((station, index) => {
+        const existingItem = existingPresetItemByExercise.get(station.name.toLowerCase());
+        return {
+          id: existingItem?.id ?? createId("wepi"),
+          presetId: preset.id,
+          exerciseName: station.name,
+          displayOrder: index + 1,
+          targetSets: station.targetSets,
+          targetReps: station.targetReps,
+          targetValue: station.targetValue,
+          targetStyle: station.targetStyle,
+          measurementType: station.measurementType,
+          performanceDirection: station.performanceDirection,
+          unit: station.unit,
+          notes: station.notes,
+          createdAt: existingItem?.createdAt ?? now,
+          updatedAt: now,
+        };
+      });
 
       return {
         ...current,
@@ -11153,7 +11161,7 @@ function WeightRoomAthleteWorkouts({
         <ChoiceSelect
           value={category}
           className="form-choice"
-          options={categories.map((item) => ({ value: item, label: item === "All" ? "All Categories" : item }))}
+          options={categories.map((item) => ({ value: item, label: item === "All" ? "All" : item }))}
           onChange={(value) => onCategory(value as WeightRoomExerciseCategory | "All")}
           aria-label="Workout exercise category"
         />
@@ -11290,7 +11298,7 @@ function WeightRoomAthleteExercises({
         <ChoiceSelect
           value={category}
           className="form-choice"
-          options={categories.map((item) => ({ value: item, label: item === "All" ? "All Categories" : item }))}
+          options={categories.map((item) => ({ value: item, label: item === "All" ? "All" : item }))}
           onChange={(value) => onCategory(value as WeightRoomExerciseCategory | "All")}
           aria-label="Exercise category"
         />
@@ -11710,7 +11718,7 @@ function WeightRoomExerciseLibraryCard({
               <ChoiceSelect
                 value={category}
                 className="form-choice"
-                options={categories.map((item) => ({ value: item, label: item === "All" ? "All Categories" : item }))}
+                options={categories.map((item) => ({ value: item, label: item === "All" ? "All" : item }))}
                 onChange={(value) => setCategory(value as WeightRoomExerciseCategory | "All")}
                 aria-label="Exercise category"
               />
@@ -11949,11 +11957,15 @@ function WeightRoomExerciseResults({
   onPlayer: (playerId: ID) => void;
 }) {
   const [sort, setSort] = useState<WeightRoomSortState<WeightRoomExerciseResultSortKey>>({ key: "player", direction: "asc" });
+  const exerciseDefaultTargetStyle = exerciseDefinition?.defaultTargetStyle ?? (exerciseDefinition ? defaultTargetStyle(exerciseDefinition.name, exerciseDefinition.measurementType) : undefined);
+  const resultModeOptions = exerciseDefinition ? targetStyleOptionsForMeasurement(exerciseDefinition.measurementType) : [];
+  const [resultModeState, setResultModeState] = useState<{ exercise: string; mode?: WorkoutTargetStyle }>({ exercise, mode: exerciseDefaultTargetStyle });
+  const selectedResultMode = resultModeState.exercise === exercise ? (resultModeState.mode ?? exerciseDefaultTargetStyle) : exerciseDefaultTargetStyle;
   const displayStation = exerciseDefinition ? {
     measurementType: exerciseDefinition.measurementType,
-    targetStyle: exerciseDefinition.defaultTargetStyle ?? defaultTargetStyle(exerciseDefinition.name, exerciseDefinition.measurementType),
+    targetStyle: selectedResultMode ?? exerciseDefaultTargetStyle ?? defaultTargetStyle(exerciseDefinition.name, exerciseDefinition.measurementType),
     unit: exerciseDefinition.unit,
-    performanceDirection: exerciseDefinition.performanceDirection ?? defaultPerformanceDirection(exerciseDefinition.name, exerciseDefinition.measurementType, exerciseDefinition.defaultTargetStyle),
+    performanceDirection: defaultPerformanceDirection(exerciseDefinition.name, exerciseDefinition.measurementType, selectedResultMode ?? exerciseDefinition.defaultTargetStyle),
   } : undefined;
   const rows = players.map((player) => {
     const entries = data.workoutEntries
@@ -11983,12 +11995,11 @@ function WeightRoomExerciseResults({
     if (sort.key === "best") result = compareOptionalNumbers(left.bestSort, right.bestSort, "asc");
     return applySortDirection(result, sort.direction) || left.player.name.localeCompare(right.player.name);
   });
-  const targetStyle = exerciseDefinition?.defaultTargetStyle ?? (exerciseDefinition ? defaultTargetStyle(exerciseDefinition.name, exerciseDefinition.measurementType) : undefined);
   const infoItems = exerciseDefinition ? [
     { label: "Category", value: exerciseDefinition.category },
     { label: "Measurement", value: workoutMeasurementTypeLabel(exerciseDefinition.measurementType) },
-    { label: "Default Target", value: targetStyle },
-    { label: "Default Sets", value: `${exerciseDefinition.targetSets ?? defaultTargetSetsForStyle(targetStyle ?? "Standard")}` },
+    { label: "Default Target", value: exerciseDefaultTargetStyle },
+    { label: "Default Sets", value: `${exerciseDefinition.targetSets ?? defaultTargetSetsForStyle(exerciseDefaultTargetStyle ?? "Standard")}` },
     exerciseDefinition.targetReps ? { label: "Target Reps", value: `${exerciseDefinition.targetReps}` } : undefined,
     exerciseDefinition.targetValue ? { label: "Target Value", value: formatNumber(exerciseDefinition.targetValue, 1) } : undefined,
     exerciseDefinition.equipment ? { label: "Equipment", value: exerciseDefinition.equipment } : undefined,
@@ -12005,6 +12016,15 @@ function WeightRoomExerciseResults({
           <span>Selected Exercise</span>
           <h2>{exercise}</h2>
         </div>
+        {selectedResultMode && resultModeOptions.length > 1 ? (
+          <ChoiceSelect
+            value={selectedResultMode}
+            className="form-choice weight-room-exercise-mode-select"
+            options={resultModeOptions.map((style) => ({ value: style, label: style }))}
+            onChange={(value) => setResultModeState({ exercise, mode: value as WorkoutTargetStyle })}
+            aria-label={`${exercise} result mode`}
+          />
+        ) : null}
       </div>
       <div className="weight-room-exercise-result-tabs" role="tablist" aria-label={`${exercise} detail sections`}>
         <button type="button" className="active" role="tab" aria-selected="true">Results</button>
@@ -15953,10 +15973,10 @@ function applyWeightRoomSetupToData(data: AppData, payload: WeightRoomSetupPaylo
       updatedAt: now,
     };
   });
-  const existingExercisePresetItemByKey = new Map((data.weightRoomExercisePresetItems ?? []).map((item) => [`${item.presetId}:${item.displayOrder}:${item.exerciseName.toLowerCase()}`, item]));
+  const existingExercisePresetItemByKey = new Map((data.weightRoomExercisePresetItems ?? []).map((item) => [`${item.presetId}:${item.exerciseName.toLowerCase()}`, item]));
   const nextExercisePresetItems: PersistedWeightRoomExercisePresetItem[] = savedExercisePresets.flatMap((preset) =>
     preset.stations.map((station, index) => {
-      const existing = existingExercisePresetItemByKey.get(`${preset.id}:${index + 1}:${station.name.toLowerCase()}`);
+      const existing = existingExercisePresetItemByKey.get(`${preset.id}:${station.name.toLowerCase()}`);
       return {
         id: existing?.id ?? createId("wepi"),
         presetId: preset.id,
@@ -16681,11 +16701,8 @@ function workoutEntryChangeDisplay(
 
   const percent = workoutEntryPercentDelta(current, baseline);
   if (typeof percent !== "number") return undefined;
-  const label = (measurementType === "WEIGHT_REPS" || (!measurementType && (typeof current.weight === "number" || typeof baseline.weight === "number")))
-    ? `e1RM ${formatWorkoutDelta(percent)}`
-    : formatWorkoutDelta(percent);
   return {
-    label,
+    label: formatWorkoutDelta(percent),
     sortValue: percent,
     className: weightRoomDeltaClass(percent),
   };

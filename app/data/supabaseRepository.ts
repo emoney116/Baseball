@@ -1847,7 +1847,7 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       })),
     );
 
-    await upsertRows(
+    await upsertOrderedPresetRows(
       supabase,
       "weight_room_exercise_preset_items",
       (data.weightRoomExercisePresetItems ?? []).map((item) => ({
@@ -1885,7 +1885,7 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       })),
     );
 
-    await upsertRows(
+    await upsertOrderedPresetRows(
       supabase,
       "weight_room_group_preset_groups",
       (data.weightRoomGroupPresetGroups ?? []).map((group) => ({
@@ -2235,33 +2235,59 @@ async function upsertOrderedWorkoutRows(
 ) {
   if (rows.length === 0) return;
   const normalizedRows = normalizeWorkoutDisplayOrder(rows);
-  const workoutIds = [...new Set(normalizedRows.map((row) => row.workout_id))];
+  await upsertOrderedRowsByParent(supabase, table, "workout_id", normalizedRows);
+}
+
+async function upsertOrderedPresetRows(
+  supabase: SupabaseClient,
+  table: string,
+  rows: Array<Record<string, unknown> & { id: string; preset_id: string; display_order: number }>,
+) {
+  if (rows.length === 0) return;
+  const normalizedRows = normalizePresetDisplayOrder(rows);
+  await upsertOrderedRowsByParent(supabase, table, "preset_id", normalizedRows);
+}
+
+async function upsertOrderedRowsByParent(
+  supabase: SupabaseClient,
+  table: string,
+  parentColumn: string,
+  rows: Array<Record<string, unknown> & { id: string; display_order: number }>,
+) {
+  if (rows.length === 0) return;
+  const parentIds = [...new Set(rows.map((row) => orderedRowParentValue(row, parentColumn)).filter(Boolean))];
+  if (parentIds.length === 0) return;
   const { data: existingRows, error: existingError } = await supabase
     .from(table)
-    .select("id,workout_id,display_order")
-    .in("workout_id", workoutIds);
+    .select("*")
+    .in(parentColumn, parentIds);
   if (existingError) throw new PersistenceError("save-failed", existingError.message);
 
-  const existing = (existingRows ?? []) as Array<{ id: string; workout_id: string; display_order: number }>;
+  const existing = (existingRows ?? []) as Array<Record<string, unknown> & { id: string; display_order: number }>;
+  const parkingStart = Math.min(-100000, ...existing.map((row) => row.display_order)) - existing.length - 1;
   for (const [index, row] of existing.entries()) {
     const { error } = await supabase
       .from(table)
-      .update({ display_order: -100000 - index })
+      .update({ display_order: parkingStart - index })
       .eq("id", row.id);
     if (error) throw new PersistenceError("save-failed", error.message);
   }
 
-  await upsertRows(supabase, table, normalizedRows);
+  await upsertRows(supabase, table, rows);
 
-  const incomingIds = new Set(normalizedRows.map((row) => row.id));
-  const maxOrderByWorkout = new Map<string, number>();
-  normalizedRows.forEach((row) => {
-    maxOrderByWorkout.set(row.workout_id, Math.max(maxOrderByWorkout.get(row.workout_id) ?? 0, row.display_order));
+  const incomingIds = new Set(rows.map((row) => row.id));
+  const maxOrderByParent = new Map<string, number>();
+  rows.forEach((row) => {
+    const parentValue = orderedRowParentValue(row, parentColumn);
+    if (!parentValue) return;
+    maxOrderByParent.set(parentValue, Math.max(maxOrderByParent.get(parentValue) ?? 0, row.display_order));
   });
 
   for (const row of existing.filter((item) => !incomingIds.has(item.id)).sort((left, right) => left.display_order - right.display_order)) {
-    const nextOrder = (maxOrderByWorkout.get(row.workout_id) ?? 0) + 1;
-    maxOrderByWorkout.set(row.workout_id, nextOrder);
+    const parentValue = orderedRowParentValue(row, parentColumn);
+    if (!parentValue) continue;
+    const nextOrder = (maxOrderByParent.get(parentValue) ?? 0) + 1;
+    maxOrderByParent.set(parentValue, nextOrder);
     const { error } = await supabase
       .from(table)
       .update({ display_order: nextOrder })
@@ -2270,13 +2296,27 @@ async function upsertOrderedWorkoutRows(
   }
 }
 
+function orderedRowParentValue(row: Record<string, unknown>, parentColumn: string) {
+  const value = row[parentColumn];
+  return typeof value === "string" ? value : "";
+}
+
 function normalizeWorkoutDisplayOrder<T extends Record<string, unknown> & { workout_id: string; display_order: number }>(rows: T[]): T[] {
+  return normalizeParentDisplayOrder(rows, "workout_id");
+}
+
+function normalizePresetDisplayOrder<T extends Record<string, unknown> & { preset_id: string; display_order: number }>(rows: T[]): T[] {
+  return normalizeParentDisplayOrder(rows, "preset_id");
+}
+
+function normalizeParentDisplayOrder<T extends Record<string, unknown> & { display_order: number }>(rows: T[], parentColumn: string): T[] {
   const indexed = rows.map((row, index) => ({ row, index }));
   const grouped = new Map<string, typeof indexed>();
   indexed.forEach((item) => {
-    const group = grouped.get(item.row.workout_id) ?? [];
+    const parentValue = orderedRowParentValue(item.row, parentColumn);
+    const group = grouped.get(parentValue) ?? [];
     group.push(item);
-    grouped.set(item.row.workout_id, group);
+    grouped.set(parentValue, group);
   });
 
   const nextRows = [...rows];
