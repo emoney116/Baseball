@@ -3792,6 +3792,25 @@ textarea:focus-visible {
   opacity: 0.42;
 }
 
+.choice-select__menu--portal.has-scroll-up {
+  box-shadow:
+    inset 0 18px 18px -20px rgba(255, 255, 255, 0.24),
+    0 18px 38px rgba(0, 0, 0, 0.34);
+}
+
+.choice-select__menu--portal.has-scroll-down {
+  box-shadow:
+    inset 0 -18px 18px -20px rgba(255, 255, 255, 0.24),
+    0 18px 38px rgba(0, 0, 0, 0.34);
+}
+
+.choice-select__menu--portal.has-scroll-up.has-scroll-down {
+  box-shadow:
+    inset 0 18px 18px -20px rgba(255, 255, 255, 0.24),
+    inset 0 -18px 18px -20px rgba(255, 255, 255, 0.24),
+    0 18px 38px rgba(0, 0, 0, 0.34);
+}
+
 .choice-select__menu button span {
   min-width: 0;
   overflow: hidden;
@@ -17933,7 +17952,7 @@ body,
 
 /* Weight Room athlete analytics workspace */
 .weight-room-athlete-workspace {
-  --weight-room-athlete-min-height: clamp(600px, calc(100dvh - 150px), 780px);
+  --weight-room-athlete-min-height: clamp(420px, calc(100dvh - 220px), 620px);
   grid-template-columns: minmax(235px, 285px) minmax(0, 1fr);
   align-items: stretch;
   grid-auto-rows: auto;
@@ -19300,7 +19319,7 @@ button.weight-room-athlete-table__row:hover {
 .weight-room-preset-builder {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(240px, 0.92fr);
+  grid-template-columns: minmax(0, 1.45fr) minmax(220px, 0.72fr);
   gap: 12px;
   align-items: stretch;
 }
@@ -19337,6 +19356,26 @@ button.weight-room-athlete-table__row:hover {
 
 .weight-room-preset-builder__scroll .scroll-cue-panel__body {
   max-height: min(48dvh, 420px);
+}
+
+.weight-room-current-stations--preset {
+  max-height: min(48dvh, 430px);
+  min-width: 0;
+  overflow: auto;
+}
+
+.weight-room-current-stations--preset > .weight-room-current-stations__head,
+.weight-room-current-stations--preset > .weight-room-current-stations__row {
+  min-width: 620px;
+}
+
+.weight-room-preset-empty {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 36%, transparent);
 }
 
 .weight-room-preset-selected-list,
@@ -21309,6 +21348,15 @@ button.weight-room-athlete-table__row:hover {
 
 .weight-room-group-editor__list section {
   grid-template-columns: 1fr;
+  transition: border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.weight-room-group-editor__list section.is-athlete-drop-target {
+  border-color: color-mix(in srgb, var(--burgundy) 68%, var(--line));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--burgundy) 13%, transparent), transparent 62%),
+    color-mix(in srgb, var(--bg) 42%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--burgundy) 20%, transparent);
 }
 
 .weight-room-group-editor__list section > div:first-child {
@@ -21336,7 +21384,17 @@ button.weight-room-athlete-table__row:hover {
   color: var(--text);
   padding: 5px 8px 5px 5px;
   font-size: var(--text-secondary-body);
-  cursor: pointer;
+  cursor: grab;
+}
+
+.weight-room-group-members button:active {
+  cursor: grabbing;
+}
+
+.weight-room-group-members button.is-dragging {
+  opacity: 0.56;
+  border-color: color-mix(in srgb, var(--burgundy) 58%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 18%, var(--panel-strong));
 }
 
 .weight-room-group-members button span {
@@ -21425,6 +21483,19 @@ button.weight-room-athlete-table__row:hover {
   gap: 8px;
   border-top: 1px solid var(--line);
   padding-top: 10px;
+}
+
+.weight-room-group-drag-hint {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  border: 1px solid color-mix(in srgb, var(--burgundy) 36%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--burgundy) 10%, var(--panel-strong));
+  color: var(--muted-strong);
+  padding: 4px 9px;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-ui);
 }
 
 .weight-room-unassigned-list > div:first-child {
@@ -21863,6 +21934,8 @@ button.weight-room-athlete-table__row:hover {
   overflow-x: auto;
   scrollbar-width: none;
   padding: 0 34px 2px 1px;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
 }
 
 .weight-room-individual-strip-panel {
@@ -21889,6 +21962,7 @@ button.weight-room-athlete-table__row:hover {
   background: color-mix(in srgb, var(--panel-strong) 48%, transparent);
   color: var(--muted-strong);
   padding: 7px;
+  scroll-snap-align: start;
 }
 
 .weight-room-individual-strip button.active {

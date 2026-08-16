@@ -3065,6 +3065,18 @@ function ChoiceSelect({
     }
   };
 
+  const handleMenuWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    const menu = menuRef.current;
+    if (!menu || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    const maxScrollTop = Math.max(0, menu.scrollHeight - menu.clientHeight);
+    if (maxScrollTop <= SCROLL_EDGE_THRESHOLD) return;
+    const nextScrollTop = clampNumber(menu.scrollTop + event.deltaY, 0, maxScrollTop);
+    if (Math.abs(nextScrollTop - menu.scrollTop) <= 0.5) return;
+    event.preventDefault();
+    event.stopPropagation();
+    menu.scrollTop = nextScrollTop;
+  };
+
   useEffect(() => {
     if (!open) return;
 
@@ -3142,6 +3154,7 @@ function ChoiceSelect({
           tabIndex={-1}
           aria-label={ariaLabel ?? label}
           onKeyDown={handleMenuKeyDown}
+          onWheel={handleMenuWheel}
           style={{
             top: menuPosition.top,
             left: menuPosition.left,
@@ -3149,7 +3162,6 @@ function ChoiceSelect({
             maxHeight: menuPosition.maxHeight,
           }}
         >
-          <span className="choice-select__menu-edge choice-select__menu-edge--top" aria-hidden="true"><ChevronUp size={13} /></span>
           {options.map((option) => (
             <button
               key={option.value}
@@ -3169,7 +3181,6 @@ function ChoiceSelect({
               </span>
             </button>
           ))}
-          <span className="choice-select__menu-edge choice-select__menu-edge--bottom" aria-hidden="true"><ChevronDown size={13} /></span>
         </div>
       </>,
       document.body,
@@ -9577,9 +9588,12 @@ function WeightRoomGroupEditor({
   onSaveGroupPreset: () => void;
   onGroupPresetName: (value: string) => void;
 }) {
+  const [draggedPlayerId, setDraggedPlayerId] = useState<ID | undefined>();
+  const [dropGroupId, setDropGroupId] = useState<ID | undefined>();
   const assigned = new Set(groups.flatMap((group) => group.playerIds));
   const unassigned = players.filter((player) => !assigned.has(player.id));
   const groupByPlayerId = new Map(groups.flatMap((group) => group.playerIds.map((playerId) => [playerId, group.name] as const)));
+  const draggedPlayer = draggedPlayerId ? players.find((player) => player.id === draggedPlayerId) : undefined;
   return (
     <div className="weight-room-group-editor">
       <div className="weight-room-editor-head">
@@ -9610,7 +9624,29 @@ function WeightRoomGroupEditor({
         {groups.map((group) => {
           const members = group.playerIds.map((playerId) => players.find((player) => player.id === playerId)).filter((player): player is Player => Boolean(player));
           return (
-            <section key={group.id}>
+            <section
+              key={group.id}
+              className={dropGroupId === group.id ? "is-athlete-drop-target" : ""}
+              onDragOver={(event) => {
+                if (!draggedPlayerId) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                setDropGroupId(group.id);
+              }}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                  setDropGroupId((current) => (current === group.id ? undefined : current));
+                }
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                if (draggedPlayerId && !group.playerIds.includes(draggedPlayerId)) {
+                  onAddPlayer(group.id, draggedPlayerId);
+                }
+                setDraggedPlayerId(undefined);
+                setDropGroupId(undefined);
+              }}
+            >
               <div>
                 <strong>{group.name}</strong>
                 <small>{members.length} athlete{members.length === 1 ? "" : "s"}</small>
@@ -9618,7 +9654,24 @@ function WeightRoomGroupEditor({
               </div>
               <div className="weight-room-group-members">
                 {members.map((player) => (
-                  <button key={player.id} type="button" onClick={() => onRemovePlayer(group.id, player.id)} title={`Remove ${player.name}`}>
+                  <button
+                    key={player.id}
+                    type="button"
+                    draggable
+                    className={draggedPlayerId === player.id ? "is-dragging" : ""}
+                    onDragStart={(event) => {
+                      setDraggedPlayerId(player.id);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", player.id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedPlayerId(undefined);
+                      setDropGroupId(undefined);
+                    }}
+                    onClick={() => onRemovePlayer(group.id, player.id)}
+                    title={`Drag ${player.name} to another group or click to remove`}
+                    aria-label={`Drag or remove ${player.name}`}
+                  >
                     <PlayerAvatar player={player} size="sm" compact />
                     <span>{player.name}</span>
                     <X size={12} aria-hidden="true" />
@@ -9653,6 +9706,7 @@ function WeightRoomGroupEditor({
           );
         })}
       </div>
+      {draggedPlayer && <span className="weight-room-group-drag-hint">Drop {draggedPlayer.name} on a group to move.</span>}
       <section className="weight-room-unassigned-list">
         <div><strong>Unassigned</strong><small>{unassigned.length} athlete{unassigned.length === 1 ? "" : "s"}</small></div>
         <div>
@@ -11446,7 +11500,9 @@ function WeightRoomExerciseLibraryCard({
   const [presetOpen, setPresetOpen] = useState(false);
   const [editingPreset, setEditingPreset] = useState<WeightRoomExercisePreset | undefined>();
   const [presetName, setPresetName] = useState("");
-  const [presetOrder, setPresetOrder] = useState<string[]>(() => activeExercise ? [activeExercise.toLowerCase()] : []);
+  const [presetStations, setPresetStations] = useState<ActiveWorkoutStation[]>(() => initialPresetStations());
+  const [draggedPresetStationId, setDraggedPresetStationId] = useState<ID | undefined>();
+  const [dropPresetStationTarget, setDropPresetStationTarget] = useState<{ id: ID; position: "before" | "after" } | undefined>();
   const [confirmingExercise, setConfirmingExercise] = useState<string | undefined>();
   const [confirmingPreset, setConfirmingPreset] = useState<ID | undefined>();
   const [hiddenExercises, setHiddenExercises] = useState<Set<string>>(() => new Set());
@@ -11462,6 +11518,13 @@ function WeightRoomExerciseLibraryCard({
   const exerciseCategoryOptions = categories.filter((item): item is WeightRoomExerciseCategory => item !== "All");
   const measurementOptions = (["WEIGHT_REPS", "REPS_ONLY", "TIME", "DISTANCE", "WEIGHT_ONLY", "COUNT", "COMPLETION"] as WorkoutMeasurementType[])
     .map((type) => ({ value: type, label: workoutMeasurementTypeLabel(type) }));
+  const presetStationKeys = useMemo(() => new Set(presetStations.map((station) => station.name.toLowerCase())), [presetStations]);
+
+  function initialPresetStations() {
+    if (!activeExercise) return [];
+    const exercise = exercises.find((item) => item.name.toLowerCase() === activeExercise.toLowerCase());
+    return exercise ? [createActiveWorkoutStation(exercise, 0)] : [];
+  }
 
   function openExerciseEditor(exercise?: WeightRoomExercise) {
     const measurementType = exercise?.measurementType ?? "";
@@ -11511,11 +11574,11 @@ function WeightRoomExerciseLibraryCard({
 
   function openPresetBuilder(preset?: WeightRoomExercisePreset) {
     const selection = preset
-      ? preset.stations.map((station) => station.name.toLowerCase())
-      : activeExercise ? [activeExercise.toLowerCase()] : [];
+      ? normalizeActiveStations(copyExercisePresetToStations(preset.stations).map((station, index) => ensureActiveWorkoutStation(station, index)))
+      : initialPresetStations();
     setEditingPreset(preset);
     setConfirmingPreset(undefined);
-    setPresetOrder(selection);
+    setPresetStations(selection);
     setPresetName(preset?.name ?? "");
     setPresetOpen(true);
   }
@@ -11524,33 +11587,51 @@ function WeightRoomExerciseLibraryCard({
     setPresetOpen(false);
     setEditingPreset(undefined);
     setPresetName("");
-    setPresetOrder([]);
+    setPresetStations([]);
+    setDraggedPresetStationId(undefined);
+    setDropPresetStationTarget(undefined);
   }
 
   function togglePresetExercise(exercise: WeightRoomExercise) {
     const key = exercise.name.toLowerCase();
-    setPresetOrder((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+    setPresetStations((current) => (
+      current.some((station) => station.name.toLowerCase() === key)
+        ? normalizeActiveStations(current.filter((station) => station.name.toLowerCase() !== key))
+        : normalizeActiveStations([...current, createActiveWorkoutStation(exercise, current.length)])
+    ));
   }
 
-  function movePresetExercise(key: string, direction: -1 | 1) {
-    setPresetOrder((current) => {
-      const index = current.indexOf(key);
-      const nextIndex = index + direction;
-      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+  function addNextPresetExercise() {
+    const nextExercise = exerciseRows.find((exercise) => !presetStationKeys.has(exercise.name.toLowerCase()));
+    if (nextExercise) togglePresetExercise(nextExercise);
+  }
+
+  function removePresetStation(stationId: ID) {
+    setPresetStations((current) => normalizeActiveStations(current.filter((station) => station.id !== stationId)));
+  }
+
+  function updatePresetStation(
+    stationId: ID,
+    patch: Partial<Pick<ActiveWorkoutStation, "targetSets" | "targetReps" | "targetValue" | "targetStyle" | "measurementType" | "performanceDirection" | "notes">>,
+  ) {
+    setPresetStations((current) => normalizeActiveStations(current.map((station) => (station.id === stationId ? { ...station, ...patch } : station))));
+  }
+
+  function reorderPresetStation(stationId: ID, targetIndex: number) {
+    setPresetStations((current) => {
+      const index = current.findIndex((station) => station.id === stationId);
+      if (index < 0 || index === targetIndex) return current;
       const next = [...current];
-      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-      return next;
+      const [station] = next.splice(index, 1);
+      next.splice(Math.max(0, Math.min(targetIndex, next.length)), 0, station);
+      return normalizeActiveStations(next);
     });
   }
 
   function savePreset() {
     const name = presetName.trim();
-    if (!name || !presetOrder.length) return;
-    const exerciseByKey = new Map(exerciseRows.map((exercise) => [exercise.name.toLowerCase(), exercise]));
-    const stations = presetOrder
-      .map((key) => exerciseByKey.get(key))
-      .filter((exercise): exercise is WeightRoomExercise => Boolean(exercise))
-      .map((exercise, index) => createActiveWorkoutStation(exercise, index));
+    if (!name || !presetStations.length) return;
+    const stations = copyExercisePresetToStations(presetStations).map((station, index) => ensureActiveWorkoutStation(station, index));
     onSavePreset({ id: editingPreset?.id ?? createId("wep"), name, stations });
     closePresetBuilder();
   }
@@ -11690,7 +11771,7 @@ function WeightRoomExerciseLibraryCard({
           <div className="weight-room-exercise-modal__body">
             <label>
               <span>Exercise Name</span>
-              <input value={draftName} onChange={(event) => setDraftName(event.target.value)} placeholder="Back Squat" />
+              <input value={draftName} onChange={(event) => setDraftName(event.target.value)} placeholder="Enter exercise..." />
             </label>
             <ChoiceSelect
               label="Category"
@@ -11745,29 +11826,82 @@ function WeightRoomExerciseLibraryCard({
               <section>
                 <div className="weight-room-preset-builder__head">
                   <strong>Preset Order</strong>
-                  <small>{presetOrder.length} exercise{presetOrder.length === 1 ? "" : "s"}</small>
+                  <small>{presetStations.length} exercise{presetStations.length === 1 ? "" : "s"}</small>
                 </div>
-                <ScrollablePanel className="weight-room-preset-builder__scroll" bodyClassName="weight-room-preset-selected-list" ariaLabel="selected preset exercises">
-                  {presetOrder.map((key, index) => {
-                    const exercise = exerciseRows.find((item) => item.name.toLowerCase() === key);
-                    if (!exercise) return null;
-                    return (
-                      <div key={key} className="weight-room-preset-selected-row">
-                        <span className="weight-room-station-number">{index + 1}</span>
-                        <span>
-                          <strong>{exercise.name}</strong>
-                          <small>{exercise.category} - {exercise.defaultTargetStyle ?? defaultTargetStyle(exercise.name, exercise.measurementType)}</small>
+                {presetStations.length > 0 ? (
+                  <div className="weight-room-current-stations weight-room-current-stations--builder weight-room-current-stations--preset" role="table" aria-label="Preset exercise order">
+                    <button type="button" className="weight-room-station-add-row" onClick={addNextPresetExercise} disabled={presetStations.length >= exerciseRows.length}>
+                      <Plus size={14} aria-hidden="true" />
+                      Add Exercise
+                    </button>
+                    <div className="weight-room-current-stations__head" role="row">
+                      <span>#</span>
+                      <span>Exercise</span>
+                      <span>Style</span>
+                      <span>Sets</span>
+                      <span>Reps / Value</span>
+                    </div>
+                    {presetStations.map((station, index) => (
+                      <div
+                        key={station.id}
+                        role="row"
+                        draggable
+                        tabIndex={0}
+                        className={[
+                          "weight-room-current-stations__row",
+                          draggedPresetStationId === station.id ? "is-dragging" : "",
+                          dropPresetStationTarget?.id === station.id ? `is-drop-${dropPresetStationTarget.position}` : "",
+                        ].filter(Boolean).join(" ")}
+                        onDragStart={(event) => {
+                          setDraggedPresetStationId(station.id);
+                          event.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          const bounds = event.currentTarget.getBoundingClientRect();
+                          setDropPresetStationTarget({ id: station.id, position: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after" });
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          if (draggedPresetStationId) {
+                            reorderPresetStation(draggedPresetStationId, dropPresetStationTarget?.position === "after" ? index + 1 : index);
+                          }
+                          setDraggedPresetStationId(undefined);
+                          setDropPresetStationTarget(undefined);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedPresetStationId(undefined);
+                          setDropPresetStationTarget(undefined);
+                        }}
+                        onKeyDown={(event) => {
+                          if (!event.altKey) return;
+                          if (event.key === "ArrowUp" && index > 0) {
+                            event.preventDefault();
+                            reorderPresetStation(station.id, index - 1);
+                          }
+                          if (event.key === "ArrowDown" && index < presetStations.length - 1) {
+                            event.preventDefault();
+                            reorderPresetStation(station.id, index + 1);
+                          }
+                        }}
+                      >
+                        <em>{index + 1}</em>
+                        <span className="weight-room-station-main">
+                          <span>
+                            <strong>{station.name}</strong>
+                            <button type="button" onClick={() => removePresetStation(station.id)} aria-label={`Remove ${station.name}`}><Trash2 size={13} aria-hidden="true" /></button>
+                          </span>
+                          <small>{station.category}</small>
                         </span>
-                        <span className="weight-room-preset-selected-actions">
-                          <button type="button" onClick={() => movePresetExercise(key, -1)} disabled={index === 0} aria-label={`Move ${exercise.name} up`}><ChevronUp size={13} aria-hidden="true" /></button>
-                          <button type="button" onClick={() => movePresetExercise(key, 1)} disabled={index === presetOrder.length - 1} aria-label={`Move ${exercise.name} down`}><ChevronDown size={13} aria-hidden="true" /></button>
-                          <button type="button" onClick={() => togglePresetExercise(exercise)} aria-label={`Remove ${exercise.name} from preset`}>-</button>
-                        </span>
+                        <WorkoutStationTargetControls station={station} onUpdate={(patch) => updatePresetStation(station.id, patch)} />
                       </div>
-                    );
-                  })}
-                  {!presetOrder.length && <CompactEmpty title="Add exercises from the library." />}
-                </ScrollablePanel>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="weight-room-preset-empty">
+                    <CompactEmpty title="Add exercises from the library." />
+                  </div>
+                )}
               </section>
               <section>
                 <div className="weight-room-preset-builder__head">
@@ -11776,12 +11910,11 @@ function WeightRoomExerciseLibraryCard({
                 </div>
                 <ScrollablePanel className="weight-room-preset-builder__scroll" bodyClassName="weight-room-preset-library-list" ariaLabel="preset exercise library">
                   {exerciseRows.map((exercise) => {
-                    const selected = presetOrder.includes(exercise.name.toLowerCase());
+                    const selected = presetStationKeys.has(exercise.name.toLowerCase());
                     return (
                       <button key={exercise.name} type="button" className={selected ? "active" : ""} onClick={() => togglePresetExercise(exercise)}>
                         <span>{selected ? <Check size={14} aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}</span>
                         <strong>{exercise.name}</strong>
-                        <small>{exercise.category} - {exercise.defaultTargetStyle ?? defaultTargetStyle(exercise.name, exercise.measurementType)}</small>
                       </button>
                     );
                   })}
@@ -11791,7 +11924,7 @@ function WeightRoomExerciseLibraryCard({
           </div>
           <div className="modal-actions">
             <button className="secondary-button" type="button" onClick={closePresetBuilder}>Cancel</button>
-            <button className="primary-button" type="button" onClick={savePreset} disabled={!presetName.trim() || !presetOrder.length}>
+            <button className="primary-button" type="button" onClick={savePreset} disabled={!presetName.trim() || !presetStations.length}>
               <Save size={16} aria-hidden="true" />
               Save Preset
             </button>
@@ -15288,6 +15421,17 @@ function ScrollablePanel({
     body.scrollBy({ top, left, behavior });
   }
 
+  function handleBodyWheel(event: React.WheelEvent<HTMLDivElement>) {
+    const body = bodyRef.current;
+    if (!body || direction !== "horizontal" || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    const maxScrollLeft = Math.max(0, body.scrollWidth - body.clientWidth);
+    if (maxScrollLeft <= SCROLL_EDGE_THRESHOLD) return;
+    const nextScrollLeft = clampNumber(body.scrollLeft + event.deltaY, 0, maxScrollLeft);
+    if (Math.abs(nextScrollLeft - body.scrollLeft) <= 0.5) return;
+    event.preventDefault();
+    body.scrollLeft = nextScrollLeft;
+  }
+
   const showVertical = direction === "vertical" || direction === "both";
   const showHorizontal = direction === "horizontal" || direction === "both";
   const canCueUp = showVertical && edges.canScrollUp;
@@ -15306,7 +15450,7 @@ function ScrollablePanel({
       className,
     ].filter(Boolean).join(" ")}>
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Scrollable hidden-scrollbar regions need keyboard focus. */}
-      <div ref={bodyRef} className={["scroll-cue-panel__body", bodyClassName].filter(Boolean).join(" ")} role="region" tabIndex={0} aria-label={ariaLabel}>
+      <div ref={bodyRef} className={["scroll-cue-panel__body", bodyClassName].filter(Boolean).join(" ")} role="region" tabIndex={0} aria-label={ariaLabel} onWheel={handleBodyWheel}>
         {children}
       </div>
       <span className="scroll-cue-panel__fade scroll-cue-panel__fade--top" aria-hidden="true" />

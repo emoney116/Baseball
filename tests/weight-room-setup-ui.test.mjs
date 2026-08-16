@@ -45,6 +45,12 @@ test("active weight room setup keeps exercise saves and preset UI clean", () => 
   assert.match(page, /Edit Exercise Preset/);
   assert.match(page, /weight-room-exercise-preset-modal/);
   assert.match(page, /weight-room-preset-builder/);
+  assert.match(page, /const \[presetStations, setPresetStations\]/);
+  assert.match(page, /weight-room-current-stations--preset/);
+  assert.match(page, /function reorderPresetStation/);
+  assert.match(page, /onDragOver=\{\(event\) =>/);
+  assert.match(page, /is-athlete-drop-target/);
+  assert.doesNotMatch(page, /movePresetExercise/);
   assert.match(page, /function archivePreset/);
   assert.match(page, /onSavePreset\(\{ \.\.\.preset, archived: true \}\)/);
   assert.match(page, /useState<WeightRoomExerciseCategory \| "">\(""\)/);
@@ -58,6 +64,7 @@ test("active weight room setup keeps exercise saves and preset UI clean", () => 
   assert.match(page, /e1RM/);
   assert.match(page, /const workoutActionLabel = activeWorkoutRunning \? "Resume Workout" : "Start Workout"/);
   assert.match(page, /Save Exercise/);
+  assert.match(page, /placeholder="Enter exercise\.\.\."/);
   assert.match(page, /formatWorkoutEntryValueForStation/);
   assert.match(page, /leaders=\{weightLeaderRows\}/);
   assert.doesNotMatch(page, /Exercise View/);
@@ -89,8 +96,9 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.match(choiceSelect, /placement:\s*"top"\s*\|\s*"bottom"\s*\|\s*"sheet"/);
   assert.match(choiceSelect, /menuPosition\.placement === "sheet"/);
   assert.match(choiceSelect, /choice-select__sheet-scrim/);
-  assert.match(choiceSelect, /choice-select__menu-edge--top/);
-  assert.match(choiceSelect, /choice-select__menu-edge--bottom/);
+  assert.match(choiceSelect, /const handleMenuWheel/);
+  assert.match(choiceSelect, /onWheel=\{handleMenuWheel\}/);
+  assert.match(choiceSelect, /event\.stopPropagation\(\)/);
   assert.match(choiceSelect, /event\.key === "Enter" \|\| event\.key === " "/);
   assert.match(choiceSelect, /scrollIntoView\(\{\s*block:\s*"nearest"\s*\}\)/);
   assert.match(choiceSelect, /maxHeight:\s*menuPosition\.maxHeight/);
@@ -100,6 +108,8 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.match(orgChoiceSelect, /createPortal\(/);
   assert.match(orgChoiceSelect, /choice-select__menu--portal/);
   assert.match(orgChoiceSelect, /visualViewport/);
+  assert.match(orgChoiceSelect, /const handleMenuWheel/);
+  assert.match(orgChoiceSelect, /onWheel=\{handleMenuWheel\}/);
   assert.match(css, /\.choice-select__menu--portal\s*\{[\s\S]*position:\s*fixed/);
   assert.match(css, /z-index:\s*10000/);
   assert.match(css, /max-width:\s*calc\(100vw - 24px\)/);
@@ -115,11 +125,13 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.match(css, /\.scroll-cue-panel\.has-scroll-down \.scroll-cue-panel__cue--down/);
   assert.match(css, /\.scroll-cue-panel\.has-scroll-right \.scroll-cue-panel__cue--right/);
   assert.match(css, /place-items:\s*center/);
-  assert.match(css, /\.choice-select__menu--portal\.has-scroll-down \.choice-select__menu-edge--bottom/);
+  assert.match(css, /\.choice-select__menu--portal\.has-scroll-up\.has-scroll-down/);
   assert.match(css, /\.weight-room-presets-card/);
   assert.match(css, /\.weight-room-exercise-left-column/);
   assert.match(css, /\.weight-room-exercise-list-scroll \.scroll-cue-panel__body/);
   assert.match(css, /\.weight-room-individual-strip-panel/);
+  assert.match(css, /\.weight-room-current-stations--preset/);
+  assert.match(css, /\.weight-room-group-editor__list section\.is-athlete-drop-target/);
   assert.match(css, /\.weight-room-player-list__scroll-panel/);
   assert.match(css, /\.weight-room-exercise-preset-modal/);
   assert.match(css, /\.weight-room-exercise-results \.weight-room-result-table__head button/);
