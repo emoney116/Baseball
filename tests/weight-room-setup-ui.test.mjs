@@ -75,6 +75,8 @@ test("active weight room setup keeps exercise saves and preset UI clean", () => 
   assert.match(page, /workoutEntryComparableForStation\(latest, displayStation\)/);
   assert.match(page, /athleteDetailsRef/);
   assert.match(page, /getBoundingClientRect\(\)\.height/);
+  assert.match(page, /weight-room-exercise-progress-scroll/);
+  assert.doesNotMatch(page, /Exercise Breakdown/);
   assert.doesNotMatch(page, /e1RM/);
   assert.doesNotMatch(page, /All Categories/);
   assert.match(page, /const workoutActionLabel = activeWorkoutRunning \? "Resume Workout" : "Start Workout"/);
@@ -150,8 +152,13 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.match(css, /\.weight-room-group-editor__list section\.is-athlete-drop-target/);
   assert.match(css, /\.weight-room-player-list__scroll-panel/);
   assert.match(css, /--weight-room-athlete-detail-height/);
+  assert.match(css, /\.weight-room-athlete-workspace\s*\{[\s\S]*align-items:\s*start/);
   assert.match(css, /\.weight-room-athlete-workspace \.weight-room-player-list\s*\{[\s\S]*height:\s*var\(--weight-room-athlete-detail-height\)/);
   assert.match(css, /\.weight-room-athlete-workspace \.weight-room-player-list\s*\{[\s\S]*max-height:\s*var\(--weight-room-athlete-detail-height\)/);
+  assert.match(css, /\.weight-room-athlete-workspace \.weight-room-player-list\s*\{[\s\S]*display:\s*flex/);
+  assert.match(css, /\.weight-room-exercise-box-table \.weight-room-athlete-table__head,\s*\.weight-room-exercise-box-table \.weight-room-athlete-table__row\s*\{[\s\S]*--weight-room-exercise-progress-columns/);
+  assert.match(css, /\.weight-room-exercise-progress-scroll \.scroll-cue-panel__body/);
+  assert.doesNotMatch(css, /weight-room-exercise-breakdown/);
   assert.match(css, /\.weight-room-exercise-preset-modal/);
   assert.match(css, /height:\s*min\(680px,\s*calc\(100dvh - 28px\)\)/);
   assert.match(css, /\.weight-room-exercise-preset-modal \.weight-room-preset-builder__scroll \.scroll-cue-panel__body\s*\{[\s\S]*height:\s*100%/);

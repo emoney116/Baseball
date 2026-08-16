@@ -10873,7 +10873,6 @@ function WeightRoomPlayerPanel({
   const [exerciseSort, setExerciseSort] = useState<WeightRoomSortState<WeightRoomExerciseSortKey>>({ key: "exercise", direction: "asc" });
   const [expandedExercise, setExpandedExercise] = useState<string | undefined>();
   const [progressWindow, setProgressWindow] = useState<WeightRoomWindow>("This Week");
-  const [progressCategory, setProgressCategory] = useState<WeightRoomExerciseCategory | "All">("All");
   const profile = buildWeightRoomPlayerProfile(data, player);
   const exerciseLibrary = buildWeightRoomExerciseLibrary(data);
   const playerSessions = data.workoutSessions.filter((session) => session.playerId === player.id).sort((left, right) => right.date.localeCompare(left.date) || right.updatedAt.localeCompare(left.updatedAt));
@@ -10889,10 +10888,9 @@ function WeightRoomPlayerPanel({
       const query = exerciseQuery.trim().toLowerCase();
       return (exerciseCategory === "All" || row.exercise.category === exerciseCategory)
         && (!query || `${row.exercise.name} ${row.exercise.category} ${row.exercise.equipment ?? ""}`.toLowerCase().includes(query));
-    }), exerciseSort);
+  }), exerciseSort);
   const progressScore = buildScoredWeightRoomLeaderboard([player], data.workoutSessions, data.workoutEntries, progressWindow)[0];
-  const progressRows = buildWeightRoomPlayerProgressRows(data, player, exerciseLibrary)
-    .filter((row) => progressCategory === "All" || row.exercise.category === progressCategory);
+  const progressRows = buildWeightRoomPlayerProgressRows(data, player, exerciseLibrary);
 
   useEffect(() => {
     syncWeightRoomAthleteUrl(player.id, playerTab);
@@ -11017,14 +11015,6 @@ function WeightRoomPlayerPanel({
             rows={progressRows}
             window={progressWindow}
             onWindow={setProgressWindow}
-            category={progressCategory}
-            onCategory={setProgressCategory}
-            categories={exerciseCategories}
-            onExercise={(exercise) => {
-              setExerciseQuery(exercise);
-              setExpandedExercise(exercise);
-              selectTab("Exercises");
-            }}
           />
         )}
       </article>
@@ -11333,7 +11323,7 @@ function WeightRoomAthleteExercises({
           aria-label="Exercise category"
         />
       </div>
-      <div className="weight-room-athlete-table weight-room-exercise-box-table" role="table" aria-label={`${player.name} exercise box score`}>
+      <ScrollablePanel className="weight-room-exercise-progress-scroll" bodyClassName="weight-room-athlete-table weight-room-exercise-box-table" ariaLabel={`${player.name} exercise box score`} direction="horizontal">
         <div className="weight-room-athlete-table__head" role="row">
           <WeightRoomSortHeader label="Exercise" sortKey="exercise" sort={sort} onSort={onSort} />
           <WeightRoomSortHeader label="Current" sortKey="current" sort={sort} onSort={onSort} />
@@ -11360,7 +11350,7 @@ function WeightRoomAthleteExercises({
           </div>
         ))}
         {!rows.length && <CompactEmpty title="No exercise rows match the current filters." />}
-      </div>
+      </ScrollablePanel>
     </div>
   );
 }
@@ -11397,20 +11387,12 @@ function WeightRoomAthleteProgress({
   rows,
   window,
   onWindow,
-  category,
-  onCategory,
-  categories,
-  onExercise,
 }: {
   player: Player;
   score?: WeightLeaderResult;
   rows: ReturnType<typeof buildWeightRoomPlayerProgressRows>;
   window: WeightRoomWindow;
   onWindow: (value: WeightRoomWindow) => void;
-  category: WeightRoomExerciseCategory | "All";
-  onCategory: (value: WeightRoomExerciseCategory | "All") => void;
-  categories: Array<WeightRoomExerciseCategory | "All">;
-  onExercise: (exercise: string) => void;
 }) {
   const insight = buildWeightRoomProgressInsight(player, rows, score);
 
@@ -11444,33 +11426,6 @@ function WeightRoomAthleteProgress({
         ) : (
           <CompactEmpty title="Two workouts or four tracked sets are required to qualify." />
         )}
-      </section>
-
-      <section className="weight-room-progress-card">
-        <div className="weight-room-progress-card__head">
-          <div>
-            <h3>Exercise Breakdown</h3>
-            <span>Truthful change from athlete baseline</span>
-          </div>
-          <ChoiceSelect
-            value={category}
-            className="form-choice"
-            options={categories.map((item) => ({ value: item, label: item === "All" ? "All Exercises" : item }))}
-            onChange={(value) => onCategory(value as WeightRoomExerciseCategory | "All")}
-            aria-label="Progress exercise filter"
-          />
-        </div>
-        <div className="weight-room-exercise-breakdown">
-          {rows.map((row) => (
-            <button key={row.exercise.name} type="button" onClick={() => onExercise(row.exercise.name)}>
-              <span><WeightRoomExerciseIcon exercise={row.exercise} /> <strong>{row.exercise.name}</strong></span>
-              <i style={{ ["--value" as string]: `${Math.min(100, Math.abs(row.changePct ?? 0))}%` }} />
-              <em className={weightRoomDeltaClass(row.changePct)}>{typeof row.changePct === "number" ? `${row.changePct > 0 ? "+" : ""}${formatNumber(row.changePct, 1)}%` : "No trend yet"}</em>
-              <ChevronRight size={15} aria-hidden="true" />
-            </button>
-          ))}
-          {!rows.length && <CompactEmpty title="No exercise trends match this filter yet." />}
-        </div>
       </section>
 
       <section className="weight-room-progress-insight">
