@@ -620,7 +620,6 @@ export default function MetrolinaBaseballApp() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [view, setView] = useState<ViewKey>("home");
-  const [globalQuery, setGlobalQuery] = useState("");
   const [selectedPlayerId, setSelectedPlayerId] = useState<ID>("p-jackson-smith");
   const [rosterFilter, setRosterFilter] = useState<RosterFilter>("All");
   const [rosterPositionFilter, setRosterPositionFilter] = useState<RosterPositionFilter>("All");
@@ -761,41 +760,6 @@ export default function MetrolinaBaseballApp() {
   const practicePlayer = data?.players.find((player) => player.id === practicePlayerId) ?? selectedPlayer;
   const currentGame = data?.games.find((game) => game.id === selectedGameId) ?? data?.games[0];
   const rosterPlayers = uniquePlayers(data?.players.filter((player) => !player.archived) ?? []);
-
-  const globalResults = useMemo<GlobalSearchResults>(() => {
-    const empty: GlobalSearchResults = { organizations: [], publicOrganizations: [], teams: [], publicTeams: [], players: [] };
-    if (!data || !globalQuery.trim()) return empty;
-    const needle = globalQuery.trim().toLowerCase();
-    if (searchInTeamContext) {
-      return {
-        ...empty,
-        players: uniquePlayers(data.players)
-          .filter((player) => !player.archived)
-          .filter((player) => `${player.name} ${player.jerseyNumber} ${player.primaryPosition}`.toLowerCase().includes(needle))
-          .slice(0, 6),
-      };
-    }
-
-    const teams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
-    const organizations = organizationSummariesFromContext(data.teamContext).filter((organization) =>
-      `${organization.name} ${organization.location ?? ""} ${organization.teams.map((team) => `${team.teamName} ${team.teamLevel ?? ""} ${team.seasonName ?? ""}`).join(" ")}`.toLowerCase().includes(needle),
-    );
-    const matchingTeams = teams.filter((team) =>
-      `${team.organizationName} ${team.teamName} ${team.teamLevel ?? ""} ${team.seasonName ?? ""} ${team.title ?? ""}`.toLowerCase().includes(needle),
-    );
-    const publicOrganizations = (data.publicOrganizations ?? []).filter((organization) =>
-      publicOrganizationSearchText(organization).includes(needle),
-    );
-    const publicTeams = (data.publicTeams ?? []).filter((team) => publicTeamSearchText(team).includes(needle));
-
-    return {
-      organizations: organizations.slice(0, 4),
-      publicOrganizations: publicOrganizations.slice(0, 4),
-      teams: matchingTeams.slice(0, 6),
-      publicTeams: publicTeams.slice(0, 6),
-      players: [],
-    };
-  }, [data, globalQuery, searchInTeamContext]);
 
   const activeTotals = useMemo(() => {
     if (!data || !practice) return { pitches: 0, swings: 0, defenseReps: 0, defenders: 0, players: 0, pitchers: 0, hitters: 0 };
@@ -941,7 +905,6 @@ export default function MetrolinaBaseballApp() {
     setPracticePlayerId(playerId);
     setSelectedWeightPlayerId(playerId);
     setProfileTab("overview");
-    setGlobalQuery("");
     navigateToView("profile", { playerId });
   }
 
@@ -1275,22 +1238,18 @@ export default function MetrolinaBaseballApp() {
   }
 
   function openPublicOrganization(organization: PublicDirectoryOrganizationSummary) {
-    setGlobalQuery("");
     window.location.href = `/org/${organization.slug ?? organization.id}`;
   }
 
   function openManagedOrganization(organization: OrganizationSummary) {
-    setGlobalQuery("");
     window.location.href = `/org/${organization.slug ?? organization.id}`;
   }
 
   function openOrganizationManagement(organization: OrganizationSummary) {
-    setGlobalQuery("");
     window.location.href = `/org/${organization.slug ?? organization.id}/manage`;
   }
 
   function openPublicTeam(team: PublicDirectoryTeamSummary) {
-    setGlobalQuery("");
     window.location.href = `/team/${team.id}`;
   }
 
@@ -2191,15 +2150,6 @@ export default function MetrolinaBaseballApp() {
 
       <section className="ops-main">
         <TopCommand
-          globalQuery={globalQuery}
-          globalResults={globalResults}
-          searchMode={inTeamContext ? "team" : "global"}
-          onQuery={setGlobalQuery}
-          onOpenPlayer={openPlayer}
-          onOpenOrganization={openManagedOrganization}
-          onOpenPublicOrganization={openPublicOrganization}
-          onEnterTeam={enterTeam}
-          onOpenPublicTeam={openPublicTeam}
           onStartPractice={() => setStartPracticeOpen(true)}
           onStartGame={() => setStartGameOpen(true)}
           onView={goToView}
@@ -2910,15 +2860,6 @@ function EmptyActionPanel({
 }
 
 function TopCommand({
-  globalQuery,
-  globalResults,
-  searchMode,
-  onQuery,
-  onOpenPlayer,
-  onOpenOrganization,
-  onOpenPublicOrganization,
-  onEnterTeam,
-  onOpenPublicTeam,
   onStartPractice,
   onStartGame,
   onView,
@@ -2928,15 +2869,6 @@ function TopCommand({
   onAccountMenu,
   onSignOut,
 }: {
-  globalQuery: string;
-  globalResults: GlobalSearchResults;
-  searchMode: "global" | "team";
-  onQuery: (value: string) => void;
-  onOpenPlayer: (playerId: ID) => void;
-  onOpenOrganization: (organization: OrganizationSummary) => void;
-  onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
-  onEnterTeam: (team: TeamOption) => void | Promise<void>;
-  onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
   onStartPractice: () => void;
   onStartGame: () => void;
   onView: (view: ViewKey) => void;
@@ -2946,16 +2878,6 @@ function TopCommand({
   onAccountMenu: (open: boolean) => void;
   onSignOut: () => void | Promise<void>;
 }) {
-  const hasTeamResults = globalResults.players.length > 0;
-  const hasGlobalResults =
-    globalResults.organizations.length > 0 ||
-    globalResults.publicOrganizations.length > 0 ||
-    globalResults.teams.length > 0 ||
-    globalResults.publicTeams.length > 0;
-  const hasResults = searchMode === "team" ? hasTeamResults : hasGlobalResults;
-  const placeholder = searchMode === "team" ? "Search players..." : "Search teams or organizations...";
-  const ariaLabel = searchMode === "team" ? "Search players" : "Search teams or organizations";
-
   return (
     <header className="top-command">
       <div className="top-command__identity">
@@ -2963,111 +2885,6 @@ function TopCommand({
           <img src={BRAND_ASSETS.mark} alt="" />
         </button>
         <strong>{APP_NAME}</strong>
-      </div>
-
-      <div className="global-search">
-        <Search size={16} aria-hidden="true" />
-        <input value={globalQuery} onChange={(event) => onQuery(event.target.value)} placeholder={placeholder} aria-label={ariaLabel} />
-        {hasResults && (
-          <div className="global-search__results">
-            {searchMode === "global" ? (
-              <>
-                {globalResults.organizations.length > 0 && (
-                  <div className="global-search__group">
-                    <span className="global-search__group-title">My Organizations</span>
-                    {globalResults.organizations.map((organization) => (
-                      <button
-                        key={organization.id}
-                        type="button"
-                        onClick={() => {
-                          onQuery("");
-                          if (organization.teams[0]) void onEnterTeam(organization.teams[0]);
-                          else onOpenOrganization(organization);
-                        }}
-                      >
-                        <OrganizationLogo name={organization.name} />
-                        <span>{organization.name}</span>
-                        <small>{organization.teams.length} team{organization.teams.length === 1 ? "" : "s"}</small>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {globalResults.publicOrganizations.length > 0 && (
-                  <div className="global-search__group">
-                    <span className="global-search__group-title">Organizations</span>
-                    {globalResults.publicOrganizations.map((organization) => (
-                      <button
-                        key={`public-org-${organization.id}`}
-                        type="button"
-                        onClick={() => {
-                          onQuery("");
-                          onOpenPublicOrganization(organization);
-                        }}
-                      >
-                        <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
-                        <span>{organization.name}</span>
-                        <small>{organizationLocation(organization) || `${organization.teams.length} teams`}</small>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {globalResults.teams.length > 0 && (
-                  <div className="global-search__group">
-                    <span className="global-search__group-title">My Teams</span>
-                    {globalResults.teams.map((team) => (
-                      <button
-                        key={teamValue(team)}
-                        type="button"
-                        onClick={() => {
-                          onQuery("");
-                          void onEnterTeam(team);
-                        }}
-                      >
-                        <OrganizationLogo name={team.organizationName} />
-                        <span>{team.teamName}</span>
-                        <small>{team.organizationName}</small>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {globalResults.publicTeams.length > 0 && (
-                  <div className="global-search__group">
-                    <span className="global-search__group-title">Teams</span>
-                    {globalResults.publicTeams.map((team) => (
-                      <button
-                        key={`public-team-${team.id}`}
-                        type="button"
-                        onClick={() => {
-                          onQuery("");
-                          onOpenPublicTeam(team);
-                        }}
-                      >
-                        <OrganizationLogo name={team.organizationName} />
-                        <span>{team.name}</span>
-                        <small>{team.organizationName}</small>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              globalResults.players.map((player) => (
-                <button
-                  key={player.id}
-                  type="button"
-                  onClick={() => {
-                    onQuery("");
-                    onOpenPlayer(player.id);
-                  }}
-                >
-                  <PlayerAvatar player={player} size="sm" compact />
-                  <span>{player.name}</span>
-                  <small>#{player.jerseyNumber}</small>
-                </button>
-              ))
-            )}
-          </div>
-        )}
       </div>
 
       <div className="top-command__actions">
@@ -3112,6 +2929,7 @@ function ChoiceSelect({
   className = "",
   disabled = false,
   showSelectedDescription = true,
+  placeholder = "Select",
   open: controlledOpen,
   onOpenChange,
   "aria-label": ariaLabel,
@@ -3123,6 +2941,7 @@ function ChoiceSelect({
   className?: string;
   disabled?: boolean;
   showSelectedDescription?: boolean;
+  placeholder?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   "aria-label"?: string;
@@ -3138,10 +2957,11 @@ function ChoiceSelect({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const selected = options.find((option) => option.value === value) ?? options[0];
+  const selected = options.find((option) => option.value === value);
   const reactId = useId();
   const listboxId = `choice-select-${reactId.replace(/[^a-z0-9_-]/gi, "")}`;
   const open = controlledOpen ?? internalOpen;
+  const { edges: menuEdges } = useScrollEdges(menuRef, `${open}-${menuPosition?.top ?? 0}-${menuPosition?.maxHeight ?? 0}-${options.length}-${value}`);
   const setSelectOpen = useCallback((nextOpen: boolean | ((current: boolean) => boolean)) => {
     const resolved = typeof nextOpen === "function" ? nextOpen(open) : nextOpen;
     if (controlledOpen === undefined) setInternalOpen(resolved);
@@ -3161,11 +2981,11 @@ function ChoiceSelect({
     const viewportBottom = viewportTop + viewportHeight;
     const viewportRight = viewportLeft + viewportWidth;
     const optionHeight = 44;
-    const desiredHeight = Math.min(320, Math.max(96, options.length * optionHeight + 10));
-    const availableBelow = Math.max(0, viewportBottom - rect.bottom - viewportPadding);
-    const availableAbove = Math.max(0, rect.top - viewportTop - viewportPadding);
+    const desiredHeight = Math.min(320, Math.max(96, options.length * optionHeight + 16));
+    const availableBelow = Math.max(0, viewportBottom - rect.bottom - viewportPadding - gap);
+    const availableAbove = Math.max(0, rect.top - viewportTop - viewportPadding - gap);
     const bestAvailable = Math.max(availableBelow, availableAbove);
-    const shouldUseSheet = viewportWidth <= 640 || viewportHeight <= 540 || bestAvailable < 156;
+    const shouldUseSheet = viewportWidth <= 640 || (viewportWidth <= 900 && viewportHeight <= 540) || bestAvailable < 132;
     if (shouldUseSheet) {
       const maxHeight = Math.min(320, Math.max(196, viewportHeight - viewportPadding * 2));
       setMenuPosition({
@@ -3184,7 +3004,8 @@ function ChoiceSelect({
     const availableHeight = placement === "top" ? availableAbove : availableBelow;
     const maxHeight = Math.max(96, Math.min(320, availableHeight));
     const menuHeight = Math.min(desiredHeight, maxHeight);
-    const width = Math.min(Math.max(rect.width, 220), viewportWidth - viewportPadding * 2);
+    const widestOption = Math.min(320, Math.max(180, ...options.map((option) => (option.label.length + (option.description?.length ?? 0) * 0.45) * 7.5 + 42)));
+    const width = Math.min(Math.max(rect.width, widestOption), viewportWidth - viewportPadding * 2);
     const left = Math.min(Math.max(rect.left, viewportLeft + viewportPadding), viewportRight - width - viewportPadding);
     const unclampedTop = placement === "top"
       ? rect.top - gap - menuHeight
@@ -3194,12 +3015,12 @@ function ChoiceSelect({
       viewportBottom - menuHeight - viewportPadding,
     );
     setMenuPosition({ top, left, width, maxHeight, placement });
-  }, [options.length]);
+  }, [options]);
 
   const focusOption = useCallback((index?: number) => {
     const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
     if (!buttons.length) return;
-    const selectedIndex = options.findIndex((option) => option.value === value);
+    const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value));
     const targetIndex = Math.max(0, Math.min(buttons.length - 1, index ?? selectedIndex));
     buttons[targetIndex]?.focus();
     buttons[targetIndex]?.scrollIntoView({ block: "nearest" });
@@ -3309,7 +3130,13 @@ function ChoiceSelect({
         <div
           ref={menuRef}
           id={listboxId}
-          className={["choice-select__menu", "choice-select__menu--portal", className].filter(Boolean).join(" ")}
+          className={[
+            "choice-select__menu",
+            "choice-select__menu--portal",
+            menuEdges.canScrollUp ? "has-scroll-up" : "",
+            menuEdges.canScrollDown ? "has-scroll-down" : "",
+            className,
+          ].filter(Boolean).join(" ")}
           data-placement={menuPosition.placement}
           role="listbox"
           tabIndex={-1}
@@ -3322,6 +3149,7 @@ function ChoiceSelect({
             maxHeight: menuPosition.maxHeight,
           }}
         >
+          <span className="choice-select__menu-edge choice-select__menu-edge--top" aria-hidden="true"><ChevronUp size={13} /></span>
           {options.map((option) => (
             <button
               key={option.value}
@@ -3341,6 +3169,7 @@ function ChoiceSelect({
               </span>
             </button>
           ))}
+          <span className="choice-select__menu-edge choice-select__menu-edge--bottom" aria-hidden="true"><ChevronDown size={13} /></span>
         </div>
       </>,
       document.body,
@@ -3352,6 +3181,7 @@ function ChoiceSelect({
       ref={rootRef}
       className={["choice-select", open ? "open" : "", className].filter(Boolean).join(" ")}
       data-label={ariaLabel ?? label}
+      data-empty={!selected ? "true" : undefined}
     >
       {label && <span className="choice-select__label">{label}</span>}
       <button
@@ -3378,7 +3208,7 @@ function ChoiceSelect({
       >
         {selected?.icon && <span className="choice-select__icon">{selected.icon}</span>}
         <strong>
-          {selected?.label ?? "Select"}
+          {selected?.label ?? placeholder}
           {showSelectedDescription && selected?.description && <small>{selected.description}</small>}
         </strong>
         <ChevronDown size={14} aria-hidden="true" />
@@ -4788,14 +4618,6 @@ type OrganizationSummary = {
   location?: string;
   logoUrl?: string;
   role?: string;
-};
-
-type GlobalSearchResults = {
-  organizations: OrganizationSummary[];
-  publicOrganizations: PublicDirectoryOrganizationSummary[];
-  teams: TeamOption[];
-  publicTeams: PublicDirectoryTeamSummary[];
-  players: Player[];
 };
 
 function OrganizationCard({
@@ -8906,7 +8728,7 @@ function WeightRoomActiveWorkout({
                 {item}
               </button>
             ))}
-            <span>{paused ? "Paused - data preserved" : setupOpen ? "Setup mode" : "Saved"}</span>
+            {(paused || setupOpen) && <span>{paused ? "Paused - data preserved" : "Setup mode"}</span>}
           </div>
         )}
       </div>
@@ -10321,23 +10143,23 @@ function WeightRoomIndividualWorkout({
           Add / Edit Exercises
         </button>
       </div>
-      <div className="weight-room-individual-strip">
+      <ScrollablePanel className="weight-room-individual-strip-panel" bodyClassName="weight-room-individual-strip" ariaLabel="workout athlete selector" direction="horizontal">
         {players.map((item) => (
           <button key={item.id} type="button" className={item.id === player?.id ? "active" : ""} onClick={() => onPlayer(item.id)}>
             <PlayerAvatar player={item} size="sm" compact />
             <span>{item.name.split(" ").slice(-1)[0]}</span>
           </button>
         ))}
-      </div>
+      </ScrollablePanel>
       {player && station && (
         <div className="weight-room-individual-set-list">
           <span>Previous: {previousWorkoutEntry(data, player.id, station.name, workoutDate) ? formatWorkoutEntryValueForStation(previousWorkoutEntry(data, player.id, station.name, workoutDate)!, station) : "--"}</span>
           {Array.from({ length: targetSets }, (_, index) => {
             const setNumber = index + 1;
             const entry = workoutEntryForCell(entries, player.id, station.name, setNumber);
-              const previousEntry = previousWorkoutEntry(data, player.id, station.name, workoutDate);
-              return (
-                <div key={`${station.id}-${setNumber}-${entry?.id ?? "empty"}-${entry?.weight ?? ""}-${entry?.reps ?? ""}-${entry?.value ?? ""}`} className="weight-room-individual-set-row">
+            const previousEntry = previousWorkoutEntry(data, player.id, station.name, workoutDate);
+            return (
+              <div key={`${station.id}-${setNumber}-${entry?.id ?? "empty"}-${entry?.weight ?? ""}-${entry?.reps ?? ""}-${entry?.value ?? ""}`} className="weight-room-individual-set-row">
                 <strong>{attemptLabel} {setNumber}</strong>
                 <WeightRoomInlineSetCell
                   key={`${player.id}-${station.id}-${station.measurementType}-${setNumber}-${entry?.id ?? "empty"}-${entry?.weight ?? ""}-${entry?.reps ?? ""}-${entry?.value ?? ""}`}
@@ -11036,7 +10858,7 @@ function WeightRoomPlayerPanel({
           <Search size={15} aria-hidden="true" />
           <input value={playerQuery} onChange={(event) => setPlayerQuery(event.target.value)} placeholder="Search players..." aria-label="Search athletes" />
         </label>
-        <div className="weight-room-player-list__scroll" aria-label="Athlete roster">
+        <ScrollablePanel className="weight-room-player-list__scroll-panel" bodyClassName="weight-room-player-list__scroll" ariaLabel="athlete roster">
           {filteredPlayers.map((item) => (
             <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => selectPlayer(item.id)}>
               <PlayerAvatar player={item} size="sm" compact />
@@ -11044,7 +10866,7 @@ function WeightRoomPlayerPanel({
             </button>
           ))}
           {!filteredPlayers.length && <CompactEmpty title="No athletes match that search." />}
-        </div>
+        </ScrollablePanel>
       </aside>
       <article className="panel weight-room-player-profile weight-room-athlete-panel">
         <div className="weight-room-mobile-player-select">
@@ -11121,9 +10943,8 @@ function WeightRoomPlayerPanel({
 function WeightRoomAthleteHeader({ player, onOpenPlayer }: { player: Player; onOpenPlayer: (playerId: ID) => void }) {
   return (
     <div className="profile-header weight-room-profile-header">
-      <PlayerAvatar player={player} size="xl" />
+      <PlayerAvatar player={player} size="lg" />
       <div>
-        <span>Athlete Profile</span>
         <h2>{player.name}</h2>
         <small>#{player.jerseyNumber} - {player.primaryPosition} - Class of {player.graduationYear}</small>
       </div>
@@ -11618,14 +11439,14 @@ function WeightRoomExerciseLibraryCard({
   const [query, setQuery] = useState("");
   const [editingExercise, setEditingExercise] = useState<WeightRoomExercise | undefined>();
   const [draftName, setDraftName] = useState("");
-  const [draftCategory, setDraftCategory] = useState<WeightRoomExerciseCategory>("Other");
-  const [draftMeasurementType, setDraftMeasurementType] = useState<WorkoutMeasurementType>("WEIGHT_REPS");
+  const [draftCategory, setDraftCategory] = useState<WeightRoomExerciseCategory | "">("");
+  const [draftMeasurementType, setDraftMeasurementType] = useState<WorkoutMeasurementType | "">("");
   const [draftTargetStyle, setDraftTargetStyle] = useState<WorkoutTargetStyle>("Standard");
   const [draftEquipment, setDraftEquipment] = useState("");
   const [presetOpen, setPresetOpen] = useState(false);
   const [editingPreset, setEditingPreset] = useState<WeightRoomExercisePreset | undefined>();
   const [presetName, setPresetName] = useState("");
-  const [presetSelection, setPresetSelection] = useState<Set<string>>(() => new Set(activeExercise ? [activeExercise.toLowerCase()] : []));
+  const [presetOrder, setPresetOrder] = useState<string[]>(() => activeExercise ? [activeExercise.toLowerCase()] : []);
   const [confirmingExercise, setConfirmingExercise] = useState<string | undefined>();
   const [confirmingPreset, setConfirmingPreset] = useState<ID | undefined>();
   const [hiddenExercises, setHiddenExercises] = useState<Set<string>>(() => new Set());
@@ -11643,11 +11464,11 @@ function WeightRoomExerciseLibraryCard({
     .map((type) => ({ value: type, label: workoutMeasurementTypeLabel(type) }));
 
   function openExerciseEditor(exercise?: WeightRoomExercise) {
-    const measurementType = exercise?.measurementType ?? "WEIGHT_REPS";
-    const targetStyle = exercise?.defaultTargetStyle ?? defaultTargetStyle(exercise?.name ?? "", measurementType);
+    const measurementType = exercise?.measurementType ?? "";
+    const targetStyle = exercise?.defaultTargetStyle ?? (measurementType ? defaultTargetStyle(exercise?.name ?? "", measurementType) : "Standard");
     setEditingExercise(exercise ?? makeWeightRoomExercise(""));
     setDraftName(exercise?.name ?? "");
-    setDraftCategory(exercise?.category ?? "Other");
+    setDraftCategory(exercise?.category ?? "");
     setDraftMeasurementType(measurementType);
     setDraftTargetStyle(targetStyle);
     setDraftEquipment(exercise?.equipment ?? "");
@@ -11661,7 +11482,7 @@ function WeightRoomExerciseLibraryCard({
 
   function saveExercise() {
     const nextExerciseName = draftName.trim();
-    if (!nextExerciseName) return;
+    if (!nextExerciseName || !draftCategory || !draftMeasurementType) return;
     const kind = workoutExerciseKind(nextExerciseName);
     const nextExercise: WeightRoomExercise = {
       ...makeWeightRoomExercise(nextExerciseName),
@@ -11681,8 +11502,8 @@ function WeightRoomExerciseLibraryCard({
       setHiddenExercises((current) => new Set([...current, editingExercise.name.toLowerCase()]));
     }
     setDraftName("");
-    setDraftCategory("Other");
-    setDraftMeasurementType("WEIGHT_REPS");
+    setDraftCategory("");
+    setDraftMeasurementType("");
     setDraftTargetStyle("Standard");
     setDraftEquipment("");
     setEditingExercise(undefined);
@@ -11694,7 +11515,7 @@ function WeightRoomExerciseLibraryCard({
       : activeExercise ? [activeExercise.toLowerCase()] : [];
     setEditingPreset(preset);
     setConfirmingPreset(undefined);
-    setPresetSelection(new Set(selection));
+    setPresetOrder(selection);
     setPresetName(preset?.name ?? "");
     setPresetOpen(true);
   }
@@ -11703,29 +11524,30 @@ function WeightRoomExerciseLibraryCard({
     setPresetOpen(false);
     setEditingPreset(undefined);
     setPresetName("");
-    setPresetSelection(new Set());
+    setPresetOrder([]);
   }
 
   function togglePresetExercise(exercise: WeightRoomExercise) {
-    setPresetSelection((current) => {
-      const next = new Set(current);
-      const key = exercise.name.toLowerCase();
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+    const key = exercise.name.toLowerCase();
+    setPresetOrder((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+  }
+
+  function movePresetExercise(key: string, direction: -1 | 1) {
+    setPresetOrder((current) => {
+      const index = current.indexOf(key);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
       return next;
     });
   }
 
   function savePreset() {
     const name = presetName.trim();
-    if (!name || !presetSelection.size) return;
+    if (!name || !presetOrder.length) return;
     const exerciseByKey = new Map(exerciseRows.map((exercise) => [exercise.name.toLowerCase(), exercise]));
-    const existingOrder = editingPreset?.stations.map((station) => station.name.toLowerCase()) ?? [];
-    const orderedKeys = [
-      ...existingOrder.filter((key) => presetSelection.has(key)),
-      ...exerciseRows.map((exercise) => exercise.name.toLowerCase()).filter((key) => presetSelection.has(key) && !existingOrder.includes(key)),
-    ];
-    const stations = orderedKeys
+    const stations = presetOrder
       .map((key) => exerciseByKey.get(key))
       .filter((exercise): exercise is WeightRoomExercise => Boolean(exercise))
       .map((exercise, index) => createActiveWorkoutStation(exercise, index));
@@ -11874,6 +11696,7 @@ function WeightRoomExerciseLibraryCard({
               label="Category"
               value={draftCategory}
               className="form-choice"
+              placeholder="Choose category"
               options={exerciseCategoryOptions.map((item) => ({ value: item, label: item }))}
               onChange={(value) => setDraftCategory(value as WeightRoomExerciseCategory)}
               aria-label="New exercise category"
@@ -11882,18 +11705,21 @@ function WeightRoomExerciseLibraryCard({
               label="Measurement"
               value={draftMeasurementType}
               className="form-choice"
+              placeholder="Choose measurement"
               options={measurementOptions}
               onChange={(value) => updateDraftMeasurementType(value as WorkoutMeasurementType)}
               aria-label="Exercise measurement type"
             />
-            <ChoiceSelect
-              label="Default Target"
-              value={draftTargetStyle}
-              className="form-choice"
-              options={targetStyleOptionsForMeasurement(draftMeasurementType).map((style) => ({ value: style, label: style }))}
-              onChange={(value) => setDraftTargetStyle(value as WorkoutTargetStyle)}
-              aria-label="Exercise default target"
-            />
+            {draftMeasurementType && (
+              <ChoiceSelect
+                label="Default Target"
+                value={draftTargetStyle}
+                className="form-choice"
+                options={targetStyleOptionsForMeasurement(draftMeasurementType).map((style) => ({ value: style, label: style }))}
+                onChange={(value) => setDraftTargetStyle(value as WorkoutTargetStyle)}
+                aria-label="Exercise default target"
+              />
+            )}
             <label>
               <span>Equipment</span>
               <input value={draftEquipment} onChange={(event) => setDraftEquipment(event.target.value)} placeholder="Bodyweight, Barbell, Track..." />
@@ -11901,7 +11727,7 @@ function WeightRoomExerciseLibraryCard({
           </div>
           <div className="modal-actions">
             <button className="secondary-button" type="button" onClick={() => setEditingExercise(undefined)}>Cancel</button>
-            <button className="primary-button" type="button" onClick={saveExercise} disabled={!draftName.trim()}>
+            <button className="primary-button" type="button" onClick={saveExercise} disabled={!draftName.trim() || !draftCategory || !draftMeasurementType}>
               <Save size={16} aria-hidden="true" />
               Save Exercise
             </button>
@@ -11909,28 +11735,63 @@ function WeightRoomExerciseLibraryCard({
         </ModalFrame>
       )}
       {presetOpen && (
-        <ModalFrame title={editingPreset ? "Edit Exercise Preset" : "Create Exercise Preset"} onClose={closePresetBuilder} panelClassName="weight-room-exercise-modal">
+        <ModalFrame title={editingPreset ? "Edit Exercise Preset" : "Create Exercise Preset"} onClose={closePresetBuilder} panelClassName="weight-room-exercise-modal weight-room-exercise-preset-modal">
           <div className="weight-room-exercise-modal__body">
             <label className="weight-room-modal-wide">
               <span>Preset Name</span>
               <input value={presetName} onChange={(event) => setPresetName(event.target.value)} placeholder="Enter preset name..." />
             </label>
-            <div className="weight-room-preset-exercise-picker">
-              {exerciseRows.map((exercise) => {
-                const selected = presetSelection.has(exercise.name.toLowerCase());
-                return (
-                  <button key={exercise.name} type="button" className={selected ? "active" : ""} onClick={() => togglePresetExercise(exercise)}>
-                    <span>{selected ? <Check size={14} aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}</span>
-                    <strong>{exercise.name}</strong>
-                    <small>{exercise.category} - {exercise.defaultTargetStyle ?? defaultTargetStyle(exercise.name, exercise.measurementType)}</small>
-                  </button>
-                );
-              })}
+            <div className="weight-room-preset-builder">
+              <section>
+                <div className="weight-room-preset-builder__head">
+                  <strong>Preset Order</strong>
+                  <small>{presetOrder.length} exercise{presetOrder.length === 1 ? "" : "s"}</small>
+                </div>
+                <ScrollablePanel className="weight-room-preset-builder__scroll" bodyClassName="weight-room-preset-selected-list" ariaLabel="selected preset exercises">
+                  {presetOrder.map((key, index) => {
+                    const exercise = exerciseRows.find((item) => item.name.toLowerCase() === key);
+                    if (!exercise) return null;
+                    return (
+                      <div key={key} className="weight-room-preset-selected-row">
+                        <span className="weight-room-station-number">{index + 1}</span>
+                        <span>
+                          <strong>{exercise.name}</strong>
+                          <small>{exercise.category} - {exercise.defaultTargetStyle ?? defaultTargetStyle(exercise.name, exercise.measurementType)}</small>
+                        </span>
+                        <span className="weight-room-preset-selected-actions">
+                          <button type="button" onClick={() => movePresetExercise(key, -1)} disabled={index === 0} aria-label={`Move ${exercise.name} up`}><ChevronUp size={13} aria-hidden="true" /></button>
+                          <button type="button" onClick={() => movePresetExercise(key, 1)} disabled={index === presetOrder.length - 1} aria-label={`Move ${exercise.name} down`}><ChevronDown size={13} aria-hidden="true" /></button>
+                          <button type="button" onClick={() => togglePresetExercise(exercise)} aria-label={`Remove ${exercise.name} from preset`}>-</button>
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {!presetOrder.length && <CompactEmpty title="Add exercises from the library." />}
+                </ScrollablePanel>
+              </section>
+              <section>
+                <div className="weight-room-preset-builder__head">
+                  <strong>Team Library</strong>
+                  <small>Add to preset</small>
+                </div>
+                <ScrollablePanel className="weight-room-preset-builder__scroll" bodyClassName="weight-room-preset-library-list" ariaLabel="preset exercise library">
+                  {exerciseRows.map((exercise) => {
+                    const selected = presetOrder.includes(exercise.name.toLowerCase());
+                    return (
+                      <button key={exercise.name} type="button" className={selected ? "active" : ""} onClick={() => togglePresetExercise(exercise)}>
+                        <span>{selected ? <Check size={14} aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}</span>
+                        <strong>{exercise.name}</strong>
+                        <small>{exercise.category} - {exercise.defaultTargetStyle ?? defaultTargetStyle(exercise.name, exercise.measurementType)}</small>
+                      </button>
+                    );
+                  })}
+                </ScrollablePanel>
+              </section>
             </div>
           </div>
           <div className="modal-actions">
             <button className="secondary-button" type="button" onClick={closePresetBuilder}>Cancel</button>
-            <button className="primary-button" type="button" onClick={savePreset} disabled={!presetName.trim() || !presetSelection.size}>
+            <button className="primary-button" type="button" onClick={savePreset} disabled={!presetName.trim() || !presetOrder.length}>
               <Save size={16} aria-hidden="true" />
               Save Preset
             </button>
@@ -15316,61 +15177,132 @@ function CompactEmpty({ title, action }: { title: string; action?: React.ReactNo
   return <div className="compact-empty"><span>{title}</span>{action}</div>;
 }
 
+const SCROLL_EDGE_THRESHOLD = 3;
+
+type ScrollEdges = {
+  canScrollUp: boolean;
+  canScrollDown: boolean;
+  canScrollLeft: boolean;
+  canScrollRight: boolean;
+};
+
+function measureScrollEdges(element: HTMLElement | null): ScrollEdges {
+  if (!element) {
+    return { canScrollUp: false, canScrollDown: false, canScrollLeft: false, canScrollRight: false };
+  }
+  const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight);
+  const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+  return {
+    canScrollUp: element.scrollTop > SCROLL_EDGE_THRESHOLD,
+    canScrollDown: element.scrollTop < maxScrollTop - SCROLL_EDGE_THRESHOLD,
+    canScrollLeft: element.scrollLeft > SCROLL_EDGE_THRESHOLD,
+    canScrollRight: element.scrollLeft < maxScrollLeft - SCROLL_EDGE_THRESHOLD,
+  };
+}
+
+function sameScrollEdges(left: ScrollEdges, right: ScrollEdges) {
+  return left.canScrollUp === right.canScrollUp
+    && left.canScrollDown === right.canScrollDown
+    && left.canScrollLeft === right.canScrollLeft
+    && left.canScrollRight === right.canScrollRight;
+}
+
+function useScrollEdges<T extends HTMLElement>(
+  ref: React.RefObject<T | null>,
+  watchKey?: unknown,
+) {
+  const [edges, setEdges] = useState<ScrollEdges>(() => measureScrollEdges(null));
+
+  const updateScrollEdges = useCallback(() => {
+    const nextEdges = measureScrollEdges(ref.current);
+    setEdges((current) => (sameScrollEdges(current, nextEdges) ? current : nextEdges));
+  }, [ref]);
+
+  useEffect(() => {
+    updateScrollEdges();
+    const element = ref.current;
+    if (!element || typeof window === "undefined") return;
+
+    const handleScroll = () => updateScrollEdges();
+    element.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", updateScrollEdges);
+    window.addEventListener("orientationchange", updateScrollEdges);
+
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateScrollEdges) : null;
+    resizeObserver?.observe(element);
+    Array.from(element.children).forEach((child) => resizeObserver?.observe(child));
+
+    const mutationObserver = typeof MutationObserver !== "undefined"
+      ? new MutationObserver(() => {
+        Array.from(element.children).forEach((child) => resizeObserver?.observe(child));
+        updateScrollEdges();
+      })
+      : null;
+    mutationObserver?.observe(element, { childList: true, subtree: true, characterData: true });
+
+    const animationFrame = window.requestAnimationFrame(updateScrollEdges);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      element.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", updateScrollEdges);
+      window.removeEventListener("orientationchange", updateScrollEdges);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+    };
+  }, [ref, updateScrollEdges, watchKey]);
+
+  return { edges, updateScrollEdges };
+}
+
 function ScrollablePanel({
   children,
   className = "",
   bodyClassName = "",
   ariaLabel,
+  direction = "vertical",
 }: {
   children: React.ReactNode;
   className?: string;
   bodyClassName?: string;
   ariaLabel: string;
+  direction?: "vertical" | "horizontal" | "both";
 }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
-  const [scrollState, setScrollState] = useState({ canScrollUp: false, canScrollDown: false });
+  const { edges } = useScrollEdges(bodyRef, children);
 
-  const updateScrollState = useCallback(() => {
-    const body = bodyRef.current;
-    const maxScroll = body ? body.scrollHeight - body.clientHeight : 0;
-    const nextState = {
-      canScrollUp: body ? body.scrollTop > 1 : false,
-      canScrollDown: body ? body.scrollTop < maxScroll - 1 : false,
-    };
-    setScrollState((current) => (
-      current.canScrollUp === nextState.canScrollUp && current.canScrollDown === nextState.canScrollDown
-        ? current
-        : nextState
-    ));
-  }, []);
-
-  useEffect(() => {
-    updateScrollState();
-    const body = bodyRef.current;
-    body?.addEventListener("scroll", updateScrollState, { passive: true });
-    window.addEventListener("resize", updateScrollState);
-    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateScrollState) : null;
-    if (body) resizeObserver?.observe(body);
-    const animationFrame = window.requestAnimationFrame(updateScrollState);
-    return () => {
-      window.cancelAnimationFrame(animationFrame);
-      body?.removeEventListener("scroll", updateScrollState);
-      window.removeEventListener("resize", updateScrollState);
-      resizeObserver?.disconnect();
-    };
-  }, [children, updateScrollState]);
-
-  function scrollDown() {
+  function scrollCue(directionName: "up" | "down" | "left" | "right") {
     const body = bodyRef.current;
     if (!body) return;
-    body.scrollBy({ top: Math.max(96, body.clientHeight * 0.82), behavior: "smooth" });
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const behavior: ScrollBehavior = reduceMotion ? "auto" : "smooth";
+    const top = directionName === "up"
+      ? -Math.max(96, body.clientHeight * 0.78)
+      : directionName === "down"
+        ? Math.max(96, body.clientHeight * 0.78)
+        : 0;
+    const left = directionName === "left"
+      ? -Math.max(96, body.clientWidth * 0.78)
+      : directionName === "right"
+        ? Math.max(96, body.clientWidth * 0.78)
+        : 0;
+    body.scrollBy({ top, left, behavior });
   }
+
+  const showVertical = direction === "vertical" || direction === "both";
+  const showHorizontal = direction === "horizontal" || direction === "both";
+  const canCueUp = showVertical && edges.canScrollUp;
+  const canCueDown = showVertical && edges.canScrollDown;
+  const canCueLeft = showHorizontal && edges.canScrollLeft;
+  const canCueRight = showHorizontal && edges.canScrollRight;
 
   return (
     <div className={[
       "scroll-cue-panel",
-      scrollState.canScrollUp ? "has-scroll-up" : "",
-      scrollState.canScrollDown ? "has-scroll-down" : "",
+      canCueUp ? "has-scroll-up" : "",
+      canCueDown ? "has-scroll-down" : "",
+      canCueLeft ? "has-scroll-left" : "",
+      canCueRight ? "has-scroll-right" : "",
+      `scroll-cue-panel--${direction}`,
       className,
     ].filter(Boolean).join(" ")}>
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Scrollable hidden-scrollbar regions need keyboard focus. */}
@@ -15379,8 +15311,19 @@ function ScrollablePanel({
       </div>
       <span className="scroll-cue-panel__fade scroll-cue-panel__fade--top" aria-hidden="true" />
       <span className="scroll-cue-panel__fade scroll-cue-panel__fade--bottom" aria-hidden="true" />
-      <button className="scroll-cue-panel__more" type="button" onClick={scrollDown} aria-label={`Scroll ${ariaLabel} down`}>
+      <span className="scroll-cue-panel__fade scroll-cue-panel__fade--left" aria-hidden="true" />
+      <span className="scroll-cue-panel__fade scroll-cue-panel__fade--right" aria-hidden="true" />
+      <button className="scroll-cue-panel__cue scroll-cue-panel__cue--up" type="button" onClick={() => scrollCue("up")} aria-label={`Scroll ${ariaLabel} up`} tabIndex={canCueUp ? 0 : -1} aria-hidden={!canCueUp}>
+        <ChevronUp size={14} aria-hidden="true" />
+      </button>
+      <button className="scroll-cue-panel__cue scroll-cue-panel__cue--down" type="button" onClick={() => scrollCue("down")} aria-label={`Scroll ${ariaLabel} down`} tabIndex={canCueDown ? 0 : -1} aria-hidden={!canCueDown}>
         <ChevronDown size={15} aria-hidden="true" />
+      </button>
+      <button className="scroll-cue-panel__cue scroll-cue-panel__cue--left" type="button" onClick={() => scrollCue("left")} aria-label={`Scroll ${ariaLabel} left`} tabIndex={canCueLeft ? 0 : -1} aria-hidden={!canCueLeft}>
+        <ChevronLeft size={14} aria-hidden="true" />
+      </button>
+      <button className="scroll-cue-panel__cue scroll-cue-panel__cue--right" type="button" onClick={() => scrollCue("right")} aria-label={`Scroll ${ariaLabel} right`} tabIndex={canCueRight ? 0 : -1} aria-hidden={!canCueRight}>
+        <ChevronRight size={14} aria-hidden="true" />
       </button>
     </div>
   );

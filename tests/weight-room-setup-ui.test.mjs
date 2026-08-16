@@ -29,7 +29,11 @@ test("active weight room setup keeps exercise saves and preset UI clean", () => 
   assert.match(page, /weight-room-athlete-multi-picker/);
   assert.match(page, /Select All/);
   assert.match(page, /function ScrollablePanel/);
+  assert.match(page, /function useScrollEdges/);
+  assert.match(page, /SCROLL_EDGE_THRESHOLD/);
   assert.match(page, /scroll-cue-panel/);
+  assert.match(page, /has-scroll-left/);
+  assert.match(page, /has-scroll-right/);
   assert.match(page, /function WeightRoomExerciseLibraryCard/);
   assert.match(page, /weight-room-exercise-left-column/);
   assert.match(page, /weight-room-presets-card/);
@@ -39,8 +43,15 @@ test("active weight room setup keeps exercise saves and preset UI clean", () => 
   assert.match(page, /weight-room-library-filters/);
   assert.match(page, /Create Exercise Preset/);
   assert.match(page, /Edit Exercise Preset/);
+  assert.match(page, /weight-room-exercise-preset-modal/);
+  assert.match(page, /weight-room-preset-builder/);
   assert.match(page, /function archivePreset/);
   assert.match(page, /onSavePreset\(\{ \.\.\.preset, archived: true \}\)/);
+  assert.match(page, /useState<WeightRoomExerciseCategory \| "">\(""\)/);
+  assert.match(page, /useState<WorkoutMeasurementType \| "">\(""\)/);
+  assert.match(page, /placeholder="Choose category"/);
+  assert.match(page, /placeholder="Choose measurement"/);
+  assert.match(page, /disabled=\{!draftName\.trim\(\) \|\| !draftCategory \|\| !draftMeasurementType\}/);
   assert.match(page, /type WeightRoomExerciseResultSortKey/);
   assert.match(page, /WeightRoomSortHeader label="Latest"/);
   assert.match(page, /workoutEntryChangeDisplay/);
@@ -52,6 +63,9 @@ test("active weight room setup keeps exercise saves and preset UI clean", () => 
   assert.doesNotMatch(page, /Exercise View/);
   assert.doesNotMatch(page, /`\$\{presets\.length\} saved`/);
   assert.doesNotMatch(page, /exercisePresetsFromTemplates/);
+  assert.doesNotMatch(page, /globalQuery/);
+  assert.doesNotMatch(page, /global-search/);
+  assert.doesNotMatch(page, /<span>\{paused \? "Paused - data preserved" : setupOpen \? "Setup mode" : "Saved"\}<\/span>/);
 });
 
 test("shared dropdown menus stay viewport safe inside modals and small screens", () => {
@@ -75,6 +89,8 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.match(choiceSelect, /placement:\s*"top"\s*\|\s*"bottom"\s*\|\s*"sheet"/);
   assert.match(choiceSelect, /menuPosition\.placement === "sheet"/);
   assert.match(choiceSelect, /choice-select__sheet-scrim/);
+  assert.match(choiceSelect, /choice-select__menu-edge--top/);
+  assert.match(choiceSelect, /choice-select__menu-edge--bottom/);
   assert.match(choiceSelect, /event\.key === "Enter" \|\| event\.key === " "/);
   assert.match(choiceSelect, /scrollIntoView\(\{\s*block:\s*"nearest"\s*\}\)/);
   assert.match(choiceSelect, /maxHeight:\s*menuPosition\.maxHeight/);
@@ -96,10 +112,16 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.match(css, /\.scrollbar-none\s*\{/);
   assert.match(css, /\.scroll-fade-bottom::after/);
   assert.match(css, /\.scroll-cue-panel\s*\{/);
-  assert.match(css, /\.scroll-cue-panel\.has-scroll-down \.scroll-cue-panel__more/);
+  assert.match(css, /\.scroll-cue-panel\.has-scroll-down \.scroll-cue-panel__cue--down/);
+  assert.match(css, /\.scroll-cue-panel\.has-scroll-right \.scroll-cue-panel__cue--right/);
+  assert.match(css, /place-items:\s*center/);
+  assert.match(css, /\.choice-select__menu--portal\.has-scroll-down \.choice-select__menu-edge--bottom/);
   assert.match(css, /\.weight-room-presets-card/);
   assert.match(css, /\.weight-room-exercise-left-column/);
   assert.match(css, /\.weight-room-exercise-list-scroll \.scroll-cue-panel__body/);
+  assert.match(css, /\.weight-room-individual-strip-panel/);
+  assert.match(css, /\.weight-room-player-list__scroll-panel/);
+  assert.match(css, /\.weight-room-exercise-preset-modal/);
   assert.match(css, /\.weight-room-exercise-results \.weight-room-result-table__head button/);
   assert.match(css, /\.modal-body\s*\{[\s\S]*overflow:\s*auto/);
   assert.match(css, /\.modal-panel\.has-scroll-bottom \.modal-scroll-fade--bottom/);

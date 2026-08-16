@@ -13,8 +13,9 @@ import {
   Upload,
   X,
   ChevronDown,
+  ChevronUp,
 } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ChangeEvent, type Dispatch, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type SetStateAction } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ChangeEvent, type Dispatch, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import { cityOptionsForState, US_STATE_OPTIONS } from "../../../lib/locations";
 import type { OrgRole, OrganizationManageData, OrganizationVisibility } from "../../../lib/organizationManagement";
@@ -51,6 +52,58 @@ type ChoiceOption = {
   value: string;
   label: string;
 };
+
+const SCROLL_EDGE_THRESHOLD = 3;
+
+type ScrollEdges = {
+  canScrollUp: boolean;
+  canScrollDown: boolean;
+};
+
+function measureScrollEdges(element: HTMLElement | null): ScrollEdges {
+  if (!element) return { canScrollUp: false, canScrollDown: false };
+  const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight);
+  return {
+    canScrollUp: element.scrollTop > SCROLL_EDGE_THRESHOLD,
+    canScrollDown: element.scrollTop < maxScrollTop - SCROLL_EDGE_THRESHOLD,
+  };
+}
+
+function sameScrollEdges(left: ScrollEdges, right: ScrollEdges) {
+  return left.canScrollUp === right.canScrollUp && left.canScrollDown === right.canScrollDown;
+}
+
+function useScrollEdges<T extends HTMLElement>(
+  ref: RefObject<T | null>,
+  watchKey?: unknown,
+) {
+  const [edges, setEdges] = useState<ScrollEdges>(() => measureScrollEdges(null));
+
+  const updateScrollEdges = useCallback(() => {
+    const nextEdges = measureScrollEdges(ref.current);
+    setEdges((current) => (sameScrollEdges(current, nextEdges) ? current : nextEdges));
+  }, [ref]);
+
+  useEffect(() => {
+    updateScrollEdges();
+    const element = ref.current;
+    if (!element || typeof window === "undefined") return;
+    const handleScroll = () => updateScrollEdges();
+    element.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", updateScrollEdges);
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateScrollEdges) : null;
+    resizeObserver?.observe(element);
+    const animationFrame = window.requestAnimationFrame(updateScrollEdges);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      element.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", updateScrollEdges);
+      resizeObserver?.disconnect();
+    };
+  }, [ref, updateScrollEdges, watchKey]);
+
+  return { edges };
+}
 
 type CropState = {
   sourceUrl: string;
@@ -1008,6 +1061,7 @@ function ChoiceSelect({
   const selected = options.find((option) => option.value === value) ?? options[0];
   const reactId = useId();
   const listboxId = `choice-select-${reactId.replace(/[^a-z0-9_-]/gi, "")}`;
+  const { edges: menuEdges } = useScrollEdges(menuRef, `${open}-${menuPosition?.top ?? 0}-${menuPosition?.maxHeight ?? 0}-${options.length}-${value}`);
 
   const updateMenuPosition = useCallback(() => {
     if (!buttonRef.current || typeof window === "undefined") return;
@@ -1021,11 +1075,11 @@ function ChoiceSelect({
     const viewportWidth = viewport?.width ?? window.innerWidth;
     const viewportBottom = viewportTop + viewportHeight;
     const viewportRight = viewportLeft + viewportWidth;
-    const desiredHeight = Math.min(320, Math.max(96, options.length * 44 + 10));
-    const availableBelow = Math.max(0, viewportBottom - rect.bottom - viewportPadding);
-    const availableAbove = Math.max(0, rect.top - viewportTop - viewportPadding);
+    const desiredHeight = Math.min(320, Math.max(96, options.length * 44 + 16));
+    const availableBelow = Math.max(0, viewportBottom - rect.bottom - viewportPadding - gap);
+    const availableAbove = Math.max(0, rect.top - viewportTop - viewportPadding - gap);
     const bestAvailable = Math.max(availableBelow, availableAbove);
-    if (viewportWidth <= 640 || viewportHeight <= 540 || bestAvailable < 156) {
+    if (viewportWidth <= 640 || (viewportWidth <= 900 && viewportHeight <= 540) || bestAvailable < 132) {
       const maxHeight = Math.min(320, Math.max(196, viewportHeight - viewportPadding * 2));
       setMenuPosition({
         top: viewportTop + Math.max(viewportPadding, viewportHeight - maxHeight - viewportPadding),
@@ -1043,12 +1097,13 @@ function ChoiceSelect({
     const availableHeight = placement === "top" ? availableAbove : availableBelow;
     const maxHeight = Math.max(96, Math.min(320, availableHeight));
     const menuHeight = Math.min(desiredHeight, maxHeight);
-    const width = Math.min(Math.max(rect.width, 220), viewportWidth - viewportPadding * 2);
+    const widestOption = Math.min(320, Math.max(180, ...options.map((option) => option.label.length * 7.5 + 42)));
+    const width = Math.min(Math.max(rect.width, widestOption), viewportWidth - viewportPadding * 2);
     const left = Math.min(Math.max(rect.left, viewportLeft + viewportPadding), viewportRight - width - viewportPadding);
     const unclampedTop = placement === "top" ? rect.top - gap - menuHeight : rect.bottom + gap;
     const top = Math.min(Math.max(unclampedTop, viewportTop + viewportPadding), viewportBottom - menuHeight - viewportPadding);
     setMenuPosition({ top, left, width, maxHeight, placement });
-  }, [options.length]);
+  }, [options]);
 
   const focusOption = useCallback((index?: number) => {
     const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
@@ -1151,7 +1206,13 @@ function ChoiceSelect({
         <div
           ref={menuRef}
           id={listboxId}
-          className={["choice-select__menu", "choice-select__menu--portal", className].filter(Boolean).join(" ")}
+          className={[
+            "choice-select__menu",
+            "choice-select__menu--portal",
+            menuEdges.canScrollUp ? "has-scroll-up" : "",
+            menuEdges.canScrollDown ? "has-scroll-down" : "",
+            className,
+          ].filter(Boolean).join(" ")}
           data-placement={menuPosition.placement}
           role="listbox"
           tabIndex={-1}
@@ -1164,6 +1225,7 @@ function ChoiceSelect({
             maxHeight: menuPosition.maxHeight,
           }}
         >
+          <span className="choice-select__menu-edge choice-select__menu-edge--top" aria-hidden="true"><ChevronUp size={13} /></span>
           {options.map((option) => (
             <button
               key={option.value}
@@ -1179,6 +1241,7 @@ function ChoiceSelect({
               <span>{option.label}</span>
             </button>
           ))}
+          <span className="choice-select__menu-edge choice-select__menu-edge--bottom" aria-hidden="true"><ChevronDown size={13} /></span>
         </div>
       </>,
       document.body,

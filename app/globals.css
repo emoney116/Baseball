@@ -126,6 +126,8 @@
   position: relative;
   min-width: 0;
   min-height: 0;
+  --scroll-cue-size: 24px;
+  --scroll-cue-inset: 9px;
 }
 
 .scroll-cue-panel__body {
@@ -146,58 +148,120 @@
 
 .scroll-cue-panel__fade {
   position: absolute;
-  left: 0;
-  right: 0;
   z-index: 4;
-  height: 30px;
   opacity: 0;
   pointer-events: none;
   transition: opacity 160ms ease;
 }
 
 .scroll-cue-panel__fade--top {
+  left: 0;
+  right: 0;
+  height: 26px;
   top: 0;
   background: linear-gradient(180deg, color-mix(in srgb, var(--panel) 96%, transparent), transparent);
 }
 
 .scroll-cue-panel__fade--bottom {
   bottom: 0;
+  left: 0;
+  right: 0;
+  height: 26px;
   background: linear-gradient(0deg, color-mix(in srgb, var(--panel) 96%, transparent), transparent);
 }
 
-.scroll-cue-panel.has-scroll-up .scroll-cue-panel__fade--top,
-.scroll-cue-panel.has-scroll-down .scroll-cue-panel__fade--bottom {
-  opacity: 1;
+.scroll-cue-panel__fade--left {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 30px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--panel) 94%, transparent), transparent);
 }
 
-.scroll-cue-panel__more {
+.scroll-cue-panel__fade--right {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 30px;
+  background: linear-gradient(270deg, color-mix(in srgb, var(--panel) 94%, transparent), transparent);
+}
+
+.scroll-cue-panel.has-scroll-up .scroll-cue-panel__fade--top,
+.scroll-cue-panel.has-scroll-down .scroll-cue-panel__fade--bottom,
+.scroll-cue-panel.has-scroll-left .scroll-cue-panel__fade--left,
+.scroll-cue-panel.has-scroll-right .scroll-cue-panel__fade--right {
+  opacity: 0.82;
+}
+
+.scroll-cue-panel__cue {
   position: absolute;
-  right: 10px;
-  bottom: 8px;
   z-index: 5;
-  width: 26px;
-  height: 26px;
-  border: 1px solid var(--line);
+  width: var(--scroll-cue-size);
+  height: var(--scroll-cue-size);
+  border: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--panel-strong) 88%, transparent);
+  background: color-mix(in srgb, var(--panel-strong) 62%, transparent);
   color: var(--muted-strong);
   display: grid;
   place-items: center;
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 160ms ease, transform 160ms ease, border-color 160ms ease;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  transition: opacity 160ms ease, transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
 
-.scroll-cue-panel.has-scroll-down .scroll-cue-panel__more {
-  opacity: 0.82;
+.scroll-cue-panel__cue svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+.scroll-cue-panel__cue--up {
+  top: var(--scroll-cue-inset);
+  right: var(--scroll-cue-inset);
+}
+
+.scroll-cue-panel__cue--down {
+  right: var(--scroll-cue-inset);
+  bottom: var(--scroll-cue-inset);
+}
+
+.scroll-cue-panel__cue--left {
+  top: 50%;
+  left: var(--scroll-cue-inset);
+  transform: translateY(-50%);
+}
+
+.scroll-cue-panel__cue--right {
+  top: 50%;
+  right: var(--scroll-cue-inset);
+  transform: translateY(-50%);
+}
+
+.scroll-cue-panel.has-scroll-up .scroll-cue-panel__cue--up,
+.scroll-cue-panel.has-scroll-down .scroll-cue-panel__cue--down,
+.scroll-cue-panel.has-scroll-left .scroll-cue-panel__cue--left,
+.scroll-cue-panel.has-scroll-right .scroll-cue-panel__cue--right {
+  opacity: 0.48;
   pointer-events: auto;
 }
 
-.scroll-cue-panel__more:hover {
+.scroll-cue-panel__cue:hover {
   border-color: color-mix(in srgb, var(--burgundy) 42%, var(--line));
   color: var(--text);
+  background: color-mix(in srgb, var(--panel-strong) 78%, transparent);
+  opacity: 0.68;
+}
+
+.scroll-cue-panel__cue--up:hover,
+.scroll-cue-panel__cue--down:hover {
   transform: translateY(1px);
+}
+
+.scroll-cue-panel__cue--left:hover,
+.scroll-cue-panel__cue--right:hover {
+  transform: translateY(-50%);
 }
 
 html {
@@ -3017,7 +3081,7 @@ textarea:focus-visible {
   background: var(--panel);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12);
   display: grid;
-  grid-template-columns: minmax(190px, 280px) minmax(260px, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 10px;
@@ -3563,6 +3627,11 @@ textarea:focus-visible {
   font-weight: 760;
 }
 
+.choice-select[data-empty="true"] .choice-select__button strong {
+  color: var(--muted);
+  font-weight: 720;
+}
+
 .choice-select__button strong small,
 .choice-select__menu button small {
   display: block;
@@ -3601,7 +3670,8 @@ textarea:focus-visible {
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--surface) 96%, #030407);
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.44);
-  padding: 5px;
+  padding: 8px;
+  scroll-padding-block: 10px;
 }
 
 .choice-select__sheet-scrim {
@@ -3625,6 +3695,8 @@ textarea:focus-visible {
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   contain: layout paint;
+  padding: 10px 8px;
+  scroll-padding-block: 12px;
 }
 
 .choice-select__menu--portal::-webkit-scrollbar {
@@ -3668,14 +3740,6 @@ textarea:focus-visible {
   transform-origin: bottom center;
 }
 
-[data-theme="light"] .choice-select__menu--portal::before {
-  background: linear-gradient(180deg, #ffffff, transparent);
-}
-
-[data-theme="light"] .choice-select__menu--portal::after {
-  background: linear-gradient(180deg, transparent, #ffffff);
-}
-
 .choice-select__menu button {
   width: 100%;
   min-height: 42px;
@@ -3694,28 +3758,38 @@ textarea:focus-visible {
   cursor: pointer;
 }
 
-.choice-select__menu--portal::before {
-  content: "";
+.choice-select__menu-edge {
   position: sticky;
-  top: -8px;
-  z-index: 1;
-  display: block;
-  height: 8px;
-  margin: -8px -5px 0;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, #030407), transparent);
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  left: 50%;
+  border: 1px solid color-mix(in srgb, var(--line) 62%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-strong) 54%, transparent);
+  color: var(--muted-strong);
+  display: grid;
+  place-items: center;
+  opacity: 0;
   pointer-events: none;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.16);
+  transform: translateX(-50%);
+  transition: opacity 140ms ease, border-color 140ms ease, background 140ms ease;
 }
 
-.choice-select__menu--portal::after {
-  content: "";
-  position: sticky;
-  bottom: -8px;
-  z-index: 1;
-  display: block;
-  height: 18px;
-  margin: -18px -5px -5px;
-  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--surface) 96%, #030407));
-  pointer-events: none;
+.choice-select__menu-edge--top {
+  top: 1px;
+  margin-bottom: -22px;
+}
+
+.choice-select__menu-edge--bottom {
+  bottom: 1px;
+  margin-top: -22px;
+}
+
+.choice-select__menu--portal.has-scroll-up .choice-select__menu-edge--top,
+.choice-select__menu--portal.has-scroll-down .choice-select__menu-edge--bottom {
+  opacity: 0.42;
 }
 
 .choice-select__menu button span {
@@ -9580,11 +9654,17 @@ select option {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  min-height: 64px;
+  margin-bottom: 8px;
 }
 
 .weight-room-profile-header .player-avatar {
   overflow: visible;
+}
+
+.weight-room-profile-header .player-avatar--lg {
+  --size: 52px;
 }
 
 .weight-room-profile-header .player-avatar img {
@@ -9599,7 +9679,7 @@ select option {
 }
 
 .weight-room-player-profile .segmented-control {
-  margin: 12px 0;
+  margin: 8px 0 10px;
 }
 
 .weight-room-player-overview {
@@ -9649,7 +9729,7 @@ select option {
 
 .weight-room-library-filters {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(96px, 128px);
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 170px);
   gap: 8px;
   min-width: 0;
 }
@@ -17853,8 +17933,8 @@ body,
 
 /* Weight Room athlete analytics workspace */
 .weight-room-athlete-workspace {
-  --weight-room-athlete-min-height: clamp(520px, calc(100vh - 170px), 680px);
-  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  --weight-room-athlete-min-height: clamp(600px, calc(100dvh - 150px), 780px);
+  grid-template-columns: minmax(235px, 285px) minmax(0, 1fr);
   align-items: stretch;
   grid-auto-rows: auto;
 }
@@ -17864,7 +17944,7 @@ body,
   display: grid;
   gap: 10px;
   padding: 10px;
-  grid-template-rows: auto auto minmax(0, auto);
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: var(--weight-room-athlete-min-height);
   background:
     linear-gradient(145deg, color-mix(in srgb, var(--burgundy) 8%, transparent), transparent 42%),
@@ -17922,7 +18002,8 @@ body,
 }
 
 .weight-room-athlete-workspace .weight-room-player-list__scroll {
-  max-height: 342px;
+  max-height: none;
+  height: 100%;
   overflow-y: auto;
   display: grid;
   gap: 6px;
@@ -17984,14 +18065,14 @@ body,
 }
 
 .weight-room-profile-header {
-  padding-bottom: 20px;
+  padding-bottom: 10px;
 }
 
 .weight-room-profile-header h2 {
-  margin: 2px 0;
-  font-size: clamp(1.35rem, 0.5vw + 1.16rem, 1.75rem);
+  margin: 0;
+  font-size: clamp(1.18rem, 0.44vw + 1.02rem, 1.5rem);
   font-weight: var(--weight-heading);
-  line-height: var(--leading-page-title);
+  line-height: 1.05;
 }
 
 .weight-room-profile-header div > span {
@@ -18004,16 +18085,17 @@ body,
 
 .weight-room-profile-header small {
   color: var(--muted-strong);
-  font-size: var(--text-body);
+  font-size: var(--text-secondary-body);
   font-weight: var(--weight-body);
+  white-space: nowrap;
 }
 
 .weight-room-profile-header .secondary-button {
-  min-height: 44px;
+  min-height: 38px;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding-inline: 22px;
+  gap: 8px;
+  padding-inline: 16px;
   font-weight: var(--weight-selected);
 }
 
@@ -18677,7 +18759,7 @@ button.weight-room-athlete-table__row:hover {
 
 @media (max-width: 1180px) {
   .weight-room-athlete-workspace {
-    grid-template-columns: minmax(210px, 236px) minmax(0, 1fr);
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
   }
 
   .weight-room-athlete-panel {
@@ -19076,7 +19158,8 @@ button.weight-room-athlete-table__row:hover {
   .weight-room-exercise-left-column,
   .weight-room-section-head,
   .weight-room-library-filters,
-  .weight-room-exercise-info-panel > div {
+  .weight-room-exercise-info-panel > div,
+  .weight-room-preset-builder {
     grid-template-columns: 1fr;
   }
 
@@ -19101,13 +19184,22 @@ button.weight-room-athlete-table__row:hover {
   .weight-room-exercise-list-scroll .scroll-cue-panel__body {
     max-height: 390px;
   }
+
+  .weight-room-exercise-preset-modal {
+    width: min(560px, calc(100vw - 20px));
+  }
+
+  .weight-room-preset-builder__scroll .scroll-cue-panel__body {
+    max-height: 260px;
+  }
 }
 
 /* Weight Room leaderboard refinement */
 .weight-room-athlete-workspace .weight-room-player-list {
   grid-template-rows: auto minmax(0, 1fr);
-  height: var(--weight-room-athlete-min-height);
-  max-height: var(--weight-room-athlete-min-height);
+  min-height: var(--weight-room-athlete-min-height);
+  height: 100%;
+  max-height: none;
   overflow: hidden;
 }
 
@@ -19126,22 +19218,31 @@ button.weight-room-athlete-table__row:hover {
   -ms-overflow-style: none;
 }
 
+.weight-room-player-list__scroll-panel {
+  min-height: 0;
+  height: 100%;
+}
+
+.weight-room-player-list__scroll-panel .scroll-cue-panel__body {
+  padding-right: 1px;
+}
+
 .weight-room-athlete-workspace .weight-room-player-list__scroll::-webkit-scrollbar {
   display: none;
 }
 
 .weight-room-athlete-panel {
-  height: var(--weight-room-athlete-min-height);
-  max-height: var(--weight-room-athlete-min-height);
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  overflow: hidden;
+  min-height: var(--weight-room-athlete-min-height);
+  height: auto;
+  max-height: none;
+  display: block;
+  overflow: visible;
 }
 
 .weight-room-athlete-panel .weight-room-athlete-overview,
 .weight-room-athlete-panel .weight-room-athlete-tab-panel {
   min-height: 0;
-  overflow-y: auto;
+  overflow: visible;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -19172,7 +19273,7 @@ button.weight-room-athlete-table__row:hover {
 
 .weight-room-library-filters {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(132px, 132px);
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 170px);
   gap: 8px;
   min-width: 0;
 }
@@ -19186,9 +19287,158 @@ button.weight-room-athlete-table__row:hover {
   max-width: 560px;
 }
 
+.weight-room-exercise-preset-modal {
+  width: min(920px, calc(100vw - 32px));
+  max-width: 920px;
+}
+
 .weight-room-exercise-modal__body {
   display: grid;
   gap: 14px;
+}
+
+.weight-room-preset-builder {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(240px, 0.92fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.weight-room-preset-builder > section {
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel) 58%, transparent);
+  padding: 10px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 9px;
+}
+
+.weight-room-preset-builder__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.weight-room-preset-builder__head strong {
+  font-size: var(--text-card-title);
+  font-weight: var(--weight-heading);
+}
+
+.weight-room-preset-builder__head small {
+  color: var(--muted);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-ui);
+}
+
+.weight-room-preset-builder__scroll .scroll-cue-panel__body {
+  max-height: min(48dvh, 420px);
+}
+
+.weight-room-preset-selected-list,
+.weight-room-preset-library-list {
+  display: grid;
+  gap: 7px;
+  align-content: start;
+}
+
+.weight-room-preset-selected-row,
+.weight-room-preset-library-list button {
+  min-width: 0;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-strong) 48%, transparent);
+  color: var(--text);
+}
+
+.weight-room-preset-selected-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+}
+
+.weight-room-preset-selected-row > span:nth-child(2) {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.weight-room-preset-selected-row strong,
+.weight-room-preset-selected-row small,
+.weight-room-preset-library-list strong,
+.weight-room-preset-library-list small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-preset-selected-row small,
+.weight-room-preset-library-list small {
+  color: var(--muted);
+  font-size: var(--text-caption);
+}
+
+.weight-room-preset-selected-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.weight-room-preset-selected-actions button {
+  width: 28px;
+  min-height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 56%, transparent);
+  color: var(--muted-strong);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.weight-room-preset-selected-actions button:disabled {
+  opacity: 0.34;
+  cursor: not-allowed;
+}
+
+.weight-room-preset-library-list button {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 7px 9px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.weight-room-preset-library-list button > span {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--burgundy) 16%, transparent);
+  color: var(--muted-strong);
+  display: grid;
+  place-items: center;
+}
+
+.weight-room-preset-library-list button.active,
+.weight-room-preset-selected-row:hover,
+.weight-room-preset-library-list button:hover {
+  border-color: color-mix(in srgb, var(--burgundy) 54%, var(--line));
+  background: color-mix(in srgb, var(--burgundy) 16%, var(--panel-strong));
+}
+
+.weight-room-preset-library-list button.active > span {
+  background: color-mix(in srgb, var(--burgundy) 38%, transparent);
+  color: var(--text);
 }
 
 .weight-room-exercise-modal__body label {
@@ -21612,7 +21862,17 @@ button.weight-room-athlete-table__row:hover {
   gap: 7px;
   overflow-x: auto;
   scrollbar-width: none;
-  padding-bottom: 2px;
+  padding: 0 34px 2px 1px;
+}
+
+.weight-room-individual-strip-panel {
+  --scroll-cue-size: 22px;
+  --scroll-cue-inset: 6px;
+}
+
+.weight-room-individual-strip-panel .scroll-cue-panel__body {
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .weight-room-individual-strip::-webkit-scrollbar {
