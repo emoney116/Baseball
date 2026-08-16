@@ -1684,11 +1684,17 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       ...data.workoutEntries.map((entry) => entry.exercise),
     ].filter(Boolean));
     const exerciseDefinitionByName = new Map(exerciseDefinitions.map((exercise) => [exercise.name.toLowerCase(), exercise]));
+    const { data: existingExerciseRows, error: existingExerciseError } = await supabase
+      .from("exercises")
+      .select("id,name")
+      .eq("organization_id", foundation.organizationId);
+    if (existingExerciseError) throw existingExerciseError;
+    const existingExerciseIdByName = new Map<string, string>((existingExerciseRows ?? []).map((exercise: any) => [String(exercise.name).toLowerCase(), exercise.id]));
     if (setupExerciseNames.size > 0) {
       const exerciseRows = [...setupExerciseNames].map((name) => {
         const definition = exerciseDefinitionByName.get(name.toLowerCase());
         return {
-          id: definition?.id,
+          id: definition?.id ?? existingExerciseIdByName.get(name.toLowerCase()) ?? createRemoteId(),
           organization_id: foundation.organizationId,
           name,
           kind: definition?.kind ?? data.workoutEntries.find((entry) => entry.exercise === name)?.kind ?? "Custom",
@@ -1772,10 +1778,10 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       updated_at: station.updatedAt,
     }));
     try {
-      await upsertRows(supabase, "weight_room_workout_stations", stationRows);
+      await upsertOrderedWorkoutRows(supabase, "weight_room_workout_stations", stationRows);
     } catch (error) {
       if (!isMissingWorkoutStationMetadataColumns(error as { code?: string; message?: string })) throw error;
-      await upsertRows(
+      await upsertOrderedWorkoutRows(
         supabase,
         "weight_room_workout_stations",
         stationRows.map((row) => ({
@@ -1797,7 +1803,7 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       );
     }
 
-    await upsertRows(
+    await upsertOrderedWorkoutRows(
       supabase,
       "weight_room_workout_groups",
       (data.weightRoomWorkoutGroups ?? []).map((group) => ({
@@ -1823,6 +1829,7 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
         created_at: member.createdAt,
         updated_at: member.updatedAt,
       })),
+      "workout_id,player_id",
     );
 
     await upsertRows(
@@ -1840,7 +1847,7 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       })),
     );
 
-    await upsertRows(
+    await upsertOrderedPresetRows(
       supabase,
       "weight_room_exercise_preset_items",
       (data.weightRoomExercisePresetItems ?? []).map((item) => ({
@@ -1878,7 +1885,7 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       })),
     );
 
-    await upsertRows(
+    await upsertOrderedPresetRows(
       supabase,
       "weight_room_group_preset_groups",
       (data.weightRoomGroupPresetGroups ?? []).map((group) => ({
@@ -2210,10 +2217,118 @@ async function syncStaffData(foundation: Foundation, data: AppData) {
   }
 }
 
-async function upsertRows(supabase: SupabaseClient, table: string, rows: Array<Record<string, unknown>>) {
+async function upsertRows(
+  supabase: SupabaseClient,
+  table: string,
+  rows: Array<Record<string, unknown>>,
+  onConflict = "id",
+) {
   if (rows.length === 0) return;
-  const { error } = await supabase.from(table).upsert(rows, { onConflict: "id" });
+  const { error } = await supabase.from(table).upsert(rows, { onConflict });
   if (error) throw new PersistenceError("save-failed", error.message);
+}
+
+async function upsertOrderedWorkoutRows(
+  supabase: SupabaseClient,
+  table: string,
+  rows: Array<Record<string, unknown> & { id: string; workout_id: string; display_order: number }>,
+) {
+  if (rows.length === 0) return;
+  const normalizedRows = normalizeWorkoutDisplayOrder(rows);
+  await upsertOrderedRowsByParent(supabase, table, "workout_id", normalizedRows);
+}
+
+async function upsertOrderedPresetRows(
+  supabase: SupabaseClient,
+  table: string,
+  rows: Array<Record<string, unknown> & { id: string; preset_id: string; display_order: number }>,
+) {
+  if (rows.length === 0) return;
+  const normalizedRows = normalizePresetDisplayOrder(rows);
+  await upsertOrderedRowsByParent(supabase, table, "preset_id", normalizedRows);
+}
+
+async function upsertOrderedRowsByParent(
+  supabase: SupabaseClient,
+  table: string,
+  parentColumn: string,
+  rows: Array<Record<string, unknown> & { id: string; display_order: number }>,
+) {
+  if (rows.length === 0) return;
+  const parentIds = [...new Set(rows.map((row) => orderedRowParentValue(row, parentColumn)).filter(Boolean))];
+  if (parentIds.length === 0) return;
+  const { data: existingRows, error: existingError } = await supabase
+    .from(table)
+    .select("*")
+    .in(parentColumn, parentIds);
+  if (existingError) throw new PersistenceError("save-failed", existingError.message);
+
+  const existing = (existingRows ?? []) as Array<Record<string, unknown> & { id: string; display_order: number }>;
+  const parkingStart = Math.min(-100000, ...existing.map((row) => row.display_order)) - existing.length - 1;
+  for (const [index, row] of existing.entries()) {
+    const { error } = await supabase
+      .from(table)
+      .update({ display_order: parkingStart - index })
+      .eq("id", row.id);
+    if (error) throw new PersistenceError("save-failed", error.message);
+  }
+
+  await upsertRows(supabase, table, rows);
+
+  const incomingIds = new Set(rows.map((row) => row.id));
+  const maxOrderByParent = new Map<string, number>();
+  rows.forEach((row) => {
+    const parentValue = orderedRowParentValue(row, parentColumn);
+    if (!parentValue) return;
+    maxOrderByParent.set(parentValue, Math.max(maxOrderByParent.get(parentValue) ?? 0, row.display_order));
+  });
+
+  for (const row of existing.filter((item) => !incomingIds.has(item.id)).sort((left, right) => left.display_order - right.display_order)) {
+    const parentValue = orderedRowParentValue(row, parentColumn);
+    if (!parentValue) continue;
+    const nextOrder = (maxOrderByParent.get(parentValue) ?? 0) + 1;
+    maxOrderByParent.set(parentValue, nextOrder);
+    const { error } = await supabase
+      .from(table)
+      .update({ display_order: nextOrder })
+      .eq("id", row.id);
+    if (error) throw new PersistenceError("save-failed", error.message);
+  }
+}
+
+function orderedRowParentValue(row: Record<string, unknown>, parentColumn: string) {
+  const value = row[parentColumn];
+  return typeof value === "string" ? value : "";
+}
+
+function normalizeWorkoutDisplayOrder<T extends Record<string, unknown> & { workout_id: string; display_order: number }>(rows: T[]): T[] {
+  return normalizeParentDisplayOrder(rows, "workout_id");
+}
+
+function normalizePresetDisplayOrder<T extends Record<string, unknown> & { preset_id: string; display_order: number }>(rows: T[]): T[] {
+  return normalizeParentDisplayOrder(rows, "preset_id");
+}
+
+function normalizeParentDisplayOrder<T extends Record<string, unknown> & { display_order: number }>(rows: T[], parentColumn: string): T[] {
+  const indexed = rows.map((row, index) => ({ row, index }));
+  const grouped = new Map<string, typeof indexed>();
+  indexed.forEach((item) => {
+    const parentValue = orderedRowParentValue(item.row, parentColumn);
+    const group = grouped.get(parentValue) ?? [];
+    group.push(item);
+    grouped.set(parentValue, group);
+  });
+
+  const nextRows = [...rows];
+  grouped.forEach((group) => {
+    group
+      .sort((left, right) => left.row.display_order - right.row.display_order || left.index - right.index)
+      .forEach((item, index) => {
+        nextRows[item.index] = { ...item.row, display_order: index + 1 };
+      });
+  });
+
+  return nextRows;
 }
 
 function mapPlayer(row: any, membership?: any): Player {
@@ -3181,6 +3296,11 @@ function toNumber(value: unknown): number | undefined {
   if (value === null || value === undefined || value === "") return undefined;
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : undefined;
+}
+
+function createRemoteId(): ID {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `remote-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function findPosition(game: Game, playerId: ID) {

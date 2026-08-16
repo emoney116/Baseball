@@ -50,7 +50,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Children, isValidElement, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { BaseballField, DonutChart, Heatmap, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
@@ -196,6 +197,7 @@ type WeightRoomExerciseCategory = "Lower Body" | "Upper Body" | "Power" | "Core"
 type WeightRoomExerciseSortKey = "exercise" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "best" | "sets";
 type WeightRoomWorkoutSortKey = "exercise" | "set" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "rpe";
 type WeightRoomLeaderboardSortKey = "rank" | "athlete" | "score" | "workouts" | "progress" | "completion" | "trend";
+type WeightRoomExerciseResultSortKey = "player" | "latest" | "previous" | "change" | "best";
 type WeightRoomLeaderboardFilter = "All Athletes" | "Qualified" | "Improving" | "Needs Attention";
 type WeightRoomSortState<K extends string> = { key: K; direction: SortDirection };
 type WorkoutMeasurementType = "WEIGHT_REPS" | "BODYWEIGHT_REPS" | "REPS_ONLY" | "TIME" | "DISTANCE" | "HEIGHT" | "WEIGHT_ONLY" | "COUNT" | "COMPLETION" | "RPE_ONLY" | "CUSTOM";
@@ -211,6 +213,9 @@ type WeightRoomExercise = {
   active: boolean;
   targetSets?: number;
   targetReps?: number;
+  targetValue?: number;
+  defaultTargetStyle?: WorkoutTargetStyle;
+  performanceDirection?: WorkoutPerformanceDirection;
 };
 type WeightRoomSetDraft = {
   playerId: ID;
@@ -615,7 +620,6 @@ export default function MetrolinaBaseballApp() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [view, setView] = useState<ViewKey>("home");
-  const [globalQuery, setGlobalQuery] = useState("");
   const [selectedPlayerId, setSelectedPlayerId] = useState<ID>("p-jackson-smith");
   const [rosterFilter, setRosterFilter] = useState<RosterFilter>("All");
   const [rosterPositionFilter, setRosterPositionFilter] = useState<RosterPositionFilter>("All");
@@ -756,41 +760,6 @@ export default function MetrolinaBaseballApp() {
   const practicePlayer = data?.players.find((player) => player.id === practicePlayerId) ?? selectedPlayer;
   const currentGame = data?.games.find((game) => game.id === selectedGameId) ?? data?.games[0];
   const rosterPlayers = uniquePlayers(data?.players.filter((player) => !player.archived) ?? []);
-
-  const globalResults = useMemo<GlobalSearchResults>(() => {
-    const empty: GlobalSearchResults = { organizations: [], publicOrganizations: [], teams: [], publicTeams: [], players: [] };
-    if (!data || !globalQuery.trim()) return empty;
-    const needle = globalQuery.trim().toLowerCase();
-    if (searchInTeamContext) {
-      return {
-        ...empty,
-        players: uniquePlayers(data.players)
-          .filter((player) => !player.archived)
-          .filter((player) => `${player.name} ${player.jerseyNumber} ${player.primaryPosition}`.toLowerCase().includes(needle))
-          .slice(0, 6),
-      };
-    }
-
-    const teams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
-    const organizations = organizationSummariesFromContext(data.teamContext).filter((organization) =>
-      `${organization.name} ${organization.location ?? ""} ${organization.teams.map((team) => `${team.teamName} ${team.teamLevel ?? ""} ${team.seasonName ?? ""}`).join(" ")}`.toLowerCase().includes(needle),
-    );
-    const matchingTeams = teams.filter((team) =>
-      `${team.organizationName} ${team.teamName} ${team.teamLevel ?? ""} ${team.seasonName ?? ""} ${team.title ?? ""}`.toLowerCase().includes(needle),
-    );
-    const publicOrganizations = (data.publicOrganizations ?? []).filter((organization) =>
-      publicOrganizationSearchText(organization).includes(needle),
-    );
-    const publicTeams = (data.publicTeams ?? []).filter((team) => publicTeamSearchText(team).includes(needle));
-
-    return {
-      organizations: organizations.slice(0, 4),
-      publicOrganizations: publicOrganizations.slice(0, 4),
-      teams: matchingTeams.slice(0, 6),
-      publicTeams: publicTeams.slice(0, 6),
-      players: [],
-    };
-  }, [data, globalQuery, searchInTeamContext]);
 
   const activeTotals = useMemo(() => {
     if (!data || !practice) return { pitches: 0, swings: 0, defenseReps: 0, defenders: 0, players: 0, pitchers: 0, hitters: 0 };
@@ -936,7 +905,6 @@ export default function MetrolinaBaseballApp() {
     setPracticePlayerId(playerId);
     setSelectedWeightPlayerId(playerId);
     setProfileTab("overview");
-    setGlobalQuery("");
     navigateToView("profile", { playerId });
   }
 
@@ -1270,22 +1238,18 @@ export default function MetrolinaBaseballApp() {
   }
 
   function openPublicOrganization(organization: PublicDirectoryOrganizationSummary) {
-    setGlobalQuery("");
     window.location.href = `/org/${organization.slug ?? organization.id}`;
   }
 
   function openManagedOrganization(organization: OrganizationSummary) {
-    setGlobalQuery("");
     window.location.href = `/org/${organization.slug ?? organization.id}`;
   }
 
   function openOrganizationManagement(organization: OrganizationSummary) {
-    setGlobalQuery("");
     window.location.href = `/org/${organization.slug ?? organization.id}/manage`;
   }
 
   function openPublicTeam(team: PublicDirectoryTeamSummary) {
-    setGlobalQuery("");
     window.location.href = `/team/${team.id}`;
   }
 
@@ -1948,6 +1912,15 @@ export default function MetrolinaBaseballApp() {
     updateActiveWeightRoomWorkoutStatus("COMPLETED");
   }
 
+  function openCompletedWeightRoomWorkout(workout: PersistedWeightRoomWorkout) {
+    setWeightRoomWorkoutTitle(workout.title);
+    setWeightRoomWorkoutDate(workout.date);
+    setWeightRoomWorkoutStatus("Completed");
+    setWeightRoomActiveWorkoutId(workout.id);
+    setWeightRoomActiveEventId(workout.scheduleEventId);
+    setWeightRoomTab("WorkoutSession");
+  }
+
   function pauseWeightRoomWorkout() {
     setWeightRoomWorkoutStatus("Paused");
     if (weightRoomActiveEventId) updateScheduleEventForWeightRoom(weightRoomActiveEventId, { status: "Scheduled" });
@@ -1981,6 +1954,69 @@ export default function MetrolinaBaseballApp() {
 
   function saveWeightRoomSetup(payload: WeightRoomSetupPayload) {
     commit((current) => applyWeightRoomSetupToData(current, payload));
+  }
+
+  function saveWeightRoomExerciseDefinition(exercise: WeightRoomExercise) {
+    commit((current) => {
+      const now = new Date().toISOString();
+      return {
+        ...current,
+        weightRoomExercises: mergePersistedExerciseDefinitions(current.weightRoomExercises ?? [], [exercise], current.teamContext?.currentTeam?.organizationId, now),
+      };
+    });
+  }
+
+  function saveWeightRoomExercisePreset(preset: WeightRoomExercisePreset) {
+    commit((current) => {
+      const now = new Date().toISOString();
+      const team = current.teamContext?.currentTeam;
+      const profileId = current.teamContext?.profile?.id;
+      const existingPreset = (current.weightRoomExercisePresets ?? []).find((item) => item.id === preset.id);
+      const presetRow: PersistedWeightRoomExercisePreset = {
+        id: preset.id,
+        organizationId: team?.organizationId,
+        teamId: team?.teamId,
+        name: preset.name,
+        archivedAt: preset.archived ? now : existingPreset?.archivedAt,
+        createdBy: existingPreset?.createdBy ?? profileId,
+        createdAt: existingPreset?.createdAt ?? now,
+        updatedAt: now,
+      };
+      const existingPresetItemByExercise = new Map(
+        (current.weightRoomExercisePresetItems ?? [])
+          .filter((item) => item.presetId === preset.id)
+          .map((item) => [item.exerciseName.toLowerCase(), item]),
+      );
+      const items: PersistedWeightRoomExercisePresetItem[] = preset.stations.map((station, index) => {
+        const existingItem = existingPresetItemByExercise.get(station.name.toLowerCase());
+        return {
+          id: existingItem?.id ?? createId("wepi"),
+          presetId: preset.id,
+          exerciseName: station.name,
+          displayOrder: index + 1,
+          targetSets: station.targetSets,
+          targetReps: station.targetReps,
+          targetValue: station.targetValue,
+          targetStyle: station.targetStyle,
+          measurementType: station.measurementType,
+          performanceDirection: station.performanceDirection,
+          unit: station.unit,
+          notes: station.notes,
+          createdAt: existingItem?.createdAt ?? now,
+          updatedAt: now,
+        };
+      });
+
+      return {
+        ...current,
+        weightRoomExercises: mergePersistedExerciseDefinitions(current.weightRoomExercises ?? [], preset.stations, team?.organizationId, now),
+        weightRoomExercisePresets: upsertById(current.weightRoomExercisePresets ?? [], presetRow),
+        weightRoomExercisePresetItems: [
+          ...(current.weightRoomExercisePresetItems ?? []).filter((item) => item.presetId !== preset.id),
+          ...items,
+        ],
+      };
+    });
   }
 
   function updateScheduleEventForWeightRoom(eventId: ID, patch: Partial<ScheduleEvent>) {
@@ -2122,15 +2158,6 @@ export default function MetrolinaBaseballApp() {
 
       <section className="ops-main">
         <TopCommand
-          globalQuery={globalQuery}
-          globalResults={globalResults}
-          searchMode={inTeamContext ? "team" : "global"}
-          onQuery={setGlobalQuery}
-          onOpenPlayer={openPlayer}
-          onOpenOrganization={openManagedOrganization}
-          onOpenPublicOrganization={openPublicOrganization}
-          onEnterTeam={enterTeam}
-          onOpenPublicTeam={openPublicTeam}
           onStartPractice={() => setStartPracticeOpen(true)}
           onStartGame={() => setStartGameOpen(true)}
           onView={goToView}
@@ -2388,9 +2415,12 @@ export default function MetrolinaBaseballApp() {
             onAddEntry={addWorkoutEntry}
             onStartWorkout={startWeightRoomWorkout}
             onCompleteWorkout={completeWeightRoomWorkout}
+            onOpenCompletedWorkout={openCompletedWeightRoomWorkout}
             onPauseWorkout={pauseWeightRoomWorkout}
             onResumeWorkout={resumeWeightRoomWorkout}
             onSaveSetup={saveWeightRoomSetup}
+            onSaveExerciseDefinition={saveWeightRoomExerciseDefinition}
+            onSaveExercisePreset={saveWeightRoomExercisePreset}
             onWeighInOpen={setWeightRoomWeighInOpen}
             onSaveWeighIns={logWeightRoomWeighIns}
           />
@@ -2838,15 +2868,6 @@ function EmptyActionPanel({
 }
 
 function TopCommand({
-  globalQuery,
-  globalResults,
-  searchMode,
-  onQuery,
-  onOpenPlayer,
-  onOpenOrganization,
-  onOpenPublicOrganization,
-  onEnterTeam,
-  onOpenPublicTeam,
   onStartPractice,
   onStartGame,
   onView,
@@ -2856,15 +2877,6 @@ function TopCommand({
   onAccountMenu,
   onSignOut,
 }: {
-  globalQuery: string;
-  globalResults: GlobalSearchResults;
-  searchMode: "global" | "team";
-  onQuery: (value: string) => void;
-  onOpenPlayer: (playerId: ID) => void;
-  onOpenOrganization: (organization: OrganizationSummary) => void;
-  onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
-  onEnterTeam: (team: TeamOption) => void | Promise<void>;
-  onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
   onStartPractice: () => void;
   onStartGame: () => void;
   onView: (view: ViewKey) => void;
@@ -2874,16 +2886,6 @@ function TopCommand({
   onAccountMenu: (open: boolean) => void;
   onSignOut: () => void | Promise<void>;
 }) {
-  const hasTeamResults = globalResults.players.length > 0;
-  const hasGlobalResults =
-    globalResults.organizations.length > 0 ||
-    globalResults.publicOrganizations.length > 0 ||
-    globalResults.teams.length > 0 ||
-    globalResults.publicTeams.length > 0;
-  const hasResults = searchMode === "team" ? hasTeamResults : hasGlobalResults;
-  const placeholder = searchMode === "team" ? "Search players..." : "Search teams or organizations...";
-  const ariaLabel = searchMode === "team" ? "Search players" : "Search teams or organizations";
-
   return (
     <header className="top-command">
       <div className="top-command__identity">
@@ -2891,111 +2893,6 @@ function TopCommand({
           <img src={BRAND_ASSETS.mark} alt="" />
         </button>
         <strong>{APP_NAME}</strong>
-      </div>
-
-      <div className="global-search">
-        <Search size={16} aria-hidden="true" />
-        <input value={globalQuery} onChange={(event) => onQuery(event.target.value)} placeholder={placeholder} aria-label={ariaLabel} />
-        {hasResults && (
-          <div className="global-search__results">
-            {searchMode === "global" ? (
-              <>
-                {globalResults.organizations.length > 0 && (
-                  <div className="global-search__group">
-                    <span className="global-search__group-title">My Organizations</span>
-                    {globalResults.organizations.map((organization) => (
-                      <button
-                        key={organization.id}
-                        type="button"
-                        onClick={() => {
-                          onQuery("");
-                          if (organization.teams[0]) void onEnterTeam(organization.teams[0]);
-                          else onOpenOrganization(organization);
-                        }}
-                      >
-                        <OrganizationLogo name={organization.name} />
-                        <span>{organization.name}</span>
-                        <small>{organization.teams.length} team{organization.teams.length === 1 ? "" : "s"}</small>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {globalResults.publicOrganizations.length > 0 && (
-                  <div className="global-search__group">
-                    <span className="global-search__group-title">Organizations</span>
-                    {globalResults.publicOrganizations.map((organization) => (
-                      <button
-                        key={`public-org-${organization.id}`}
-                        type="button"
-                        onClick={() => {
-                          onQuery("");
-                          onOpenPublicOrganization(organization);
-                        }}
-                      >
-                        <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
-                        <span>{organization.name}</span>
-                        <small>{organizationLocation(organization) || `${organization.teams.length} teams`}</small>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {globalResults.teams.length > 0 && (
-                  <div className="global-search__group">
-                    <span className="global-search__group-title">My Teams</span>
-                    {globalResults.teams.map((team) => (
-                      <button
-                        key={teamValue(team)}
-                        type="button"
-                        onClick={() => {
-                          onQuery("");
-                          void onEnterTeam(team);
-                        }}
-                      >
-                        <OrganizationLogo name={team.organizationName} />
-                        <span>{team.teamName}</span>
-                        <small>{team.organizationName}</small>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {globalResults.publicTeams.length > 0 && (
-                  <div className="global-search__group">
-                    <span className="global-search__group-title">Teams</span>
-                    {globalResults.publicTeams.map((team) => (
-                      <button
-                        key={`public-team-${team.id}`}
-                        type="button"
-                        onClick={() => {
-                          onQuery("");
-                          onOpenPublicTeam(team);
-                        }}
-                      >
-                        <OrganizationLogo name={team.organizationName} />
-                        <span>{team.name}</span>
-                        <small>{team.organizationName}</small>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              globalResults.players.map((player) => (
-                <button
-                  key={player.id}
-                  type="button"
-                  onClick={() => {
-                    onQuery("");
-                    onOpenPlayer(player.id);
-                  }}
-                >
-                  <PlayerAvatar player={player} size="sm" compact />
-                  <span>{player.name}</span>
-                  <small>#{player.jerseyNumber}</small>
-                </button>
-              ))
-            )}
-          </div>
-        )}
       </div>
 
       <div className="top-command__actions">
@@ -3039,6 +2936,10 @@ function ChoiceSelect({
   onChange,
   className = "",
   disabled = false,
+  showSelectedDescription = true,
+  placeholder = "Select",
+  open: controlledOpen,
+  onOpenChange,
   "aria-label": ariaLabel,
 }: {
   label?: string;
@@ -3047,39 +2948,228 @@ function ChoiceSelect({
   onChange: (value: string) => void;
   className?: string;
   disabled?: boolean;
+  showSelectedDescription?: boolean;
+  placeholder?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   "aria-label"?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const selected = options.find((option) => option.value === value) ?? options[0];
+  const [internalOpen, setInternalOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+    placement: "top" | "bottom" | "sheet";
+  } | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const selected = options.find((option) => option.value === value);
+  const reactId = useId();
+  const listboxId = `choice-select-${reactId.replace(/[^a-z0-9_-]/gi, "")}`;
+  const open = controlledOpen ?? internalOpen;
+  const { edges: menuEdges } = useScrollEdges(menuRef, `${open}-${menuPosition?.top ?? 0}-${menuPosition?.maxHeight ?? 0}-${options.length}-${value}`);
+  const setSelectOpen = useCallback((nextOpen: boolean | ((current: boolean) => boolean)) => {
+    const resolved = typeof nextOpen === "function" ? nextOpen(open) : nextOpen;
+    if (controlledOpen === undefined) setInternalOpen(resolved);
+    onOpenChange?.(resolved);
+  }, [controlledOpen, onOpenChange, open]);
 
-  return (
-    <div
-      className={["choice-select", open ? "open" : "", className].filter(Boolean).join(" ")}
-      data-label={ariaLabel ?? label}
-      onBlur={(event) => {
-        const nextFocus = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-        if (!nextFocus || !event.currentTarget.contains(nextFocus)) setOpen(false);
-      }}
-    >
-      {label && <span className="choice-select__label">{label}</span>}
-      <button
-        type="button"
-        className="choice-select__button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={ariaLabel ?? label}
-        disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
-      >
-        {selected?.icon && <span className="choice-select__icon">{selected.icon}</span>}
-        <strong>
-          {selected?.label ?? "Select"}
-          {selected?.description && <small>{selected.description}</small>}
-        </strong>
-        <ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {open && !disabled && (
-        <div className="choice-select__menu" role="listbox" aria-label={ariaLabel ?? label}>
+  const updateMenuPosition = useCallback(() => {
+    if (!buttonRef.current || typeof window === "undefined") return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const viewportPadding = 12;
+    const gap = 6;
+    const viewport = window.visualViewport;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportHeight = viewport?.height ?? window.innerHeight;
+    const viewportWidth = viewport?.width ?? window.innerWidth;
+    const viewportBottom = viewportTop + viewportHeight;
+    const viewportRight = viewportLeft + viewportWidth;
+    const optionHeight = 44;
+    const desiredHeight = Math.min(320, Math.max(96, options.length * optionHeight + 16));
+    const availableBelow = Math.max(0, viewportBottom - rect.bottom - viewportPadding - gap);
+    const availableAbove = Math.max(0, rect.top - viewportTop - viewportPadding - gap);
+    const bestAvailable = Math.max(availableBelow, availableAbove);
+    const shouldUseSheet = viewportWidth <= 640 || (viewportWidth <= 900 && viewportHeight <= 540) || bestAvailable < 132;
+    if (shouldUseSheet) {
+      const maxHeight = Math.min(320, Math.max(196, viewportHeight - viewportPadding * 2));
+      setMenuPosition({
+        top: viewportTop + Math.max(viewportPadding, viewportHeight - maxHeight - viewportPadding),
+        left: viewportLeft + 8,
+        width: viewportWidth - 16,
+        maxHeight,
+        placement: "sheet",
+      });
+      return;
+    }
+
+    const canFitBelow = availableBelow >= desiredHeight;
+    const canFitAbove = availableAbove >= desiredHeight;
+    const placement = canFitBelow || (!canFitAbove && availableBelow >= availableAbove) ? "bottom" : "top";
+    const availableHeight = placement === "top" ? availableAbove : availableBelow;
+    const maxHeight = Math.max(96, Math.min(320, availableHeight));
+    const menuHeight = Math.min(desiredHeight, maxHeight);
+    const widestOption = Math.min(320, Math.max(180, ...options.map((option) => (option.label.length + (option.description?.length ?? 0) * 0.45) * 7.5 + 42)));
+    const width = Math.min(Math.max(rect.width, widestOption), viewportWidth - viewportPadding * 2);
+    const left = Math.min(Math.max(rect.left, viewportLeft + viewportPadding), viewportRight - width - viewportPadding);
+    const unclampedTop = placement === "top"
+      ? rect.top - gap - menuHeight
+      : rect.bottom + gap;
+    const top = Math.min(
+      Math.max(unclampedTop, viewportTop + viewportPadding),
+      viewportBottom - menuHeight - viewportPadding,
+    );
+    setMenuPosition({ top, left, width, maxHeight, placement });
+  }, [options]);
+
+  const focusOption = useCallback((index?: number) => {
+    const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
+    if (!buttons.length) return;
+    const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value));
+    const targetIndex = Math.max(0, Math.min(buttons.length - 1, index ?? selectedIndex));
+    buttons[targetIndex]?.focus();
+    buttons[targetIndex]?.scrollIntoView({ block: "nearest" });
+  }, [options, value]);
+
+  const closeMenu = useCallback((returnFocus = false) => {
+    setSelectOpen(false);
+    if (returnFocus) window.setTimeout(() => buttonRef.current?.focus(), 0);
+  }, [setSelectOpen]);
+
+  const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMenu(true);
+      return;
+    }
+    const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
+    if (!buttons.length) return;
+    const currentIndex = Math.max(0, buttons.findIndex((button) => button === document.activeElement));
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusOption(Math.min(buttons.length - 1, currentIndex + 1));
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusOption(Math.max(0, currentIndex - 1));
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      focusOption(0);
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      focusOption(buttons.length - 1);
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      const currentOption = options[currentIndex];
+      if (!currentOption) return;
+      onChange(currentOption.value);
+      closeMenu(true);
+    }
+  };
+
+  const handleMenuWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    const menu = menuRef.current;
+    if (!menu || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    const maxScrollTop = Math.max(0, menu.scrollHeight - menu.clientHeight);
+    if (maxScrollTop <= SCROLL_EDGE_THRESHOLD) return;
+    const nextScrollTop = clampNumber(menu.scrollTop + event.deltaY, 0, maxScrollTop);
+    if (Math.abs(nextScrollTop - menu.scrollTop) <= 0.5) return;
+    event.preventDefault();
+    event.stopPropagation();
+    menu.scrollTop = nextScrollTop;
+  };
+
+  useEffect(() => {
+    if (!open) return;
+
+    updateMenuPosition();
+    const animationFrame = window.requestAnimationFrame(updateMenuPosition);
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (
+        target &&
+        (rootRef.current?.contains(target) || menuRef.current?.contains(target))
+      ) {
+        return;
+      }
+      closeMenu();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu(true);
+    };
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (
+        target &&
+        (rootRef.current?.contains(target) || menuRef.current?.contains(target))
+      ) {
+        return;
+      }
+      closeMenu();
+    };
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("orientationchange", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    window.visualViewport?.addEventListener("resize", updateMenuPosition);
+    window.visualViewport?.addEventListener("scroll", updateMenuPosition);
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("focusin", handleFocusIn);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("orientationchange", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+      window.visualViewport?.removeEventListener("resize", updateMenuPosition);
+      window.visualViewport?.removeEventListener("scroll", updateMenuPosition);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("focusin", handleFocusIn);
+    };
+  }, [closeMenu, open, updateMenuPosition]);
+
+  useEffect(() => {
+    if (!open || !menuPosition) return;
+    const timer = window.setTimeout(() => {
+      const selectedButton = menuRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+      selectedButton?.scrollIntoView({ block: "nearest" });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [menuPosition, open, value]);
+
+  const menu = open && !disabled && menuPosition && typeof document !== "undefined"
+    ? createPortal(
+      <>
+        {menuPosition.placement === "sheet" && <div className="choice-select__sheet-scrim" aria-hidden="true" />}
+        <div
+          ref={menuRef}
+          id={listboxId}
+          className={[
+            "choice-select__menu",
+            "choice-select__menu--portal",
+            menuEdges.canScrollUp ? "has-scroll-up" : "",
+            menuEdges.canScrollDown ? "has-scroll-down" : "",
+            className,
+          ].filter(Boolean).join(" ")}
+          data-placement={menuPosition.placement}
+          role="listbox"
+          tabIndex={-1}
+          aria-label={ariaLabel ?? label}
+          onKeyDown={handleMenuKeyDown}
+          onWheel={handleMenuWheel}
+          style={{
+            top: menuPosition.top,
+            left: menuPosition.left,
+            width: menuPosition.width,
+            maxHeight: menuPosition.maxHeight,
+          }}
+        >
           {options.map((option) => (
             <button
               key={option.value}
@@ -3089,7 +3179,7 @@ function ChoiceSelect({
               aria-selected={option.value === value}
               onClick={() => {
                 onChange(option.value);
-                setOpen(false);
+                closeMenu(true);
               }}
             >
               {option.icon && <span className="choice-select__icon">{option.icon}</span>}
@@ -3100,7 +3190,49 @@ function ChoiceSelect({
             </button>
           ))}
         </div>
-      )}
+      </>,
+      document.body,
+    )
+    : null;
+
+  return (
+    <div
+      ref={rootRef}
+      className={["choice-select", open ? "open" : "", className].filter(Boolean).join(" ")}
+      data-label={ariaLabel ?? label}
+      data-empty={!selected ? "true" : undefined}
+    >
+      {label && <span className="choice-select__label">{label}</span>}
+      <button
+        ref={buttonRef}
+        type="button"
+        className="choice-select__button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
+        aria-label={ariaLabel ?? label}
+        disabled={disabled}
+        onClick={() => {
+          updateMenuPosition();
+          setSelectOpen((current) => !current);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            updateMenuPosition();
+            setSelectOpen(true);
+            window.setTimeout(() => focusOption(event.key === "ArrowUp" ? options.length - 1 : undefined), 0);
+          }
+        }}
+      >
+        {selected?.icon && <span className="choice-select__icon">{selected.icon}</span>}
+        <strong>
+          {selected?.label ?? placeholder}
+          {showSelectedDescription && selected?.description && <small>{selected.description}</small>}
+        </strong>
+        <ChevronDown size={14} aria-hidden="true" />
+      </button>
+      {menu}
     </div>
   );
 }
@@ -4507,14 +4639,6 @@ type OrganizationSummary = {
   role?: string;
 };
 
-type GlobalSearchResults = {
-  organizations: OrganizationSummary[];
-  publicOrganizations: PublicDirectoryOrganizationSummary[];
-  teams: TeamOption[];
-  publicTeams: PublicDirectoryTeamSummary[];
-  players: Player[];
-};
-
 function OrganizationCard({
   organization,
   onEnterTeam,
@@ -4980,6 +5104,8 @@ function HomeDashboard({
   const attendancePct = teamPracticeAttendancePct(data, activeRoster.length);
   const repsThisWeek = weeklyRepCount(data);
   const currentTeam = data.teamContext?.currentTeam;
+  const weightLeaderRows = buildScoredWeightRoomLeaderboard(activeRoster, data.workoutSessions, data.workoutEntries, "This Season")
+    .slice(0, 5);
 
   return (
     <div className="page-stack home-dashboard">
@@ -5010,7 +5136,7 @@ function HomeDashboard({
 
       <section className="home-secondary-grid">
         <AwardCard title="Player of the Week" award={weeklyMvp} onOpenPlayer={onOpenPlayer} icon={Trophy} />
-        <WeightLeaderCard leader={weightLeader} onOpenPlayer={onOpenPlayer} />
+        <WeightLeaderCard leader={weightLeader} leaders={weightLeaderRows} onOpenPlayer={onOpenPlayer} />
         <UpcomingScheduleCard items={nextItems} onView={onView} />
         <RecentActivityCard activities={buildTeamRecentActivity(data).slice(0, 5)} onOpenPlayer={onOpenPlayer} />
       </section>
@@ -7428,9 +7554,12 @@ function WeightRoomView({
   onAddEntry,
   onStartWorkout,
   onCompleteWorkout,
+  onOpenCompletedWorkout,
   onPauseWorkout,
   onResumeWorkout,
   onSaveSetup,
+  onSaveExerciseDefinition,
+  onSaveExercisePreset,
   onWeighInOpen,
   onSaveWeighIns,
 }: {
@@ -7454,9 +7583,12 @@ function WeightRoomView({
   onAddEntry: (draft?: WeightRoomSetDraft) => void;
   onStartWorkout: (input: { title: string; date: string; location?: string; eventId?: ID }) => void;
   onCompleteWorkout: () => void;
+  onOpenCompletedWorkout: (workout: PersistedWeightRoomWorkout) => void;
   onPauseWorkout: () => void;
   onResumeWorkout: () => void;
   onSaveSetup: (payload: WeightRoomSetupPayload) => void;
+  onSaveExerciseDefinition: (exercise: WeightRoomExercise) => void;
+  onSaveExercisePreset: (preset: WeightRoomExercisePreset) => void;
   onWeighInOpen: (open: boolean) => void;
   onSaveWeighIns: (rows: Array<{ playerId: ID; weight?: number }>, date: string) => void;
 }) {
@@ -7471,10 +7603,12 @@ function WeightRoomView({
   const leaderRows = leaderboard.length ? leaderboard.slice(0, 5) : leader ? [leader] : [];
   const recentWorkoutRows = buildRecentWeightRoomWorkouts(data, players);
   const openWorkoutRow = recentWorkoutRows.find((row) => !row.completed);
+  const workoutByActiveId = (data.weightRoomWorkouts ?? []).find((workout) => workout.id === activeWorkoutId);
   const persistedActiveWorkout =
-    (data.weightRoomWorkouts ?? []).find((workout) => workout.id === activeWorkoutId)
+    (workoutByActiveId && (workoutByActiveId.status === "ACTIVE" || workoutByActiveId.status === "PAUSED") ? workoutByActiveId : undefined)
     ?? (data.weightRoomWorkouts ?? []).find((workout) => workout.status === "ACTIVE" || workout.status === "PAUSED")
     ?? (data.weightRoomWorkouts ?? []).find((workout) => workout.title === workoutTitle && workout.date === workoutDate && workout.status !== "COMPLETED" && workout.status !== "CANCELLED");
+  const sessionWorkout = workoutByActiveId ?? persistedActiveWorkout;
   const [reviewWorkoutDate, setReviewWorkoutDate] = useState<string | undefined>();
   const reviewSessionsForDate = reviewWorkoutDate ? data.workoutSessions.filter((session) => session.date === reviewWorkoutDate) : [];
   const reviewEntriesForDate = reviewWorkoutDate ? data.workoutEntries.filter((entry) => entrySessionDate(data, entry) === reviewWorkoutDate) : [];
@@ -7485,7 +7619,7 @@ function WeightRoomView({
     title: openWorkoutRow?.title ?? workoutTitle,
     eventId: activeEventId,
   } : undefined;
-  const workoutActionLabel = workoutStatus === "Paused" ? "Resume Workout" : activeWorkoutRunning ? "Enter Workout" : "Start Workout";
+  const workoutActionLabel = activeWorkoutRunning ? "Resume Workout" : "Start Workout";
 
   function startWorkoutFromSelection(input?: { title?: string; date?: string; location?: string; eventId?: ID }) {
     const target = input
@@ -7503,9 +7637,15 @@ function WeightRoomView({
   }
 
   function reviewWorkout(row: WeightRoomWorkoutSummary) {
-    setReviewWorkoutDate(row.date);
     onWorkoutTitle(row.title);
     onWorkoutDate(row.date);
+    const persistedWorkout = (data.weightRoomWorkouts ?? []).find((workout) => workout.date === row.date && workout.title === row.title && workout.status === "COMPLETED");
+    if (persistedWorkout) {
+      setReviewWorkoutDate(undefined);
+      onOpenCompletedWorkout(persistedWorkout);
+      return;
+    }
+    setReviewWorkoutDate(row.date);
     onTab("WorkoutSession");
   }
 
@@ -7526,7 +7666,7 @@ function WeightRoomView({
           workoutStatus={workoutStatus}
           entriesForDate={entriesForDate}
           sessionsForDate={sessionsForDate}
-          activeWorkout={persistedActiveWorkout}
+          activeWorkout={sessionWorkout}
           onSaveSetup={onSaveSetup}
           onBack={() => onTab("Overview")}
           onAddEntry={onAddEntry}
@@ -7640,10 +7780,19 @@ function WeightRoomView({
         <section className="weight-room-exercise-grid">
           <WeightRoomExerciseLibraryCard
             exercises={exercises}
+            presets={exercisePresetsFromPersistedSetup(data, exercises)}
             activeExercise={activeExercise}
             onExercise={onActiveExercise}
+            onSaveExercise={onSaveExerciseDefinition}
+            onSavePreset={onSaveExercisePreset}
           />
-          <WeightRoomExerciseResults data={data} players={players} exercise={activeExercise} onPlayer={onPlayer} />
+          <WeightRoomExerciseResults
+            data={data}
+            players={players}
+            exercise={activeExercise}
+            exerciseDefinition={exercises.find((item) => item.name.toLowerCase() === activeExercise.toLowerCase())}
+            onPlayer={onPlayer}
+          />
         </section>
       )}
 
@@ -7917,6 +8066,8 @@ function WeightRoomRecentWorkouts({
     : completedRows.slice(0, 1);
   const totalRows = lifts.length + workoutRows.length;
   const activeRunning = activeWorkout?.status === "In Progress" || activeWorkout?.status === "Paused";
+  const presetNames = new Set((data.weightRoomExercisePresets ?? []).filter((preset) => !preset.archivedAt).map((preset) => preset.name.toLowerCase()));
+  const displayWorkoutTitle = (title: string) => presetNames.has(title.toLowerCase()) ? title : "Team Lift";
   const labelForLift = (item: ScheduleItem) => {
     const activeMatch = activeRunning
       && ((activeWorkout?.eventId && item.source === "event" && item.sourceId === activeWorkout.eventId)
@@ -7947,7 +8098,7 @@ function WeightRoomRecentWorkouts({
           >
             <ScheduleTypeIcon type="Lift" />
             <span>
-              <strong>{item.title}</strong>
+              <strong>{displayWorkoutTitle(item.title)}</strong>
               <small>{formatWeightRoomSessionMeta(item.date, item.startAt)}</small>
             </span>
             <em>{labelForLift(item)}</em>
@@ -7961,7 +8112,7 @@ function WeightRoomRecentWorkouts({
           >
             <ScheduleTypeIcon type="Lift" />
             <span>
-              <strong>{row.title}</strong>
+              <strong>{displayWorkoutTitle(row.title)}</strong>
               <small>{formatWeightRoomSessionMeta(row.date, row.startAt)}</small>
             </span>
             <em>{row.completed ? "Completed" : "Started"}</em>
@@ -8268,6 +8419,7 @@ function WeightRoomActiveWorkout({
   const [autoAssignment, setAutoAssignment] = useState<"Balanced" | "Random">("Balanced");
   const [individualPlayerId, setIndividualPlayerId] = useState(players[0]?.id ?? "");
   const [individualExercise, setIndividualExercise] = useState("");
+  const [editingCompleted, setEditingCompleted] = useState(false);
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
   const [activityExpanded, setActivityExpanded] = useState(false);
   const [setupMessage, setSetupMessage] = useState("");
@@ -8275,17 +8427,18 @@ function WeightRoomActiveWorkout({
   const [groupPresets, setGroupPresets] = useState<WeightRoomGroupPreset[]>(() => persistedGroupPresets);
   const setupHydratedRef = useRef(false);
   const saveSetupRef = useRef(onSaveSetup);
-  const [exercisePresetName, setExercisePresetName] = useState(workoutTitle);
-  const [groupPresetName, setGroupPresetName] = useState("Workout Groups");
+  const [exercisePresetName, setExercisePresetName] = useState("");
+  const [groupPresetName, setGroupPresetName] = useState("");
   const paused = workoutStatus === "Paused";
   const completed = workoutStatus === "Completed";
   const selectedGroup = groups.find((group) => group.id === selectedGroupId) ?? groups[0];
   const selectedStation = selectedGroup && stations.length ? stations[selectedGroup.stationIndex % stations.length] ?? stations[0] : stations[0];
-  const completedSetCount = entriesForDate.filter((entry) => (entry.status ?? "Completed") !== "Skipped").length;
+  const uniqueEntriesForDate = uniqueLatestWorkoutEntries(entriesForDate);
+  const completedSetCount = uniqueEntriesForDate.filter((entry) => (entry.status ?? "Completed") !== "Skipped").length;
   const plannedSetCount = plannedWorkoutSetCount({ stations, groups, athleteCount: players.length, mode: entryMode });
   const weighInCount = sessionsForDate.filter((session) => typeof session.bodyWeight === "number").length;
-  const workoutVolume = entriesForDate.reduce((sum, entry) => sum + workoutEntryVolume(entry), 0);
-  const recentActivity = entriesForDate.slice().sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  const workoutVolume = uniqueEntriesForDate.reduce((sum, entry) => sum + workoutEntryVolume(entry), 0);
+  const recentActivity = uniqueEntriesForDate.slice().sort((left, right) => right.createdAt.localeCompare(left.createdAt));
   const resolvedIndividualPlayerId = players.some((player) => player.id === individualPlayerId) ? individualPlayerId : players[0]?.id ?? "";
   const resolvedIndividualExercise = stations.some((station) => station.name === individualExercise) ? individualExercise : stations[0]?.name ?? "";
   const availableExercises = [...exercises, ...customExercises].filter((exercise, index, all) =>
@@ -8360,9 +8513,19 @@ function WeightRoomActiveWorkout({
     });
   }
 
-  function createAndAddExercise(name = exerciseSearch.trim()) {
+  function createAndAddExercise(name = exerciseSearch.trim(), options?: { category?: WeightRoomExerciseCategory; measurementType?: WorkoutMeasurementType }) {
     if (!name) return;
-    const nextExercise = { ...makeWeightRoomExercise(name), category: newExerciseCategory, active: true };
+    const measurementType = options?.measurementType ?? weightRoomMeasurementType(name);
+    const targetStyle = defaultTargetStyle(name, measurementType);
+    const nextExercise: WeightRoomExercise = {
+      ...makeWeightRoomExercise(name),
+      category: options?.category ?? newExerciseCategory,
+      measurementType,
+      unit: weightRoomUnitForType(measurementType),
+      targetSets: defaultTargetSetsForStyle(targetStyle),
+      targetReps: measurementType === "WEIGHT_REPS" || measurementType === "BODYWEIGHT_REPS" || measurementType === "REPS_ONLY" ? 8 : undefined,
+      active: true,
+    };
     setCustomExercises((current) => {
       const withoutDuplicate = current.filter((item) => item.name.toLowerCase() !== nextExercise.name.toLowerCase());
       return [...withoutDuplicate, nextExercise];
@@ -8377,6 +8540,17 @@ function WeightRoomActiveWorkout({
 
   function removeStation(stationId: ID) {
     setStations((current) => normalizeActiveStations(current.filter((station) => station.id !== stationId)));
+  }
+
+  function reorderStation(stationId: ID, targetIndex: number) {
+    setStations((current) => {
+      const fromIndex = current.findIndex((station) => station.id === stationId);
+      if (fromIndex < 0 || fromIndex === targetIndex) return current;
+      const next = [...current];
+      const [station] = next.splice(fromIndex, 1);
+      next.splice(Math.max(0, Math.min(targetIndex, next.length)), 0, station);
+      return normalizeActiveStations(next);
+    });
   }
 
   function clearGroups() {
@@ -8418,18 +8592,6 @@ function WeightRoomActiveWorkout({
     setStations((current) => normalizeActiveStations(current.map((station) => station.id === stationId ? { ...station, ...patch } : station)));
   }
 
-  function moveStation(stationId: ID, step: -1 | 1) {
-    setStations((current) => {
-      const index = current.findIndex((station) => station.id === stationId);
-      const targetIndex = index + step;
-      if (index < 0 || targetIndex < 0 || targetIndex >= current.length) return current;
-      const next = [...current];
-      const [station] = next.splice(index, 1);
-      next.splice(targetIndex, 0, station);
-      return normalizeActiveStations(next);
-    });
-  }
-
   function startAfterSetup(mode: ActiveWorkoutEntryMode) {
     if (!stations.length) {
       setSetupMessage("Add at least one exercise before beginning tracking.");
@@ -8459,7 +8621,11 @@ function WeightRoomActiveWorkout({
       setSetupMessage("Add exercises before saving an exercise preset.");
       return;
     }
-    const name = exercisePresetName.trim() || workoutTitle;
+    const name = exercisePresetName.trim();
+    if (!name) {
+      setSetupMessage("Enter a preset name before saving.");
+      return;
+    }
     const nextPreset: WeightRoomExercisePreset = {
       id: createId("wep"),
       name,
@@ -8487,7 +8653,11 @@ function WeightRoomActiveWorkout({
       setSetupMessage("Create groups before saving a group preset.");
       return;
     }
-    const name = groupPresetName.trim() || "Workout Groups";
+    const name = groupPresetName.trim();
+    if (!name) {
+      setSetupMessage("Enter a preset name before saving.");
+      return;
+    }
     const nextPreset: WeightRoomGroupPreset = {
       id: createId("wgp"),
       name,
@@ -8497,7 +8667,7 @@ function WeightRoomActiveWorkout({
     setSetupMessage(`Saved ${name} as a group preset.`);
   }
 
-  if (completed) {
+  if (completed && !editingCompleted) {
     return (
       <section className="weight-room-active-shell">
         <WeightRoomActiveHeader
@@ -8512,19 +8682,25 @@ function WeightRoomActiveWorkout({
           weighInCount={weighInCount}
           workoutVolume={workoutVolume}
           setupOpen={false}
+          completedMode="summary"
           onOpenWeighIns={() => setActiveTab("Weigh-Ins")}
           onBack={onBack}
           onPause={onPauseWorkout}
           onResume={onResumeWorkout}
-          onFinish={() => setFinishConfirmOpen(true)}
+          onEditCompleted={() => setEditingCompleted(true)}
+          onFinish={onBack}
         />
         <WeightRoomCompletedWorkoutSummary
+          data={data}
+          workoutDate={workoutDate}
           players={players}
           stations={stations}
+          groups={groups}
           entries={entriesForDate}
           sessions={sessionsForDate}
           plannedSetCount={plannedSetCount}
           onBack={onBack}
+          onEditResults={() => setEditingCompleted(true)}
         />
       </section>
     );
@@ -8544,11 +8720,13 @@ function WeightRoomActiveWorkout({
         weighInCount={weighInCount}
         workoutVolume={workoutVolume}
         setupOpen={setupOpen}
+        completedMode={completed ? "editing" : undefined}
         onOpenWeighIns={() => setActiveTab("Weigh-Ins")}
         onBack={onBack}
         onPause={onPauseWorkout}
         onResume={onResumeWorkout}
-        onFinish={() => setFinishConfirmOpen(true)}
+        onEditCompleted={() => setEditingCompleted(false)}
+        onFinish={completed ? () => setEditingCompleted(false) : () => setFinishConfirmOpen(true)}
       />
 
       <div className="weight-room-active-nav-row">
@@ -8569,7 +8747,7 @@ function WeightRoomActiveWorkout({
                 {item}
               </button>
             ))}
-            <span>{paused ? "Paused - data preserved" : setupOpen ? "Setup mode" : "Saved"}</span>
+            {(paused || setupOpen) && <span>{paused ? "Paused - data preserved" : "Setup mode"}</span>}
           </div>
         )}
       </div>
@@ -8582,8 +8760,6 @@ function WeightRoomActiveWorkout({
           stations={stations}
           groups={groups}
           availableExercises={availableExercises}
-          exercisePresets={exercisePresets.filter((preset) => !preset.archived)}
-          groupPresets={groupPresets.filter((preset) => !preset.archived)}
           exercisePresetName={exercisePresetName}
           groupPresetName={groupPresetName}
           exerciseSearch={exerciseSearch}
@@ -8604,7 +8780,7 @@ function WeightRoomActiveWorkout({
           onCreateExercise={createAndAddExercise}
           onRemoveStation={removeStation}
           onUpdateStation={updateStation}
-          onMoveStation={moveStation}
+          onReorderStation={reorderStation}
           onAddGroup={addGroup}
           onRemoveGroup={removeGroup}
           onClearGroups={clearGroups}
@@ -8622,12 +8798,14 @@ function WeightRoomActiveWorkout({
                 <div className="weight-room-active-main-column">
                   <div className="weight-room-group-strip">
                     {groups.map((group) => {
-                      const station = stations[group.stationIndex % Math.max(1, stations.length)] ?? stations[0];
+                      const firstNames = group.playerIds
+                        .map((playerId) => players.find((player) => player.id === playerId)?.name.split(" ")[0])
+                        .filter(Boolean);
                       return (
                         <article key={group.id} className={group.id === selectedGroup?.id ? "active" : ""}>
                           <button type="button" onClick={() => setSelectedGroupId(group.id)}>
                             <strong>{group.name}</strong>
-                            <small>{group.playerIds.length} athlete{group.playerIds.length === 1 ? "" : "s"}</small>
+                            <small>{firstNames.length ? `${firstNames.slice(0, 3).join(", ")}${firstNames.length > 3 ? ` +${firstNames.length - 3}` : ""}` : "No athletes"}</small>
                           </button>
                           <ChoiceSelect
                             value={String(group.stationIndex % Math.max(1, stations.length))}
@@ -8636,7 +8814,6 @@ function WeightRoomActiveWorkout({
                             onChange={(value) => setGroups((current) => setWorkoutGroupStation(current, group.id, Number(value), stations.length))}
                             aria-label={`${group.name} station`}
                           />
-                          <small>{station?.category ?? "Station"}</small>
                         </article>
                       );
                     })}
@@ -8647,17 +8824,19 @@ function WeightRoomActiveWorkout({
                       <>
                         <div className="weight-room-station-board__header">
                           <div>
-                            <span>{selectedGroup.name}</span>
+                            <span className="weight-room-station-board__group-switch">
+                              <button className="icon-button" type="button" disabled={!previousGroup} onClick={() => previousGroup && setSelectedGroupId(previousGroup.id)} aria-label="Previous group">
+                                <ChevronLeft size={15} aria-hidden="true" />
+                              </button>
+                              {selectedGroup.name}
+                              <button className="icon-button" type="button" disabled={!nextGroup} onClick={() => nextGroup && setSelectedGroupId(nextGroup.id)} aria-label="Next group">
+                                <ChevronRight size={15} aria-hidden="true" />
+                              </button>
+                            </span>
                             <h2>{selectedStation.name}</h2>
                             <small>Station {(selectedGroup.stationIndex % Math.max(1, stations.length)) + 1} of {stations.length} - {stationTargetSummary(selectedStation)}</small>
                           </div>
                           <div>
-                            <button className="icon-button" type="button" disabled={!previousGroup} onClick={() => previousGroup && setSelectedGroupId(previousGroup.id)} aria-label="Previous group">
-                              <ChevronLeft size={15} aria-hidden="true" />
-                            </button>
-                            <button className="icon-button" type="button" disabled={!nextGroup} onClick={() => nextGroup && setSelectedGroupId(nextGroup.id)} aria-label="Next group">
-                              <ChevronRight size={15} aria-hidden="true" />
-                            </button>
                             <button className="secondary-button" type="button" onClick={() => setGroups((current) => advanceWorkoutGroupStation(current, selectedGroup.id, stations.length, -1))}>
                               <ChevronLeft size={15} aria-hidden="true" />Previous Station
                             </button>
@@ -8711,7 +8890,6 @@ function WeightRoomActiveWorkout({
                       exerciseSearch={exerciseSearch}
                       exerciseFilter={exerciseFilter}
                       newExerciseCategory={newExerciseCategory}
-                      exercisePresets={exercisePresets.filter((preset) => !preset.archived)}
                       exercisePresetName={exercisePresetName}
                       onExerciseSearch={setExerciseSearch}
                       onExerciseFilter={setExerciseFilter}
@@ -8723,20 +8901,19 @@ function WeightRoomActiveWorkout({
                       onCreateExercise={createAndAddExercise}
                       onRemoveStation={removeStation}
                       onUpdateStation={updateStation}
-                      onMoveStation={moveStation}
+                      onReorderStation={reorderStation}
                       onSaveExercisePreset={saveExercisePreset}
                     />
                   ) : (
                     <WeightRoomStationList
                       stations={stations}
                       selectedStation={selectedStation}
-                      selectedGroup={selectedGroup}
                       onStation={(index) => selectedGroup && setGroups((current) => setWorkoutGroupStation(current, selectedGroup.id, index, stations.length))}
                     />
                   )}
                 </aside>
               </div>
-              <WeightRoomActiveActivity entries={recentActivity} players={players} expanded={activityExpanded} onToggle={() => setActivityExpanded((current) => !current)} />
+              <WeightRoomActiveActivity entries={recentActivity} players={players} stations={stations} expanded={activityExpanded} onToggle={() => setActivityExpanded((current) => !current)} />
             </section>
           ) : (
             <WeightRoomIndividualWorkout
@@ -8748,6 +8925,7 @@ function WeightRoomActiveWorkout({
               playerId={resolvedIndividualPlayerId}
               exerciseName={resolvedIndividualExercise}
               disabled={paused}
+              onOpenExercisePicker={() => setAddExercisesOpen(true)}
               onPlayer={setIndividualPlayerId}
               onExercise={setIndividualExercise}
               onSaveCell={saveCell}
@@ -8791,6 +8969,7 @@ function WeightRoomActiveWorkout({
           onCategory={setExerciseFilter}
           onNewExerciseCategory={setNewExerciseCategory}
           onToggle={(exerciseName) => setSelectedExerciseNames((current) => current.includes(exerciseName) ? current.filter((name) => name !== exerciseName) : [...current, exerciseName])}
+          onSelectAll={(exerciseNames) => setSelectedExerciseNames((current) => uniqueStrings([...current, ...exerciseNames]))}
           onCreateExercise={createAndAddExercise}
           onAdd={() => addStations()}
           onClose={() => {
@@ -8843,6 +9022,7 @@ function WeightRoomAddExercisesModal({
   onCategory,
   onNewExerciseCategory,
   onToggle,
+  onSelectAll,
   onCreateExercise,
   onAdd,
   onClose,
@@ -8857,12 +9037,16 @@ function WeightRoomAddExercisesModal({
   onCategory: (value: WeightRoomExerciseCategory | "All") => void;
   onNewExerciseCategory: (value: WeightRoomExerciseCategory) => void;
   onToggle: (exerciseName: string) => void;
-  onCreateExercise: (name?: string) => void;
+  onSelectAll: (exerciseNames: string[]) => void;
+  onCreateExercise: (name?: string, options?: { category?: WeightRoomExerciseCategory; measurementType?: WorkoutMeasurementType }) => void;
   onAdd: () => void;
   onClose: () => void;
 }) {
   const categories: Array<WeightRoomExerciseCategory | "All"> = ["All", "Lower Body", "Upper Body", "Power", "Core", "Conditioning", "Speed", "Mobility", "Other"];
+  const measurementTypes: WorkoutMeasurementType[] = ["WEIGHT_REPS", "REPS_ONLY", "TIME", "DISTANCE", "WEIGHT_ONLY", "COUNT", "COMPLETION"];
+  const [newExerciseMeasurementType, setNewExerciseMeasurementType] = useState<WorkoutMeasurementType>("WEIGHT_REPS");
   const existing = new Set(existingExerciseNames.map((name) => name.toLowerCase()));
+  const selectableExerciseNames = exercises.filter((exercise) => !existing.has(exercise.name.toLowerCase())).map((exercise) => exercise.name);
   const exactMatch = exercises.some((exercise) => exercise.name.toLowerCase() === query.trim().toLowerCase()) || existing.has(query.trim().toLowerCase());
   return (
     <ModalFrame title="Add Exercises" onClose={onClose} panelClassName="weight-room-exercise-picker-modal">
@@ -8876,6 +9060,15 @@ function WeightRoomAddExercisesModal({
             <button key={item} type="button" className={category === item ? "active" : ""} onClick={() => onCategory(item)}>{item}</button>
           ))}
         </div>
+        <button
+          type="button"
+          className="weight-room-picker-select-all"
+          disabled={!selectableExerciseNames.length}
+          onClick={() => onSelectAll(selectableExerciseNames)}
+        >
+          <Check size={14} aria-hidden="true" />
+          Select All
+        </button>
       </div>
       <div className="weight-room-exercise-picker-list">
         {exercises.map((exercise) => {
@@ -8899,7 +9092,14 @@ function WeightRoomAddExercisesModal({
               onChange={(value) => onNewExerciseCategory(value as WeightRoomExerciseCategory)}
               aria-label="New exercise category"
             />
-            <button type="button" onClick={() => { onCreateExercise(query.trim()); onClose(); }}><Plus size={14} aria-hidden="true" />Create and add {query.trim()}</button>
+            <ChoiceSelect
+              value={newExerciseMeasurementType}
+              className="form-choice"
+              options={measurementTypes.map((type) => ({ value: type, label: workoutMeasurementTypeLabel(type) }))}
+              onChange={(value) => setNewExerciseMeasurementType(value as WorkoutMeasurementType)}
+              aria-label="New exercise measurement type"
+            />
+            <button type="button" onClick={() => { onCreateExercise(query.trim(), { category: newExerciseCategory, measurementType: newExerciseMeasurementType }); onClose(); }}><Plus size={14} aria-hidden="true" />Create and add {query.trim()}</button>
           </div>
         )}
       </div>
@@ -9012,10 +9212,11 @@ function WeightRoomAutoCreateGroupsModal({
         </div>
         <ChoiceSelect
           value={assignment}
-          className="form-choice"
+          className="form-choice weight-room-auto-group-choice"
           options={["Balanced", "Random"].map((item) => ({ value: item, label: item, description: item === "Balanced" ? "Distribute roster evenly" : "Shuffle first, then distribute" }))}
           onChange={(value) => onAssignment(value as "Balanced" | "Random")}
           aria-label="Assignment method"
+          showSelectedDescription={false}
         />
         <small>{rosterCount} athletes will be distributed across {groupCount} group{groupCount === 1 ? "" : "s"}.</small>
       </div>
@@ -9039,10 +9240,12 @@ function WeightRoomActiveHeader({
   weighInCount,
   workoutVolume,
   setupOpen,
+  completedMode,
   onOpenWeighIns,
   onBack,
   onPause,
   onResume,
+  onEditCompleted,
   onFinish,
 }: {
   workoutTitle: string;
@@ -9056,21 +9259,28 @@ function WeightRoomActiveHeader({
   weighInCount: number;
   workoutVolume: number;
   setupOpen: boolean;
+  completedMode?: "summary" | "editing";
   onOpenWeighIns: () => void;
   onBack: () => void;
   onPause: () => void;
   onResume: () => void;
+  onEditCompleted?: () => void;
   onFinish: () => void;
 }) {
+  const completed = workoutStatus === "Completed";
+  const title = completed ? workoutTitle : formatPickerDate(workoutDate);
+  const meta = completed
+    ? [formatPickerDate(workoutDate), teamName].filter(Boolean).join(" - ")
+    : teamName;
   return (
-    <header className="weight-room-active-top">
+    <header className="weight-room-active-top" aria-label={`${workoutTitle}${teamName ? ` for ${teamName}` : ""}`}>
       <div className="weight-room-active-top__title">
         <button className="ghost-button weight-room-active-back" type="button" onClick={onBack}><ChevronLeft size={16} aria-hidden="true" />Weight Room</button>
         <div>
-          <h1>{workoutTitle}</h1>
+          <h1>{title}</h1>
           <span className={`weight-room-live-status status-${workoutStatus.toLowerCase().replace(/\s+/g, "-")}`}>{workoutStatus}</span>
+          {meta && <small>{meta}</small>}
         </div>
-        <small><CalendarDays size={14} aria-hidden="true" />{formatPickerDate(workoutDate)}{teamName ? ` - ${teamName}` : ""}</small>
       </div>
       <div className="weight-room-active-top__metrics" aria-label="Workout progress summary">
         <span><Users size={15} aria-hidden="true" /><strong>{athleteCount}</strong><small>Athletes</small></span>
@@ -9080,14 +9290,30 @@ function WeightRoomActiveHeader({
         <span><Dumbbell size={15} aria-hidden="true" /><strong>{formatWorkoutVolume(workoutVolume)}</strong><small>Total Volume</small></span>
       </div>
       <div className="weight-room-active-top__actions">
-        {setupOpen ? (
-          <span className="weight-room-active-setup-pill"><Check size={15} aria-hidden="true" />Setup auto-saves</span>
+        {completedMode === "summary" ? (
+          <button className="secondary-button" type="button" onClick={onEditCompleted}>
+            <Edit3 size={16} aria-hidden="true" />
+            Edit Workout
+          </button>
+        ) : completedMode === "editing" ? (
+          <>
+            <button className="secondary-button" type="button" onClick={onEditCompleted}>
+              <ChevronLeft size={16} aria-hidden="true" />
+              Review Results
+            </button>
+            <button className="primary-button" type="button" onClick={onFinish}>
+              <Check size={16} aria-hidden="true" />
+              Save Workout
+            </button>
+          </>
+        ) : setupOpen ? (
+          null
         ) : workoutStatus === "Paused" ? (
           <button className="secondary-button" type="button" onClick={onResume}><Play size={16} aria-hidden="true" />Resume Workout</button>
         ) : (
           <button className="secondary-button" type="button" onClick={onPause}><Pause size={16} aria-hidden="true" />Pause Workout</button>
         )}
-        {!setupOpen && <button className="primary-button" type="button" onClick={onFinish}><Check size={16} aria-hidden="true" />Finish Workout</button>}
+        {!completedMode && !setupOpen && <button className="primary-button" type="button" onClick={onFinish}><Check size={16} aria-hidden="true" />Finish Workout</button>}
       </div>
     </header>
   );
@@ -9195,8 +9421,6 @@ function WeightRoomWorkoutSetupIntro({
   stations,
   groups,
   availableExercises,
-  exercisePresets,
-  groupPresets,
   exercisePresetName,
   groupPresetName,
   exerciseSearch,
@@ -9217,7 +9441,7 @@ function WeightRoomWorkoutSetupIntro({
   onCreateExercise,
   onRemoveStation,
   onUpdateStation,
-  onMoveStation,
+  onReorderStation,
   onAddGroup,
   onRemoveGroup,
   onClearGroups,
@@ -9231,8 +9455,6 @@ function WeightRoomWorkoutSetupIntro({
   stations: ActiveWorkoutStation[];
   groups: ActiveWorkoutGroupSeed[];
   availableExercises: WeightRoomExercise[];
-  exercisePresets: WeightRoomExercisePreset[];
-  groupPresets: WeightRoomGroupPreset[];
   exercisePresetName: string;
   groupPresetName: string;
   exerciseSearch: string;
@@ -9250,10 +9472,10 @@ function WeightRoomWorkoutSetupIntro({
   onSaveExercisePreset: () => void;
   onSaveGroupPreset: () => void;
   onAddStations: (exerciseNames?: string[]) => void;
-  onCreateExercise: (name?: string) => void;
+  onCreateExercise: (name?: string, options?: { category?: WeightRoomExerciseCategory; measurementType?: WorkoutMeasurementType }) => void;
   onRemoveStation: (stationId: ID) => void;
   onUpdateStation: (stationId: ID, patch: Partial<Pick<ActiveWorkoutStation, "targetSets" | "targetReps" | "targetValue" | "targetStyle" | "measurementType" | "performanceDirection" | "notes">>) => void;
-  onMoveStation: (stationId: ID, step: -1 | 1) => void;
+  onReorderStation: (stationId: ID, targetIndex: number) => void;
   onAddGroup: () => void;
   onRemoveGroup: (groupId: string) => void;
   onClearGroups: () => void;
@@ -9267,15 +9489,12 @@ function WeightRoomWorkoutSetupIntro({
     (exerciseFilter === "All" || exercise.category === exerciseFilter)
     && `${exercise.name} ${exercise.category} ${exercise.equipment ?? ""}`.toLowerCase().includes(exerciseSearch.trim().toLowerCase()),
   );
-  const assignedCount = new Set(groups.flatMap((group) => group.playerIds)).size;
-  const unassignedCount = Math.max(0, players.length - assignedCount);
   return (
     <section className="panel weight-room-setup-intro">
       <div className="weight-room-setup-intro__head">
         <div>
-          <span>Workout Setup</span>
           <h2>Build today&apos;s workout</h2>
-          <p>Exercises and groups are independent. Load either preset, build manually, or start Individual Mode with only exercises configured.</p>
+          <p>Load a preset, build manually, or start Individual Mode with only exercises configured.</p>
         </div>
         <div className="weight-room-setup-intro__head-actions">
           <button type="button" className="secondary-button" onClick={() => onStart("Individual")}><User size={15} aria-hidden="true" />Use Individual Mode</button>
@@ -9284,12 +9503,6 @@ function WeightRoomWorkoutSetupIntro({
         </div>
       </div>
       {setupMessage && <p className="weight-room-setup-message">{setupMessage}</p>}
-      <div className="weight-room-setup-summary" aria-label="Workout setup preview">
-        <span><strong>{stations.length}</strong><small>Exercises</small></span>
-        <span><strong>{groups.length}</strong><small>Groups</small></span>
-        <span><strong>{assignedCount}/{players.length}</strong><small>Assigned</small></span>
-        <span><strong>{unassignedCount}</strong><small>Unassigned</small></span>
-      </div>
       <div className="weight-room-setup-grid">
         <WeightRoomWorkoutEditor
           stations={stations}
@@ -9298,7 +9511,6 @@ function WeightRoomWorkoutSetupIntro({
           exerciseSearch={exerciseSearch}
           exerciseFilter={exerciseFilter}
           newExerciseCategory={newExerciseCategory}
-          exercisePresets={exercisePresets}
           exercisePresetName={exercisePresetName}
           onExerciseSearch={onExerciseSearch}
           onExerciseFilter={onExerciseFilter}
@@ -9310,7 +9522,7 @@ function WeightRoomWorkoutSetupIntro({
           onCreateExercise={onCreateExercise}
           onRemoveStation={onRemoveStation}
           onUpdateStation={onUpdateStation}
-          onMoveStation={onMoveStation}
+          onReorderStation={onReorderStation}
           onSaveExercisePreset={onSaveExercisePreset}
         />
         <WeightRoomGroupEditor
@@ -9328,11 +9540,6 @@ function WeightRoomWorkoutSetupIntro({
           onGroupPresetName={onGroupPresetName}
         />
       </div>
-      <div className="weight-room-setup-actions">
-        <small>{exercisePresets.length} exercise preset{exercisePresets.length === 1 ? "" : "s"} - {groupPresets.length} group preset{groupPresets.length === 1 ? "" : "s"}</small>
-        <button className="secondary-button" type="button" onClick={() => onStart("Individual")}><User size={15} aria-hidden="true" />Start Individual</button>
-        <button className="primary-button" type="button" onClick={() => onStart("Groups")}><Users size={15} aria-hidden="true" />Start Group Workout</button>
-      </div>
     </section>
   );
 }
@@ -9340,12 +9547,10 @@ function WeightRoomWorkoutSetupIntro({
 function WeightRoomStationList({
   stations,
   selectedStation,
-  selectedGroup,
   onStation,
 }: {
   stations: ActiveWorkoutStation[];
   selectedStation?: ActiveWorkoutStation;
-  selectedGroup?: ActiveWorkoutGroupSeed;
   onStation: (index: number) => void;
 }) {
   return (
@@ -9360,7 +9565,6 @@ function WeightRoomStationList({
           </span>
         </button>
       ))}
-      {selectedGroup && <small>{selectedGroup.name} changes stations here. Other groups stay where they are.</small>}
     </div>
   );
 }
@@ -9392,14 +9596,16 @@ function WeightRoomGroupEditor({
   onSaveGroupPreset: () => void;
   onGroupPresetName: (value: string) => void;
 }) {
+  const [draggedPlayerId, setDraggedPlayerId] = useState<ID | undefined>();
+  const [dropGroupId, setDropGroupId] = useState<ID | undefined>();
   const assigned = new Set(groups.flatMap((group) => group.playerIds));
   const unassigned = players.filter((player) => !assigned.has(player.id));
   const groupByPlayerId = new Map(groups.flatMap((group) => group.playerIds.map((playerId) => [playerId, group.name] as const)));
+  const draggedPlayer = draggedPlayerId ? players.find((player) => player.id === draggedPlayerId) : undefined;
   return (
     <div className="weight-room-group-editor">
       <div className="weight-room-editor-head">
         <div><span>Groups</span><small>{groups.length} groups - {assigned.size}/{players.length} assigned</small></div>
-        <button type="button" onClick={onAddGroup}><Plus size={14} aria-hidden="true" />Create Group</button>
       </div>
       <div className="weight-room-editor-actions">
         <button type="button" onClick={onOpenAutoCreate}><RefreshCw size={14} aria-hidden="true" />Auto Create</button>
@@ -9408,7 +9614,7 @@ function WeightRoomGroupEditor({
       </div>
       <label className="weight-room-preset-save">
         <span>Save Group Preset</span>
-        <input value={groupPresetName} onChange={(event) => onGroupPresetName(event.target.value)} placeholder="Fall Groups A" />
+        <input value={groupPresetName} onChange={(event) => onGroupPresetName(event.target.value)} placeholder="Enter preset name..." />
         <button type="button" onClick={onSaveGroupPreset} disabled={!groups.length}><Save size={14} aria-hidden="true" />Save</button>
       </label>
       {!groups.length && (
@@ -9418,16 +9624,37 @@ function WeightRoomGroupEditor({
           <p>Create groups for station rotation, load a saved group preset, or use Individual Mode.</p>
           <div>
             <button type="button" onClick={onAddGroup}><Plus size={14} aria-hidden="true" />Create Group</button>
-            <button type="button" onClick={onOpenAutoCreate}><RefreshCw size={14} aria-hidden="true" />Auto Create Groups</button>
-            <button type="button" onClick={onOpenGroupPresets}><Download size={14} aria-hidden="true" />Load Group Preset</button>
           </div>
         </div>
       )}
       <div className="weight-room-group-editor__list">
+        {!!groups.length && <button type="button" className="weight-room-group-add-row" onClick={onAddGroup}><Plus size={14} aria-hidden="true" />Create Group</button>}
         {groups.map((group) => {
           const members = group.playerIds.map((playerId) => players.find((player) => player.id === playerId)).filter((player): player is Player => Boolean(player));
           return (
-            <section key={group.id}>
+            <section
+              key={group.id}
+              className={dropGroupId === group.id ? "is-athlete-drop-target" : ""}
+              onDragOver={(event) => {
+                if (!draggedPlayerId) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = "move";
+                setDropGroupId(group.id);
+              }}
+              onDragLeave={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                  setDropGroupId((current) => (current === group.id ? undefined : current));
+                }
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                if (draggedPlayerId && !group.playerIds.includes(draggedPlayerId)) {
+                  onAddPlayer(group.id, draggedPlayerId);
+                }
+                setDraggedPlayerId(undefined);
+                setDropGroupId(undefined);
+              }}
+            >
               <div>
                 <strong>{group.name}</strong>
                 <small>{members.length} athlete{members.length === 1 ? "" : "s"}</small>
@@ -9435,7 +9662,24 @@ function WeightRoomGroupEditor({
               </div>
               <div className="weight-room-group-members">
                 {members.map((player) => (
-                  <button key={player.id} type="button" onClick={() => onRemovePlayer(group.id, player.id)} title={`Remove ${player.name}`}>
+                  <button
+                    key={player.id}
+                    type="button"
+                    draggable
+                    className={draggedPlayerId === player.id ? "is-dragging" : ""}
+                    onDragStart={(event) => {
+                      setDraggedPlayerId(player.id);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", player.id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedPlayerId(undefined);
+                      setDropGroupId(undefined);
+                    }}
+                    onClick={() => onRemovePlayer(group.id, player.id)}
+                    title={`Drag ${player.name} to another group or click to remove`}
+                    aria-label={`Drag or remove ${player.name}`}
+                  >
                     <PlayerAvatar player={player} size="sm" compact />
                     <span>{player.name}</span>
                     <X size={12} aria-hidden="true" />
@@ -9443,18 +9687,34 @@ function WeightRoomGroupEditor({
                 ))}
                 {!members.length && <small>No athletes yet</small>}
               </div>
-              <select aria-label={`Add athlete to ${group.name}`} value="" onChange={(event) => { onAddPlayer(group.id, event.target.value); event.currentTarget.value = ""; }}>
-                <option value="">Add or move athlete...</option>
-                {players.map((player) => (
-                  <option key={player.id} value={player.id}>
-                    {player.name}{groupByPlayerId.has(player.id) ? ` - move from ${groupByPlayerId.get(player.id)}` : ""}
-                  </option>
-                ))}
-              </select>
+              <details className="weight-room-athlete-multi-picker">
+                <summary>Add or move athlete...</summary>
+                <div>
+                  {players.map((player) => {
+                    const assignedGroupName = groupByPlayerId.get(player.id);
+                    const inThisGroup = group.playerIds.includes(player.id);
+                    return (
+                      <button
+                        key={player.id}
+                        type="button"
+                        className={inThisGroup ? "active" : ""}
+                        onClick={() => onAddPlayer(group.id, player.id)}
+                      >
+                        <PlayerAvatar player={player} size="sm" compact />
+                        <span>
+                          <strong>{player.name}</strong>
+                          <small>{inThisGroup ? "In this group" : assignedGroupName ? `Move from ${assignedGroupName}` : "Unassigned"}</small>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </details>
             </section>
           );
         })}
       </div>
+      {draggedPlayer && <span className="weight-room-group-drag-hint">Drop {draggedPlayer.name} on a group to move.</span>}
       <section className="weight-room-unassigned-list">
         <div><strong>Unassigned</strong><small>{unassigned.length} athlete{unassigned.length === 1 ? "" : "s"}</small></div>
         <div>
@@ -9475,7 +9735,6 @@ function WeightRoomWorkoutEditor({
   exerciseSearch,
   exerciseFilter,
   newExerciseCategory,
-  exercisePresets,
   exercisePresetName,
   onExerciseSearch,
   onExerciseFilter,
@@ -9487,7 +9746,7 @@ function WeightRoomWorkoutEditor({
   onCreateExercise,
   onRemoveStation,
   onUpdateStation,
-  onMoveStation,
+  onReorderStation,
   onSaveExercisePreset,
 }: {
   stations: ActiveWorkoutStation[];
@@ -9496,7 +9755,6 @@ function WeightRoomWorkoutEditor({
   exerciseSearch: string;
   exerciseFilter: WeightRoomExerciseCategory | "All";
   newExerciseCategory: WeightRoomExerciseCategory;
-  exercisePresets: WeightRoomExercisePreset[];
   exercisePresetName: string;
   onExerciseSearch: (value: string) => void;
   onExerciseFilter: (value: WeightRoomExerciseCategory | "All") => void;
@@ -9505,19 +9763,22 @@ function WeightRoomWorkoutEditor({
   onOpenExercisePicker: () => void;
   onOpenExercisePresets: () => void;
   onAddStations: (exerciseNames?: string[]) => void;
-  onCreateExercise: (name?: string) => void;
+  onCreateExercise: (name?: string, options?: { category?: WeightRoomExerciseCategory; measurementType?: WorkoutMeasurementType }) => void;
   onRemoveStation: (stationId: ID) => void;
   onUpdateStation: (stationId: ID, patch: Partial<Pick<ActiveWorkoutStation, "targetSets" | "targetReps" | "targetValue" | "targetStyle" | "measurementType" | "performanceDirection" | "notes">>) => void;
-  onMoveStation: (stationId: ID, step: -1 | 1) => void;
+  onReorderStation: (stationId: ID, targetIndex: number) => void;
   onSaveExercisePreset: () => void;
 }) {
   const categories: WeightRoomExerciseCategory[] = ["Lower Body", "Upper Body", "Power", "Core", "Speed", "Conditioning", "Mobility", "Other"];
+  const measurementTypes: WorkoutMeasurementType[] = ["WEIGHT_REPS", "REPS_ONLY", "TIME", "DISTANCE", "WEIGHT_ONLY", "COUNT", "COMPLETION"];
+  const [newExerciseMeasurementType, setNewExerciseMeasurementType] = useState<WorkoutMeasurementType>("WEIGHT_REPS");
+  const [draggedStationId, setDraggedStationId] = useState<ID | undefined>();
+  const [dropStationTarget, setDropStationTarget] = useState<{ id: ID; position: "before" | "after" } | undefined>();
   const exactMatch = filteredExercises.some((exercise) => exercise.name.toLowerCase() === exerciseSearch.trim().toLowerCase());
   return (
     <div className="weight-room-workout-editor">
       <div className="weight-room-editor-head">
         <div><span>Exercises / Stations</span><small>{stations.length} selected</small></div>
-        <button type="button" onClick={onOpenExercisePicker}><Plus size={14} aria-hidden="true" />Add Exercises</button>
       </div>
       <div className="weight-room-editor-actions">
         <button type="button" onClick={onOpenExercisePicker}><Search size={14} aria-hidden="true" />Choose From Library</button>
@@ -9525,7 +9786,7 @@ function WeightRoomWorkoutEditor({
       </div>
       <label className="weight-room-preset-save">
         <span>Save Exercise Preset</span>
-        <input value={exercisePresetName} onChange={(event) => onExercisePresetName(event.target.value)} placeholder="Lower Body A" />
+        <input value={exercisePresetName} onChange={(event) => onExercisePresetName(event.target.value)} placeholder="Enter preset name..." />
         <button type="button" onClick={onSaveExercisePreset} disabled={!stations.length}><Save size={14} aria-hidden="true" />Save</button>
       </label>
       {!stations.length && (
@@ -9535,33 +9796,68 @@ function WeightRoomWorkoutEditor({
           <p>Build today&apos;s workout from the team exercise library or load an exercise preset.</p>
           <div>
             <button type="button" onClick={onOpenExercisePicker}><Plus size={14} aria-hidden="true" />Add Exercises</button>
-            <button type="button" onClick={onOpenExercisePresets}><Download size={14} aria-hidden="true" />Load Exercise Preset</button>
           </div>
         </div>
       )}
       {!!stations.length && (
         <div className="weight-room-current-stations weight-room-current-stations--builder" role="table" aria-label="Selected workout exercises">
-          <div role="row">
+          <button type="button" className="weight-room-station-add-row" onClick={onOpenExercisePicker}><Plus size={14} aria-hidden="true" />Add Exercise</button>
+          <div className="weight-room-current-stations__head" role="row">
             <span>#</span>
             <span>Exercise</span>
-            <span>Measurement</span>
-            <span>Target</span>
-            <span>Actions</span>
+            <span>Style</span>
+            <span>Sets</span>
+            <span>Reps / Value</span>
           </div>
           {stations.map((station, index) => (
-            <div key={station.id} role="row" data-station-row>
+            <div
+              key={station.id}
+              role="row"
+              data-station-row
+              draggable
+              tabIndex={0}
+              className={[
+                "weight-room-current-stations__row",
+                draggedStationId === station.id ? "is-dragging" : "",
+                dropStationTarget?.id === station.id ? `is-drop-${dropStationTarget.position}` : "",
+              ].filter(Boolean).join(" ")}
+              onDragStart={() => setDraggedStationId(station.id)}
+              onDragOver={(event) => {
+                event.preventDefault();
+                const bounds = event.currentTarget.getBoundingClientRect();
+                setDropStationTarget({ id: station.id, position: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after" });
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                if (draggedStationId) onReorderStation(draggedStationId, dropStationTarget?.position === "after" ? index + 1 : index);
+                setDraggedStationId(undefined);
+                setDropStationTarget(undefined);
+              }}
+              onDragEnd={() => {
+                setDraggedStationId(undefined);
+                setDropStationTarget(undefined);
+              }}
+              onKeyDown={(event) => {
+                if (!event.altKey) return;
+                if (event.key === "ArrowUp" && index > 0) {
+                  event.preventDefault();
+                  onReorderStation(station.id, index - 1);
+                }
+                if (event.key === "ArrowDown" && index < stations.length - 1) {
+                  event.preventDefault();
+                  onReorderStation(station.id, index + 1);
+                }
+              }}
+            >
               <em>{index + 1}</em>
-              <span>
-                <strong>{station.name}</strong>
+              <span className="weight-room-station-main">
+                <span>
+                  <strong>{station.name}</strong>
+                  <button type="button" onClick={() => onRemoveStation(station.id)} aria-label={`Remove ${station.name}`}><Trash2 size={13} aria-hidden="true" /></button>
+                </span>
                 <small>{station.equipment ?? station.category}</small>
               </span>
-              <span>{weightRoomMeasurementLabel(station)}</span>
               <WorkoutStationTargetControls station={station} onUpdate={(patch) => onUpdateStation(station.id, patch)} />
-              <span className="weight-room-station-actions">
-                <button type="button" onClick={() => onMoveStation(station.id, -1)} disabled={index === 0} aria-label={`Move ${station.name} up`}><ChevronUp size={13} aria-hidden="true" /></button>
-                <button type="button" onClick={() => onMoveStation(station.id, 1)} disabled={index === stations.length - 1} aria-label={`Move ${station.name} down`}><ChevronDown size={13} aria-hidden="true" /></button>
-                <button type="button" onClick={() => onRemoveStation(station.id)} aria-label={`Remove ${station.name}`}><Trash2 size={13} aria-hidden="true" /></button>
-              </span>
             </div>
           ))}
         </div>
@@ -9599,19 +9895,18 @@ function WeightRoomWorkoutEditor({
                 onChange={(value) => onNewExerciseCategory(value as WeightRoomExerciseCategory)}
                 aria-label="New exercise category"
               />
-              <button type="button" onClick={() => onCreateExercise(exerciseSearch.trim())}><Plus size={14} aria-hidden="true" />Create {exerciseSearch.trim()}</button>
+              <ChoiceSelect
+                value={newExerciseMeasurementType}
+                className="form-choice"
+                options={measurementTypes.map((type) => ({ value: type, label: workoutMeasurementTypeLabel(type) }))}
+                onChange={(value) => setNewExerciseMeasurementType(value as WorkoutMeasurementType)}
+                aria-label="New exercise measurement type"
+              />
+              <button type="button" onClick={() => onCreateExercise(exerciseSearch.trim(), { category: newExerciseCategory, measurementType: newExerciseMeasurementType })}><Plus size={14} aria-hidden="true" />Create {exerciseSearch.trim()}</button>
             </div>
           )}
         </div>
       </details>
-      <div className="weight-room-saved-workouts">
-        {exercisePresets.slice(0, 3).map((preset) => (
-          <button key={preset.id} type="button" onClick={onOpenExercisePresets}>
-            <strong>{preset.name}</strong>
-            <small>{preset.stations.length} exercises</small>
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
@@ -9627,7 +9922,6 @@ function WorkoutStationTargetControls({
   const usesReps = station.targetStyle === "Standard" || station.targetStyle === "Target Reps";
   const usesTargetValue = station.targetStyle === "Target Time";
   const attemptLabel = stationAttemptLabel(station);
-  const valueLabel = station.measurementType === "TIME" ? "sec" : weightRoomMeasurementLabel(station).toLowerCase();
 
   function cleanInt(value: string, fallback: number) {
     const parsed = Number(value.replace(/\D/g, ""));
@@ -9635,7 +9929,7 @@ function WorkoutStationTargetControls({
   }
 
   return (
-    <div className="weight-room-target-controls">
+    <>
       <ChoiceSelect
         value={station.targetStyle}
         className="form-choice"
@@ -9643,40 +9937,35 @@ function WorkoutStationTargetControls({
         onChange={(value) => onUpdate({ targetStyle: value as WorkoutTargetStyle, performanceDirection: defaultPerformanceDirection(station.name, station.measurementType, value as WorkoutTargetStyle) })}
         aria-label={`${station.name} target style`}
       />
-      <label>
-        <span>{attemptLabel}</span>
-        <input
-          inputMode="numeric"
-          value={station.targetSets ?? 1}
-          onChange={(event) => onUpdate({ targetSets: cleanInt(event.target.value, station.targetSets ?? 1) })}
-          aria-label={`${station.name} ${attemptLabel.toLowerCase()}`}
-        />
-      </label>
+      <input
+        className="weight-room-target-input"
+        inputMode="numeric"
+        value={station.targetSets ?? 1}
+        onChange={(event) => onUpdate({ targetSets: cleanInt(event.target.value, station.targetSets ?? 1) })}
+        aria-label={`${station.name} ${attemptLabel.toLowerCase()}`}
+      />
       {usesReps && (
-        <label>
-          <span>Reps</span>
-          <input
-            inputMode="numeric"
-            value={station.targetReps ?? ""}
-            placeholder="Max"
-            onChange={(event) => onUpdate({ targetReps: optionalNumber(event.target.value.replace(/\D/g, "")) })}
-            aria-label={`${station.name} target reps`}
-          />
-        </label>
+        <input
+          className="weight-room-target-input"
+          inputMode="numeric"
+          value={station.targetReps ?? ""}
+          placeholder="Max"
+          onChange={(event) => onUpdate({ targetReps: optionalNumber(event.target.value.replace(/\D/g, "")) })}
+          aria-label={`${station.name} target reps`}
+        />
       )}
       {usesTargetValue && (
-        <label>
-          <span>{valueLabel}</span>
-          <input
-            inputMode="decimal"
-            value={station.targetValue ?? ""}
-            placeholder="Target"
-            onChange={(event) => onUpdate({ targetValue: optionalNumber(event.target.value.replace(/[^0-9.]/g, "")) })}
-            aria-label={`${station.name} target value`}
-          />
-        </label>
+        <input
+          className="weight-room-target-input"
+          inputMode="decimal"
+          value={station.targetValue ?? ""}
+          placeholder="Target"
+          onChange={(event) => onUpdate({ targetValue: optionalNumber(event.target.value.replace(/[^0-9.]/g, "")) })}
+          aria-label={`${station.name} target value`}
+        />
       )}
-    </div>
+      {!usesReps && !usesTargetValue && <span className="weight-room-target-placeholder">--</span>}
+    </>
   );
 }
 
@@ -9714,9 +10003,9 @@ function WeightRoomInlineSetCell({
         ? optionalDistanceValue(value)
         : optionalNumber(value);
     const draft = {
-      weight: optionalNumber(weight),
-      reps: optionalNumber(reps),
-      value: isCompletion ? 1 : parsedValue,
+      weight: isWeightReps || isWeightOnly ? optionalNumber(weight) : undefined,
+      reps: isWeightReps || isRepsOnly ? optionalNumber(reps) : undefined,
+      value: isCompletion ? 1 : isWeightReps || isWeightOnly || isRepsOnly ? undefined : parsedValue,
       unit: isWeightReps || isWeightOnly ? "lb" as const : isRepsOnly ? "reps" as const : station.unit,
       status: "Completed" as const,
     };
@@ -9732,7 +10021,7 @@ function WeightRoomInlineSetCell({
     }
   }
 
-  const previousText = previousEntry ? formatWorkoutEntryValue(previousEntry) : undefined;
+  const previousText = previousEntry ? formatWorkoutEntryValueForStation(previousEntry, station) : undefined;
   return (
     <div className={entry ? "weight-room-inline-set-cell complete" : "weight-room-inline-set-cell"} aria-label={`${station.name} ${stationAttemptLabel(station).toLowerCase()} ${cell.setNumber}`}>
       {isWeightReps ? (
@@ -9780,7 +10069,7 @@ function WeightRoomInlineSetCell({
               disabled={disabled}
               inputMode="decimal"
               value={value}
-              placeholder={previousEntry ? formatWorkoutEntryValue(previousEntry) : weightRoomMeasurementLabel(station)}
+              placeholder={previousEntry ? formatWorkoutEntryValueForStation(previousEntry, station) : weightRoomMeasurementLabel(station)}
               onBlur={save}
               onKeyDown={handleKey}
               onChange={(event) => setValue(cleanWorkoutMeasurementDraft(event.target.value, station.measurementType))}
@@ -9788,7 +10077,7 @@ function WeightRoomInlineSetCell({
           </label>
         </div>
       )}
-      <small>{entry ? formatWorkoutEntryValue(entry) : previousText ? `Prev ${previousText}` : station.targetReps ? `${station.targetReps} target` : "Enter"}</small>
+      <small>{entry ? formatWorkoutEntryValueForStation(entry, station) : previousText && previousText !== "--" ? `Prev ${previousText}` : station.targetReps ? `${station.targetReps} target` : "Enter"}</small>
     </div>
   );
 }
@@ -9837,7 +10126,7 @@ function WeightRoomGroupStationTable({
             <span className="weight-room-active-athlete-cell">
               <PlayerAvatar player={player} size="sm" compact />
               <strong>{player.name}</strong>
-              <small>Last: {previousWorkoutEntry(data, player.id, station.name, workoutDate) ? formatWorkoutEntryValue(previousWorkoutEntry(data, player.id, station.name, workoutDate)!) : "--"}</small>
+              <small>Last: {previousWorkoutEntry(data, player.id, station.name, workoutDate) ? formatWorkoutEntryValueForStation(previousWorkoutEntry(data, player.id, station.name, workoutDate)!, station) : "--"}</small>
             </span>
             {Array.from({ length: targetSets }, (_, index) => {
               const setNumber = index + 1;
@@ -9845,7 +10134,7 @@ function WeightRoomGroupStationTable({
               const previousEntry = previousWorkoutEntry(data, player.id, station.name, workoutDate);
               return (
                 <WeightRoomInlineSetCell
-                  key={`${setNumber}-${entry?.id ?? "empty"}`}
+                  key={`${player.id}-${station.id}-${station.measurementType}-${setNumber}-${entry?.id ?? "empty"}-${entry?.weight ?? ""}-${entry?.reps ?? ""}-${entry?.value ?? ""}`}
                   cell={{ playerId: player.id, exercise: station.name, setNumber }}
                   station={station}
                   entry={entry}
@@ -9874,6 +10163,7 @@ function WeightRoomIndividualWorkout({
   disabled,
   onPlayer,
   onExercise,
+  onOpenExercisePicker,
   onSaveCell,
 }: {
   data: AppData;
@@ -9886,6 +10176,7 @@ function WeightRoomIndividualWorkout({
   disabled: boolean;
   onPlayer: (playerId: ID) => void;
   onExercise: (exercise: string) => void;
+  onOpenExercisePicker: () => void;
   onSaveCell: (cell: ActiveWorkoutCell, draft: { weight?: number; reps?: number; value?: number; rpe?: number; unit?: WorkoutEntry["unit"]; status?: WorkoutEntry["status"] }) => void;
 }) {
   const player = players.find((item) => item.id === playerId) ?? players[0];
@@ -9894,13 +10185,6 @@ function WeightRoomIndividualWorkout({
   const attemptLabel = station ? stationAttemptLabel(station) === "Attempts" ? "Attempt" : "Set" : "Set";
   return (
     <section className="panel weight-room-individual-mode">
-      <div className="weight-room-active-section-head">
-        <div>
-          <span>Individual Mode</span>
-          <h2>{player?.name ?? "Select athlete"}</h2>
-        </div>
-        <small>{station?.name ?? "Exercise"} - same workout data</small>
-      </div>
       <div className="weight-room-individual-selectors">
         <ChoiceSelect
           value={player?.id ?? ""}
@@ -9916,26 +10200,31 @@ function WeightRoomIndividualWorkout({
           onChange={onExercise}
           aria-label="Workout exercise"
         />
+        <button type="button" className="secondary-button" onClick={onOpenExercisePicker}>
+          <Plus size={15} aria-hidden="true" />
+          Add / Edit Exercises
+        </button>
       </div>
-      <div className="weight-room-individual-strip">
-        {players.slice(0, 12).map((item) => (
+      <ScrollablePanel className="weight-room-individual-strip-panel" bodyClassName="weight-room-individual-strip" ariaLabel="workout athlete selector" direction="horizontal">
+        {players.map((item) => (
           <button key={item.id} type="button" className={item.id === player?.id ? "active" : ""} onClick={() => onPlayer(item.id)}>
             <PlayerAvatar player={item} size="sm" compact />
             <span>{item.name.split(" ").slice(-1)[0]}</span>
           </button>
         ))}
-      </div>
+      </ScrollablePanel>
       {player && station && (
         <div className="weight-room-individual-set-list">
-          <span>Previous: {previousWorkoutEntry(data, player.id, station.name, workoutDate) ? formatWorkoutEntryValue(previousWorkoutEntry(data, player.id, station.name, workoutDate)!) : "--"}</span>
+          <span>Previous: {previousWorkoutEntry(data, player.id, station.name, workoutDate) ? formatWorkoutEntryValueForStation(previousWorkoutEntry(data, player.id, station.name, workoutDate)!, station) : "--"}</span>
           {Array.from({ length: targetSets }, (_, index) => {
             const setNumber = index + 1;
             const entry = workoutEntryForCell(entries, player.id, station.name, setNumber);
-              const previousEntry = previousWorkoutEntry(data, player.id, station.name, workoutDate);
-              return (
-                <div key={`${setNumber}-${entry?.id ?? "empty"}`} className="weight-room-individual-set-row">
+            const previousEntry = previousWorkoutEntry(data, player.id, station.name, workoutDate);
+            return (
+              <div key={`${station.id}-${setNumber}-${entry?.id ?? "empty"}-${entry?.weight ?? ""}-${entry?.reps ?? ""}-${entry?.value ?? ""}`} className="weight-room-individual-set-row">
                 <strong>{attemptLabel} {setNumber}</strong>
                 <WeightRoomInlineSetCell
+                  key={`${player.id}-${station.id}-${station.measurementType}-${setNumber}-${entry?.id ?? "empty"}-${entry?.weight ?? ""}-${entry?.reps ?? ""}-${entry?.value ?? ""}`}
                   cell={{ playerId: player.id, exercise: station.name, setNumber }}
                   station={station}
                   entry={entry}
@@ -9955,11 +10244,13 @@ function WeightRoomIndividualWorkout({
 function WeightRoomActiveActivity({
   entries,
   players,
+  stations,
   expanded,
   onToggle,
 }: {
   entries: WorkoutEntry[];
   players: Player[];
+  stations: ActiveWorkoutStation[];
   expanded: boolean;
   onToggle: () => void;
 }) {
@@ -9972,11 +10263,12 @@ function WeightRoomActiveActivity({
       </div>
       {visibleEntries.map((entry) => {
         const player = players.find((item) => item.id === entry.playerId);
+        const station = stations.find((item) => item.name.toLowerCase() === entry.exercise.toLowerCase());
         return (
           <span key={entry.id}>
             <small>{formatTime(entry.createdAt)}</small>
             <strong>{player?.name ?? "Athlete"}</strong>
-            <em>{entry.exercise} - {formatWorkoutEntryValue(entry)}{entry.setNumber ? ` - Set ${entry.setNumber}` : ""}</em>
+            <em>{entry.exercise} - {formatWorkoutEntryValueForStation(entry, station)}{entry.setNumber ? ` - Set ${entry.setNumber}` : ""}</em>
           </span>
         );
       })}
@@ -9987,46 +10279,286 @@ function WeightRoomActiveActivity({
 }
 
 function WeightRoomCompletedWorkoutSummary({
+  data,
+  workoutDate,
   players,
   stations,
+  groups,
   entries,
   sessions,
   plannedSetCount,
   onBack,
+  onEditResults,
 }: {
+  data: AppData;
+  workoutDate: string;
   players: Player[];
   stations: ActiveWorkoutStation[];
+  groups: ActiveWorkoutGroupSeed[];
   entries: WorkoutEntry[];
   sessions: WorkoutSession[];
   plannedSetCount: number;
   onBack: () => void;
+  onEditResults: () => void;
 }) {
-  const completedEntries = entries.filter((entry) => (entry.status ?? "Completed") !== "Skipped");
+  type CompletedTab = "Overview" | "Athletes" | "Exercises" | "Weigh-Ins";
+  type ExerciseSortKey = "rank" | "exercise" | "target" | "results" | "completion" | "topResult";
+  type AthleteSortKey = "athlete" | "exercises" | "results" | "completion" | "volume" | "prs";
+  const [tab, setTab] = useState<CompletedTab>("Overview");
+  const [selectedExerciseName, setSelectedExerciseName] = useState(stations[0]?.name ?? "");
+  const [exerciseSort, setExerciseSort] = useState<WeightRoomSortState<ExerciseSortKey>>({ key: "exercise", direction: "asc" });
+  const [athleteSort, setAthleteSort] = useState<WeightRoomSortState<AthleteSortKey>>({ key: "athlete", direction: "asc" });
+  const completedEntries = uniqueLatestWorkoutEntries(entries).filter((entry) => (entry.status ?? "Completed") !== "Skipped");
   const volume = completedEntries.reduce((sum, entry) => sum + workoutEntryVolume(entry), 0);
+  const assignedAthletes = new Set(groups.flatMap((group) => group.playerIds));
+  const plannedAthleteCount = assignedAthletes.size || players.length;
+  const stationRows = stations.map((station, index) => {
+    const stationEntries = completedEntries.filter((entry) => entry.exercise === station.name);
+    const planned = Math.max(1, station.targetSets ?? 1) * plannedAthleteCount;
+    const stationVolume = stationEntries.reduce((sum, entry) => sum + workoutEntryVolume(entry), 0);
+    const topEntry = bestWorkoutEntryForStation(stationEntries, station);
+    const topPlayer = topEntry ? players.find((player) => player.id === topEntry.playerId) : undefined;
+    const prCount = personalRecordsForWorkout(data, players, stationEntries, workoutDate, [station]).length;
+    return {
+      station,
+      index,
+      resultCount: stationEntries.length,
+      planned,
+      completion: planned ? (stationEntries.length / planned) * 100 : 0,
+      volume: stationVolume,
+      topEntry,
+      topPlayer,
+      prCount,
+    };
+  });
+  const sortedStationRows = stationRows.slice().sort((left, right) => {
+    const direction = exerciseSort.direction === "asc" ? 1 : -1;
+    if (exerciseSort.key === "rank") return (left.index - right.index) * direction;
+    if (exerciseSort.key === "exercise") return left.station.name.localeCompare(right.station.name) * direction;
+    if (exerciseSort.key === "target") return stationTargetSummary(left.station).localeCompare(stationTargetSummary(right.station)) * direction || left.index - right.index;
+    if (exerciseSort.key === "completion") return (left.completion - right.completion) * direction || left.index - right.index;
+    if (exerciseSort.key === "results") return (left.resultCount - right.resultCount) * direction || left.index - right.index;
+    return ((left.topEntry ? workoutEntryComparableForStation(left.topEntry, left.station) : -1) - (right.topEntry ? workoutEntryComparableForStation(right.topEntry, right.station) : -1)) * direction || left.index - right.index;
+  });
+  const prs = personalRecordsForWorkout(data, players, completedEntries, workoutDate, stations);
+  const athleteRows = players.map((player) => {
+    const playerEntries = completedEntries.filter((entry) => entry.playerId === player.id);
+    const playerAssigned = !assignedAthletes.size || assignedAthletes.has(player.id);
+    const planned = playerAssigned ? stations.reduce((sum, station) => sum + Math.max(1, station.targetSets ?? 1), 0) : 0;
+    const playerPrs = prs.filter((pr) => pr.player.id === player.id);
+    return {
+      player,
+      exerciseCount: uniqueStrings(playerEntries.map((entry) => entry.exercise)).length,
+      resultCount: playerEntries.length,
+      planned,
+      completion: planned ? (playerEntries.length / planned) * 100 : 0,
+      volume: playerEntries.reduce((sum, entry) => sum + workoutEntryVolume(entry), 0),
+      prs: playerPrs.length,
+    };
+  });
+  const sortedAthleteRows = athleteRows.slice().sort((left, right) => {
+    const direction = athleteSort.direction === "asc" ? 1 : -1;
+    if (athleteSort.key === "athlete") return left.player.name.localeCompare(right.player.name) * direction;
+    if (athleteSort.key === "exercises") return (left.exerciseCount - right.exerciseCount) * direction || left.player.name.localeCompare(right.player.name);
+    if (athleteSort.key === "results") return (left.resultCount - right.resultCount) * direction || left.player.name.localeCompare(right.player.name);
+    if (athleteSort.key === "completion") return (left.completion - right.completion) * direction || left.player.name.localeCompare(right.player.name);
+    if (athleteSort.key === "volume") return (left.volume - right.volume) * direction || left.player.name.localeCompare(right.player.name);
+    return (left.prs - right.prs) * direction || left.player.name.localeCompare(right.player.name);
+  });
+  const selectedExercise = stations.find((station) => station.name === selectedExerciseName) ?? stations[0];
+
+  function toggleExerciseSort(key: ExerciseSortKey) {
+    setExerciseSort((current) => current.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: key === "exercise" || key === "target" || key === "rank" ? "asc" : "desc" });
+  }
+
+  function toggleAthleteSort(key: AthleteSortKey) {
+    setAthleteSort((current) => current.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: key === "athlete" ? "asc" : "desc" });
+  }
+
   return (
     <section className="panel weight-room-completed-summary">
-      <div className="weight-room-active-section-head">
-        <div>
-          <span>Workout Summary</span>
-          <h2>Completed workout</h2>
+      <div className="weight-room-completed-tabs" role="tablist" aria-label="Completed workout views">
+        {(["Overview", "Athletes", "Exercises", "Weigh-Ins"] as CompletedTab[]).map((item) => (
+          <button key={item} type="button" className={tab === item ? "active" : ""} onClick={() => setTab(item)}>
+            {item}
+          </button>
+        ))}
+      </div>
+      {tab === "Overview" && (
+        <div className="weight-room-completed-metrics" aria-label="Completed workout key results">
+          <span className="weight-room-completed-metric">
+            <i><Users size={15} aria-hidden="true" /></i>
+            <small>Athletes</small>
+            <strong>{plannedAthleteCount}</strong>
+          </span>
+          <span className="weight-room-completed-metric">
+            <i><Check size={15} aria-hidden="true" /></i>
+            <small>Sets Completed</small>
+            <strong>{formatActiveSetProgress(completedEntries.length, plannedSetCount)}</strong>
+            <em>{plannedSetCount ? `${formatPct((completedEntries.length / plannedSetCount) * 100, 0)} recorded` : "No planned sets"}</em>
+          </span>
+          <span className="weight-room-completed-metric">
+            <i><Dumbbell size={15} aria-hidden="true" /></i>
+            <small>Weight Volume</small>
+            <strong>{formatWorkoutVolume(volume)}</strong>
+          </span>
+          <span className="weight-room-completed-metric">
+            <i><Gauge size={15} aria-hidden="true" /></i>
+            <small>Weigh-Ins</small>
+            <strong>{sessions.filter((session) => typeof session.bodyWeight === "number").length} / {players.length}</strong>
+          </span>
+          <span className="weight-room-completed-metric">
+            <i><Sparkles size={15} aria-hidden="true" /></i>
+            <small>PRs</small>
+            <strong>{prs.length}</strong>
+          </span>
         </div>
-        <small>Read-only summary</small>
-      </div>
-      <div className="weight-room-completed-metrics">
-        <StatTile label="Athletes" value={players.length} />
-        <StatTile label="Sets" value={formatActiveSetProgress(completedEntries.length, plannedSetCount)} />
-        <StatTile label="Completion" value={plannedSetCount > 0 ? formatPct((completedEntries.length / plannedSetCount) * 100, 0) : "--"} />
-        <StatTile label="Volume" value={formatWorkoutVolume(volume)} />
-        <StatTile label="Weigh-Ins" value={sessions.filter((session) => typeof session.bodyWeight === "number").length} />
-      </div>
+      )}
+
+      {tab === "Overview" && (
+        <div className="weight-room-completed-layout">
+          <section className="weight-room-completed-table" aria-label="Exercise results">
+            <div className="weight-room-completed-section-head">
+              <h3>Exercise Results</h3>
+              <button type="button" onClick={() => setTab("Exercises")}>View Details</button>
+            </div>
+              <div className="weight-room-completed-exercise-table" role="table">
+              <div role="row">
+                <span role="columnheader" aria-sort={exerciseSort.key === "rank" ? exerciseSort.direction === "asc" ? "ascending" : "descending" : "none"}><button type="button" onClick={() => toggleExerciseSort("rank")}># {exerciseSort.key === "rank" ? sortArrow(exerciseSort.direction) : ""}</button></span>
+                <span role="columnheader" aria-sort={exerciseSort.key === "exercise" ? exerciseSort.direction === "asc" ? "ascending" : "descending" : "none"}><button type="button" onClick={() => toggleExerciseSort("exercise")}>Exercise {exerciseSort.key === "exercise" ? sortArrow(exerciseSort.direction) : ""}</button></span>
+                <span role="columnheader" aria-sort={exerciseSort.key === "target" ? exerciseSort.direction === "asc" ? "ascending" : "descending" : "none"}><button type="button" onClick={() => toggleExerciseSort("target")}>Target {exerciseSort.key === "target" ? sortArrow(exerciseSort.direction) : ""}</button></span>
+                <span role="columnheader" aria-sort={exerciseSort.key === "results" ? exerciseSort.direction === "asc" ? "ascending" : "descending" : "none"}><button type="button" onClick={() => toggleExerciseSort("results")}>Results {exerciseSort.key === "results" ? sortArrow(exerciseSort.direction) : ""}</button></span>
+                <span role="columnheader" aria-sort={exerciseSort.key === "completion" ? exerciseSort.direction === "asc" ? "ascending" : "descending" : "none"}><button type="button" onClick={() => toggleExerciseSort("completion")}>Completion {exerciseSort.key === "completion" ? sortArrow(exerciseSort.direction) : ""}</button></span>
+                <span role="columnheader" aria-sort={exerciseSort.key === "topResult" ? exerciseSort.direction === "asc" ? "ascending" : "descending" : "none"}><button type="button" onClick={() => toggleExerciseSort("topResult")}>Top Result {exerciseSort.key === "topResult" ? sortArrow(exerciseSort.direction) : ""}</button></span>
+              </div>
+              {sortedStationRows.map((row) => (
+                <button key={row.station.id} type="button" role="row" onClick={() => { setSelectedExerciseName(row.station.name); setTab("Exercises"); }}>
+                  <span>{row.index + 1}</span>
+                  <strong>{row.station.name}<small>{workoutMeasurementTypeLabel(row.station.measurementType)}</small></strong>
+                  <span>{stationTargetSummary(row.station)}</span>
+                  <span>{completedResultSummary(row.station, row.resultCount, row.volume)}</span>
+                  <span>{row.planned ? `${formatPct(row.completion, 0)} recorded` : "No target"}</span>
+                  <span>{row.topEntry && row.topPlayer ? `${row.topPlayer.name.split(" ")[0]} ${formatWorkoutEntryValueForStation(row.topEntry, row.station)}` : "--"}</span>
+                </button>
+              ))}
+              {!sortedStationRows.length && <CompactEmpty title="No planned exercises were saved for this workout." />}
+            </div>
+          </section>
+          <aside className="weight-room-completed-rail">
+            <section>
+              <div className="weight-room-completed-section-head"><h3>Personal Records</h3></div>
+              {prs.length ? prs.slice(0, 6).map((pr) => {
+                const station = stations.find((item) => item.name.toLowerCase() === pr.exercise.toLowerCase());
+                return (
+                  <div key={`${pr.player.id}-${pr.exercise}-${pr.entry.id}`} className="weight-room-pr-row">
+                    <TrendingUp size={15} aria-hidden="true" />
+                    <PlayerAvatar player={pr.player} size="sm" compact />
+                    <span><strong>{pr.player.name}</strong><small>{pr.exercise}</small></span>
+                    <em>{formatWorkoutEntryValueForStation(pr.entry, station)}<small>Previous {formatWorkoutEntryValueForStation(pr.previous, station)}</small></em>
+                  </div>
+                );
+              }) : <CompactEmpty title="No new personal records this workout." />}
+            </section>
+            <section>
+              <div className="weight-room-completed-section-head"><h3>Athlete Highlights</h3></div>
+              {sortedAthleteRows.filter((row) => row.resultCount > 0).slice(0, 4).map((row) => (
+                <button key={row.player.id} type="button" className="weight-room-athlete-highlight-row" onClick={() => setTab("Athletes")}>
+                  <PlayerAvatar player={row.player} size="sm" compact />
+                  <span><strong>{row.player.name}</strong><small>{formatActiveSetProgress(row.resultCount, row.planned)} results - {formatWorkoutVolume(row.volume)}</small></span>
+                </button>
+              ))}
+              {!sortedAthleteRows.some((row) => row.resultCount > 0) && <CompactEmpty title="No athlete results were recorded." />}
+            </section>
+          </aside>
+        </div>
+      )}
+
+      {tab === "Athletes" && (
+        <section className="weight-room-completed-table" aria-label="Athlete workout results">
+          <div className="weight-room-completed-section-head"><h3>Athlete Box Score</h3></div>
+            <div className="weight-room-completed-athlete-table" role="table">
+            <div role="row">
+              <span role="columnheader" aria-sort={athleteSort.key === "athlete" ? athleteSort.direction === "asc" ? "ascending" : "descending" : "none"}><button type="button" onClick={() => toggleAthleteSort("athlete")}>Athlete {athleteSort.key === "athlete" ? sortArrow(athleteSort.direction) : ""}</button></span>
+              <span role="columnheader" aria-sort={athleteSort.key === "exercises" ? athleteSort.direction === "asc" ? "ascending" : "descending" : "none"}><button type="button" onClick={() => toggleAthleteSort("exercises")}>Exercises {athleteSort.key === "exercises" ? sortArrow(athleteSort.direction) : ""}</button></span>
+              <span role="columnheader" aria-sort={athleteSort.key === "results" ? athleteSort.direction === "asc" ? "ascending" : "descending" : "none"}><button type="button" onClick={() => toggleAthleteSort("results")}>Results {athleteSort.key === "results" ? sortArrow(athleteSort.direction) : ""}</button></span>
+              <span role="columnheader" aria-sort={athleteSort.key === "completion" ? athleteSort.direction === "asc" ? "ascending" : "descending" : "none"}><button type="button" onClick={() => toggleAthleteSort("completion")}>Completion {athleteSort.key === "completion" ? sortArrow(athleteSort.direction) : ""}</button></span>
+              <span role="columnheader" aria-sort={athleteSort.key === "volume" ? athleteSort.direction === "asc" ? "ascending" : "descending" : "none"}><button type="button" onClick={() => toggleAthleteSort("volume")}>Volume {athleteSort.key === "volume" ? sortArrow(athleteSort.direction) : ""}</button></span>
+              <span role="columnheader" aria-sort={athleteSort.key === "prs" ? athleteSort.direction === "asc" ? "ascending" : "descending" : "none"}><button type="button" onClick={() => toggleAthleteSort("prs")}>PRs {athleteSort.key === "prs" ? sortArrow(athleteSort.direction) : ""}</button></span>
+            </div>
+            {sortedAthleteRows.map((row) => (
+              <button key={row.player.id} type="button" role="row">
+                <strong><PlayerAvatar player={row.player} size="sm" compact />{row.player.name}<small>#{row.player.jerseyNumber} - {row.player.primaryPosition}</small></strong>
+                <span>{row.exerciseCount} / {stations.length}</span>
+                <span>{formatActiveSetProgress(row.resultCount, row.planned)}</span>
+                <span>{row.planned ? formatPct(row.completion, 0) : "Not assigned"}</span>
+                <span>{formatWorkoutVolume(row.volume)}</span>
+                <span>{row.prs}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tab === "Exercises" && (
+        <section className="weight-room-completed-table" aria-label="Exercise drilldown">
+          <div className="weight-room-completed-section-head">
+            <h3>Exercise Drilldown</h3>
+            <ChoiceSelect
+              value={selectedExercise?.name ?? ""}
+              className="form-choice weight-room-completed-exercise-picker"
+              options={stations.map((station) => ({ value: station.name, label: station.name, description: stationTargetSummary(station) }))}
+              onChange={setSelectedExerciseName}
+              aria-label="Exercise drilldown"
+            />
+          </div>
+          {selectedExercise ? (
+            <div className="weight-room-completed-drill-table" role="table">
+              <div role="row"><span>Athlete</span><span>Target</span><span>Actual</span><span>Previous</span><span>Change</span><span>Best</span></div>
+              {players.map((player) => {
+                const playerEntries = completedEntries.filter((entry) => entry.playerId === player.id && entry.exercise === selectedExercise.name);
+                const best = bestWorkoutEntryForStation(playerEntries, selectedExercise);
+                const previous = previousWorkoutEntry(data, player.id, selectedExercise.name, workoutDate);
+                return (
+                  <button key={player.id} type="button" role="row">
+                    <strong><PlayerAvatar player={player} size="sm" compact />{player.name}</strong>
+                    <span>{stationTargetSummary(selectedExercise)}</span>
+                    <span>{playerEntries.length ? playerEntries.map((entry) => formatWorkoutEntryValueForStation(entry, selectedExercise)).join(", ") : "--"}</span>
+                    <span>{previous ? formatWorkoutEntryValueForStation(previous, selectedExercise) : "--"}</span>
+                    <span>{formatCompletedEntryChange(best, previous, selectedExercise)}</span>
+                    <span>{best ? formatWorkoutEntryValueForStation(best, selectedExercise) : "--"}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : <CompactEmpty title="No exercise selected." />}
+        </section>
+      )}
+
+      {tab === "Weigh-Ins" && (
+        <section className="weight-room-completed-table" aria-label="Workout weigh-ins">
+          <div className="weight-room-completed-section-head"><h3>Weigh-Ins</h3></div>
+          <div className="weight-room-completed-weigh-table" role="table">
+            <div role="row"><span>Athlete</span><span>Previous</span><span>Workout Weight</span><span>Change</span></div>
+            {players.map((player) => {
+              const current = sessions.find((session) => session.playerId === player.id && typeof session.bodyWeight === "number")?.bodyWeight;
+              const previous = previousBodyWeight(data, player.id, workoutDate);
+              const change = typeof current === "number" && typeof previous === "number" ? current - previous : undefined;
+              return (
+                <button key={player.id} type="button" role="row">
+                  <strong><PlayerAvatar player={player} size="sm" compact />{player.name}</strong>
+                  <span>{typeof previous === "number" ? `${formatNumber(previous, 1)} lb` : "--"}</span>
+                  <span>{typeof current === "number" ? `${formatNumber(current, 1)} lb` : "--"}</span>
+                  <span className={change && change > 0 ? "positive" : change && change < 0 ? "negative" : ""}>{typeof change === "number" ? `${change > 0 ? "+" : ""}${formatNumber(change, 1)} lb` : "--"}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       <div className="weight-room-completed-actions">
         <button className="secondary-button" type="button" onClick={onBack}>Return to Weight Room</button>
-        <button className="primary-button" type="button" onClick={onBack}>View Team Results</button>
-      </div>
-      <div className="weight-room-station-list compact">
-        {stations.map((station, index) => (
-          <span key={station.id}><strong>{index + 1}. {station.name}</strong><small>{entries.filter((entry) => entry.exercise === station.name).length} results logged</small></span>
-        ))}
+        <button className="secondary-button" type="button" onClick={onEditResults}><Edit3 size={15} aria-hidden="true" />Edit Results</button>
       </div>
     </section>
   );
@@ -10036,6 +10568,103 @@ function workoutEntryForCell(entries: WorkoutEntry[], playerId: ID, exercise: st
   return entries
     .filter((entry) => entry.playerId === playerId && entry.exercise === exercise && (entry.setNumber ?? 1) === setNumber)
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+}
+
+function uniqueLatestWorkoutEntries(entries: WorkoutEntry[]) {
+  const byCell = new Map<string, WorkoutEntry>();
+  entries
+    .slice()
+    .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    .forEach((entry) => {
+      const key = `${entry.playerId}:${entry.exercise.toLowerCase()}:${entry.setNumber ?? 1}`;
+      if (!byCell.has(key)) byCell.set(key, entry);
+    });
+  return [...byCell.values()].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+function sortArrow(direction: SortDirection) {
+  return direction === "asc" ? "↑" : "↓";
+}
+
+function completedResultSummary(station: ActiveWorkoutStation, resultCount: number, volume: number) {
+  if (station.measurementType === "WEIGHT_REPS") {
+    return `${resultCount} set${resultCount === 1 ? "" : "s"}${volume ? ` - ${formatWorkoutVolume(volume)}` : ""}`;
+  }
+  if (station.measurementType === "COMPLETION") return `${resultCount} completed`;
+  return `${resultCount} ${stationAttemptLabel(station).toLowerCase()}`;
+}
+
+function bestWorkoutEntryForStation(entries: WorkoutEntry[], station?: Pick<ActiveWorkoutStation, "measurementType" | "targetStyle" | "performanceDirection">) {
+  return entries.slice().sort((left, right) => compareWorkoutEntriesForStation(left, right, station))[0];
+}
+
+function compareWorkoutEntriesForStation(
+  left: WorkoutEntry,
+  right: WorkoutEntry,
+  station?: Pick<ActiveWorkoutStation, "measurementType" | "targetStyle" | "performanceDirection">,
+) {
+  const leftValue = workoutEntryComparableForStation(left, station);
+  const rightValue = workoutEntryComparableForStation(right, station);
+  if (leftValue === rightValue) return right.createdAt.localeCompare(left.createdAt);
+  const lowerIsBetter = station?.performanceDirection === "LOWER_IS_BETTER" || station?.targetStyle === "Best Time";
+  return lowerIsBetter ? leftValue - rightValue : rightValue - leftValue;
+}
+
+function workoutEntryComparableForStation(entry: WorkoutEntry, station?: Pick<ActiveWorkoutStation, "measurementType" | "targetStyle">) {
+  if (station?.measurementType === "WEIGHT_REPS" || (!station && typeof entry.weight === "number" && typeof entry.reps === "number")) {
+    return estimatedOneRepMax(entry.weight, entry.reps) ?? entry.weight ?? 0;
+  }
+  if (station?.measurementType === "WEIGHT_ONLY") return entry.weight ?? entry.value ?? 0;
+  if (station?.measurementType === "REPS_ONLY" || station?.measurementType === "BODYWEIGHT_REPS" || station?.measurementType === "COUNT") return entry.reps ?? entry.value ?? 0;
+  if (station?.measurementType === "TIME" || station?.measurementType === "DISTANCE" || station?.measurementType === "HEIGHT") return entry.value ?? 0;
+  if (station?.measurementType === "COMPLETION") return (entry.status ?? "Completed") === "Skipped" ? 0 : 1;
+  return entry.value ?? entry.weight ?? entry.reps ?? 0;
+}
+
+function workoutEntryBetterThan(current: WorkoutEntry, previous: WorkoutEntry, station?: ActiveWorkoutStation) {
+  const currentValue = workoutEntryComparableForStation(current, station);
+  const previousValue = workoutEntryComparableForStation(previous, station);
+  if (!Number.isFinite(currentValue) || !Number.isFinite(previousValue) || currentValue === previousValue) return false;
+  const lowerIsBetter = station?.performanceDirection === "LOWER_IS_BETTER" || station?.targetStyle === "Best Time";
+  return lowerIsBetter ? currentValue < previousValue : currentValue > previousValue;
+}
+
+function personalRecordsForWorkout(
+  data: AppData,
+  players: Player[],
+  entries: WorkoutEntry[],
+  workoutDate: string,
+  stations: ActiveWorkoutStation[],
+) {
+  const stationByName = new Map(stations.map((station) => [station.name.toLowerCase(), station]));
+  return entries.flatMap((entry) => {
+    const station = stationByName.get(entry.exercise.toLowerCase());
+    const previousBest = bestWorkoutEntryForStation(
+      data.workoutEntries.filter((item) =>
+        item.playerId === entry.playerId
+        && item.exercise === entry.exercise
+        && entrySessionDate(data, item) < workoutDate
+        && (item.status ?? "Completed") !== "Skipped"
+      ),
+      station,
+    );
+    const player = players.find((item) => item.id === entry.playerId);
+    if (!player || !previousBest || !workoutEntryBetterThan(entry, previousBest, station)) return [];
+    return [{ player, exercise: entry.exercise, entry, previous: previousBest }];
+  });
+}
+
+function formatCompletedEntryChange(current: WorkoutEntry | undefined, previous: WorkoutEntry | undefined, station?: ActiveWorkoutStation) {
+  if (!current || !previous) return "--";
+  if (!workoutEntriesComparable(current, previous)) return "--";
+  const currentValue = workoutEntryComparableForStation(current, station);
+  const previousValue = workoutEntryComparableForStation(previous, station);
+  const rawChange = currentValue - previousValue;
+  if (!rawChange) return "No change";
+  if (current.unit === "sec" || station?.measurementType === "TIME") return `${rawChange > 0 ? "+" : ""}${formatNumber(rawChange, 2)} sec`;
+  if (current.unit === "in" || station?.measurementType === "DISTANCE" || station?.measurementType === "HEIGHT") return `${rawChange > 0 ? "+" : ""}${formatInchesValue(Math.abs(rawChange))}`;
+  if (current.unit === "lb" || station?.measurementType === "WEIGHT_REPS" || station?.measurementType === "WEIGHT_ONLY") return `${rawChange > 0 ? "+" : ""}${formatNumber(rawChange, 0)} lb`;
+  return `${rawChange > 0 ? "+" : ""}${formatNumber(rawChange, 1)}`;
 }
 
 function previousWorkoutEntry(data: AppData, playerId: ID, exercise: string, beforeDate: string) {
@@ -10105,17 +10734,8 @@ function activeGroupsFromPersistedSetup(data: AppData, workoutId: ID, stations: 
   });
 }
 
-function exercisePresetsFromTemplates(templates: typeof WEIGHT_ROOM_TEMPLATES, exerciseLibrary: WeightRoomExercise[]): WeightRoomExercisePreset[] {
-  return templates.map((template, templateIndex) => ({
-    id: `preset-${templateIndex + 1}-${template.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-    name: template.name,
-    stations: template.exercises
-      .map((exerciseName, index) => createActiveWorkoutStation(exerciseLibrary.find((exercise) => exercise.name === exerciseName) ?? makeWeightRoomExercise(exerciseName), index)),
-  }));
-}
-
 function exercisePresetsFromPersistedSetup(data: AppData, exerciseLibrary: WeightRoomExercise[]) {
-  const savedPresets = (data.weightRoomExercisePresets ?? [])
+  return (data.weightRoomExercisePresets ?? [])
     .filter((preset) => !preset.archivedAt)
     .map((preset) => ({
       id: preset.id,
@@ -10125,11 +10745,6 @@ function exercisePresetsFromPersistedSetup(data: AppData, exerciseLibrary: Weigh
         .sort((left, right) => left.displayOrder - right.displayOrder)
         .map((item, index) => activeStationFromPersistedStation(item, exerciseLibrary, index)),
     }));
-  const savedNames = new Set(savedPresets.map((preset) => preset.name.toLowerCase()));
-  return [
-    ...savedPresets,
-    ...exercisePresetsFromTemplates(WEIGHT_ROOM_TEMPLATES, exerciseLibrary).filter((preset) => !savedNames.has(preset.name.toLowerCase())),
-  ];
 }
 
 function groupPresetsFromPersistedSetup(data: AppData) {
@@ -10152,15 +10767,16 @@ function groupPresetsFromPersistedSetup(data: AppData) {
 }
 
 function createActiveWorkoutStation(exercise: WeightRoomExercise, index: number): ActiveWorkoutStation {
-  const targetStyle = defaultTargetStyle(exercise.name, exercise.measurementType);
+  const targetStyle = exercise.defaultTargetStyle ?? defaultTargetStyle(exercise.name, exercise.measurementType);
   return {
     ...exercise,
     id: createId("wrs"),
     displayOrder: index + 1,
     targetSets: exercise.targetSets ?? defaultTargetSetsForStyle(targetStyle),
     targetReps: exercise.targetReps,
+    targetValue: exercise.targetValue,
     targetStyle,
-    performanceDirection: defaultPerformanceDirection(exercise.name, exercise.measurementType, targetStyle),
+    performanceDirection: exercise.performanceDirection ?? defaultPerformanceDirection(exercise.name, exercise.measurementType, targetStyle),
   };
 }
 
@@ -10301,14 +10917,40 @@ function WeightRoomPlayerPanel({
     });
   }
 
+  const athleteDetailsRef = useRef<HTMLElement | null>(null);
+  const [athleteDetailsHeight, setAthleteDetailsHeight] = useState<number>();
+
+  useEffect(() => {
+    const node = athleteDetailsRef.current;
+    if (!node) return;
+
+    const updateHeight = () => {
+      const nextHeight = Math.ceil(node.getBoundingClientRect().height);
+      setAthleteDetailsHeight((current) => current === nextHeight ? current : nextHeight);
+    };
+
+    updateHeight();
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateHeight) : null;
+    resizeObserver?.observe(node);
+    window.addEventListener("resize", updateHeight);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateHeight);
+    };
+  }, []);
+
+  const athleteWorkspaceStyle = athleteDetailsHeight
+    ? { "--weight-room-athlete-detail-height": `${athleteDetailsHeight}px` } as React.CSSProperties
+    : undefined;
+
   return (
-    <section className="weight-room-player-layout weight-room-athlete-workspace">
+    <section className="weight-room-player-layout weight-room-athlete-workspace" style={athleteWorkspaceStyle}>
       <aside className="panel weight-room-player-list">
         <label className="weight-room-player-search">
           <Search size={15} aria-hidden="true" />
           <input value={playerQuery} onChange={(event) => setPlayerQuery(event.target.value)} placeholder="Search players..." aria-label="Search athletes" />
         </label>
-        <div className="weight-room-player-list__scroll" aria-label="Athlete roster">
+        <ScrollablePanel className="weight-room-player-list__scroll-panel" bodyClassName="weight-room-player-list__scroll" ariaLabel="athlete roster">
           {filteredPlayers.map((item) => (
             <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => selectPlayer(item.id)}>
               <PlayerAvatar player={item} size="sm" compact />
@@ -10316,9 +10958,9 @@ function WeightRoomPlayerPanel({
             </button>
           ))}
           {!filteredPlayers.length && <CompactEmpty title="No athletes match that search." />}
-        </div>
+        </ScrollablePanel>
       </aside>
-      <article className="panel weight-room-player-profile weight-room-athlete-panel">
+      <article ref={athleteDetailsRef} className="panel weight-room-player-profile weight-room-athlete-panel">
         <div className="weight-room-mobile-player-select">
           <ChoiceSelect
             value={player.id}
@@ -10393,9 +11035,8 @@ function WeightRoomPlayerPanel({
 function WeightRoomAthleteHeader({ player, onOpenPlayer }: { player: Player; onOpenPlayer: (playerId: ID) => void }) {
   return (
     <div className="profile-header weight-room-profile-header">
-      <PlayerAvatar player={player} size="xl" />
+      <PlayerAvatar player={player} size="lg" />
       <div>
-        <span>Athlete Profile</span>
         <h2>{player.name}</h2>
         <small>#{player.jerseyNumber} - {player.primaryPosition} - Class of {player.graduationYear}</small>
       </div>
@@ -10550,7 +11191,7 @@ function WeightRoomAthleteWorkouts({
         <ChoiceSelect
           value={category}
           className="form-choice"
-          options={categories.map((item) => ({ value: item, label: item === "All" ? "All Categories" : item }))}
+          options={categories.map((item) => ({ value: item, label: item === "All" ? "All" : item }))}
           onChange={(value) => onCategory(value as WeightRoomExerciseCategory | "All")}
           aria-label="Workout exercise category"
         />
@@ -10687,7 +11328,7 @@ function WeightRoomAthleteExercises({
         <ChoiceSelect
           value={category}
           className="form-choice"
-          options={categories.map((item) => ({ value: item, label: item === "All" ? "All Categories" : item }))}
+          options={categories.map((item) => ({ value: item, label: item === "All" ? "All" : item }))}
           onChange={(value) => onCategory(value as WeightRoomExerciseCategory | "All")}
           aria-label="Exercise category"
         />
@@ -10873,22 +11514,37 @@ function WeightRoomExerciseIcon({ exercise }: { exercise?: WeightRoomExercise })
 
 function WeightRoomExerciseLibraryCard({
   exercises,
+  presets,
   activeExercise,
   onExercise,
+  onSaveExercise,
+  onSavePreset,
 }: {
   exercises: WeightRoomExercise[];
+  presets: WeightRoomExercisePreset[];
   activeExercise: string;
   onExercise: (exercise: string) => void;
+  onSaveExercise: (exercise: WeightRoomExercise) => void;
+  onSavePreset: (preset: WeightRoomExercisePreset) => void;
 }) {
   const [category, setCategory] = useState<WeightRoomExerciseCategory | "All">("All");
   const [query, setQuery] = useState("");
-  const [draftExercise, setDraftExercise] = useState("");
-  const [draftCategory, setDraftCategory] = useState<WeightRoomExerciseCategory>("Other");
-  const [addingExercise, setAddingExercise] = useState(false);
-  const [customExercises, setCustomExercises] = useState<WeightRoomExercise[]>([]);
+  const [editingExercise, setEditingExercise] = useState<WeightRoomExercise | undefined>();
+  const [draftName, setDraftName] = useState("");
+  const [draftCategory, setDraftCategory] = useState<WeightRoomExerciseCategory | "">("");
+  const [draftMeasurementType, setDraftMeasurementType] = useState<WorkoutMeasurementType | "">("");
+  const [draftTargetStyle, setDraftTargetStyle] = useState<WorkoutTargetStyle>("Standard");
+  const [draftEquipment, setDraftEquipment] = useState("");
+  const [presetOpen, setPresetOpen] = useState(false);
+  const [editingPreset, setEditingPreset] = useState<WeightRoomExercisePreset | undefined>();
+  const [presetName, setPresetName] = useState("");
+  const [presetStations, setPresetStations] = useState<ActiveWorkoutStation[]>(() => initialPresetStations());
+  const [draggedPresetStationId, setDraggedPresetStationId] = useState<ID | undefined>();
+  const [dropPresetStationTarget, setDropPresetStationTarget] = useState<{ id: ID; position: "before" | "after" } | undefined>();
   const [confirmingExercise, setConfirmingExercise] = useState<string | undefined>();
+  const [confirmingPreset, setConfirmingPreset] = useState<ID | undefined>();
   const [hiddenExercises, setHiddenExercises] = useState<Set<string>>(() => new Set());
-  const exerciseRows = [...exercises, ...customExercises].filter((exercise, index, all) =>
+  const exerciseRows = exercises.filter((exercise, index, all) =>
     all.findIndex((item) => item.name.toLowerCase() === exercise.name.toLowerCase()) === index
   );
   const filtered = exerciseRows.filter((exercise) =>
@@ -10898,141 +11554,544 @@ function WeightRoomExerciseLibraryCard({
   );
   const categories: Array<WeightRoomExerciseCategory | "All"> = ["All", "Lower Body", "Upper Body", "Power", "Core", "Speed", "Conditioning", "Mobility", "Other"];
   const exerciseCategoryOptions = categories.filter((item): item is WeightRoomExerciseCategory => item !== "All");
+  const measurementOptions = (["WEIGHT_REPS", "REPS_ONLY", "TIME", "DISTANCE", "WEIGHT_ONLY", "COUNT", "COMPLETION"] as WorkoutMeasurementType[])
+    .map((type) => ({ value: type, label: workoutMeasurementTypeLabel(type) }));
+  const presetStationKeys = useMemo(() => new Set(presetStations.map((station) => station.name.toLowerCase())), [presetStations]);
+
+  function initialPresetStations() {
+    if (!activeExercise) return [];
+    const exercise = exercises.find((item) => item.name.toLowerCase() === activeExercise.toLowerCase());
+    return exercise ? [createActiveWorkoutStation(exercise, 0)] : [];
+  }
+
+  function openExerciseEditor(exercise?: WeightRoomExercise) {
+    const measurementType = exercise?.measurementType ?? "";
+    const targetStyle = exercise?.defaultTargetStyle ?? (measurementType ? defaultTargetStyle(exercise?.name ?? "", measurementType) : "Standard");
+    setEditingExercise(exercise ?? makeWeightRoomExercise(""));
+    setDraftName(exercise?.name ?? "");
+    setDraftCategory(exercise?.category ?? "");
+    setDraftMeasurementType(measurementType);
+    setDraftTargetStyle(targetStyle);
+    setDraftEquipment(exercise?.equipment ?? "");
+  }
+
+  function updateDraftMeasurementType(value: WorkoutMeasurementType) {
+    const nextStyle = defaultTargetStyle(draftName, value);
+    setDraftMeasurementType(value);
+    setDraftTargetStyle(nextStyle);
+  }
 
   function saveExercise() {
-    const nextExerciseName = draftExercise.trim();
-    if (!nextExerciseName) return;
-    const nextExercise = { ...makeWeightRoomExercise(nextExerciseName), category: draftCategory };
-    setCustomExercises((current) => {
-      const withoutDuplicate = current.filter((item) => item.name.toLowerCase() !== nextExercise.name.toLowerCase());
-      return [...withoutDuplicate, nextExercise].sort((left, right) => left.category.localeCompare(right.category) || left.name.localeCompare(right.name));
-    });
+    const nextExerciseName = draftName.trim();
+    if (!nextExerciseName || !draftCategory || !draftMeasurementType) return;
+    const kind = workoutExerciseKind(nextExerciseName);
+    const nextExercise: WeightRoomExercise = {
+      ...makeWeightRoomExercise(nextExerciseName),
+      name: nextExerciseName,
+      category: draftCategory,
+      measurementType: draftMeasurementType,
+      kind,
+      unit: weightRoomUnitForType(draftMeasurementType),
+      equipment: draftEquipment.trim() || undefined,
+      defaultTargetStyle: draftTargetStyle,
+      performanceDirection: defaultPerformanceDirection(nextExerciseName, draftMeasurementType, draftTargetStyle),
+      active: true,
+    };
+    onSaveExercise(nextExercise);
     onExercise(nextExercise.name);
-    setDraftExercise("");
-    setDraftCategory("Other");
-    setAddingExercise(false);
+    if (editingExercise?.name && editingExercise.name.toLowerCase() !== nextExercise.name.toLowerCase()) {
+      setHiddenExercises((current) => new Set([...current, editingExercise.name.toLowerCase()]));
+    }
+    setDraftName("");
+    setDraftCategory("");
+    setDraftMeasurementType("");
+    setDraftTargetStyle("Standard");
+    setDraftEquipment("");
+    setEditingExercise(undefined);
+  }
+
+  function openPresetBuilder(preset?: WeightRoomExercisePreset) {
+    const selection = preset
+      ? normalizeActiveStations(copyExercisePresetToStations(preset.stations).map((station, index) => ensureActiveWorkoutStation(station, index)))
+      : initialPresetStations();
+    setEditingPreset(preset);
+    setConfirmingPreset(undefined);
+    setPresetStations(selection);
+    setPresetName(preset?.name ?? "");
+    setPresetOpen(true);
+  }
+
+  function closePresetBuilder() {
+    setPresetOpen(false);
+    setEditingPreset(undefined);
+    setPresetName("");
+    setPresetStations([]);
+    setDraggedPresetStationId(undefined);
+    setDropPresetStationTarget(undefined);
+  }
+
+  function togglePresetExercise(exercise: WeightRoomExercise) {
+    const key = exercise.name.toLowerCase();
+    setPresetStations((current) => (
+      current.some((station) => station.name.toLowerCase() === key)
+        ? normalizeActiveStations(current.filter((station) => station.name.toLowerCase() !== key))
+        : normalizeActiveStations([...current, createActiveWorkoutStation(exercise, current.length)])
+    ));
+  }
+
+  function addNextPresetExercise() {
+    const nextExercise = exerciseRows.find((exercise) => !presetStationKeys.has(exercise.name.toLowerCase()));
+    if (nextExercise) togglePresetExercise(nextExercise);
+  }
+
+  function removePresetStation(stationId: ID) {
+    setPresetStations((current) => normalizeActiveStations(current.filter((station) => station.id !== stationId)));
+  }
+
+  function updatePresetStation(
+    stationId: ID,
+    patch: Partial<Pick<ActiveWorkoutStation, "targetSets" | "targetReps" | "targetValue" | "targetStyle" | "measurementType" | "performanceDirection" | "notes">>,
+  ) {
+    setPresetStations((current) => normalizeActiveStations(current.map((station) => (station.id === stationId ? { ...station, ...patch } : station))));
+  }
+
+  function reorderPresetStation(stationId: ID, targetIndex: number) {
+    setPresetStations((current) => {
+      const index = current.findIndex((station) => station.id === stationId);
+      if (index < 0 || index === targetIndex) return current;
+      const next = [...current];
+      const [station] = next.splice(index, 1);
+      next.splice(Math.max(0, Math.min(targetIndex, next.length)), 0, station);
+      return normalizeActiveStations(next);
+    });
+  }
+
+  function savePreset() {
+    const name = presetName.trim();
+    if (!name || !presetStations.length) return;
+    const stations = copyExercisePresetToStations(presetStations).map((station, index) => ensureActiveWorkoutStation(station, index));
+    onSavePreset({ id: editingPreset?.id ?? createId("wep"), name, stations });
+    closePresetBuilder();
+  }
+
+  function archivePreset(preset: WeightRoomExercisePreset) {
+    onSavePreset({ ...preset, archived: true });
+    setConfirmingPreset(undefined);
+    if (editingPreset?.id === preset.id) closePresetBuilder();
   }
 
   return (
-    <article className="panel weight-room-library-card">
-      <div className="panel-heading tight">
-        <div>
-          <span>Exercise Library</span>
-          <h2>Team exercises</h2>
-        </div>
-      </div>
-      <div className="weight-room-library-toolbar">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search exercises..." />
-        <ChoiceSelect
-          value={category}
-          className="form-choice"
-          options={categories.map((item) => ({ value: item, label: item }))}
-          onChange={(value) => setCategory(value as WeightRoomExerciseCategory | "All")}
-          aria-label="Exercise category"
-        />
-        <button className="secondary-button weight-room-add-exercise-button" type="button" onClick={() => setAddingExercise(true)}>
-          <Plus size={14} aria-hidden="true" />
-          Add Exercise
-        </button>
-      </div>
-      <div className="weight-room-library-list">
-        {filtered.map((exercise) => {
-          const confirming = confirmingExercise === exercise.name;
-          return (
-            <div key={exercise.name} className={`weight-room-library-row ${exercise.name === activeExercise ? "active" : ""} ${confirming ? "confirming" : ""}`}>
-              <button type="button" className="weight-room-library-select" onClick={() => onExercise(exercise.name)}>
-                <span>
-                  <strong>{exercise.name}</strong>
-                </span>
-              </button>
-              {confirming ? (
-                <span className="weight-room-inline-confirm">
-                  <small>Remove?</small>
-                  <button type="button" onClick={() => setHiddenExercises((current) => new Set([...current, exercise.name.toLowerCase()]))}>Yes</button>
-                  <button type="button" onClick={() => setConfirmingExercise(undefined)}>No</button>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="weight-room-remove-exercise"
-                  onClick={() => setConfirmingExercise(exercise.name)}
-                  aria-label={`Remove ${exercise.name} from team exercises`}
-                >
-                  -
-                </button>
-              )}
+    <>
+      <div className="weight-room-exercise-left-column">
+        <article className="panel weight-room-presets-card">
+          <div className="weight-room-section-head">
+            <div>
+              <h2>Exercise Presets</h2>
+              <p>Reusable exercise plans for your team.</p>
             </div>
-          );
-        })}
+            <button className="secondary-button" type="button" onClick={() => openPresetBuilder()}>
+              <Plus size={14} aria-hidden="true" />
+              Create Preset
+            </button>
+          </div>
+          {presets.length ? (
+            <ScrollablePanel className="weight-room-presets-scroll" bodyClassName="weight-room-library-presets__list" ariaLabel="exercise presets">
+              {presets.map((preset) => {
+                const confirming = confirmingPreset === preset.id;
+                return (
+                  <div key={preset.id} className={`weight-room-preset-row ${confirming ? "confirming" : ""}`}>
+                    <button type="button" className="weight-room-preset-select" onClick={() => openPresetBuilder(preset)}>
+                      <strong>{preset.name}</strong>
+                      <small>{preset.stations.length} exercise{preset.stations.length === 1 ? "" : "s"}</small>
+                    </button>
+                    {confirming ? (
+                      <span className="weight-room-inline-confirm">
+                        <small>Remove?</small>
+                        <button type="button" onClick={() => archivePreset(preset)}>Yes</button>
+                        <button type="button" onClick={() => setConfirmingPreset(undefined)}>No</button>
+                      </span>
+                    ) : (
+                      <span className="weight-room-library-row-actions">
+                        <button type="button" className="weight-room-edit-exercise" onClick={() => openPresetBuilder(preset)} aria-label={`Edit ${preset.name} preset`}>
+                          <Edit3 size={13} aria-hidden="true" />
+                        </button>
+                        <button type="button" className="weight-room-remove-exercise" onClick={() => setConfirmingPreset(preset.id)} aria-label={`Remove ${preset.name} preset`}>
+                          -
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </ScrollablePanel>
+          ) : (
+            <CompactEmpty
+              title="No presets yet."
+            />
+          )}
+        </article>
+
+        <article className="panel weight-room-library-card">
+          <div className="weight-room-section-head">
+            <div>
+              <h2>Team Exercise Library</h2>
+              <p>All exercises available to your team.</p>
+            </div>
+            <button className="secondary-button weight-room-add-exercise-button" type="button" onClick={() => openExerciseEditor()}>
+              <Plus size={14} aria-hidden="true" />
+              Add Exercise
+            </button>
+          </div>
+          <div className="weight-room-library-toolbar">
+            <div className="weight-room-library-filters">
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search exercises..." />
+              <ChoiceSelect
+                value={category}
+                className="form-choice"
+                options={categories.map((item) => ({ value: item, label: item === "All" ? "All" : item }))}
+                onChange={(value) => setCategory(value as WeightRoomExerciseCategory | "All")}
+                aria-label="Exercise category"
+              />
+            </div>
+          </div>
+          <ScrollablePanel className="weight-room-exercise-list-scroll" bodyClassName="weight-room-library-list" ariaLabel="team exercise library">
+            {filtered.map((exercise) => {
+              const confirming = confirmingExercise === exercise.name;
+              return (
+                <div key={exercise.name} className={`weight-room-library-row ${exercise.name === activeExercise ? "active" : ""} ${confirming ? "confirming" : ""}`}>
+                  <button type="button" className="weight-room-library-select" onClick={() => onExercise(exercise.name)} aria-current={exercise.name === activeExercise ? "true" : undefined}>
+                    <span className="weight-room-library-exercise-main">
+                      <strong>{exercise.name}</strong>
+                      <small>{workoutMeasurementTypeLabel(exercise.measurementType)} - {exercise.defaultTargetStyle ?? defaultTargetStyle(exercise.name, exercise.measurementType)}</small>
+                    </span>
+                    <span className="weight-room-library-category">{exercise.category}</span>
+                  </button>
+                  {confirming ? (
+                    <span className="weight-room-inline-confirm">
+                      <small>Remove?</small>
+                      <button type="button" onClick={() => setHiddenExercises((current) => new Set([...current, exercise.name.toLowerCase()]))}>Yes</button>
+                      <button type="button" onClick={() => setConfirmingExercise(undefined)}>No</button>
+                    </span>
+                  ) : (
+                    <span className="weight-room-library-row-actions">
+                      <button
+                        type="button"
+                        className="weight-room-edit-exercise"
+                        onClick={() => openExerciseEditor(exercise)}
+                        aria-label={`Edit ${exercise.name}`}
+                      >
+                        <Edit3 size={13} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="weight-room-remove-exercise"
+                        onClick={() => setConfirmingExercise(exercise.name)}
+                        aria-label={`Remove ${exercise.name} from team exercises`}
+                      >
+                        -
+                      </button>
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+            {!filtered.length && (
+              <CompactEmpty
+                title={query.trim() ? `No exercises match "${query.trim()}".` : "No exercises yet."}
+                action={query.trim() ? <button className="secondary-button" type="button" onClick={() => setQuery("")}>Clear Search</button> : undefined}
+              />
+            )}
+          </ScrollablePanel>
+        </article>
       </div>
-      {addingExercise && (
-        <ModalFrame title="Add Exercise" onClose={() => setAddingExercise(false)} panelClassName="weight-room-exercise-modal">
+      {editingExercise && (
+        <ModalFrame title={editingExercise.name ? "Edit Exercise" : "Add Exercise"} onClose={() => setEditingExercise(undefined)} panelClassName="weight-room-exercise-modal">
           <div className="weight-room-exercise-modal__body">
             <label>
               <span>Exercise Name</span>
-              <input value={draftExercise} onChange={(event) => setDraftExercise(event.target.value)} placeholder="Back Squat" />
+              <input value={draftName} onChange={(event) => setDraftName(event.target.value)} placeholder="Enter exercise..." />
             </label>
             <ChoiceSelect
               label="Category"
               value={draftCategory}
               className="form-choice"
+              placeholder="Choose category"
               options={exerciseCategoryOptions.map((item) => ({ value: item, label: item }))}
               onChange={(value) => setDraftCategory(value as WeightRoomExerciseCategory)}
               aria-label="New exercise category"
             />
+            <ChoiceSelect
+              label="Measurement"
+              value={draftMeasurementType}
+              className="form-choice"
+              placeholder="Choose measurement"
+              options={measurementOptions}
+              onChange={(value) => updateDraftMeasurementType(value as WorkoutMeasurementType)}
+              aria-label="Exercise measurement type"
+            />
+            {draftMeasurementType && (
+              <ChoiceSelect
+                label="Default Target"
+                value={draftTargetStyle}
+                className="form-choice"
+                options={targetStyleOptionsForMeasurement(draftMeasurementType).map((style) => ({ value: style, label: style }))}
+                onChange={(value) => setDraftTargetStyle(value as WorkoutTargetStyle)}
+                aria-label="Exercise default target"
+              />
+            )}
+            <label>
+              <span>Equipment</span>
+              <input value={draftEquipment} onChange={(event) => setDraftEquipment(event.target.value)} placeholder="Bodyweight, Barbell, Track..." />
+            </label>
           </div>
           <div className="modal-actions">
-            <button className="secondary-button" type="button" onClick={() => setAddingExercise(false)}>Cancel</button>
-            <button className="primary-button" type="button" onClick={saveExercise} disabled={!draftExercise.trim()}>
-              <Plus size={16} aria-hidden="true" />
-              Add Exercise
+            <button className="secondary-button" type="button" onClick={() => setEditingExercise(undefined)}>Cancel</button>
+            <button className="primary-button" type="button" onClick={saveExercise} disabled={!draftName.trim() || !draftCategory || !draftMeasurementType}>
+              <Save size={16} aria-hidden="true" />
+              Save Exercise
             </button>
           </div>
         </ModalFrame>
       )}
-    </article>
+      {presetOpen && (
+        <ModalFrame title={editingPreset ? "Edit Exercise Preset" : "Create Exercise Preset"} onClose={closePresetBuilder} panelClassName="weight-room-exercise-modal weight-room-exercise-preset-modal">
+          <div className="weight-room-exercise-modal__body">
+            <label className="weight-room-modal-wide">
+              <span>Preset Name</span>
+              <input value={presetName} onChange={(event) => setPresetName(event.target.value)} placeholder="Enter preset name..." />
+            </label>
+            <div className="weight-room-preset-builder">
+              <section>
+                <div className="weight-room-preset-builder__head">
+                  <strong>Preset Order</strong>
+                  <small>{presetStations.length} exercise{presetStations.length === 1 ? "" : "s"}</small>
+                </div>
+                {presetStations.length > 0 ? (
+                  <div className="weight-room-current-stations weight-room-current-stations--builder weight-room-current-stations--preset" role="table" aria-label="Preset exercise order">
+                    <button type="button" className="weight-room-station-add-row" onClick={addNextPresetExercise} disabled={presetStations.length >= exerciseRows.length}>
+                      <Plus size={14} aria-hidden="true" />
+                      Add Exercise
+                    </button>
+                    <div className="weight-room-current-stations__head" role="row">
+                      <span>#</span>
+                      <span>Exercise</span>
+                      <span>Style</span>
+                      <span>Sets</span>
+                      <span>Reps / Value</span>
+                    </div>
+                    {presetStations.map((station, index) => (
+                      <div
+                        key={station.id}
+                        role="row"
+                        draggable
+                        tabIndex={0}
+                        className={[
+                          "weight-room-current-stations__row",
+                          draggedPresetStationId === station.id ? "is-dragging" : "",
+                          dropPresetStationTarget?.id === station.id ? `is-drop-${dropPresetStationTarget.position}` : "",
+                        ].filter(Boolean).join(" ")}
+                        onDragStart={(event) => {
+                          setDraggedPresetStationId(station.id);
+                          event.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          const bounds = event.currentTarget.getBoundingClientRect();
+                          setDropPresetStationTarget({ id: station.id, position: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after" });
+                        }}
+                        onDrop={(event) => {
+                          event.preventDefault();
+                          if (draggedPresetStationId) {
+                            reorderPresetStation(draggedPresetStationId, dropPresetStationTarget?.position === "after" ? index + 1 : index);
+                          }
+                          setDraggedPresetStationId(undefined);
+                          setDropPresetStationTarget(undefined);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedPresetStationId(undefined);
+                          setDropPresetStationTarget(undefined);
+                        }}
+                        onKeyDown={(event) => {
+                          if (!event.altKey) return;
+                          if (event.key === "ArrowUp" && index > 0) {
+                            event.preventDefault();
+                            reorderPresetStation(station.id, index - 1);
+                          }
+                          if (event.key === "ArrowDown" && index < presetStations.length - 1) {
+                            event.preventDefault();
+                            reorderPresetStation(station.id, index + 1);
+                          }
+                        }}
+                      >
+                        <em>{index + 1}</em>
+                        <span className="weight-room-station-main">
+                          <span>
+                            <strong>{station.name}</strong>
+                            <button type="button" onClick={() => removePresetStation(station.id)} aria-label={`Remove ${station.name}`}><Trash2 size={13} aria-hidden="true" /></button>
+                          </span>
+                          <small>{station.category}</small>
+                        </span>
+                        <WorkoutStationTargetControls station={station} onUpdate={(patch) => updatePresetStation(station.id, patch)} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="weight-room-preset-empty">
+                    <CompactEmpty title="Add exercises from the library." />
+                  </div>
+                )}
+              </section>
+              <section>
+                <div className="weight-room-preset-builder__head">
+                  <strong>Team Library</strong>
+                  <small>Add to preset</small>
+                </div>
+                <ScrollablePanel className="weight-room-preset-builder__scroll" bodyClassName="weight-room-preset-library-list" ariaLabel="preset exercise library">
+                  {exerciseRows.map((exercise) => {
+                    const selected = presetStationKeys.has(exercise.name.toLowerCase());
+                    return (
+                      <button key={exercise.name} type="button" className={selected ? "active" : ""} onClick={() => togglePresetExercise(exercise)}>
+                        <span>{selected ? <Check size={14} aria-hidden="true" /> : <Plus size={14} aria-hidden="true" />}</span>
+                        <strong>{exercise.name}</strong>
+                      </button>
+                    );
+                  })}
+                </ScrollablePanel>
+              </section>
+            </div>
+          </div>
+          <div className="modal-actions">
+            <button className="secondary-button" type="button" onClick={closePresetBuilder}>Cancel</button>
+            <button className="primary-button" type="button" onClick={savePreset} disabled={!presetName.trim() || !presetStations.length}>
+              <Save size={16} aria-hidden="true" />
+              Save Preset
+            </button>
+          </div>
+        </ModalFrame>
+      )}
+    </>
   );
 }
 
-function WeightRoomExerciseResults({ data, players, exercise, onPlayer }: { data: AppData; players: Player[]; exercise: string; onPlayer: (playerId: ID) => void }) {
+function WeightRoomExerciseResults({
+  data,
+  players,
+  exercise,
+  exerciseDefinition,
+  onPlayer,
+}: {
+  data: AppData;
+  players: Player[];
+  exercise: string;
+  exerciseDefinition?: WeightRoomExercise;
+  onPlayer: (playerId: ID) => void;
+}) {
+  const [sort, setSort] = useState<WeightRoomSortState<WeightRoomExerciseResultSortKey>>({ key: "player", direction: "asc" });
+  const exerciseDefaultTargetStyle = exerciseDefinition?.defaultTargetStyle ?? (exerciseDefinition ? defaultTargetStyle(exerciseDefinition.name, exerciseDefinition.measurementType) : undefined);
+  const resultModeOptions = exerciseDefinition ? targetStyleOptionsForMeasurement(exerciseDefinition.measurementType) : [];
+  const [resultModeState, setResultModeState] = useState<{ exercise: string; mode?: WorkoutTargetStyle }>({ exercise, mode: exerciseDefaultTargetStyle });
+  const selectedResultMode = resultModeState.exercise === exercise ? (resultModeState.mode ?? exerciseDefaultTargetStyle) : exerciseDefaultTargetStyle;
+  const displayStation = exerciseDefinition ? {
+    measurementType: exerciseDefinition.measurementType,
+    targetStyle: selectedResultMode ?? exerciseDefaultTargetStyle ?? defaultTargetStyle(exerciseDefinition.name, exerciseDefinition.measurementType),
+    unit: exerciseDefinition.unit,
+    performanceDirection: exerciseDefinition.performanceDirection ?? defaultPerformanceDirection(exerciseDefinition.name, exerciseDefinition.measurementType, selectedResultMode ?? exerciseDefinition.defaultTargetStyle),
+  } : undefined;
   const rows = players.map((player) => {
-    const entries = data.workoutEntries.filter((entry) => entry.playerId === player.id && entry.exercise === exercise);
+    const entries = data.workoutEntries
+      .filter((entry) => entry.playerId === player.id && entry.exercise === exercise && (entry.status ?? "Completed") !== "Skipped")
+      .filter((entry) => workoutEntryMatchesResultMode(data, entry, selectedResultMode, exerciseDefinition))
+      .sort((left, right) => entrySessionDate(data, right).localeCompare(entrySessionDate(data, left)) || right.createdAt.localeCompare(left.createdAt));
     const latest = entries[0];
     const previous = entries[1];
-    const best = bestWorkoutEntry(entries);
-    const latestValue = latest ? workoutEntryComparableForDisplay(latest) : undefined;
-    const previousValue = previous ? workoutEntryComparableForDisplay(previous) : undefined;
-    const change = latestValue !== undefined && previousValue ? ((latestValue - previousValue) / Math.max(1, previousValue)) * 100 : undefined;
-    return { player, latest, previous, best, change };
+    const best = bestWorkoutEntryForStation(entries, displayStation);
+    const change = workoutEntryChangeDisplay(latest, previous, displayStation);
+    return {
+      player,
+      latest,
+      previous,
+      best,
+      change,
+      latestSort: latest ? workoutEntryComparableForStation(latest, displayStation) : undefined,
+      previousSort: previous ? workoutEntryComparableForStation(previous, displayStation) : undefined,
+      bestSort: best ? workoutEntryComparableForStation(best, displayStation) : undefined,
+    };
   }).filter((row) => row.latest || row.best);
+  const sortedRows = rows.slice().sort((left, right) => {
+    let result = 0;
+    if (sort.key === "player") result = left.player.name.localeCompare(right.player.name);
+    if (sort.key === "latest") result = compareOptionalNumbers(left.latestSort, right.latestSort, "asc");
+    if (sort.key === "previous") result = compareOptionalNumbers(left.previousSort, right.previousSort, "asc");
+    if (sort.key === "change") result = compareOptionalNumbers(left.change?.sortValue, right.change?.sortValue, "asc");
+    if (sort.key === "best") result = compareOptionalNumbers(left.bestSort, right.bestSort, "asc");
+    return applySortDirection(result, sort.direction) || left.player.name.localeCompare(right.player.name);
+  });
+  const infoItems = exerciseDefinition ? [
+    { label: "Category", value: exerciseDefinition.category },
+    { label: "Measurement", value: workoutMeasurementTypeLabel(exerciseDefinition.measurementType) },
+    { label: "Default Target", value: exerciseDefaultTargetStyle },
+    { label: "Default Sets", value: `${exerciseDefinition.targetSets ?? defaultTargetSetsForStyle(exerciseDefaultTargetStyle ?? "Standard")}` },
+    exerciseDefinition.targetReps ? { label: "Target Reps", value: `${exerciseDefinition.targetReps}` } : undefined,
+    exerciseDefinition.targetValue ? { label: "Target Value", value: formatNumber(exerciseDefinition.targetValue, 1) } : undefined,
+    exerciseDefinition.equipment ? { label: "Equipment", value: exerciseDefinition.equipment } : undefined,
+  ].filter((item): item is { label: string; value: string } => Boolean(item?.value)) : [];
+
+  function toggleResultSort(key: WeightRoomExerciseResultSortKey) {
+    setSort((current) => nextWeightRoomSortState(current, key, { key: "player", direction: "asc" }));
+  }
 
   return (
     <article className="panel weight-room-exercise-results">
       <div className="panel-heading tight">
         <div>
-          <span>Exercise View</span>
+          <span>Selected Exercise</span>
           <h2>{exercise}</h2>
         </div>
+        {selectedResultMode && resultModeOptions.length > 1 ? (
+          <ChoiceSelect
+            value={selectedResultMode}
+            className="form-choice weight-room-exercise-mode-select"
+            options={resultModeOptions.map((style) => ({ value: style, label: style }))}
+            onChange={(value) => setResultModeState({ exercise, mode: value as WorkoutTargetStyle })}
+            aria-label={`${exercise} result mode`}
+          />
+        ) : null}
+      </div>
+      <div className="weight-room-exercise-result-tabs" role="tablist" aria-label={`${exercise} detail sections`}>
+        <button type="button" className="active" role="tab" aria-selected="true">Results</button>
       </div>
       <div className="weight-room-result-table">
-        <div>
-          <span>Player</span>
-          <span>Latest</span>
-          <span>Previous</span>
-          <span>Change</span>
-          <span>Best</span>
+        <div className="weight-room-result-table__head">
+          <WeightRoomSortHeader label="Player" sortKey="player" sort={sort} onSort={toggleResultSort} />
+          <WeightRoomSortHeader label="Latest" sortKey="latest" sort={sort} onSort={toggleResultSort} />
+          <WeightRoomSortHeader label="Previous" sortKey="previous" sort={sort} onSort={toggleResultSort} />
+          <WeightRoomSortHeader label="Change" sortKey="change" sort={sort} onSort={toggleResultSort} />
+          <WeightRoomSortHeader label="Best" sortKey="best" sort={sort} onSort={toggleResultSort} />
         </div>
-        {rows.map((row) => (
+        {sortedRows.map((row) => (
           <button key={row.player.id} type="button" onClick={() => onPlayer(row.player.id)}>
             <strong>{row.player.name}</strong>
-            <span>{row.latest ? formatWorkoutEntryValue(row.latest) : "--"}</span>
-            <span>{row.previous ? formatWorkoutEntryValue(row.previous) : "--"}</span>
-            <em className={row.change && row.change > 0 ? "positive" : row.change && row.change < 0 ? "negative" : ""}>{typeof row.change === "number" ? `${row.change > 0 ? "+" : ""}${formatNumber(row.change, 1)}%` : "--"}</em>
-            <span>{row.best ? formatWorkoutEntryValue(row.best) : "--"}</span>
+            <span>{row.latest ? formatWorkoutEntryValueForStation(row.latest, displayStation) : "--"}</span>
+            <span>{row.previous ? formatWorkoutEntryValueForStation(row.previous, displayStation) : "--"}</span>
+            <em className={row.change?.className ?? ""}>{row.change?.label ?? "--"}</em>
+            <span>{row.best ? formatWorkoutEntryValueForStation(row.best, displayStation) : "--"}</span>
           </button>
         ))}
         {!rows.length && <CompactEmpty title="No results for this exercise yet." />}
       </div>
+      {infoItems.length ? (
+        <section className="weight-room-exercise-info-panel">
+          <h3>Exercise Info</h3>
+          <div>
+            {infoItems.map((item) => (
+              <span key={item.label}>
+                <small>{item.label}</small>
+                <strong>{item.value}</strong>
+              </span>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </article>
   );
 }
@@ -13590,34 +14649,20 @@ function ImportChoiceField({
   onOpen: (open: boolean) => void;
   onChange: (value: string) => void;
 }) {
-  const selected = options.find((option) => option.value === value) ?? options[0];
   return (
-    <div className={`import-choice ${open ? "open" : ""}`}>
-      <span>{label}</span>
-      <button type="button" className="import-choice__button" aria-expanded={open} onClick={() => onOpen(!open)}>
-        <strong>{selected?.label ?? "Select"}</strong>
-        <ChevronDown size={15} aria-hidden="true" />
-      </button>
-      {open && (
-        <div className="import-choice__menu" role="listbox" aria-label={label}>
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={option.value === value ? "active" : ""}
-              role="option"
-              aria-selected={option.value === value}
-              onClick={() => {
-                onChange(option.value);
-                onOpen(false);
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <ChoiceSelect
+      label={label}
+      value={value}
+      options={options}
+      onChange={(nextValue) => {
+        onChange(nextValue);
+        onOpen(false);
+      }}
+      className="import-choice"
+      open={open}
+      onOpenChange={onOpen}
+      aria-label={label}
+    />
   );
 }
 
@@ -14316,15 +15361,253 @@ function CompactEmpty({ title, action }: { title: string; action?: React.ReactNo
   return <div className="compact-empty"><span>{title}</span>{action}</div>;
 }
 
+const SCROLL_EDGE_THRESHOLD = 3;
+
+type ScrollEdges = {
+  canScrollUp: boolean;
+  canScrollDown: boolean;
+  canScrollLeft: boolean;
+  canScrollRight: boolean;
+};
+
+function measureScrollEdges(element: HTMLElement | null): ScrollEdges {
+  if (!element) {
+    return { canScrollUp: false, canScrollDown: false, canScrollLeft: false, canScrollRight: false };
+  }
+  const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight);
+  const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+  return {
+    canScrollUp: element.scrollTop > SCROLL_EDGE_THRESHOLD,
+    canScrollDown: element.scrollTop < maxScrollTop - SCROLL_EDGE_THRESHOLD,
+    canScrollLeft: element.scrollLeft > SCROLL_EDGE_THRESHOLD,
+    canScrollRight: element.scrollLeft < maxScrollLeft - SCROLL_EDGE_THRESHOLD,
+  };
+}
+
+function sameScrollEdges(left: ScrollEdges, right: ScrollEdges) {
+  return left.canScrollUp === right.canScrollUp
+    && left.canScrollDown === right.canScrollDown
+    && left.canScrollLeft === right.canScrollLeft
+    && left.canScrollRight === right.canScrollRight;
+}
+
+function useScrollEdges<T extends HTMLElement>(
+  ref: React.RefObject<T | null>,
+  watchKey?: unknown,
+) {
+  const [edges, setEdges] = useState<ScrollEdges>(() => measureScrollEdges(null));
+
+  const updateScrollEdges = useCallback(() => {
+    const nextEdges = measureScrollEdges(ref.current);
+    setEdges((current) => (sameScrollEdges(current, nextEdges) ? current : nextEdges));
+  }, [ref]);
+
+  useEffect(() => {
+    updateScrollEdges();
+    const element = ref.current;
+    if (!element || typeof window === "undefined") return;
+
+    const handleScroll = () => updateScrollEdges();
+    element.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", updateScrollEdges);
+    window.addEventListener("orientationchange", updateScrollEdges);
+
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateScrollEdges) : null;
+    resizeObserver?.observe(element);
+    Array.from(element.children).forEach((child) => resizeObserver?.observe(child));
+
+    const mutationObserver = typeof MutationObserver !== "undefined"
+      ? new MutationObserver(() => {
+        Array.from(element.children).forEach((child) => resizeObserver?.observe(child));
+        updateScrollEdges();
+      })
+      : null;
+    mutationObserver?.observe(element, { childList: true, subtree: true, characterData: true });
+
+    const animationFrame = window.requestAnimationFrame(updateScrollEdges);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      element.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", updateScrollEdges);
+      window.removeEventListener("orientationchange", updateScrollEdges);
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
+    };
+  }, [ref, updateScrollEdges, watchKey]);
+
+  return { edges, updateScrollEdges };
+}
+
+function ScrollablePanel({
+  children,
+  className = "",
+  bodyClassName = "",
+  ariaLabel,
+  direction = "vertical",
+}: {
+  children: React.ReactNode;
+  className?: string;
+  bodyClassName?: string;
+  ariaLabel: string;
+  direction?: "vertical" | "horizontal" | "both";
+}) {
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const { edges } = useScrollEdges(bodyRef, children);
+
+  function scrollCue(directionName: "up" | "down" | "left" | "right") {
+    const body = bodyRef.current;
+    if (!body) return;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const behavior: ScrollBehavior = reduceMotion ? "auto" : "smooth";
+    const top = directionName === "up"
+      ? -Math.max(96, body.clientHeight * 0.78)
+      : directionName === "down"
+        ? Math.max(96, body.clientHeight * 0.78)
+        : 0;
+    const left = directionName === "left"
+      ? -Math.max(96, body.clientWidth * 0.78)
+      : directionName === "right"
+        ? Math.max(96, body.clientWidth * 0.78)
+        : 0;
+    body.scrollBy({ top, left, behavior });
+  }
+
+  function handleBodyWheel(event: React.WheelEvent<HTMLDivElement>) {
+    const body = bodyRef.current;
+    if (!body || direction !== "horizontal" || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    const maxScrollLeft = Math.max(0, body.scrollWidth - body.clientWidth);
+    if (maxScrollLeft <= SCROLL_EDGE_THRESHOLD) return;
+    const nextScrollLeft = clampNumber(body.scrollLeft + event.deltaY, 0, maxScrollLeft);
+    if (Math.abs(nextScrollLeft - body.scrollLeft) <= 0.5) return;
+    event.preventDefault();
+    body.scrollLeft = nextScrollLeft;
+  }
+
+  const showVertical = direction === "vertical" || direction === "both";
+  const showHorizontal = direction === "horizontal" || direction === "both";
+  const canCueUp = showVertical && edges.canScrollUp;
+  const canCueDown = showVertical && edges.canScrollDown;
+  const canCueLeft = showHorizontal && edges.canScrollLeft;
+  const canCueRight = showHorizontal && edges.canScrollRight;
+
+  return (
+    <div className={[
+      "scroll-cue-panel",
+      canCueUp ? "has-scroll-up" : "",
+      canCueDown ? "has-scroll-down" : "",
+      canCueLeft ? "has-scroll-left" : "",
+      canCueRight ? "has-scroll-right" : "",
+      `scroll-cue-panel--${direction}`,
+      className,
+    ].filter(Boolean).join(" ")}>
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Scrollable hidden-scrollbar regions need keyboard focus. */}
+      <div ref={bodyRef} className={["scroll-cue-panel__body", bodyClassName].filter(Boolean).join(" ")} role="region" tabIndex={0} aria-label={ariaLabel} onWheel={handleBodyWheel}>
+        {children}
+      </div>
+      <span className="scroll-cue-panel__fade scroll-cue-panel__fade--top" aria-hidden="true" />
+      <span className="scroll-cue-panel__fade scroll-cue-panel__fade--bottom" aria-hidden="true" />
+      <span className="scroll-cue-panel__fade scroll-cue-panel__fade--left" aria-hidden="true" />
+      <span className="scroll-cue-panel__fade scroll-cue-panel__fade--right" aria-hidden="true" />
+      <button className="scroll-cue-panel__cue scroll-cue-panel__cue--up" type="button" onClick={() => scrollCue("up")} aria-label={`Scroll ${ariaLabel} up`} tabIndex={canCueUp ? 0 : -1} aria-hidden={!canCueUp}>
+        <ChevronUp size={14} aria-hidden="true" />
+      </button>
+      <button className="scroll-cue-panel__cue scroll-cue-panel__cue--down" type="button" onClick={() => scrollCue("down")} aria-label={`Scroll ${ariaLabel} down`} tabIndex={canCueDown ? 0 : -1} aria-hidden={!canCueDown}>
+        <ChevronDown size={15} aria-hidden="true" />
+      </button>
+      <button className="scroll-cue-panel__cue scroll-cue-panel__cue--left" type="button" onClick={() => scrollCue("left")} aria-label={`Scroll ${ariaLabel} left`} tabIndex={canCueLeft ? 0 : -1} aria-hidden={!canCueLeft}>
+        <ChevronLeft size={14} aria-hidden="true" />
+      </button>
+      <button className="scroll-cue-panel__cue scroll-cue-panel__cue--right" type="button" onClick={() => scrollCue("right")} aria-label={`Scroll ${ariaLabel} right`} tabIndex={canCueRight ? 0 : -1} aria-hidden={!canCueRight}>
+        <ChevronRight size={14} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 function ModalFrame({ title, onClose, children, panelClassName = "" }: { title: string; onClose: () => void; children: React.ReactNode; panelClassName?: string }) {
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const titleRef = useRef<HTMLDivElement | null>(null);
+  const footerRef = useRef<HTMLDivElement | null>(null);
+  const [scrollState, setScrollState] = useState({ canScrollUp: false, canScrollDown: false, titleHeight: 0, footerHeight: 0 });
+  const childArray = Children.toArray(children);
+  const lastChild = childArray[childArray.length - 1];
+  const hasDirectFooter = isValidElement<{ className?: string }>(lastChild)
+    && typeof lastChild.props.className === "string"
+    && lastChild.props.className.split(/\s+/).includes("modal-actions");
+  const bodyChildren = hasDirectFooter ? childArray.slice(0, -1) : childArray;
+  const footer = hasDirectFooter ? lastChild : null;
+
+  const updateModalScrollState = useCallback(() => {
+    const body = bodyRef.current;
+    const maxScroll = body ? body.scrollHeight - body.clientHeight : 0;
+    const nextState = {
+      canScrollUp: body ? body.scrollTop > 1 : false,
+      canScrollDown: body ? body.scrollTop < maxScroll - 1 : false,
+      titleHeight: titleRef.current?.offsetHeight ?? 0,
+      footerHeight: footerRef.current?.offsetHeight ?? 0,
+    };
+    setScrollState((current) => (
+      current.canScrollUp === nextState.canScrollUp
+      && current.canScrollDown === nextState.canScrollDown
+      && current.titleHeight === nextState.titleHeight
+      && current.footerHeight === nextState.footerHeight
+        ? current
+        : nextState
+    ));
+  }, []);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  useEffect(() => {
+    updateModalScrollState();
+    const body = bodyRef.current;
+    body?.addEventListener("scroll", updateModalScrollState, { passive: true });
+    window.addEventListener("resize", updateModalScrollState);
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateModalScrollState) : null;
+    if (body) resizeObserver?.observe(body);
+    if (titleRef.current) resizeObserver?.observe(titleRef.current);
+    if (footerRef.current) resizeObserver?.observe(footerRef.current);
+    const animationFrame = window.requestAnimationFrame(updateModalScrollState);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      body?.removeEventListener("scroll", updateModalScrollState);
+      window.removeEventListener("resize", updateModalScrollState);
+      resizeObserver?.disconnect();
+    };
+  }, [children, updateModalScrollState]);
+
+  const panelStyle = {
+    "--modal-title-height": `${scrollState.titleHeight}px`,
+    "--modal-footer-height": `${scrollState.footerHeight}px`,
+  } as React.CSSProperties;
+
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={title}>
-      <div className={`modal-panel ${panelClassName}`.trim()}>
-        <div className="modal-title">
+      <div
+        className={[
+          "modal-panel",
+          panelClassName,
+          scrollState.canScrollUp ? "has-scroll-top" : "",
+          scrollState.canScrollDown ? "has-scroll-bottom" : "",
+        ].filter(Boolean).join(" ")}
+        style={panelStyle}
+      >
+        <div ref={titleRef} className="modal-title">
           <h2>{title}</h2>
           <button className="ghost-button" type="button" onClick={onClose} aria-label="Close dialog"><X size={18} aria-hidden="true" /></button>
         </div>
-        {children}
+        <div ref={bodyRef} className="modal-body">
+          {bodyChildren}
+        </div>
+        {footer ? <div ref={footerRef} className="modal-footer-slot">{footer}</div> : null}
+        <span className="modal-scroll-fade modal-scroll-fade--top" aria-hidden="true" />
+        <span className="modal-scroll-fade modal-scroll-fade--bottom" aria-hidden="true" />
       </div>
     </div>
   );
@@ -14554,6 +15837,8 @@ function buildWeightRoomExerciseLibrary(data: AppData): WeightRoomExercise[] {
       kind: exercise.kind,
       unit: exercise.unit ?? weightRoomUnitForType(exercise.measurementType ?? weightRoomMeasurementType(exercise.name)),
       equipment: exercise.equipment,
+      defaultTargetStyle: exercise.defaultTargetStyle,
+      performanceDirection: exercise.performanceDirection,
       active: exercise.active,
     });
   }
@@ -14571,6 +15856,7 @@ function buildWeightRoomExerciseLibrary(data: AppData): WeightRoomExercise[] {
 function makeWeightRoomExercise(name: string): WeightRoomExercise {
   const measurementType = weightRoomMeasurementType(name);
   const kind = workoutExerciseKind(name);
+  const targetStyle = defaultTargetStyle(name, measurementType);
   return {
     name,
     category: weightRoomExerciseCategory(name, kind),
@@ -14578,6 +15864,8 @@ function makeWeightRoomExercise(name: string): WeightRoomExercise {
     kind,
     unit: weightRoomUnitForType(measurementType),
     active: true,
+    defaultTargetStyle: targetStyle,
+    performanceDirection: defaultPerformanceDirection(name, measurementType, targetStyle),
     targetSets: measurementType === "RPE_ONLY" ? 1 : 3,
     targetReps: measurementType === "WEIGHT_REPS" || measurementType === "BODYWEIGHT_REPS" || measurementType === "REPS_ONLY" ? 8 : undefined,
   };
@@ -14622,6 +15910,20 @@ function weightRoomMeasurementLabel(exercise?: WeightRoomExercise) {
   if (exercise.measurementType === "COMPLETION") return "Completion";
   if (exercise.measurementType === "BODYWEIGHT_REPS" || exercise.measurementType === "REPS_ONLY" || exercise.measurementType === "COUNT") return "Reps";
   return "Value";
+}
+
+function workoutMeasurementTypeLabel(type: WorkoutMeasurementType) {
+  if (type === "WEIGHT_REPS") return "Weight + Reps";
+  if (type === "BODYWEIGHT_REPS") return "Bodyweight Reps";
+  if (type === "REPS_ONLY") return "Reps Only";
+  if (type === "TIME") return "Time";
+  if (type === "DISTANCE") return "Distance";
+  if (type === "HEIGHT") return "Height";
+  if (type === "WEIGHT_ONLY") return "Weight Only";
+  if (type === "COUNT") return "Count";
+  if (type === "COMPLETION") return "Completion";
+  if (type === "RPE_ONLY") return "RPE Only";
+  return "Custom";
 }
 
 function uniqueStrings(values: string[]) {
@@ -14702,10 +16004,10 @@ function applyWeightRoomSetupToData(data: AppData, payload: WeightRoomSetupPaylo
       updatedAt: now,
     };
   });
-  const existingExercisePresetItemByKey = new Map((data.weightRoomExercisePresetItems ?? []).map((item) => [`${item.presetId}:${item.displayOrder}:${item.exerciseName.toLowerCase()}`, item]));
+  const existingExercisePresetItemByKey = new Map((data.weightRoomExercisePresetItems ?? []).map((item) => [`${item.presetId}:${item.exerciseName.toLowerCase()}`, item]));
   const nextExercisePresetItems: PersistedWeightRoomExercisePresetItem[] = savedExercisePresets.flatMap((preset) =>
     preset.stations.map((station, index) => {
-      const existing = existingExercisePresetItemByKey.get(`${preset.id}:${index + 1}:${station.name.toLowerCase()}`);
+      const existing = existingExercisePresetItemByKey.get(`${preset.id}:${station.name.toLowerCase()}`);
       return {
         id: existing?.id ?? createId("wepi"),
         presetId: preset.id,
@@ -14793,7 +16095,7 @@ function mergePersistedExerciseDefinitions(existing: PersistedWeightRoomExercise
   const byName = new Map(existing.map((exercise) => [exercise.name.toLowerCase(), exercise]));
   for (const exercise of exercises) {
     const current = byName.get(exercise.name.toLowerCase());
-    const targetStyle = defaultTargetStyle(exercise.name, exercise.measurementType);
+    const targetStyle = exercise.defaultTargetStyle ?? defaultTargetStyle(exercise.name, exercise.measurementType);
     byName.set(exercise.name.toLowerCase(), {
       id: current?.id ?? createId("wre"),
       organizationId: current?.organizationId ?? organizationId,
@@ -14801,7 +16103,7 @@ function mergePersistedExerciseDefinitions(existing: PersistedWeightRoomExercise
       kind: exercise.kind,
       category: exercise.category,
       measurementType: exercise.measurementType,
-      performanceDirection: defaultPerformanceDirection(exercise.name, exercise.measurementType, targetStyle),
+      performanceDirection: exercise.performanceDirection ?? defaultPerformanceDirection(exercise.name, exercise.measurementType, targetStyle),
       defaultTargetStyle: targetStyle,
       unit: exercise.unit,
       equipment: exercise.equipment,
@@ -14855,6 +16157,48 @@ function entrySessionDate(data: AppData, entry: WorkoutEntry) {
   return data.workoutSessions.find((session) => session.id === entry.sessionId)?.date ?? entry.createdAt.slice(0, 10);
 }
 
+function workoutEntryPersistedStation(data: AppData, entry: WorkoutEntry) {
+  const sessionDate = entrySessionDate(data, entry);
+  const workoutsForSession = (data.weightRoomWorkouts ?? [])
+    .filter((workout) => workout.date === sessionDate && workout.status !== "CANCELLED")
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt) || right.createdAt.localeCompare(left.createdAt));
+  const stationRows = (data.weightRoomWorkoutStations ?? []).filter((station) => !station.archivedAt);
+  for (const workout of workoutsForSession) {
+    const station = stationRows
+      .filter((item) => item.workoutId === workout.id && item.exerciseName.toLowerCase() === entry.exercise.toLowerCase())
+      .sort((left, right) => left.displayOrder - right.displayOrder)[0];
+    if (station) return station;
+  }
+  return undefined;
+}
+
+function workoutEntryStationContext(
+  data: AppData,
+  entry: WorkoutEntry,
+  exerciseDefinition?: WeightRoomExercise,
+): Pick<ActiveWorkoutStation, "measurementType" | "targetStyle" | "unit" | "performanceDirection"> | undefined {
+  const station = workoutEntryPersistedStation(data, entry);
+  const measurementType = station?.measurementType ?? exerciseDefinition?.measurementType;
+  if (!measurementType) return undefined;
+  const targetStyle = station?.targetStyle ?? exerciseDefinition?.defaultTargetStyle ?? defaultTargetStyle(entry.exercise, measurementType);
+  return {
+    measurementType,
+    targetStyle,
+    unit: station?.unit ?? exerciseDefinition?.unit,
+    performanceDirection: station?.performanceDirection ?? exerciseDefinition?.performanceDirection ?? defaultPerformanceDirection(entry.exercise, measurementType, targetStyle),
+  };
+}
+
+function workoutEntryMatchesResultMode(
+  data: AppData,
+  entry: WorkoutEntry,
+  targetStyle: WorkoutTargetStyle | undefined,
+  exerciseDefinition?: WeightRoomExercise,
+) {
+  if (!targetStyle) return true;
+  return workoutEntryStationContext(data, entry, exerciseDefinition)?.targetStyle === targetStyle;
+}
+
 function formatWorkoutEntryValue(entry: WorkoutEntry) {
   if (typeof entry.weight === "number" && typeof entry.reps === "number") return `${formatNumber(entry.weight, 0)} lb x ${entry.reps}`;
   if (typeof entry.weight === "number") return `${formatNumber(entry.weight, 0)} lb`;
@@ -14863,6 +16207,37 @@ function formatWorkoutEntryValue(entry: WorkoutEntry) {
   if (typeof entry.value === "number") return `${formatNumber(entry.value, 1)}${entry.unit ? ` ${entry.unit}` : ""}`;
   if (typeof entry.reps === "number") return `${entry.reps} reps`;
   return "--";
+}
+
+function formatWorkoutEntryValueForStation(entry: WorkoutEntry, station?: Pick<ActiveWorkoutStation, "measurementType" | "targetStyle" | "unit">) {
+  if (!station) return formatWorkoutEntryValue(entry);
+  if (station.measurementType === "WEIGHT_REPS") {
+    if (typeof entry.weight === "number" && typeof entry.reps === "number") return `${formatNumber(entry.weight, 0)} lb x ${entry.reps}`;
+    if (typeof entry.weight === "number") return `${formatNumber(entry.weight, 0)} lb`;
+    if (typeof entry.reps === "number") return `${entry.reps} reps`;
+    return "--";
+  }
+  if (station.measurementType === "WEIGHT_ONLY") {
+    const value = entry.weight ?? entry.value;
+    return typeof value === "number" ? `${formatNumber(value, 0)} lb` : "--";
+  }
+  if (station.measurementType === "BODYWEIGHT_REPS" || station.measurementType === "REPS_ONLY" || station.measurementType === "COUNT") {
+    const value = entry.reps ?? entry.value;
+    return typeof value === "number" ? `${formatNumber(value, 0)} reps` : "--";
+  }
+  if (station.measurementType === "TIME") {
+    return typeof entry.value === "number" ? formatSecondsValue(entry.value) : "--";
+  }
+  if (station.measurementType === "DISTANCE" || station.measurementType === "HEIGHT") {
+    return typeof entry.value === "number" ? formatInchesValue(entry.value) : "--";
+  }
+  if (station.measurementType === "COMPLETION" || station.targetStyle === "Completion") {
+    return (entry.status ?? "Completed") === "Skipped" ? "Skipped" : "Completed";
+  }
+  if (station.measurementType === "RPE_ONLY") {
+    return typeof entry.rpe === "number" ? `${formatNumber(entry.rpe, 1)} RPE` : typeof entry.value === "number" ? formatNumber(entry.value, 1) : "--";
+  }
+  return formatWorkoutEntryValue(entry);
 }
 
 function formatSecondsValue(value: number) {
@@ -15330,6 +16705,80 @@ function formatWorkoutDelta(value?: number) {
   if (typeof value !== "number") return "--";
   if (Math.abs(value) < 0.05) return "0%";
   return `${value > 0 ? "+" : ""}${formatNumber(value, 1)}%`;
+}
+
+function formatSignedSecondsDelta(value: number) {
+  if (Math.abs(value) < 0.005) return "0 sec";
+  return `${value > 0 ? "+" : "-"}${formatSecondsValue(Math.abs(value))}`;
+}
+
+function formatSignedInchesDelta(value: number) {
+  if (Math.abs(value) < 0.05) return "0 in";
+  return `${value > 0 ? "+" : "-"}${formatInchesValue(Math.abs(value))}`;
+}
+
+function workoutEntryChangeDisplay(
+  current?: WorkoutEntry,
+  baseline?: WorkoutEntry,
+  station?: Pick<ActiveWorkoutStation, "measurementType" | "targetStyle" | "unit" | "performanceDirection">,
+) {
+  if (!current || !baseline || current.id === baseline.id || !workoutEntriesComparable(current, baseline)) return undefined;
+  const measurementType = station?.measurementType;
+  const direction = station?.performanceDirection ?? (current.unit === "sec" ? "LOWER_IS_BETTER" : "HIGHER_IS_BETTER");
+
+  if (measurementType === "TIME" || current.unit === "sec") {
+    if (typeof current.value !== "number" || typeof baseline.value !== "number") return undefined;
+    const rawDelta = current.value - baseline.value;
+    const improvementValue = direction === "LOWER_IS_BETTER" ? -rawDelta : rawDelta;
+    return {
+      label: formatSignedSecondsDelta(rawDelta),
+      sortValue: improvementValue,
+      className: weightRoomDeltaClass(improvementValue),
+    };
+  }
+
+  if (measurementType === "DISTANCE" || measurementType === "HEIGHT" || current.unit === "in") {
+    if (typeof current.value !== "number" || typeof baseline.value !== "number") return undefined;
+    const rawDelta = current.value - baseline.value;
+    const improvementValue = direction === "LOWER_IS_BETTER" ? -rawDelta : rawDelta;
+    return {
+      label: formatSignedInchesDelta(rawDelta),
+      sortValue: improvementValue,
+      className: weightRoomDeltaClass(improvementValue),
+    };
+  }
+
+  if (measurementType === "WEIGHT_ONLY") {
+    const currentWeight = current.weight ?? current.value;
+    const baselineWeight = baseline.weight ?? baseline.value;
+    if (typeof currentWeight !== "number" || typeof baselineWeight !== "number") return undefined;
+    const rawDelta = currentWeight - baselineWeight;
+    return {
+      label: `${rawDelta > 0 ? "+" : ""}${formatNumber(rawDelta, 0)} lb`,
+      sortValue: rawDelta,
+      className: weightRoomDeltaClass(rawDelta),
+    };
+  }
+
+  if (measurementType === "REPS_ONLY" || measurementType === "BODYWEIGHT_REPS" || measurementType === "COUNT") {
+    const currentReps = current.reps ?? current.value;
+    const baselineReps = baseline.reps ?? baseline.value;
+    if (typeof currentReps !== "number" || typeof baselineReps !== "number") return undefined;
+    const rawDelta = currentReps - baselineReps;
+    return {
+      label: `${rawDelta > 0 ? "+" : ""}${formatNumber(rawDelta, 0)} reps`,
+      sortValue: rawDelta,
+      className: weightRoomDeltaClass(rawDelta),
+    };
+  }
+
+  const percent = workoutEntryPercentDelta(current, baseline);
+  if (typeof percent !== "number") return undefined;
+  return {
+    label: formatWorkoutDelta(percent),
+    sortValue: percent,
+    className: weightRoomDeltaClass(percent),
+  };
 }
 
 function weightRoomDeltaClass(value?: number) {

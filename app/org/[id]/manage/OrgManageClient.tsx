@@ -14,7 +14,8 @@ import {
   X,
   ChevronDown,
 } from "lucide-react";
-import { useRef, useState, type CSSProperties, type ChangeEvent, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ChangeEvent, type Dispatch, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type SetStateAction, type WheelEvent as ReactWheelEvent } from "react";
+import { createPortal } from "react-dom";
 import { cityOptionsForState, US_STATE_OPTIONS } from "../../../lib/locations";
 import type { OrgRole, OrganizationManageData, OrganizationVisibility } from "../../../lib/organizationManagement";
 
@@ -50,6 +51,58 @@ type ChoiceOption = {
   value: string;
   label: string;
 };
+
+const SCROLL_EDGE_THRESHOLD = 3;
+
+type ScrollEdges = {
+  canScrollUp: boolean;
+  canScrollDown: boolean;
+};
+
+function measureScrollEdges(element: HTMLElement | null): ScrollEdges {
+  if (!element) return { canScrollUp: false, canScrollDown: false };
+  const maxScrollTop = Math.max(0, element.scrollHeight - element.clientHeight);
+  return {
+    canScrollUp: element.scrollTop > SCROLL_EDGE_THRESHOLD,
+    canScrollDown: element.scrollTop < maxScrollTop - SCROLL_EDGE_THRESHOLD,
+  };
+}
+
+function sameScrollEdges(left: ScrollEdges, right: ScrollEdges) {
+  return left.canScrollUp === right.canScrollUp && left.canScrollDown === right.canScrollDown;
+}
+
+function useScrollEdges<T extends HTMLElement>(
+  ref: RefObject<T | null>,
+  watchKey?: unknown,
+) {
+  const [edges, setEdges] = useState<ScrollEdges>(() => measureScrollEdges(null));
+
+  const updateScrollEdges = useCallback(() => {
+    const nextEdges = measureScrollEdges(ref.current);
+    setEdges((current) => (sameScrollEdges(current, nextEdges) ? current : nextEdges));
+  }, [ref]);
+
+  useEffect(() => {
+    updateScrollEdges();
+    const element = ref.current;
+    if (!element || typeof window === "undefined") return;
+    const handleScroll = () => updateScrollEdges();
+    element.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", updateScrollEdges);
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateScrollEdges) : null;
+    resizeObserver?.observe(element);
+    const animationFrame = window.requestAnimationFrame(updateScrollEdges);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      element.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", updateScrollEdges);
+      resizeObserver?.disconnect();
+    };
+  }, [ref, updateScrollEdges, watchKey]);
+
+  return { edges };
+}
 
 type CropState = {
   sourceUrl: string;
@@ -994,31 +1047,196 @@ function ChoiceSelect({
   "aria-label"?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+    placement: "top" | "bottom" | "sheet";
+  } | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const selected = options.find((option) => option.value === value) ?? options[0];
+  const reactId = useId();
+  const listboxId = `choice-select-${reactId.replace(/[^a-z0-9_-]/gi, "")}`;
+  const { edges: menuEdges } = useScrollEdges(menuRef, `${open}-${menuPosition?.top ?? 0}-${menuPosition?.maxHeight ?? 0}-${options.length}-${value}`);
 
-  return (
-    <div
-      className={["choice-select", open ? "open" : "", className].filter(Boolean).join(" ")}
-      onBlur={(event) => {
-        const nextFocus = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-        if (!nextFocus || !event.currentTarget.contains(nextFocus)) setOpen(false);
-      }}
-    >
-      {label && <span className="choice-select__label">{label}</span>}
-      <button
-        type="button"
-        className="choice-select__button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={ariaLabel ?? label}
-        disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <strong>{selected?.label ?? "Select"}</strong>
-        <ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {open && !disabled && (
-        <div className="choice-select__menu" role="listbox" aria-label={ariaLabel ?? label}>
+  const updateMenuPosition = useCallback(() => {
+    if (!buttonRef.current || typeof window === "undefined") return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const viewportPadding = 12;
+    const gap = 6;
+    const viewport = window.visualViewport;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportHeight = viewport?.height ?? window.innerHeight;
+    const viewportWidth = viewport?.width ?? window.innerWidth;
+    const viewportBottom = viewportTop + viewportHeight;
+    const viewportRight = viewportLeft + viewportWidth;
+    const desiredHeight = Math.min(320, Math.max(96, options.length * 44 + 16));
+    const availableBelow = Math.max(0, viewportBottom - rect.bottom - viewportPadding - gap);
+    const availableAbove = Math.max(0, rect.top - viewportTop - viewportPadding - gap);
+    const bestAvailable = Math.max(availableBelow, availableAbove);
+    if (viewportWidth <= 640 || (viewportWidth <= 900 && viewportHeight <= 540) || bestAvailable < 132) {
+      const maxHeight = Math.min(320, Math.max(196, viewportHeight - viewportPadding * 2));
+      setMenuPosition({
+        top: viewportTop + Math.max(viewportPadding, viewportHeight - maxHeight - viewportPadding),
+        left: viewportLeft + 8,
+        width: viewportWidth - 16,
+        maxHeight,
+        placement: "sheet",
+      });
+      return;
+    }
+
+    const canFitBelow = availableBelow >= desiredHeight;
+    const canFitAbove = availableAbove >= desiredHeight;
+    const placement = canFitBelow || (!canFitAbove && availableBelow >= availableAbove) ? "bottom" : "top";
+    const availableHeight = placement === "top" ? availableAbove : availableBelow;
+    const maxHeight = Math.max(96, Math.min(320, availableHeight));
+    const menuHeight = Math.min(desiredHeight, maxHeight);
+    const widestOption = Math.min(320, Math.max(180, ...options.map((option) => option.label.length * 7.5 + 42)));
+    const width = Math.min(Math.max(rect.width, widestOption), viewportWidth - viewportPadding * 2);
+    const left = Math.min(Math.max(rect.left, viewportLeft + viewportPadding), viewportRight - width - viewportPadding);
+    const unclampedTop = placement === "top" ? rect.top - gap - menuHeight : rect.bottom + gap;
+    const top = Math.min(Math.max(unclampedTop, viewportTop + viewportPadding), viewportBottom - menuHeight - viewportPadding);
+    setMenuPosition({ top, left, width, maxHeight, placement });
+  }, [options]);
+
+  const focusOption = useCallback((index?: number) => {
+    const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
+    if (!buttons.length) return;
+    const selectedIndex = options.findIndex((option) => option.value === value);
+    const targetIndex = Math.max(0, Math.min(buttons.length - 1, index ?? selectedIndex));
+    buttons[targetIndex]?.focus();
+    buttons[targetIndex]?.scrollIntoView({ block: "nearest" });
+  }, [options, value]);
+
+  const closeMenu = useCallback((returnFocus = false) => {
+    setOpen(false);
+    if (returnFocus) window.setTimeout(() => buttonRef.current?.focus(), 0);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    updateMenuPosition();
+    const animationFrame = window.requestAnimationFrame(updateMenuPosition);
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && (rootRef.current?.contains(target) || menuRef.current?.contains(target))) return;
+      closeMenu();
+    };
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && (rootRef.current?.contains(target) || menuRef.current?.contains(target))) return;
+      closeMenu();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu(true);
+    };
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("orientationchange", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    window.visualViewport?.addEventListener("resize", updateMenuPosition);
+    window.visualViewport?.addEventListener("scroll", updateMenuPosition);
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("focusin", handleFocusIn);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("orientationchange", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+      window.visualViewport?.removeEventListener("resize", updateMenuPosition);
+      window.visualViewport?.removeEventListener("scroll", updateMenuPosition);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("focusin", handleFocusIn);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeMenu, open, updateMenuPosition]);
+
+  useEffect(() => {
+    if (!open || !menuPosition) return;
+    const timer = window.setTimeout(() => {
+      menuRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [menuPosition, open, value]);
+
+  const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMenu(true);
+      return;
+    }
+    const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
+    if (!buttons.length) return;
+    const currentIndex = Math.max(0, buttons.findIndex((button) => button === document.activeElement));
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusOption(Math.min(buttons.length - 1, currentIndex + 1));
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusOption(Math.max(0, currentIndex - 1));
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      focusOption(0);
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      focusOption(buttons.length - 1);
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      const currentOption = options[currentIndex];
+      if (!currentOption) return;
+      onChange(currentOption.value);
+      closeMenu(true);
+    }
+  };
+
+  const handleMenuWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    const menu = menuRef.current;
+    if (!menu || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    const maxScrollTop = Math.max(0, menu.scrollHeight - menu.clientHeight);
+    if (maxScrollTop <= SCROLL_EDGE_THRESHOLD) return;
+    const nextScrollTop = Math.max(0, Math.min(maxScrollTop, menu.scrollTop + event.deltaY));
+    if (Math.abs(nextScrollTop - menu.scrollTop) <= 0.5) return;
+    event.preventDefault();
+    event.stopPropagation();
+    menu.scrollTop = nextScrollTop;
+  };
+
+  const menu = open && !disabled && menuPosition && typeof document !== "undefined"
+    ? createPortal(
+      <>
+        {menuPosition.placement === "sheet" && <div className="choice-select__sheet-scrim" aria-hidden="true" />}
+        <div
+          ref={menuRef}
+          id={listboxId}
+          className={[
+            "choice-select__menu",
+            "choice-select__menu--portal",
+            menuEdges.canScrollUp ? "has-scroll-up" : "",
+            menuEdges.canScrollDown ? "has-scroll-down" : "",
+            className,
+          ].filter(Boolean).join(" ")}
+          data-placement={menuPosition.placement}
+          role="listbox"
+          tabIndex={-1}
+          aria-label={ariaLabel ?? label}
+          onKeyDown={handleMenuKeyDown}
+          onWheel={handleMenuWheel}
+          style={{
+            top: menuPosition.top,
+            left: menuPosition.left,
+            width: menuPosition.width,
+            maxHeight: menuPosition.maxHeight,
+          }}
+        >
           {options.map((option) => (
             <button
               key={option.value}
@@ -1028,14 +1246,50 @@ function ChoiceSelect({
               aria-selected={option.value === value}
               onClick={() => {
                 onChange(option.value);
-                setOpen(false);
+                closeMenu(true);
               }}
             >
-              {option.label}
+              <span>{option.label}</span>
             </button>
           ))}
         </div>
-      )}
+      </>,
+      document.body,
+    )
+    : null;
+
+  return (
+    <div
+      ref={rootRef}
+      className={["choice-select", open ? "open" : "", className].filter(Boolean).join(" ")}
+    >
+      {label && <span className="choice-select__label">{label}</span>}
+      <button
+        ref={buttonRef}
+        type="button"
+        className="choice-select__button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
+        aria-label={ariaLabel ?? label}
+        disabled={disabled}
+        onClick={() => {
+          updateMenuPosition();
+          setOpen((current) => !current);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            updateMenuPosition();
+            setOpen(true);
+            window.setTimeout(() => focusOption(event.key === "ArrowUp" ? options.length - 1 : undefined), 0);
+          }
+        }}
+      >
+        <strong>{selected?.label ?? "Select"}</strong>
+        <ChevronDown size={14} aria-hidden="true" />
+      </button>
+      {menu}
     </div>
   );
 }
