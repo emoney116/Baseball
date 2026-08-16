@@ -50,7 +50,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type React from "react";
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { Children, isValidElement, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { BaseballField, DonutChart, Heatmap, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
@@ -3152,33 +3152,48 @@ function ChoiceSelect({
     const rect = buttonRef.current.getBoundingClientRect();
     const viewportPadding = 12;
     const gap = 6;
-    const measuredHeight = menuRef.current?.offsetHeight ?? 320;
-    const availableBelow = window.innerHeight - rect.bottom - viewportPadding;
-    const availableAbove = rect.top - viewportPadding;
+    const viewport = window.visualViewport;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportHeight = viewport?.height ?? window.innerHeight;
+    const viewportWidth = viewport?.width ?? window.innerWidth;
+    const viewportBottom = viewportTop + viewportHeight;
+    const viewportRight = viewportLeft + viewportWidth;
+    const optionHeight = 44;
+    const desiredHeight = Math.min(320, Math.max(96, options.length * optionHeight + 10));
+    const availableBelow = Math.max(0, viewportBottom - rect.bottom - viewportPadding);
+    const availableAbove = Math.max(0, rect.top - viewportTop - viewportPadding);
     const bestAvailable = Math.max(availableBelow, availableAbove);
-    const shouldUseSheet = window.innerWidth <= 640 || bestAvailable < 180;
+    const shouldUseSheet = viewportWidth <= 640 || viewportHeight <= 540 || bestAvailable < 156;
     if (shouldUseSheet) {
-      const maxHeight = Math.min(320, Math.max(180, window.innerHeight - viewportPadding * 2));
+      const maxHeight = Math.min(320, Math.max(196, viewportHeight - viewportPadding * 2));
       setMenuPosition({
-        top: Math.max(viewportPadding, window.innerHeight - maxHeight - viewportPadding),
-        left: Math.min(8, viewportPadding),
-        width: window.innerWidth - 16,
+        top: viewportTop + Math.max(viewportPadding, viewportHeight - maxHeight - viewportPadding),
+        left: viewportLeft + 8,
+        width: viewportWidth - 16,
         maxHeight,
         placement: "sheet",
       });
       return;
     }
 
-    const placement = availableBelow < 180 && availableAbove > availableBelow ? "top" : "bottom";
+    const canFitBelow = availableBelow >= desiredHeight;
+    const canFitAbove = availableAbove >= desiredHeight;
+    const placement = canFitBelow || (!canFitAbove && availableBelow >= availableAbove) ? "bottom" : "top";
     const availableHeight = placement === "top" ? availableAbove : availableBelow;
-    const maxHeight = Math.max(132, Math.min(320, availableHeight));
-    const width = Math.min(Math.max(rect.width, 220), window.innerWidth - viewportPadding * 2);
-    const left = Math.min(Math.max(rect.left, viewportPadding), window.innerWidth - width - viewportPadding);
-    const top = placement === "top"
-      ? Math.max(viewportPadding, rect.top - gap - Math.min(measuredHeight, maxHeight))
-      : Math.min(rect.bottom + gap, window.innerHeight - Math.min(measuredHeight, maxHeight) - viewportPadding);
+    const maxHeight = Math.max(96, Math.min(320, availableHeight));
+    const menuHeight = Math.min(desiredHeight, maxHeight);
+    const width = Math.min(Math.max(rect.width, 220), viewportWidth - viewportPadding * 2);
+    const left = Math.min(Math.max(rect.left, viewportLeft + viewportPadding), viewportRight - width - viewportPadding);
+    const unclampedTop = placement === "top"
+      ? rect.top - gap - menuHeight
+      : rect.bottom + gap;
+    const top = Math.min(
+      Math.max(unclampedTop, viewportTop + viewportPadding),
+      viewportBottom - menuHeight - viewportPadding,
+    );
     setMenuPosition({ top, left, width, maxHeight, placement });
-  }, []);
+  }, [options.length]);
 
   const focusOption = useCallback((index?: number) => {
     const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
@@ -3257,14 +3272,20 @@ function ChoiceSelect({
       closeMenu();
     };
     window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("orientationchange", updateMenuPosition);
     window.addEventListener("scroll", updateMenuPosition, true);
+    window.visualViewport?.addEventListener("resize", updateMenuPosition);
+    window.visualViewport?.addEventListener("scroll", updateMenuPosition);
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
     document.addEventListener("focusin", handleFocusIn);
     return () => {
       window.cancelAnimationFrame(animationFrame);
       window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("orientationchange", updateMenuPosition);
       window.removeEventListener("scroll", updateMenuPosition, true);
+      window.visualViewport?.removeEventListener("resize", updateMenuPosition);
+      window.visualViewport?.removeEventListener("scroll", updateMenuPosition);
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("focusin", handleFocusIn);
@@ -11700,35 +11721,43 @@ function WeightRoomExerciseLibraryCard({
           <h2>Team exercises</h2>
         </div>
       </div>
-      <div className="weight-room-library-toolbar">
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search exercises..." />
-        <ChoiceSelect
-          value={category}
-          className="form-choice"
-          options={categories.map((item) => ({ value: item, label: item }))}
-          onChange={(value) => setCategory(value as WeightRoomExerciseCategory | "All")}
-          aria-label="Exercise category"
-        />
-        <button className="secondary-button weight-room-add-exercise-button" type="button" onClick={() => openExerciseEditor()}>
-          <Plus size={14} aria-hidden="true" />
-          Add Exercise
-        </button>
-      </div>
       <div className="weight-room-library-presets">
         <div>
           <strong>Exercise Presets</strong>
-          <small>{presets.length ? `${presets.length} saved` : "Create reusable station groups"}</small>
         </div>
         <button className="secondary-button" type="button" onClick={openPresetBuilder}>
           <Save size={14} aria-hidden="true" />
           Create Preset
         </button>
-        {presets.slice(0, 3).map((preset) => (
-          <span key={preset.id}>
-            <strong>{preset.name}</strong>
-            <small>{preset.stations.length} exercise{preset.stations.length === 1 ? "" : "s"}</small>
-          </span>
-        ))}
+        {presets.length ? (
+          <div className="weight-room-library-presets__list">
+            {presets.slice(0, 2).map((preset) => (
+              <span key={preset.id}>
+                <strong>{preset.name}</strong>
+                <small>{preset.stations.length} exercise{preset.stations.length === 1 ? "" : "s"}</small>
+              </span>
+            ))}
+            {presets.length > 2 && <small>{presets.length - 2} more preset{presets.length - 2 === 1 ? "" : "s"}</small>}
+          </div>
+        ) : (
+          <small>Create reusable exercise presets.</small>
+        )}
+      </div>
+      <div className="weight-room-library-toolbar">
+        <div className="weight-room-library-filters">
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search exercises..." />
+          <ChoiceSelect
+            value={category}
+            className="form-choice"
+            options={categories.map((item) => ({ value: item, label: item }))}
+            onChange={(value) => setCategory(value as WeightRoomExerciseCategory | "All")}
+            aria-label="Exercise category"
+          />
+        </div>
+        <button className="secondary-button weight-room-add-exercise-button" type="button" onClick={() => openExerciseEditor()}>
+          <Plus size={14} aria-hidden="true" />
+          Add Exercise
+        </button>
       </div>
       <div className="weight-room-library-list">
         {filtered.map((exercise) => {
@@ -15175,14 +15204,89 @@ function CompactEmpty({ title, action }: { title: string; action?: React.ReactNo
 }
 
 function ModalFrame({ title, onClose, children, panelClassName = "" }: { title: string; onClose: () => void; children: React.ReactNode; panelClassName?: string }) {
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const titleRef = useRef<HTMLDivElement | null>(null);
+  const footerRef = useRef<HTMLDivElement | null>(null);
+  const [scrollState, setScrollState] = useState({ canScrollUp: false, canScrollDown: false, titleHeight: 0, footerHeight: 0 });
+  const childArray = Children.toArray(children);
+  const lastChild = childArray[childArray.length - 1];
+  const hasDirectFooter = isValidElement<{ className?: string }>(lastChild)
+    && typeof lastChild.props.className === "string"
+    && lastChild.props.className.split(/\s+/).includes("modal-actions");
+  const bodyChildren = hasDirectFooter ? childArray.slice(0, -1) : childArray;
+  const footer = hasDirectFooter ? lastChild : null;
+
+  const updateModalScrollState = useCallback(() => {
+    const body = bodyRef.current;
+    const maxScroll = body ? body.scrollHeight - body.clientHeight : 0;
+    const nextState = {
+      canScrollUp: body ? body.scrollTop > 1 : false,
+      canScrollDown: body ? body.scrollTop < maxScroll - 1 : false,
+      titleHeight: titleRef.current?.offsetHeight ?? 0,
+      footerHeight: footerRef.current?.offsetHeight ?? 0,
+    };
+    setScrollState((current) => (
+      current.canScrollUp === nextState.canScrollUp
+      && current.canScrollDown === nextState.canScrollDown
+      && current.titleHeight === nextState.titleHeight
+      && current.footerHeight === nextState.footerHeight
+        ? current
+        : nextState
+    ));
+  }, []);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  useEffect(() => {
+    updateModalScrollState();
+    const body = bodyRef.current;
+    body?.addEventListener("scroll", updateModalScrollState, { passive: true });
+    window.addEventListener("resize", updateModalScrollState);
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateModalScrollState) : null;
+    if (body) resizeObserver?.observe(body);
+    if (titleRef.current) resizeObserver?.observe(titleRef.current);
+    if (footerRef.current) resizeObserver?.observe(footerRef.current);
+    const animationFrame = window.requestAnimationFrame(updateModalScrollState);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      body?.removeEventListener("scroll", updateModalScrollState);
+      window.removeEventListener("resize", updateModalScrollState);
+      resizeObserver?.disconnect();
+    };
+  }, [children, updateModalScrollState]);
+
+  const panelStyle = {
+    "--modal-title-height": `${scrollState.titleHeight}px`,
+    "--modal-footer-height": `${scrollState.footerHeight}px`,
+  } as React.CSSProperties;
+
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={title}>
-      <div className={`modal-panel ${panelClassName}`.trim()}>
-        <div className="modal-title">
+      <div
+        className={[
+          "modal-panel",
+          panelClassName,
+          scrollState.canScrollUp ? "has-scroll-top" : "",
+          scrollState.canScrollDown ? "has-scroll-bottom" : "",
+        ].filter(Boolean).join(" ")}
+        style={panelStyle}
+      >
+        <div ref={titleRef} className="modal-title">
           <h2>{title}</h2>
           <button className="ghost-button" type="button" onClick={onClose} aria-label="Close dialog"><X size={18} aria-hidden="true" /></button>
         </div>
-        {children}
+        <div ref={bodyRef} className="modal-body">
+          {bodyChildren}
+        </div>
+        {footer ? <div ref={footerRef} className="modal-footer-slot">{footer}</div> : null}
+        <span className="modal-scroll-fade modal-scroll-fade--top" aria-hidden="true" />
+        <span className="modal-scroll-fade modal-scroll-fade--bottom" aria-hidden="true" />
       </div>
     </div>
   );

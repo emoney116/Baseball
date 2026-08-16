@@ -14,7 +14,8 @@ import {
   X,
   ChevronDown,
 } from "lucide-react";
-import { useRef, useState, type CSSProperties, type ChangeEvent, type Dispatch, type FormEvent, type SetStateAction } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ChangeEvent, type Dispatch, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type SetStateAction } from "react";
+import { createPortal } from "react-dom";
 import { cityOptionsForState, US_STATE_OPTIONS } from "../../../lib/locations";
 import type { OrgRole, OrganizationManageData, OrganizationVisibility } from "../../../lib/organizationManagement";
 
@@ -994,31 +995,175 @@ function ChoiceSelect({
   "aria-label"?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    maxHeight: number;
+    placement: "top" | "bottom" | "sheet";
+  } | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const selected = options.find((option) => option.value === value) ?? options[0];
+  const reactId = useId();
+  const listboxId = `choice-select-${reactId.replace(/[^a-z0-9_-]/gi, "")}`;
 
-  return (
-    <div
-      className={["choice-select", open ? "open" : "", className].filter(Boolean).join(" ")}
-      onBlur={(event) => {
-        const nextFocus = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-        if (!nextFocus || !event.currentTarget.contains(nextFocus)) setOpen(false);
-      }}
-    >
-      {label && <span className="choice-select__label">{label}</span>}
-      <button
-        type="button"
-        className="choice-select__button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label={ariaLabel ?? label}
-        disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <strong>{selected?.label ?? "Select"}</strong>
-        <ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {open && !disabled && (
-        <div className="choice-select__menu" role="listbox" aria-label={ariaLabel ?? label}>
+  const updateMenuPosition = useCallback(() => {
+    if (!buttonRef.current || typeof window === "undefined") return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const viewportPadding = 12;
+    const gap = 6;
+    const viewport = window.visualViewport;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportHeight = viewport?.height ?? window.innerHeight;
+    const viewportWidth = viewport?.width ?? window.innerWidth;
+    const viewportBottom = viewportTop + viewportHeight;
+    const viewportRight = viewportLeft + viewportWidth;
+    const desiredHeight = Math.min(320, Math.max(96, options.length * 44 + 10));
+    const availableBelow = Math.max(0, viewportBottom - rect.bottom - viewportPadding);
+    const availableAbove = Math.max(0, rect.top - viewportTop - viewportPadding);
+    const bestAvailable = Math.max(availableBelow, availableAbove);
+    if (viewportWidth <= 640 || viewportHeight <= 540 || bestAvailable < 156) {
+      const maxHeight = Math.min(320, Math.max(196, viewportHeight - viewportPadding * 2));
+      setMenuPosition({
+        top: viewportTop + Math.max(viewportPadding, viewportHeight - maxHeight - viewportPadding),
+        left: viewportLeft + 8,
+        width: viewportWidth - 16,
+        maxHeight,
+        placement: "sheet",
+      });
+      return;
+    }
+
+    const canFitBelow = availableBelow >= desiredHeight;
+    const canFitAbove = availableAbove >= desiredHeight;
+    const placement = canFitBelow || (!canFitAbove && availableBelow >= availableAbove) ? "bottom" : "top";
+    const availableHeight = placement === "top" ? availableAbove : availableBelow;
+    const maxHeight = Math.max(96, Math.min(320, availableHeight));
+    const menuHeight = Math.min(desiredHeight, maxHeight);
+    const width = Math.min(Math.max(rect.width, 220), viewportWidth - viewportPadding * 2);
+    const left = Math.min(Math.max(rect.left, viewportLeft + viewportPadding), viewportRight - width - viewportPadding);
+    const unclampedTop = placement === "top" ? rect.top - gap - menuHeight : rect.bottom + gap;
+    const top = Math.min(Math.max(unclampedTop, viewportTop + viewportPadding), viewportBottom - menuHeight - viewportPadding);
+    setMenuPosition({ top, left, width, maxHeight, placement });
+  }, [options.length]);
+
+  const focusOption = useCallback((index?: number) => {
+    const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
+    if (!buttons.length) return;
+    const selectedIndex = options.findIndex((option) => option.value === value);
+    const targetIndex = Math.max(0, Math.min(buttons.length - 1, index ?? selectedIndex));
+    buttons[targetIndex]?.focus();
+    buttons[targetIndex]?.scrollIntoView({ block: "nearest" });
+  }, [options, value]);
+
+  const closeMenu = useCallback((returnFocus = false) => {
+    setOpen(false);
+    if (returnFocus) window.setTimeout(() => buttonRef.current?.focus(), 0);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    updateMenuPosition();
+    const animationFrame = window.requestAnimationFrame(updateMenuPosition);
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && (rootRef.current?.contains(target) || menuRef.current?.contains(target))) return;
+      closeMenu();
+    };
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && (rootRef.current?.contains(target) || menuRef.current?.contains(target))) return;
+      closeMenu();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu(true);
+    };
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("orientationchange", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    window.visualViewport?.addEventListener("resize", updateMenuPosition);
+    window.visualViewport?.addEventListener("scroll", updateMenuPosition);
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("focusin", handleFocusIn);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("orientationchange", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+      window.visualViewport?.removeEventListener("resize", updateMenuPosition);
+      window.visualViewport?.removeEventListener("scroll", updateMenuPosition);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("focusin", handleFocusIn);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeMenu, open, updateMenuPosition]);
+
+  useEffect(() => {
+    if (!open || !menuPosition) return;
+    const timer = window.setTimeout(() => {
+      menuRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [menuPosition, open, value]);
+
+  const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMenu(true);
+      return;
+    }
+    const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
+    if (!buttons.length) return;
+    const currentIndex = Math.max(0, buttons.findIndex((button) => button === document.activeElement));
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      focusOption(Math.min(buttons.length - 1, currentIndex + 1));
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      focusOption(Math.max(0, currentIndex - 1));
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      focusOption(0);
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      focusOption(buttons.length - 1);
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      const currentOption = options[currentIndex];
+      if (!currentOption) return;
+      onChange(currentOption.value);
+      closeMenu(true);
+    }
+  };
+
+  const menu = open && !disabled && menuPosition && typeof document !== "undefined"
+    ? createPortal(
+      <>
+        {menuPosition.placement === "sheet" && <div className="choice-select__sheet-scrim" aria-hidden="true" />}
+        <div
+          ref={menuRef}
+          id={listboxId}
+          className={["choice-select__menu", "choice-select__menu--portal", className].filter(Boolean).join(" ")}
+          data-placement={menuPosition.placement}
+          role="listbox"
+          tabIndex={-1}
+          aria-label={ariaLabel ?? label}
+          onKeyDown={handleMenuKeyDown}
+          style={{
+            top: menuPosition.top,
+            left: menuPosition.left,
+            width: menuPosition.width,
+            maxHeight: menuPosition.maxHeight,
+          }}
+        >
           {options.map((option) => (
             <button
               key={option.value}
@@ -1028,14 +1173,50 @@ function ChoiceSelect({
               aria-selected={option.value === value}
               onClick={() => {
                 onChange(option.value);
-                setOpen(false);
+                closeMenu(true);
               }}
             >
-              {option.label}
+              <span>{option.label}</span>
             </button>
           ))}
         </div>
-      )}
+      </>,
+      document.body,
+    )
+    : null;
+
+  return (
+    <div
+      ref={rootRef}
+      className={["choice-select", open ? "open" : "", className].filter(Boolean).join(" ")}
+    >
+      {label && <span className="choice-select__label">{label}</span>}
+      <button
+        ref={buttonRef}
+        type="button"
+        className="choice-select__button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listboxId : undefined}
+        aria-label={ariaLabel ?? label}
+        disabled={disabled}
+        onClick={() => {
+          updateMenuPosition();
+          setOpen((current) => !current);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            updateMenuPosition();
+            setOpen(true);
+            window.setTimeout(() => focusOption(event.key === "ArrowUp" ? options.length - 1 : undefined), 0);
+          }
+        }}
+      >
+        <strong>{selected?.label ?? "Select"}</strong>
+        <ChevronDown size={14} aria-hidden="true" />
+      </button>
+      {menu}
     </div>
   );
 }

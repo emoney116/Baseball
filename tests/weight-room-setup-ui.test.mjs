@@ -30,21 +30,32 @@ test("active weight room setup keeps exercise saves and preset UI clean", () => 
   assert.match(page, /Select All/);
   assert.match(page, /function WeightRoomExerciseLibraryCard/);
   assert.match(page, /weight-room-library-presets/);
+  assert.match(page, /weight-room-library-presets__list/);
+  assert.match(page, /weight-room-library-filters/);
   assert.match(page, /Create Exercise Preset/);
   assert.match(page, /Save Exercise/);
   assert.match(page, /formatWorkoutEntryValueForStation/);
   assert.match(page, /leaders=\{weightLeaderRows\}/);
+  assert.doesNotMatch(page, /`\$\{presets\.length\} saved`/);
   assert.doesNotMatch(page, /exercisePresetsFromTemplates/);
 });
 
 test("shared dropdown menus stay viewport safe inside modals and small screens", () => {
   const page = readFileSync("app/page.tsx", "utf8");
+  const orgManage = readFileSync("app/org/[id]/manage/OrgManageClient.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
   const choiceSelect = page.match(/function ChoiceSelect[\s\S]*?function TeamSwitcher/)?.[0] ?? "";
+  const orgChoiceSelect = orgManage.match(/function ChoiceSelect[\s\S]*?function OrgLogo/)?.[0] ?? "";
 
   assert.match(choiceSelect, /createPortal\(/);
   assert.match(choiceSelect, /getBoundingClientRect\(\)/);
+  assert.match(choiceSelect, /visualViewport/);
+  assert.match(choiceSelect, /availableBelow/);
+  assert.match(choiceSelect, /availableAbove/);
+  assert.match(choiceSelect, /viewportPadding/);
+  assert.match(choiceSelect, /viewportHeight <= 540/);
   assert.match(choiceSelect, /window\.addEventListener\("scroll",\s*updateMenuPosition,\s*true\)/);
+  assert.match(choiceSelect, /window\.addEventListener\("orientationchange",\s*updateMenuPosition\)/);
   assert.match(choiceSelect, /data-placement=\{menuPosition\.placement\}/);
   assert.match(choiceSelect, /choice-select__menu--portal/);
   assert.match(choiceSelect, /placement:\s*"top"\s*\|\s*"bottom"\s*\|\s*"sheet"/);
@@ -56,6 +67,9 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.match(page, /function ImportChoiceField[\s\S]*?<ChoiceSelect/);
   assert.doesNotMatch(page, /import-choice__menu/);
   assert.match(page, /weight-room-auto-group-choice/);
+  assert.match(orgChoiceSelect, /createPortal\(/);
+  assert.match(orgChoiceSelect, /choice-select__menu--portal/);
+  assert.match(orgChoiceSelect, /visualViewport/);
   assert.match(css, /\.choice-select__menu--portal\s*\{[\s\S]*position:\s*fixed/);
   assert.match(css, /z-index:\s*10000/);
   assert.match(css, /max-width:\s*calc\(100vw - 24px\)/);
@@ -67,6 +81,11 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.match(css, /\*::-webkit-scrollbar\s*\{[\s\S]*display:\s*none/);
   assert.match(css, /\.scrollbar-none\s*\{/);
   assert.match(css, /\.scroll-fade-bottom::after/);
+  assert.match(css, /\.modal-body\s*\{[\s\S]*overflow:\s*auto/);
+  assert.match(css, /\.modal-panel\.has-scroll-bottom \.modal-scroll-fade--bottom/);
+  assert.match(css, /\.modal-panel > \.modal-footer-slot > \.modal-actions/);
+  assert.match(page, /document\.body\.style\.overflow = "hidden"/);
+  assert.match(page, /ResizeObserver/);
   assert.doesNotMatch(css, /scrollbar-width:\s*(thin|auto)/);
   assert.doesNotMatch(css, /import-choice__menu/);
 });

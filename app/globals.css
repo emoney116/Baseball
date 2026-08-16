@@ -3531,6 +3531,7 @@ textarea:focus-visible {
   inset: 0;
   z-index: 9999;
   background: color-mix(in srgb, #000 22%, transparent);
+  touch-action: none;
 }
 
 .choice-select__menu--portal {
@@ -3540,10 +3541,12 @@ textarea:focus-visible {
   left: auto;
   min-width: 0;
   max-width: calc(100vw - 24px);
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  contain: layout paint;
 }
 
 .choice-select__menu--portal::-webkit-scrollbar {
@@ -9560,9 +9563,17 @@ select option {
 
 .weight-room-library-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(96px, 120px) auto;
+  grid-template-columns: 1fr;
   gap: 8px;
   margin: 10px 0 8px;
+  align-items: stretch;
+}
+
+.weight-room-library-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(96px, 128px);
+  gap: 8px;
+  min-width: 0;
 }
 
 .weight-room-library-toolbar .choice-select,
@@ -9605,10 +9616,15 @@ select option {
   margin-bottom: 8px;
 }
 
-.weight-room-library-presets > span {
+.weight-room-library-presets__list {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+}
+
+.weight-room-library-presets__list > span {
   display: grid;
   gap: 2px;
-  grid-column: 1 / -1;
   border-top: 1px solid var(--line);
   padding-top: 8px;
 }
@@ -10066,19 +10082,23 @@ select option {
   padding: 18px;
   background: rgba(0, 0, 0, 0.64);
   backdrop-filter: blur(12px);
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .modal-panel {
   width: min(900px, 100%);
-  max-height: min(88dvh, 860px);
-  overflow: auto;
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--panel-strong);
   box-shadow: var(--shadow);
-  padding: 14px;
+  padding: 0;
   display: grid;
-  gap: 14px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0;
+  position: relative;
 }
 
 .modal-panel--import {
@@ -10099,11 +10119,78 @@ select option {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background: color-mix(in srgb, var(--panel-strong) 96%, transparent);
+  backdrop-filter: blur(16px);
+  z-index: 4;
 }
 
 .modal-title h2 {
   margin: 0;
   font-size: 22px;
+}
+
+.modal-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.modal-footer-slot {
+  min-width: 0;
+  z-index: 4;
+}
+
+.modal-panel > .modal-footer-slot > .modal-actions {
+  position: relative;
+  bottom: auto;
+  margin: 0;
+  padding: 12px 14px 14px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background: color-mix(in srgb, var(--panel-strong) 96%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.modal-body .modal-actions {
+  position: sticky;
+  bottom: -14px;
+  z-index: 3;
+  margin: 0 -14px -14px;
+  padding: 12px 14px 14px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  background: color-mix(in srgb, var(--panel-strong) 96%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.modal-scroll-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  height: 28px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.modal-scroll-fade--top {
+  top: var(--modal-title-height, 0px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel-strong) 96%, transparent), transparent);
+}
+
+.modal-scroll-fade--bottom {
+  bottom: var(--modal-footer-height, 0px);
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--panel-strong) 96%, transparent));
+}
+
+.modal-panel.has-scroll-top .modal-scroll-fade--top,
+.modal-panel.has-scroll-bottom .modal-scroll-fade--bottom {
+  opacity: 1;
 }
 
 .roster-picker {
@@ -14333,10 +14420,10 @@ body,
 }
 
 .modal-title {
-  position: sticky;
-  top: -14px;
+  position: relative;
+  top: auto;
   z-index: 95;
-  margin: -14px -14px 0;
+  margin: 0;
   padding: 14px;
   border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
   background: color-mix(in srgb, var(--panel-strong) 96%, transparent);
@@ -14348,10 +14435,10 @@ body,
 }
 
 .modal-actions {
-  position: sticky;
-  bottom: -14px;
+  position: relative;
+  bottom: auto;
   z-index: 94;
-  margin: 0 -14px -14px;
+  margin: 0;
   padding: 12px 14px 14px;
   border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
   background: color-mix(in srgb, var(--panel-strong) 96%, transparent);
@@ -14361,6 +14448,14 @@ body,
 [data-theme="light"] .modal-title,
 [data-theme="light"] .modal-actions {
   background: rgba(255, 255, 255, 0.96);
+}
+
+[data-theme="light"] .modal-scroll-fade--top {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), transparent);
+}
+
+[data-theme="light"] .modal-scroll-fade--bottom {
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.96));
 }
 
 @media (hover: none) and (pointer: coarse) {
@@ -14725,16 +14820,26 @@ body,
   .modal-panel--player {
     width: min(100%, calc(100vw - 20px));
     max-height: calc(100dvh - 20px);
-    padding: 10px;
+    padding: 0;
   }
 
   .modal-title {
-    top: -10px;
-    margin: -10px -10px 0;
+    top: auto;
+    margin: 0;
     padding: 12px 10px;
   }
 
   .modal-actions {
+    bottom: auto;
+    margin: 0;
+    padding: 10px;
+  }
+
+  .modal-body {
+    padding: 10px;
+  }
+
+  .modal-body .modal-actions {
     bottom: -10px;
     margin: 0 -10px -10px;
     padding: 10px;
@@ -14953,13 +15058,13 @@ body,
   .modal-panel--player {
     width: 100%;
     max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-    padding: 10px;
+    padding: 0;
     border-radius: 12px;
   }
 
   .modal-title {
-    top: -10px;
-    margin: -10px -10px 0;
+    top: auto;
+    margin: 0;
     padding: 12px 10px;
   }
 
@@ -14969,10 +15074,20 @@ body,
 
   .modal-actions {
     display: grid;
+    bottom: auto;
+    margin: 0;
+    padding: 10px;
+    grid-template-columns: 1fr;
+  }
+
+  .modal-body {
+    padding: 10px;
+  }
+
+  .modal-body .modal-actions {
     bottom: -10px;
     margin: 0 -10px -10px;
     padding: 10px;
-    grid-template-columns: 1fr;
   }
 
   .modal-actions .primary-button,
@@ -17579,7 +17694,7 @@ body,
 .weight-room-library-toolbar,
 .weight-room-custom-exercise {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(132px, 132px);
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
 }
 
@@ -18672,11 +18787,19 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .weight-room-library-toolbar {
-  grid-template-columns: minmax(0, 1fr) minmax(132px, 132px) minmax(132px, 132px);
+  grid-template-columns: 1fr;
   align-items: stretch;
 }
 
+.weight-room-library-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(132px, 132px);
+  gap: 8px;
+  min-width: 0;
+}
+
 .weight-room-add-exercise-button {
+  width: 100%;
   justify-content: center;
 }
 
@@ -19363,7 +19486,8 @@ button.weight-room-athlete-table__row:hover {
 }
 
 @media (max-width: 680px) {
-  .weight-room-library-toolbar {
+  .weight-room-library-toolbar,
+  .weight-room-library-filters {
     grid-template-columns: 1fr;
   }
 
