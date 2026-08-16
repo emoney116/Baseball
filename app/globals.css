@@ -17952,7 +17952,7 @@ body,
 
 /* Weight Room athlete analytics workspace */
 .weight-room-athlete-workspace {
-  --weight-room-athlete-min-height: clamp(420px, calc(100dvh - 220px), 620px);
+  --weight-room-athlete-min-height: 0px;
   grid-template-columns: minmax(235px, 285px) minmax(0, 1fr);
   align-items: stretch;
   grid-auto-rows: auto;
@@ -17964,7 +17964,7 @@ body,
   gap: 10px;
   padding: 10px;
   grid-template-rows: auto minmax(0, 1fr);
-  min-height: var(--weight-room-athlete-min-height);
+  min-height: 0;
   background:
     linear-gradient(145deg, color-mix(in srgb, var(--burgundy) 8%, transparent), transparent 42%),
     color-mix(in srgb, var(--panel) 92%, transparent);
@@ -18070,7 +18070,7 @@ body,
 }
 
 .weight-room-athlete-panel {
-  min-height: var(--weight-room-athlete-min-height);
+  min-height: 0;
   padding: 22px 24px 24px;
   overflow: visible;
   background:
@@ -19216,7 +19216,7 @@ button.weight-room-athlete-table__row:hover {
 /* Weight Room leaderboard refinement */
 .weight-room-athlete-workspace .weight-room-player-list {
   grid-template-rows: auto minmax(0, 1fr);
-  min-height: var(--weight-room-athlete-min-height);
+  min-height: 0;
   height: 100%;
   max-height: none;
   overflow: hidden;
@@ -19251,7 +19251,7 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .weight-room-athlete-panel {
-  min-height: var(--weight-room-athlete-min-height);
+  min-height: 0;
   height: auto;
   max-height: none;
   display: block;
