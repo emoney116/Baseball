@@ -6098,13 +6098,13 @@ textarea:focus-visible {
 
 .import-row-choice .choice-select__button {
   min-height: 36px;
+  padding-inline: 10px;
   background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
 
-.import-row-choice .choice-select__menu {
-  right: 0;
-  left: auto;
-  min-width: 164px;
+.import-row-choice .choice-select__button strong {
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .file-drop {
@@ -6934,6 +6934,7 @@ select option {
   align-items: flex-start;
   gap: 9px;
   cursor: pointer;
+  user-select: none;
 }
 
 .staff-detected--selectable input {
@@ -6957,7 +6958,7 @@ select option {
 
 .import-preview__head--wide,
 .import-row--wide {
-  grid-template-columns: 46px minmax(170px, 1.1fr) minmax(130px, 0.9fr) minmax(90px, 0.55fr) minmax(120px, 0.75fr) 128px;
+  grid-template-columns: 46px minmax(164px, 1fr) minmax(126px, 0.82fr) minmax(84px, 0.48fr) minmax(112px, 0.68fr) minmax(154px, 0.62fr);
 }
 
 .import-row.has-error {

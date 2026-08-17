@@ -129,6 +129,13 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.match(choiceSelect, /choice-select__menu-edge--bottom/);
   assert.match(page, /function ImportChoiceField[\s\S]*?<ChoiceSelect/);
   assert.doesNotMatch(page, /import-choice__menu/);
+  assert.match(page, /step !== "preview" && \(\s*<section className="builder-mode-row"/);
+  assert.match(page, /step !== "preview" && files\.length > 0 && \(/);
+  assert.match(page, /<label className="staff-detected staff-detected--selectable">/);
+  assert.match(page, /label: "Use Existing"/);
+  assert.match(page, /label: "Create New"/);
+  assert.doesNotMatch(page, /Use Existing Player/);
+  assert.doesNotMatch(page, /Create New Player/);
   assert.match(page, /weight-room-auto-group-choice/);
   assert.match(orgChoiceSelect, /createPortal\(/);
   assert.match(orgChoiceSelect, /choice-select__menu--portal/);
@@ -187,6 +194,8 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.match(page, /ResizeObserver/);
   assert.doesNotMatch(css, /scrollbar-width:\s*(thin|auto)/);
   assert.doesNotMatch(css, /import-choice__menu/);
+  assert.doesNotMatch(css, /\.import-row-choice \.choice-select__menu/);
+  assert.match(css, /\.import-row-choice \.choice-select__button strong\s*\{[\s\S]*white-space:\s*nowrap/);
 });
 
 test("roster dropdown controls stay shared and roster sync skips stale memberships", () => {

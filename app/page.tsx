@@ -14219,18 +14219,20 @@ function RosterImportModal({
         </button>
       </section>
 
-      <section className="builder-mode-row" aria-label="Roster import method">
-        <button type="button" className={builderMode === "upload" ? "active" : ""} onClick={() => setBuilderMode("upload")}>
-          <Upload size={16} aria-hidden="true" />
-          Upload File
-        </button>
-        <button type="button" className={builderMode === "manual" ? "active" : ""} onClick={() => setBuilderMode("manual")}>
-          <Users size={16} aria-hidden="true" />
-          Enter Manually
-        </button>
-      </section>
+      {step !== "preview" && (
+        <section className="builder-mode-row" aria-label="Roster import method">
+          <button type="button" className={builderMode === "upload" ? "active" : ""} onClick={() => setBuilderMode("upload")}>
+            <Upload size={16} aria-hidden="true" />
+            Upload File
+          </button>
+          <button type="button" className={builderMode === "manual" ? "active" : ""} onClick={() => setBuilderMode("manual")}>
+            <Users size={16} aria-hidden="true" />
+            Enter Manually
+          </button>
+        </section>
+      )}
 
-      {builderMode === "upload" ? (
+      {step !== "preview" && (builderMode === "upload" ? (
         <>
           <label
             className="file-drop import-drop"
@@ -14264,9 +14266,9 @@ function RosterImportModal({
           onAddRows={addManualRows}
           onRemoveRow={removeManualRow}
         />
-      )}
+      ))}
 
-      {files.length > 0 && (
+      {step !== "preview" && files.length > 0 && (
         <section className="import-file-list">
           {files.map((file) => {
             const config = assignments[file.id];
@@ -14516,7 +14518,7 @@ function RosterImportModal({
                   </div>
                 </div>
                 {((files.find((source) => source.id === file.sourceId)?.staff ?? file.staff).length > 0) && (
-                  <div className="staff-detected staff-detected--selectable">
+                  <label className="staff-detected staff-detected--selectable">
                     <input
                       type="checkbox"
                       aria-label={`Add detected staff from ${file.fileName} to team`}
@@ -14527,7 +14529,7 @@ function RosterImportModal({
                       <strong>Add detected staff to team</strong>
                       <em>{(files.find((source) => source.id === file.sourceId)?.staff ?? file.staff).map((staff) => `${staff.name} - ${staff.role}`).join("; ")}</em>
                     </span>
-                  </div>
+                  </label>
                 )}
                 <div className="import-preview__head import-preview__head--wide">
                   <span>#</span>
@@ -14563,8 +14565,8 @@ function RosterImportModal({
                       disabled={row.status === "error"}
                       className="import-row-choice"
                       options={[
-                        { value: "use-existing", label: "Use Existing Player" },
-                        { value: "create-new", label: "Create New Player" },
+                        { value: "use-existing", label: "Use Existing" },
+                        { value: "create-new", label: "Create New" },
                         { value: "skip", label: "Skip" },
                       ].filter((option) => option.value !== "use-existing" || row.matchedPlayerId || row.candidatePlayerIds.length)}
                       onChange={(value) => {
