@@ -3692,8 +3692,11 @@ textarea:focus-visible {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scroll-behavior: auto;
+  scroll-snap-type: none;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   contain: layout paint;
   padding: 10px 8px;
   scroll-padding-block: 12px;
@@ -3756,6 +3759,7 @@ textarea:focus-visible {
   font-weight: 720;
   white-space: nowrap;
   cursor: pointer;
+  scroll-snap-align: none;
 }
 
 .choice-select__menu-edge {
@@ -5875,8 +5879,7 @@ textarea:focus-visible {
   gap: 12px;
 }
 
-.filter-select span,
-.status-select-wrap span,
+.choice-select.filter-select > span,
 .roster-row__metrics span {
   color: var(--muted);
   font-size: 12px;
@@ -5935,7 +5938,7 @@ textarea:focus-visible {
   align-items: center;
 }
 
-.filter-select {
+.choice-select.filter-select {
   min-height: 38px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -5947,7 +5950,7 @@ textarea:focus-visible {
   padding: 0 9px;
 }
 
-.filter-select .choice-select__button {
+.choice-select.filter-select .choice-select__button {
   min-height: 34px;
   border: 0;
   border-radius: 7px;
@@ -5956,14 +5959,8 @@ textarea:focus-visible {
   box-shadow: none;
 }
 
-.filter-select .choice-select__menu {
-  left: auto;
-  right: -2px;
-  min-width: 148px;
-}
-
-.filter-select select,
-.status-select-wrap select,
+.choice-select.filter-select select,
+.choice-select.status-select-wrap select,
 .import-row select {
   min-width: 0;
   border: 0;
@@ -5973,8 +5970,8 @@ textarea:focus-visible {
   outline: 0;
 }
 
-.filter-select option,
-.status-select-wrap option,
+.choice-select.filter-select option,
+.choice-select.status-select-wrap option,
 .import-row option {
   color: #111827;
 }
@@ -6045,7 +6042,7 @@ textarea:focus-visible {
 }
 
 .roster-row__metrics,
-.status-select-wrap {
+.choice-select.status-select-wrap {
   display: grid;
   gap: 3px;
 }
@@ -6054,7 +6051,7 @@ textarea:focus-visible {
   font-size: 13px;
 }
 
-.status-select-wrap {
+.choice-select.status-select-wrap {
   min-height: 42px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -6062,7 +6059,7 @@ textarea:focus-visible {
   padding: 6px 8px;
 }
 
-.status-select-wrap select {
+.choice-select.status-select-wrap select {
   width: 100%;
 }
 
@@ -6101,13 +6098,13 @@ textarea:focus-visible {
 
 .import-row-choice .choice-select__button {
   min-height: 36px;
+  padding-inline: 10px;
   background: color-mix(in srgb, var(--surface) 82%, transparent);
 }
 
-.import-row-choice .choice-select__menu {
-  right: 0;
-  left: auto;
-  min-width: 164px;
+.import-row-choice .choice-select__button strong {
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .file-drop {
@@ -6373,7 +6370,7 @@ textarea:focus-visible {
   gap: 5px;
 }
 
-.import-choice {
+.choice-select.import-choice {
   min-width: 0;
   position: relative;
   display: grid;
@@ -6384,13 +6381,13 @@ textarea:focus-visible {
   padding: 10px;
 }
 
-.import-choice > span {
+.choice-select.import-choice > span {
   color: var(--muted);
   font-size: 11px;
   font-weight: 760;
 }
 
-.import-choice .choice-select__button,
+.choice-select.import-choice .choice-select__button,
 .import-choice__button {
   min-width: 0;
   min-height: 42px;
@@ -6408,7 +6405,7 @@ textarea:focus-visible {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
-.import-choice .choice-select__button strong {
+.choice-select.import-choice .choice-select__button strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6417,8 +6414,8 @@ textarea:focus-visible {
   font-weight: 760;
 }
 
-.import-choice.open .choice-select__button,
-.import-choice .choice-select__button:focus-visible {
+.choice-select.import-choice.open .choice-select__button,
+.choice-select.import-choice .choice-select__button:focus-visible {
   border-color: color-mix(in srgb, var(--burgundy) 70%, var(--line));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 18%, transparent);
 }
@@ -6489,8 +6486,8 @@ textarea:focus-visible {
 }
 
 .import-assignment-grid select option,
-.filter-select select option,
-.status-select-wrap select option,
+.choice-select.filter-select select option,
+.choice-select.status-select-wrap select option,
 .single-player-row select option {
   background: var(--surface);
   color: var(--text);
@@ -6506,7 +6503,7 @@ textarea:focus-visible {
   background: rgba(255, 255, 255, 0.82);
 }
 
-[data-theme="light"] .import-choice {
+[data-theme="light"] .choice-select.import-choice {
   background: #ffffff;
 }
 
@@ -6937,6 +6934,7 @@ select option {
   align-items: flex-start;
   gap: 9px;
   cursor: pointer;
+  user-select: none;
 }
 
 .staff-detected--selectable input {
@@ -6960,7 +6958,7 @@ select option {
 
 .import-preview__head--wide,
 .import-row--wide {
-  grid-template-columns: 46px minmax(170px, 1.1fr) minmax(130px, 0.9fr) minmax(90px, 0.55fr) minmax(120px, 0.75fr) 128px;
+  grid-template-columns: 46px minmax(164px, 1fr) minmax(126px, 0.82fr) minmax(84px, 0.48fr) minmax(112px, 0.68fr) minmax(154px, 0.62fr);
 }
 
 .import-row.has-error {
@@ -11408,7 +11406,7 @@ select option {
     grid-template-columns: 46px 36px 1fr;
   }
 
-  .status-select-wrap {
+  .choice-select.status-select-wrap {
     width: 100%;
   }
 
@@ -13429,13 +13427,13 @@ body {
 }
 
 .search-pill,
-.filter-select {
+.choice-select.filter-select {
   min-height: 38px;
   background: var(--panel-soft);
   border-color: var(--line);
 }
 
-.filter-select span {
+.choice-select.filter-select > span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 620;
@@ -13565,7 +13563,7 @@ body {
   font-size: 12px;
 }
 
-.status-select-wrap {
+.choice-select.status-select-wrap {
   min-height: 28px;
   width: fit-content;
   min-width: 92px;
@@ -13577,7 +13575,7 @@ body {
   background: var(--panel-soft);
 }
 
-.status-select-wrap .choice-select__button {
+.choice-select.status-select-wrap .choice-select__button {
   min-height: 28px;
   height: 28px;
   border: 0;
@@ -13588,23 +13586,18 @@ body {
   box-shadow: none;
 }
 
-.status-select-wrap .choice-select__button strong {
+.choice-select.status-select-wrap .choice-select__button strong {
   color: #fff;
   font-size: 11px;
   font-weight: 760;
   text-transform: uppercase;
 }
 
-.status-select-wrap .choice-select__button svg {
+.choice-select.status-select-wrap .choice-select__button svg {
   color: rgba(255, 255, 255, 0.84);
 }
 
-.status-select-wrap .choice-select__menu {
-  min-width: 118px;
-  left: -7px;
-}
-
-.status-select-wrap select {
+.choice-select.status-select-wrap select {
   height: 28px;
   color: #fff;
   font-size: 11px;
@@ -13612,19 +13605,19 @@ body {
   text-transform: uppercase;
 }
 
-.status-select-wrap--varsity {
+.choice-select.status-select-wrap--varsity {
   background: var(--burgundy);
 }
 
-.status-select-wrap--jv {
+.choice-select.status-select-wrap--jv {
   background: #255c88;
 }
 
-.status-select-wrap--undecided {
+.choice-select.status-select-wrap--undecided {
   background: #4b5563;
 }
 
-.status-select-wrap--cut {
+.choice-select.status-select-wrap--cut {
   background: #2f343b;
 }
 
@@ -14496,12 +14489,12 @@ body {
     gap: 8px;
   }
 
-  .status-select-wrap {
+  .choice-select.status-select-wrap {
     min-width: 78px;
     padding-inline: 6px;
   }
 
-  .status-select-wrap select {
+  .choice-select.status-select-wrap select {
     font-size: 10px;
   }
 
@@ -14565,7 +14558,7 @@ body,
 }
 
 .choice-select.open,
-.import-choice.open {
+.choice-select.import-choice.open {
   z-index: 160;
 }
 
@@ -15027,7 +15020,7 @@ body,
     gap: 8px;
   }
 
-  .import-choice {
+  .choice-select.import-choice {
     padding: 8px;
   }
 
@@ -15196,7 +15189,7 @@ body,
     content: "Class ";
   }
 
-  .status-select-wrap {
+  .choice-select.status-select-wrap {
     grid-column: 3;
     grid-row: 1;
     justify-self: end;
@@ -17199,8 +17192,8 @@ body,
 .schedule-event-form label > span,
 .schedule-event-form .form-field > span,
 .schedule-date-weekdays span,
-.filter-select span,
-.status-select-wrap span,
+.choice-select.filter-select > span,
+.choice-select.status-select-wrap > span,
 .roster-row__metrics span,
 .profile-line > span,
 .choice-select__label,
@@ -17412,8 +17405,8 @@ body,
 .attendance-status-key,
 .attendance-status-key-popover span,
 .team-switcher small,
-.status-select-wrap .choice-select__button strong,
-.status-select-wrap select {
+.choice-select.status-select-wrap .choice-select__button strong,
+.choice-select.status-select-wrap select {
   text-transform: none;
 }
 
@@ -17797,16 +17790,13 @@ body,
   text-align: right;
 }
 
-.weight-room-workout-detail-table,
-.weight-room-exercise-box-table {
+.weight-room-workout-detail-table {
   max-height: 360px;
   display: grid;
   gap: 5px;
 }
 
-.weight-room-workout-detail-table > div,
-.weight-room-exercise-box-table > div,
-.weight-room-exercise-box-table > button {
+.weight-room-workout-detail-table > div {
   min-width: 820px;
   display: grid;
   align-items: center;
@@ -17821,34 +17811,15 @@ body,
   grid-template-columns: minmax(150px, 1.2fr) 42px repeat(6, minmax(74px, 0.7fr));
 }
 
-.weight-room-exercise-box-table > div,
-.weight-room-exercise-box-table > button {
-  grid-template-columns: minmax(155px, 1.25fr) repeat(7, minmax(78px, 0.7fr));
-}
-
-.weight-room-workout-detail-table > div:first-child,
-.weight-room-exercise-box-table > div:first-child {
+.weight-room-workout-detail-table > div:first-child {
   position: sticky;
   top: 0;
   z-index: 2;
   background: var(--panel-strong);
 }
 
-.weight-room-exercise-box-table > button {
-  width: 100%;
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-}
-
-.weight-room-exercise-box-table > button:hover {
-  border-color: color-mix(in srgb, var(--burgundy) 44%, var(--line));
-}
-
 .weight-room-workout-detail-table span,
-.weight-room-workout-detail-table em,
-.weight-room-exercise-box-table span,
-.weight-room-exercise-box-table em {
+.weight-room-workout-detail-table em {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -17857,8 +17828,7 @@ body,
   font-style: normal;
 }
 
-.weight-room-workout-detail-table strong,
-.weight-room-exercise-box-table strong {
+.weight-room-workout-detail-table strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -17953,21 +17923,22 @@ body,
 /* Weight Room athlete analytics workspace */
 .weight-room-athlete-workspace {
   --weight-room-athlete-min-height: 0px;
-  --weight-room-athlete-detail-height: auto;
+  --weight-room-athlete-detail-height: clamp(440px, calc(100dvh - 250px), 680px);
   grid-template-columns: minmax(235px, 285px) minmax(0, 1fr);
-  align-items: stretch;
+  align-items: start;
   grid-auto-rows: auto;
 }
 
 .weight-room-athlete-workspace .weight-room-player-list {
   height: var(--weight-room-athlete-detail-height);
   max-height: var(--weight-room-athlete-detail-height);
-  align-self: stretch;
-  display: grid;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   padding: 10px;
-  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
+  overflow: hidden;
   background:
     linear-gradient(145deg, color-mix(in srgb, var(--burgundy) 8%, transparent), transparent 42%),
     color-mix(in srgb, var(--panel) 92%, transparent);
@@ -18024,8 +17995,10 @@ body,
 }
 
 .weight-room-athlete-workspace .weight-room-player-list__scroll {
+  flex: 1 1 auto;
   max-height: none;
   height: 100%;
+  min-height: 0;
   overflow-y: auto;
   display: grid;
   gap: 6px;
@@ -18374,6 +18347,11 @@ body,
   grid-template-columns: minmax(240px, 1fr) minmax(170px, 220px);
 }
 
+.weight-room-athlete-controls--exercise-box {
+  grid-template-columns: minmax(260px, 1fr) minmax(128px, 170px);
+  align-items: center;
+}
+
 .weight-room-athlete-controls--exercise-box .choice-select.open .choice-select__menu {
   top: auto;
   bottom: calc(100% + 5px);
@@ -18442,7 +18420,48 @@ body,
 
 .weight-room-exercise-box-table .weight-room-athlete-table__head,
 .weight-room-exercise-box-table .weight-room-athlete-table__row {
-  grid-template-columns: minmax(230px, 1.35fr) repeat(7, minmax(118px, 0.75fr));
+  --weight-room-exercise-progress-columns:
+    minmax(230px, 1.36fr)
+    minmax(104px, 0.72fr)
+    minmax(94px, 0.64fr)
+    minmax(98px, 0.64fr)
+    minmax(94px, 0.64fr)
+    minmax(116px, 0.74fr)
+    minmax(104px, 0.72fr)
+    minmax(70px, 0.44fr);
+  width: max(100%, 980px);
+  min-width: 980px;
+  grid-template-columns: var(--weight-room-exercise-progress-columns);
+  gap: 0;
+}
+
+.weight-room-exercise-progress-scroll {
+  max-width: 100%;
+}
+
+.weight-room-exercise-progress-scroll .scroll-cue-panel__body {
+  max-width: 100%;
+}
+
+.weight-room-exercise-box-table .weight-room-athlete-table__head button,
+.weight-room-exercise-box-table .weight-room-athlete-table__row > * {
+  min-width: 0;
+  justify-content: center;
+  padding-inline: 8px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.weight-room-exercise-box-table .weight-room-athlete-table__head button:first-child,
+.weight-room-exercise-box-table .weight-room-athlete-table__row > :first-child {
+  justify-content: flex-start;
+  padding-left: 10px;
+  text-align: left;
+}
+
+.weight-room-exercise-box-table .weight-room-athlete-table__head button:not(:first-child) {
+  border-left: 1px solid var(--line);
+  padding-left: 8px;
 }
 
 .weight-room-athlete-table__head {
@@ -18551,6 +18570,27 @@ button.weight-room-athlete-table__row:hover {
   font-style: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.weight-room-exercise-box-table .weight-room-athlete-table__head button,
+.weight-room-exercise-box-table .weight-room-athlete-table__row > * {
+  justify-content: center;
+  padding-inline: 8px;
+  text-align: center;
+}
+
+.weight-room-exercise-box-table .weight-room-athlete-table__head button:first-child,
+.weight-room-exercise-box-table .weight-room-athlete-table__row > :first-child {
+  justify-content: flex-start;
+  padding-left: 10px;
+  text-align: left;
+}
+
+.weight-room-exercise-box-table .weight-room-athlete-table__row span,
+.weight-room-exercise-box-table .weight-room-athlete-table__row em {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .weight-room-workout-group {
@@ -18707,56 +18747,12 @@ button.weight-room-athlete-table__row:hover {
   font-weight: var(--weight-selected);
 }
 
-.weight-room-score-lines i,
-.weight-room-exercise-breakdown i {
+.weight-room-score-lines i {
   height: 7px;
   border-radius: 999px;
   background:
     linear-gradient(90deg, var(--burgundy-strong) var(--value), transparent 0),
     color-mix(in srgb, var(--muted) 16%, transparent);
-}
-
-.weight-room-exercise-breakdown {
-  display: grid;
-}
-
-.weight-room-exercise-breakdown button {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(100px, 34%) 76px auto;
-  align-items: center;
-  gap: 12px;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  background: transparent;
-  color: var(--text);
-  padding: 12px 0;
-  text-align: left;
-  cursor: pointer;
-}
-
-.weight-room-exercise-breakdown button:last-child {
-  border-bottom: 0;
-}
-
-.weight-room-exercise-breakdown span {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.weight-room-exercise-breakdown strong {
-  overflow: hidden;
-  font-size: var(--text-table-row);
-  font-weight: var(--weight-selected);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.weight-room-exercise-breakdown em {
-  font-style: normal;
-  font-weight: var(--weight-selected);
-  text-align: right;
 }
 
 .weight-room-progress-insight {
@@ -18808,7 +18804,7 @@ button.weight-room-athlete-table__row:hover {
 @media (max-width: 900px) {
   .weight-room-athlete-workspace {
     --weight-room-athlete-min-height: auto;
-    --weight-room-athlete-detail-height: auto;
+    --weight-room-athlete-detail-height: clamp(360px, 58dvh, 560px);
     grid-template-columns: 1fr;
   }
 
@@ -18898,13 +18894,6 @@ button.weight-room-athlete-table__row:hover {
     grid-template-columns: 1fr;
   }
 
-  .weight-room-exercise-breakdown button {
-    grid-template-columns: minmax(0, 1fr) 72px auto;
-  }
-
-  .weight-room-exercise-breakdown button i {
-    display: none;
-  }
 }
 
 /* Weight Room exercise library refinement */
@@ -19247,10 +19236,11 @@ button.weight-room-athlete-table__row:hover {
 
 /* Weight Room leaderboard refinement */
 .weight-room-athlete-workspace .weight-room-player-list {
-  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
   height: var(--weight-room-athlete-detail-height);
   max-height: var(--weight-room-athlete-detail-height);
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
@@ -19270,11 +19260,13 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .weight-room-player-list__scroll-panel {
+  flex: 1 1 auto;
   min-height: 0;
-  height: 100%;
+  height: auto;
 }
 
 .weight-room-player-list__scroll-panel .scroll-cue-panel__body {
+  height: 100%;
   padding-right: 1px;
 }
 
@@ -22664,5 +22656,190 @@ button.weight-room-athlete-table__row:hover {
   .weight-room-active-weigh-table em {
     grid-area: change;
     justify-self: end;
+  }
+}
+
+/* Practice release overrides: keep these late so they win older tracker styles. */
+.modal-panel--practice-start {
+  width: min(900px, calc(100vw - 28px));
+  max-height: calc(100dvh - 28px);
+}
+
+.modal-panel--practice-start .modal-body {
+  gap: 12px;
+}
+
+.modal-panel--practice-start .modal-footer-slot {
+  padding-top: 10px;
+}
+
+.practice-start-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.attendance-roster__scroll .scroll-cue-panel__body {
+  max-height: min(38dvh, 410px);
+  padding-bottom: 8px;
+}
+
+.attendance-roster__list {
+  max-height: none;
+  overflow: visible;
+}
+
+.hitting-context-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hitting-context-controls--compact {
+  margin-top: -2px;
+}
+
+.pitch-type-row--compact {
+  flex: 1 1 280px;
+  min-width: 240px;
+}
+
+.hitting-option-toggle {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  color: var(--muted-strong);
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.hitting-option-toggle.active {
+  border-color: color-mix(in srgb, var(--tracker-accent) 50%, var(--line));
+  background: color-mix(in srgb, var(--tracker-accent) 16%, var(--panel-soft));
+  color: var(--text);
+}
+
+.exit-velocity-input {
+  min-height: 38px;
+  width: 156px;
+  border: 1px solid color-mix(in srgb, var(--tracker-accent) 34%, var(--line));
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.035);
+  display: grid;
+  grid-template-columns: auto minmax(42px, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+}
+
+.exit-velocity-input span,
+.exit-velocity-input em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.exit-velocity-input input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 950;
+  outline: 0;
+  text-align: right;
+}
+
+.exit-velocity-error {
+  color: #fda4af;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quick-pad--swing-results {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.quick-pad--swing-results button {
+  min-height: 58px;
+  text-transform: none;
+  font-size: clamp(14px, 1vw, 16px);
+  letter-spacing: 0;
+}
+
+.quick-pad--swing-results .swing-result--hard {
+  background: linear-gradient(180deg, color-mix(in srgb, #22c55e 28%, var(--panel-soft)), color-mix(in srgb, #22c55e 10%, var(--panel-soft)));
+  border-color: color-mix(in srgb, #22c55e 36%, var(--line));
+}
+
+.quick-pad--swing-results .swing-result--soft {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+}
+
+.quick-pad--swing-results .swing-result--miss {
+  background: linear-gradient(180deg, color-mix(in srgb, #ef4444 20%, var(--panel-soft)), color-mix(in srgb, #ef4444 7%, var(--panel-soft)));
+  border-color: color-mix(in srgb, #ef4444 26%, var(--line));
+}
+
+.tracking-visual--compact {
+  min-height: 220px;
+  border: 1px dashed color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--tracker-accent) 14%, transparent), transparent 42%),
+    var(--panel-soft);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 22px;
+  text-align: center;
+}
+
+.tracking-visual--compact span,
+.tracking-visual--compact small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.tracking-visual--compact strong {
+  font-size: 18px;
+}
+
+.practice-player-strip__player-scroll {
+  min-width: 0;
+}
+
+.practice-player-strip__player-scroll .scroll-cue-panel__body {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.practice-player-strip__player-scroll .scroll-cue-panel__fade--left,
+.practice-player-strip__player-scroll .scroll-cue-panel__fade--right {
+  width: 38px;
+}
+
+@media (max-width: 860px) {
+  .quick-pad--swing-results {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hitting-context-controls,
+  .pitch-type-row--compact {
+    min-width: 0;
+  }
+
+  .exit-velocity-input {
+    width: min(180px, 100%);
   }
 }

@@ -15,7 +15,14 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /function PracticeConsole\(/);
   assert.match(page, /function availablePracticePlayers\(/);
   assert.match(page, /return status === "Present" \|\| status === "Late"/);
-  assert.match(page, /"Hack Attack - FB", "Hack Attack - CB"/);
+  assert.match(page, /const HITTING_STATIONS: HittingSession\["type"\]\[\] = \["Tee", "Front Toss", "Machine", "Coach BP", "Live BP", "Other"\]/);
+  assert.match(page, /const HITTING_RESULT_ACTIONS/);
+  assert.match(page, /label: "Hard LD"/);
+  assert.match(page, /exitVelocityMph/);
+  assert.match(page, /function clearPendingHittingContext\(\)/);
+  assert.match(page, /onTrackExitVelocity/);
+  assert.match(page, /attendance-roster__scroll/);
+  assert.match(page, /practice-player-strip__player-scroll/);
   assert.match(page, /practice-tracker-tabs/);
   assert.match(page, /PracticeRecentEventTable/);
   assert.match(page, /Undo Last/);
@@ -25,7 +32,7 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /onOpenStation=\{openPracticeStation\}/);
   assert.match(page, /onUndo=\{undoPracticeEvent\}/);
 
-  assert.match(page, /Hard Contact/);
+  assert.doesNotMatch(page, /Hard Contact<\/button>/);
   assert.match(page, /StrikeZone points=\{pitchEvents\.map/);
   assert.match(page, /PracticeDashboardStrip/);
 

@@ -1487,6 +1487,7 @@ async function syncPlayers(supabase: SupabaseClient, foundation: Foundation, pla
   const { error: playerError } = await supabase.from("players").upsert(playerRows, { onConflict: "id" });
   if (playerError) throw new PersistenceError("save-failed", playerError.message);
 
+  const submittedPlayerIds = new Set(playerRows.map((player) => player.id).filter(Boolean));
   const membershipRows = (memberships && memberships.length > 0
     ? memberships
     : players.map((player) => ({
@@ -1499,7 +1500,7 @@ async function syncPlayers(supabase: SupabaseClient, foundation: Foundation, pla
         rosterRole: player.programLevel ?? undefined,
         active: !player.archived,
       } as PlayerTeamMembership)))
-    .filter((membership) => membership.teamId && membership.seasonId)
+    .filter((membership) => membership.playerId && submittedPlayerIds.has(membership.playerId) && membership.teamId && membership.seasonId)
     .map((membership) => ({
       player_id: membership.playerId,
       team_id: membership.teamId,
@@ -2773,6 +2774,7 @@ function mapHittingEvent(row: any): HittingEvent {
     fieldLocation: row.field_location ?? undefined,
     pitchType: row.pitch_type ?? undefined,
     velocity: toNumber(row.velocity),
+    exitVelocityMph: toNumber(row.exit_velocity_mph),
     isLiveBp: row.is_live_bp,
     createdAt: row.created_at,
     createdByProfileId: row.created_by_profile_id ?? undefined,
@@ -3210,6 +3212,7 @@ function mapHittingEventToRow(event: HittingEvent) {
     field_location: event.fieldLocation ?? null,
     pitch_type: event.pitchType ?? null,
     velocity: event.velocity ?? null,
+    exit_velocity_mph: event.exitVelocityMph ?? null,
     is_live_bp: event.isLiveBp ?? false,
     context: event.isLiveBp ? "live_bp" : "practice",
     created_at: event.createdAt,

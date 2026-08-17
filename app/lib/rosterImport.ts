@@ -795,7 +795,8 @@ function normalizeBats(value: string): Player["bats"] | undefined {
 
 function normalizeThrows(value: string): Player["throws"] | undefined {
   const normalized = value.trim().toUpperCase();
-  return normalized === "L" || normalized === "R" ? normalized : undefined;
+  if (["SW", "SWITCH", "BOTH"].includes(normalized)) return "S";
+  return normalized === "L" || normalized === "R" || normalized === "S" ? normalized : undefined;
 }
 
 function interpretGraduationYear(value: string, seasonName?: string) {

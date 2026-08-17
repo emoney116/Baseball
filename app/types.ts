@@ -35,7 +35,7 @@ export type Position =
   | "DH";
 
 export type Handedness = "R" | "L" | "S";
-export type Throws = "R" | "L";
+export type Throws = "R" | "L" | "S";
 export type RosterStatus = "Varsity" | "JV" | "Undecided" | "Cut";
 export type ProgramLevel = "Varsity" | "JV" | "Development";
 export type TeamMembershipRole = "OWNER" | "ADMIN" | "HEAD_COACH" | "ASSISTANT_COACH" | "STAFF" | "COACH" | "PLAYER";
@@ -532,6 +532,7 @@ export type HittingEvent = {
   fieldLocation?: ZonePoint;
   pitchType?: PitchType;
   velocity?: number;
+  exitVelocityMph?: number;
   isLiveBp?: boolean;
   createdAt: string;
 } & PracticeEventAudit;
