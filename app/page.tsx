@@ -456,6 +456,11 @@ const STAFF_BASEBALL_ROLES: StaffBaseballRole[] = [
 const STAFF_ACCESS_ROLES: StaffAccessRole[] = ["ADMIN", "COACH"];
 const POSITIONS: Position[] = ["P", "RHP", "LHP", "C", "1B", "2B", "3B", "SS", "INF", "LF", "CF", "RF", "OF", "UTIL", "DH"];
 const SECONDARY_POSITIONS: Array<Position | ""> = ["", ...POSITIONS];
+const HANDEDNESS_OPTIONS: Player["bats"][] = ["R", "L", "S"];
+const THROWS_OPTIONS: Player["throws"][] = ["R", "L", "S"];
+const GRADUATION_YEAR_START = 2026;
+const GRADUATION_YEAR_END = GRADUATION_YEAR_START + 100;
+const GRADUATION_YEAR_OPTIONS = Array.from({ length: GRADUATION_YEAR_END - GRADUATION_YEAR_START + 1 }, (_, index) => GRADUATION_YEAR_START + index);
 const PRACTICE_TYPES: PracticeType[] = ["Team Practice", "Hitting", "Pitching", "Defense", "Live BP", "Scrimmage", "Bullpen Day", "Full Practice", "Hitting Day", "Pitcher Development", "Hitter Development", "Custom"];
 const ATTENDANCE_STATUSES: PracticeAttendanceStatus[] = ["Present", "Absent", "Excused", "Late"];
 const ATTENDANCE_STATUS_KEY: Array<{ status: PracticeAttendanceStatus; short: string; className: string }> = [
@@ -532,6 +537,14 @@ function slugifyFilePart(value: string) {
 
 function currentRosterYear() {
   return new Date().getFullYear();
+}
+
+function graduationYearOptions(currentValue?: number | string) {
+  const current = Number(currentValue);
+  const years = Number.isFinite(current) && current > 0 && !GRADUATION_YEAR_OPTIONS.includes(current)
+    ? [current, ...GRADUATION_YEAR_OPTIONS]
+    : GRADUATION_YEAR_OPTIONS;
+  return years.map((year) => ({ value: String(year), label: String(year) }));
 }
 
 function buildSeasonOptions() {
@@ -2157,19 +2170,21 @@ export default function MetrolinaBaseballApp() {
       </aside>
 
       <section className="ops-main">
-        <TopCommand
-          onStartPractice={() => setStartPracticeOpen(true)}
-          onStartGame={() => setStartGameOpen(true)}
-          onView={goToView}
-          showTeamActions={false}
-          context={data.teamContext}
-          accountMenuOpen={topAccountMenuOpen}
-          onAccountMenu={(open) => {
-            setTopAccountMenuOpen(open);
-            if (open) setSidebarAccountMenuOpen(false);
-          }}
-          onSignOut={signOut}
-        />
+        {!inTeamContext && (
+          <TopCommand
+            onStartPractice={() => setStartPracticeOpen(true)}
+            onStartGame={() => setStartGameOpen(true)}
+            onView={goToView}
+            showTeamActions={false}
+            context={data.teamContext}
+            accountMenuOpen={topAccountMenuOpen}
+            onAccountMenu={(open) => {
+              setTopAccountMenuOpen(open);
+              if (open) setSidebarAccountMenuOpen(false);
+            }}
+            onSignOut={signOut}
+          />
+        )}
 
         <SyncStatusBanner status={saveStatus} error={saveError} />
 
@@ -13515,11 +13530,11 @@ function PlayerEditorModal({ player, onClose, onSave }: { player?: Player; onClo
           <div className="single-player-row">
             <input aria-label="Name" placeholder="Player name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
             <ManualNumberCell label="Number" placeholder="#" value={form.jerseyNumber ? String(form.jerseyNumber) : ""} min={0} max={99} onChange={(value) => setForm({ ...form, jerseyNumber: Number(value) || 0 })} />
-            <ManualNumberCell label="Graduation" placeholder="Class" value={String(form.graduationYear || currentRosterYear())} min={2020} max={2045} onChange={(value) => setForm({ ...form, graduationYear: Number(value) || currentRosterYear() })} />
+            <ChoiceSelect aria-label="Graduation" value={String(form.graduationYear || currentRosterYear())} className="manual-choice-cell manual-year-cell" options={graduationYearOptions(form.graduationYear)} onChange={(value) => setForm({ ...form, graduationYear: Number(value) || currentRosterYear() })} />
             <ChoiceSelect aria-label="Primary" value={form.primaryPosition} className="manual-choice-cell" options={POSITIONS.map((position) => ({ value: position, label: position }))} onChange={(value) => setForm({ ...form, primaryPosition: value as Position })} />
             <ChoiceSelect aria-label="Secondary" value={form.secondaryPosition ?? ""} className="manual-choice-cell" options={SECONDARY_POSITIONS.map((position) => ({ value: position, label: position || "None" }))} onChange={(value) => setForm({ ...form, secondaryPosition: value ? value as Position : undefined })} />
-            <ChoiceSelect aria-label="Bats" value={form.bats} className="manual-choice-cell" options={["R", "L", "S"].map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, bats: value as Player["bats"] })} />
-            <ChoiceSelect aria-label="Throws" value={form.throws} className="manual-choice-cell" options={["R", "L"].map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, throws: value as Player["throws"] })} />
+            <ChoiceSelect aria-label="Bats" value={form.bats} className="manual-choice-cell" options={HANDEDNESS_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, bats: value as Player["bats"] })} />
+            <ChoiceSelect aria-label="Throws" value={form.throws} className="manual-choice-cell" options={THROWS_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, throws: value as Player["throws"] })} />
             <ManualHeightCell value={String(heightToInches(form.height))} onChange={(heightInches) => setForm({ ...form, height: heightInches ? formatHeightFromInches(Number(heightInches)) : undefined })} />
             <ManualNumberCell label="Weight" placeholder="Wt" value={form.weight ? String(form.weight) : ""} min={80} max={320} onChange={(value) => setForm({ ...form, weight: Number(value) || undefined })} />
             <ChoiceSelect aria-label="Status" value={form.rosterStatus ?? "Undecided"} className="manual-choice-cell" options={ROSTER_STATUSES.map((status) => ({ value: status, label: status }))} onChange={(value) => setForm({ ...form, rosterStatus: value as RosterStatus })} />
@@ -14721,7 +14736,13 @@ function ManualRosterBuilder({
                   value={row.lastName}
                   onChange={(event) => onChangeRow(row.id, { lastName: event.target.value })}
                 />
-                <ManualNumberCell label="Graduation year" placeholder="Class" value={row.graduationYear} min={2020} max={2045} onChange={(graduationYear) => onChangeRow(row.id, { graduationYear })} />
+                <ChoiceSelect
+                  aria-label="Graduation year"
+                  value={row.graduationYear || String(currentRosterYear())}
+                  className="manual-choice-cell manual-year-cell"
+                  options={graduationYearOptions(row.graduationYear)}
+                  onChange={(graduationYear) => onChangeRow(row.id, { graduationYear })}
+                />
                 <ChoiceSelect
                   aria-label="Primary position"
                   value={row.primaryPosition}
@@ -14740,14 +14761,14 @@ function ManualRosterBuilder({
                   aria-label="Bats"
                   value={row.bats}
                   className="manual-choice-cell"
-                  options={["R", "L", "S"].map((value) => ({ value, label: value }))}
+                  options={HANDEDNESS_OPTIONS.map((value) => ({ value, label: value }))}
                   onChange={(value) => onChangeRow(row.id, { bats: value as Player["bats"] })}
                 />
                 <ChoiceSelect
                   aria-label="Throws"
                   value={row.throws}
                   className="manual-choice-cell"
-                  options={["R", "L"].map((value) => ({ value, label: value }))}
+                  options={THROWS_OPTIONS.map((value) => ({ value, label: value }))}
                   onChange={(value) => onChangeRow(row.id, { throws: value as Player["throws"] })}
                 />
                 <ManualHeightCell value={row.heightInches} onChange={(heightInches) => onChangeRow(row.id, { heightInches })} />
@@ -14944,7 +14965,7 @@ function manualRowProblems(row: ManualRosterRow) {
   const weight = Number(row.weight);
   if (!row.firstName.trim()) problems.push("First name required.");
   if (!row.lastName.trim()) problems.push("Last name required.");
-  if (!Number.isInteger(grad) || grad < 2020 || grad > 2045) problems.push("Class year required.");
+  if (!Number.isInteger(grad) || grad < GRADUATION_YEAR_START || grad > GRADUATION_YEAR_END) problems.push("Class year required.");
   if (!row.primaryPosition) problems.push("Primary position required.");
   if (row.heightInches && (!Number.isInteger(height) || height < 48 || height > 90)) problems.push("Height must be inches.");
   if (row.weight && (!Number.isInteger(weight) || weight < 80 || weight > 320)) problems.push("Weight out of range.");

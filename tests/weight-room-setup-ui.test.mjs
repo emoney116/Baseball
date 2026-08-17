@@ -188,3 +188,37 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.doesNotMatch(css, /scrollbar-width:\s*(thin|auto)/);
   assert.doesNotMatch(css, /import-choice__menu/);
 });
+
+test("roster dropdown controls stay shared and roster sync skips stale memberships", () => {
+  const page = readFileSync("app/page.tsx", "utf8");
+  const css = readFileSync("app/globals.css", "utf8");
+  const route = readFileSync("app/api/roster/sync/route.ts", "utf8");
+  const repository = readFileSync("app/data/supabaseRepository.ts", "utf8");
+  const types = readFileSync("app/types.ts", "utf8");
+  const rosterImport = readFileSync("app/lib/rosterImport.ts", "utf8");
+
+  assert.match(types, /export type Throws = "R" \| "L" \| "S"/);
+  assert.match(page, /const THROWS_OPTIONS: Player\["throws"\]\[] = \["R", "L", "S"\]/);
+  assert.match(page, /const GRADUATION_YEAR_START = 2026/);
+  assert.match(page, /const GRADUATION_YEAR_END = GRADUATION_YEAR_START \+ 100/);
+  assert.match(page, /function graduationYearOptions/);
+  assert.match(page, /aria-label="Graduation"[\s\S]*options=\{graduationYearOptions\(form\.graduationYear\)\}/);
+  assert.match(page, /aria-label="Graduation year"[\s\S]*options=\{graduationYearOptions\(row\.graduationYear\)\}/);
+  assert.doesNotMatch(page, /ManualNumberCell label="Graduation/);
+  assert.doesNotMatch(page, /options=\{\["R", "L"\]\.map/);
+  assert.match(page, /\{!inTeamContext && \(\s*<TopCommand/);
+
+  assert.match(route, /const submittedPlayerIds = new Set/);
+  assert.match(route, /submittedPlayerIds\.has\(membership\.playerId\)/);
+  assert.match(repository, /const submittedPlayerIds = new Set/);
+  assert.match(repository, /submittedPlayerIds\.has\(membership\.playerId\)/);
+  assert.match(rosterImport, /"SWITCH"/);
+
+  assert.match(css, /\.choice-select\.status-select-wrap--varsity/);
+  assert.match(css, /\.choice-select\.import-choice/);
+  assert.match(css, /\.choice-select\.filter-select/);
+  assert.doesNotMatch(css, /^\.status-select-wrap--varsity/m);
+  assert.doesNotMatch(css, /^\.import-choice\s*\{/m);
+  assert.doesNotMatch(css, /^\.filter-select\s*\{/m);
+  assert.doesNotMatch(css, /\.status-select-wrap \.choice-select__menu/);
+});

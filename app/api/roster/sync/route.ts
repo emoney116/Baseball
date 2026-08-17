@@ -157,8 +157,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, message: playerError.message }, { status: 500 });
     }
 
+    const submittedPlayerIds = new Set(playerRows.map((player) => player.id).filter(Boolean));
     const membershipRows = membershipInputs
-      .filter((membership) => membership.playerId && membership.teamId && membership.seasonId)
+      .filter((membership) => membership.playerId && submittedPlayerIds.has(membership.playerId) && membership.teamId && membership.seasonId)
       .map((membership) => {
         const season = seasonsById.get(membership.seasonId as string);
         const team = teamsById.get(membership.teamId as string);

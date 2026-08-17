@@ -1487,6 +1487,7 @@ async function syncPlayers(supabase: SupabaseClient, foundation: Foundation, pla
   const { error: playerError } = await supabase.from("players").upsert(playerRows, { onConflict: "id" });
   if (playerError) throw new PersistenceError("save-failed", playerError.message);
 
+  const submittedPlayerIds = new Set(playerRows.map((player) => player.id).filter(Boolean));
   const membershipRows = (memberships && memberships.length > 0
     ? memberships
     : players.map((player) => ({
@@ -1499,7 +1500,7 @@ async function syncPlayers(supabase: SupabaseClient, foundation: Foundation, pla
         rosterRole: player.programLevel ?? undefined,
         active: !player.archived,
       } as PlayerTeamMembership)))
-    .filter((membership) => membership.teamId && membership.seasonId)
+    .filter((membership) => membership.playerId && submittedPlayerIds.has(membership.playerId) && membership.teamId && membership.seasonId)
     .map((membership) => ({
       player_id: membership.playerId,
       team_id: membership.teamId,

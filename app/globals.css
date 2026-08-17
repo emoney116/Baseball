@@ -5879,8 +5879,7 @@ textarea:focus-visible {
   gap: 12px;
 }
 
-.filter-select span,
-.status-select-wrap span,
+.choice-select.filter-select > span,
 .roster-row__metrics span {
   color: var(--muted);
   font-size: 12px;
@@ -5939,7 +5938,7 @@ textarea:focus-visible {
   align-items: center;
 }
 
-.filter-select {
+.choice-select.filter-select {
   min-height: 38px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -5951,7 +5950,7 @@ textarea:focus-visible {
   padding: 0 9px;
 }
 
-.filter-select .choice-select__button {
+.choice-select.filter-select .choice-select__button {
   min-height: 34px;
   border: 0;
   border-radius: 7px;
@@ -5960,14 +5959,8 @@ textarea:focus-visible {
   box-shadow: none;
 }
 
-.filter-select .choice-select__menu {
-  left: auto;
-  right: -2px;
-  min-width: 148px;
-}
-
-.filter-select select,
-.status-select-wrap select,
+.choice-select.filter-select select,
+.choice-select.status-select-wrap select,
 .import-row select {
   min-width: 0;
   border: 0;
@@ -5977,8 +5970,8 @@ textarea:focus-visible {
   outline: 0;
 }
 
-.filter-select option,
-.status-select-wrap option,
+.choice-select.filter-select option,
+.choice-select.status-select-wrap option,
 .import-row option {
   color: #111827;
 }
@@ -6049,7 +6042,7 @@ textarea:focus-visible {
 }
 
 .roster-row__metrics,
-.status-select-wrap {
+.choice-select.status-select-wrap {
   display: grid;
   gap: 3px;
 }
@@ -6058,7 +6051,7 @@ textarea:focus-visible {
   font-size: 13px;
 }
 
-.status-select-wrap {
+.choice-select.status-select-wrap {
   min-height: 42px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -6066,7 +6059,7 @@ textarea:focus-visible {
   padding: 6px 8px;
 }
 
-.status-select-wrap select {
+.choice-select.status-select-wrap select {
   width: 100%;
 }
 
@@ -6377,7 +6370,7 @@ textarea:focus-visible {
   gap: 5px;
 }
 
-.import-choice {
+.choice-select.import-choice {
   min-width: 0;
   position: relative;
   display: grid;
@@ -6388,13 +6381,13 @@ textarea:focus-visible {
   padding: 10px;
 }
 
-.import-choice > span {
+.choice-select.import-choice > span {
   color: var(--muted);
   font-size: 11px;
   font-weight: 760;
 }
 
-.import-choice .choice-select__button,
+.choice-select.import-choice .choice-select__button,
 .import-choice__button {
   min-width: 0;
   min-height: 42px;
@@ -6412,7 +6405,7 @@ textarea:focus-visible {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
-.import-choice .choice-select__button strong {
+.choice-select.import-choice .choice-select__button strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6421,8 +6414,8 @@ textarea:focus-visible {
   font-weight: 760;
 }
 
-.import-choice.open .choice-select__button,
-.import-choice .choice-select__button:focus-visible {
+.choice-select.import-choice.open .choice-select__button,
+.choice-select.import-choice .choice-select__button:focus-visible {
   border-color: color-mix(in srgb, var(--burgundy) 70%, var(--line));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 18%, transparent);
 }
@@ -6493,8 +6486,8 @@ textarea:focus-visible {
 }
 
 .import-assignment-grid select option,
-.filter-select select option,
-.status-select-wrap select option,
+.choice-select.filter-select select option,
+.choice-select.status-select-wrap select option,
 .single-player-row select option {
   background: var(--surface);
   color: var(--text);
@@ -6510,7 +6503,7 @@ textarea:focus-visible {
   background: rgba(255, 255, 255, 0.82);
 }
 
-[data-theme="light"] .import-choice {
+[data-theme="light"] .choice-select.import-choice {
   background: #ffffff;
 }
 
@@ -11412,7 +11405,7 @@ select option {
     grid-template-columns: 46px 36px 1fr;
   }
 
-  .status-select-wrap {
+  .choice-select.status-select-wrap {
     width: 100%;
   }
 
@@ -13433,13 +13426,13 @@ body {
 }
 
 .search-pill,
-.filter-select {
+.choice-select.filter-select {
   min-height: 38px;
   background: var(--panel-soft);
   border-color: var(--line);
 }
 
-.filter-select span {
+.choice-select.filter-select > span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 620;
@@ -13569,7 +13562,7 @@ body {
   font-size: 12px;
 }
 
-.status-select-wrap {
+.choice-select.status-select-wrap {
   min-height: 28px;
   width: fit-content;
   min-width: 92px;
@@ -13581,7 +13574,7 @@ body {
   background: var(--panel-soft);
 }
 
-.status-select-wrap .choice-select__button {
+.choice-select.status-select-wrap .choice-select__button {
   min-height: 28px;
   height: 28px;
   border: 0;
@@ -13592,23 +13585,18 @@ body {
   box-shadow: none;
 }
 
-.status-select-wrap .choice-select__button strong {
+.choice-select.status-select-wrap .choice-select__button strong {
   color: #fff;
   font-size: 11px;
   font-weight: 760;
   text-transform: uppercase;
 }
 
-.status-select-wrap .choice-select__button svg {
+.choice-select.status-select-wrap .choice-select__button svg {
   color: rgba(255, 255, 255, 0.84);
 }
 
-.status-select-wrap .choice-select__menu {
-  min-width: 118px;
-  left: -7px;
-}
-
-.status-select-wrap select {
+.choice-select.status-select-wrap select {
   height: 28px;
   color: #fff;
   font-size: 11px;
@@ -13616,19 +13604,19 @@ body {
   text-transform: uppercase;
 }
 
-.status-select-wrap--varsity {
+.choice-select.status-select-wrap--varsity {
   background: var(--burgundy);
 }
 
-.status-select-wrap--jv {
+.choice-select.status-select-wrap--jv {
   background: #255c88;
 }
 
-.status-select-wrap--undecided {
+.choice-select.status-select-wrap--undecided {
   background: #4b5563;
 }
 
-.status-select-wrap--cut {
+.choice-select.status-select-wrap--cut {
   background: #2f343b;
 }
 
@@ -14500,12 +14488,12 @@ body {
     gap: 8px;
   }
 
-  .status-select-wrap {
+  .choice-select.status-select-wrap {
     min-width: 78px;
     padding-inline: 6px;
   }
 
-  .status-select-wrap select {
+  .choice-select.status-select-wrap select {
     font-size: 10px;
   }
 
@@ -14569,7 +14557,7 @@ body,
 }
 
 .choice-select.open,
-.import-choice.open {
+.choice-select.import-choice.open {
   z-index: 160;
 }
 
@@ -15031,7 +15019,7 @@ body,
     gap: 8px;
   }
 
-  .import-choice {
+  .choice-select.import-choice {
     padding: 8px;
   }
 
@@ -15200,7 +15188,7 @@ body,
     content: "Class ";
   }
 
-  .status-select-wrap {
+  .choice-select.status-select-wrap {
     grid-column: 3;
     grid-row: 1;
     justify-self: end;
@@ -17203,8 +17191,8 @@ body,
 .schedule-event-form label > span,
 .schedule-event-form .form-field > span,
 .schedule-date-weekdays span,
-.filter-select span,
-.status-select-wrap span,
+.choice-select.filter-select > span,
+.choice-select.status-select-wrap > span,
 .roster-row__metrics span,
 .profile-line > span,
 .choice-select__label,
@@ -17416,8 +17404,8 @@ body,
 .attendance-status-key,
 .attendance-status-key-popover span,
 .team-switcher small,
-.status-select-wrap .choice-select__button strong,
-.status-select-wrap select {
+.choice-select.status-select-wrap .choice-select__button strong,
+.choice-select.status-select-wrap select {
   text-transform: none;
 }
 
