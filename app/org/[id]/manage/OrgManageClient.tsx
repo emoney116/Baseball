@@ -13,8 +13,9 @@ import {
   Upload,
   X,
   ChevronDown,
+  ChevronUp,
 } from "lucide-react";
-import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ChangeEvent, type Dispatch, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type SetStateAction, type WheelEvent as ReactWheelEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ChangeEvent, type Dispatch, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import { cityOptionsForState, US_STATE_OPTIONS } from "../../../lib/locations";
 import type { OrgRole, OrganizationManageData, OrganizationVisibility } from "../../../lib/organizationManagement";
@@ -1057,6 +1058,7 @@ function ChoiceSelect({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const didInitialSelectedScrollRef = useRef(false);
   const selected = options.find((option) => option.value === value) ?? options[0];
   const reactId = useId();
   const listboxId = `choice-select-${reactId.replace(/[^a-z0-9_-]/gi, "")}`;
@@ -1119,6 +1121,10 @@ function ChoiceSelect({
   }, []);
 
   useEffect(() => {
+    if (!open) didInitialSelectedScrollRef.current = false;
+  }, [open]);
+
+  useEffect(() => {
     if (!open) return;
     updateMenuPosition();
     const animationFrame = window.requestAnimationFrame(updateMenuPosition);
@@ -1157,11 +1163,12 @@ function ChoiceSelect({
   }, [closeMenu, open, updateMenuPosition]);
 
   useEffect(() => {
-    if (!open || !menuPosition) return;
-    const timer = window.setTimeout(() => {
+    if (!open || !menuPosition || didInitialSelectedScrollRef.current) return;
+    const animationFrame = window.requestAnimationFrame(() => {
+      didInitialSelectedScrollRef.current = true;
       menuRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
-    }, 0);
-    return () => window.clearTimeout(timer);
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
   }, [menuPosition, open, value]);
 
   const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -1198,18 +1205,6 @@ function ChoiceSelect({
     }
   };
 
-  const handleMenuWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
-    const menu = menuRef.current;
-    if (!menu || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-    const maxScrollTop = Math.max(0, menu.scrollHeight - menu.clientHeight);
-    if (maxScrollTop <= SCROLL_EDGE_THRESHOLD) return;
-    const nextScrollTop = Math.max(0, Math.min(maxScrollTop, menu.scrollTop + event.deltaY));
-    if (Math.abs(nextScrollTop - menu.scrollTop) <= 0.5) return;
-    event.preventDefault();
-    event.stopPropagation();
-    menu.scrollTop = nextScrollTop;
-  };
-
   const menu = open && !disabled && menuPosition && typeof document !== "undefined"
     ? createPortal(
       <>
@@ -1229,7 +1224,6 @@ function ChoiceSelect({
           tabIndex={-1}
           aria-label={ariaLabel ?? label}
           onKeyDown={handleMenuKeyDown}
-          onWheel={handleMenuWheel}
           style={{
             top: menuPosition.top,
             left: menuPosition.left,
@@ -1237,6 +1231,9 @@ function ChoiceSelect({
             maxHeight: menuPosition.maxHeight,
           }}
         >
+          <span className="choice-select__menu-edge choice-select__menu-edge--top" aria-hidden="true">
+            <ChevronUp size={13} aria-hidden="true" />
+          </span>
           {options.map((option) => (
             <button
               key={option.value}
@@ -1252,6 +1249,9 @@ function ChoiceSelect({
               <span>{option.label}</span>
             </button>
           ))}
+          <span className="choice-select__menu-edge choice-select__menu-edge--bottom" aria-hidden="true">
+            <ChevronDown size={13} aria-hidden="true" />
+          </span>
         </div>
       </>,
       document.body,
@@ -1282,6 +1282,7 @@ function ChoiceSelect({
             event.preventDefault();
             updateMenuPosition();
             setOpen(true);
+            didInitialSelectedScrollRef.current = true;
             window.setTimeout(() => focusOption(event.key === "ArrowUp" ? options.length - 1 : undefined), 0);
           }
         }}

@@ -3692,8 +3692,11 @@ textarea:focus-visible {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scroll-behavior: auto;
+  scroll-snap-type: none;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   contain: layout paint;
   padding: 10px 8px;
   scroll-padding-block: 12px;
@@ -3756,6 +3759,7 @@ textarea:focus-visible {
   font-weight: 720;
   white-space: nowrap;
   cursor: pointer;
+  scroll-snap-align: none;
 }
 
 .choice-select__menu-edge {
