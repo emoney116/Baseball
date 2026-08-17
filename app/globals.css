@@ -22658,3 +22658,188 @@ button.weight-room-athlete-table__row:hover {
     justify-self: end;
   }
 }
+
+/* Practice release overrides: keep these late so they win older tracker styles. */
+.modal-panel--practice-start {
+  width: min(900px, calc(100vw - 28px));
+  max-height: calc(100dvh - 28px);
+}
+
+.modal-panel--practice-start .modal-body {
+  gap: 12px;
+}
+
+.modal-panel--practice-start .modal-footer-slot {
+  padding-top: 10px;
+}
+
+.practice-start-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.attendance-roster__scroll .scroll-cue-panel__body {
+  max-height: min(38dvh, 410px);
+  padding-bottom: 8px;
+}
+
+.attendance-roster__list {
+  max-height: none;
+  overflow: visible;
+}
+
+.hitting-context-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hitting-context-controls--compact {
+  margin-top: -2px;
+}
+
+.pitch-type-row--compact {
+  flex: 1 1 280px;
+  min-width: 240px;
+}
+
+.hitting-option-toggle {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  color: var(--muted-strong);
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.hitting-option-toggle.active {
+  border-color: color-mix(in srgb, var(--tracker-accent) 50%, var(--line));
+  background: color-mix(in srgb, var(--tracker-accent) 16%, var(--panel-soft));
+  color: var(--text);
+}
+
+.exit-velocity-input {
+  min-height: 38px;
+  width: 156px;
+  border: 1px solid color-mix(in srgb, var(--tracker-accent) 34%, var(--line));
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.035);
+  display: grid;
+  grid-template-columns: auto minmax(42px, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+}
+
+.exit-velocity-input span,
+.exit-velocity-input em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.exit-velocity-input input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 950;
+  outline: 0;
+  text-align: right;
+}
+
+.exit-velocity-error {
+  color: #fda4af;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quick-pad--swing-results {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.quick-pad--swing-results button {
+  min-height: 58px;
+  text-transform: none;
+  font-size: clamp(14px, 1vw, 16px);
+  letter-spacing: 0;
+}
+
+.quick-pad--swing-results .swing-result--hard {
+  background: linear-gradient(180deg, color-mix(in srgb, #22c55e 28%, var(--panel-soft)), color-mix(in srgb, #22c55e 10%, var(--panel-soft)));
+  border-color: color-mix(in srgb, #22c55e 36%, var(--line));
+}
+
+.quick-pad--swing-results .swing-result--soft {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+}
+
+.quick-pad--swing-results .swing-result--miss {
+  background: linear-gradient(180deg, color-mix(in srgb, #ef4444 20%, var(--panel-soft)), color-mix(in srgb, #ef4444 7%, var(--panel-soft)));
+  border-color: color-mix(in srgb, #ef4444 26%, var(--line));
+}
+
+.tracking-visual--compact {
+  min-height: 220px;
+  border: 1px dashed color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--tracker-accent) 14%, transparent), transparent 42%),
+    var(--panel-soft);
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 6px;
+  padding: 22px;
+  text-align: center;
+}
+
+.tracking-visual--compact span,
+.tracking-visual--compact small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.tracking-visual--compact strong {
+  font-size: 18px;
+}
+
+.practice-player-strip__player-scroll {
+  min-width: 0;
+}
+
+.practice-player-strip__player-scroll .scroll-cue-panel__body {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.practice-player-strip__player-scroll .scroll-cue-panel__fade--left,
+.practice-player-strip__player-scroll .scroll-cue-panel__fade--right {
+  width: 38px;
+}
+
+@media (max-width: 860px) {
+  .quick-pad--swing-results {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hitting-context-controls,
+  .pitch-type-row--compact {
+    min-width: 0;
+  }
+
+  .exit-velocity-input {
+    width: min(180px, 100%);
+  }
+}

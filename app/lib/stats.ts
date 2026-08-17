@@ -80,6 +80,10 @@ export interface HittingStats {
   walkPct: number;
   ballsInPlay: number;
   extraBaseHits: number;
+  exitVelocityRecorded: number;
+  avgExitVelocity?: number;
+  maxExitVelocity?: number;
+  hardAvgExitVelocity?: number;
 }
 
 export interface Leader<T> {
@@ -176,6 +180,11 @@ export function calculateHittingStats(events: HittingEvent[]): HittingStats {
   const liveAvg = liveHits / liveAtBats;
   const liveObp = (liveHits + walks) / Math.max(1, liveAtBats + walks);
   const liveSlg = totalBases / liveAtBats;
+  const exitVelocities = events.map((event) => event.exitVelocityMph).filter(isNumber);
+  const hardExitVelocities = events
+    .filter((event) => event.contactQuality === "Hard" || event.contactQuality === "Barrel")
+    .map((event) => event.exitVelocityMph)
+    .filter(isNumber);
 
   return {
     totalSwings: swings,
@@ -202,6 +211,10 @@ export function calculateHittingStats(events: HittingEvent[]): HittingStats {
     walkPct: pct(walks, liveAtBats + walks),
     ballsInPlay,
     extraBaseHits,
+    exitVelocityRecorded: exitVelocities.length,
+    avgExitVelocity: average(exitVelocities),
+    maxExitVelocity: exitVelocities.length ? Math.max(...exitVelocities) : undefined,
+    hardAvgExitVelocity: average(hardExitVelocities),
   };
 }
 

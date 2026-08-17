@@ -532,6 +532,7 @@ export type HittingEvent = {
   fieldLocation?: ZonePoint;
   pitchType?: PitchType;
   velocity?: number;
+  exitVelocityMph?: number;
   isLiveBp?: boolean;
   createdAt: string;
 } & PracticeEventAudit;

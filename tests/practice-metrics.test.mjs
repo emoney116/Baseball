@@ -4,7 +4,7 @@ import { calculateHittingStats, calculatePitchingStats, pct } from "../app/lib/s
 
 const now = "2026-08-12T22:00:00.000Z";
 
-function hittingEvent(id, action, contactResult, contactQuality, direction = "Middle") {
+function hittingEvent(id, action, contactResult, contactQuality, direction = "Middle", overrides = {}) {
   return {
     id,
     practiceId: "practice-test",
@@ -17,6 +17,7 @@ function hittingEvent(id, action, contactResult, contactQuality, direction = "Mi
     direction,
     isLiveBp: false,
     createdAt: now,
+    ...overrides,
   };
 }
 
@@ -57,6 +58,21 @@ test("practice hitting metrics preserve sample denominators", () => {
   assert.equal(Math.round(stats.hardHitPct), 67);
   assert.equal(Math.round(stats.barrelPct), 33);
   assert.equal(Math.round(stats.lineDrivePct), 33);
+});
+
+test("practice hitting metrics calculate exit velocity from recorded swings only", () => {
+  const stats = calculateHittingStats([
+    hittingEvent("he-1", "Ball in play", "Line drive", "Hard", "Middle", { exitVelocityMph: 88 }),
+    hittingEvent("he-2", "Miss"),
+    hittingEvent("he-3", "Ball in play", "Ground ball", "Hard", "Middle", { exitVelocityMph: 91.5 }),
+    hittingEvent("he-4", "Ball in play", "Line drive", "Solid", "Middle", { exitVelocityMph: 86 }),
+  ]);
+
+  assert.equal(stats.totalSwings, 4);
+  assert.equal(stats.exitVelocityRecorded, 3);
+  assert.equal(stats.avgExitVelocity, 88.5);
+  assert.equal(stats.maxExitVelocity, 91.5);
+  assert.equal(stats.hardAvgExitVelocity, 89.75);
 });
 
 test("practice pitching metrics calculate strikes, zone, CSW, and velocity", () => {
