@@ -1,28 +1,47 @@
 :root {
   color-scheme: dark;
-  --bg: #11151b;
-  --bg-elevated: #151a22;
-  --sidebar: #0d1117;
-  --panel: #1a2029;
-  --panel-strong: #202834;
-  --panel-soft: #171d25;
-  --surface: var(--panel);
+  --canvas: #06080a;
+  --canvas-elevated: #090d11;
+  --surface: #0d1217;
+  --surface-raised: #131a21;
+  --surface-interactive: #171f28;
+  --surface-hover: #1d2731;
+  --surface-selected: rgba(180, 35, 90, 0.18);
+  --input: #080c10;
+  --border: rgba(225, 231, 238, 0.08);
+  --border-strong: rgba(225, 231, 238, 0.16);
+  --text-primary: #f7f8fb;
+  --text-secondary: #c9d1db;
+  --text-muted: #8f9aa8;
+  --primary: #b4235a;
+  --primary-hover: #c93468;
+  --success: #2fd37f;
+  --warning: #d9a843;
+  --danger-token: #ec5c62;
+  --focus: #d63870;
+  --bg: var(--canvas);
+  --bg-elevated: var(--canvas-elevated);
+  --sidebar: #05070a;
+  --panel: var(--surface);
+  --panel-strong: var(--surface-raised);
+  --panel-soft: #0a0f14;
   --surface-2: var(--panel-soft);
-  --line: rgba(205, 213, 224, 0.09);
-  --line-strong: rgba(205, 213, 224, 0.16);
-  --text: #f5f7fa;
-  --muted: #a1a9b5;
-  --muted-strong: #cbd2dc;
-  --burgundy: #9f244c;
-  --burgundy-strong: #b72c59;
-  --burgundy-soft: rgba(159, 36, 76, 0.14);
-  --gold: #d7a84b;
-  --gold-strong: #e7bd67;
+  --line: var(--border);
+  --line-strong: var(--border-strong);
+  --text: var(--text-primary);
+  --muted: var(--text-muted);
+  --muted-strong: var(--text-secondary);
+  --burgundy: var(--primary);
+  --burgundy-strong: var(--primary-hover);
+  --burgundy-soft: rgba(180, 35, 90, 0.14);
+  --gold: var(--warning);
+  --gold-strong: #edc462;
   --teal: #36b79c;
-  --blue: #5f8fd9;
-  --green: #3fbf6b;
-  --danger: #e45d5d;
-  --shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
+  --blue: #6f9ee7;
+  --green: var(--success);
+  --danger: var(--danger-token);
+  --shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+  --shadow-subtle: 0 10px 28px rgba(0, 0, 0, 0.24);
   --radius: 8px;
   --font: var(--font-geist), "Inter", "Segoe UI", system-ui, sans-serif;
   --text-page-title: clamp(1.5rem, 1.05vw + 1.18rem, 2rem);
@@ -51,19 +70,33 @@
 
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #f5f7f9;
-  --bg-elevated: #eef2f6;
+  --canvas: #f5f6f8;
+  --canvas-elevated: #eceff3;
+  --surface: #ffffff;
+  --surface-raised: #f8fafc;
+  --surface-interactive: #f1f4f7;
+  --surface-hover: #e8edf3;
+  --surface-selected: rgba(159, 36, 76, 0.09);
+  --input: #ffffff;
+  --border: rgba(26, 32, 44, 0.09);
+  --border-strong: rgba(26, 32, 44, 0.16);
+  --text-primary: #171c24;
+  --text-secondary: #39414d;
+  --text-muted: #68717d;
+  --bg: var(--canvas);
+  --bg-elevated: var(--canvas-elevated);
   --sidebar: #ffffff;
-  --panel: #ffffff;
-  --panel-strong: #f9fafb;
-  --panel-soft: #f1f4f7;
-  --line: rgba(26, 32, 44, 0.09);
-  --line-strong: rgba(26, 32, 44, 0.16);
-  --text: #171c24;
-  --muted: #68717d;
-  --muted-strong: #39414d;
+  --panel: var(--surface);
+  --panel-strong: var(--surface-raised);
+  --panel-soft: var(--surface-interactive);
+  --line: var(--border);
+  --line-strong: var(--border-strong);
+  --text: var(--text-primary);
+  --muted: var(--text-muted);
+  --muted-strong: var(--text-secondary);
   --burgundy-soft: rgba(159, 36, 76, 0.09);
   --shadow: 0 16px 38px rgba(25, 33, 45, 0.08);
+  --shadow-subtle: 0 10px 24px rgba(25, 33, 45, 0.06);
 }
 
 * {
@@ -23482,4 +23515,341 @@ button.weight-room-athlete-table__row:hover {
     width: calc(100vw - 16px);
     max-height: calc(100dvh - 16px);
   }
+}
+
+/* Clubhouse 9 shared visual polish: semantic hierarchy over one-off feature paint. */
+html,
+body {
+  background:
+    radial-gradient(circle at 88% -12%, color-mix(in srgb, var(--burgundy) 10%, transparent), transparent 36rem),
+    radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.025), transparent 30rem),
+    var(--canvas);
+}
+
+.ops-main {
+  background: transparent;
+  padding-top: 14px;
+}
+
+.ops-sidebar {
+  border-right-color: color-mix(in srgb, var(--line) 78%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--sidebar) 94%, var(--panel-soft)), var(--sidebar)),
+    var(--sidebar);
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.02);
+}
+
+.top-command {
+  min-height: 52px;
+  border-color: color-mix(in srgb, var(--line) 70%, transparent);
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
+  box-shadow: var(--shadow-subtle);
+}
+
+.panel,
+.team-workspace-header,
+.modal-panel,
+.roster-table-shell,
+.public-roster-table,
+.single-player-table,
+.manual-roster-table,
+.practice-tracker-header,
+.weight-room-active-header,
+.weight-room-shell-header {
+  border-color: color-mix(in srgb, var(--line) 82%, transparent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 34%),
+    var(--panel);
+  box-shadow: var(--shadow-subtle);
+}
+
+.team-workspace-header {
+  border-radius: 12px;
+}
+
+.primary-button,
+.secondary-button,
+.ghost-button,
+.text-button,
+.context-back-button,
+.modal-close-button,
+.icon-button,
+.weight-room-active-side-actions button,
+.weight-room-editor-actions button,
+.weight-room-editor-head button,
+.weight-room-setup-actions button,
+.weight-room-create-station button,
+.weight-room-active-activity > button {
+  border-radius: var(--radius);
+  font-weight: var(--weight-selected);
+  letter-spacing: 0;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    background 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.primary-button {
+  border-color: color-mix(in srgb, var(--burgundy-strong) 82%, white 8%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--burgundy-strong) 90%, white 4%), var(--burgundy));
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--burgundy) 22%, transparent);
+}
+
+.primary-button:hover,
+.primary-button:focus-visible {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--burgundy-strong) 96%, white 6%), color-mix(in srgb, var(--burgundy) 92%, #000));
+  transform: translateY(-1px);
+}
+
+.secondary-button,
+.ghost-button,
+.context-back-button,
+.modal-close-button,
+.icon-button,
+.weight-room-active-side-actions button,
+.weight-room-editor-actions button,
+.weight-room-editor-head button,
+.weight-room-setup-actions button,
+.weight-room-create-station button,
+.weight-room-active-activity > button {
+  border-color: color-mix(in srgb, var(--line-strong) 66%, transparent);
+  background: color-mix(in srgb, var(--surface-interactive) 72%, transparent);
+  color: var(--text);
+}
+
+.secondary-button:hover,
+.secondary-button:focus-visible,
+.ghost-button:hover,
+.ghost-button:focus-visible,
+.context-back-button:hover,
+.context-back-button:focus-visible,
+.modal-close-button:hover,
+.modal-close-button:focus-visible,
+.icon-button:hover,
+.icon-button:focus-visible,
+.weight-room-active-side-actions button:hover,
+.weight-room-editor-actions button:hover,
+.weight-room-editor-head button:hover,
+.weight-room-setup-actions button:hover,
+.weight-room-create-station button:hover,
+.weight-room-active-activity > button:hover {
+  border-color: color-mix(in srgb, var(--burgundy) 42%, var(--line-strong));
+  background: color-mix(in srgb, var(--surface-hover) 82%, var(--burgundy) 8%);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+button:disabled,
+.primary-button:disabled,
+.secondary-button:disabled,
+.ghost-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
+}
+
+.icon-button,
+.modal-close-button {
+  display: inline-grid;
+  place-items: center;
+}
+
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
+.global-search,
+.search-pill,
+.choice-select__button,
+.team-switcher,
+.weight-room-target-input,
+.weight-room-exercise-search,
+.weight-room-preset-save input,
+.weight-room-active-weigh-table input,
+.weight-room-set-editor input {
+  border-color: color-mix(in srgb, var(--line-strong) 58%, transparent);
+  background: var(--input);
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.026);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: color-mix(in srgb, var(--muted) 78%, transparent);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+textarea:focus,
+.choice-select.open .choice-select__button,
+.choice-select__button:focus-visible {
+  outline: 0;
+  border-color: color-mix(in srgb, var(--focus) 72%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 16%, transparent);
+}
+
+.choice-select__button {
+  min-height: 38px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent),
+    var(--input);
+}
+
+.choice-select__button strong,
+.choice-select__menu button {
+  font-weight: var(--weight-selected);
+}
+
+.choice-select__menu--portal {
+  border-color: color-mix(in srgb, var(--line-strong) 78%, transparent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.032), transparent 28%),
+    color-mix(in srgb, var(--surface-raised) 98%, #000);
+  box-shadow: 0 22px 62px rgba(0, 0, 0, 0.54);
+}
+
+.choice-select__menu button:hover,
+.choice-select__menu button:focus-visible,
+.choice-select__menu button.active {
+  background: color-mix(in srgb, var(--burgundy) 27%, var(--surface-interactive));
+}
+
+.segmented-control,
+.weight-room-active-tabs,
+.weight-room-workout-mode-tabs,
+.practice-tracker-tabs,
+.practice-filter-tabs,
+.roster-status-tabs {
+  border-color: color-mix(in srgb, var(--line) 78%, transparent);
+  background: color-mix(in srgb, var(--panel-soft) 88%, transparent);
+}
+
+.segmented-control button,
+.weight-room-active-tabs button,
+.weight-room-workout-mode-tabs button,
+.practice-tracker-tabs button,
+.practice-filter-tabs button,
+.roster-status-tabs button {
+  color: var(--muted-strong);
+  font-weight: var(--weight-ui);
+}
+
+.segmented-control button.active,
+.weight-room-active-tabs button.active,
+.weight-room-workout-mode-tabs button.active,
+.practice-tracker-tabs button.active,
+.practice-filter-tabs button.active,
+.roster-status-tabs button.active {
+  background: color-mix(in srgb, var(--burgundy) 78%, var(--surface-interactive));
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.roster-table__head,
+.roster-table-row,
+.public-roster-table > div,
+.weight-room-result-table > div,
+.weight-room-result-table > button,
+.weight-room-completed-exercise-table > div,
+.weight-room-completed-exercise-table > button,
+.weight-room-completed-drill-table > div,
+.weight-room-completed-drill-table > button {
+  border-color: color-mix(in srgb, var(--line) 72%, transparent);
+}
+
+.roster-table__head,
+.weight-room-result-table > div:first-child,
+.weight-room-completed-exercise-table > div:first-child,
+.weight-room-completed-drill-table > div:first-child {
+  background: color-mix(in srgb, var(--surface-interactive) 52%, transparent);
+  color: var(--text-secondary);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.roster-table-row:hover,
+.weight-room-result-table > button:hover,
+.weight-room-completed-exercise-table > button:hover,
+.weight-room-completed-drill-table > button:hover {
+  background: color-mix(in srgb, var(--surface-hover) 62%, transparent);
+}
+
+.weight-room-setup-intro__head-actions {
+  display: none;
+}
+
+.weight-room-setup-intro__head span,
+.weight-room-editor-head span,
+.weight-room-saved-workouts label span,
+.weight-room-preset-save span,
+.weight-room-current-stations--builder > .weight-room-current-stations__head,
+.weight-room-station-main small {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.ui-switch {
+  min-height: 32px;
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 64%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-interactive) 72%, transparent);
+  color: var(--muted-strong);
+  padding: 0 10px;
+  cursor: pointer;
+}
+
+.ui-switch strong {
+  min-width: 34px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 18%, transparent);
+  color: var(--muted-strong);
+  padding: 3px 8px;
+  font-size: var(--text-caption);
+  text-align: center;
+}
+
+.ui-switch.is-on {
+  border-color: color-mix(in srgb, var(--green) 38%, var(--line));
+  background: color-mix(in srgb, var(--green) 10%, var(--surface-interactive));
+}
+
+.ui-switch.is-on strong {
+  background: color-mix(in srgb, var(--green) 22%, transparent);
+  color: var(--green);
+}
+
+.weight-room-group-editor__content {
+  display: grid;
+  gap: 10px;
+  transition: opacity 150ms ease, filter 150ms ease;
+}
+
+.weight-room-group-editor.is-disabled .weight-room-group-editor__content {
+  opacity: 0.46;
+  filter: saturate(0.55);
+  pointer-events: none;
+}
+
+.weight-room-group-disabled-note {
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-interactive) 48%, transparent);
+  color: var(--muted-strong);
+  padding: 9px 10px;
+  font-size: var(--text-secondary-body);
+}
+
+.weight-room-individual-selectors .choice-select__button strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-individual-selectors .secondary-button {
+  white-space: nowrap;
 }

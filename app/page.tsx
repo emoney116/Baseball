@@ -192,7 +192,6 @@ type WeightRoomAthleteTab = "Overview" | "Workouts" | "Exercises" | "Progress";
 type WeightRoomWorkoutStatus = "Idle" | "In Progress" | "Paused" | "Completed";
 type ActiveWorkoutTab = "Weigh-Ins" | "Workout";
 type ActiveWorkoutEntryMode = "Groups" | "Individual";
-type ActiveWorkoutSideMode = "Stations" | "Groups" | "Workout";
 type WeightRoomExerciseCategory = "Lower Body" | "Upper Body" | "Power" | "Core" | "Conditioning" | "Speed" | "Mobility" | "Other";
 type WeightRoomExerciseSortKey = "exercise" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "best" | "sets";
 type WeightRoomWorkoutSortKey = "exercise" | "set" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "rpe";
@@ -2998,6 +2997,8 @@ function TopCommand({
   onAccountMenu: (open: boolean) => void;
   onSignOut: () => void | Promise<void>;
 }) {
+  if (!showTeamActions) return null;
+
   return (
     <header className="top-command">
       <div className="top-command__identity">
@@ -9047,7 +9048,7 @@ function WeightRoomActiveWorkout({
   const [activeTab, setActiveTab] = useState<ActiveWorkoutTab>("Workout");
   const [entryMode, setEntryMode] = useState<ActiveWorkoutEntryMode>("Groups");
   const [setupOpen, setSetupOpen] = useState(() => entriesForDate.length === 0);
-  const [sideMode, setSideMode] = useState<ActiveWorkoutSideMode>("Stations");
+  const [groupsEnabled, setGroupsEnabled] = useState(true);
   const [groups, setGroups] = useState<ActiveWorkoutGroupSeed[]>(() => persistedGroups);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [stations, setStations] = useState<ActiveWorkoutStation[]>(() => persistedStations);
@@ -9242,6 +9243,11 @@ function WeightRoomActiveWorkout({
       setSetupMessage("Add at least one exercise before beginning tracking.");
       return;
     }
+    if (mode === "Groups" && !groupsEnabled) {
+      setSetupOpen(true);
+      setSetupMessage("Turn Groups on in Setup before using group mode.");
+      return;
+    }
     if (mode === "Groups" && !groups.some((group) => group.playerIds.length > 0)) {
       setSetupMessage("Create at least one group with athletes, or use Individual Mode.");
       return;
@@ -9421,6 +9427,12 @@ function WeightRoomActiveWorkout({
           onOpenGroupPresets={() => setGroupPresetOpen(true)}
           onSaveExercisePreset={saveExercisePreset}
           onSaveGroupPreset={saveGroupPreset}
+          groupsEnabled={groupsEnabled}
+          onGroupsEnabledChange={(nextEnabled) => {
+            setGroupsEnabled(nextEnabled);
+            if (!nextEnabled && entryMode === "Groups") setEntryMode("Individual");
+            setSetupMessage(nextEnabled ? "Groups enabled for station rotation." : "Groups disabled. Individual mode stays available.");
+          }}
           onAddStations={addStations}
           onCreateExercise={createAndAddExercise}
           onRemoveStation={removeStation}
@@ -9432,8 +9444,6 @@ function WeightRoomActiveWorkout({
           onOpenAutoCreate={() => setAutoCreateOpen(true)}
           onAddPlayer={addPlayerToGroup}
           onRemovePlayer={removePlayerFromGroup}
-          onStart={startAfterSetup}
-          onSkip={() => setSetupOpen(false)}
         />
       ) : (
         <section className={`weight-room-active-workspace ${paused ? "is-paused" : ""}`}>
@@ -9509,53 +9519,14 @@ function WeightRoomActiveWorkout({
 
                 <aside className="panel weight-room-active-side">
                   <div className="weight-room-active-side-actions">
-                    <button type="button" className={sideMode === "Groups" ? "active" : ""} onClick={() => setSideMode(sideMode === "Groups" ? "Stations" : "Groups")}>Edit Groups</button>
-                    <button type="button" className={sideMode === "Workout" ? "active" : ""} onClick={() => setSideMode(sideMode === "Workout" ? "Stations" : "Workout")}>Edit Workout</button>
+                    <button type="button" onClick={() => setSetupOpen(true)}>Edit Groups</button>
+                    <button type="button" onClick={() => setSetupOpen(true)}>Edit Workout</button>
                   </div>
-                  {sideMode === "Groups" ? (
-                    <WeightRoomGroupEditor
-                      players={players}
-                      groups={groups}
-                      onAddGroup={addGroup}
-                      onRemoveGroup={removeGroup}
-                      onAddPlayer={addPlayerToGroup}
-                      onRemovePlayer={removePlayerFromGroup}
-                      onClearGroups={clearGroups}
-                      onOpenAutoCreate={() => setAutoCreateOpen(true)}
-                      onOpenGroupPresets={() => setGroupPresetOpen(true)}
-                      onSaveGroupPreset={saveGroupPreset}
-                      groupPresetName={groupPresetName}
-                      onGroupPresetName={setGroupPresetName}
-                    />
-                  ) : sideMode === "Workout" ? (
-                    <WeightRoomWorkoutEditor
-                      stations={stations}
-                      availableExercises={availableExercises}
-                      filteredExercises={filteredExerciseOptions}
-                      exerciseSearch={exerciseSearch}
-                      exerciseFilter={exerciseFilter}
-                      newExerciseCategory={newExerciseCategory}
-                      exercisePresetName={exercisePresetName}
-                      onExerciseSearch={setExerciseSearch}
-                      onExerciseFilter={setExerciseFilter}
-                      onNewExerciseCategory={setNewExerciseCategory}
-                      onExercisePresetName={setExercisePresetName}
-                      onOpenExercisePicker={() => setAddExercisesOpen(true)}
-                      onOpenExercisePresets={() => setExercisePresetOpen(true)}
-                      onAddStations={addStations}
-                      onCreateExercise={createAndAddExercise}
-                      onRemoveStation={removeStation}
-                      onUpdateStation={updateStation}
-                      onReorderStation={reorderStation}
-                      onSaveExercisePreset={saveExercisePreset}
-                    />
-                  ) : (
-                    <WeightRoomStationList
-                      stations={stations}
-                      selectedStation={selectedStation}
-                      onStation={(index) => selectedGroup && setGroups((current) => setWorkoutGroupStation(current, selectedGroup.id, index, stations.length))}
-                    />
-                  )}
+                  <WeightRoomStationList
+                    stations={stations}
+                    selectedStation={selectedStation}
+                    onStation={(index) => selectedGroup && setGroups((current) => setWorkoutGroupStation(current, selectedGroup.id, index, stations.length))}
+                  />
                 </aside>
               </div>
               <WeightRoomActiveActivity entries={recentActivity} players={players} stations={stations} expanded={activityExpanded} onToggle={() => setActivityExpanded((current) => !current)} />
@@ -9570,7 +9541,7 @@ function WeightRoomActiveWorkout({
               playerId={resolvedIndividualPlayerId}
               exerciseName={resolvedIndividualExercise}
               disabled={paused}
-              onOpenExercisePicker={() => setAddExercisesOpen(true)}
+              onOpenExercisePicker={() => setSetupOpen(true)}
               onPlayer={setIndividualPlayerId}
               onExercise={setIndividualExercise}
               onSaveCell={saveCell}
@@ -10082,6 +10053,8 @@ function WeightRoomWorkoutSetupIntro({
   onOpenGroupPresets,
   onSaveExercisePreset,
   onSaveGroupPreset,
+  groupsEnabled,
+  onGroupsEnabledChange,
   onAddStations,
   onCreateExercise,
   onRemoveStation,
@@ -10093,8 +10066,6 @@ function WeightRoomWorkoutSetupIntro({
   onOpenAutoCreate,
   onAddPlayer,
   onRemovePlayer,
-  onStart,
-  onSkip,
 }: {
   players: Player[];
   stations: ActiveWorkoutStation[];
@@ -10116,6 +10087,8 @@ function WeightRoomWorkoutSetupIntro({
   onOpenGroupPresets: () => void;
   onSaveExercisePreset: () => void;
   onSaveGroupPreset: () => void;
+  groupsEnabled: boolean;
+  onGroupsEnabledChange: (enabled: boolean) => void;
   onAddStations: (exerciseNames?: string[]) => void;
   onCreateExercise: (name?: string, options?: { category?: WeightRoomExerciseCategory; measurementType?: WorkoutMeasurementType }) => void;
   onRemoveStation: (stationId: ID) => void;
@@ -10127,8 +10100,6 @@ function WeightRoomWorkoutSetupIntro({
   onOpenAutoCreate: () => void;
   onAddPlayer: (groupId: string, playerId: string) => void;
   onRemovePlayer: (groupId: string, playerId: string) => void;
-  onStart: (mode: ActiveWorkoutEntryMode) => void;
-  onSkip: () => void;
 }) {
   const filteredExercises = availableExercises.filter((exercise) =>
     (exerciseFilter === "All" || exercise.category === exerciseFilter)
@@ -10139,12 +10110,7 @@ function WeightRoomWorkoutSetupIntro({
       <div className="weight-room-setup-intro__head">
         <div>
           <h2>Build today&apos;s workout</h2>
-          <p>Load a preset, build manually, or start Individual Mode with only exercises configured.</p>
-        </div>
-        <div className="weight-room-setup-intro__head-actions">
-          <button type="button" className="secondary-button" onClick={() => onStart("Individual")}><User size={15} aria-hidden="true" />Use Individual Mode</button>
-          <button type="button" className="primary-button" onClick={() => onStart("Groups")}><Users size={15} aria-hidden="true" />Start Groups</button>
-          <button type="button" className="ghost-button" onClick={onSkip}>Skip Setup</button>
+          <p>Build the workout, then use the mode tabs above to track by groups or individual athletes.</p>
         </div>
       </div>
       {setupMessage && <p className="weight-room-setup-message">{setupMessage}</p>}
@@ -10183,6 +10149,8 @@ function WeightRoomWorkoutSetupIntro({
           onOpenGroupPresets={onOpenGroupPresets}
           onSaveGroupPreset={onSaveGroupPreset}
           onGroupPresetName={onGroupPresetName}
+          enabled={groupsEnabled}
+          onEnabledChange={onGroupsEnabledChange}
         />
       </div>
     </section>
@@ -10227,6 +10195,8 @@ function WeightRoomGroupEditor({
   onOpenGroupPresets,
   onSaveGroupPreset,
   onGroupPresetName,
+  enabled = true,
+  onEnabledChange,
 }: {
   players: Player[];
   groups: ActiveWorkoutGroupSeed[];
@@ -10240,6 +10210,8 @@ function WeightRoomGroupEditor({
   onOpenGroupPresets: () => void;
   onSaveGroupPreset: () => void;
   onGroupPresetName: (value: string) => void;
+  enabled?: boolean;
+  onEnabledChange?: (enabled: boolean) => void;
 }) {
   const [draggedPlayerId, setDraggedPlayerId] = useState<ID | undefined>();
   const [dropGroupId, setDropGroupId] = useState<ID | undefined>();
@@ -10248,128 +10220,147 @@ function WeightRoomGroupEditor({
   const groupByPlayerId = new Map(groups.flatMap((group) => group.playerIds.map((playerId) => [playerId, group.name] as const)));
   const draggedPlayer = draggedPlayerId ? players.find((player) => player.id === draggedPlayerId) : undefined;
   return (
-    <div className="weight-room-group-editor">
+    <div className={`weight-room-group-editor ${enabled ? "" : "is-disabled"}`.trim()} aria-disabled={!enabled}>
       <div className="weight-room-editor-head">
         <div><span>Groups</span><small>{groups.length} groups - {assigned.size}/{players.length} assigned</small></div>
+        {onEnabledChange && (
+          <button
+            type="button"
+            className={`ui-switch ${enabled ? "is-on" : ""}`}
+            aria-pressed={enabled}
+            onClick={() => onEnabledChange(!enabled)}
+          >
+            <span>Groups</span>
+            <strong>{enabled ? "On" : "Off"}</strong>
+          </button>
+        )}
       </div>
-      <div className="weight-room-editor-actions">
-        <button type="button" onClick={onOpenAutoCreate}><RefreshCw size={14} aria-hidden="true" />Auto Create</button>
-        <button type="button" onClick={onOpenGroupPresets}><Download size={14} aria-hidden="true" />Load Group Preset</button>
-        <button type="button" onClick={onClearGroups} disabled={!groups.length}><X size={14} aria-hidden="true" />Clear</button>
-      </div>
-      <label className="weight-room-preset-save">
-        <span>Save Group Preset</span>
-        <input value={groupPresetName} onChange={(event) => onGroupPresetName(event.target.value)} placeholder="Enter preset name..." />
-        <button type="button" onClick={onSaveGroupPreset} disabled={!groups.length}><Save size={14} aria-hidden="true" />Save</button>
-      </label>
-      {!groups.length && (
-        <div className="weight-room-builder-empty">
-          <Users size={18} aria-hidden="true" />
-          <strong>No groups created yet.</strong>
-          <p>Create groups for station rotation, load a saved group preset, or use Individual Mode.</p>
-          <div>
-            <button type="button" onClick={onAddGroup}><Plus size={14} aria-hidden="true" />Create Group</button>
+      <div className="weight-room-group-editor__content">
+        <div className="weight-room-editor-actions">
+          <button type="button" onClick={onOpenAutoCreate} disabled={!enabled}><RefreshCw size={14} aria-hidden="true" />Auto Create</button>
+          <button type="button" onClick={onOpenGroupPresets} disabled={!enabled}><Download size={14} aria-hidden="true" />Load Group Preset</button>
+          <button type="button" onClick={onClearGroups} disabled={!enabled || !groups.length}><X size={14} aria-hidden="true" />Clear</button>
+        </div>
+        <label className="weight-room-preset-save">
+          <span>Save Group Preset</span>
+          <input value={groupPresetName} onChange={(event) => onGroupPresetName(event.target.value)} placeholder="Enter preset name..." disabled={!enabled} />
+          <button type="button" onClick={onSaveGroupPreset} disabled={!enabled || !groups.length}><Save size={14} aria-hidden="true" />Save</button>
+        </label>
+        {!groups.length && (
+          <div className="weight-room-builder-empty">
+            <Users size={18} aria-hidden="true" />
+            <strong>No groups created yet.</strong>
+            <p>Create groups for station rotation, load a saved group preset, or use Individual Mode.</p>
+            <div>
+              <button type="button" onClick={onAddGroup} disabled={!enabled}><Plus size={14} aria-hidden="true" />Create Group</button>
+            </div>
           </div>
-        </div>
-      )}
-      <div className="weight-room-group-editor__list">
-        {!!groups.length && <button type="button" className="weight-room-group-add-row" onClick={onAddGroup}><Plus size={14} aria-hidden="true" />Create Group</button>}
-        {groups.map((group) => {
-          const members = group.playerIds.map((playerId) => players.find((player) => player.id === playerId)).filter((player): player is Player => Boolean(player));
-          return (
-            <section
-              key={group.id}
-              className={dropGroupId === group.id ? "is-athlete-drop-target" : ""}
-              onDragOver={(event) => {
-                if (!draggedPlayerId) return;
-                event.preventDefault();
-                event.dataTransfer.dropEffect = "move";
-                setDropGroupId(group.id);
-              }}
-              onDragLeave={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                  setDropGroupId((current) => (current === group.id ? undefined : current));
-                }
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                if (draggedPlayerId && !group.playerIds.includes(draggedPlayerId)) {
-                  onAddPlayer(group.id, draggedPlayerId);
-                }
-                setDraggedPlayerId(undefined);
-                setDropGroupId(undefined);
-              }}
-            >
-              <div>
-                <strong>{group.name}</strong>
-                <small>{members.length} athlete{members.length === 1 ? "" : "s"}</small>
-                <button type="button" onClick={() => onRemoveGroup(group.id)} aria-label={`Remove ${group.name}`}><Trash2 size={13} aria-hidden="true" /></button>
-              </div>
-              <div className="weight-room-group-members">
-                {members.map((player) => (
-                  <button
-                    key={player.id}
-                    type="button"
-                    draggable
-                    className={draggedPlayerId === player.id ? "is-dragging" : ""}
-                    onDragStart={(event) => {
-                      setDraggedPlayerId(player.id);
-                      event.dataTransfer.effectAllowed = "move";
-                      event.dataTransfer.setData("text/plain", player.id);
-                    }}
-                    onDragEnd={() => {
-                      setDraggedPlayerId(undefined);
-                      setDropGroupId(undefined);
-                    }}
-                    onClick={() => onRemovePlayer(group.id, player.id)}
-                    title={`Drag ${player.name} to another group or click to remove`}
-                    aria-label={`Drag or remove ${player.name}`}
-                  >
-                    <PlayerAvatar player={player} size="sm" compact />
-                    <span>{player.name}</span>
-                    <X size={12} aria-hidden="true" />
-                  </button>
-                ))}
-                {!members.length && <small>No athletes yet</small>}
-              </div>
-              <details className="weight-room-athlete-multi-picker">
-                <summary>Add or move athlete...</summary>
+        )}
+        <div className="weight-room-group-editor__list">
+          {!!groups.length && <button type="button" className="weight-room-group-add-row" onClick={onAddGroup} disabled={!enabled}><Plus size={14} aria-hidden="true" />Create Group</button>}
+          {groups.map((group) => {
+            const members = group.playerIds.map((playerId) => players.find((player) => player.id === playerId)).filter((player): player is Player => Boolean(player));
+            return (
+              <section
+                key={group.id}
+                className={dropGroupId === group.id ? "is-athlete-drop-target" : ""}
+                onDragOver={(event) => {
+                  if (!enabled || !draggedPlayerId) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDropGroupId(group.id);
+                }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setDropGroupId((current) => (current === group.id ? undefined : current));
+                  }
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (enabled && draggedPlayerId && !group.playerIds.includes(draggedPlayerId)) {
+                    onAddPlayer(group.id, draggedPlayerId);
+                  }
+                  setDraggedPlayerId(undefined);
+                  setDropGroupId(undefined);
+                }}
+              >
                 <div>
-                  {players.map((player) => {
-                    const assignedGroupName = groupByPlayerId.get(player.id);
-                    const inThisGroup = group.playerIds.includes(player.id);
-                    return (
-                      <button
-                        key={player.id}
-                        type="button"
-                        className={inThisGroup ? "active" : ""}
-                        onClick={() => onAddPlayer(group.id, player.id)}
-                      >
-                        <PlayerAvatar player={player} size="sm" compact />
-                        <span>
-                          <strong>{player.name}</strong>
-                          <small>{inThisGroup ? "In this group" : assignedGroupName ? `Move from ${assignedGroupName}` : "Unassigned"}</small>
-                        </span>
-                      </button>
-                    );
-                  })}
+                  <strong>{group.name}</strong>
+                  <small>{members.length} athlete{members.length === 1 ? "" : "s"}</small>
+                  <button type="button" onClick={() => onRemoveGroup(group.id)} disabled={!enabled} aria-label={`Remove ${group.name}`}><Trash2 size={13} aria-hidden="true" /></button>
                 </div>
-              </details>
-            </section>
-          );
-        })}
-      </div>
-      {draggedPlayer && <span className="weight-room-group-drag-hint">Drop {draggedPlayer.name} on a group to move.</span>}
-      <section className="weight-room-unassigned-list">
-        <div><strong>Unassigned</strong><small>{unassigned.length} athlete{unassigned.length === 1 ? "" : "s"}</small></div>
-        <div>
-          {unassigned.slice(0, 12).map((player) => (
-            <span key={player.id}><PlayerAvatar player={player} size="sm" compact />{player.name}</span>
-          ))}
-          {!unassigned.length && <small>Everyone is assigned.</small>}
-          {unassigned.length > 12 && <small>+{unassigned.length - 12} more</small>}
+                <div className="weight-room-group-members">
+                  {members.map((player) => (
+                    <button
+                      key={player.id}
+                      type="button"
+                      draggable={enabled}
+                      disabled={!enabled}
+                      className={draggedPlayerId === player.id ? "is-dragging" : ""}
+                      onDragStart={(event) => {
+                        if (!enabled) return;
+                        setDraggedPlayerId(player.id);
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", player.id);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedPlayerId(undefined);
+                        setDropGroupId(undefined);
+                      }}
+                      onClick={() => onRemovePlayer(group.id, player.id)}
+                      title={`Drag ${player.name} to another group or click to remove`}
+                      aria-label={`Drag or remove ${player.name}`}
+                    >
+                      <PlayerAvatar player={player} size="sm" compact />
+                      <span>{player.name}</span>
+                      <X size={12} aria-hidden="true" />
+                    </button>
+                  ))}
+                  {!members.length && <small>No athletes yet</small>}
+                </div>
+                <details className="weight-room-athlete-multi-picker">
+                  <summary>Add or move athlete...</summary>
+                  <div>
+                    {players.map((player) => {
+                      const assignedGroupName = groupByPlayerId.get(player.id);
+                      const inThisGroup = group.playerIds.includes(player.id);
+                      return (
+                        <button
+                          key={player.id}
+                          type="button"
+                          className={inThisGroup ? "active" : ""}
+                          disabled={!enabled}
+                          onClick={() => onAddPlayer(group.id, player.id)}
+                        >
+                          <PlayerAvatar player={player} size="sm" compact />
+                          <span>
+                            <strong>{player.name}</strong>
+                            <small>{inThisGroup ? "In this group" : assignedGroupName ? `Move from ${assignedGroupName}` : "Unassigned"}</small>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </details>
+              </section>
+            );
+          })}
         </div>
-      </section>
+        {draggedPlayer && <span className="weight-room-group-drag-hint">Drop {draggedPlayer.name} on a group to move.</span>}
+        <section className="weight-room-unassigned-list">
+          <div><strong>Unassigned</strong><small>{unassigned.length} athlete{unassigned.length === 1 ? "" : "s"}</small></div>
+          <div>
+            {unassigned.slice(0, 12).map((player) => (
+              <span key={player.id}><PlayerAvatar player={player} size="sm" compact />{player.name}</span>
+            ))}
+            {!unassigned.length && <small>Everyone is assigned.</small>}
+            {unassigned.length > 12 && <small>+{unassigned.length - 12} more</small>}
+          </div>
+        </section>
+        {!enabled && (
+          <p className="weight-room-group-disabled-note">Groups are off. Use Individual mode from the tabs above, or turn Groups on to build rotations.</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -10836,6 +10827,7 @@ function WeightRoomIndividualWorkout({
           className="form-choice"
           options={players.map((item) => ({ value: item.id, label: item.name, description: `#${item.jerseyNumber} - ${item.primaryPosition}` }))}
           onChange={onPlayer}
+          showSelectedDescription={false}
           aria-label="Workout athlete"
         />
         <ChoiceSelect
@@ -10843,11 +10835,12 @@ function WeightRoomIndividualWorkout({
           className="form-choice"
           options={stations.map((item) => ({ value: item.name, label: item.name, description: stationTargetSummary(item) }))}
           onChange={onExercise}
+          showSelectedDescription={false}
           aria-label="Workout exercise"
         />
         <button type="button" className="secondary-button" onClick={onOpenExercisePicker}>
           <Plus size={15} aria-hidden="true" />
-          Add / Edit Exercises
+          Edit Setup
         </button>
       </div>
       <ScrollablePanel className="weight-room-individual-strip-panel" bodyClassName="weight-room-individual-strip" ariaLabel="workout athlete selector" direction="horizontal">
