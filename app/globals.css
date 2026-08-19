@@ -1,15 +1,15 @@
 :root {
   color-scheme: dark;
-  --canvas: #06080a;
-  --canvas-elevated: #090d11;
-  --surface: #0d1217;
-  --surface-raised: #131a21;
-  --surface-interactive: #171f28;
-  --surface-hover: #1d2731;
+  --canvas: #0d1012;
+  --canvas-elevated: #101317;
+  --surface: rgba(21, 26, 31, 0.8);
+  --surface-raised: rgba(26, 32, 38, 0.84);
+  --surface-interactive: rgba(31, 38, 45, 0.86);
+  --surface-hover: rgba(39, 47, 55, 0.9);
   --surface-selected: rgba(180, 35, 90, 0.18);
-  --input: #080c10;
-  --border: rgba(225, 231, 238, 0.08);
-  --border-strong: rgba(225, 231, 238, 0.16);
+  --input: rgba(9, 13, 17, 0.9);
+  --border: rgba(225, 231, 238, 0.065);
+  --border-strong: rgba(225, 231, 238, 0.13);
   --text-primary: #f7f8fb;
   --text-secondary: #c9d1db;
   --text-muted: #8f9aa8;
@@ -21,10 +21,10 @@
   --focus: #d63870;
   --bg: var(--canvas);
   --bg-elevated: var(--canvas-elevated);
-  --sidebar: #05070a;
+  --sidebar: #0a0d10;
   --panel: var(--surface);
   --panel-strong: var(--surface-raised);
-  --panel-soft: #0a0f14;
+  --panel-soft: rgba(16, 21, 26, 0.72);
   --surface-2: var(--panel-soft);
   --line: var(--border);
   --line-strong: var(--border-strong);

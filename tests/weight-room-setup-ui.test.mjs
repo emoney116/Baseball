@@ -182,8 +182,9 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.match(css, /\.weight-room-current-stations--preset/);
   assert.match(css, /\.weight-room-current-stations--preset > \.weight-room-station-add-row/);
   assert.match(css, /\.weight-room-group-editor__list section\.is-athlete-drop-target/);
-  assert.match(css, /--canvas:\s*#06080a/);
-  assert.match(css, /--surface-raised:\s*#131a21/);
+  assert.match(css, /--canvas:\s*#0d1012/);
+  assert.match(css, /--surface:\s*rgba\(21, 26, 31, 0\.8\)/);
+  assert.match(css, /--surface-raised:\s*rgba\(26, 32, 38, 0\.84\)/);
   assert.match(css, /--surface-selected:\s*rgba\(180, 35, 90, 0\.18\)/);
   assert.match(css, /\.ui-switch\s*\{/);
   assert.match(css, /\.ui-switch\.is-on/);

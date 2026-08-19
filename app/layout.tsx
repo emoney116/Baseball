@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import type React from "react";
 import { APP_DESCRIPTION, APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
 import { absoluteUrl, productionSiteUrl } from "./lib/siteUrl";
+import { THEME_BOOTSTRAP_SCRIPT } from "./lib/themePreference";
 import "./globals.css";
 
 const geist = Geist({
@@ -51,7 +52,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" data-theme="dark" className={geist.variable}>
+    <html lang="en" data-theme="dark" className={geist.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );

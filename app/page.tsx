@@ -57,6 +57,7 @@ import { createId, gameRepository, playerRepository, touchRecentPlayers, workout
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
 import { APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
 import { cityOptionsForState, US_STATE_OPTIONS } from "./lib/locations";
+import { applyDocumentTheme, readStoredTheme, saveStoredTheme, type ThemePreference } from "./lib/themePreference";
 import {
   applyRosterImportPlan,
   buildRosterImportPlan,
@@ -202,6 +203,19 @@ type WeightRoomSortState<K extends string> = { key: K; direction: SortDirection 
 type WorkoutMeasurementType = "WEIGHT_REPS" | "BODYWEIGHT_REPS" | "REPS_ONLY" | "TIME" | "DISTANCE" | "HEIGHT" | "WEIGHT_ONLY" | "COUNT" | "COMPLETION" | "RPE_ONLY" | "CUSTOM";
 type WorkoutPerformanceDirection = "HIGHER_IS_BETTER" | "LOWER_IS_BETTER";
 type WorkoutTargetStyle = "Standard" | "Max Reps" | "Target Reps" | "Max Time" | "Target Time" | "Best Time" | "Best Distance" | "Max Weight" | "Completion";
+
+function withStoredThemePreference(appData: AppData): AppData {
+  const theme = readStoredTheme(appData.teamContext?.profile?.id);
+  if (!theme || theme === appData.settings.theme) return appData;
+  return {
+    ...appData,
+    settings: {
+      ...appData.settings,
+      theme,
+    },
+  };
+}
+
 type WeightRoomExercise = {
   name: string;
   category: WeightRoomExerciseCategory;
@@ -720,6 +734,7 @@ export default function MetrolinaBaseballApp() {
   const [sidebarAccountMenuOpen, setSidebarAccountMenuOpen] = useState(false);
   const lastGlobalRefreshRef = useRef(0);
   const searchInTeamContext = TEAM_CONTEXT_VIEWS.has(view);
+  const currentTheme = data?.settings.theme;
 
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<ID | undefined>();
@@ -758,9 +773,9 @@ export default function MetrolinaBaseballApp() {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || !data) return;
-    document.documentElement.dataset.theme = data.settings.theme;
-  }, [data, hydrated]);
+    if (!hydrated || !currentTheme) return;
+    applyDocumentTheme(currentTheme);
+  }, [currentTheme, hydrated]);
 
   useEffect(() => {
     if (!hydrated || !data) return;
@@ -845,7 +860,7 @@ export default function MetrolinaBaseballApp() {
     setSaveError(null);
 
     if (isLocalDevAuthBypass()) {
-      const loaded = await loadLocalPreviewData();
+      const loaded = withStoredThemePreference(await loadLocalPreviewData());
       const params = new URLSearchParams(window.location.search);
       const requestedView = params.get("view") as ViewKey | null;
       const requestedPlayer = params.get("player");
@@ -853,7 +868,7 @@ export default function MetrolinaBaseballApp() {
       setAuthState(localPreviewAuthState());
       setData(loaded);
       setHydrated(true);
-      document.documentElement.dataset.theme = loaded.settings.theme;
+      applyDocumentTheme(loaded.settings.theme);
 
       const active = activePractice(loaded);
       const firstPlayer = loaded.settings.recentPlayerIds[0] ?? active?.playerIds[0] ?? loaded.players[0]?.id ?? "";
@@ -888,7 +903,7 @@ export default function MetrolinaBaseballApp() {
       const params = new URLSearchParams(window.location.search);
       const requestedTeam = params.get("team") ?? selectedTeamId;
       const requestedSeason = params.get("season") ?? selectedSeasonId;
-      const loaded = await supabaseAppRepository.load(requestedTeam ?? undefined, requestedSeason ?? undefined);
+      const loaded = withStoredThemePreference(await supabaseAppRepository.load(requestedTeam ?? undefined, requestedSeason ?? undefined));
       if (isCancelled()) return;
       const requestedView = params.get("view") as ViewKey | null;
       const requestedPlayer = params.get("player");
@@ -896,7 +911,7 @@ export default function MetrolinaBaseballApp() {
 
       setData(loaded);
       setHydrated(true);
-      document.documentElement.dataset.theme = loaded.settings.theme;
+      applyDocumentTheme(loaded.settings.theme);
 
       const active = activePractice(loaded);
       const firstPlayer = loaded.settings.recentPlayerIds[0] ?? active?.playerIds[0] ?? loaded.players[0]?.id ?? "";
@@ -1249,13 +1264,19 @@ export default function MetrolinaBaseballApp() {
   }
 
   function toggleTheme() {
-    commit((current) => ({
-      ...current,
-      settings: {
-        ...current.settings,
-        theme: current.settings.theme === "dark" ? "light" : "dark",
-      },
-    }));
+    if (!data) return;
+    const nextTheme: ThemePreference = data.settings.theme === "dark" ? "light" : "dark";
+    saveStoredTheme(data.teamContext?.profile?.id, nextTheme);
+    applyDocumentTheme(nextTheme);
+    setData((current) => current
+      ? {
+          ...current,
+          settings: {
+            ...current.settings,
+            theme: nextTheme,
+          },
+        }
+      : current);
   }
 
   async function switchTeam(team: TeamOption) {
