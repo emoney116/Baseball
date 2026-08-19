@@ -50,8 +50,17 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-7: 32px;
-  --page-content-max: 1240px;
-  --page-object-grid-max: 832px;
+  --brand-primary: var(--primary);
+  --brand-primary-hover: var(--primary-hover);
+  --brand-soft: var(--burgundy-soft);
+  --brand-border: color-mix(in srgb, var(--primary) 26%, var(--border));
+  --brand-light: color-mix(in srgb, var(--primary-hover) 68%, var(--text-primary));
+  --workspace-gutter: clamp(14px, 1.5vw, 28px);
+  --workspace-content-max: 1360px;
+  --workspace-object-grid-max: 872px;
+  --workspace-list-max: 980px;
+  --page-content-max: var(--workspace-content-max);
+  --page-object-grid-max: var(--workspace-object-grid-max);
   --page-section-gap: var(--space-7);
   --page-column-gap: clamp(18px, 2vw, 32px);
   --font: var(--font-geist), "Inter", "Segoe UI", system-ui, sans-serif;
@@ -23875,6 +23884,15 @@ textarea:focus,
   --surface-feature-soft: color-mix(in srgb, var(--surface-interactive) 19%, var(--burgundy) 4%);
   --outline-soft: color-mix(in srgb, var(--line) 46%, transparent);
   --outline-feature-soft: color-mix(in srgb, var(--burgundy) 16%, var(--line) 58%);
+  --surface-section: transparent;
+  --surface-object: var(--surface-object-soft);
+  --surface-object-hover: var(--surface-object-soft-hover);
+  --surface-featured: var(--surface-feature-soft);
+  --surface-interactive-row-hover: var(--row-hover);
+  --surface-interactive-row-selected: var(--row-selected);
+  --outline-object: var(--outline-soft);
+  --outline-featured: var(--outline-feature-soft);
+  --outline-section: var(--divider-subtle);
 }
 
 .panel {
@@ -24501,7 +24519,9 @@ textarea:focus,
 .home-dashboard--composition,
 .weight-room-overview-composition {
   width: min(100%, var(--page-content-max));
-  margin-inline: auto;
+  max-width: var(--page-content-max);
+  margin-left: 0;
+  margin-right: auto;
 }
 
 .global-home--composition,
@@ -24533,12 +24553,144 @@ textarea:focus,
   gap: var(--page-column-gap);
 }
 
+.global-home--composition .organization-card,
+.global-home--composition .managed-team-card,
+.global-home--composition .team-workspace-card {
+  border-color: var(--outline-object);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.014), transparent),
+    var(--surface-object);
+  box-shadow: none;
+}
+
+.global-home--composition .organization-card:hover,
+.global-home--composition .managed-team-card:hover,
+.global-home--composition .team-workspace-card:hover,
+.global-home--composition .organization-card:focus-within,
+.global-home--composition .managed-team-card:focus-within,
+.global-home--composition .team-workspace-card:focus-within {
+  border-color: color-mix(in srgb, var(--brand-primary) 18%, var(--line) 52%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent),
+    var(--surface-object-hover);
+  transform: translateY(-1px);
+}
+
 .global-home-secondary {
   grid-template-columns: minmax(320px, 0.9fr) minmax(420px, 1.1fr);
 }
 
 .global-home-list-section {
   align-content: start;
+}
+
+.global-home--following .global-home-list-section,
+.global-home--discover .discover-result-section {
+  width: min(100%, var(--workspace-list-max));
+}
+
+.global-home--following .followed-team-grid,
+.global-home--following .followed-organization-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  width: min(100%, var(--workspace-list-max));
+  justify-content: start;
+}
+
+.global-home--following > .compact-empty {
+  width: min(100%, var(--workspace-list-max));
+  min-height: 74px;
+  place-items: start;
+  align-content: start;
+  padding: 0;
+  text-align: left;
+}
+
+.global-home--following .public-follow-team-card {
+  min-height: 64px;
+  padding: 10px 0;
+  border-width: 0 0 1px;
+  border-style: solid;
+  border-color: var(--divider-subtle);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.global-home--following .public-follow-team-card:hover,
+.global-home--following .public-follow-team-card:focus-within {
+  border-color: var(--divider-subtle);
+  background: var(--surface-interactive-row-hover);
+}
+
+.global-home--following .organization-team-card {
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.global-home--following .organization-team-card__header {
+  min-height: 60px;
+  padding: 8px 0 12px;
+  border-bottom: 1px solid var(--outline-section);
+}
+
+.global-home--following .organization-team-card__list {
+  max-height: none;
+  gap: 0;
+  padding-right: 0;
+}
+
+.global-home--following .organization-team-row {
+  min-height: 54px;
+  padding: 8px 0;
+  border-width: 0 0 1px;
+  border-style: solid;
+  border-color: var(--divider-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+
+.global-home--following .organization-team-row:hover,
+.global-home--following .organization-team-row:focus-within {
+  border-color: var(--divider-subtle);
+  background: var(--surface-interactive-row-hover);
+}
+
+.global-home--discover .global-discover-search {
+  width: min(100%, var(--workspace-list-max));
+}
+
+.discover-section-columns {
+  grid-template-columns: repeat(2, minmax(360px, 1fr));
+  width: min(100%, 1180px);
+}
+
+.discover-result-list {
+  gap: 0;
+  border-top: 1px solid var(--outline-section);
+}
+
+.global-home--discover .team-mini-row,
+.global-home--discover .player-mini-row {
+  min-height: 56px;
+  padding: 9px 0;
+  border-width: 0 0 1px;
+  border-style: solid;
+  border-color: var(--divider-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+
+.global-home--discover .team-mini-row:hover,
+.global-home--discover .team-mini-row:focus-within,
+.global-home--discover .player-mini-row:hover,
+.global-home--discover .player-mini-row:focus-within {
+  border-color: var(--divider-subtle);
+  background: var(--surface-interactive-row-hover);
 }
 
 .followed-team-list {
