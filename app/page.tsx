@@ -4052,11 +4052,7 @@ function ClubhouseHome({
         </button>
       </section>
 
-      <PageSection
-        title="My Organizations"
-        action={<button className="text-button" type="button" onClick={() => onView("organizations")}>View all</button>}
-        className="global-home-object-section"
-      >
+      <PageSection title="My Organizations" action={<button className="text-button" type="button" onClick={() => onView("organizations")}>View all</button>}>
         <div className="organization-grid">
           {organizations.length ? organizations.map((organization) => (
             <OrganizationCard
@@ -4069,11 +4065,7 @@ function ClubhouseHome({
         </div>
       </PageSection>
 
-      <PageSection
-        title="My Teams"
-        action={<button className="text-button" type="button" onClick={() => onView("following")}>View all</button>}
-        className="global-home-object-section"
-      >
+      <PageSection title="My Teams" action={<button className="text-button" type="button" onClick={() => onView("following")}>View all</button>}>
         <div className="managed-team-grid">
           {teams.length ? teams.slice(0, 6).map((team) => (
             <ManagedTeamCard
@@ -8406,18 +8398,13 @@ function WeightRoomView({
 
       {tab === "Overview" && (
         <section className="weight-room-overview-composition">
-          <PageSection
-            title="This Week"
-            action={<button className="text-button" type="button" onClick={openWorkoutBuilder}>View All Workouts</button>}
-            className="weight-room-this-week-section"
-          >
+          <PageSection title="This Week" className="weight-room-this-week-section">
             <WeightRoomTeamOverview
               overview={teamOverview}
-              activeWorkout={activeWorkoutSummary}
               workoutActionLabel={workoutActionLabel}
+              onViewWorkouts={openWorkoutBuilder}
               onStartWorkout={() => startWorkoutFromSelection()}
               className="weight-room-team-overview--primary"
-              hideHeader
             />
           </PageSection>
 
@@ -8789,9 +8776,8 @@ function WeightRoomRecentWorkouts({
   const workoutRows = expanded
     ? [...openRows, ...completedRows].slice(0, 8)
     : completedRows.slice(0, 1);
+  const totalRows = lifts.length + workoutRows.length;
   const activeRunning = activeWorkout?.status === "In Progress" || activeWorkout?.status === "Paused";
-  const showActiveFallback = activeRunning && Boolean(activeWorkout) && lifts.length === 0 && workoutRows.length === 0;
-  const totalRows = lifts.length + workoutRows.length + (showActiveFallback ? 1 : 0);
   const presetNames = new Set((data.weightRoomExercisePresets ?? []).filter((preset) => !preset.archivedAt).map((preset) => preset.name.toLowerCase()));
   const displayWorkoutTitle = (title: string) => presetNames.has(title.toLowerCase()) ? title : "Team Lift";
   const labelForLift = (item: ScheduleItem) => {
@@ -8809,26 +8795,13 @@ function WeightRoomRecentWorkouts({
       <div className="panel-heading tight">
         <div>
           <span>{expanded ? "Workout History" : "Team sessions"}</span>
-          <h2>{variant === "section" ? "Workouts" : totalRows ? "Lifts" : "No workouts yet"}</h2>
+          <h2>{totalRows ? "Lifts" : "No workouts yet"}</h2>
         </div>
         {!expanded && onViewAll && totalRows > 0 && (
           <button className="text-button" type="button" onClick={onViewAll}>View All</button>
         )}
       </div>
       <div className="weight-room-workout-list">
-        {showActiveFallback && activeWorkout && (
-          <button
-            type="button"
-            onClick={() => onStart({ title: activeWorkout.title, date: activeWorkout.date, eventId: activeWorkout.eventId })}
-          >
-            <ScheduleTypeIcon type="Lift" />
-            <span>
-              <strong>{displayWorkoutTitle(activeWorkout.title)}</strong>
-              <small>{shortDate(activeWorkout.date)}</small>
-            </span>
-            <em>{activeWorkout.status}</em>
-          </button>
-        )}
         {lifts.map((item) => (
           <button
             key={item.id}
@@ -8865,22 +8838,18 @@ function WeightRoomRecentWorkouts({
 
 function WeightRoomTeamOverview({
   overview,
-  activeWorkout,
   workoutActionLabel,
+  onViewWorkouts,
   onStartWorkout,
   className = "",
-  hideHeader = false,
 }: {
   overview: ReturnType<typeof buildWeightRoomTeamOverview>;
-  activeWorkout?: { status: WeightRoomWorkoutStatus; date: string; title: string; eventId?: ID };
   workoutActionLabel: string;
+  onViewWorkouts: () => void;
   onStartWorkout: () => void;
   className?: string;
-  hideHeader?: boolean;
 }) {
   const setsPerAthlete = overview.completedAthletes ? overview.sets / overview.completedAthletes : 0;
-  const hasActiveWorkout = Boolean(activeWorkout);
-  const isInlineEmpty = hideHeader && overview.completedWorkoutCount === 0 && !hasActiveWorkout;
   const volumeTrend = overview.volumeChangePct !== undefined
     ? `${overview.volumeChangePct >= 0 ? "+" : ""}${formatNumber(overview.volumeChangePct, 0)}% vs last week`
     : overview.completedWorkoutCount > 1 ? "No prior week sample" : "Logged this week";
@@ -8890,25 +8859,20 @@ function WeightRoomTeamOverview({
   const strengthTrendDetail = overview.strengthTrendPct !== undefined ? "own-baseline trend" : "Need more data";
 
   return (
-    <article className={`panel weight-room-team-overview weight-room-pulse-card ${isInlineEmpty ? "weight-room-team-overview--inline-empty" : ""} ${className}`.trim()}>
-      {!hideHeader && (
-        <div className="weight-room-pulse-header">
-          <div className="weight-room-pulse-title">
-            <span className="weight-room-pulse-title-icon" aria-hidden="true">
-              <Dumbbell size={17} />
-            </span>
-            <h2>This Week</h2>
-          </div>
+    <article className={`panel weight-room-team-overview weight-room-pulse-card ${className}`.trim()}>
+      <div className="weight-room-pulse-header">
+        <div className="weight-room-pulse-title">
+          <span className="weight-room-pulse-title-icon" aria-hidden="true">
+            <Dumbbell size={17} />
+          </span>
+          <h2>This Week</h2>
         </div>
-      )}
+        <button className="text-button" type="button" onClick={onViewWorkouts}>View All Workouts <ChevronRight size={15} aria-hidden="true" /></button>
+      </div>
       {overview.completedWorkoutCount === 0 ? (
-        <div className={`weight-room-pulse-empty ${hasActiveWorkout ? "weight-room-pulse-empty--active" : ""}`}>
-          <span>{hasActiveWorkout ? "Workout in progress" : "No completed workouts yet"}</span>
-          <small>
-            {hasActiveWorkout && activeWorkout
-              ? `${activeWorkout.title} - ${shortDate(activeWorkout.date)}`
-              : overview.nextLift ? `Next lift: ${overview.nextLift.title} - ${formatWeightRoomSessionMeta(overview.nextLift.date, overview.nextLift.startAt)}` : "Start the team's first workout when ready."}
-          </small>
+        <div className="weight-room-pulse-empty">
+          <span>No completed workouts this week</span>
+          <small>{overview.nextLift ? `Next lift: ${overview.nextLift.title} - ${formatWeightRoomSessionMeta(overview.nextLift.date, overview.nextLift.startAt)}` : "Build the next lift when the team is ready."}</small>
           <button className="secondary-button" type="button" onClick={onStartWorkout}>
             {workoutActionLabel === "Start Workout" ? <Plus size={15} aria-hidden="true" /> : <Play size={15} aria-hidden="true" />}
             {workoutActionLabel}

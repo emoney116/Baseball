@@ -50,10 +50,6 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-7: 32px;
-  --page-content-max: 1240px;
-  --page-object-grid-max: 832px;
-  --page-section-gap: var(--space-7);
-  --page-column-gap: clamp(18px, 2vw, 32px);
   --font: var(--font-geist), "Inter", "Segoe UI", system-ui, sans-serif;
   --text-page-title: clamp(1.5rem, 1.05vw + 1.18rem, 2rem);
   --text-section-title: clamp(1rem, 0.32vw + 0.94rem, 1.125rem);
@@ -24443,7 +24439,6 @@ textarea:focus,
 .page-section {
   display: grid;
   gap: var(--space-3);
-  width: 100%;
   min-width: 0;
 }
 
@@ -24452,13 +24447,7 @@ textarea:focus,
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-3);
-  width: 100%;
   min-width: 0;
-  grid-column: 1 / -1;
-}
-
-.page-section > *:not(.page-section__header) {
-  grid-column: 1 / -1;
 }
 
 .page-section__header h2 {
@@ -24479,7 +24468,7 @@ textarea:focus,
 .section-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--page-column-gap);
+  gap: var(--space-5);
   min-width: 0;
 }
 
@@ -24489,47 +24478,37 @@ textarea:focus,
 
 .section-columns > * + * {
   border-left: 1px solid var(--divider-subtle);
-  padding-left: var(--page-column-gap);
+  padding-left: var(--space-5);
 }
 
 .global-home--composition,
 .home-dashboard--composition,
 .weight-room-overview-composition {
-  width: min(100%, var(--page-content-max));
+  width: min(100%, 1480px);
   margin-inline: auto;
 }
 
 .global-home--composition,
 .home-dashboard--composition {
-  gap: var(--page-section-gap);
+  gap: var(--space-7);
 }
 
 .global-home--composition .global-title-row {
   margin-bottom: 0;
 }
 
-.global-home-object-section {
-  width: min(100%, var(--page-object-grid-max));
-}
-
-.global-home--composition .global-home-object-section .page-section__header {
-  width: 100%;
-}
-
 .global-home--composition .organization-grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 400px));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 420px));
   justify-content: start;
-  gap: var(--page-column-gap);
 }
 
 .global-home--composition .managed-team-grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 400px));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 380px));
   justify-content: start;
-  gap: var(--page-column-gap);
 }
 
 .global-home-secondary {
-  grid-template-columns: minmax(320px, 0.9fr) minmax(420px, 1.1fr);
+  grid-template-columns: minmax(280px, 0.8fr) minmax(340px, 1.2fr);
 }
 
 .global-home-list-section {
@@ -24592,12 +24571,11 @@ textarea:focus,
 .home-up-next-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--page-column-gap);
+  gap: var(--space-3);
 }
 
 .home-dashboard--composition .home-info-card {
-  min-height: 104px;
-  padding: 18px;
+  min-height: 118px;
 }
 
 .team-snapshot-bar--section {
@@ -24630,7 +24608,7 @@ textarea:focus,
 }
 
 .home-development-columns {
-  grid-template-columns: minmax(300px, 0.4fr) minmax(460px, 0.6fr);
+  grid-template-columns: minmax(280px, 0.75fr) minmax(340px, 1.25fr);
 }
 
 .weight-leader-section,
@@ -24667,7 +24645,7 @@ textarea:focus,
 
 .weight-room-overview-composition {
   display: grid;
-  gap: var(--page-section-gap);
+  gap: var(--space-7);
 }
 
 .weight-room-this-week-section {
@@ -24683,14 +24661,13 @@ textarea:focus,
 }
 
 .weight-room-composition-split {
-  grid-template-columns: minmax(280px, 0.35fr) minmax(560px, 0.65fr);
+  grid-template-columns: minmax(260px, 0.68fr) minmax(520px, 1.32fr);
   align-items: start;
 }
 
 .weight-room-weigh-card--section .panel-heading,
 .weight-room-recent-card--section .panel-heading {
   min-height: auto;
-  align-items: center;
 }
 
 .weight-room-weigh-card--section,
@@ -24705,34 +24682,6 @@ textarea:focus,
   border-left: 0;
   border-radius: 0;
   background: transparent;
-}
-
-.weight-room-weigh-card--section .weight-room-mini-table > div,
-.weight-room-weigh-card--section .weight-room-mini-table button {
-  grid-template-columns: minmax(180px, 1.35fr) repeat(4, minmax(76px, 0.58fr));
-}
-
-.weight-room-weigh-card--section .weight-room-mini-table > div span:not(:first-child),
-.weight-room-weigh-card--section .weight-room-mini-table button > span,
-.weight-room-weigh-card--section .weight-room-mini-table button > em {
-  justify-self: end;
-  text-align: right;
-}
-
-.weight-room-team-overview--inline-empty {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.weight-room-team-overview--primary .weight-room-pulse-empty {
-  min-height: 0;
-}
-
-.weight-room-team-overview--primary .weight-room-pulse-empty--active {
-  border-color: rgba(191, 45, 92, 0.2);
-  background: color-mix(in srgb, var(--surface-interactive) 28%, transparent);
 }
 
 .weight-room-recent-card--section {
@@ -24772,13 +24721,6 @@ textarea:focus,
   .page-section__header {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .global-home--composition .page-section__header,
-  .home-dashboard--composition .page-section__header,
-  .weight-room-overview-composition .page-section__header {
-    align-items: flex-end;
-    flex-direction: row;
   }
 
   .team-snapshot-bar--section > .page-section__header {
