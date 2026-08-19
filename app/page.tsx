@@ -4041,7 +4041,7 @@ function ClubhouseHome({
   const recentTeam = teams.find((team) => teamValue(team) === teamValue(data.teamContext?.currentTeam)) ?? teams[0];
 
   return (
-    <div className="page-stack global-home global-home--composition">
+    <div className="page-stack global-home">
       <section className="global-title-row">
         <div>
           <h1>Home</h1>
@@ -4052,7 +4052,8 @@ function ClubhouseHome({
         </button>
       </section>
 
-      <PageSection title="My Organizations" action={<button className="text-button" type="button" onClick={() => onView("organizations")}>View all</button>}>
+      <section className="global-section">
+        <SectionHeader title="My Organizations" action={<button className="text-button" type="button" onClick={() => onView("organizations")}>View all</button>} />
         <div className="organization-grid">
           {organizations.length ? organizations.map((organization) => (
             <OrganizationCard
@@ -4063,9 +4064,10 @@ function ClubhouseHome({
             />
           )) : <CompactEmpty title="No organizations yet" />}
         </div>
-      </PageSection>
+      </section>
 
-      <PageSection title="My Teams" action={<button className="text-button" type="button" onClick={() => onView("following")}>View all</button>}>
+      <section className="global-section">
+        <SectionHeader title="My Teams" action={<button className="text-button" type="button" onClick={() => onView("following")}>View all</button>} />
         <div className="managed-team-grid">
           {teams.length ? teams.slice(0, 6).map((team) => (
             <ManagedTeamCard
@@ -4078,26 +4080,25 @@ function ClubhouseHome({
             />
           )) : <CompactEmpty title="No teams yet" />}
         </div>
-      </PageSection>
+      </section>
 
-      <SectionColumns className="global-home-secondary">
-        <PageSection
-          title="Following"
-          action={<button className="text-button" type="button" onClick={() => onView("following")}>Manage</button>}
-          className="global-home-list-section"
-        >
+      <section className="global-two-column">
+        <article className="panel compact-panel">
+          <div className="panel-heading tight">
+            <div><h2>Following</h2></div>
+            <button className="text-button" type="button" onClick={() => onView("following")}>Manage</button>
+          </div>
           <FollowSummary
             data={data}
             onOpenPublicTeam={onOpenPublicTeam}
             onTogglePublicTeamFollow={onTogglePublicTeamFollow}
-            variant="list"
           />
-        </PageSection>
-        <PageSection
-          title="Recent"
-          action={<button className="text-button" type="button" onClick={() => onView("discover")}>Search</button>}
-          className="global-home-list-section"
-        >
+        </article>
+        <article className="panel compact-panel">
+          <div className="panel-heading tight">
+            <div><h2>Recent</h2></div>
+            <button className="text-button" type="button" onClick={() => onView("discover")}>Search</button>
+          </div>
           {recentTeam ? (
             <button className="recent-team-row" type="button" onClick={() => void onEnterTeam(recentTeam)}>
               <OrganizationLogo name={recentTeam.organizationName} />
@@ -4108,8 +4109,8 @@ function ClubhouseHome({
               <ChevronRight size={16} aria-hidden="true" />
             </button>
           ) : <CompactEmpty title="No recent teams" />}
-        </PageSection>
-      </SectionColumns>
+        </article>
+      </section>
     </div>
   );
 }
@@ -4796,7 +4797,7 @@ function OrganizationCard({
       ) : (
         <div className="team-chip-row"><span>No teams yet</span></div>
       )}
-      {expanded && onOpenOrganization && (
+      {onOpenOrganization && (
         <button className="text-button organization-open-button" type="button" onClick={() => onOpenOrganization(organization)}>
           Open Organization
         </button>
@@ -5092,38 +5093,13 @@ function FollowSummary({
   data,
   onOpenPublicTeam,
   onTogglePublicTeamFollow,
-  variant = "cards",
 }: {
   data: AppData;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
-  variant?: "cards" | "list";
 }) {
   const teams = followedPublicTeams(data);
   if (!teams.length) return <CompactEmpty title="No followed teams yet" />;
-  if (variant === "list") {
-    return (
-      <div className="followed-team-list">
-        {teams.slice(0, 5).map((team) => (
-          <div className="followed-team-row" key={team.id}>
-            <button className="followed-team-row__main" type="button" onClick={() => onOpenPublicTeam(team)}>
-              <OrganizationLogo name={team.organizationName} />
-              <span>
-                <strong>{team.name}</strong>
-                <small>{team.seasonName ?? team.organizationName}</small>
-              </span>
-              <ChevronRight size={15} aria-hidden="true" />
-            </button>
-            <FollowButton
-              followed={isFollowingTeam(data.profileFollows ?? [], team.id)}
-              label={isFollowingTeam(data.profileFollows ?? [], team.id) ? `Unfollow ${team.name}` : `Follow ${team.name}`}
-              onClick={() => void onTogglePublicTeamFollow(team)}
-            />
-          </div>
-        ))}
-      </div>
-    );
-  }
   return (
     <div className="followed-team-grid followed-team-grid--summary">
       {teams.slice(0, 3).map((team) => (
@@ -5245,32 +5221,40 @@ function HomeDashboard({
     .slice(0, 5);
 
   return (
-    <div className="page-stack home-dashboard home-dashboard--composition">
-      <PageSection
-        title="Up Next"
-        action={nextItems.length > 2 ? <button className="text-button" type="button" onClick={() => onView("schedule")}>View Schedule</button> : undefined}
-      >
-        <div className="home-up-next-grid">
-          <HomeInfoCard
-            icon={ClipboardList}
-            title={todaysPractice ? "Today's Practice" : "Next Practice"}
-            primary={nextPractice ? formatTime(nextPractice.startAt) : "No practice scheduled"}
-            meta={nextPractice ? [nextPractice.title, nextPractice.location].filter(Boolean).join(" - ") : "Create the next practice when ready"}
-            onClick={nextPractice ? () => onView(nextPractice.source === "practice" ? "practice" : "schedule") : onStartPractice}
-            cta={nextPractice ? "Open" : "Start"}
-          />
-          <HomeInfoCard
-            icon={BaseballIcon}
-            title="Next Game"
-            primary={nextGame ? nextGame.title : "No game scheduled"}
-            meta={nextGame ? `${shortDate(nextGame.date)} - ${nextGame.location ?? "Location TBD"}` : "Create the next game when ready"}
-            onClick={nextGame ? () => onView("games") : onStartGame}
-          />
-        </div>
-      </PageSection>
+    <div className="page-stack home-dashboard">
+      <section className="home-ops-grid">
+        <HomeInfoCard
+          icon={ClipboardList}
+          title={todaysPractice ? "Today's Practice" : "Next Practice"}
+          primary={nextPractice ? formatTime(nextPractice.startAt) : "No practice scheduled"}
+          meta={nextPractice ? [nextPractice.title, nextPractice.location].filter(Boolean).join(" - ") : "Create the next practice when ready"}
+          onClick={nextPractice ? () => onView(nextPractice.source === "practice" ? "practice" : "schedule") : onStartPractice}
+          cta={nextPractice ? "Open" : "Start"}
+        />
+        <HomeInfoCard
+          icon={BaseballIcon}
+          title="Next Game"
+          primary={nextGame ? nextGame.title : "No game scheduled"}
+          meta={nextGame ? `${shortDate(nextGame.date)} - ${nextGame.location ?? "Location TBD"}` : "Create the next game when ready"}
+          onClick={nextGame ? () => onView("games") : onStartGame}
+        />
+        <HomeInfoCard
+          icon={Users}
+          title="Roster"
+          primary={`${activeRoster.length} Players`}
+          meta={`${rosterPitchers} Pitchers - ${rosterHitters} Hitters`}
+          onClick={() => onView("roster")}
+        />
+      </section>
+
+      <section className="home-secondary-grid">
+        <AwardCard title="Player of the Week" award={weeklyMvp} onOpenPlayer={onOpenPlayer} icon={Trophy} />
+        <WeightLeaderCard leader={weightLeader} leaders={weightLeaderRows} onOpenPlayer={onOpenPlayer} />
+        <UpcomingScheduleCard items={nextItems} onView={onView} />
+        <RecentActivityCard activities={buildTeamRecentActivity(data).slice(0, 5)} onOpenPlayer={onOpenPlayer} />
+      </section>
 
       <TeamSnapshotBar
-        variant="section"
         team={currentTeam?.teamName ?? "Team Snapshot"}
         stats={[
           { label: "Players", value: activeRoster.length },
@@ -5280,26 +5264,6 @@ function HomeDashboard({
           { label: "Total Reps This Week", value: formatCompactNumber(repsThisWeek) },
         ]}
       />
-
-      <PageSection title="Development" description="Team standouts and weight room movement.">
-        <SectionColumns className="home-development-columns">
-          <AwardCard title="Player of the Week" award={weeklyMvp} onOpenPlayer={onOpenPlayer} icon={Trophy} />
-          <WeightLeaderCard
-            leader={weightLeader}
-            leaders={weightLeaderRows}
-            onOpenPlayer={onOpenPlayer}
-            variant="section"
-          />
-        </SectionColumns>
-      </PageSection>
-
-      <PageSection title="Recent Activity">
-        <RecentActivityCard
-          activities={buildTeamRecentActivity(data).slice(0, 7)}
-          onOpenPlayer={onOpenPlayer}
-          variant="section"
-        />
-      </PageSection>
     </div>
   );
 }
@@ -8397,30 +8361,9 @@ function WeightRoomView({
       </section>
 
       {tab === "Overview" && (
-        <section className="weight-room-overview-composition">
-          <PageSection title="This Week" className="weight-room-this-week-section">
-            <WeightRoomTeamOverview
-              overview={teamOverview}
-              workoutActionLabel={workoutActionLabel}
-              onViewWorkouts={openWorkoutBuilder}
-              onStartWorkout={() => startWorkoutFromSelection()}
-              className="weight-room-team-overview--primary"
-            />
-          </PageSection>
-
-          <PageSection title="Team Progress" className="weight-room-progress-section">
-            <SectionColumns className="weight-room-composition-split">
-              <WeightLeaderCard leaders={leaderRows} onOpenPlayer={onOpenPlayer} variant="section" />
-              <WeightRoomWeighInCard
-                data={data}
-                players={players}
-                date={workoutDate}
-                onOpen={() => onWeighInOpen(true)}
-                variant="section"
-              />
-            </SectionColumns>
-          </PageSection>
-
+        <section className="weight-room-overview-grid">
+          <WeightLeaderCard leaders={leaderRows} onOpenPlayer={onOpenPlayer} />
+          <WeightRoomWeighInCard data={data} players={players} date={workoutDate} onOpen={() => onWeighInOpen(true)} />
           <WeightRoomRecentWorkouts
             data={data}
             players={players}
@@ -8428,7 +8371,12 @@ function WeightRoomView({
             onStart={startWorkoutFromSelection}
             onReview={reviewWorkout}
             onViewAll={openWorkoutBuilder}
-            variant="section"
+          />
+          <WeightRoomTeamOverview
+            overview={teamOverview}
+            workoutActionLabel={workoutActionLabel}
+            onViewWorkouts={openWorkoutBuilder}
+            onStartWorkout={() => startWorkoutFromSelection()}
           />
         </section>
       )}
@@ -8677,19 +8625,7 @@ function LegacyWeightRoomView({
   );
 }
 
-function WeightRoomWeighInCard({
-  data,
-  players,
-  date,
-  onOpen,
-  variant = "panel",
-}: {
-  data: AppData;
-  players: Player[];
-  date: string;
-  onOpen: () => void;
-  variant?: "panel" | "section";
-}) {
+function WeightRoomWeighInCard({ data, players, date, onOpen }: { data: AppData; players: Player[]; date: string; onOpen: () => void }) {
   const [page, setPage] = useState(0);
   const currentWeek = weekStart(date);
   const rows = players.map((player) => {
@@ -8706,7 +8642,7 @@ function WeightRoomWeighInCard({
   const weighed = rows.filter((row) => typeof row.thisWeek === "number").length;
 
   return (
-    <article className={`${variant === "panel" ? "panel " : ""}weight-room-weigh-card${variant === "section" ? " weight-room-weigh-card--section" : ""}`}>
+    <article className="panel weight-room-weigh-card">
       <div className="panel-heading tight">
         <div>
           <span>{weighed}/{players.length} logged</span>
@@ -8754,7 +8690,6 @@ function WeightRoomRecentWorkouts({
   onReview,
   onViewAll,
   expanded = false,
-  variant = "panel",
 }: {
   data: AppData;
   players: Player[];
@@ -8763,7 +8698,6 @@ function WeightRoomRecentWorkouts({
   onReview?: (row: WeightRoomWorkoutSummary) => void;
   onViewAll?: () => void;
   expanded?: boolean;
-  variant?: "panel" | "section";
 }) {
   const allWorkoutRows = buildRecentWeightRoomWorkouts(data, players);
   const allLiftRows = buildScheduleItems(data)
@@ -8791,7 +8725,7 @@ function WeightRoomRecentWorkouts({
   };
 
   return (
-    <article className={`${variant === "panel" ? "panel " : ""}weight-room-recent-card${variant === "section" ? " weight-room-recent-card--section page-section" : ""}`}>
+    <article className="panel weight-room-recent-card">
       <div className="panel-heading tight">
         <div>
           <span>{expanded ? "Workout History" : "Team sessions"}</span>
@@ -8841,13 +8775,11 @@ function WeightRoomTeamOverview({
   workoutActionLabel,
   onViewWorkouts,
   onStartWorkout,
-  className = "",
 }: {
   overview: ReturnType<typeof buildWeightRoomTeamOverview>;
   workoutActionLabel: string;
   onViewWorkouts: () => void;
   onStartWorkout: () => void;
-  className?: string;
 }) {
   const setsPerAthlete = overview.completedAthletes ? overview.sets / overview.completedAthletes : 0;
   const volumeTrend = overview.volumeChangePct !== undefined
@@ -8859,7 +8791,7 @@ function WeightRoomTeamOverview({
   const strengthTrendDetail = overview.strengthTrendPct !== undefined ? "own-baseline trend" : "Need more data";
 
   return (
-    <article className={`panel weight-room-team-overview weight-room-pulse-card ${className}`.trim()}>
+    <article className="panel weight-room-team-overview weight-room-pulse-card">
       <div className="weight-room-pulse-header">
         <div className="weight-room-pulse-title">
           <span className="weight-room-pulse-title-icon" aria-hidden="true">
@@ -15827,37 +15759,6 @@ function SectionHeader({
   );
 }
 
-function PageSection({
-  title,
-  description,
-  action,
-  className = "",
-  children,
-}: {
-  title: string;
-  description?: string;
-  action?: React.ReactNode;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className={`page-section ${className}`.trim()}>
-      <div className="page-section__header">
-        <div>
-          <h2>{title}</h2>
-          {description && <p>{description}</p>}
-        </div>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function SectionColumns({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`section-columns ${className}`.trim()}>{children}</div>;
-}
-
 function HomeInfoCard({
   icon: Icon,
   title,
@@ -15889,15 +15790,13 @@ function HomeInfoCard({
 function RecentActivityCard({
   activities,
   onOpenPlayer,
-  variant = "panel",
 }: {
   activities: TeamActivity[];
   onOpenPlayer: (playerId: ID) => void;
-  variant?: "panel" | "section";
 }) {
   return (
-    <article className={`${variant === "panel" ? "panel " : ""}recent-activity-card${variant === "section" ? " recent-activity-section" : ""}`}>
-      {variant === "panel" && <h2>Recent Activity</h2>}
+    <article className="panel recent-activity-card">
+      <h2>Recent Activity</h2>
       <div className="activity-feed">
         {activities.length ? activities.map((activity) => (
           <button
@@ -15926,20 +15825,13 @@ function RecentActivityCard({
 function TeamSnapshotBar({
   team,
   stats,
-  variant = "panel",
 }: {
   team: string;
   stats: Array<{ label: string; value: string | number; progress?: number }>;
-  variant?: "panel" | "section";
 }) {
   return (
-    <section className={`${variant === "panel" ? "panel " : ""}team-snapshot-bar${variant === "section" ? " team-snapshot-bar--section page-section" : ""}`} aria-label={`${team} snapshot`}>
-      <div className="page-section__header">
-        <div>
-          <h2>Team Snapshot</h2>
-          {variant === "section" && <p>{team}</p>}
-        </div>
-      </div>
+    <section className="panel team-snapshot-bar" aria-label={`${team} snapshot`}>
+      <h2>Team Snapshot</h2>
       <div>
         {stats.map((stat) => (
           <span key={stat.label} className="snapshot-stat">
@@ -15991,16 +15883,14 @@ function WeightLeaderCard({
   leader,
   leaders,
   onOpenPlayer,
-  variant = "panel",
 }: {
   leader?: WeightLeaderResult;
   leaders?: WeightLeaderResult[];
   onOpenPlayer: (playerId: ID) => void;
-  variant?: "panel" | "section";
 }) {
   const rows = leaders?.length ? leaders.slice(0, 5) : leader ? [leader] : [];
   return (
-    <article className={`${variant === "panel" ? "panel award-card " : ""}weight-leader${variant === "section" ? " weight-leader-section" : ""}`}>
+    <article className="panel award-card weight-leader">
       <div className="award-card__top">
         <span>Weight Room Leaders</span>
         <Dumbbell size={18} aria-hidden="true" />
@@ -16024,6 +15914,37 @@ function WeightLeaderCard({
     </article>
   );
 }
+function UpcomingScheduleCard({ items, onView }: { items: ScheduleItem[]; onView: (view: ViewKey) => void }) {
+  return (
+    <article className="panel upcoming-schedule-card">
+      <div className="award-card__top">
+        <span>Upcoming</span>
+        <button type="button" className="text-button" onClick={() => onView("schedule")}>View Schedule</button>
+      </div>
+      {items.length ? (
+        <div className="upcoming-schedule-list">
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onView(item.source === "game" ? "games" : item.source === "practice" ? "practice" : item.source === "lift" ? "weights" : "schedule")}
+            >
+              <time>{item.date === todayKey() ? "Today" : shortDate(item.date)}</time>
+              <ScheduleTypeIcon type={item.eventType} />
+              <span>
+                <strong>{item.title}</strong>
+                <small>{formatTime(item.startAt)}{item.location ? ` - ${item.location}` : ""}</small>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <CompactEmpty title="No upcoming team events" />
+      )}
+    </article>
+  );
+}
+
 function LeaderRows({ leaders, format, onOpenPlayer }: { leaders: Array<{ playerId: ID; name: string; value: number; sample: number }>; format: (value: number) => string; onOpenPlayer: (playerId: ID) => void }) {
   return (
     <div className="leader-rows">
