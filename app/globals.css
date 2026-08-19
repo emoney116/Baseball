@@ -4894,10 +4894,20 @@ textarea:focus-visible {
 .team-creator-modal {
   width: min(760px, calc(100vw - 28px));
   border-radius: 16px;
-  padding: 16px;
+  padding: 0;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--panel-strong) 94%, transparent), var(--panel-strong)),
     var(--panel-strong);
+}
+
+.modal-panel.team-creator-modal {
+  max-height: calc(100dvh - 12px);
+}
+
+.team-creator-body {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
 }
 
 .team-creator-segment {
@@ -4911,7 +4921,7 @@ textarea:focus-visible {
 }
 
 .team-creator-segment button {
-  min-height: 38px;
+  min-height: 36px;
   border: 0;
   border-radius: 999px;
   background: transparent;
@@ -4928,13 +4938,30 @@ textarea:focus-visible {
 
 .team-creator-grid {
   display: grid;
-  grid-template-columns: 92px repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px 12px;
 }
 
-.team-creator-span,
-.team-creator-grid .form-field:first-child {
+.team-creator-grid--organization .team-creator-team-name,
+.team-creator-grid--organization .add-first-team-toggle {
   grid-column: 1 / -1;
+}
+
+.team-creator-grid--existing .team-creator-org-field {
+  grid-column: 1 / span 2;
+}
+
+.team-creator-grid--existing .team-creator-team-name {
+  grid-column: 3;
+}
+
+.team-creator-grid--organization {
+  grid-template-columns: 92px repeat(2, minmax(0, 1fr));
+}
+
+.team-creator-grid--organization .team-creator-span {
+  grid-column: 2 / -1;
 }
 
 .team-creator-org-field {
@@ -5017,7 +5044,7 @@ textarea:focus-visible {
 }
 
 .team-creator-modal input {
-  min-height: 44px;
+  min-height: 40px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--panel-soft) 86%, transparent);
@@ -5029,6 +5056,18 @@ textarea:focus-visible {
   border-color: color-mix(in srgb, var(--burgundy) 72%, var(--line));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--burgundy) 18%, transparent);
   outline: 0;
+}
+
+.team-creator-modal .choice-select__button {
+  min-height: 40px;
+}
+
+.team-creator-modal .modal-title {
+  padding-block: 12px;
+}
+
+.team-creator-modal .modal-actions {
+  padding-block: 10px;
 }
 
 .modal-close-button {
@@ -5228,6 +5267,23 @@ textarea:focus-visible {
   align-content: center;
 }
 
+.global-home-secondary .public-follow-team-card,
+.global-home-secondary .recent-team-row {
+  min-height: 72px;
+  padding: 10px 12px;
+}
+
+.global-home-secondary .recent-team-row {
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 11px;
+}
+
+.global-home-secondary .recent-team-row .organization-logo {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+}
+
 .discover-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -5399,6 +5455,13 @@ textarea:focus-visible {
   padding: 6px;
 }
 
+.followed-organization-grid .organization-team-row {
+  min-height: 48px;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  gap: 10px;
+  padding: 8px 10px;
+}
+
 .organization-team-row > button:not(.follow-heart),
 .organization-team-row__main {
   min-width: 0;
@@ -5412,6 +5475,12 @@ textarea:focus-visible {
   padding: 2px 4px;
   text-align: left;
   cursor: pointer;
+}
+
+.followed-organization-grid .organization-team-row > button:not(.follow-heart),
+.followed-organization-grid .organization-team-row__main {
+  min-height: 32px;
+  padding: 0;
 }
 
 .pin-team-button {
@@ -15811,7 +15880,11 @@ body,
 
   .organization-logo-field,
   .team-creator-span,
-  .team-creator-grid .form-field:first-child {
+  .team-creator-grid--existing .team-creator-org-field,
+  .team-creator-grid--existing .team-creator-team-name,
+  .team-creator-grid--organization .team-creator-span,
+  .team-creator-grid--organization .team-creator-team-name,
+  .team-creator-grid--organization .add-first-team-toggle {
     grid-column: 1;
     grid-row: auto;
   }
@@ -15833,6 +15906,10 @@ body,
 
   .team-creator-modal {
     width: min(100%, calc(100vw - 16px));
+    padding: 0;
+  }
+
+  .team-creator-body {
     padding: 12px;
   }
 

@@ -4410,171 +4410,174 @@ function TeamCreatorModal({
           </button>
         </div>
 
-        <div className="team-creator-segment" role="tablist" aria-label="Creation type">
-          <button type="button" className={mode === "existing" ? "active" : ""} onClick={() => setMode("existing")}>
-            Add Team
-          </button>
-          <button type="button" className={mode === "organization" ? "active" : ""} onClick={() => setMode("organization")}>
-            New Organization
-          </button>
-        </div>
+        <div className="modal-body team-creator-body">
+          <div className="team-creator-segment" role="tablist" aria-label="Creation type">
+            <button type="button" className={mode === "existing" ? "active" : ""} onClick={() => setMode("existing")}>
+              Add Team
+            </button>
+            <button type="button" className={mode === "organization" ? "active" : ""} onClick={() => setMode("organization")}>
+              New Organization
+            </button>
+          </div>
 
-        <div className="team-creator-grid">
-          {mode === "existing" ? (
-            <div className="form-field team-creator-org-field team-creator-span">
-              <span>Organization</span>
-              <div className="team-creator-org-select">
-                {selectedOrganization && <OrganizationLogo name={selectedOrganization.name} logoUrl={selectedOrganization.logoUrl} />}
-                <ChoiceSelect
-                  aria-label="Organization"
-                  className="form-choice"
-                  value={form.organizationId}
-                  options={selectedOrganizationOptions}
-                  onChange={(organizationId) => setForm((current) => ({ ...current, organizationId }))}
-                />
+          <div className={`team-creator-grid team-creator-grid--${mode}`}>
+            {mode === "existing" ? (
+              <div className="form-field team-creator-org-field team-creator-span">
+                <span>Organization</span>
+                <div className="team-creator-org-select">
+                  {selectedOrganization && <OrganizationLogo name={selectedOrganization.name} logoUrl={selectedOrganization.logoUrl} />}
+                  <ChoiceSelect
+                    aria-label="Organization"
+                    className="form-choice"
+                    value={form.organizationId}
+                    options={selectedOrganizationOptions}
+                    onChange={(organizationId) => setForm((current) => ({ ...current, organizationId }))}
+                  />
+                </div>
               </div>
-            </div>
-          ) : (
-            <>
-              <div className="organization-logo-field">
-                <button className="organization-logo-picker" type="button" onClick={() => logoInputRef.current?.click()} aria-label="Choose organization logo">
-                  {organizationLogoUrl ? <img src={organizationLogoUrl} alt="" /> : <Upload size={18} aria-hidden="true" />}
-                </button>
-                <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoFile} />
-              </div>
-              <label className="form-field team-creator-span">
-                <span>Organization Name</span>
-                <input value={form.organizationName} onChange={(event) => setForm((current) => ({ ...current, organizationName: event.target.value }))} />
-              </label>
-              <div className="form-field">
-                <span>State</span>
-                <ChoiceSelect
-                  aria-label="Organization state"
-                  className="form-choice"
-                  value={form.organizationState}
-                  options={[{ value: "", label: "Select state" }, ...US_STATE_OPTIONS.map((state) => ({ value: state, label: state }))]}
-                  onChange={(state) => updateState("organization", state)}
-                />
-              </div>
-              <div className="form-field">
-                <span>City</span>
-                <ChoiceSelect
-                  aria-label="Organization city"
-                  className="form-choice"
-                  value={form.organizationCity}
-                  disabled={!form.organizationState}
-                  options={[
-                    { value: "", label: form.organizationState ? "Select city" : "Select state first" },
-                    ...cityOptionsForState(form.organizationState).map((city) => ({ value: city, label: city })),
-                  ]}
-                  onChange={(city) => setForm((current) => ({ ...current, organizationCity: city }))}
-                />
-              </div>
-              <div className="form-field team-creator-span">
-                <span>Visibility</span>
-                <ChoiceSelect
-                  aria-label="Organization visibility"
-                  className="form-choice"
-                  value={form.organizationVisibility}
-                  options={[
-                    { value: "PUBLIC", label: "Public" },
-                    { value: "UNLISTED", label: "Unlisted" },
-                    { value: "PRIVATE", label: "Private" },
-                  ]}
-                  onChange={(organizationVisibility) => setForm((current) => ({ ...current, organizationVisibility }))}
-                />
-              </div>
-              <button
-                className={`add-first-team-toggle ${addFirstTeam ? "active" : ""}`}
-                type="button"
-                onClick={() => setAddFirstTeam((value) => !value)}
-              >
-                <Plus size={15} aria-hidden="true" />
-                Add first team
-              </button>
-            </>
-          )}
-          {createsTeam && (
-            <>
-              <label className="form-field team-creator-span">
-                <span>Team Name</span>
-                <input value={form.teamName} onChange={(event) => setForm((current) => ({ ...current, teamName: event.target.value }))} />
-              </label>
-              <div className="form-field">
-                <span>Team Type</span>
-                <ChoiceSelect
-                  aria-label="Team type"
-                  className="form-choice"
-                  value={form.teamType}
-                  options={TEAM_TYPE_OPTIONS.map((type) => ({ value: type, label: type }))}
-                  onChange={updateTeamType}
-                />
-              </div>
-              <div className="form-field">
-                <span>{form.teamType === "School" ? "Level" : "Age"}</span>
-                <ChoiceSelect
-                  aria-label="Team level"
-                  className="form-choice"
-                  value={form.teamLevel}
-                  options={levelOptionsForTeamType(form.teamType).map((level) => ({ value: level, label: level }))}
-                  onChange={(teamLevel) => setForm((current) => ({ ...current, teamLevel }))}
-                />
-              </div>
-              <div className="form-field">
-                <span>Season</span>
-                <ChoiceSelect
-                  aria-label="Season"
-                  className="form-choice"
-                  value={form.seasonName}
-                  options={SEASON_OPTIONS.map((season) => ({ value: season, label: season }))}
-                  onChange={(seasonName) => setForm((current) => ({ ...current, seasonName }))}
-                />
-              </div>
-              <div className="form-field">
-                <span>{teamLocationRequired ? "State" : "Team State"}</span>
-                <ChoiceSelect
-                  aria-label="Team state"
-                  className="form-choice"
-                  value={form.teamState}
-                  options={[{ value: "", label: teamLocationRequired ? "Required" : "Optional" }, ...US_STATE_OPTIONS.map((state) => ({ value: state, label: state }))]}
-                  onChange={(state) => updateState("team", state)}
-                />
-              </div>
-              <div className="form-field">
-                <span>{teamLocationRequired ? "City" : "Team City"}</span>
-                <ChoiceSelect
-                  aria-label="Team city"
-                  className="form-choice"
-                  value={form.teamCity}
-                  disabled={!form.teamState}
-                  options={[
-                    { value: "", label: form.teamState ? (teamLocationRequired ? "Required" : "Optional") : "Select state first" },
-                    ...cityOptionsForState(form.teamState).map((city) => ({ value: city, label: city })),
-                  ]}
-                  onChange={(city) => setForm((current) => ({ ...current, teamCity: city }))}
-                />
-              </div>
-              {teamLocationRequired && (
+            ) : (
+              <>
+                <div className="organization-logo-field">
+                  <button className="organization-logo-picker" type="button" onClick={() => logoInputRef.current?.click()} aria-label="Choose organization logo">
+                    {organizationLogoUrl ? <img src={organizationLogoUrl} alt="" /> : <Upload size={18} aria-hidden="true" />}
+                  </button>
+                  <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoFile} />
+                </div>
+                <label className="form-field team-creator-span">
+                  <span>Organization Name</span>
+                  <input value={form.organizationName} onChange={(event) => setForm((current) => ({ ...current, organizationName: event.target.value }))} />
+                </label>
                 <div className="form-field">
+                  <span>State</span>
+                  <ChoiceSelect
+                    aria-label="Organization state"
+                    className="form-choice"
+                    value={form.organizationState}
+                    options={[{ value: "", label: "Select state" }, ...US_STATE_OPTIONS.map((state) => ({ value: state, label: state }))]}
+                    onChange={(state) => updateState("organization", state)}
+                  />
+                </div>
+                <div className="form-field">
+                  <span>City</span>
+                  <ChoiceSelect
+                    aria-label="Organization city"
+                    className="form-choice"
+                    value={form.organizationCity}
+                    disabled={!form.organizationState}
+                    options={[
+                      { value: "", label: form.organizationState ? "Select city" : "Select state first" },
+                      ...cityOptionsForState(form.organizationState).map((city) => ({ value: city, label: city })),
+                    ]}
+                    onChange={(city) => setForm((current) => ({ ...current, organizationCity: city }))}
+                  />
+                </div>
+                <div className="form-field team-creator-span">
                   <span>Visibility</span>
                   <ChoiceSelect
-                    aria-label="Team visibility"
+                    aria-label="Organization visibility"
                     className="form-choice"
-                    value={form.teamVisibility}
+                    value={form.organizationVisibility}
                     options={[
                       { value: "PUBLIC", label: "Public" },
                       { value: "UNLISTED", label: "Unlisted" },
                       { value: "PRIVATE", label: "Private" },
                     ]}
-                    onChange={(teamVisibility) => setForm((current) => ({ ...current, teamVisibility }))}
+                    onChange={(organizationVisibility) => setForm((current) => ({ ...current, organizationVisibility }))}
                   />
                 </div>
-              )}
-            </>
-          )}
+                <button
+                  className={`add-first-team-toggle ${addFirstTeam ? "active" : ""}`}
+                  type="button"
+                  onClick={() => setAddFirstTeam((value) => !value)}
+                >
+                  <Plus size={15} aria-hidden="true" />
+                  Add first team
+                </button>
+              </>
+            )}
+            {createsTeam && (
+              <>
+                <label className="form-field team-creator-span team-creator-team-name">
+                  <span>Team Name</span>
+                  <input value={form.teamName} onChange={(event) => setForm((current) => ({ ...current, teamName: event.target.value }))} />
+                </label>
+                <div className="form-field">
+                  <span>Team Type</span>
+                  <ChoiceSelect
+                    aria-label="Team type"
+                    className="form-choice"
+                    value={form.teamType}
+                    options={TEAM_TYPE_OPTIONS.map((type) => ({ value: type, label: type }))}
+                    onChange={updateTeamType}
+                  />
+                </div>
+                <div className="form-field">
+                  <span>{form.teamType === "School" ? "Level" : "Age"}</span>
+                  <ChoiceSelect
+                    aria-label="Team level"
+                    className="form-choice"
+                    value={form.teamLevel}
+                    options={levelOptionsForTeamType(form.teamType).map((level) => ({ value: level, label: level }))}
+                    onChange={(teamLevel) => setForm((current) => ({ ...current, teamLevel }))}
+                  />
+                </div>
+                <div className="form-field">
+                  <span>Season</span>
+                  <ChoiceSelect
+                    aria-label="Season"
+                    className="form-choice"
+                    value={form.seasonName}
+                    options={SEASON_OPTIONS.map((season) => ({ value: season, label: season }))}
+                    onChange={(seasonName) => setForm((current) => ({ ...current, seasonName }))}
+                  />
+                </div>
+                <div className="form-field">
+                  <span>{teamLocationRequired ? "State" : "Team State"}</span>
+                  <ChoiceSelect
+                    aria-label="Team state"
+                    className="form-choice"
+                    value={form.teamState}
+                    options={[{ value: "", label: teamLocationRequired ? "Required" : "Optional" }, ...US_STATE_OPTIONS.map((state) => ({ value: state, label: state }))]}
+                    onChange={(state) => updateState("team", state)}
+                  />
+                </div>
+                <div className="form-field">
+                  <span>{teamLocationRequired ? "City" : "Team City"}</span>
+                  <ChoiceSelect
+                    aria-label="Team city"
+                    className="form-choice"
+                    value={form.teamCity}
+                    disabled={!form.teamState}
+                    options={[
+                      { value: "", label: form.teamState ? (teamLocationRequired ? "Required" : "Optional") : "Select state first" },
+                      ...cityOptionsForState(form.teamState).map((city) => ({ value: city, label: city })),
+                    ]}
+                    onChange={(city) => setForm((current) => ({ ...current, teamCity: city }))}
+                  />
+                </div>
+                {teamLocationRequired && (
+                  <div className="form-field">
+                    <span>Visibility</span>
+                    <ChoiceSelect
+                      aria-label="Team visibility"
+                      className="form-choice"
+                      value={form.teamVisibility}
+                      options={[
+                        { value: "PUBLIC", label: "Public" },
+                        { value: "UNLISTED", label: "Unlisted" },
+                        { value: "PRIVATE", label: "Private" },
+                      ]}
+                      onChange={(teamVisibility) => setForm((current) => ({ ...current, teamVisibility }))}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {message && <span className="profile-save-message profile-save-message--error">{message}</span>}
         </div>
 
-        {message && <span className="profile-save-message profile-save-message--error">{message}</span>}
         <div className="modal-actions">
           <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
           <button className="primary-button" type="submit" disabled={status === "saving"}>
