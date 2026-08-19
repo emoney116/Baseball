@@ -4133,18 +4133,17 @@ function OrganizationsView({
 }) {
   const organizations = organizationSummariesFromContext(data.teamContext);
   return (
-    <div className="page-stack global-home global-home--composition">
-      <section className="global-title-row">
-        <div>
-          <h1>Organizations</h1>
-        </div>
-        <button className="primary-button" type="button" onClick={() => onCreateTeam(undefined, "organization")}>
-          <Plus size={16} aria-hidden="true" />
-          New Team/Org
-        </button>
-      </section>
-      <PageSection title="Managed organizations" className="global-home-object-section">
-        <div className="organization-grid">
+    <div className="page-stack global-home">
+      <SectionHeader
+        title="Organizations"
+        action={
+          <button className="primary-button" type="button" onClick={() => onCreateTeam(undefined, "organization")}>
+            <Plus size={16} aria-hidden="true" />
+            New Team/Org
+          </button>
+        }
+      />
+      <section className="organization-grid">
         {organizations.length ? organizations.map((organization) => (
           <OrganizationCard
             key={organization.id}
@@ -4154,8 +4153,7 @@ function OrganizationsView({
             expanded
           />
         )) : <CompactEmpty title="No organizations yet" />}
-        </div>
-      </PageSection>
+      </section>
     </div>
   );
 }
@@ -4173,18 +4171,17 @@ function MyTeamsView({
 }) {
   const teams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
   return (
-    <div className="page-stack global-home global-home--composition">
-      <section className="global-title-row">
-        <div>
-          <h1>My Teams</h1>
-        </div>
-        <button className="primary-button" type="button" onClick={onCreateTeam}>
-          <Plus size={16} aria-hidden="true" />
-          New Team/Org
-        </button>
-      </section>
-      <PageSection title="Team workspaces" className="global-home-object-section">
-        <div className="managed-team-grid">
+    <div className="page-stack global-home">
+      <SectionHeader
+        title="My Teams"
+        action={
+          <button className="primary-button" type="button" onClick={onCreateTeam}>
+            <Plus size={16} aria-hidden="true" />
+            New Team/Org
+          </button>
+        }
+      />
+      <section className="managed-team-grid">
         {teams.length ? teams.map((team) => (
           <ManagedTeamCard
             key={teamValue(team)}
@@ -4195,8 +4192,7 @@ function MyTeamsView({
             onTogglePinnedTeam={onToggleTeamPin}
           />
         )) : <CompactEmpty title="No team memberships yet" />}
-        </div>
-      </PageSection>
+      </section>
     </div>
   );
 }
@@ -4604,20 +4600,21 @@ function FollowingView({
   const followedTeams = followedPublicTeams(data);
   const followedOrganizations = followedPublicOrganizations(data);
   return (
-    <div className="page-stack global-home global-home--composition global-home--following">
-      <section className="global-title-row">
-        <div>
-          <h1>Following</h1>
-        </div>
-        <button className="primary-button" type="button" onClick={onCreateTeam}>
-          <Plus size={16} aria-hidden="true" />
-          New Team/Org
-        </button>
-      </section>
+    <div className="page-stack global-home">
+      <SectionHeader
+        title="Following"
+        action={
+          <button className="primary-button" type="button" onClick={onCreateTeam}>
+            <Plus size={16} aria-hidden="true" />
+            New Team/Org
+          </button>
+        }
+      />
       {followedTeams.length || followedOrganizations.length ? (
         <>
           {followedTeams.length > 0 && (
-            <PageSection title="Teams" className="global-home-list-section">
+            <section className="global-section">
+              <SectionHeader title="Teams" />
               <div className="followed-team-grid">
                 {followedTeams.map((team) => (
                   <PublicTeamFollowCard
@@ -4629,10 +4626,11 @@ function FollowingView({
                   />
                 ))}
               </div>
-            </PageSection>
+            </section>
           )}
           {followedOrganizations.length > 0 && (
-            <PageSection title="Organizations" className="global-home-list-section">
+            <section className="global-section">
+              <SectionHeader title="Organizations" />
               <div className="followed-organization-grid">
                 {followedOrganizations.map((organization) => (
                   <PublicOrganizationFollowCard
@@ -4647,7 +4645,7 @@ function FollowingView({
                   />
                 ))}
               </div>
-            </PageSection>
+            </section>
           )}
         </>
       ) : (
@@ -4697,23 +4695,24 @@ function DiscoverView({
   const publicTeams = (data.publicTeams ?? []).filter((team) => !needle || publicTeamSearchText(team).includes(needle));
 
   return (
-    <div className="page-stack global-home global-home--composition global-home--discover">
-      <section className="global-title-row">
-        <div>
-          <h1>Discover</h1>
-        </div>
-        <button className="primary-button" type="button" onClick={onCreateTeam}>
-          <Plus size={16} aria-hidden="true" />
-          New Team/Org
-        </button>
-      </section>
+    <div className="page-stack global-home">
+      <SectionHeader
+        title="Discover"
+        action={
+          <button className="primary-button" type="button" onClick={onCreateTeam}>
+            <Plus size={16} aria-hidden="true" />
+            New Team/Org
+          </button>
+        }
+      />
       <label className="global-discover-search">
         <Search size={17} aria-hidden="true" />
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search teams or organizations..." />
       </label>
-      <SectionColumns className="discover-section-columns">
-        <PageSection title="Organizations" className="discover-result-section">
-          <div className="compact-list discover-result-list">
+      <section className="discover-grid discover-grid--two">
+        <article className="panel compact-panel">
+          <div className="panel-heading tight"><div><h2>Organizations</h2></div></div>
+          <div className="compact-list">
             {organizations.length ? organizations.map((organization) => (
               <OrganizationMiniRow key={organization.id} organization={organization} onEnterTeam={onEnterTeam} />
             )) : null}
@@ -4726,9 +4725,10 @@ function DiscoverView({
             )) : null}
             {!organizations.length && !publicOrganizations.length && <CompactEmpty title="No organizations found" />}
           </div>
-        </PageSection>
-        <PageSection title="Teams" className="discover-result-section">
-          <div className="compact-list discover-result-list">
+        </article>
+        <article className="panel compact-panel">
+          <div className="panel-heading tight"><div><h2>Teams</h2></div></div>
+          <div className="compact-list">
             {teams.length ? teams.map((team) => (
               <TeamMiniRow key={teamValue(team)} team={team} onEnterTeam={onEnterTeam} />
             )) : null}
@@ -4743,8 +4743,8 @@ function DiscoverView({
             )) : null}
             {!teams.length && !publicTeams.length && <CompactEmpty title="No teams found" />}
           </div>
-        </PageSection>
-      </SectionColumns>
+        </article>
+      </section>
     </div>
   );
 }
