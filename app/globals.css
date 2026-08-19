@@ -23870,11 +23870,6 @@ textarea:focus,
   --divider-subtle: color-mix(in srgb, var(--line) 62%, transparent);
   --row-hover: color-mix(in srgb, var(--surface-hover) 48%, transparent);
   --row-selected: color-mix(in srgb, var(--burgundy) 15%, transparent);
-  --surface-object-soft: color-mix(in srgb, var(--surface-interactive) 16%, transparent);
-  --surface-object-soft-hover: color-mix(in srgb, var(--surface-hover) 30%, transparent);
-  --surface-feature-soft: color-mix(in srgb, var(--surface-interactive) 19%, var(--burgundy) 4%);
-  --outline-soft: color-mix(in srgb, var(--line) 46%, transparent);
-  --outline-feature-soft: color-mix(in srgb, var(--burgundy) 16%, var(--line) 58%);
 }
 
 .panel {
@@ -24603,23 +24598,6 @@ textarea:focus,
 .home-dashboard--composition .home-info-card {
   min-height: 104px;
   padding: 18px;
-  border-color: var(--outline-soft);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.016), transparent),
-    var(--surface-object-soft);
-  box-shadow: none;
-}
-
-.home-dashboard--composition .home-info-card:hover,
-.home-dashboard--composition .home-info-card:focus-visible {
-  border-color: color-mix(in srgb, var(--burgundy) 18%, var(--line) 52%);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.024), transparent),
-    var(--surface-object-soft-hover);
-}
-
-.home-dashboard--composition .home-info-card__icon {
-  background: color-mix(in srgb, var(--surface-interactive) 24%, transparent);
 }
 
 .team-snapshot-bar--section {
@@ -24642,24 +24620,13 @@ textarea:focus,
 
 .team-snapshot-bar--section > div:last-child {
   overflow: hidden;
-  border-top: 1px solid var(--outline-soft);
-  border-right: 0;
-  border-bottom: 1px solid var(--outline-soft);
-  border-left: 0;
-  border-radius: 0;
-  background: transparent;
+  border: 1px solid var(--divider-subtle);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--surface-interactive) 22%, transparent);
 }
 
 .team-snapshot-bar--section .snapshot-stat {
   min-height: 74px;
-}
-
-.home-development-columns .award-card {
-  border-color: var(--outline-feature-soft);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent),
-    var(--surface-feature-soft);
-  box-shadow: none;
 }
 
 .home-development-columns {
@@ -24684,7 +24651,7 @@ textarea:focus,
 
 .recent-activity-section .activity-feed,
 .weight-leader-section .weight-leader-list {
-  border-top: 1px solid var(--outline-soft);
+  border-top: 1px solid var(--divider-subtle);
   border-right: 0;
   border-bottom: 0;
   border-left: 0;
@@ -24709,11 +24676,6 @@ textarea:focus,
 
 .weight-room-team-overview--primary {
   min-height: 0;
-  border-color: var(--outline-feature-soft);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent),
-    var(--surface-feature-soft);
-  box-shadow: none;
 }
 
 .weight-room-progress-section {
@@ -24737,31 +24699,12 @@ textarea:focus,
 }
 
 .weight-room-weigh-card--section .weight-room-mini-table {
-  border-top: 1px solid var(--outline-soft);
+  border-top: 1px solid var(--divider-subtle);
   border-right: 0;
   border-bottom: 0;
   border-left: 0;
   border-radius: 0;
   background: transparent;
-}
-
-.weight-room-weigh-card--section .weight-room-mini-table > div {
-  border: 0;
-  border-bottom: 1px solid var(--outline-soft);
-  border-radius: 0;
-  background: transparent;
-}
-
-.weight-room-weigh-card--section .weight-room-mini-table button {
-  border: 0;
-  border-bottom: 1px solid var(--divider-subtle);
-  border-radius: 0;
-  background: transparent;
-}
-
-.weight-room-weigh-card--section .weight-room-mini-table button:hover,
-.weight-room-weigh-card--section .weight-room-mini-table button:focus-visible {
-  background: var(--row-hover);
 }
 
 .weight-room-weigh-card--section .weight-room-mini-table > div,
@@ -24788,8 +24731,8 @@ textarea:focus,
 }
 
 .weight-room-team-overview--primary .weight-room-pulse-empty--active {
-  border-color: transparent;
-  background: transparent;
+  border-color: rgba(191, 45, 92, 0.2);
+  background: color-mix(in srgb, var(--surface-interactive) 28%, transparent);
 }
 
 .weight-room-recent-card--section {
@@ -24800,19 +24743,7 @@ textarea:focus,
 }
 
 .weight-room-recent-card--section .weight-room-workout-list {
-  border-top: 1px solid var(--outline-soft);
-}
-
-.weight-room-recent-card--section .weight-room-workout-list button {
-  border-color: var(--outline-soft);
-  background: var(--surface-object-soft);
-  box-shadow: none;
-}
-
-.weight-room-recent-card--section .weight-room-workout-list button:hover,
-.weight-room-recent-card--section .weight-room-workout-list button:focus-visible {
-  border-color: color-mix(in srgb, var(--burgundy) 18%, var(--line) 52%);
-  background: var(--surface-object-soft-hover);
+  border-top: 1px solid var(--divider-subtle);
 }
 
 @media (max-width: 980px) {
