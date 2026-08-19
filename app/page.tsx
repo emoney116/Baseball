@@ -4103,9 +4103,9 @@ function ClubhouseHome({
         </div>
       </section>
 
-      <section className="global-two-column">
-        <article className="panel compact-panel">
-          <div className="panel-heading tight">
+      <section className="global-two-column global-home-secondary">
+        <article className="home-inline-section">
+          <div className="home-inline-section__heading">
             <div><h2>Following</h2></div>
             <button className="text-button" type="button" onClick={() => onView("following")}>Manage</button>
           </div>
@@ -4115,8 +4115,8 @@ function ClubhouseHome({
             onTogglePublicTeamFollow={onTogglePublicTeamFollow}
           />
         </article>
-        <article className="panel compact-panel">
-          <div className="panel-heading tight">
+        <article className="home-inline-section">
+          <div className="home-inline-section__heading">
             <div><h2>Recent</h2></div>
             <button className="text-button" type="button" onClick={() => onView("discover")}>Search</button>
           </div>

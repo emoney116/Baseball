@@ -2915,9 +2915,9 @@ textarea:focus-visible {
 .pinned-team-shortcut {
   width: 100%;
   min-height: 44px;
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
   border-radius: var(--radius);
-  background: var(--panel-soft);
+  background: color-mix(in srgb, var(--panel-soft) 64%, transparent);
   color: var(--text);
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
@@ -2931,7 +2931,7 @@ textarea:focus-visible {
 .pinned-team-shortcut:hover,
 .pinned-team-shortcut:focus-visible {
   border-color: color-mix(in srgb, var(--burgundy) 42%, var(--line));
-  background: var(--panel-strong);
+  background: color-mix(in srgb, var(--panel-strong) 76%, transparent);
 }
 
 .pinned-team-shortcut .organization-logo {
@@ -5182,6 +5182,50 @@ textarea:focus-visible {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
+}
+
+.global-home-secondary {
+  align-items: start;
+  column-gap: 18px;
+}
+
+.home-inline-section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.home-inline-section + .home-inline-section {
+  border-left: 1px solid color-mix(in srgb, var(--line) 68%, transparent);
+  padding-left: 18px;
+}
+
+.home-inline-section__heading {
+  min-height: 26px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+}
+
+.home-inline-section__heading h2 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 760;
+}
+
+.home-inline-section__heading .text-button {
+  min-height: auto;
+  padding: 0;
+  line-height: 1.2;
+}
+
+.home-inline-section .compact-empty {
+  min-height: 62px;
+  align-content: center;
 }
 
 .discover-grid {
@@ -14251,6 +14295,12 @@ body {
   .profile-overview-grid,
   .account-grid {
     grid-template-columns: 1fr;
+  }
+
+  .home-inline-section + .home-inline-section {
+    border-left: 0;
+    padding-left: 0;
+    padding-top: 2px;
   }
 
   .schedule-toolbar {
