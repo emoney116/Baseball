@@ -2347,7 +2347,7 @@ function mapPlayer(row: any, membership?: any): Player {
     programLevel: membership?.roster_status === "JV" ? "JV" : membership?.roster_status === "Varsity" ? "Varsity" : "Development",
     height: row.height ?? undefined,
     weight: row.weight ?? undefined,
-    avatarColor: metadata.avatarColor ?? "#9f244c",
+    avatarColor: metadata.avatarColor ?? "#30343b",
     imageUrl: row.photo_url ?? undefined,
     isPitcher: row.is_pitcher,
     isHitter: row.is_hitter,

@@ -52,7 +52,7 @@ import type { LucideIcon } from "lucide-react";
 import type React from "react";
 import { Children, isValidElement, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { BaseballField, DonutChart, Heatmap, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
+import { BaseballField, DonutChart, Heatmap, IdentityAvatar, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
 import { APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
@@ -566,7 +566,14 @@ const WEIGHT_ROOM_TEMPLATES = [
   { name: "Conditioning", exercises: ["Sprint", "Plank"] },
 ];
 const WEIGHT_ROOM_LEADER_WINDOWS = ["This Week", "This Month", "This Season"] as const;
-const PITCH_MIX_COLORS = ["#9f244c", "#43c6ac", "#8b96a5", "#38bdf8", "#f97316", "#a78bfa", "#e2e8f0", "#22c55e"];
+const PITCH_MIX_COLORS = [
+  "var(--chart-primary)",
+  "var(--chart-info)",
+  "var(--chart-neutral)",
+  "var(--chart-success)",
+  "var(--chart-plum)",
+  "var(--chart-award)",
+];
 const ROSTER_CSV_TEMPLATE = [
   "First Name,Last Name,Jersey Number,Graduation Year,Primary Position,Secondary Position,Bats,Throws,Team,Roster Status",
   "Jackson,Smith,12,2027,SS,P,R,R,Metrolina Varsity,Varsity",
@@ -3535,7 +3542,6 @@ function ProfileMenu({
   variant?: "icon" | "card";
 }) {
   const profile = context?.profile;
-  const initials = profileInitials(context);
   const profileName = profileDisplayName(context);
   const role = context?.currentTeam?.title ?? roleLabel(context?.currentTeam?.role) ?? profile?.role ?? "Coach";
   function handleProfileClick() {
@@ -3550,7 +3556,13 @@ function ProfileMenu({
   return (
     <div className={`profile-menu profile-menu--${variant}`}>
       <button className="profile-menu__button" type="button" onClick={handleProfileClick} aria-label={variant === "icon" ? "Open profile" : "Open profile menu"} aria-expanded={variant === "card" ? open : undefined}>
-        <span className="profile-menu__avatar">{profile?.avatarUrl ? <img src={profile.avatarUrl} alt="" /> : <span>{initials}</span>}</span>
+        <IdentityAvatar
+          id={profile?.id ?? profile?.email}
+          name={profileName}
+          src={profile?.avatarUrl}
+          size="sm"
+          className="profile-menu__avatar"
+        />
         {variant === "card" && (
           <span className="profile-menu__identity">
             <strong>{profileName}</strong>
@@ -3731,10 +3743,18 @@ function AccountProfileView({
       />
       <section className="account-grid">
         <article className="panel account-card account-card--editable">
-          <label className="account-avatar account-avatar--editable" aria-label="Change profile photo">
-            {avatarUrl ? <img src={avatarUrl} alt="" /> : <span>{profileInitials(context)}</span>}
+          <IdentityAvatar
+            as="label"
+            id={profile?.id ?? emailValue}
+            name={displayValue}
+            src={avatarUrl}
+            size="xl"
+            className="account-avatar account-avatar--editable"
+            ariaLabel="Change profile photo"
+            decorative={false}
+          >
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} />
-          </label>
+          </IdentityAvatar>
           <div className="account-profile-main">
             <div className="profile-line">
               <span>Name</span>
@@ -6260,11 +6280,15 @@ function StaffRosterView({
 }
 
 function StaffAvatar({ member }: { member?: StaffMember }) {
-  const initials = initialsFor(member?.displayName ?? member?.email ?? "Staff Member");
+  const name = member?.displayName ?? member?.email ?? "Staff Member";
   return (
-    <span className="staff-avatar">
-      {member?.avatarUrl ? <img src={member.avatarUrl} alt="" /> : initials}
-    </span>
+    <IdentityAvatar
+      id={member?.profileId ?? member?.id ?? member?.email}
+      name={name}
+      src={member?.avatarUrl}
+      size="sm"
+      className="staff-avatar"
+    />
   );
 }
 
@@ -6651,7 +6675,13 @@ function PracticeActiveSessionsCard({
             </span>
             <span className="practice-session-contributors">
               {session.contributors.slice(0, 3).map((contributor) => (
-                <i key={`${session.id}-${contributor}`}>{initialsFor(contributor)}</i>
+                <IdentityAvatar
+                  key={`${session.id}-${contributor}`}
+                  id={contributor}
+                  name={contributor}
+                  size="xs"
+                  className="practice-session-contributor-avatar"
+                />
               ))}
               {session.contributors.length > 0 ? <small>{session.contributors[0]}</small> : <small>Open station</small>}
             </span>
@@ -7593,7 +7623,13 @@ function PracticeConsole({
             <span><b>Reps</b><em>{sessionReps}</em></span>
           </div>
           <div className="practice-session-contributor-card">
-            <i>{initialsFor(profileDisplayName(data.teamContext))}</i>
+            <IdentityAvatar
+              id={data.teamContext?.profile?.id ?? data.teamContext?.profile?.email}
+              name={profileDisplayName(data.teamContext)}
+              src={data.teamContext?.profile?.avatarUrl}
+              size="sm"
+              className="practice-session-contributor-avatar"
+            />
             <span>
               <strong>{profileDisplayName(data.teamContext)}</strong>
               <small>Tracking</small>
@@ -8100,7 +8136,7 @@ function PracticeConsole({
 function TrackerPlayerCard({ label, player, stat, onOpenPlayer }: { label: string; player?: Player; stat?: string; onOpenPlayer: (playerId: ID) => void }) {
   return (
     <button className="tracker-player-card" type="button" disabled={!player} onClick={() => player && onOpenPlayer(player.id)}>
-      {player ? <PlayerAvatar player={player} size="md" /> : <span className="player-avatar player-avatar--md">--</span>}
+      {player ? <PlayerAvatar player={player} size="md" /> : <span className="player-avatar player-avatar--md player-avatar--tone-neutral">--</span>}
       <span>
         <small>{label}</small>
         <strong>{player ? `${player.name}` : `Select ${label.toLowerCase()}`}</strong>
@@ -14154,7 +14190,7 @@ function PlayerEditorModal({ player, onClose, onSave }: { player?: Player; onClo
       programLevel: "Development",
       height: "6-0",
       weight: 175,
-      avatarColor: "#9f244c",
+      avatarColor: "#30343b",
       isPitcher: false,
       isHitter: true,
       notes: "",
@@ -18583,14 +18619,6 @@ function preferredProfileDisplayName(profile?: AppProfile) {
   const named = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim();
   const display = profile?.displayName && !profile.displayName.includes("@") ? profile.displayName : "";
   return display || named || profile?.email?.split("@")[0]?.replace(/[._-]+/g, " ") || "Coach";
-}
-
-function profileInitials(context?: TeamContext) {
-  const profile = context?.profile;
-  const named = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ").trim();
-  const display = profile?.displayName && !profile.displayName.includes("@") ? profile.displayName : "";
-  const emailLocal = profile?.email?.split("@")[0]?.replace(/[._-]+/g, " ").trim() ?? "";
-  return initialsFor(named || display || emailLocal || profile?.email || "C9");
 }
 
 function gradeSession(note: string) {

@@ -3,32 +3,101 @@ import type React from "react";
 import { BRAND_ASSETS } from "../lib/branding";
 import type { Player, ZonePoint } from "../types";
 
+const AVATAR_VARIANTS = ["neutral", "maroon", "steel", "forest", "plum", "navy"] as const;
+
+type AvatarVariant = typeof AVATAR_VARIANTS[number];
+type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
+
+function stableHash(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+export function avatarVariantForIdentity(id?: string, name?: string): AvatarVariant {
+  const seed = (id || name || "clubhouse-9").trim();
+  return AVATAR_VARIANTS[stableHash(seed) % AVATAR_VARIANTS.length];
+}
+
+export function initialsForName(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+export function IdentityAvatar({
+  id,
+  name,
+  src,
+  size = "md",
+  badge,
+  className = "",
+  as = "span",
+  ariaLabel,
+  decorative = true,
+  children,
+}: {
+  id?: string;
+  name: string;
+  src?: string;
+  size?: AvatarSize;
+  badge?: string | number;
+  className?: string;
+  as?: "span" | "div" | "label";
+  ariaLabel?: string;
+  decorative?: boolean;
+  children?: React.ReactNode;
+}) {
+  const variant = avatarVariantForIdentity(id, name);
+  const classes = [
+    "player-avatar",
+    `player-avatar--${size}`,
+    `player-avatar--tone-${variant}`,
+    src ? "player-avatar--image" : "player-avatar--initials",
+    className,
+  ].filter(Boolean).join(" ");
+  const content = (
+    <>
+      {src ? (
+        <img src={src} alt="" />
+      ) : (
+        <>
+          <span>{initialsForName(name)}</span>
+          {badge !== undefined && <small>{badge}</small>}
+        </>
+      )}
+      {children}
+    </>
+  );
+  const accessibility = decorative ? { "aria-hidden": true as const } : { "aria-label": ariaLabel ?? name };
+
+  if (as === "label") return <label className={classes} data-avatar-variant={variant} {...accessibility}>{content}</label>;
+  if (as === "div") return <div className={classes} data-avatar-variant={variant} {...accessibility}>{content}</div>;
+  return <span className={classes} data-avatar-variant={variant} {...accessibility}>{content}</span>;
+}
+
 export function PlayerAvatar({
   player,
   size = "md",
   compact = false,
 }: {
   player: Player;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: AvatarSize;
   compact?: boolean;
 }) {
-  const initials = player.name
-    .split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2);
-
   return (
-    <div className={`player-avatar player-avatar--${size}`} style={{ "--avatar-color": player.avatarColor } as React.CSSProperties}>
-      {player.imageUrl ? (
-        <img src={player.imageUrl} alt="" />
-      ) : (
-        <>
-          <span>{initials}</span>
-          {!compact && <small>#{player.jerseyNumber}</small>}
-        </>
-      )}
-    </div>
+    <IdentityAvatar
+      id={player.id}
+      name={player.name}
+      src={player.imageUrl}
+      size={size}
+      badge={compact ? undefined : `#${player.jerseyNumber}`}
+    />
   );
 }
 
@@ -101,8 +170,8 @@ export function MiniLineChart({ values, labels }: { values: number[]; labels?: s
       <svg viewBox={`0 0 ${width} ${height}`} role="img">
         <defs>
           <linearGradient id="lineFill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#36b79c" stopOpacity="0.34" />
-            <stop offset="100%" stopColor="#9f244c" stopOpacity="0.02" />
+            <stop offset="0%" stopColor="var(--chart-success)" stopOpacity="0.34" />
+            <stop offset="100%" stopColor="var(--chart-primary)" stopOpacity="0.02" />
           </linearGradient>
         </defs>
         <polyline className="mini-chart__ghost" points={`0,${height} ${points} ${width},${height}`} />

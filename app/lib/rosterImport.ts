@@ -965,7 +965,7 @@ function normalizeImportedStaffRole(role: string): StaffBaseballRole {
 }
 
 function colorForName(name: string) {
-  const colors = ["#8b1e3f", "#2f6f89", "#4f6f52", "#7c5a21", "#5b4f8f", "#8a3d32"];
+  const colors = ["#30343b", "#6f2543", "#283847", "#294137", "#3a304f", "#23344a"];
   const index = name.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0) % colors.length;
   return colors[index];
 }
