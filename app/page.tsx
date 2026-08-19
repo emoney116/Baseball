@@ -2198,7 +2198,7 @@ export default function MetrolinaBaseballApp() {
   if (!hydrated) {
     return (
       <main className="loading-screen">
-        <img className="brand-wordmark" src={BRAND_ASSETS.wordmark} alt="" />
+        <img className="brand-wordmark brand-wordmark--product" src={BRAND_ASSETS.wordmark} alt="" />
         <img className="asset-preload" src="/brand/metrolina-warriors-alpha.png" alt="" aria-hidden="true" />
         <strong>{APP_TAGLINE}</strong>
       </main>
@@ -2218,7 +2218,7 @@ export default function MetrolinaBaseballApp() {
   if (!data) {
     return (
       <main className="loading-screen">
-        <img className="brand-wordmark" src={BRAND_ASSETS.wordmark} alt="" />
+        <img className="brand-wordmark brand-wordmark--product" src={BRAND_ASSETS.wordmark} alt="" />
         <strong>{APP_NAME}</strong>
       </main>
     );
@@ -2233,7 +2233,7 @@ export default function MetrolinaBaseballApp() {
       <aside className="ops-sidebar" aria-label="Primary navigation">
         <div className="sidebar-brand">
           <button className="brand-lockup" type="button" onClick={returnToClubhouseHome}>
-            <img src={BRAND_ASSETS.mark} alt="" />
+            <img className="brand-mark-image" src={BRAND_ASSETS.mark} alt="" />
             <span>
               <strong>{APP_NAME}</strong>
               <small>{APP_TAGLINE}</small>
@@ -2898,7 +2898,7 @@ function AuthGate({
 
   return (
     <main className="loading-screen auth-screen">
-      <img className="brand-wordmark" src={BRAND_ASSETS.wordmark} alt="" />
+      <img className="brand-wordmark brand-wordmark--product" src={BRAND_ASSETS.wordmark} alt="" />
       <strong>{APP_TAGLINE}</strong>
 
       {authState.status === "not-configured" && <p className="auth-message">{authState.message}</p>}
@@ -3031,7 +3031,7 @@ function TopCommand({
     <header className="top-command">
       <div className="top-command__identity">
         <button type="button" className="mobile-brand" onClick={() => onView("home")}>
-          <img src={BRAND_ASSETS.mark} alt="" />
+          <img className="brand-mark-image" src={BRAND_ASSETS.mark} alt="" />
         </button>
         <strong>{APP_NAME}</strong>
       </div>

@@ -73,7 +73,7 @@ export default function SetupPage() {
     <main className="setup-screen">
       <section className="setup-card">
         <div className="setup-brand">
-          <img src={BRAND_ASSETS.mark} alt="" />
+          <img className="brand-mark-image" src={BRAND_ASSETS.mark} alt="" />
           <span>
             <strong>{APP_NAME}</strong>
             <small>First-run setup</small>

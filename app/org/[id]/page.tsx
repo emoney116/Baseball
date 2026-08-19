@@ -25,7 +25,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ i
         <div className="public-topbar__left">
           <PublicBackButton />
           <Link href="/" className="public-brand">
-            <img src={BRAND_ASSETS.mark} alt="" />
+            <img className="brand-mark-image" src={BRAND_ASSETS.mark} alt="" />
             <span>{APP_NAME}</span>
           </Link>
         </div>

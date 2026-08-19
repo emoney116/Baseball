@@ -139,7 +139,7 @@ export default async function GamePage({
         <div className="public-topbar__left">
           <PublicBackButton href={teamHref} label={`Back to ${publicGame.team.name}`} />
           <Link href="/" className="public-brand">
-            <img src={BRAND_ASSETS.mark} alt="" />
+            <img className="brand-mark-image" src={BRAND_ASSETS.mark} alt="" />
             <span>{APP_NAME}</span>
           </Link>
         </div>

@@ -129,7 +129,7 @@ export default function JoinInvitationClient({ token }: { token: string }) {
 
   return (
     <main className="loading-screen auth-screen join-screen">
-      <img className="brand-wordmark" src={BRAND_ASSETS.wordmark} alt="" />
+      <img className="brand-wordmark brand-wordmark--product" src={BRAND_ASSETS.wordmark} alt="" />
       <strong>Staff invitation</strong>
       <span>{APP_NAME}</span>
 

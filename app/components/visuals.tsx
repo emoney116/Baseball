@@ -339,7 +339,7 @@ export function EmptyState({
 }) {
   return (
     <div className="empty-state">
-      <img src={BRAND_ASSETS.mark} alt="" />
+      <img className="brand-mark-image" src={BRAND_ASSETS.mark} alt="" />
       <strong>{title}</strong>
       <p>{body}</p>
       {action}

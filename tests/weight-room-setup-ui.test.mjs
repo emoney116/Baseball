@@ -2,6 +2,33 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+test("product logos stay light-mode safe and theme preference persists per device", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  const themePreference = readFileSync("app/lib/themePreference.ts", "utf8");
+  const logoSources = [
+    "app/page.tsx",
+    "app/setup/page.tsx",
+    "app/components/visuals.tsx",
+    "app/join/[token]/JoinInvitationClient.tsx",
+    "app/org/[id]/page.tsx",
+    "app/org/[id]/manage/page.tsx",
+    "app/team/[id]/page.tsx",
+    "app/game/[id]/page.tsx",
+  ].map((file) => readFileSync(file, "utf8")).join("\n");
+
+  assert.match(css, /\[data-theme="light"\] \.brand-mark-image\s*\{/);
+  assert.match(css, /\[data-theme="light"\] \.brand-wordmark--product\s*\{/);
+  assert.doesNotMatch(logoSources, /<img(?![^>]*brand-mark-image)[^>]*BRAND_ASSETS\.mark/);
+  assert.doesNotMatch(logoSources, /<img(?![^>]*brand-wordmark--product)[^>]*BRAND_ASSETS\.wordmark/);
+
+  assert.match(themePreference, /DEVICE_THEME_STORAGE_KEY = "clubhouse9-theme:device"/);
+  assert.match(themePreference, /THEME_COOKIE_NAME = "clubhouse9-theme"/);
+  assert.match(themePreference, /window\.localStorage\.setItem\(DEVICE_THEME_STORAGE_KEY, theme\)/);
+  assert.match(themePreference, /document\.cookie = `\$\{THEME_COOKIE_NAME\}=/);
+  assert.match(themePreference, /document\.documentElement\.style\.colorScheme = theme/);
+  assert.match(themePreference, /document\.cookie\.match/);
+});
+
 test("active weight room setup keeps exercise saves and preset UI clean", () => {
   const page = readFileSync("app/page.tsx", "utf8");
   const repository = readFileSync("app/data/supabaseRepository.ts", "utf8");
