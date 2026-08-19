@@ -2915,9 +2915,9 @@ textarea:focus-visible {
 .pinned-team-shortcut {
   width: 100%;
   min-height: 44px;
-  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 56%, transparent);
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--panel-soft) 64%, transparent);
+  background: color-mix(in srgb, var(--panel-soft) 50%, transparent);
   color: var(--text);
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
@@ -2931,7 +2931,7 @@ textarea:focus-visible {
 .pinned-team-shortcut:hover,
 .pinned-team-shortcut:focus-visible {
   border-color: color-mix(in srgb, var(--burgundy) 42%, var(--line));
-  background: color-mix(in srgb, var(--panel-strong) 76%, transparent);
+  background: color-mix(in srgb, var(--panel-strong) 66%, transparent);
 }
 
 .pinned-team-shortcut .organization-logo {
@@ -3910,8 +3910,8 @@ textarea:focus-visible {
   width: 34px;
   height: 34px;
   border-radius: 999px;
-  background: var(--panel-strong);
-  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel-strong) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line-strong) 72%, transparent);
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -3919,6 +3919,7 @@ textarea:focus-visible {
   font-weight: 920;
   font-size: 11px;
   flex: 0 0 auto;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
 }
 
 .team-switcher .organization-logo {
@@ -3928,10 +3929,12 @@ textarea:focus-visible {
 }
 
 .organization-logo img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
   padding: 0;
+  background: var(--panel-strong);
 }
 
 .profile-menu {
@@ -4544,14 +4547,17 @@ textarea:focus-visible {
   width: 82px;
   height: 82px;
   border-radius: 999px;
-  border: 1px solid var(--line);
-  background: linear-gradient(135deg, rgba(159, 36, 76, 0.22), rgba(255, 255, 255, 0.08));
+  border: 1px solid color-mix(in srgb, var(--line-strong) 76%, transparent);
+  background:
+    radial-gradient(circle at 32% 20%, rgba(255, 255, 255, 0.2), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--burgundy) 40%, var(--panel-strong)), var(--panel-strong));
   display: grid;
   place-items: center;
-  color: var(--text);
+  color: #ffffff;
   font-size: 24px;
   font-weight: 950;
   overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
 }
 
 .account-avatar--editable {
@@ -4589,9 +4595,11 @@ textarea:focus-visible {
 }
 
 .account-avatar img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  background: var(--panel-strong);
 }
 
 .account-card p {
@@ -10138,10 +10146,31 @@ select option {
 .weight-room-weigh-table > div,
 .weight-room-weigh-table label {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) 90px 110px 70px;
+  grid-template-columns: minmax(190px, 1fr) 90px 110px 70px;
   gap: 8px;
   align-items: center;
   padding: 8px 10px;
+}
+
+.weight-room-weigh-player {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.weight-room-weigh-player .player-avatar {
+  flex: 0 0 auto;
+}
+
+.weight-room-weigh-table .weight-room-weigh-player span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: inherit;
+  font-weight: inherit;
 }
 
 .positive {
@@ -10581,11 +10610,32 @@ select option {
   place-items: center;
   position: relative;
   overflow: hidden;
+  color: #ffffff;
   background:
     radial-gradient(circle at 32% 22%, rgba(255, 255, 255, 0.24), transparent 36%),
-    linear-gradient(135deg, var(--avatar-color), #171923);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.16);
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--avatar-color, #4b5563) 78%, #ffffff 8%),
+      color-mix(in srgb, var(--avatar-color, #4b5563) 48%, #05070a 52%)
+    );
+  border: 1px solid color-mix(in srgb, var(--avatar-color, #4b5563) 34%, rgba(255, 255, 255, 0.18));
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.18),
+    0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+[data-theme="light"] .player-avatar {
+  background:
+    radial-gradient(circle at 32% 22%, rgba(255, 255, 255, 0.32), transparent 35%),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--avatar-color, #4b5563) 72%, #ffffff 10%),
+      color-mix(in srgb, var(--avatar-color, #4b5563) 54%, #10141a 46%)
+    );
+  border-color: color-mix(in srgb, var(--avatar-color, #4b5563) 30%, rgba(17, 24, 39, 0.2));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 1px 2px rgba(15, 23, 42, 0.12);
 }
 
 .player-avatar--sm {
@@ -10605,8 +10655,10 @@ select option {
 }
 
 .player-avatar span {
+  color: #ffffff;
   font-weight: 950;
   font-size: calc(var(--size) * 0.32);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .player-avatar small {
@@ -10622,9 +10674,11 @@ select option {
 }
 
 .player-avatar img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  background: var(--panel-strong);
 }
 
 .metric-bar {
@@ -11384,6 +11438,11 @@ select option {
   .weight-room-weigh-table label {
     min-width: 620px;
   }
+
+  .weight-room-weigh-table > div,
+  .weight-room-weigh-table label {
+    min-width: 660px;
+  }
 }
 
 @media (max-width: 720px) {
@@ -11870,8 +11929,12 @@ body {
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: var(--burgundy-soft);
-  color: var(--text);
+  background:
+    radial-gradient(circle at 32% 20%, rgba(255, 255, 255, 0.22), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--burgundy) 38%, var(--panel-strong)), var(--panel-strong));
+  border: 1px solid color-mix(in srgb, var(--line-strong) 74%, transparent);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
 }
 
 .profile-menu--card .profile-menu__avatar {
@@ -11889,9 +11952,11 @@ body {
 }
 
 .profile-menu__avatar img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  background: var(--panel-strong);
 }
 
 .profile-menu__identity {
@@ -12092,6 +12157,14 @@ body {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+}
+
+.home-secondary-grid > .panel {
+  align-content: start;
+}
+
+.home-secondary-grid .award-card__top {
+  min-height: 28px;
 }
 
 .schedule-page {

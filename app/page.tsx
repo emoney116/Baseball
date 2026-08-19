@@ -5238,9 +5238,10 @@ function HomeDashboard({
   const activeRoster = data.players.filter((player) => !player.archived && player.rosterStatus !== "Cut");
   const rosterPitchers = activeRoster.filter((player) => player.isPitcher).length;
   const rosterHitters = activeRoster.filter((player) => player.isHitter).length;
-  const attendancePct = teamPracticeAttendancePct(data, activeRoster.length);
-  const repsThisWeek = weeklyRepCount(data);
-  const currentTeam = data.teamContext?.currentTeam;
+  const recentGames = data.games
+    .slice()
+    .sort((left, right) => right.date.localeCompare(left.date) || (right.startsAt ?? "").localeCompare(left.startsAt ?? ""))
+    .slice(0, 5);
   const weightLeaderRows = buildScoredWeightRoomLeaderboard(activeRoster, data.workoutSessions, data.workoutEntries, "This Season")
     .slice(0, 5);
 
@@ -5275,19 +5276,8 @@ function HomeDashboard({
         <AwardCard title="Player of the Week" award={weeklyMvp} onOpenPlayer={onOpenPlayer} icon={Trophy} />
         <WeightLeaderCard leader={weightLeader} leaders={weightLeaderRows} onOpenPlayer={onOpenPlayer} />
         <UpcomingScheduleCard items={nextItems} onView={onView} />
-        <RecentActivityCard activities={buildTeamRecentActivity(data).slice(0, 5)} onOpenPlayer={onOpenPlayer} />
+        <RecentGamesCard games={recentGames} onView={onView} />
       </section>
-
-      <TeamSnapshotBar
-        team={currentTeam?.teamName ?? "Team Snapshot"}
-        stats={[
-          { label: "Players", value: activeRoster.length },
-          { label: "Pitchers", value: rosterPitchers },
-          { label: "Hitters", value: rosterHitters },
-          { label: "Practice Attendance", value: data.practices.length ? formatPct(attendancePct) : "--", progress: attendancePct },
-          { label: "Total Reps This Week", value: formatCompactNumber(repsThisWeek) },
-        ]}
-      />
     </div>
   );
 }
@@ -13179,7 +13169,10 @@ function WeightRoomWeighInModal({
             const change = typeof today === "number" && typeof last === "number" ? today - last : undefined;
             return (
               <label key={player.id}>
-                <strong>{player.name}</strong>
+                <strong className="weight-room-weigh-player">
+                  <PlayerAvatar player={player} size="sm" compact />
+                  <span>{player.name}</span>
+                </strong>
                 <span>{last ? `${formatNumber(last, 1)} lb` : "-"}</span>
                 <input inputMode="decimal" value={row?.value ?? ""} onChange={(event) => update(player.id, event.target.value)} />
                 <em className={change && change > 0 ? "positive" : change && change < 0 ? "negative" : ""}>
@@ -15811,61 +15804,36 @@ function HomeInfoCard({
   );
 }
 
-function RecentActivityCard({
-  activities,
-  onOpenPlayer,
+function RecentGamesCard({
+  games,
+  onView,
 }: {
-  activities: TeamActivity[];
-  onOpenPlayer: (playerId: ID) => void;
+  games: Game[];
+  onView: (view: ViewKey) => void;
 }) {
   return (
-    <article className="panel recent-activity-card">
-      <h2>Recent Activity</h2>
+    <article className="panel recent-activity-card recent-games-card">
+      <div className="award-card__top">
+        <span>Recent Games</span>
+        <button type="button" className="text-button" onClick={() => onView("games")}>View all</button>
+      </div>
       <div className="activity-feed">
-        {activities.length ? activities.map((activity) => (
+        {games.length ? games.map((game) => (
           <button
-            key={activity.key}
+            key={game.id}
             type="button"
-            onClick={() => activity.playerId && onOpenPlayer(activity.playerId)}
-            disabled={!activity.playerId}
+            onClick={() => onView("games")}
           >
-            {activity.player ? (
-              <PlayerAvatar player={activity.player} size="sm" compact />
-            ) : (
-              <span className={`activity-feed__icon activity-feed__icon--${activity.kind}`} />
-            )}
+            <span className="activity-feed__icon activity-feed__icon--game" />
             <span>
-              <strong>{activity.title}</strong>
-              <small>{activity.meta}</small>
+              <strong>{matchupPrefix(game.homeAway).replace(".", "")} {game.opponent}</strong>
+              <small>{game.result ? `${game.result} ${game.metrolinaScore}-${game.opponentScore}` : game.location}</small>
             </span>
-            <time>{shortDate(activity.date)}</time>
+            <time>{shortDate(game.date)}</time>
           </button>
-        )) : <CompactEmpty title="No recent activity yet" />}
+        )) : <CompactEmpty title="No recent games yet" />}
       </div>
     </article>
-  );
-}
-
-function TeamSnapshotBar({
-  team,
-  stats,
-}: {
-  team: string;
-  stats: Array<{ label: string; value: string | number; progress?: number }>;
-}) {
-  return (
-    <section className="panel team-snapshot-bar" aria-label={`${team} snapshot`}>
-      <h2>Team Snapshot</h2>
-      <div>
-        {stats.map((stat) => (
-          <span key={stat.label} className="snapshot-stat">
-            <strong>{stat.value}</strong>
-            <small>{stat.label}</small>
-            {typeof stat.progress === "number" && <i style={{ width: `${Math.max(0, Math.min(100, stat.progress))}%` }} />}
-          </span>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -16372,16 +16340,6 @@ interface WeightLeaderResult {
   relativePerformanceAvailable?: boolean;
   effortAvailable?: boolean;
   scoreVersion?: string;
-}
-
-interface TeamActivity {
-  key: string;
-  kind: "practice" | "game" | "weights" | "hitting" | "pitching" | "defense";
-  title: string;
-  meta: string;
-  date: string;
-  playerId?: ID;
-  player?: Player;
 }
 
 function buildWeeklyMvp(data: AppData): AwardResult | undefined {
@@ -17749,76 +17707,6 @@ function buildPlayerRecentActivity(data: AppData, player: Player) {
   return activities.sort((a, b) => b.date.localeCompare(a.date));
 }
 
-function buildTeamRecentActivity(data: AppData): TeamActivity[] {
-  const playerById = new Map(data.players.map((player) => [player.id, player]));
-  const practiceById = new Map(data.practices.map((practice) => [practice.id, practice]));
-  const activities: TeamActivity[] = [
-    ...data.hittingSessions.map((session) => {
-      const practice = practiceById.get(session.practiceId);
-      const player = playerById.get(session.hitterId);
-      const stats = calculateHittingStats(data.hittingEvents.filter((event) => event.sessionId === session.id));
-      return {
-        key: `team-hit-${session.id}`,
-        kind: "hitting" as const,
-        title: session.type,
-        meta: `${player?.name ?? "Hitter"} - ${stats.totalSwings} swings`,
-        date: practice?.date ?? session.startedAt.slice(0, 10),
-        playerId: player?.id,
-        player,
-      };
-    }),
-    ...data.pitchingSessions.map((session) => {
-      const practice = practiceById.get(session.practiceId);
-      const player = playerById.get(session.pitcherId);
-      const stats = calculatePitchingStats(data.pitchEvents.filter((event) => event.sessionId === session.id));
-      return {
-        key: `team-pitch-${session.id}`,
-        kind: "pitching" as const,
-        title: session.type,
-        meta: `${player?.name ?? "Pitcher"} - ${stats.totalPitches} pitches`,
-        date: practice?.date ?? session.startedAt.slice(0, 10),
-        playerId: player?.id,
-        player,
-      };
-    }),
-    ...data.defenseSessions.map((session) => {
-      const practice = practiceById.get(session.practiceId);
-      const player = playerById.get(session.playerId);
-      const reps = data.defenseEvents.filter((event) => event.sessionId === session.id);
-      return {
-        key: `team-defense-${session.id}`,
-        kind: "defense" as const,
-        title: session.station,
-        meta: `${player?.name ?? "Defender"} - ${reps.length} reps`,
-        date: practice?.date ?? session.startedAt.slice(0, 10),
-        playerId: player?.id,
-        player,
-      };
-    }),
-    ...data.workoutSessions.map((session) => {
-      const player = playerById.get(session.playerId);
-      return {
-        key: `team-weight-${session.id}`,
-        kind: "weights" as const,
-        title: "Weights",
-        meta: `${player?.name ?? "Player"} - ${session.completed ? "completed" : "in progress"}`,
-        date: session.date,
-        playerId: player?.id,
-        player,
-      };
-    }),
-    ...data.games.map((game) => ({
-      key: `team-game-${game.id}`,
-      kind: "game" as const,
-      title: `${matchupPrefix(game.homeAway).replace(".", "")} ${game.opponent}`,
-      meta: game.result ? `${game.result} ${game.metrolinaScore}-${game.opponentScore}` : game.location,
-      date: game.date,
-    })),
-  ];
-
-  return activities.sort((a, b) => b.date.localeCompare(a.date));
-}
-
 function buildPlayerMembershipCards(data: AppData, player: Player) {
   const teamById = new Map((data.teamContext?.availableTeams ?? []).map((team) => [team.teamId, team]));
   const memberships = (data.playerTeamMemberships ?? []).filter((membership) => membership.playerId === player.id);
@@ -18524,16 +18412,6 @@ function isDefaultScheduleTitle(title: string) {
 function shouldResetScheduleTitle(nextType: ScheduleEventType, currentTitle: string) {
   if (nextType === "Practice" || nextType === "Lift") return true;
   return isDefaultScheduleTitle(currentTitle);
-}
-
-function weeklyRepCount(data: AppData) {
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const cutoff = sevenDaysAgo.toISOString().slice(0, 10);
-  return data.hittingEvents.filter((event) => event.createdAt.slice(0, 10) >= cutoff).length
-    + data.pitchEvents.filter((event) => event.createdAt.slice(0, 10) >= cutoff).length
-    + data.defenseEvents.filter((event) => event.createdAt.slice(0, 10) >= cutoff).length
-    + data.workoutSessions.filter((session) => session.date >= cutoff).length;
 }
 
 function formatCompactNumber(value: number) {
