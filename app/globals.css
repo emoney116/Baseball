@@ -23241,7 +23241,8 @@ button.weight-room-athlete-table__row:hover {
 
 .attendance-roster__list {
   max-height: none;
-  overflow: visible;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .hitting-context-controls {

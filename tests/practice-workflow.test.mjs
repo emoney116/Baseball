@@ -5,6 +5,7 @@ import test from "node:test";
 test("practice hub opens active tracker modes without setup screen", () => {
   const page = readFileSync("app/page.tsx", "utf8");
   const styles = readFileSync("app/globals.css", "utf8");
+  const attendanceListBlocks = styles.match(/\.attendance-roster__list \{[^}]+\}/g) ?? [];
 
   assert.match(page, /type PracticeHubTab = "Overview" \| "Metrics" \| "History"/);
   assert.match(page, /type PracticeDrilldown = \{ kind: "hub" \} \| \{ kind: "attendance" \}/);
@@ -72,6 +73,9 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(styles, /\.practice-summary-strip/);
   assert.match(styles, /\.practice-hitting-start-popover/);
   assert.match(styles, /\.practice-metrics-page/);
+  assert.match(styles, /\.attendance-roster__scroll \.scroll-cue-panel__body \{[\s\S]*max-height: min\(38dvh, 410px\)/);
+  assert.ok(attendanceListBlocks.some((block) => block.includes("overflow-y: auto")));
+  assert.ok(attendanceListBlocks.every((block) => !block.includes("overflow: visible")));
   assert.match(styles, /\.practice-activity-card--pitching/);
   assert.match(styles, /\.practice-tracker-tabs/);
   assert.match(styles, /\.practice-player-strip/);
