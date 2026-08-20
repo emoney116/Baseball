@@ -6,16 +6,20 @@ test("practice hub opens active tracker modes without setup screen", () => {
   const page = readFileSync("app/page.tsx", "utf8");
   const styles = readFileSync("app/globals.css", "utf8");
 
-  assert.match(page, /type PracticeHubTab = "Overview" \| "Drills" \| "Throwing" \| "Metrics" \| "History"/);
+  assert.match(page, /type PracticeHubTab = "Overview" \| "Metrics" \| "History"/);
   assert.match(page, /type PracticeDrilldown = \{ kind: "hub" \} \| \{ kind: "attendance" \}/);
   assert.match(page, /function PracticeHome\(/);
   assert.match(page, /function PracticeAttendanceDrilldown\(/);
   assert.doesNotMatch(page, /function PracticeSessionSetup\(/);
+  assert.doesNotMatch(page, /function PracticeDrillsTab/);
+  assert.doesNotMatch(page, /function PracticeThrowingTab/);
   assert.doesNotMatch(page, /kind: "setup"/);
   assert.match(page, /function PracticeConsole\(/);
   assert.match(page, /function availablePracticePlayers\(/);
   assert.match(page, /return status === "Present" \|\| status === "Late"/);
   assert.match(page, /const HITTING_STATIONS: HittingSession\["type"\]\[\] = \["Tee", "Front Toss", "Machine", "Coach BP", "Live BP", "Other"\]/);
+  assert.match(page, /\(\["Overview", "Metrics", "History"\] as PracticeHubTab\[\]\)/);
+  assert.doesNotMatch(page, /\(\["Overview", "Drills", "Throwing", "Metrics", "History"\]/);
   assert.match(page, /const HITTING_RESULT_ACTIONS/);
   assert.match(page, /label: "Hard LD"/);
   assert.match(page, /const HITTING_CONTACT_CHOICES/);
@@ -35,7 +39,9 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /practice-tracker-tabs/);
   assert.match(page, /PracticeRecentEventTable/);
   assert.match(page, /Undo Last/);
-  assert.match(page, /function openPracticeStation\(mode: PracticeMode\)/);
+  assert.match(page, /function openPracticeStation\(mode: PracticeMode, options: \{ hittingStation\?: HittingSession\["type"\] \} = \{\}\)/);
+  assert.match(page, /function openHittingQuickStart\(station: HittingSession\["type"\]\)/);
+  assert.match(page, /onStartHittingStation=\{openHittingQuickStart\}/);
   assert.match(page, /setPracticeTrackingOpen\(true\)/);
   assert.match(page, /onOpenAttendance=\{\(\) => \(practice \? setPracticeDrilldown\(\{ kind: "attendance" \}\)/);
   assert.match(page, /onOpenStation=\{openPracticeStation\}/);
@@ -43,10 +49,19 @@ test("practice hub opens active tracker modes without setup screen", () => {
 
   assert.doesNotMatch(page, /Hard Contact<\/button>/);
   assert.doesNotMatch(page, /PITCH<\/button>/);
+  assert.doesNotMatch(page, />Drills<\/button>/);
+  assert.doesNotMatch(page, />Throwing<\/button>/);
+  assert.doesNotMatch(page, /PracticeDashboardStrip/);
+  assert.doesNotMatch(page, /PracticeLeadersCard/);
   assert.match(page, /StrikeZone points=\{pitchEvents\.map/);
-  assert.match(page, /PracticeDashboardStrip/);
+  assert.match(page, /function PracticeMetricsTab/);
+  assert.match(page, /function PracticeHistoryTab/);
+  assert.match(page, /role="columnheader"/);
+  assert.match(page, /View History/);
 
   assert.match(styles, /\.practice-summary-strip/);
+  assert.match(styles, /\.practice-hitting-start-popover/);
+  assert.match(styles, /\.practice-metrics-page/);
   assert.match(styles, /\.practice-activity-card--pitching/);
   assert.match(styles, /\.practice-tracker-tabs/);
   assert.match(styles, /\.practice-player-strip/);

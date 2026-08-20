@@ -184,7 +184,10 @@ type ProfileTab = "overview" | "practice" | "games" | "pitching" | "hitting" | "
 type AnalyticsContext = "All" | "Practice" | "Game" | "Live BP" | "Weight Room";
 type DateFilter = "Last Week" | "Last 30 Days" | "Fall";
 type PracticeRosterPreset = "All" | "Varsity" | "JV" | "Custom";
-type PracticeHubTab = "Overview" | "Drills" | "Throwing" | "Metrics" | "History";
+type PracticeHubTab = "Overview" | "Metrics" | "History";
+type PracticeMetricsScope = "Team" | "Players";
+type PracticeMetricsCategory = "Hitting" | "Pitching" | "Defense" | "Live BP";
+type PracticeMetricsSortKey = "player" | "swings" | "contact" | "hard" | "avgEv" | "maxEv" | "pitches" | "strike" | "zone" | "avgVelo" | "maxVelo" | "reps" | "clean" | "errors" | "greatPlays" | "defenseSessions" | "liveBpPitches" | "liveBpSwings" | "liveBpPas";
 type PracticeDrilldown = { kind: "hub" } | { kind: "attendance" };
 type LiveBpOutcomeLabel = "K" | "BB" | "HBP" | "1B" | "2B" | "3B" | "HR" | "Out" | "Error" | "FC";
 type AppIcon = React.ComponentType<{ size?: number | string; "aria-hidden"?: boolean | "true" | "false"; className?: string }>;
@@ -299,14 +302,30 @@ type PracticeActiveSessionRow = {
   contributors: string[];
   isMine: boolean;
   startedAt: string;
+  lastActiveAt: string;
+  activityLabel: string;
 };
 
-type PracticeActivityFeedRow = {
-  id: ID;
-  mode: PracticeSessionActivityMode;
-  time: string;
-  title: string;
-  detail: string;
+type PracticeMetricRow = {
+  player: Player;
+  swings: number;
+  contact: number;
+  hard: number;
+  avgEv?: number;
+  maxEv?: number;
+  pitches: number;
+  strike: number;
+  zone: number;
+  avgVelo?: number;
+  maxVelo?: number;
+  reps: number;
+  clean: number;
+  errors: number;
+  greatPlays: number;
+  defenseSessions: number;
+  liveBpPitches: number;
+  liveBpSwings: number;
+  liveBpPas: number;
 };
 
 interface ScheduleItem {
@@ -495,6 +514,13 @@ const PITCH_TYPE_LABELS: Record<PitchType, string> = {
   Other: "OT",
 };
 const HITTING_STATIONS: HittingSession["type"][] = ["Tee", "Front Toss", "Machine", "Coach BP", "Live BP", "Other"];
+const PRACTICE_METRIC_CATEGORIES: PracticeMetricsCategory[] = ["Hitting", "Pitching", "Defense", "Live BP"];
+const PRACTICE_METRIC_SCOPES: PracticeMetricsScope[] = ["Team", "Players"];
+// A lightweight activity window keeps active-session cards from becoming stale
+// without requiring coaches to manually start, pause, or end tracking sessions.
+const PRACTICE_ACTIVE_SESSION_GRACE_MS = 2 * 60 * 1000;
+const PRACTICE_ACTIVE_SESSION_TICK_MS = 30 * 1000;
+const PRACTICE_SESSION_HEARTBEAT_MS = 45 * 1000;
 const HITTING_RESULT_ACTIONS: Array<{
   label: string;
   action: HittingEvent["action"];
@@ -992,8 +1018,9 @@ export default function MetrolinaBaseballApp() {
     commit((current) => playerRepository.updateRosterStatus(current, playerId, status));
   }
 
-  function openPracticeStation(mode: PracticeMode) {
+  function openPracticeStation(mode: PracticeMode, options: { hittingStation?: HittingSession["type"] } = {}) {
     clearPendingHittingContext();
+    const selectedHittingStation = options.hittingStation ?? hittingStation;
     setPracticeMode(mode);
     if (!practice || !data) {
       setPracticeDrilldown({ kind: "hub" });
@@ -1010,19 +1037,36 @@ export default function MetrolinaBaseballApp() {
           : mode === "Live BP"
             ? availablePlayers.find((player) => player.isPitcher)
             : availablePlayers[0];
+    let nextLiveBpHitter: Player | undefined;
     if (nextPlayer) {
       setPracticePlayerId(nextPlayer.id);
       setSelectedPlayerId(nextPlayer.id);
       if (mode === "Live BP") {
         const nextHitter = availablePlayers.find((player) => player.isHitter && player.id !== nextPlayer.id);
+        nextLiveBpHitter = nextHitter;
         setPitchingStation("Live BP");
         updateActiveHittingStation("Live BP");
         setLiveBpPitcherId(nextPlayer.id);
         if (nextHitter) setLiveBpHitterId(nextHitter.id);
       }
     }
+    if (nextPlayer) {
+      commit((current) => {
+        const profileId = current.teamContext?.profile?.id;
+        if (mode === "Hitting") return ensureHittingSession(current, practice, nextPlayer.id, selectedHittingStation, profileId).data;
+        if (mode === "Pitching") return ensurePitchingSession(current, practice, nextPlayer.id, pitchingStation, profileId).data;
+        if (mode === "Defense") return ensureDefenseSession(current, practice, nextPlayer.id, defenseStation, profileId).data;
+        const pitchingNext = ensurePitchingSession(current, practice, nextPlayer.id, "Live BP", profileId, nextLiveBpHitter?.id);
+        return nextLiveBpHitter ? ensureHittingSession(pitchingNext.data, practice, nextLiveBpHitter.id, "Live BP", profileId).data : pitchingNext.data;
+      });
+    }
     setPracticeDrilldown({ kind: "hub" });
     setPracticeTrackingOpen(true);
+  }
+
+  function openHittingQuickStart(station: HittingSession["type"]) {
+    updateActiveHittingStation(station);
+    openPracticeStation(station === "Live BP" ? "Live BP" : "Hitting", { hittingStation: station });
   }
 
   function resumePracticeSession(session: PracticeActiveSessionRow) {
@@ -1050,6 +1094,40 @@ export default function MetrolinaBaseballApp() {
       const pitchingNext = ensurePitchingSession(current, practice, session.primaryPlayerId, "Live BP", profileId, session.secondaryPlayerId);
       if (!session.secondaryPlayerId) return pitchingNext.data;
       return ensureHittingSession(pitchingNext.data, practice, session.secondaryPlayerId, "Live BP", profileId).data;
+    });
+  }
+
+  function touchActivePracticeSession(mode: PracticeMode, sessionId: ID) {
+    commit((current) => {
+      const now = new Date().toISOString();
+      const profileId = current.teamContext?.profile?.id;
+      const touchContributors = (contributors = current.practiceSessionContributors ?? []) =>
+        touchSessionContributor(contributors, { sessionId, profileId, at: now });
+      if (mode === "Hitting") {
+        return {
+          ...current,
+          hittingSessions: current.hittingSessions.map((session) =>
+            session.id === sessionId ? { ...session, contributorProfileIds: withContributorProfile(session.contributorProfileIds, profileId), updatedAt: now } : session,
+          ),
+          practiceSessionContributors: touchContributors(),
+        };
+      }
+      if (mode === "Pitching" || mode === "Live BP") {
+        return {
+          ...current,
+          pitchingSessions: current.pitchingSessions.map((session) =>
+            session.id === sessionId ? { ...session, contributorProfileIds: withContributorProfile(session.contributorProfileIds, profileId), updatedAt: now } : session,
+          ),
+          practiceSessionContributors: touchContributors(),
+        };
+      }
+      return {
+        ...current,
+        defenseSessions: current.defenseSessions.map((session) =>
+          session.id === sessionId ? { ...session, contributorProfileIds: withContributorProfile(session.contributorProfileIds, profileId), updatedAt: now } : session,
+        ),
+        practiceSessionContributors: touchContributors(),
+      };
     });
   }
 
@@ -1754,12 +1832,12 @@ export default function MetrolinaBaseballApp() {
     let summaryType: "Hitting" | "Pitching" | "Defense" = "Hitting";
     const session =
       practiceMode === "Hitting"
-        ? data.hittingSessions.find((item) => item.practiceId === practice.id && item.hitterId === practicePlayer.id && item.type === hittingStation)
+        ? data.hittingSessions.find((item) => item.practiceId === practice.id && item.hitterId === practicePlayer.id && item.type === hittingStation && isPracticeSessionReusable(item))
         : practiceMode === "Pitching"
-          ? data.pitchingSessions.find((item) => item.practiceId === practice.id && item.pitcherId === practicePlayer.id && item.type === pitchingStation)
+          ? data.pitchingSessions.find((item) => item.practiceId === practice.id && item.pitcherId === practicePlayer.id && item.type === pitchingStation && isPracticeSessionReusable(item))
           : practiceMode === "Live BP"
-            ? data.pitchingSessions.find((item) => item.practiceId === practice.id && item.pitcherId === liveBpPitcherId && item.type === "Live BP")
-            : data.defenseSessions.find((item) => item.practiceId === practice.id && item.playerId === practicePlayer.id && item.station === defenseStation);
+            ? data.pitchingSessions.find((item) => item.practiceId === practice.id && item.pitcherId === liveBpPitcherId && item.type === "Live BP" && isPracticeSessionReusable(item))
+            : data.defenseSessions.find((item) => item.practiceId === practice.id && item.playerId === practicePlayer.id && item.station === defenseStation && isPracticeSessionReusable(item));
     if (!session) return;
     if (practiceMode === "Pitching" || practiceMode === "Live BP") summaryType = "Pitching";
     if (practiceMode === "Defense") summaryType = "Defense";
@@ -1782,12 +1860,12 @@ export default function MetrolinaBaseballApp() {
   function saveSessionSummary() {
     if (!sessionSummary) return;
     commit((current) => {
-      const endedAt = new Date().toISOString();
+      const now = new Date().toISOString();
       if (sessionSummary.type === "Hitting") {
         return {
           ...current,
           hittingSessions: current.hittingSessions.map((session) =>
-            session.id === sessionSummary.sessionId ? { ...session, endedAt, status: "COMPLETED", updatedAt: endedAt, summaryNote, sessionGrade: gradeSession(summaryNote) } : session,
+            session.id === sessionSummary.sessionId ? { ...session, updatedAt: now, summaryNote, sessionGrade: gradeSession(summaryNote) } : session,
           ),
         };
       }
@@ -1795,14 +1873,14 @@ export default function MetrolinaBaseballApp() {
         return {
           ...current,
           pitchingSessions: current.pitchingSessions.map((session) =>
-            session.id === sessionSummary.sessionId ? { ...session, endedAt, status: "COMPLETED", updatedAt: endedAt, summaryNote, sessionGrade: gradeSession(summaryNote) } : session,
+            session.id === sessionSummary.sessionId ? { ...session, updatedAt: now, summaryNote, sessionGrade: gradeSession(summaryNote) } : session,
           ),
         };
       }
       return {
         ...current,
         defenseSessions: current.defenseSessions.map((session) =>
-          session.id === sessionSummary.sessionId ? { ...session, endedAt, status: "COMPLETED", updatedAt: endedAt, summaryNote } : session,
+          session.id === sessionSummary.sessionId ? { ...session, updatedAt: now, summaryNote } : session,
         ),
       };
     });
@@ -1811,17 +1889,6 @@ export default function MetrolinaBaseballApp() {
 
   function endPractice() {
     if (!practice) return;
-    if (data) {
-      const activeSessions = [
-        ...data.hittingSessions.filter((session) => session.practiceId === practice.id && !session.endedAt && (session.status ?? "ACTIVE") === "ACTIVE"),
-        ...data.pitchingSessions.filter((session) => session.practiceId === practice.id && !session.endedAt && (session.status ?? "ACTIVE") === "ACTIVE"),
-        ...data.defenseSessions.filter((session) => session.practiceId === practice.id && !session.endedAt && (session.status ?? "ACTIVE") === "ACTIVE"),
-      ];
-      if (activeSessions.length > 0 && typeof window !== "undefined") {
-        const confirmed = window.confirm(`${activeSessions.length} session${activeSessions.length === 1 ? " is" : "s are"} still active. End all sessions and this practice?`);
-        if (!confirmed) return;
-      }
-    }
     setPracticeSummaryOpen(true);
   }
 
@@ -1832,15 +1899,6 @@ export default function MetrolinaBaseballApp() {
       ...current,
       practices: current.practices.map((item) =>
         item.id === practice.id ? { ...item, endedAt, updatedAt: endedAt } : item,
-      ),
-      hittingSessions: current.hittingSessions.map((session) =>
-        session.practiceId === practice.id && !session.endedAt ? { ...session, endedAt, status: "COMPLETED", updatedAt: endedAt } : session,
-      ),
-      pitchingSessions: current.pitchingSessions.map((session) =>
-        session.practiceId === practice.id && !session.endedAt ? { ...session, endedAt, status: "COMPLETED", updatedAt: endedAt } : session,
-      ),
-      defenseSessions: current.defenseSessions.map((session) =>
-        session.practiceId === practice.id && !session.endedAt ? { ...session, endedAt, status: "COMPLETED", updatedAt: endedAt } : session,
       ),
       settings: { ...current.settings, activePracticeId: undefined },
     }));
@@ -2438,16 +2496,15 @@ export default function MetrolinaBaseballApp() {
           <PracticeHome
             data={data}
             practice={practice}
-            activeTotals={activeTotals}
             tab={practiceHubTab}
             onTab={setPracticeHubTab}
             onStartPractice={() => setStartPracticeOpen(true)}
             onOpenStation={openPracticeStation}
+            onStartHittingStation={openHittingQuickStart}
             onOpenSession={resumePracticeSession}
             onOpenAttendance={() => (practice ? setPracticeDrilldown({ kind: "attendance" }) : setStartPracticeOpen(true))}
             onEndPractice={endPractice}
             onStatus={updatePracticeAttendance}
-            onOpenPlayer={openPlayer}
           />
         )}
 
@@ -2512,7 +2569,8 @@ export default function MetrolinaBaseballApp() {
             onNextLiveBpHitter={advanceLiveBpHitter}
             onLogDefense={logDefense}
             onUndo={undoPracticeEvent}
-            onEndSession={openSessionSummary}
+            onOpenSessionNotes={openSessionSummary}
+            onSessionHeartbeat={touchActivePracticeSession}
             onExitTracking={() => setPracticeTrackingOpen(false)}
             onEndPractice={endPractice}
             onStartPractice={() => setStartPracticeOpen(true)}
@@ -6396,33 +6454,35 @@ function compareRosterPlayers(a: Player, b: Player, key: RosterSortKey, directio
 function PracticeHome({
   data,
   practice,
-  activeTotals,
   tab,
   onTab,
   onStartPractice,
   onOpenStation,
+  onStartHittingStation,
   onOpenSession,
   onOpenAttendance,
   onEndPractice,
   onStatus,
-  onOpenPlayer,
 }: {
   data: AppData;
   practice?: Practice;
-  activeTotals: { pitches: number; swings: number; defenseReps: number; defenders: number; players: number; pitchers: number; hitters: number };
   tab: PracticeHubTab;
   onTab: (tab: PracticeHubTab) => void;
   onStartPractice: () => void;
   onOpenStation: (mode: PracticeMode) => void;
+  onStartHittingStation: (station: HittingSession["type"]) => void;
   onOpenSession: (session: PracticeActiveSessionRow) => void;
   onOpenAttendance: () => void;
   onEndPractice: () => void;
   onStatus: (playerId: ID, status: PracticeAttendanceStatus) => void;
-  onOpenPlayer: (playerId: ID) => void;
 }) {
   const [attendancePage, setAttendancePage] = useState(0);
   const [attendanceKeyOpen, setAttendanceKeyOpen] = useState(false);
-  const recentPractices = data.practices.slice(0, 4);
+  const [hittingStartOpen, setHittingStartOpen] = useState(false);
+  const [activityClock, setActivityClock] = useState(() => Date.now());
+  const practiceId = practice?.id;
+  const practiceEndedAt = practice?.endedAt;
+  const recentPractices = data.practices.filter((item) => item.id !== practice?.id).slice(0, 4);
   const practiceAttendance = practice ? data.attendance.filter((item) => item.practiceId === practice.id) : [];
   const attendancePlayerIds = practice ? new Set([...practice.playerIds, ...practiceAttendance.map((item) => item.playerId)]) : undefined;
   const attendancePlayers = sortPlayersByRecent(
@@ -6433,20 +6493,20 @@ function PracticeHome({
   const visibleAttendanceIds = new Set(attendancePlayers.map((player) => player.id));
   const visiblePracticeAttendance = practiceAttendance.filter((item) => visibleAttendanceIds.has(item.playerId));
   const attendanceByPlayerId = new Map(visiblePracticeAttendance.map((item) => [item.playerId, item]));
-  const activeAttendance = visiblePracticeAttendance.filter((item) => item.status === "Present" || item.status === "Late");
   const rosterCount = attendancePlayers.length || data.players.filter((player) => !player.archived).length;
   const attendanceDenominator = Math.max(visiblePracticeAttendance.length, attendancePlayers.length, rosterCount);
-  const attendancePct = pct(activeAttendance.length, attendanceDenominator);
   const attendancePageCount = Math.max(1, Math.ceil(attendancePlayers.length / attendancePageSize));
   const activeAttendancePage = Math.min(attendancePage, attendancePageCount - 1);
   const pagedAttendancePlayers = attendancePlayers.slice(activeAttendancePage * attendancePageSize, activeAttendancePage * attendancePageSize + attendancePageSize);
-  const hittingLeaders = buildHittingLeaders(data, "hardHitPct", 4).slice(0, 3);
-  const pitchingLeaders = buildPitchingLeaders(data, "strikePct", 6).slice(0, 3);
   const practiceTime = practice ? formatPracticeTimeRange(practice) : "";
-  const activeSessions = practice ? buildActivePracticeSessions(data, practice.id) : [];
-  const mySession = activeSessions.find((session) => session.isMine);
-  const recentActivity = practice ? buildPracticeActivityFeed(data, practice.id).slice(0, 5) : [];
+  const activeSessions = practice && !practiceEndedAt ? buildActivePracticeSessions(data, practice.id, activityClock) : [];
   const attendanceCycle: PracticeAttendanceStatus[] = ["Present", "Late", "Absent", "Excused"];
+
+  useEffect(() => {
+    if (!practiceId || practiceEndedAt) return;
+    const timer = window.setInterval(() => setActivityClock(Date.now()), PRACTICE_ACTIVE_SESSION_TICK_MS);
+    return () => window.clearInterval(timer);
+  }, [practiceId, practiceEndedAt]);
 
   function toggleAttendanceStatus(playerId: ID, currentStatus: PracticeAttendanceStatus) {
     const nextIndex = (attendanceCycle.indexOf(currentStatus) + 1) % attendanceCycle.length;
@@ -6482,7 +6542,7 @@ function PracticeHome({
         }
       />
       <nav className="practice-tabs" aria-label="Practice sections">
-        {(["Overview", "Drills", "Throwing", "Metrics", "History"] as PracticeHubTab[]).map((item) => (
+        {(["Overview", "Metrics", "History"] as PracticeHubTab[]).map((item) => (
           <button key={item} type="button" className={tab === item ? "active" : ""} onClick={() => onTab(item)}>
             {item}
           </button>
@@ -6495,31 +6555,46 @@ function PracticeHome({
             <div className="practice-summary-strip__identity">
               <span className="practice-summary-icon"><ClipboardList size={24} aria-hidden="true" /></span>
               <span>
-                <small>Practice</small>
+                <small>{practice ? "Current Practice" : "Practice"}</small>
+                <strong>{practice ? practice.name : "No active practice"}</strong>
                 <em>{practice ? `${practice.location || "Field"}${practiceTime ? ` - ${practiceTime}` : ""}` : "Start practice to begin today's development work"}</em>
               </span>
             </div>
             <div className="practice-summary-actions" aria-label="Practice quick entry">
-              <PracticeActivityCard mode="Hitting" icon={Swords} title="Hitting" compact onClick={() => onOpenStation("Hitting")} />
+              <div className="practice-hitting-quick-start">
+                <PracticeActivityCard mode="Hitting" icon={Swords} title="Hitting" compact onClick={() => setHittingStartOpen((open) => !open)} />
+                {hittingStartOpen && (
+                  <div className="practice-hitting-start-popover" role="menu" aria-label="Start hitting session">
+                    {HITTING_STATIONS.map((station) => (
+                      <button
+                        key={station}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setHittingStartOpen(false);
+                          onStartHittingStation(station);
+                        }}
+                      >
+                        {station}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <PracticeActivityCard mode="Pitching" icon={BaseballIcon} title="Pitching" compact onClick={() => onOpenStation("Pitching")} />
               <PracticeActivityCard mode="Defense" icon={Shield} title="Defense" compact onClick={() => onOpenStation("Defense")} />
               <PracticeActivityCard mode="Live BP" icon={Gauge} title="Live BP" compact onClick={() => onOpenStation("Live BP")} />
-            </div>
-            <div className="attendance-ring" style={{ ["--value" as string]: `${attendancePct}%` }}>
-              <strong>{formatPct(attendancePct, 0)}</strong>
-              <small>Attendance</small>
             </div>
           </section>
 
           {practice ? (
             <section className="practice-overview-grid">
-              <PracticeActiveSessionsCard
-                sessions={activeSessions}
-                mySession={mySession}
-                recentActivity={recentActivity}
-                onOpenSession={onOpenSession}
-                onStartSession={() => onOpenStation("Hitting")}
-              />
+              {activeSessions.length > 0 && (
+                <PracticeActiveSessionsCard
+                  sessions={activeSessions}
+                  onOpenSession={onOpenSession}
+                />
+              )}
 
               <article className="panel practice-attendance-overview">
                 <div className="panel-heading tight">
@@ -6586,19 +6661,14 @@ function PracticeHome({
               </article>
 
               <PracticePlanCard practice={practice} />
-              <PracticeRecentCard data={data} recentPractices={recentPractices} />
-              <PracticeLeadersCard hittingLeaders={hittingLeaders} pitchingLeaders={pitchingLeaders} onOpenPlayer={onOpenPlayer} />
+              <PracticeRecentCard data={data} recentPractices={recentPractices} onOpenHistory={() => onTab("History")} />
             </section>
           ) : (
             <PracticeEmptyHub onStartPractice={onStartPractice} />
           )}
-
-          <PracticeDashboardStrip data={data} practice={practice} activeTotals={activeTotals} attendancePct={attendancePct} />
         </>
       )}
 
-      {tab === "Drills" && <PracticeDrillsTab onOpenStation={onOpenStation} />}
-      {tab === "Throwing" && <PracticeThrowingTab data={data} onOpenPlayer={onOpenPlayer} />}
       {tab === "Metrics" && <PracticeMetricsTab data={data} />}
       {tab === "History" && <PracticeHistoryTab data={data} />}
     </div>
@@ -6628,80 +6698,37 @@ function PracticeActivityCard({
 
 function PracticeActiveSessionsCard({
   sessions,
-  mySession,
-  recentActivity,
   onOpenSession,
-  onStartSession,
 }: {
   sessions: PracticeActiveSessionRow[];
-  mySession?: PracticeActiveSessionRow;
-  recentActivity: PracticeActivityFeedRow[];
   onOpenSession: (session: PracticeActiveSessionRow) => void;
-  onStartSession: () => void;
 }) {
   return (
     <article className="panel practice-active-sessions-card">
       <div className="panel-heading tight">
         <div>
-          <h2>Active Sessions</h2>
-          <span>{sessions.length ? `${sessions.length} station${sessions.length === 1 ? "" : "s"} running` : "No active stations yet"}</span>
+          <h2>Active Sessions · {sessions.length}</h2>
+          <span>Live tracking contexts</span>
         </div>
-        <button className="secondary-button" type="button" onClick={onStartSession}>
-          <Plus size={15} aria-hidden="true" />
-          Start Session
-        </button>
       </div>
-
-      {mySession && (
-        <button type="button" className={`practice-my-session practice-session-mode--${practiceModeClass(mySession.mode)}`} onClick={() => onOpenSession(mySession)}>
-          <span>
-            <small>My Session</small>
-            <strong>{mySession.title}</strong>
-            <em>{mySession.playerLine} - {mySession.count}</em>
-          </span>
-          <ChevronRight size={16} aria-hidden="true" />
-        </button>
-      )}
 
       <div className="practice-active-session-grid">
         {sessions.slice(0, 6).map((session) => (
           <button key={session.id} type="button" className={`practice-active-session-card practice-session-mode--${practiceModeClass(session.mode)}`} onClick={() => onOpenSession(session)}>
-            <span className="practice-session-type">{session.mode}</span>
+            <span className="practice-session-type">
+              {session.mode}
+              {session.isMine && <b>Yours</b>}
+            </span>
             <strong>{session.title}</strong>
             <em>{session.playerLine}</em>
             <span className="practice-session-meta">
               <b>{session.count}</b>
-              <span>{session.station || "Field"}</span>
+              <span>{[session.contributors[0] ?? session.station ?? "Open station", session.activityLabel].filter(Boolean).join(" · ")}</span>
             </span>
-            <span className="practice-session-contributors">
-              {session.contributors.slice(0, 3).map((contributor) => (
-                <IdentityAvatar
-                  key={`${session.id}-${contributor}`}
-                  id={contributor}
-                  name={contributor}
-                  size="xs"
-                  className="practice-session-contributor-avatar"
-                />
-              ))}
-              {session.contributors.length > 0 ? <small>{session.contributors[0]}</small> : <small>Open station</small>}
-            </span>
+            <ChevronRight size={16} aria-hidden="true" />
           </button>
         ))}
-        {!sessions.length && <CompactEmpty title="Start a session when a station opens." />}
       </div>
-
-      {recentActivity.length > 0 && (
-        <div className="practice-activity-feed">
-          <span>Recent Activity</span>
-          {recentActivity.map((activity) => (
-            <div key={activity.id}>
-              <time>{activity.time}</time>
-              <strong>{activity.title}</strong>
-              <em>{activity.detail}</em>
-            </div>
-          ))}
-        </div>
-      )}
     </article>
   );
 }
@@ -6746,13 +6773,17 @@ function PracticePlanCard({ practice }: { practice: Practice }) {
   );
 }
 
-function PracticeRecentCard({ data, recentPractices }: { data: AppData; recentPractices: Practice[] }) {
+function PracticeRecentCard({ data, recentPractices, onOpenHistory }: { data: AppData; recentPractices: Practice[]; onOpenHistory: () => void }) {
   return (
     <article className="panel practice-recent-card">
       <div className="panel-heading tight">
         <div>
           <h2>Recent Practices</h2>
         </div>
+        <button className="text-button" type="button" onClick={onOpenHistory}>
+          View History
+          <ChevronRight size={15} aria-hidden="true" />
+        </button>
       </div>
       {recentPractices.length ? (
         <div className="practice-history-rows">
@@ -6761,7 +6792,7 @@ function PracticeRecentCard({ data, recentPractices }: { data: AppData; recentPr
             const attendance = data.attendance.filter((row) => row.practiceId === item.id);
             const active = attendance.filter((row) => row.status !== "Absent");
             return (
-              <button key={item.id} type="button">
+              <button key={item.id} type="button" onClick={onOpenHistory}>
                 <span>
                   <strong>{shortDate(item.date)}</strong>
                   <small>{item.location || "Field"}</small>
@@ -6782,68 +6813,6 @@ function PracticeRecentCard({ data, recentPractices }: { data: AppData; recentPr
   );
 }
 
-function PracticeLeadersCard({
-  hittingLeaders,
-  pitchingLeaders,
-  onOpenPlayer,
-}: {
-  hittingLeaders: Array<{ playerId: ID; name: string; value: number; sample: number }>;
-  pitchingLeaders: Array<{ playerId: ID; name: string; value: number; sample: number }>;
-  onOpenPlayer: (playerId: ID) => void;
-}) {
-  return (
-    <article className="panel practice-leaders-card">
-      <div className="panel-heading tight">
-        <div>
-          <h2>Season Leaders</h2>
-        </div>
-      </div>
-      <div className="practice-leader-columns">
-        <div>
-          <span>Hitting</span>
-          {hittingLeaders.length ? (
-            <LeaderRows leaders={hittingLeaders} format={(value) => formatPct(value)} onOpenPlayer={onOpenPlayer} />
-          ) : (
-            <CompactEmpty title="Need more swings" />
-          )}
-        </div>
-        <div>
-          <span>Pitching</span>
-          {pitchingLeaders.length ? (
-            <LeaderRows leaders={pitchingLeaders} format={(value) => formatPct(value)} onOpenPlayer={onOpenPlayer} />
-          ) : (
-            <CompactEmpty title="Need more pitches" />
-          )}
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function PracticeDashboardStrip({
-  data,
-  practice,
-  activeTotals,
-  attendancePct,
-}: {
-  data: AppData;
-  practice?: Practice;
-  activeTotals: { pitches: number; swings: number; defenseReps: number };
-  attendancePct: number;
-}) {
-  const weekPracticeCount = data.practices.filter((item) => isDateWithinDays(item.date, todayKey(), 7)).length;
-  const totalReps = activeTotals.swings + activeTotals.pitches + activeTotals.defenseReps;
-  return (
-    <section className="practice-dashboard-strip panel">
-      <span><ClipboardList size={22} aria-hidden="true" /></span>
-      <StatTile label="Practices This Week" value={weekPracticeCount} />
-      <StatTile label="Team Attendance" value={practice ? formatPct(attendancePct, 0) : "--"} />
-      <StatTile label="Total Reps" value={totalReps} />
-      <StatTile label="Pitch Count" value={activeTotals.pitches} />
-    </section>
-  );
-}
-
 function PracticeEmptyHub({ onStartPractice }: { onStartPractice: () => void }) {
   return (
     <section className="panel practice-empty-hub">
@@ -6858,85 +6827,101 @@ function PracticeEmptyHub({ onStartPractice }: { onStartPractice: () => void }) 
   );
 }
 
-function PracticeDrillsTab({ onOpenStation }: { onOpenStation: (mode: PracticeMode) => void }) {
-  const drills: Array<{ title: string; category: PracticeMode; description: string }> = [
-    { title: "Machine BP", category: "Hitting", description: "Fast round-based swing logging." },
-    { title: "Front Toss", category: "Hitting", description: "Short setup for contact quality." },
-    { title: "Bullpen Command", category: "Pitching", description: "Pitch type, zone, and velocity." },
-    { title: "Short Hop Picks", category: "Defense", description: "Clean reps and error feedback." },
-    { title: "Live BP", category: "Live BP", description: "Pitcher versus hitter practice PA." },
-  ];
-  return (
-    <section className="practice-tab-grid">
-      {drills.map((drill) => (
-        <article key={drill.title} className="panel practice-drill-card">
-          <span>{drill.category}</span>
-          <h2>{drill.title}</h2>
-          <p>{drill.description}</p>
-          <button className="text-button" type="button" onClick={() => onOpenStation(drill.category)}>
-            Start Drill
-            <ChevronRight size={15} aria-hidden="true" />
-          </button>
-        </article>
-      ))}
-    </section>
-  );
-}
-
-function PracticeThrowingTab({ data, onOpenPlayer }: { data: AppData; onOpenPlayer: (playerId: ID) => void }) {
-  const pitchers = data.players.filter((player) => !player.archived && player.isPitcher).slice(0, 8);
-  return (
-    <section className="practice-tab-grid practice-tab-grid--wide">
-      {pitchers.map((player) => {
-        const events = playerPitchEvents(data, player.id);
-        const stats = calculatePitchingStats(events);
-        const lastSession = data.pitchingSessions.find((session) => session.pitcherId === player.id);
-        return (
-          <button key={player.id} type="button" className="panel practice-throwing-card" onClick={() => onOpenPlayer(player.id)}>
-            <PlayerAvatar player={player} size="md" />
-            <span>
-              <strong>{player.name}</strong>
-              <small>{lastSession ? `Last ${lastSession.type}: ${events.filter((event) => event.sessionId === lastSession.id).length} pitches` : "No bullpen yet"}</small>
-            </span>
-            <em>{formatPct(stats.zonePct, 0)} Zone</em>
-            <em>{stats.avgVelocity ? `${formatNumber(stats.avgVelocity, 1)} mph` : "--"}</em>
-          </button>
-        );
-      })}
-    </section>
-  );
-}
-
 function PracticeMetricsTab({ data }: { data: AppData }) {
-  const hitting = calculateHittingStats(data.hittingEvents);
-  const pitching = calculatePitchingStats(data.pitchEvents);
-  const clean = data.defenseEvents.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
-  const attendancePct = teamPracticeAttendancePct(data, data.players.filter((player) => !player.archived).length);
-  const hittingMetrics = [
-    { label: "Hard Contact", value: formatPct(hitting.hardHitPct) },
-    { label: "Miss", value: formatPct(hitting.whiffPct) },
-    { label: "Line Drive", value: formatPct(hitting.lineDrivePct) },
-    ...(hitting.exitVelocityRecorded > 0 ? [
-      { label: "Avg EV", value: `${formatNumber(hitting.avgExitVelocity, 1)} mph`, detail: `${hitting.exitVelocityRecorded} recorded` },
-      ...(hitting.maxExitVelocity !== undefined ? [{ label: "Max EV", value: `${formatNumber(hitting.maxExitVelocity, 1)} mph` }] : []),
-    ] : []),
-  ];
+  const [scope, setScope] = useState<PracticeMetricsScope>("Team");
+  const [category, setCategory] = useState<PracticeMetricsCategory>("Hitting");
+  const [sort, setSort] = useState<{ key: PracticeMetricsSortKey; direction: SortDirection }>({ key: "swings", direction: "desc" });
+  const columns = practiceMetricColumns(category);
+  const rows = useMemo(() => {
+    const baseRows = buildPracticeMetricRows(data, category);
+    return sortPracticeMetricRows(baseRows, sort);
+  }, [data, category, sort]);
+  const summary = practiceMetricSummary(data, category);
+
+  function updateSort(key: PracticeMetricsSortKey) {
+    setSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "desc" ? "asc" : "desc",
+    }));
+  }
+
   return (
-    <section className="practice-metrics-grid">
-      <article className="panel"><h2>Hitting</h2><LiveMetrics items={hittingMetrics} /></article>
-      <article className="panel"><h2>Pitching</h2><LiveMetrics items={[{ label: "Zone", value: formatPct(pitching.zonePct) }, { label: "Strike", value: formatPct(pitching.strikePct) }, { label: "Competitive", value: formatPct(pitching.cswPct) }]} /></article>
-      <article className="panel"><h2>Defense</h2><LiveMetrics items={[{ label: "Clean", value: formatPct(pct(clean, data.defenseEvents.length)) }, { label: "Reps", value: data.defenseEvents.length }]} /></article>
-      <article className="panel"><h2>Attendance</h2><LiveMetrics items={[{ label: "Team Attendance", value: data.practices.length ? formatPct(attendancePct) : "--" }, { label: "Practices", value: data.practices.length }]} /></article>
+    <section className="practice-metrics-page">
+      <article className="panel practice-metrics-controls">
+        <div>
+          <h2>Practice Metrics</h2>
+          <span>Long-term team and player performance lives here.</span>
+        </div>
+        <SegmentedControl values={PRACTICE_METRIC_SCOPES} active={scope} onChange={setScope} />
+        <SegmentedControl values={PRACTICE_METRIC_CATEGORIES} active={category} onChange={(nextCategory) => {
+          setCategory(nextCategory);
+          setSort({ key: defaultPracticeMetricSort(nextCategory), direction: "desc" });
+        }} />
+      </article>
+
+      <article className="panel practice-metrics-summary">
+        <div className="panel-heading tight">
+          <div>
+            <h2>{category} Summary</h2>
+            <span>{scope === "Team" ? "Team box-score view" : "Player table view"}</span>
+          </div>
+        </div>
+        <LiveMetrics items={summary} />
+      </article>
+
+      <article className="panel practice-metrics-table-card">
+        <div className="panel-heading tight">
+          <div>
+            <h2>{category} Players</h2>
+            <span>Click a column header to sort.</span>
+          </div>
+        </div>
+        <div className="practice-metrics-table" role="table" aria-label={`${category} practice metrics`}>
+          <div className="practice-metrics-table__row practice-metrics-table__row--head" role="row">
+            {columns.map((column) => (
+              <button
+                key={column.key}
+                type="button"
+                role="columnheader"
+                className={column.numeric ? "numeric" : ""}
+                onClick={() => updateSort(column.key)}
+              >
+                {column.label}
+                {sort.key === column.key && (sort.direction === "asc" ? <ChevronUp size={12} aria-hidden="true" /> : <ChevronDown size={12} aria-hidden="true" />)}
+              </button>
+            ))}
+          </div>
+          {rows.map((row) => (
+            <div key={row.player.id} className="practice-metrics-table__row" role="row">
+              {columns.map((column) => (
+                <span key={`${row.player.id}-${column.key}`} className={column.numeric ? "numeric" : ""} role="cell">
+                  {column.render(row)}
+                </span>
+              ))}
+            </div>
+          ))}
+          {!rows.length && <CompactEmpty title={`No ${category.toLowerCase()} metrics yet`} />}
+        </div>
+      </article>
     </section>
   );
 }
 
 function PracticeHistoryTab({ data }: { data: AppData }) {
+  const [filter, setFilter] = useState<"All" | PracticeType>("All");
+  const filters = ["All", ...uniqueStrings(data.practices.map((practice) => practice.type))] as Array<"All" | PracticeType>;
+  const practices = data.practices.filter((practice) => filter === "All" || practice.type === filter);
   return (
     <section className="panel practice-history-panel">
-      <h2>History</h2>
+      <div className="panel-heading tight">
+        <div>
+          <h2>History</h2>
+          <span>Completed practice archive and session totals.</span>
+        </div>
+        <SegmentedControl values={filters} active={filter} onChange={setFilter} />
+      </div>
       <div className="practice-history-rows">
-        {data.practices.map((practice) => {
+        {practices.map((practice) => {
           const totals = practiceTotals(data, practice.id);
           const attendance = data.attendance.filter((row) => row.practiceId === practice.id);
           const active = attendance.filter((row) => row.status !== "Absent");
@@ -6954,6 +6939,7 @@ function PracticeHistoryTab({ data }: { data: AppData }) {
             </button>
           );
         })}
+        {!practices.length && <CompactEmpty title="No practices match this filter" />}
       </div>
     </section>
   );
@@ -7044,7 +7030,8 @@ function PracticeConsole({
   onNextLiveBpHitter,
   onLogDefense,
   onUndo,
-  onEndSession,
+  onOpenSessionNotes,
+  onSessionHeartbeat,
   onExitTracking,
   onEndPractice,
   onStartPractice,
@@ -7095,7 +7082,8 @@ function PracticeConsole({
   onNextLiveBpHitter: () => void;
   onLogDefense: (outcome: DefenseOutcome, errorType?: DefenseEvent["errorType"]) => void;
   onUndo: () => void;
-  onEndSession: () => void;
+  onOpenSessionNotes: () => void;
+  onSessionHeartbeat: (mode: PracticeMode, sessionId: ID) => void;
   onExitTracking: () => void;
   onEndPractice: () => void;
   onStartPractice: () => void;
@@ -7108,6 +7096,10 @@ function PracticeConsole({
   const [hittingPlayersOpen, setHittingPlayersOpen] = useState(false);
   const [hittingSessionOpen, setHittingSessionOpen] = useState(false);
   const [hittingStatsOpen, setHittingStatsOpen] = useState(false);
+  const [activityClock, setActivityClock] = useState(() => Date.now());
+  const onSessionHeartbeatRef = useRef(onSessionHeartbeat);
+  const practiceId = practice?.id;
+  const practiceEndedAt = practice?.endedAt;
   const availablePlayers = useMemo(() => availablePracticePlayers(data, practice), [data, practice]);
   const fallbackPlayers = useMemo(() => sortPlayersByRecent(data.players.filter((item) => !item.archived), data.settings.recentPlayerIds), [data.players, data.settings.recentPlayerIds]);
   const players = availablePlayers.length ? availablePlayers : fallbackPlayers;
@@ -7126,16 +7118,13 @@ function PracticeConsole({
     || (hittingStation === "Machine" && isMachineHittingStation(session.type))
   );
   const hittingSession = practice
-    ? data.hittingSessions.find((session) => session.practiceId === practice.id && session.hitterId === player.id && matchesHittingStation(session) && !session.endedAt)
-      ?? data.hittingSessions.find((session) => session.practiceId === practice.id && session.hitterId === player.id && matchesHittingStation(session))
+    ? data.hittingSessions.find((session) => session.practiceId === practice.id && session.hitterId === player.id && matchesHittingStation(session) && isPracticeSessionReusable(session))
     : undefined;
   const pitchingSession = practice
-    ? data.pitchingSessions.find((session) => session.practiceId === practice.id && session.pitcherId === player.id && session.type === pitchingStation && !session.endedAt)
-      ?? data.pitchingSessions.find((session) => session.practiceId === practice.id && session.pitcherId === player.id && session.type === pitchingStation)
+    ? data.pitchingSessions.find((session) => session.practiceId === practice.id && session.pitcherId === player.id && session.type === pitchingStation && isPracticeSessionReusable(session))
     : undefined;
   const defenseSession = practice
-    ? data.defenseSessions.find((session) => session.practiceId === practice.id && session.playerId === player.id && session.station === defenseStation && !session.endedAt)
-      ?? data.defenseSessions.find((session) => session.practiceId === practice.id && session.playerId === player.id && session.station === defenseStation)
+    ? data.defenseSessions.find((session) => session.practiceId === practice.id && session.playerId === player.id && session.station === defenseStation && isPracticeSessionReusable(session))
     : undefined;
   const pitchEvents = data.pitchEvents.filter((event) => pitchingSession ? event.sessionId === pitchingSession.id : event.pitcherId === player.id && (!practice || event.practiceId === practice.id));
   const hittingEvents = data.hittingEvents.filter((event) => hittingSession ? event.sessionId === hittingSession.id : event.hitterId === player.id && (!practice || event.practiceId === practice.id));
@@ -7148,9 +7137,15 @@ function PracticeConsole({
   const hitStats = calculateHittingStats(hittingEvents);
   const cleanDefenseReps = defenseEvents.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
   const defenseCleanPct = pct(cleanDefenseReps, defenseEvents.length);
-  const activeSessions = practice ? buildActivePracticeSessions(data, practice.id) : [];
+  const activeSessions = practiceId && !practiceEndedAt ? buildActivePracticeSessions(data, practiceId, activityClock) : [];
   const activeModeSessions = activeSessions.filter((session) => session.mode === mode);
-  const currentSession = mode === "Hitting" ? hittingSession : mode === "Pitching" ? pitchingSession : mode === "Defense" ? defenseSession : data.pitchingSessions.find((session) => session.practiceId === practice?.id && session.pitcherId === liveBpPitcher?.id && session.type === "Live BP");
+  const currentSession = mode === "Hitting"
+    ? hittingSession
+    : mode === "Pitching"
+      ? pitchingSession
+      : mode === "Defense"
+        ? defenseSession
+        : data.pitchingSessions.find((session) => session.practiceId === practice?.id && session.pitcherId === liveBpPitcher?.id && session.type === "Live BP" && isPracticeSessionReusable(session));
   const presentCount = practice ? availablePlayers.length : activeTotals.players;
   const roundNumber = practice
     ? Math.max(1, data.hittingSessions.filter((session) => session.practiceId === practice.id && session.hitterId === player.id && matchesHittingStation(session)).length || 1)
@@ -7194,6 +7189,20 @@ function PracticeConsole({
     if (!playerPool.length || playerPool.some((item) => item.id === player.id)) return;
     onSelectPlayer(playerPool[0].id);
   }, [player.id, playerPool, onSelectPlayer]);
+
+  useEffect(() => {
+    onSessionHeartbeatRef.current = onSessionHeartbeat;
+  }, [onSessionHeartbeat]);
+
+  useEffect(() => {
+    if (!practiceId || practiceEndedAt || !currentSession?.id) return;
+    onSessionHeartbeatRef.current(mode, currentSession.id);
+    const heartbeat = window.setInterval(() => {
+      setActivityClock(Date.now());
+      onSessionHeartbeatRef.current(mode, currentSession.id);
+    }, PRACTICE_SESSION_HEARTBEAT_MS);
+    return () => window.clearInterval(heartbeat);
+  }, [currentSession?.id, mode, practiceId, practiceEndedAt]);
 
   function changeMode(nextMode: PracticeMode) {
     onMode(nextMode);
@@ -7561,7 +7570,7 @@ function PracticeConsole({
                 </div>
               </section>
               <div className="modal-actions">
-                <button className="secondary-button" type="button" onClick={onEndSession}>End Session</button>
+                <button className="secondary-button" type="button" onClick={onOpenSessionNotes}>Session Notes</button>
                 <button className="primary-button" type="button" onClick={() => setHittingSessionOpen(false)}>Done</button>
               </div>
             </ModalFrame>
@@ -7611,13 +7620,13 @@ function PracticeConsole({
               <span>Session</span>
               <h2>{sessionName}</h2>
             </div>
-            <button className="ghost-button" type="button" onClick={onEndSession}>
-              <Save size={15} aria-hidden="true" />
-              End
+            <button className="ghost-button" type="button" onClick={onOpenSessionNotes}>
+              <Edit3 size={15} aria-hidden="true" />
+              Notes
             </button>
           </div>
           <div className="practice-session-meta-stack">
-            <span><b>Status</b><em>{currentSession?.status ?? "ACTIVE"}</em></span>
+            <span><b>Status</b><em>{currentSession && isPracticeSessionLive(data, currentSession.id, activityClock) ? "Active now" : "Recent context"}</em></span>
             <span><b>Started</b><em>{sessionStarted}</em></span>
             <span><b>Players</b><em>{sessionParticipants || 1}</em></span>
             <span><b>Reps</b><em>{sessionReps}</em></span>
@@ -15701,7 +15710,7 @@ function escapeCsvCell(value: string | number | undefined) {
 function SessionSummaryModal({ data, summary, note, onNote, onSave, onClose }: { data: AppData; summary: { type: "Hitting" | "Pitching" | "Defense"; sessionId: ID }; note: string; onNote: (note: string) => void; onSave: () => void; onClose: () => void }) {
   const details = buildSessionSummary(data, summary);
   return (
-    <ModalFrame title="Session Summary" onClose={onClose}>
+    <ModalFrame title="Session Notes" onClose={onClose}>
       <div className="summary-hero">
         <span>{summary.type}</span>
         <h2>{details.title}</h2>
@@ -15715,7 +15724,7 @@ function SessionSummaryModal({ data, summary, note, onNote, onSave, onClose }: {
         <span>Coach notes</span>
         <textarea value={note} onChange={(event) => onNote(event.target.value)} placeholder="Add what should carry into the next session..." />
       </label>
-      <button className="primary-button stretch-button" type="button" onClick={onSave}>Save Summary</button>
+      <button className="primary-button stretch-button" type="button" onClick={onSave}>Save Notes</button>
     </ModalFrame>
   );
 }
@@ -17544,15 +17553,248 @@ function availablePracticePlayers(data: AppData, practice: Practice | undefined)
   });
 }
 
-function buildActivePracticeSessions(data: AppData, practiceId: ID): PracticeActiveSessionRow[] {
+type PracticeMetricColumn = {
+  key: PracticeMetricsSortKey;
+  label: string;
+  numeric?: boolean;
+  render: (row: PracticeMetricRow) => React.ReactNode;
+};
+
+function defaultPracticeMetricSort(category: PracticeMetricsCategory): PracticeMetricsSortKey {
+  if (category === "Pitching") return "pitches";
+  if (category === "Defense") return "reps";
+  if (category === "Live BP") return "liveBpPitches";
+  return "swings";
+}
+
+function practiceMetricColumns(category: PracticeMetricsCategory): PracticeMetricColumn[] {
+  const playerColumn: PracticeMetricColumn = {
+    key: "player",
+    label: "Player",
+    render: (row) => (
+      <span className="practice-metrics-player">
+        <PlayerAvatar player={row.player} size="sm" compact />
+        <span>
+          <strong>{row.player.name}</strong>
+          <small>{positionLine(row.player)}</small>
+        </span>
+      </span>
+    ),
+  };
+
+  if (category === "Pitching") {
+    return [
+      playerColumn,
+      { key: "pitches", label: "Pitches", numeric: true, render: (row) => row.pitches },
+      { key: "strike", label: "Strike %", numeric: true, render: (row) => formatPct(row.strike, 0) },
+      { key: "zone", label: "Zone %", numeric: true, render: (row) => formatPct(row.zone, 0) },
+      { key: "avgVelo", label: "Avg Velo", numeric: true, render: (row) => formatOptionalMph(row.avgVelo) },
+      { key: "maxVelo", label: "Max Velo", numeric: true, render: (row) => formatOptionalMph(row.maxVelo) },
+    ];
+  }
+
+  if (category === "Defense") {
+    return [
+      playerColumn,
+      { key: "reps", label: "Reps", numeric: true, render: (row) => row.reps },
+      { key: "clean", label: "Clean %", numeric: true, render: (row) => formatPct(row.clean, 0) },
+      { key: "errors", label: "Errors", numeric: true, render: (row) => row.errors },
+      { key: "greatPlays", label: "Plus Plays", numeric: true, render: (row) => row.greatPlays },
+      { key: "defenseSessions", label: "Sessions", numeric: true, render: (row) => row.defenseSessions },
+    ];
+  }
+
+  if (category === "Live BP") {
+    return [
+      playerColumn,
+      { key: "liveBpPitches", label: "Pitches", numeric: true, render: (row) => row.liveBpPitches },
+      { key: "liveBpSwings", label: "Swings", numeric: true, render: (row) => row.liveBpSwings },
+      { key: "liveBpPas", label: "PAs", numeric: true, render: (row) => row.liveBpPas },
+      { key: "strike", label: "Strike %", numeric: true, render: (row) => formatPct(row.strike, 0) },
+      { key: "avgEv", label: "Avg EV", numeric: true, render: (row) => formatOptionalMph(row.avgEv) },
+    ];
+  }
+
+  return [
+    playerColumn,
+    { key: "swings", label: "Swings", numeric: true, render: (row) => row.swings },
+    { key: "contact", label: "Contact", numeric: true, render: (row) => formatPct(row.contact, 0) },
+    { key: "hard", label: "Hard %", numeric: true, render: (row) => formatPct(row.hard, 0) },
+    { key: "avgEv", label: "Avg EV", numeric: true, render: (row) => formatOptionalMph(row.avgEv) },
+    { key: "maxEv", label: "Max EV", numeric: true, render: (row) => formatOptionalMph(row.maxEv) },
+  ];
+}
+
+function buildPracticeMetricRows(data: AppData, category: PracticeMetricsCategory): PracticeMetricRow[] {
+  const hittingSessionTypeById = new Map(data.hittingSessions.map((session) => [session.id, session.type]));
+  const pitchingSessionTypeById = new Map(data.pitchingSessions.map((session) => [session.id, session.type]));
+  return data.players
+    .filter((player) => !player.archived)
+    .map((player) => {
+      const hittingEvents = data.hittingEvents.filter((event) => (
+        event.hitterId === player.id
+        && !event.isLiveBp
+        && hittingSessionTypeById.get(event.sessionId) !== "Live BP"
+      ));
+      const hittingStats = calculateHittingStats(hittingEvents);
+      const pitchEvents = data.pitchEvents.filter((event) => (
+        event.pitcherId === player.id
+        && pitchingSessionTypeById.get(event.sessionId) !== "Live BP"
+      ));
+      const pitchingStats = calculatePitchingStats(pitchEvents);
+      const defenseEvents = data.defenseEvents.filter((event) => event.playerId === player.id);
+      const cleanDefense = defenseEvents.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
+      const liveBpPitchEvents = data.pitchEvents.filter((event) => event.pitcherId === player.id && pitchingSessionTypeById.get(event.sessionId) === "Live BP");
+      const liveBpHittingEvents = data.hittingEvents.filter((event) => (
+        event.hitterId === player.id
+        && (event.isLiveBp || hittingSessionTypeById.get(event.sessionId) === "Live BP" || Boolean(event.pitcherId))
+      ));
+      const liveBpPitchStats = calculatePitchingStats(liveBpPitchEvents);
+      const liveBpHitStats = calculateHittingStats(liveBpHittingEvents);
+      const liveBpPas = data.plateAppearances.filter((appearance) => (
+        Boolean(appearance.practiceId)
+        && (appearance.pitcherId === player.id || appearance.hitterId === player.id)
+      )).length;
+      const defenseSessionCount = data.defenseSessions.filter((session) => session.playerId === player.id).length;
+
+      return {
+        player,
+        swings: hittingStats.totalSwings,
+        contact: hittingStats.contactPct,
+        hard: hittingStats.hardHitPct,
+        avgEv: hittingStats.avgExitVelocity,
+        maxEv: hittingStats.maxExitVelocity,
+        pitches: pitchingStats.totalPitches,
+        strike: category === "Live BP" ? liveBpPitchStats.strikePct : pitchingStats.strikePct,
+        zone: pitchingStats.zonePct,
+        avgVelo: pitchingStats.avgVelocity,
+        maxVelo: pitchingStats.maxVelocity,
+        reps: defenseEvents.length,
+        clean: pct(cleanDefense, defenseEvents.length),
+        errors: defenseEvents.filter((event) => event.outcome === "Error" || event.outcome === "Missed Rep").length,
+        greatPlays: defenseEvents.filter((event) => event.outcome === "Great Play").length,
+        defenseSessions: defenseSessionCount,
+        liveBpPitches: liveBpPitchStats.totalPitches,
+        liveBpSwings: liveBpHitStats.totalSwings,
+        liveBpPas,
+      };
+    })
+    .filter((row) => practiceMetricRowHasData(row, category));
+}
+
+function practiceMetricRowHasData(row: PracticeMetricRow, category: PracticeMetricsCategory) {
+  if (category === "Pitching") return row.pitches > 0;
+  if (category === "Defense") return row.reps > 0;
+  if (category === "Live BP") return row.liveBpPitches > 0 || row.liveBpSwings > 0 || row.liveBpPas > 0;
+  return row.swings > 0;
+}
+
+function sortPracticeMetricRows(rows: PracticeMetricRow[], sort: { key: PracticeMetricsSortKey; direction: SortDirection }) {
+  const multiplier = sort.direction === "asc" ? 1 : -1;
+  return rows.slice().sort((left, right) => {
+    const leftValue = practiceMetricSortValue(left, sort.key);
+    const rightValue = practiceMetricSortValue(right, sort.key);
+    const result = typeof leftValue === "string" || typeof rightValue === "string"
+      ? String(leftValue).localeCompare(String(rightValue), undefined, { numeric: true, sensitivity: "base" })
+      : (leftValue ?? -1) - (rightValue ?? -1);
+    return (result || left.player.jerseyNumber - right.player.jerseyNumber || left.player.name.localeCompare(right.player.name)) * multiplier;
+  });
+}
+
+function practiceMetricSortValue(row: PracticeMetricRow, key: PracticeMetricsSortKey): string | number | undefined {
+  if (key === "player") return row.player.name;
+  return row[key];
+}
+
+function practiceMetricSummary(data: AppData, category: PracticeMetricsCategory) {
+  if (category === "Pitching") {
+    const sessionTypeById = new Map(data.pitchingSessions.map((session) => [session.id, session.type]));
+    const events = data.pitchEvents.filter((event) => sessionTypeById.get(event.sessionId) !== "Live BP");
+    const stats = calculatePitchingStats(events);
+    return [
+      { label: "Pitches", value: stats.totalPitches },
+      { label: "Strike", value: formatPct(stats.strikePct, 0) },
+      { label: "Zone", value: formatPct(stats.zonePct, 0) },
+      { label: "Avg Velo", value: formatOptionalMph(stats.avgVelocity) },
+    ];
+  }
+  if (category === "Defense") {
+    const clean = data.defenseEvents.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
+    return [
+      { label: "Reps", value: data.defenseEvents.length },
+      { label: "Clean", value: formatPct(pct(clean, data.defenseEvents.length), 0) },
+      { label: "Errors", value: data.defenseEvents.filter((event) => event.outcome === "Error" || event.outcome === "Missed Rep").length },
+      { label: "Sessions", value: data.defenseSessions.length },
+    ];
+  }
+  if (category === "Live BP") {
+    const pitchingSessionTypeById = new Map(data.pitchingSessions.map((session) => [session.id, session.type]));
+    const hittingSessionTypeById = new Map(data.hittingSessions.map((session) => [session.id, session.type]));
+    const pitches = data.pitchEvents.filter((event) => pitchingSessionTypeById.get(event.sessionId) === "Live BP");
+    const swings = data.hittingEvents.filter((event) => event.isLiveBp || hittingSessionTypeById.get(event.sessionId) === "Live BP" || Boolean(event.pitcherId));
+    const pitching = calculatePitchingStats(pitches);
+    const hitting = calculateHittingStats(swings);
+    return [
+      { label: "Pitches", value: pitching.totalPitches },
+      { label: "Swings", value: hitting.totalSwings },
+      { label: "PAs", value: data.plateAppearances.filter((appearance) => appearance.practiceId).length },
+      { label: "Avg EV", value: formatOptionalMph(hitting.avgExitVelocity) },
+    ];
+  }
+  const sessionTypeById = new Map(data.hittingSessions.map((session) => [session.id, session.type]));
+  const events = data.hittingEvents.filter((event) => !event.isLiveBp && sessionTypeById.get(event.sessionId) !== "Live BP");
+  const stats = calculateHittingStats(events);
+  return [
+    { label: "Swings", value: stats.totalSwings },
+    { label: "Contact", value: formatPct(stats.contactPct, 0) },
+    { label: "Hard", value: formatPct(stats.hardHitPct, 0) },
+    { label: "Avg EV", value: formatOptionalMph(stats.avgExitVelocity) },
+  ];
+}
+
+function formatOptionalMph(value?: number) {
+  return typeof value === "number" && Number.isFinite(value) ? `${formatNumber(value, 1)} mph` : "--";
+}
+
+function isPracticeSessionReusable(session: { status?: string }) {
+  return (session.status ?? "ACTIVE") !== "CANCELLED";
+}
+
+function isPracticeSessionLive(data: AppData, sessionId: ID, nowMs = Date.now()) {
+  const lastActivityAt = practiceSessionLastActivityAt(data, sessionId);
+  return Boolean(lastActivityAt && nowMs - Date.parse(lastActivityAt) <= PRACTICE_ACTIVE_SESSION_GRACE_MS);
+}
+
+function practiceSessionLastActivityAt(data: AppData, sessionId: ID) {
+  const timestamps = [
+    data.hittingSessions.find((session) => session.id === sessionId)?.updatedAt,
+    data.pitchingSessions.find((session) => session.id === sessionId)?.updatedAt,
+    data.defenseSessions.find((session) => session.id === sessionId)?.updatedAt,
+    ...data.practiceSessionContributors.filter((row) => row.sessionId === sessionId).map((row) => row.lastActiveAt),
+    ...data.hittingEvents.filter((event) => event.sessionId === sessionId).map((event) => event.createdAt),
+    ...data.pitchEvents.filter((event) => event.sessionId === sessionId).map((event) => event.createdAt),
+    ...data.defenseEvents.filter((event) => event.sessionId === sessionId).map((event) => event.createdAt),
+  ].filter(Boolean) as string[];
+  return timestamps.sort((left, right) => right.localeCompare(left))[0];
+}
+
+function practiceSessionActivityLabel(lastActiveAt: string, nowMs: number) {
+  const ageMs = Math.max(0, nowMs - Date.parse(lastActiveAt));
+  if (ageMs < 60 * 1000) return "Active now";
+  const minutes = Math.max(1, Math.round(ageMs / 60000));
+  return `${minutes}m ago`;
+}
+
+function buildActivePracticeSessions(data: AppData, practiceId: ID, nowMs = Date.now()): PracticeActiveSessionRow[] {
   const playerById = new Map(data.players.map((player) => [player.id, player]));
   const currentProfileId = data.teamContext?.profile?.id;
   const rows: PracticeActiveSessionRow[] = [
     ...data.hittingSessions
-      .filter((session) => session.practiceId === practiceId && !session.endedAt)
+      .filter((session) => session.type !== "Live BP" && session.practiceId === practiceId && isPracticeSessionReusable(session) && isPracticeSessionLive(data, session.id, nowMs))
       .map((session) => {
         const player = playerById.get(session.hitterId);
         const events = data.hittingEvents.filter((event) => event.sessionId === session.id);
+        const lastActiveAt = practiceSessionLastActivityAt(data, session.id) ?? session.updatedAt ?? session.startedAt;
         return {
           id: `hit-${session.id}`,
           mode: "Hitting" as const,
@@ -17565,14 +17807,17 @@ function buildActivePracticeSessions(data: AppData, practiceId: ID): PracticeAct
           contributors: contributorLabels(data, session.id, session.createdByProfileId, session.contributorProfileIds),
           isMine: Boolean(currentProfileId && (session.createdByProfileId === currentProfileId || session.contributorProfileIds?.includes(currentProfileId))),
           startedAt: session.startedAt,
+          lastActiveAt,
+          activityLabel: practiceSessionActivityLabel(lastActiveAt, nowMs),
         };
       }),
     ...data.pitchingSessions
-      .filter((session) => session.practiceId === practiceId && !session.endedAt)
+      .filter((session) => session.practiceId === practiceId && isPracticeSessionReusable(session) && isPracticeSessionLive(data, session.id, nowMs))
       .map((session) => {
         const player = playerById.get(session.pitcherId);
         const hitter = session.hitterId ? playerById.get(session.hitterId) : undefined;
         const events = data.pitchEvents.filter((event) => event.sessionId === session.id);
+        const lastActiveAt = practiceSessionLastActivityAt(data, session.id) ?? session.updatedAt ?? session.startedAt;
         return {
           id: `pitch-${session.id}`,
           mode: session.type === "Live BP" ? "Live BP" as const : "Pitching" as const,
@@ -17586,13 +17831,16 @@ function buildActivePracticeSessions(data: AppData, practiceId: ID): PracticeAct
           contributors: contributorLabels(data, session.id, session.createdByProfileId, session.contributorProfileIds),
           isMine: Boolean(currentProfileId && (session.createdByProfileId === currentProfileId || session.contributorProfileIds?.includes(currentProfileId))),
           startedAt: session.startedAt,
+          lastActiveAt,
+          activityLabel: practiceSessionActivityLabel(lastActiveAt, nowMs),
         };
       }),
     ...data.defenseSessions
-      .filter((session) => session.practiceId === practiceId && !session.endedAt)
+      .filter((session) => session.practiceId === practiceId && isPracticeSessionReusable(session) && isPracticeSessionLive(data, session.id, nowMs))
       .map((session) => {
         const player = playerById.get(session.playerId);
         const events = data.defenseEvents.filter((event) => event.sessionId === session.id);
+        const lastActiveAt = practiceSessionLastActivityAt(data, session.id) ?? session.updatedAt ?? session.startedAt;
         return {
           id: `def-${session.id}`,
           mode: "Defense" as const,
@@ -17605,10 +17853,12 @@ function buildActivePracticeSessions(data: AppData, practiceId: ID): PracticeAct
           contributors: contributorLabels(data, session.id, session.createdByProfileId, session.contributorProfileIds),
           isMine: Boolean(currentProfileId && (session.createdByProfileId === currentProfileId || session.contributorProfileIds?.includes(currentProfileId))),
           startedAt: session.startedAt,
+          lastActiveAt,
+          activityLabel: practiceSessionActivityLabel(lastActiveAt, nowMs),
         };
       }),
   ];
-  return rows.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  return rows.sort((a, b) => Number(b.isMine) - Number(a.isMine) || b.lastActiveAt.localeCompare(a.lastActiveAt) || b.startedAt.localeCompare(a.startedAt));
 }
 
 function contributorLabels(data: AppData, sessionId: ID, createdByProfileId?: ID, contributorProfileIds?: ID[]) {
@@ -17623,49 +17873,6 @@ function contributorLabels(data: AppData, sessionId: ID, createdByProfileId?: ID
     if (profileId === profile?.id) return profileDisplayName(data.teamContext);
     return staffByProfileId.get(profileId) ?? "Coach";
   });
-}
-
-function buildPracticeActivityFeed(data: AppData, practiceId: ID): PracticeActivityFeedRow[] {
-  const playerById = new Map(data.players.map((player) => [player.id, player]));
-  const rows: Array<PracticeActivityFeedRow & { createdAt: string }> = [
-    ...data.pitchEvents
-      .filter((event) => event.practiceId === practiceId)
-      .map((event) => ({
-        id: `pitch-${event.id}`,
-        mode: "Pitching" as const,
-        time: formatTime(event.createdAt),
-        title: playerById.get(event.pitcherId)?.name ?? "Pitcher",
-        detail: `${PITCH_TYPE_LABELS[event.pitchType]} ${event.outcome}`,
-        createdAt: event.createdAt,
-      })),
-    ...data.hittingEvents
-      .filter((event) => event.practiceId === practiceId)
-      .map((event) => ({
-        id: `hit-${event.id}`,
-        mode: "Hitting" as const,
-        time: formatTime(event.createdAt),
-        title: playerById.get(event.hitterId)?.name ?? "Hitter",
-        detail: event.contactQuality ? `${event.contactQuality} ${event.contactResult ?? "contact"}` : event.action,
-        createdAt: event.createdAt,
-      })),
-    ...data.defenseEvents
-      .filter((event) => event.practiceId === practiceId)
-      .map((event) => ({
-        id: `def-${event.id}`,
-        mode: "Defense" as const,
-        time: formatTime(event.createdAt),
-        title: playerById.get(event.playerId)?.name ?? "Defender",
-        detail: `${event.station} ${event.outcome}`,
-        createdAt: event.createdAt,
-      })),
-  ];
-  return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((row) => ({
-    id: row.id,
-    mode: row.mode,
-    time: row.time,
-    title: row.title,
-    detail: row.detail,
-  }));
 }
 
 function buildPlayerRecentActivity(data: AppData, player: Player) {
@@ -17848,7 +18055,7 @@ function ensureHittingSession(data: AppData, practice: Practice, playerId: ID, t
   const existing = data.hittingSessions.find((session) => (
     session.practiceId === practice.id
     && session.hitterId === playerId
-    && !session.endedAt
+    && isPracticeSessionReusable(session)
     && (session.type === type || (type === "Machine" && isMachineHittingStation(session.type)))
   ));
   if (existing) {
@@ -17895,7 +18102,7 @@ function ensureHittingSession(data: AppData, practice: Practice, playerId: ID, t
 
 function ensurePitchingSession(data: AppData, practice: Practice, playerId: ID, type: PitchingSession["type"], profileId?: ID, hitterId?: ID) {
   const now = new Date().toISOString();
-  const existing = data.pitchingSessions.find((session) => session.practiceId === practice.id && session.pitcherId === playerId && session.type === type && !session.endedAt);
+  const existing = data.pitchingSessions.find((session) => session.practiceId === practice.id && session.pitcherId === playerId && session.type === type && isPracticeSessionReusable(session));
   if (existing) {
     const session = {
       ...existing,
@@ -17940,7 +18147,7 @@ function ensurePitchingSession(data: AppData, practice: Practice, playerId: ID, 
 
 function ensureDefenseSession(data: AppData, practice: Practice, playerId: ID, station: DefenseStation, profileId?: ID) {
   const now = new Date().toISOString();
-  const existing = data.defenseSessions.find((session) => session.practiceId === practice.id && session.playerId === playerId && session.station === station && !session.endedAt);
+  const existing = data.defenseSessions.find((session) => session.practiceId === practice.id && session.playerId === playerId && session.station === station && isPracticeSessionReusable(session));
   if (existing) {
     const session = {
       ...existing,
@@ -18143,12 +18350,6 @@ function formatHeightFromInches(value: number) {
   return `${Math.floor(safeValue / 12)}-${safeValue % 12}`;
 }
 
-function teamPracticeAttendancePct(data: AppData, activeRosterCount: number) {
-  if (!data.practices.length || !activeRosterCount) return 0;
-  const attended = data.practices.reduce((total, practice) => total + new Set(practice.playerIds).size, 0);
-  return pct(attended, data.practices.length * activeRosterCount);
-}
-
 function buildScheduleItems(data: AppData): ScheduleItem[] {
   const practiceItems: ScheduleItem[] = data.practices.map((practice) => ({
     id: `practice-${practice.id}`,
@@ -18235,14 +18436,6 @@ function dateKeyFromIso(value: string) {
 
 function todayKey() {
   return localDateKey(new Date());
-}
-
-function isDateWithinDays(date: string, anchor: string, days: number) {
-  const value = Date.parse(`${date}T12:00:00`);
-  const anchorValue = Date.parse(`${anchor}T12:00:00`);
-  if (Number.isNaN(value) || Number.isNaN(anchorValue)) return false;
-  const diff = anchorValue - value;
-  return diff >= 0 && diff <= days * 24 * 60 * 60 * 1000;
 }
 
 function isUpcomingScheduleItem(item: ScheduleItem) {

@@ -34,16 +34,24 @@ test("practice architecture supports concurrent sessions and append-only events"
 
   assert.match(page, /function PracticeActiveSessionsCard/);
   assert.match(page, /function buildActivePracticeSessions/);
-  assert.match(page, /function buildPracticeActivityFeed/);
-  assert.match(page, /const activeSessions = practice \? buildActivePracticeSessions/);
+  assert.match(page, /const PRACTICE_ACTIVE_SESSION_GRACE_MS = 2 \* 60 \* 1000/);
+  assert.match(page, /function isPracticeSessionLive/);
+  assert.match(page, /function practiceSessionLastActivityAt/);
+  assert.match(page, /function isPracticeSessionReusable/);
+  assert.doesNotMatch(page, /function buildPracticeActivityFeed/);
+  assert.match(page, /const activeSessions = practice && !practiceEndedAt \? buildActivePracticeSessions/);
   assert.match(page, /onOpenSession=\{resumePracticeSession\}/);
+  assert.match(page, /onSessionHeartbeat=\{touchActivePracticeSession\}/);
   assert.match(page, /touchSessionContributor/);
   assert.match(page, /nextSessionSequence/);
   assert.match(page, /const profileId = current\.teamContext\?\.profile\?\.id/);
   assert.match(page, /createdByProfileId: profileId/);
   assert.match(page, /entrySource: "COACH"/);
-  assert.match(page, /const activeSessions = \[[\s\S]*\(session\.status \?\? "ACTIVE"\) === "ACTIVE"/);
-  assert.match(page, /window\.confirm\(`\$\{activeSessions\.length\} session/);
+  assert.match(page, /session\.practiceId === practiceId && isPracticeSessionReusable\(session\) && isPracticeSessionLive\(data, session\.id, nowMs\)/);
+  assert.match(page, /const heartbeat = window\.setInterval/);
+  assert.match(page, /Save Notes/);
+  assert.doesNotMatch(page, /End Session<\/button>/);
+  assert.doesNotMatch(page, /window\.confirm\(`\$\{activeSessions\.length\} session/);
 
   assert.match(styles, /\.practice-active-sessions-card/);
   assert.match(styles, /@media \(min-width: 981px\) and \(max-height: 720px\)/);
