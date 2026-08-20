@@ -142,6 +142,7 @@ export interface AnalyticsResult {
   query: AnalyticsQuery;
   title: string;
   sourceLabel: string;
+  availableColumns: AnalyticsColumn[];
   columns: AnalyticsColumn[];
   rows: AnalyticsRow[];
   teamTotals?: AnalyticsRow;
@@ -552,7 +553,7 @@ function assembleResult(
   filterDefinitions: AnalyticsFilterDefinition[],
   scopeLabel: string,
 ): AnalyticsResult {
-  const columns = metricIds
+  const availableColumns = metricIds
     .map((metricId) => metricById(metricId))
     .filter((metricItem): metricItem is AnalyticsMetricDefinition => Boolean(metricItem))
     .filter((metricItem) => metricItem.supportedSources.includes(query.source) || (query.source === "all" && metricItem.supportedSources.includes("all")))
@@ -563,12 +564,15 @@ function assembleResult(
       definition: metricItem.definition,
       sortable: metricItem.sortable,
     }));
+  const selectedMetrics = query.metrics?.length ? new Set(query.metrics) : undefined;
+  const columns = selectedMetrics ? availableColumns.filter((column) => selectedMetrics.has(column.metricId)) : availableColumns;
   const sampleCount = rows.reduce((total, row) => total + row.sampleCount, 0);
   const playersWithData = rows.filter((row) => row.sampleCount > 0).length;
   return {
     query,
     title,
     sourceLabel,
+    availableColumns,
     columns,
     rows,
     teamTotals,
@@ -603,7 +607,8 @@ function hittingRow(player: Player, events: HittingEvent[]): AnalyticsRow {
 }
 
 function hittingTeamRow(data: AppData, events: HittingEvent[]): AnalyticsRow {
-  return hittingRow(teamPlayer(data), events);
+  const eligibleIds = currentRosterPlayerIdSet(data);
+  return hittingRow(teamPlayer(data), events.filter((event) => eligibleIds.has(event.hitterId)));
 }
 
 function gameHittingRow(player: Player, events: GameEvent[]): AnalyticsRow {
@@ -627,7 +632,8 @@ function gameHittingRow(player: Player, events: GameEvent[]): AnalyticsRow {
 }
 
 function gameHittingTeamRow(data: AppData, events: GameEvent[]): AnalyticsRow {
-  return gameHittingRow(teamPlayer(data), events);
+  const eligibleIds = currentRosterPlayerIdSet(data);
+  return gameHittingRow(teamPlayer(data), events.filter((event) => event.batterId ? eligibleIds.has(event.batterId) : false));
 }
 
 function pitchingRow(player: Player, pitchEvents: PitchEvent[], gameEvents: GameEvent[]): AnalyticsRow {
@@ -649,7 +655,12 @@ function pitchingRow(player: Player, pitchEvents: PitchEvent[], gameEvents: Game
 }
 
 function pitchingTeamRow(data: AppData, pitchEvents: PitchEvent[], gameEvents: GameEvent[]): AnalyticsRow {
-  return pitchingRow(teamPlayer(data), pitchEvents, gameEvents);
+  const eligibleIds = currentRosterPlayerIdSet(data);
+  return pitchingRow(
+    teamPlayer(data),
+    pitchEvents.filter((event) => eligibleIds.has(event.pitcherId)),
+    gameEvents.filter((event) => event.pitcherId ? eligibleIds.has(event.pitcherId) : false),
+  );
 }
 
 function defenseRow(player: Player, events: DefenseEvent[]): AnalyticsRow {
@@ -663,7 +674,8 @@ function defenseRow(player: Player, events: DefenseEvent[]): AnalyticsRow {
 }
 
 function defenseTeamRow(data: AppData, events: DefenseEvent[]): AnalyticsRow {
-  return defenseRow(teamPlayer(data), events);
+  const eligibleIds = currentRosterPlayerIdSet(data);
+  return defenseRow(teamPlayer(data), events.filter((event) => eligibleIds.has(event.playerId)));
 }
 
 function developmentTeamRow(data: AppData, rows: AnalyticsRow[], practices: Practice[]): AnalyticsRow {
@@ -1003,6 +1015,10 @@ function currentRosterPlayers(data: AppData): Player[] {
     return data.players.filter((player) => !player.archived && player.rosterStatus !== "Cut" && eligibleIds.has(player.id));
   }
   return data.players.filter((player) => !player.archived && player.rosterStatus !== "Cut");
+}
+
+function currentRosterPlayerIdSet(data: AppData): Set<ID> {
+  return new Set(currentRosterPlayers(data).map((player) => player.id));
 }
 
 function teamPlayer(data: AppData): Player {

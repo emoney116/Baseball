@@ -65,6 +65,7 @@ import {
   executeAnalyticsQuery,
   runAskClubhouseQuestion,
   type AnalyticsCell,
+  type AnalyticsColumn,
   type AnalyticsDevelopmentView,
   type AnalyticsDomain,
   type AnalyticsEventOption,
@@ -13433,13 +13434,15 @@ function AnalyticsView({
   const [developmentView, setDevelopmentView] = useState<AnalyticsDevelopmentView>(initialState.developmentView);
   const [eventIds, setEventIds] = useState<ID[]>(initialState.eventIds);
   const [customRange, setCustomRange] = useState<{ start?: string; end?: string }>(initialState.customRange);
-  const [filters, setFilters] = useState<AnalyticsFilters>({});
-  const [sort, setSort] = useState<AnalyticsQuery["sort"]>(() => defaultAnalyticsSort(initialState.domain, initialState.source, initialState.mode));
+  const [filters, setFilters] = useState<AnalyticsFilters>(initialState.filters);
+  const [sort, setSort] = useState<AnalyticsQuery["sort"]>(() => initialState.sort ?? defaultAnalyticsSort(initialState.domain, initialState.source, initialState.mode));
   const [eventSelectorOpen, setEventSelectorOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [columnsOpen, setColumnsOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const [askResponse, setAskResponse] = useState<AskClubhouseResponse | undefined>();
   const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>();
+  const [metricIds, setMetricIds] = useState<string[] | undefined>(initialState.metricIds);
   const context = useMemo(() => ({
     teamId: data.teamContext?.currentTeam?.teamId,
     seasonId: data.teamContext?.currentTeam?.seasonId,
@@ -13455,10 +13458,11 @@ function AnalyticsView({
     customDateRange: customRange,
     eventIds,
     filters,
+    metrics: metricIds,
     groupBy: "player",
     sort,
     context,
-  }), [context, customRange, developmentView, domain, eventIds, filters, mode, sort, source, timeRange]);
+  }), [context, customRange, developmentView, domain, eventIds, filters, metricIds, mode, sort, source, timeRange]);
   const result = useMemo(() => executeAnalyticsQuery(data, query), [data, query]);
   const selectedDetailRow = detailPlayerId ? result.rows.find((row) => row.player.id === detailPlayerId) : undefined;
   const activeFilterCount = Object.values(filters).reduce((total, value) => total + (Array.isArray(value) ? value.length : 0), 0);
@@ -13475,6 +13479,18 @@ function AnalyticsView({
     else url.searchParams.delete("dev");
     if (eventIds.length) url.searchParams.set("events", eventIds.join(","));
     else url.searchParams.delete("events");
+    if (metricIds?.length) url.searchParams.set("columns", metricIds.join(","));
+    else url.searchParams.delete("columns");
+    if (sort?.metricId) {
+      url.searchParams.set("sort", sort.metricId);
+      url.searchParams.set("dir", sort.direction);
+    } else {
+      url.searchParams.delete("sort");
+      url.searchParams.delete("dir");
+    }
+    const encodedFilters = mode === "situational" ? encodeAnalyticsFilters(filters) : "";
+    if (encodedFilters) url.searchParams.set("filters", encodedFilters);
+    else url.searchParams.delete("filters");
     if (timeRange === "custom" && customRange.start) url.searchParams.set("start", customRange.start);
     else url.searchParams.delete("start");
     if (timeRange === "custom" && customRange.end) url.searchParams.set("end", customRange.end);
@@ -13482,7 +13498,7 @@ function AnalyticsView({
     const nextUrl = `${url.pathname}${url.search}${url.hash}`;
     const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (nextUrl !== currentUrl) window.history.replaceState({}, "", nextUrl);
-  }, [customRange.end, customRange.start, developmentView, domain, eventIds, mode, source, timeRange]);
+  }, [customRange.end, customRange.start, developmentView, domain, eventIds, filters, metricIds, mode, sort, source, timeRange]);
 
   function handleDomain(nextDomain: AnalyticsDomain) {
     setDomain(nextDomain);
@@ -13491,7 +13507,7 @@ function AnalyticsView({
     setSource(nextSource);
     setMode(nextMode);
     setFilters({});
-    setEventIds([]);
+    setMetricIds(undefined);
     setSort(defaultAnalyticsSort(nextDomain, nextSource, nextMode));
   }
 
@@ -13499,12 +13515,14 @@ function AnalyticsView({
     setSource(nextSource);
     setFilters({});
     setEventIds([]);
+    setMetricIds(undefined);
     setSort(defaultAnalyticsSort(domain, nextSource, mode));
   }
 
   function handleMode(nextMode: AnalyticsMode) {
     setMode(nextMode);
     if (nextMode === "box-score") setFilters({});
+    setMetricIds(undefined);
     setSort(defaultAnalyticsSort(domain, source, nextMode));
   }
 
@@ -13531,6 +13549,17 @@ function AnalyticsView({
     });
   }
 
+  function toggleColumn(metricId: string) {
+    const availableIds = result.availableColumns.map((column) => column.metricId);
+    setMetricIds((current) => {
+      const selected = new Set(current ?? availableIds);
+      if (selected.has(metricId)) selected.delete(metricId);
+      else selected.add(metricId);
+      if (!selected.size) return current ?? availableIds;
+      return availableIds.filter((id) => selected.has(id));
+    });
+  }
+
   function handleAskQuestion(questionId: string) {
     setAskResponse(runAskClubhouseQuestion(data, questionId, context));
   }
@@ -13544,6 +13573,7 @@ function AnalyticsView({
     setDevelopmentView(next.developmentView ?? "overview");
     setEventIds(next.eventIds ?? []);
     setFilters(next.filters ?? {});
+    setMetricIds(next.metrics);
     setSort(next.sort ?? defaultAnalyticsSort(next.domain, next.source, next.mode));
     setAskOpen(false);
   }
@@ -13615,6 +13645,20 @@ function AnalyticsView({
               )}
             </div>
           )}
+          <div className="analytics-popover-wrap">
+            <button className="secondary-button" type="button" onClick={() => setColumnsOpen((open) => !open)}>
+              Columns
+              <ChevronDown size={14} aria-hidden="true" />
+            </button>
+            {columnsOpen && (
+              <AnalyticsColumnPanel
+                columns={result.availableColumns}
+                selectedIds={metricIds ?? result.availableColumns.map((column) => column.metricId)}
+                onToggle={toggleColumn}
+                onReset={() => setMetricIds(undefined)}
+              />
+            )}
+          </div>
         </div>
         {timeRange === "custom" && (
           <div className="analytics-custom-range">
@@ -13640,6 +13684,10 @@ function AnalyticsView({
         sort={sort}
         onSort={handleSort}
         onOpenPlayer={(playerId) => setDetailPlayerId(playerId)}
+        onClearFilters={() => {
+          setFilters({});
+          setEventIds([]);
+        }}
       />
 
       <AnalyticsInsights result={result} onOpenPlayer={onOpenPlayer} />
@@ -13698,14 +13746,18 @@ function AnalyticsTable({
   sort,
   onSort,
   onOpenPlayer,
+  onClearFilters,
 }: {
   result: AnalyticsResult;
   sort?: AnalyticsQuery["sort"];
   onSort: (metricId: string) => void;
   onOpenPlayer: (playerId: ID) => void;
+  onClearFilters: () => void;
 }) {
   const gridTemplateColumns = `minmax(210px, 1.45fr) repeat(${result.columns.length}, minmax(86px, 0.72fr))`;
   const visibleRows = result.rows;
+  const hasTrackedData = visibleRows.some((row) => row.sampleCount > 0) || Boolean(result.teamTotals?.sampleCount);
+  const hasActiveFilters = Boolean(result.query.eventIds?.length) || Object.values(result.query.filters ?? {}).some((value) => Array.isArray(value) && value.length > 0);
   return (
     <section className="panel analytics-table-panel">
       <div className="panel-heading tight">
@@ -13718,6 +13770,15 @@ function AnalyticsTable({
       {result.warnings.length > 0 && (
         <div className="analytics-warning-list">
           {result.warnings.map((warning) => <span key={warning}>{warning}</span>)}
+        </div>
+      )}
+      {!hasTrackedData && (
+        <div className="analytics-no-data">
+          <div>
+            <strong>No tracked data for this selection yet.</strong>
+            <small>{hasActiveFilters ? "Clear filters or choose a wider event range." : "Change source or date range when more events are logged."}</small>
+          </div>
+          {hasActiveFilters && <button type="button" className="text-button" onClick={onClearFilters}>Clear Filters</button>}
         </div>
       )}
       <ScrollablePanel className="analytics-scroll-panel" bodyClassName="analytics-box-score" direction="horizontal" ariaLabel={`${result.title} box score`}>
@@ -13817,13 +13878,22 @@ function AnalyticsEventSelector({
   onToggle: (eventId: ID) => void;
   onClear: () => void;
 }) {
-  const groups = groupAnalyticsEvents(events);
+  const [search, setSearch] = useState("");
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredEvents = normalizedSearch
+    ? events.filter((eventOption) => [eventOption.label, eventOption.meta, eventOption.source].filter(Boolean).join(" ").toLowerCase().includes(normalizedSearch))
+    : events;
+  const groups = groupAnalyticsEvents(filteredEvents);
   return (
     <div className="analytics-popover" role="dialog" aria-label="Analytics events">
       <div className="analytics-popover__head">
         <strong>Events</strong>
         <button type="button" className="text-button" onClick={onClear}>All Events</button>
       </div>
+      <label className="analytics-popover-search">
+        <span>Search events</span>
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search games or practices..." />
+      </label>
       <div className="analytics-popover__body">
         {groups.length ? groups.map((group) => (
           <div key={group.label} className="analytics-event-group">
@@ -13837,6 +13907,39 @@ function AnalyticsEventSelector({
             ))}
           </div>
         )) : <CompactEmpty title="No events available for this source" />}
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsColumnPanel({
+  columns,
+  selectedIds,
+  onToggle,
+  onReset,
+}: {
+  columns: AnalyticsColumn[];
+  selectedIds: string[];
+  onToggle: (metricId: string) => void;
+  onReset: () => void;
+}) {
+  const selected = new Set(selectedIds);
+  return (
+    <div className="analytics-popover analytics-popover--columns" role="dialog" aria-label="Analytics columns">
+      <div className="analytics-popover__head">
+        <strong>Columns</strong>
+        <button type="button" className="text-button" onClick={onReset}>Default</button>
+      </div>
+      <div className="analytics-popover__body analytics-column-list">
+        {columns.map((column) => (
+          <button key={column.metricId} type="button" className={selected.has(column.metricId) ? "active" : ""} onClick={() => onToggle(column.metricId)} title={column.definition}>
+            <Check size={13} aria-hidden="true" />
+            <span>
+              <strong>{column.label}</strong>
+              {column.definition && <small>{column.definition}</small>}
+            </span>
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -13992,9 +14095,12 @@ function readInitialAnalyticsState(): {
   developmentView: AnalyticsDevelopmentView;
   eventIds: ID[];
   customRange: { start?: string; end?: string };
+  filters: AnalyticsFilters;
+  sort?: AnalyticsQuery["sort"];
+  metricIds?: string[];
 } {
   if (typeof window === "undefined") {
-    return { domain: "hitting", source: "all", mode: "box-score", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {} };
+    return { domain: "hitting", source: "all", mode: "box-score", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {}, filters: {} };
   }
   const params = new URLSearchParams(window.location.search);
   const domain = parseAnalyticsParam(params.get("domain"), ["hitting", "pitching", "defense", "development"], "hitting");
@@ -14009,6 +14115,9 @@ function readInitialAnalyticsState(): {
     timeRange,
     developmentView,
     eventIds: params.get("events")?.split(",").filter(Boolean) ?? [],
+    metricIds: params.get("columns")?.split(",").filter(Boolean) || undefined,
+    filters: parseAnalyticsFilters(params.get("filters")),
+    sort: params.get("sort") ? { metricId: params.get("sort") ?? "player", direction: params.get("dir") === "asc" ? "asc" : "desc" } : undefined,
     customRange: {
       start: params.get("start") ?? undefined,
       end: params.get("end") ?? undefined,
@@ -14018,6 +14127,40 @@ function readInitialAnalyticsState(): {
 
 function parseAnalyticsParam<T extends string>(value: string | null, allowed: T[], fallback: T): T {
   return value && allowed.includes(value as T) ? value as T : fallback;
+}
+
+const ANALYTICS_FILTER_PARAM_KEYS: Array<keyof AnalyticsFilters> = [
+  "pitcherHands",
+  "batterHands",
+  "pitchTypes",
+  "countGroups",
+  "drillTypes",
+  "battedBallTypes",
+  "defenseStations",
+];
+
+function encodeAnalyticsFilters(filters: AnalyticsFilters): string {
+  return ANALYTICS_FILTER_PARAM_KEYS
+    .map((key) => {
+      const value = filters[key];
+      if (!Array.isArray(value) || !value.length) return "";
+      return `${key}:${value.map((item) => encodeURIComponent(item)).join("|")}`;
+    })
+    .filter(Boolean)
+    .join(";");
+}
+
+function parseAnalyticsFilters(value: string | null): AnalyticsFilters {
+  if (!value) return {};
+  const parsed: Record<string, string[]> = {};
+  for (const segment of value.split(";")) {
+    const [rawKey, rawValues] = segment.split(":");
+    const key = rawKey as keyof AnalyticsFilters;
+    if (!rawKey || !rawValues || !ANALYTICS_FILTER_PARAM_KEYS.includes(key)) continue;
+    const values = rawValues.split("|").map((item) => decodeURIComponent(item)).filter(Boolean);
+    if (values.length) parsed[key] = values;
+  }
+  return parsed as AnalyticsFilters;
 }
 
 function sortIndicator(direction?: "asc" | "desc") {
@@ -14346,13 +14489,6 @@ function StartPracticeModal({ data, onClose, onCreate }: { data: AppData; onClos
         <label><span>Time</span><input type="time" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} /></label>
         <div className="form-field"><span>Type</span><ChoiceSelect value={form.type} className="form-choice" options={PRACTICE_TYPES.map((type) => ({ value: type, label: type }))} onChange={(value) => setForm({ ...form, type: value as PracticeType })} aria-label="Practice type" /></div>
         <label><span>Location</span><input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} /></label>
-        {currentTeam && (
-          <section className="practice-team-context wide" aria-label="Practice team">
-            <span>Team</span>
-            <strong>{currentTeam.teamName}</strong>
-            <small>{currentTeam.seasonName ?? data.settings.rosterSeason}</small>
-          </section>
-        )}
       </div>
       <section className="practice-preset-panel">
         <div>

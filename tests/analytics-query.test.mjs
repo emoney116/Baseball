@@ -122,6 +122,18 @@ test("hitting practice query calculates contact, hard rate, and EV from real eve
   assert.equal(jacob.cells.maxEv.display, "95.0");
 });
 
+test("team totals use weighted aggregate rates instead of averaging player percentages", () => {
+  const result = executeAnalyticsQuery(baseData, query("hitting", "practice"));
+  const team = {
+    ...result.teamTotals,
+    cells: Object.fromEntries(Object.entries(result.teamTotals.cells).map(([key, cell]) => [key, { ...cell, sample: sampleText(cell) }])),
+  };
+
+  assert.equal(team.cells.swings.display, "6");
+  assert.equal(team.cells.contactPct.display, "83%");
+  assert.equal(team.cells.contactPct.sample, "5/6");
+});
+
 test("event filtering changes denominators and excludes unselected practices", () => {
   const result = executeAnalyticsQuery(baseData, {
     ...query("hitting", "practice"),
@@ -134,6 +146,31 @@ test("event filtering changes denominators and excludes unselected practices", (
   assert.equal(jacob.cells.maxEv.display, "90.0");
 });
 
+test("date range filtering uses the current date window", () => {
+  const data = {
+    ...baseData,
+    practices: [
+      ...baseData.practices,
+      practice("practice-aug-01", "2026-08-01"),
+    ],
+    hittingSessions: [
+      ...baseData.hittingSessions,
+      hittingSession("hit-old", "practice-aug-01", "p-jacob", "Machine"),
+    ],
+    hittingEvents: [
+      ...baseData.hittingEvents,
+      hittingEvent("he-old", "practice-aug-01", "hit-old", "p-jacob", "Ball in play", { contactResult: "Line drive", contactQuality: "Hard", exitVelocityMph: 99 }),
+    ],
+  };
+
+  const season = executeAnalyticsQuery(data, query("hitting", "practice"), { today: "2026-08-20" });
+  const last7 = executeAnalyticsQuery(data, { ...query("hitting", "practice"), timeRange: "7d" }, { today: "2026-08-20" });
+
+  assert.equal(row(season, "p-jacob").cells.opportunities.display, "6");
+  assert.equal(row(last7, "p-jacob").cells.opportunities.display, "5");
+  assert.equal(row(last7, "p-jacob").cells.maxEv.display, "95.0");
+});
+
 test("source classification keeps Live BP out of Practice while All includes compatible sources once", () => {
   const practice = executeAnalyticsQuery(baseData, query("hitting", "practice"));
   const liveBp = executeAnalyticsQuery(baseData, query("hitting", "live-bp"));
@@ -142,6 +179,30 @@ test("source classification keeps Live BP out of Practice while All includes com
   assert.equal(row(practice, "p-jacob").cells.opportunities.display, "5");
   assert.equal(row(liveBp, "p-jacob").cells.opportunities.display, "1");
   assert.equal(row(all, "p-jacob").cells.opportunities.display, "6");
+});
+
+test("situational filters narrow supported hitting dimensions", () => {
+  const result = executeAnalyticsQuery(baseData, {
+    ...query("hitting", "practice"),
+    mode: "situational",
+    filters: { battedBallTypes: ["Line drive"] },
+  });
+  const jacob = row(result, "p-jacob");
+
+  assert.equal(result.filterDefinitions.some((definition) => definition.id === "battedBallTypes"), true);
+  assert.equal(jacob.cells.opportunities.display, "1");
+  assert.equal(jacob.cells.hardPct.sample, "1/1");
+});
+
+test("column registry can produce a narrowed box score without changing calculations", () => {
+  const result = executeAnalyticsQuery(baseData, {
+    ...query("hitting", "practice"),
+    metrics: ["swings", "contactPct"],
+  });
+
+  assert.deepEqual(result.columns.map((column) => column.metricId), ["swings", "contactPct"]);
+  assert.equal(result.availableColumns.some((column) => column.metricId === "avgEv"), true);
+  assert.equal(row(result, "p-jacob").cells.avgEv.display, "90.3");
 });
 
 test("pitching query calculates strike and CSW rates with game source support", () => {

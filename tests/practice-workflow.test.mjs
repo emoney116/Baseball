@@ -73,7 +73,8 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(styles, /\.practice-summary-strip/);
   assert.match(styles, /\.practice-hitting-start-popover/);
   assert.match(styles, /\.practice-metrics-page/);
-  assert.match(styles, /\.attendance-roster__scroll \.scroll-cue-panel__body \{[\s\S]*max-height: min\(38dvh, 410px\)/);
+  assert.match(styles, /\.attendance-roster__scroll \.scroll-cue-panel__body \{[\s\S]*max-height: min\(44dvh, 440px\)/);
+  assert.match(styles, /\.attendance-roster__scroll \.scroll-cue-panel__body \{[\s\S]*padding-bottom: 30px/);
   assert.ok(attendanceListBlocks.some((block) => block.includes("overflow-y: auto")));
   assert.ok(attendanceListBlocks.every((block) => !block.includes("overflow: visible")));
   assert.match(styles, /\.practice-activity-card--pitching/);
