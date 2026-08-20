@@ -8812,10 +8812,6 @@ select option {
   gap: 12px;
 }
 
-.analytics-ask-button {
-  white-space: nowrap;
-}
-
 .analytics-controls {
   display: grid;
   gap: 9px;
@@ -8830,6 +8826,17 @@ select option {
 
 .analytics-select.choice-select {
   width: 126px;
+}
+
+.analytics-select.choice-select .choice-select__button {
+  min-height: 36px;
+  border-color: var(--line);
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+.analytics-select.choice-select .choice-select__button strong {
+  color: var(--text);
 }
 
 .analytics-popover-wrap {
@@ -9047,8 +9054,7 @@ select option {
   min-width: 160px;
 }
 
-.analytics-custom-range span,
-.analytics-scope-line {
+.analytics-custom-range span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 760;
@@ -9094,37 +9100,25 @@ select option {
   overflow: hidden;
 }
 
-.analytics-table-panel > .panel-heading {
-  padding: 14px 16px 10px;
-}
-
-.analytics-warning-list {
-  display: grid;
-  gap: 5px;
-  padding: 0 16px 10px;
-}
-
-.analytics-warning-list span {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 720;
-}
-
 .analytics-scroll-panel {
-  border-top: 1px solid var(--line);
-}
-
-.analytics-box-score {
-  overflow-x: auto;
+  max-height: clamp(410px, 62vh, 720px);
+  overflow: auto;
   scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.analytics-box-score::-webkit-scrollbar {
+.analytics-scroll-panel::-webkit-scrollbar {
+  width: 0;
+  height: 0;
   display: none;
 }
 
+.analytics-box-score {
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
+}
+
 .analytics-box-score__row {
-  width: max(100%, 920px);
+  width: 100%;
   display: grid;
   align-items: stretch;
   border: 0;
@@ -9146,12 +9140,18 @@ button.analytics-box-score__row:hover {
 .analytics-box-score__row--head {
   position: sticky;
   top: 0;
-  z-index: 3;
+  z-index: 5;
   background: var(--panel-strong);
 }
 
 .analytics-box-score__row--team {
-  background: color-mix(in srgb, var(--panel-strong) 82%, transparent);
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  border-top: 1px solid var(--line);
+  border-bottom: 0;
+  background: var(--panel-strong);
+  box-shadow: 0 -12px 22px color-mix(in srgb, var(--canvas) 42%, transparent);
 }
 
 .analytics-box-score__cell {
@@ -9273,6 +9273,39 @@ button.analytics-box-score__row:hover {
   color: var(--muted);
 }
 
+.analytics-metric-key {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.analytics-metric-key > strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.analytics-metric-key > div {
+  columns: 3 240px;
+  column-gap: 18px;
+}
+
+.analytics-metric-key span {
+  break-inside: avoid;
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 0 0 6px;
+}
+
+.analytics-metric-key b {
+  color: var(--muted-strong);
+  font-weight: 900;
+  margin-right: 5px;
+}
+
 .analytics-insights {
   display: grid;
   gap: 9px;
@@ -9337,6 +9370,11 @@ button.analytics-box-score__row:hover {
   overflow: auto;
 }
 
+.analytics-ask-drawer {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
 .analytics-drawer__head {
   display: flex;
   align-items: flex-start;
@@ -9344,8 +9382,6 @@ button.analytics-box-score__row:hover {
   gap: 12px;
 }
 
-.analytics-drawer__head span,
-.analytics-drawer__head p,
 .analytics-drawer__head small,
 .analytics-player-drawer__identity em {
   color: var(--muted);
@@ -9355,7 +9391,7 @@ button.analytics-box-score__row:hover {
 }
 
 .analytics-drawer__head h2 {
-  margin: 3px 0;
+  margin: 0;
   color: var(--text);
   display: flex;
   align-items: center;
@@ -9366,6 +9402,13 @@ button.analytics-box-score__row:hover {
 .ask-question-list {
   display: grid;
   gap: 6px;
+}
+
+.ask-question-list > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .ask-question-list button {
@@ -9386,27 +9429,53 @@ button.analytics-box-score__row:hover {
   border-color: var(--brand-border);
 }
 
-.ask-response {
+.ask-chat {
   display: grid;
   align-content: start;
-  gap: 9px;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
+  gap: 10px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
-.ask-response > span {
+.ask-message {
+  max-width: 92%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--panel-soft);
+  color: var(--text);
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+}
+
+.ask-message--assistant {
+  justify-self: start;
+}
+
+.ask-message--user {
+  justify-self: end;
+  background: var(--brand-soft);
+  border-color: var(--brand-border);
+  color: var(--text);
+  font-weight: 850;
+}
+
+.ask-message > span,
+.ask-message small,
+.ask-message p {
   color: var(--muted);
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 720;
+  line-height: 1.35;
+  margin: 0;
 }
 
-.ask-response h3 {
+.ask-message h3 {
   margin: 0;
   font-size: 16px;
 }
 
-.ask-response div {
+.ask-message--result div {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 4px 10px;
@@ -9414,16 +9483,69 @@ button.analytics-box-score__row:hover {
   padding: 8px 0;
 }
 
-.ask-response em {
+.ask-message--result div:last-of-type {
+  border-bottom: 0;
+}
+
+.ask-message--result em {
   color: var(--text);
   font-style: normal;
   font-weight: 900;
 }
 
-.ask-response small {
+.ask-message--result small {
   grid-column: 1 / -1;
-  color: var(--muted);
-  font-size: 12px;
+}
+
+.ask-message--thinking {
+  grid-template-columns: 14px auto;
+  align-items: center;
+  color: var(--muted-strong);
+  font-weight: 820;
+}
+
+.ask-message--thinking span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--brand);
+  animation: ask-thinking 0.86s ease-in-out infinite alternate;
+}
+
+@keyframes ask-thinking {
+  from {
+    opacity: 0.35;
+    transform: scale(0.76);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.analytics-ask-fab {
+  position: fixed;
+  z-index: 50;
+  right: 22px;
+  bottom: 22px;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--brand-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 74%, var(--panel));
+  color: var(--brand-text);
+  box-shadow: 0 18px 42px color-mix(in srgb, var(--brand) 28%, transparent);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.analytics-ask-fab:hover,
+.analytics-ask-fab:focus-visible {
+  background: var(--brand);
+  border-color: var(--brand);
+  transform: translateY(-1px);
 }
 
 .analytics-player-drawer__identity {

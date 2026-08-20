@@ -115,9 +115,14 @@ test("hitting practice query calculates contact, hard rate, and EV from real eve
   const jacob = row(result, "p-jacob");
 
   assert.equal(jacob.cells.swings.display, "5");
+  assert.equal(jacob.cells.contacts.display, "4");
+  assert.equal(jacob.cells.bip.display, "3");
+  assert.equal(jacob.cells.misses.display, "1");
   assert.equal(jacob.cells.contactPct.display, "80%");
   assert.equal(jacob.cells.contactPct.sample, "4/5");
+  assert.equal(jacob.cells.swingMissPct.display, "20%");
   assert.equal(jacob.cells.hardPct.display, "67%");
+  assert.equal(jacob.cells.barrelPct.display, "33%");
   assert.equal(jacob.cells.avgEv.display, "90.3");
   assert.equal(jacob.cells.maxEv.display, "95.0");
 });
@@ -220,8 +225,10 @@ test("game hitting source only exposes supported ball-in-play metrics", () => {
   const labels = result.columns.map((column) => column.label);
   const jacob = row(result, "p-jacob");
 
-  assert.deepEqual(labels, ["Tracked BIP", "AB", "H", "2B", "3B", "HR", "AVG", "SLG"]);
+  assert.deepEqual(labels, ["BIP", "AB", "H", "1B", "2B", "3B", "HR", "Outs", "XBH", "TB", "AVG", "SLG", "ISO", "BABIP"]);
   assert.equal(jacob.cells.hits.display, "2");
+  assert.equal(jacob.cells.singles.display, "1");
+  assert.equal(jacob.cells.totalBases.display, "3");
   assert.equal(jacob.cells.avg.display, "1.000");
   assert.match(result.warnings.join(" "), /logged game balls in play only/);
 });

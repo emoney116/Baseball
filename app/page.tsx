@@ -13441,6 +13441,9 @@ function AnalyticsView({
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
   const [askResponse, setAskResponse] = useState<AskClubhouseResponse | undefined>();
+  const [askPendingQuestionId, setAskPendingQuestionId] = useState<string | undefined>();
+  const [askThinking, setAskThinking] = useState(false);
+  const askTimerRef = useRef<number | undefined>(undefined);
   const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>();
   const [metricIds, setMetricIds] = useState<string[] | undefined>(initialState.metricIds);
   const context = useMemo(() => ({
@@ -13500,9 +13503,13 @@ function AnalyticsView({
     if (nextUrl !== currentUrl) window.history.replaceState({}, "", nextUrl);
   }, [customRange.end, customRange.start, developmentView, domain, eventIds, filters, metricIds, mode, sort, source, timeRange]);
 
+  useEffect(() => () => {
+    if (askTimerRef.current !== undefined) window.clearTimeout(askTimerRef.current);
+  }, []);
+
   function handleDomain(nextDomain: AnalyticsDomain) {
     setDomain(nextDomain);
-    const nextSource = nextDomain === "development" ? "all" : source;
+    const nextSource = nextDomain === "development" ? "all" : domain === "development" ? "games" : source;
     const nextMode = nextDomain === "development" ? "box-score" : mode;
     setSource(nextSource);
     setMode(nextMode);
@@ -13561,7 +13568,25 @@ function AnalyticsView({
   }
 
   function handleAskQuestion(questionId: string) {
-    setAskResponse(runAskClubhouseQuestion(data, questionId, context));
+    setAskOpen(true);
+    setAskPendingQuestionId(questionId);
+    setAskResponse(undefined);
+    setAskThinking(true);
+    if (askTimerRef.current !== undefined) window.clearTimeout(askTimerRef.current);
+    askTimerRef.current = window.setTimeout(() => {
+      setAskResponse(runAskClubhouseQuestion(data, questionId, context));
+      setAskThinking(false);
+      askTimerRef.current = undefined;
+    }, 520);
+  }
+
+  function closeAskClubhouse() {
+    if (askTimerRef.current !== undefined) {
+      window.clearTimeout(askTimerRef.current);
+      askTimerRef.current = undefined;
+    }
+    setAskThinking(false);
+    setAskOpen(false);
   }
 
   function applyAskResult(response: AskClubhouseResponse) {
@@ -13580,16 +13605,7 @@ function AnalyticsView({
 
   return (
     <div className="page-stack analytics-page">
-      <SectionHeader
-        title="Analytics"
-        context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} - ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined}
-        action={(
-          <button className="secondary-button analytics-ask-button" type="button" onClick={() => setAskOpen(true)}>
-            <Sparkles size={15} aria-hidden="true" />
-            Ask Clubhouse
-          </button>
-        )}
-      />
+      <SectionHeader title="Analytics" />
 
       <section className="analytics-controls" aria-label="Analytics controls">
         <SegmentedControl values={["hitting", "pitching", "defense", "development"] as AnalyticsDomain[]} active={domain} onChange={handleDomain} />
@@ -13597,7 +13613,7 @@ function AnalyticsView({
           {domain !== "development" ? (
             <>
               <SegmentedControl values={["box-score", "situational"] as AnalyticsMode[]} active={mode} onChange={handleMode} />
-              <SegmentedControl values={["all", "games", "practice", "live-bp"] as AnalyticsSource[]} active={source} onChange={handleSource} />
+              <SegmentedControl values={["games", "practice", "live-bp", "all"] as AnalyticsSource[]} active={source} onChange={handleSource} />
             </>
           ) : (
             <SegmentedControl values={["overview", "weight-room", "attendance", "trends"] as AnalyticsDevelopmentView[]} active={developmentView} onChange={setDevelopmentView} />
@@ -13672,12 +13688,7 @@ function AnalyticsView({
             </label>
           </div>
         )}
-        {mode === "situational" && (
-          <p className="analytics-scope-line">{result.sampleLabel}{activeFilterCount ? " · filtered" : ""}</p>
-        )}
       </section>
-
-      <AnalyticsSummaryStrip result={result} />
 
       <AnalyticsTable
         result={result}
@@ -13690,12 +13701,28 @@ function AnalyticsView({
         }}
       />
 
+      <AnalyticsSummaryStrip result={result} />
+
+      <AnalyticsMetricKey result={result} />
+
       <AnalyticsInsights result={result} onOpenPlayer={onOpenPlayer} />
+
+      <button
+        className="analytics-ask-fab"
+        type="button"
+        onClick={() => setAskOpen(true)}
+        aria-label="Ask Clubhouse"
+        title="Ask Clubhouse"
+      >
+        <Sparkles size={20} aria-hidden="true" />
+      </button>
 
       {askOpen && (
         <AskClubhouseDrawer
           response={askResponse}
-          onClose={() => setAskOpen(false)}
+          pendingQuestionId={askPendingQuestionId}
+          thinking={askThinking}
+          onClose={closeAskClubhouse}
           onQuestion={handleAskQuestion}
           onApply={applyAskResult}
         />
@@ -13755,23 +13782,13 @@ function AnalyticsTable({
   onClearFilters: () => void;
 }) {
   const gridTemplateColumns = `minmax(210px, 1.45fr) repeat(${result.columns.length}, minmax(86px, 0.72fr))`;
+  const minTableWidth = Math.max(960, 230 + result.columns.length * 88);
+  const rowStyle: React.CSSProperties = { gridTemplateColumns, minWidth: minTableWidth };
   const visibleRows = result.rows;
   const hasTrackedData = visibleRows.some((row) => row.sampleCount > 0) || Boolean(result.teamTotals?.sampleCount);
   const hasActiveFilters = Boolean(result.query.eventIds?.length) || Object.values(result.query.filters ?? {}).some((value) => Array.isArray(value) && value.length > 0);
   return (
     <section className="panel analytics-table-panel">
-      <div className="panel-heading tight">
-        <div>
-          <span>{result.sourceLabel}</span>
-          <h2>{result.title}</h2>
-        </div>
-        <small>{result.scopeLabel}</small>
-      </div>
-      {result.warnings.length > 0 && (
-        <div className="analytics-warning-list">
-          {result.warnings.map((warning) => <span key={warning}>{warning}</span>)}
-        </div>
-      )}
       {!hasTrackedData && (
         <div className="analytics-no-data">
           <div>
@@ -13781,8 +13798,9 @@ function AnalyticsTable({
           {hasActiveFilters && <button type="button" className="text-button" onClick={onClearFilters}>Clear Filters</button>}
         </div>
       )}
-      <ScrollablePanel className="analytics-scroll-panel" bodyClassName="analytics-box-score" direction="horizontal" ariaLabel={`${result.title} box score`}>
-        <div className="analytics-box-score__row analytics-box-score__row--head" role="row" style={{ gridTemplateColumns }}>
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Box-score grids need keyboard access for horizontal and vertical scrolling. */}
+      <div className="analytics-scroll-panel analytics-box-score" role="region" tabIndex={0} aria-label={`${result.title} box score`}>
+        <div className="analytics-box-score__row analytics-box-score__row--head" role="row" style={rowStyle}>
           <button type="button" className="analytics-box-score__cell analytics-box-score__cell--player" onClick={() => onSort("player")} role="columnheader">
             Player {sort?.metricId === "player" ? sortIndicator(sort.direction) : ""}
           </button>
@@ -13799,19 +13817,8 @@ function AnalyticsTable({
             </button>
           ))}
         </div>
-        {result.teamTotals && (
-          <div className="analytics-box-score__row analytics-box-score__row--team" role="row" style={{ gridTemplateColumns }}>
-            <span className="analytics-box-score__cell analytics-box-score__cell--player analytics-player-cell">
-              <span className="analytics-team-mark">TM</span>
-              <span><strong>TEAM</strong><small>Weighted totals</small></span>
-            </span>
-            {result.columns.map((column) => (
-              <AnalyticsCellView key={column.metricId} cell={result.teamTotals?.cells[column.metricId]} align={column.align} />
-            ))}
-          </div>
-        )}
         {visibleRows.length ? visibleRows.map((row) => (
-          <button key={row.player.id} type="button" className="analytics-box-score__row" role="row" style={{ gridTemplateColumns }} onClick={() => onOpenPlayer(row.player.id)}>
+          <button key={row.player.id} type="button" className="analytics-box-score__row" role="row" style={rowStyle} onClick={() => onOpenPlayer(row.player.id)}>
             <span className="analytics-box-score__cell analytics-box-score__cell--player analytics-player-cell" role="cell">
               <PlayerAvatar player={row.player} size="sm" compact />
               <span>
@@ -13829,7 +13836,18 @@ function AnalyticsTable({
             <small>Change source, date range, events, or clear filters.</small>
           </div>
         )}
-      </ScrollablePanel>
+        {result.teamTotals && (
+          <div className="analytics-box-score__row analytics-box-score__row--team" role="row" style={rowStyle}>
+            <span className="analytics-box-score__cell analytics-box-score__cell--player analytics-player-cell">
+              <span className="analytics-team-mark">TM</span>
+              <span><strong>TEAM</strong><small>Weighted totals</small></span>
+            </span>
+            {result.columns.map((column) => (
+              <AnalyticsCellView key={column.metricId} cell={result.teamTotals?.cells[column.metricId]} align={column.align} />
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
@@ -13862,6 +13880,23 @@ function AnalyticsInsights({ result, onOpenPlayer }: { result: AnalyticsResult; 
             {insight.meta && <small>{insight.meta}</small>}
           </button>
         )) : <CompactEmpty title="No insights yet for this selection" />}
+      </div>
+    </section>
+  );
+}
+
+function AnalyticsMetricKey({ result }: { result: AnalyticsResult }) {
+  if (!result.columns.length) return null;
+  return (
+    <section className="analytics-metric-key" aria-label="Analytics metric key">
+      <strong>Key</strong>
+      <div>
+        {result.columns.map((column) => (
+          <span key={column.metricId}>
+            <b>{column.label}</b>
+            {column.definition}
+          </span>
+        ))}
       </div>
     </section>
   );
@@ -13985,53 +14020,72 @@ function AnalyticsFilterPanel({
 
 function AskClubhouseDrawer({
   response,
+  pendingQuestionId,
+  thinking,
   onClose,
   onQuestion,
   onApply,
 }: {
   response?: AskClubhouseResponse;
+  pendingQuestionId?: string;
+  thinking: boolean;
   onClose: () => void;
   onQuestion: (questionId: string) => void;
   onApply: (response: AskClubhouseResponse) => void;
 }) {
+  const pendingQuestion = ASK_CLUBHOUSE_QUESTIONS.find((question) => question.id === pendingQuestionId);
+  const activeQuestionId = response?.question.id ?? pendingQuestionId;
+  const followUps = ASK_CLUBHOUSE_QUESTIONS.filter((question) => question.id !== activeQuestionId).slice(0, 3);
   return (
     <div className="analytics-drawer-backdrop" role="presentation">
-      <aside className="analytics-drawer" aria-label="Ask Clubhouse">
+      <aside className="analytics-drawer analytics-ask-drawer" aria-label="Ask Clubhouse">
         <div className="analytics-drawer__head">
           <div>
-            <span>Ask Clubhouse Preview</span>
             <h2><Sparkles size={17} aria-hidden="true" /> Ask Clubhouse</h2>
-            <p>Real team analytics. Suggested questions only for V1.</p>
           </div>
           <button className="ghost-button" type="button" onClick={onClose} aria-label="Close Ask Clubhouse">
             <X size={16} aria-hidden="true" />
           </button>
         </div>
-        <div className="ask-question-list">
-          {ASK_CLUBHOUSE_QUESTIONS.map((question) => (
-            <button key={question.id} type="button" className={response?.question.id === question.id ? "active" : ""} onClick={() => onQuestion(question.id)}>
-              {question.label}
-            </button>
-          ))}
-        </div>
-        <section className="ask-response">
-          {response ? (
-            <>
-              <span>{response.question.criteria}</span>
-              <h3>{response.question.label}</h3>
+        <section className="ask-chat" aria-label="Ask Clubhouse chat">
+          <div className="ask-message ask-message--assistant">
+            <strong>What do you want to know?</strong>
+            <span>Pick a starter question and I will run it against your current team data.</span>
+          </div>
+          {(pendingQuestion || response) && (
+            <div className="ask-message ask-message--user">
+              {response?.question.label ?? pendingQuestion?.label}
+            </div>
+          )}
+          {thinking && (
+            <div className="ask-message ask-message--assistant ask-message--thinking">
+              <span aria-hidden="true" />
+              Thinking...
+            </div>
+          )}
+          {response && (
+            <div className="ask-message ask-message--assistant ask-message--result">
+              <small>{response.question.criteria}</small>
+              <h3>{response.lines.length ? response.question.label : "Not enough qualified data yet"}</h3>
               {response.lines.length ? response.lines.map((line) => (
                 <div key={line.playerId}>
                   <strong>{line.label}</strong>
                   <em>{line.value}</em>
                   {line.sample && <small>{line.sample}</small>}
                 </div>
-              )) : <CompactEmpty title="No qualified results for this question yet" />}
+              )) : <p>There is not a qualified sample for that question in this selection yet.</p>}
               <button type="button" className="primary-button" onClick={() => onApply(response)}>View in Analytics</button>
-            </>
-          ) : (
-            <CompactEmpty title="Choose a suggested question. Ask Clubhouse will answer through structured analytics queries before free-form AI is connected." />
+            </div>
           )}
         </section>
+        <div className="ask-question-list">
+          <span>{response ? "Follow ups" : "Suggested questions"}</span>
+          {(response ? followUps : ASK_CLUBHOUSE_QUESTIONS).map((question) => (
+            <button key={question.id} type="button" className={activeQuestionId === question.id ? "active" : ""} onClick={() => onQuestion(question.id)}>
+              {question.label}
+            </button>
+          ))}
+        </div>
       </aside>
     </div>
   );
@@ -14100,11 +14154,11 @@ function readInitialAnalyticsState(): {
   metricIds?: string[];
 } {
   if (typeof window === "undefined") {
-    return { domain: "hitting", source: "all", mode: "box-score", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {}, filters: {} };
+    return { domain: "hitting", source: "games", mode: "box-score", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {}, filters: {} };
   }
   const params = new URLSearchParams(window.location.search);
   const domain = parseAnalyticsParam(params.get("domain"), ["hitting", "pitching", "defense", "development"], "hitting");
-  const source = parseAnalyticsParam(params.get("source"), ["all", "games", "practice", "live-bp"], "all");
+  const source = parseAnalyticsParam(params.get("source"), ["games", "practice", "live-bp", "all"], "games");
   const mode = parseAnalyticsParam(params.get("mode"), ["box-score", "situational"], "box-score");
   const timeRange = parseAnalyticsParam(params.get("period"), ["7d", "30d", "season", "custom"], "season");
   const developmentView = parseAnalyticsParam(params.get("dev"), ["overview", "weight-room", "attendance", "trends"], "overview");
@@ -19432,9 +19486,10 @@ function formatSegment(value: string) {
   if (value === "pitching") return "Pitching";
   if (value === "hitting") return "Hitting";
   if (value === "defense") return "Defense";
+  if (value === "development") return "Development";
   if (value === "weights") return "Weight Room";
   if (value === "notes") return "Notes";
-  return value;
+  return value.split(/[-_]/).filter(Boolean).map((segment) => `${segment.slice(0, 1).toUpperCase()}${segment.slice(1)}`).join(" ");
 }
 
 function weekStart(dateString: string) {

@@ -181,23 +181,38 @@ export const ANALYTICS_SAMPLE_THRESHOLDS = {
 
 export const ANALYTICS_METRICS: AnalyticsMetricDefinition[] = [
   metric("opportunities", "Opp", "hitting", "integer", ["all", "practice", "live-bp"], "Tracked pitches/opportunities in compatible hitting contexts.", true, true),
+  metric("takes", "Takes", "hitting", "integer", ["all", "practice", "live-bp"], "Taken pitches in compatible hitting contexts.", true, true),
   metric("swings", "Swings", "hitting", "integer", ["all", "practice", "live-bp"], "Swings logged in practice or Live BP.", true, true),
+  metric("contacts", "Contact", "hitting", "integer", ["all", "practice", "live-bp"], "Fouls plus balls in play.", true, true),
+  metric("bip", "BIP", "hitting", "integer", ["all", "practice", "live-bp"], "Balls put in play.", true, true),
+  metric("misses", "Miss", "hitting", "integer", ["all", "practice", "live-bp"], "Swing-and-miss results.", true, true),
+  metric("fouls", "Foul", "hitting", "integer", ["all", "practice", "live-bp"], "Foul balls.", true, true),
   metric("contactPct", "Contact %", "hitting", "percentage", ["all", "practice", "live-bp"], "Balls in play plus fouls divided by swings.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
+  metric("swingMissPct", "Whiff %", "hitting", "percentage", ["all", "practice", "live-bp"], "Misses divided by swings.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
+  metric("takePct", "Take %", "hitting", "percentage", ["all", "practice", "live-bp"], "Taken pitches divided by tracked opportunities.", true, true),
+  metric("hard", "Hard", "hitting", "integer", ["all", "practice", "live-bp"], "Hard or barrel balls in play.", true, true),
   metric("hardPct", "Hard %", "hitting", "percentage", ["all", "practice", "live-bp"], "Hard or barrel contact divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-  metric("lineDrivePct", "LD %", "hitting", "percentage", ["practice", "live-bp"], "Line drives divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-  metric("groundBallPct", "GB %", "hitting", "percentage", ["practice", "live-bp"], "Ground balls divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-  metric("flyBallPct", "FB %", "hitting", "percentage", ["practice", "live-bp"], "Fly balls divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+  metric("barrelPct", "Barrel %", "hitting", "percentage", ["all", "practice", "live-bp"], "Barrel contact divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+  metric("lineDrivePct", "LD %", "hitting", "percentage", ["all", "practice", "live-bp"], "Line drives divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+  metric("groundBallPct", "GB %", "hitting", "percentage", ["all", "practice", "live-bp"], "Ground balls divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+  metric("flyBallPct", "FB %", "hitting", "percentage", ["all", "practice", "live-bp"], "Fly balls divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
   metric("avgEv", "Avg EV", "hitting", "ev", ["all", "practice", "live-bp"], "Average exit velocity from recorded EV samples only.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.exitVelocitySamples),
   metric("maxEv", "Max EV", "hitting", "ev", ["all", "practice", "live-bp"], "Highest recorded exit velocity in the selected scope.", true, true, 1),
   metric("evSamples", "EV", "hitting", "integer", ["all", "practice", "live-bp"], "Count of swings with recorded exit velocity.", true, true),
-  metric("trackedBip", "Tracked BIP", "hitting", "integer", ["games"], "Logged game balls in play. Current game tracking does not yet preserve every plate appearance.", true, false),
+  metric("trackedBip", "BIP", "hitting", "integer", ["games"], "Logged game balls in play. Current game tracking does not yet preserve every plate appearance.", true, false),
   metric("ab", "AB", "hitting", "integer", ["games"], "Supported at-bat outcomes from logged game balls in play.", true, false),
   metric("hits", "H", "hitting", "integer", ["games"], "Hits from logged game balls in play.", true, false),
+  metric("singles", "1B", "hitting", "integer", ["games"], "Singles from logged game balls in play.", true, false),
   metric("doubles", "2B", "hitting", "integer", ["games"], "Doubles from logged game balls in play.", true, false),
   metric("triples", "3B", "hitting", "integer", ["games"], "Triples from logged game balls in play.", true, false),
   metric("homeRuns", "HR", "hitting", "integer", ["games"], "Home runs from logged game balls in play.", true, false),
+  metric("outs", "Outs", "hitting", "integer", ["games"], "Tracked at-bat outs from logged game balls in play.", true, false),
+  metric("xbh", "XBH", "hitting", "integer", ["games"], "Extra-base hits from logged game balls in play.", true, false),
+  metric("totalBases", "TB", "hitting", "integer", ["games"], "Total bases from logged game balls in play.", true, false),
   metric("avg", "AVG", "hitting", "decimal", ["games"], "Hits divided by supported at-bats from logged game balls in play.", true, false),
   metric("slg", "SLG", "hitting", "decimal", ["games"], "Total bases divided by supported at-bats from logged game balls in play.", true, false),
+  metric("iso", "ISO", "hitting", "decimal", ["games"], "Slugging percentage minus batting average from supported at-bats.", true, false),
+  metric("babip", "BABIP", "hitting", "decimal", ["games"], "Hits excluding home runs divided by tracked balls in play excluding home runs.", true, false),
   metric("pitches", "Pitches", "pitching", "integer", ["all", "practice", "live-bp", "games"], "Logged pitches in the selected scope.", true, true),
   metric("strikePct", "Strike %", "pitching", "percentage", ["all", "practice", "live-bp", "games"], "Strikes divided by total pitches.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
   metric("whiffPct", "Whiff %", "pitching", "percentage", ["all", "practice", "live-bp", "games"], "Whiffs divided by swings.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
@@ -449,15 +464,13 @@ function buildHittingResult(
     const gameEvents = filterGameEvents(data, query, today);
     const rows = currentRosterPlayers(data).map((player) => gameHittingRow(player, gameEvents.filter((event) => event.batterId === player.id)));
     const teamTotals = gameHittingTeamRow(data, gameEvents);
-    return assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, ["trackedBip", "ab", "hits", "doubles", "triples", "homeRuns", "avg", "slg"], warnings, availableEvents, filterDefinitions, scopeLabel);
+    return assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, ["trackedBip", "ab", "hits", "singles", "doubles", "triples", "homeRuns", "outs", "xbh", "totalBases", "avg", "slg", "iso", "babip"], warnings, availableEvents, filterDefinitions, scopeLabel);
   }
 
   const events = filterHittingEvents(data, query, today);
   const rows = currentRosterPlayers(data).map((player) => hittingRow(player, events.filter((event) => event.hitterId === player.id)));
   const teamTotals = hittingTeamRow(data, events);
-  const columns = query.source === "practice"
-    ? ["opportunities", "swings", "contactPct", "hardPct", "lineDrivePct", "groundBallPct", "flyBallPct", "avgEv", "maxEv", "evSamples"]
-    : ["opportunities", "swings", "contactPct", "hardPct", "avgEv", "maxEv", "evSamples"];
+  const columns = ["opportunities", "takes", "swings", "contacts", "bip", "misses", "fouls", "contactPct", "swingMissPct", "hard", "hardPct", "barrelPct", "lineDrivePct", "groundBallPct", "flyBallPct", "takePct", "avgEv", "maxEv", "evSamples"];
   if (query.source === "all") warnings.push("Hitting All combines compatible practice and Live BP swing-event metrics. Traditional game batting appears in the Games source until full PA results are tracked.");
   return assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, columns, warnings, availableEvents, filterDefinitions, scopeLabel);
 }
@@ -588,15 +601,28 @@ function assembleResult(
 
 function hittingRow(player: Player, events: HittingEvent[]): AnalyticsRow {
   const swings = events.filter((event) => event.action !== "Took pitch").length;
+  const takes = events.filter((event) => event.action === "Took pitch").length;
+  const misses = events.filter((event) => event.action === "Miss").length;
+  const fouls = events.filter((event) => event.action === "Foul").length;
   const contacts = events.filter((event) => event.action === "Ball in play" || event.action === "Foul").length;
   const ballsInPlay = events.filter((event) => event.action === "Ball in play").length;
   const hard = events.filter((event) => event.contactQuality === "Hard" || event.contactQuality === "Barrel").length;
+  const barrels = events.filter((event) => event.contactQuality === "Barrel").length;
   const evs = events.map((event) => event.exitVelocityMph).filter(isNumber);
   return makeRow(player, {
     opportunities: countCell(events.length, events.length),
+    takes: countCell(takes, events.length),
     swings: countCell(swings, events.length),
+    contacts: countCell(contacts, swings),
+    bip: countCell(ballsInPlay, events.length),
+    misses: countCell(misses, swings),
+    fouls: countCell(fouls, swings),
     contactPct: rateCell(contacts, swings, "contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
+    swingMissPct: rateCell(misses, swings, "misses", ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
+    takePct: rateCell(takes, events.length, "takes"),
+    hard: countCell(hard, ballsInPlay),
     hardPct: rateCell(hard, ballsInPlay, "hard contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    barrelPct: rateCell(barrels, ballsInPlay, "barrels", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     lineDrivePct: rateCell(events.filter((event) => event.contactResult === "Line drive").length, ballsInPlay, "line drives", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     groundBallPct: rateCell(events.filter((event) => event.contactResult === "Ground ball").length, ballsInPlay, "ground balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     flyBallPct: rateCell(events.filter((event) => event.contactResult === "Fly ball").length, ballsInPlay, "fly balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
@@ -618,16 +644,26 @@ function gameHittingRow(player: Player, events: GameEvent[]): AnalyticsRow {
   const doubles = bip.filter((event) => event.ballInPlayOutcome === "Double").length;
   const triples = bip.filter((event) => event.ballInPlayOutcome === "Triple").length;
   const homeRuns = bip.filter((event) => event.ballInPlayOutcome === "Home Run").length;
+  const singles = bip.filter((event) => event.ballInPlayOutcome === "Single").length;
+  const outs = Math.max(0, atBats - hits);
+  const xbh = doubles + triples + homeRuns;
   const totalBases = hits + doubles + triples * 2 + homeRuns * 3;
+  const babipDenominator = Math.max(0, bip.length - homeRuns);
   return makeRow(player, {
     trackedBip: countCell(bip.length, bip.length),
     ab: countCell(atBats, bip.length),
     hits: countCell(hits, bip.length),
+    singles: countCell(singles, bip.length),
     doubles: countCell(doubles, bip.length),
     triples: countCell(triples, bip.length),
     homeRuns: countCell(homeRuns, bip.length),
+    outs: countCell(outs, bip.length),
+    xbh: countCell(xbh, bip.length),
+    totalBases: countCell(totalBases, bip.length),
     avg: decimalRateCell(hits, atBats, "AVG"),
     slg: decimalRateCell(totalBases, atBats, "SLG"),
+    iso: decimalRateCell(totalBases - hits, atBats, "ISO"),
+    babip: decimalRateCell(hits - homeRuns, babipDenominator, "BABIP"),
   });
 }
 
