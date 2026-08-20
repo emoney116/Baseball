@@ -40,6 +40,16 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /PracticeRecentEventTable/);
   assert.match(page, /Undo Last/);
   assert.match(page, /function openPracticeStation\(mode: PracticeMode, options: \{ hittingStation\?: HittingSession\["type"\] \} = \{\}\)/);
+  assert.match(page, /function openCurrentPractice\(currentPractice = practice\)/);
+  assert.match(page, /function openOrStartPractice\(\)/);
+  assert.match(page, /hasOpenPractice=\{Boolean\(practice && !practice\.endedAt\)\}/);
+  assert.match(page, /onStartPractice=\{openOrStartPractice\}/);
+  assert.match(page, /if \(options\.openPractice && practice && !practice\.endedAt\)/);
+  assert.match(page, /const existingOpenPractice = activePractice\(current\)/);
+  assert.match(page, /if \(options\.openPractice && existingOpenPractice && !existingOpenPractice\.endedAt\) return current/);
+  assert.match(page, /const currentOpenPractice = activePracticeRecord && !activePracticeRecord\.endedAt \? activePracticeRecord : undefined/);
+  assert.match(page, /title=\{currentOpenPractice \? "Current Practice"/);
+  assert.match(page, /cta=\{currentOpenPractice \|\| nextPractice \? "Open" : "Start"\}/);
   assert.match(page, /function openHittingQuickStart\(station: HittingSession\["type"\]\)/);
   assert.match(page, /onStartHittingStation=\{openHittingQuickStart\}/);
   assert.match(page, /setPracticeTrackingOpen\(true\)/);

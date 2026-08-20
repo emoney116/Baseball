@@ -1025,7 +1025,7 @@ export default function MetrolinaBaseballApp() {
     if (!practice || !data) {
       setPracticeDrilldown({ kind: "hub" });
       setPracticeTrackingOpen(false);
-      setStartPracticeOpen(true);
+      openOrStartPractice();
       return;
     }
     const availablePlayers = availablePracticePlayers(data, practice);
@@ -1062,6 +1062,32 @@ export default function MetrolinaBaseballApp() {
     }
     setPracticeDrilldown({ kind: "hub" });
     setPracticeTrackingOpen(true);
+  }
+
+  function openCurrentPractice(currentPractice = practice) {
+    if (!currentPractice || currentPractice.endedAt) {
+      setStartPracticeOpen(true);
+      return;
+    }
+    clearPendingHittingContext();
+    setStartPracticeOpen(false);
+    setPracticeSummaryOpen(false);
+    setPracticeHubTab("Overview");
+    setPracticeDrilldown({ kind: "hub" });
+    setPracticeTrackingOpen(false);
+    if (currentPractice.playerIds[0]) {
+      setPracticePlayerId(currentPractice.playerIds[0]);
+      setSelectedPlayerId(currentPractice.playerIds[0]);
+    }
+    navigateToView("practice");
+  }
+
+  function openOrStartPractice() {
+    if (practice && !practice.endedAt) {
+      openCurrentPractice(practice);
+      return;
+    }
+    setStartPracticeOpen(true);
   }
 
   function openHittingQuickStart(station: HittingSession["type"]) {
@@ -1907,12 +1933,20 @@ export default function MetrolinaBaseballApp() {
   }
 
   function createPracticeRecord(practiceDraft: Practice, attendanceDraft: PracticeAttendance[], options: { openPractice?: boolean } = {}) {
-    commit((current) => ({
-      ...current,
-      practices: [practiceDraft, ...current.practices],
-      attendance: [...attendanceDraft, ...current.attendance],
-      settings: { ...current.settings, activePracticeId: options.openPractice ? practiceDraft.id : current.settings.activePracticeId },
-    }));
+    if (options.openPractice && practice && !practice.endedAt) {
+      openCurrentPractice(practice);
+      return;
+    }
+    commit((current) => {
+      const existingOpenPractice = activePractice(current);
+      if (options.openPractice && existingOpenPractice && !existingOpenPractice.endedAt) return current;
+      return {
+        ...current,
+        practices: [practiceDraft, ...current.practices],
+        attendance: [...attendanceDraft, ...current.attendance],
+        settings: { ...current.settings, activePracticeId: options.openPractice ? practiceDraft.id : current.settings.activePracticeId },
+      };
+    });
     if (options.openPractice) {
       navigateToView("practice");
       setPracticeTrackingOpen(false);
@@ -2366,7 +2400,8 @@ export default function MetrolinaBaseballApp() {
             view={view}
             onSwitch={switchTeam}
             onClubhouseHome={returnToClubhouseHome}
-            onStartPractice={() => setStartPracticeOpen(true)}
+            hasOpenPractice={Boolean(practice && !practice.endedAt)}
+            onStartPractice={openOrStartPractice}
             onStartGame={() => setStartGameOpen(true)}
           />
         )}
@@ -2430,7 +2465,7 @@ export default function MetrolinaBaseballApp() {
             weightLeader={weightLeader}
             onView={goToView}
             onOpenPlayer={openPlayer}
-            onStartPractice={() => setStartPracticeOpen(true)}
+            onStartPractice={openOrStartPractice}
             onStartGame={() => setStartGameOpen(true)}
           />
         )}
@@ -2498,11 +2533,11 @@ export default function MetrolinaBaseballApp() {
             practice={practice}
             tab={practiceHubTab}
             onTab={setPracticeHubTab}
-            onStartPractice={() => setStartPracticeOpen(true)}
+            onStartPractice={openOrStartPractice}
             onOpenStation={openPracticeStation}
             onStartHittingStation={openHittingQuickStart}
             onOpenSession={resumePracticeSession}
-            onOpenAttendance={() => (practice ? setPracticeDrilldown({ kind: "attendance" }) : setStartPracticeOpen(true))}
+            onOpenAttendance={() => (practice ? setPracticeDrilldown({ kind: "attendance" }) : openOrStartPractice())}
             onEndPractice={endPractice}
             onStatus={updatePracticeAttendance}
           />
@@ -2573,7 +2608,7 @@ export default function MetrolinaBaseballApp() {
             onSessionHeartbeat={touchActivePracticeSession}
             onExitTracking={() => setPracticeTrackingOpen(false)}
             onEndPractice={endPractice}
-            onStartPractice={() => setStartPracticeOpen(true)}
+            onStartPractice={openOrStartPractice}
           />
         )}
 
@@ -3482,6 +3517,7 @@ function TeamWorkspaceHeader({
   view,
   onSwitch,
   onClubhouseHome,
+  hasOpenPractice,
   onStartPractice,
   onStartGame,
 }: {
@@ -3489,6 +3525,7 @@ function TeamWorkspaceHeader({
   view: ViewKey;
   onSwitch: (team: TeamOption) => void | Promise<void>;
   onClubhouseHome: () => void;
+  hasOpenPractice?: boolean;
   onStartPractice: () => void;
   onStartGame: () => void;
 }) {
@@ -3506,8 +3543,8 @@ function TeamWorkspaceHeader({
       </div>
       <div className="team-workspace-header__actions">
         <button type="button" className="primary-button" onClick={onStartPractice}>
-          <Plus size={16} aria-hidden="true" />
-          Practice
+          {hasOpenPractice ? <ChevronRight size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}
+          {hasOpenPractice ? "Open Practice" : "Practice"}
         </button>
         <button type="button" className="secondary-button" onClick={onStartGame}>
           <Plus size={16} aria-hidden="true" />
@@ -5310,6 +5347,8 @@ function HomeDashboard({
   const scheduleItems = buildScheduleItems(data);
   const today = todayKey();
   const nextItems = scheduleItems.filter((item) => isUpcomingScheduleItem(item) && item.status !== "Cancelled").slice(0, 5);
+  const activePracticeRecord = activePractice(data);
+  const currentOpenPractice = activePracticeRecord && !activePracticeRecord.endedAt ? activePracticeRecord : undefined;
   const todaysPractice = nextItems.find((item) => item.eventType === "Practice" && item.date === today);
   const nextPractice = todaysPractice ?? nextItems.find((item) => item.eventType === "Practice");
   const nextGame = nextItems.find((item) => item.eventType === "Game");
@@ -5328,11 +5367,15 @@ function HomeDashboard({
       <section className="home-ops-grid">
         <HomeInfoCard
           icon={ClipboardList}
-          title={todaysPractice ? "Today's Practice" : "Next Practice"}
-          primary={nextPractice ? formatTime(nextPractice.startAt) : "No practice scheduled"}
-          meta={nextPractice ? [nextPractice.title, nextPractice.location].filter(Boolean).join(" - ") : "Create the next practice when ready"}
-          onClick={nextPractice ? () => onView(nextPractice.source === "practice" ? "practice" : "schedule") : onStartPractice}
-          cta={nextPractice ? "Open" : "Start"}
+          title={currentOpenPractice ? "Current Practice" : todaysPractice ? "Today's Practice" : "Next Practice"}
+          primary={currentOpenPractice ? currentOpenPractice.name : nextPractice ? formatTime(nextPractice.startAt) : "No practice scheduled"}
+          meta={currentOpenPractice
+            ? [shortDate(currentOpenPractice.date), formatPracticeTimeRange(currentOpenPractice), currentOpenPractice.location].filter(Boolean).join(" - ")
+            : nextPractice
+              ? [nextPractice.title, nextPractice.location].filter(Boolean).join(" - ")
+              : "Create the next practice when ready"}
+          onClick={currentOpenPractice ? onStartPractice : nextPractice ? () => onView(nextPractice.source === "practice" ? "practice" : "schedule") : onStartPractice}
+          cta={currentOpenPractice || nextPractice ? "Open" : "Start"}
         />
         <HomeInfoCard
           icon={BaseballIcon}
