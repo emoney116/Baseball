@@ -206,7 +206,8 @@ type PracticeHubTab = "Overview" | "Metrics" | "History";
 type PracticeMetricsScope = "Team" | "Players";
 type PracticeMetricsCategory = "Hitting" | "Pitching" | "Defense" | "Live BP";
 type PracticeMetricsSortKey = "player" | "swings" | "contact" | "hard" | "avgEv" | "maxEv" | "pitches" | "strike" | "zone" | "avgVelo" | "maxVelo" | "reps" | "clean" | "errors" | "greatPlays" | "defenseSessions" | "liveBpPitches" | "liveBpSwings" | "liveBpPas";
-type PracticeDrilldown = { kind: "hub" } | { kind: "attendance" };
+type PracticeReviewTab = "Summary" | PracticeMetricsCategory;
+type PracticeDrilldown = { kind: "hub" } | { kind: "attendance" } | { kind: "review"; practiceId: ID };
 type LiveBpOutcomeLabel = "K" | "BB" | "HBP" | "1B" | "2B" | "3B" | "HR" | "Out" | "Error" | "FC";
 type AppIcon = React.ComponentType<{ size?: number | string; "aria-hidden"?: boolean | "true" | "false"; className?: string }>;
 type WeightRoomTab = "Overview" | "Athletes" | "Exercises" | "Leaderboard" | "WorkoutSession";
@@ -564,6 +565,7 @@ const HITTING_RESULT_ACTIONS: Array<{
   { label: "Pop Up", action: "Ball in play", contactResult: "Pop up", contactQuality: "Weak" },
 ];
 type HittingSheetStep = "result" | "contact" | "spray";
+type LiveBpPitchSheetStep = "result" | "contact" | "spray";
 type HittingContactDraft = {
   label: string;
   action: HittingEvent["action"];
@@ -1468,6 +1470,28 @@ export default function MetrolinaBaseballApp() {
     if ([...GLOBAL_NAV_ITEMS.map((item) => item.key), "organizations", "following", "discover"].includes(nextView)) {
       void refreshGlobalData();
     }
+  }
+
+  function openPracticeAnalytics(practiceId: ID, category: PracticeMetricsCategory = "Hitting", playerId?: ID) {
+    clearPendingHittingContext();
+    setPracticeTrackingOpen(false);
+    setPracticeDrilldown({ kind: "review", practiceId });
+    setPracticeHubTab("History");
+    if (playerId) {
+      setSelectedPlayerId(playerId);
+      setPracticePlayerId(playerId);
+    }
+    navigateToView("analytics");
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", "analytics");
+    url.searchParams.set("domain", category === "Pitching" ? "pitching" : category === "Defense" ? "defense" : "hitting");
+    url.searchParams.set("source", category === "Live BP" ? "live-bp" : "practice");
+    url.searchParams.set("mode", "box-score");
+    url.searchParams.set("period", "season");
+    url.searchParams.set("practiceId", practiceId);
+    if (playerId) url.searchParams.set("player", playerId);
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }
 
   function openPublicOrganization(organization: PublicDirectoryOrganizationSummary) {
@@ -2628,9 +2652,20 @@ export default function MetrolinaBaseballApp() {
             onOpenStation={openPracticeStation}
             onStartHittingStation={openHittingQuickStart}
             onOpenSession={resumePracticeSession}
+            onOpenPracticeReview={(practiceId) => setPracticeDrilldown({ kind: "review", practiceId })}
+            onOpenPracticeAnalytics={openPracticeAnalytics}
             onOpenAttendance={() => (practice ? setPracticeDrilldown({ kind: "attendance" }) : openOrStartPractice())}
             onEndPractice={endPractice}
             onStatus={updatePracticeAttendance}
+          />
+        )}
+
+        {view === "practice" && practicePlayer && !practiceTrackingOpen && practiceDrilldown.kind === "review" && (
+          <PracticeReview
+            data={data}
+            practice={data.practices.find((item) => item.id === practiceDrilldown.practiceId)}
+            onBack={() => setPracticeDrilldown({ kind: "hub" })}
+            onOpenAnalytics={(category, playerId) => openPracticeAnalytics(practiceDrilldown.practiceId, category, playerId)}
           />
         )}
 
@@ -6592,6 +6627,8 @@ function PracticeHome({
   onOpenStation,
   onStartHittingStation,
   onOpenSession,
+  onOpenPracticeReview,
+  onOpenPracticeAnalytics,
   onOpenAttendance,
   onEndPractice,
   onStatus,
@@ -6604,6 +6641,8 @@ function PracticeHome({
   onOpenStation: (mode: PracticeMode) => void;
   onStartHittingStation: (station: HittingSession["type"]) => void;
   onOpenSession: (session: PracticeActiveSessionRow) => void;
+  onOpenPracticeReview: (practiceId: ID) => void;
+  onOpenPracticeAnalytics: (practiceId: ID, category?: PracticeMetricsCategory, playerId?: ID) => void;
   onOpenAttendance: () => void;
   onEndPractice: () => void;
   onStatus: (playerId: ID, status: PracticeAttendanceStatus) => void;
@@ -6793,7 +6832,7 @@ function PracticeHome({
               </article>
 
               <PracticePlanCard practice={practice} />
-              <PracticeRecentCard data={data} recentPractices={recentPractices} onOpenHistory={() => onTab("History")} />
+              <PracticeRecentCard data={data} recentPractices={recentPractices} onOpenPractice={onOpenPracticeReview} onOpenHistory={() => onTab("History")} />
             </section>
           ) : (
             <PracticeEmptyHub onStartPractice={onStartPractice} />
@@ -6801,8 +6840,8 @@ function PracticeHome({
         </>
       )}
 
-      {tab === "Metrics" && <PracticeMetricsTab data={data} />}
-      {tab === "History" && <PracticeHistoryTab data={data} />}
+      {tab === "Metrics" && <PracticeMetricsTab data={data} practiceId={practice?.id} onOpenAnalytics={practice ? (category, playerId) => onOpenPracticeAnalytics(practice.id, category, playerId) : undefined} />}
+      {tab === "History" && <PracticeHistoryTab data={data} onOpenPractice={onOpenPracticeReview} />}
     </div>
   );
 }
@@ -6905,7 +6944,17 @@ function PracticePlanCard({ practice }: { practice: Practice }) {
   );
 }
 
-function PracticeRecentCard({ data, recentPractices, onOpenHistory }: { data: AppData; recentPractices: Practice[]; onOpenHistory: () => void }) {
+function PracticeRecentCard({
+  data,
+  recentPractices,
+  onOpenPractice,
+  onOpenHistory,
+}: {
+  data: AppData;
+  recentPractices: Practice[];
+  onOpenPractice: (practiceId: ID) => void;
+  onOpenHistory: () => void;
+}) {
   return (
     <article className="panel practice-recent-card">
       <div className="panel-heading tight">
@@ -6924,7 +6973,7 @@ function PracticeRecentCard({ data, recentPractices, onOpenHistory }: { data: Ap
             const attendance = data.attendance.filter((row) => row.practiceId === item.id);
             const active = attendance.filter((row) => row.status !== "Absent");
             return (
-              <button key={item.id} type="button" onClick={onOpenHistory}>
+              <button key={item.id} type="button" onClick={() => onOpenPractice(item.id)}>
                 <span>
                   <strong>{shortDate(item.date)}</strong>
                   <small>{item.location || "Field"}</small>
@@ -6959,16 +7008,24 @@ function PracticeEmptyHub({ onStartPractice }: { onStartPractice: () => void }) 
   );
 }
 
-function PracticeMetricsTab({ data }: { data: AppData }) {
+function PracticeMetricsTab({
+  data,
+  practiceId,
+  onOpenAnalytics,
+}: {
+  data: AppData;
+  practiceId?: ID;
+  onOpenAnalytics?: (category: PracticeMetricsCategory, playerId?: ID) => void;
+}) {
   const [scope, setScope] = useState<PracticeMetricsScope>("Team");
   const [category, setCategory] = useState<PracticeMetricsCategory>("Hitting");
   const [sort, setSort] = useState<{ key: PracticeMetricsSortKey; direction: SortDirection }>({ key: "swings", direction: "desc" });
   const columns = practiceMetricColumns(category);
   const rows = useMemo(() => {
-    const baseRows = buildPracticeMetricRows(data, category);
+    const baseRows = buildPracticeMetricRows(data, category, practiceId);
     return sortPracticeMetricRows(baseRows, sort);
-  }, [data, category, sort]);
-  const summary = practiceMetricSummary(data, category);
+  }, [data, category, sort, practiceId]);
+  const summary = practiceMetricSummary(data, category, practiceId);
 
   function updateSort(key: PracticeMetricsSortKey) {
     setSort((current) => ({
@@ -6982,7 +7039,7 @@ function PracticeMetricsTab({ data }: { data: AppData }) {
       <article className="panel practice-metrics-controls">
         <div>
           <h2>Practice Metrics</h2>
-          <span>Long-term team and player performance lives here.</span>
+          <span>{practiceId ? "This practice box-score view" : "Long-term team and player performance lives here."}</span>
         </div>
         <SegmentedControl values={PRACTICE_METRIC_SCOPES} active={scope} onChange={setScope} />
         <SegmentedControl values={PRACTICE_METRIC_CATEGORIES} active={category} onChange={(nextCategory) => {
@@ -6997,6 +7054,12 @@ function PracticeMetricsTab({ data }: { data: AppData }) {
             <h2>{category} Summary</h2>
             <span>{scope === "Team" ? "Team box-score view" : "Player table view"}</span>
           </div>
+          {onOpenAnalytics && (
+            <button className="text-button" type="button" onClick={() => onOpenAnalytics(category)}>
+              View Full Analytics
+              <ChevronRight size={15} aria-hidden="true" />
+            </button>
+          )}
         </div>
         <LiveMetrics items={summary} />
       </article>
@@ -7027,7 +7090,11 @@ function PracticeMetricsTab({ data }: { data: AppData }) {
             <div key={row.player.id} className="practice-metrics-table__row" role="row">
               {columns.map((column) => (
                 <span key={`${row.player.id}-${column.key}`} className={column.numeric ? "numeric" : ""} role="cell">
-                  {column.render(row)}
+                  {column.key === "player" && onOpenAnalytics ? (
+                    <button className="practice-metrics-player-button" type="button" onClick={() => onOpenAnalytics(category, row.player.id)}>
+                      {column.render(row)}
+                    </button>
+                  ) : column.render(row)}
                 </span>
               ))}
             </div>
@@ -7039,7 +7106,7 @@ function PracticeMetricsTab({ data }: { data: AppData }) {
   );
 }
 
-function PracticeHistoryTab({ data }: { data: AppData }) {
+function PracticeHistoryTab({ data, onOpenPractice }: { data: AppData; onOpenPractice: (practiceId: ID) => void }) {
   const [filter, setFilter] = useState<"All" | PracticeType>("All");
   const filters = ["All", ...uniqueStrings(data.practices.map((practice) => practice.type))] as Array<"All" | PracticeType>;
   const practices = data.practices.filter((practice) => filter === "All" || practice.type === filter);
@@ -7058,7 +7125,7 @@ function PracticeHistoryTab({ data }: { data: AppData }) {
           const attendance = data.attendance.filter((row) => row.practiceId === practice.id);
           const active = attendance.filter((row) => row.status !== "Absent");
           return (
-            <button key={practice.id} type="button">
+            <button key={practice.id} type="button" onClick={() => onOpenPractice(practice.id)}>
               <span>
                 <strong>{shortDate(practice.date)}</strong>
                 <small>{practice.location || "Field"}</small>
@@ -7074,6 +7141,264 @@ function PracticeHistoryTab({ data }: { data: AppData }) {
         {!practices.length && <CompactEmpty title="No practices match this filter" />}
       </div>
     </section>
+  );
+}
+
+function PracticeReview({
+  data,
+  practice,
+  onBack,
+  onOpenAnalytics,
+}: {
+  data: AppData;
+  practice?: Practice;
+  onBack: () => void;
+  onOpenAnalytics: (category: PracticeMetricsCategory, playerId?: ID) => void;
+}) {
+  const [tab, setTab] = useState<PracticeReviewTab>("Summary");
+  const [liveBpSide, setLiveBpSide] = useState<"Hitters" | "Pitchers">("Hitters");
+  const [sort, setSort] = useState<{ key: PracticeMetricsSortKey; direction: SortDirection }>({ key: "swings", direction: "desc" });
+  const [selectedPlayerId, setSelectedPlayerId] = useState<ID | undefined>();
+  const selectedPlayer = data.players.find((player) => player.id === selectedPlayerId);
+
+  if (!practice) {
+    return (
+      <section className="panel practice-empty-hub">
+        <ClipboardList size={34} aria-hidden="true" />
+        <h2>Practice not found</h2>
+        <p>This practice may have been removed or is outside the current team context.</p>
+        <button className="secondary-button" type="button" onClick={onBack}>Back to Practice</button>
+      </section>
+    );
+  }
+
+  const activeCategory: PracticeMetricsCategory = tab === "Summary" ? "Hitting" : tab;
+  const totals = practiceTotals(data, practice.id);
+  const attendance = data.attendance.filter((row) => row.practiceId === practice.id);
+  const activeAttendance = attendance.filter((row) => row.status !== "Absent");
+  const columns = tab === "Summary" ? [] : practiceMetricColumns(tab);
+  const rows = tab === "Summary"
+    ? []
+    : sortPracticeMetricRows(
+      buildPracticeMetricRows(data, tab, practice.id).filter((row) => (
+        tab !== "Live BP"
+          || (liveBpSide === "Hitters" ? row.liveBpSwings > 0 || row.liveBpPas > 0 : row.liveBpPitches > 0)
+      )),
+      sort,
+    );
+  const summaryItems = [
+    { label: "Players", value: activeAttendance.length || practice.playerIds.length },
+    { label: "Swings", value: totals.swings },
+    { label: "Pitches", value: totals.pitches },
+    { label: "Defense", value: totals.defense },
+    { label: "Live BP PA", value: totals.liveBpPas },
+  ];
+  const sessionRows = buildPracticeReviewSessions(data, practice.id);
+  const standouts = buildPracticeStandouts(data, practice.id);
+  const selectedPlayerRows = selectedPlayer ? {
+    Hitting: buildPracticeMetricRows(data, "Hitting", practice.id).find((row) => row.player.id === selectedPlayer.id),
+    Pitching: buildPracticeMetricRows(data, "Pitching", practice.id).find((row) => row.player.id === selectedPlayer.id),
+    Defense: buildPracticeMetricRows(data, "Defense", practice.id).find((row) => row.player.id === selectedPlayer.id),
+    "Live BP": buildPracticeMetricRows(data, "Live BP", practice.id).find((row) => row.player.id === selectedPlayer.id),
+  } : undefined;
+
+  function updateSort(key: PracticeMetricsSortKey) {
+    setSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "desc" ? "asc" : "desc",
+    }));
+  }
+
+  function changeTab(nextTab: PracticeReviewTab) {
+    setTab(nextTab);
+    if (nextTab !== "Summary") setSort({ key: defaultPracticeMetricSort(nextTab), direction: "desc" });
+  }
+
+  return (
+    <div className="page-stack practice-review-page">
+      <section className="practice-review-hero panel">
+        <button className="icon-button" type="button" onClick={onBack} aria-label="Back to practice">
+          <ChevronLeft size={18} aria-hidden="true" />
+        </button>
+        <div>
+          <span>{practice.endedAt ? "Practice Complete" : "Practice Review"}</span>
+          <h1>{shortDate(practice.date)} · {data.teamContext?.currentTeam?.teamName ?? "Team Practice"}</h1>
+          <p>{[practice.type, practice.location, formatPracticeTimeRange(practice)].filter(Boolean).join(" · ")}</p>
+        </div>
+        <button className="primary-button" type="button" onClick={() => onOpenAnalytics(activeCategory)}>
+          <BarChart3 size={16} aria-hidden="true" />
+          View Full Practice Analytics
+        </button>
+      </section>
+
+      <section className="practice-review-summary-strip panel" aria-label="Practice recap">
+        {summaryItems.map((item) => (
+          <span key={item.label}>
+            <strong>{item.value}</strong>
+            <small>{item.label}</small>
+          </span>
+        ))}
+      </section>
+
+      <nav className="practice-review-tabs" aria-label="Completed practice views">
+        {(["Summary", "Hitting", "Pitching", "Defense", "Live BP"] as PracticeReviewTab[]).map((item) => (
+          <button key={item} type="button" className={tab === item ? "active" : ""} onClick={() => changeTab(item)}>
+            {item}
+          </button>
+        ))}
+      </nav>
+
+      {tab === "Summary" ? (
+        <section className="practice-review-layout">
+          <article className="panel practice-review-session-list">
+            <div className="panel-heading tight">
+              <div>
+                <h2>Session Summary</h2>
+                <span>{sessionRows.length} tracked contexts</span>
+              </div>
+            </div>
+            <div className="practice-review-session-rows">
+              {sessionRows.map((session) => (
+                <button key={session.id} type="button" onClick={() => changeTab(session.category)}>
+                  <span>
+                    <strong>{session.title}</strong>
+                    <small>{session.meta}</small>
+                  </span>
+                  <em>{session.count}</em>
+                  <ChevronRight size={16} aria-hidden="true" />
+                </button>
+              ))}
+              {!sessionRows.length && <CompactEmpty title="No tracked sessions yet" />}
+            </div>
+          </article>
+
+          <article className="panel practice-review-session-list">
+            <div className="panel-heading tight">
+              <div>
+                <h2>Team Notes</h2>
+                <span>Review highlights before sharing analytics.</span>
+              </div>
+            </div>
+            <div className="practice-review-note-list">
+              {standouts.slice(0, 4).map((item) => (
+                <button key={`${item.label}-${item.player.id}`} type="button" onClick={() => setSelectedPlayerId(item.player.id)}>
+                  <PlayerAvatar player={item.player} size="sm" compact />
+                  <span>
+                    <strong>{item.label}</strong>
+                    <small>{item.player.name} · {item.value}</small>
+                  </span>
+                </button>
+              ))}
+              {!standouts.length && <CompactEmpty title="More tracked reps will create highlights" />}
+            </div>
+          </article>
+        </section>
+      ) : (
+        <section className="panel practice-review-table-card">
+          <div className="panel-heading tight">
+            <div>
+              <h2>{tab} Box Score</h2>
+              <span>Tap a player for this-practice breakdown.</span>
+            </div>
+            <div className="practice-review-table-actions">
+              {tab === "Live BP" && <SegmentedControl values={["Hitters", "Pitchers"] as ("Hitters" | "Pitchers")[]} active={liveBpSide} onChange={setLiveBpSide} />}
+              <button className="text-button" type="button" onClick={() => onOpenAnalytics(tab)}>
+                View Analytics
+                <ChevronRight size={15} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          <div className="practice-metrics-table practice-review-table" role="table" aria-label={`${tab} completed practice box score`}>
+            <div className="practice-metrics-table__row practice-metrics-table__row--head" role="row">
+              {columns.map((column) => (
+                <button key={column.key} type="button" role="columnheader" className={column.numeric ? "numeric" : ""} onClick={() => updateSort(column.key)}>
+                  {column.label}
+                  {sort.key === column.key && (sort.direction === "asc" ? <ChevronUp size={12} aria-hidden="true" /> : <ChevronDown size={12} aria-hidden="true" />)}
+                </button>
+              ))}
+            </div>
+            {rows.map((row) => (
+              <button key={row.player.id} className="practice-metrics-table__row practice-review-player-row" type="button" role="row" onClick={() => setSelectedPlayerId(row.player.id)}>
+                {columns.map((column) => (
+                  <span key={`${row.player.id}-${column.key}`} className={column.numeric ? "numeric" : ""} role="cell">
+                    {column.render(row)}
+                  </span>
+                ))}
+              </button>
+            ))}
+            {!rows.length && <CompactEmpty title={`No ${tab.toLowerCase()} data for this practice`} />}
+          </div>
+        </section>
+      )}
+
+      {selectedPlayer && selectedPlayerRows && (
+        <ModalFrame title={`${selectedPlayer.name} · Practice Review`} onClose={() => setSelectedPlayerId(undefined)} panelClassName="practice-player-review-sheet">
+          <div className="practice-player-review-head">
+            <PlayerAvatar player={selectedPlayer} size="lg" />
+            <span>
+              <strong>{selectedPlayer.name}</strong>
+              <small>#{selectedPlayer.jerseyNumber} · {positionLine(selectedPlayer)} · {shortDate(practice.date)}</small>
+            </span>
+          </div>
+          <div className="practice-player-review-grid">
+            {selectedPlayerRows.Hitting && (
+              <PracticePlayerReviewCard title="Hitting" metrics={[
+                ["Swings", selectedPlayerRows.Hitting.swings],
+                ["Contact", formatPct(selectedPlayerRows.Hitting.contact, 0)],
+                ["Hard", formatPct(selectedPlayerRows.Hitting.hard, 0)],
+                ["Avg EV", formatOptionalMph(selectedPlayerRows.Hitting.avgEv)],
+              ]} />
+            )}
+            {selectedPlayerRows["Live BP"] && (
+              <PracticePlayerReviewCard title="Live BP" metrics={[
+                ["Pitches", selectedPlayerRows["Live BP"].liveBpPitches],
+                ["Swings", selectedPlayerRows["Live BP"].liveBpSwings],
+                ["PAs", selectedPlayerRows["Live BP"].liveBpPas],
+                ["Avg EV", formatOptionalMph(selectedPlayerRows["Live BP"].avgEv)],
+              ]} />
+            )}
+            {selectedPlayerRows.Pitching && (
+              <PracticePlayerReviewCard title="Pitching" metrics={[
+                ["Pitches", selectedPlayerRows.Pitching.pitches],
+                ["Strike", formatPct(selectedPlayerRows.Pitching.strike, 0)],
+                ["Zone", formatPct(selectedPlayerRows.Pitching.zone, 0)],
+                ["Avg Velo", formatOptionalMph(selectedPlayerRows.Pitching.avgVelo)],
+              ]} />
+            )}
+            {selectedPlayerRows.Defense && (
+              <PracticePlayerReviewCard title="Defense" metrics={[
+                ["Reps", selectedPlayerRows.Defense.reps],
+                ["Clean", formatPct(selectedPlayerRows.Defense.clean, 0)],
+                ["Errors", selectedPlayerRows.Defense.errors],
+                ["Plus", selectedPlayerRows.Defense.greatPlays],
+              ]} />
+            )}
+          </div>
+          <div className="modal-actions">
+            <button className="secondary-button" type="button" onClick={() => onOpenAnalytics(activeCategory, selectedPlayer.id)}>
+              View Full Player Analytics
+              <ChevronRight size={15} aria-hidden="true" />
+            </button>
+          </div>
+        </ModalFrame>
+      )}
+    </div>
+  );
+}
+
+function PracticePlayerReviewCard({ title, metrics }: { title: string; metrics: Array<[string, React.ReactNode]> }) {
+  return (
+    <article className="practice-player-review-card">
+      <span>{title}</span>
+      <div>
+        {metrics.map(([label, value]) => (
+          <em key={label}>
+            <strong>{value}</strong>
+            <small>{label}</small>
+          </em>
+        ))}
+      </div>
+    </article>
   );
 }
 
@@ -7232,6 +7557,9 @@ function PracticeConsole({
   const [hittingPlayersOpen, setHittingPlayersOpen] = useState(false);
   const [hittingSessionOpen, setHittingSessionOpen] = useState(false);
   const [hittingStatsOpen, setHittingStatsOpen] = useState(false);
+  const [liveBpPitchSheetOpen, setLiveBpPitchSheetOpen] = useState(false);
+  const [liveBpPitchSheetStep, setLiveBpPitchSheetStep] = useState<LiveBpPitchSheetStep>("result");
+  const [liveBpBattedBall, setLiveBpBattedBall] = useState<BattedBallType | undefined>();
   const [activityClock, setActivityClock] = useState(() => Date.now());
   const onSessionHeartbeatRef = useRef(onSessionHeartbeat);
   const practiceId = practice?.id;
@@ -7432,6 +7760,37 @@ function PracticeConsole({
     setHittingPlayersOpen(false);
   }
 
+  function openLiveBpPitchSheet() {
+    setLiveBpPitchSheetStep("result");
+    setLiveBpBattedBall(undefined);
+    setLiveBpPitchSheetOpen(true);
+  }
+
+  function closeLiveBpPitchSheet() {
+    setLiveBpPitchSheetOpen(false);
+    setLiveBpPitchSheetStep("result");
+    setLiveBpBattedBall(undefined);
+  }
+
+  function saveLiveBpPitch(outcome: PitchOutcome, battedBall?: BattedBallType) {
+    onLogLiveBpPitch(outcome, battedBall);
+    closeLiveBpPitchSheet();
+  }
+
+  function chooseLiveBpContact(choice: HittingContactDraft) {
+    const battedBall = choice.contactResult ?? "Line drive";
+    if (trackSprayChart) {
+      setLiveBpBattedBall(battedBall);
+      setLiveBpPitchSheetStep("spray");
+      return;
+    }
+    saveLiveBpPitch("Ball in play", battedBall);
+  }
+
+  function saveLiveBpSpray() {
+    saveLiveBpPitch("Ball in play", liveBpBattedBall ?? "Line drive");
+  }
+
   const sessionStarted = currentSession?.startedAt ? formatTime(currentSession.startedAt) : practice ? formatTime(practice.startedAt) : "--";
 
   return (
@@ -7563,6 +7922,25 @@ function PracticeConsole({
                   ))}
                   {!recentHittingEvents.length && <CompactEmpty title="Ready for the first swing" />}
                 </div>
+              </section>
+
+              <section className="practice-hitting-rail" aria-label="Hitter switcher">
+                <div>
+                  <span>Lineup</span>
+                  <button className="text-button" type="button" onClick={() => setHittingPlayersOpen(true)}>
+                    Players
+                    <ChevronRight size={14} aria-hidden="true" />
+                  </button>
+                </div>
+                <ScrollablePanel className="practice-hitting-rail__scroll" bodyClassName="practice-hitting-rail__list" ariaLabel="hitting player rail" direction="horizontal">
+                  {playerPool.map((item) => (
+                    <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => onSelectPlayer(item.id)}>
+                      <PlayerAvatar player={item} size="sm" compact />
+                      <span>{lastName(item.name)}</span>
+                      <small>#{item.jerseyNumber}</small>
+                    </button>
+                  ))}
+                </ScrollablePanel>
               </section>
             </main>
 
@@ -8160,76 +8538,29 @@ function PracticeConsole({
                     ...(liveBpPitchStats.avgVelocity ? [{ label: "Avg Velo", value: formatNumber(liveBpPitchStats.avgVelocity, 1), detail: liveBpPitchStats.maxVelocity ? `Max ${formatNumber(liveBpPitchStats.maxVelocity, 1)}` : "Optional" }] : []),
                   ]}
                 />
-                <div className="pitch-type-row">
-                  {PITCH_TYPES.slice(0, 8).map((pitchType) => (
-                    <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>
-                      {PITCH_TYPE_LABELS[pitchType]}
-                    </button>
-                  ))}
-                </div>
-                <div className="velo-stepper">
-                  <button type="button" onClick={() => adjustVelocity(-1)} aria-label="Decrease velocity">-</button>
-                  <label>
-                    <span>Velo</span>
-                    <input inputMode="numeric" value={velocity} onChange={(event) => onVelocity(event.target.value.replace(/[^0-9.]/g, ""))} />
-                  </label>
-                  <button type="button" onClick={() => adjustVelocity(1)} aria-label="Increase velocity">+</button>
-                </div>
-                <div className="hitting-context-controls hitting-context-controls--compact">
-                  <button
-                    className={trackExitVelocity ? "hitting-option-toggle active" : "hitting-option-toggle"}
-                    type="button"
-                    onClick={() => onTrackExitVelocity(!trackExitVelocity)}
-                    aria-pressed={trackExitVelocity}
-                  >
-                    EV
+                <div className="practice-live-bp-action-panel">
+                  <div>
+                    <span>{liveBpThrowerSource === "PLAYER" ? "Next pitch" : "Next rep"}</span>
+                    <strong>{liveBpThrowerSource === "PLAYER" ? `${liveBpPitcher?.name ?? "Pitcher"} vs ${liveBpHitter?.name ?? "Hitter"}` : `${liveBpThrowerSourceLabel(liveBpThrowerSource)} Live BP`}</strong>
+                    <small>{[PITCH_TYPE_LABELS[selectedPitchType], velocity ? `${velocity} mph` : undefined].filter(Boolean).join(" · ") || "Pitch type and velo optional"}</small>
+                  </div>
+                  <button className="primary-button practice-live-bp-pitch-button" type="button" onClick={openLiveBpPitchSheet}>
+                    <Plus size={18} aria-hidden="true" />
+                    {liveBpThrowerSource === "PLAYER" ? "Pitch" : "Log Rep"}
                   </button>
-                  {trackExitVelocity && (
-                    <label className="exit-velocity-input">
-                      <span>EV</span>
-                      <input
-                        inputMode="decimal"
-                        value={exitVelocity}
-                        onChange={(event) => onExitVelocity(event.target.value.replace(/[^0-9.]/g, ""))}
-                        placeholder="87"
-                        aria-label="Exit velocity in miles per hour"
-                      />
-                      <em>mph</em>
-                    </label>
-                  )}
-                  {exitVelocityError && <small className="exit-velocity-error">{exitVelocityError}</small>}
-                </div>
-                <div className="quick-pad quick-pad--pitching">
-                  <button type="button" onClick={() => onLogLiveBpPitch("Ball")}>Ball</button>
-                  <button type="button" onClick={() => onLogLiveBpPitch("Called Strike")}>Called Strike</button>
-                  <button type="button" className="impact" onClick={() => onLogLiveBpPitch("Whiff")}>Whiff</button>
-                  <button type="button" onClick={() => onLogLiveBpPitch("Foul")}>Foul</button>
-                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Line drive")}>In Play</button>
-                </div>
-                <span className="tracker-subhead">If in play</span>
-                <div className="direction-row">
-                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Ground ball")}>Hard Ground</button>
-                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Ground ball")}>Soft Ground</button>
-                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Line drive")}>Line Drive</button>
-                  <button type="button" onClick={() => onLogLiveBpPitch("Ball in play", "Fly ball")}>Fly Ball</button>
-                </div>
-                <div className="pa-outcome-grid">
-                  {LIVE_BP_OUTCOMES.map((outcome) => (
-                    <button key={outcome} type="button" onClick={() => onCompleteLiveBpPa(outcome)}>{outcome}</button>
-                  ))}
                   <button type="button" className="secondary-button" onClick={onNextLiveBpHitter}>Next Hitter</button>
                 </div>
                 <PracticeRecentEventTable
                   title="Live BP Log"
                   rows={(liveBpThrowerSource === "PLAYER"
-                    ? liveBpPitchEvents.slice(0, 6).map((event) => ({
+                    ? liveBpPitchEvents.slice(0, 5).map((event) => ({
                       id: event.id,
                       time: formatTime(event.createdAt),
                       primary: event.outcome,
                       secondary: event.countAfter ? `${event.countAfter.balls}-${event.countAfter.strikes}` : PITCH_TYPE_LABELS[event.pitchType],
                       tone: event.isStrike ? "positive" as const : event.outcome === "Ball" ? "negative" as const : undefined,
                     }))
-                    : liveBpHitEvents.slice(0, 6).map((event) => ({
+                    : liveBpHitEvents.slice(0, 5).map((event) => ({
                       id: event.id,
                       time: formatTime(event.createdAt),
                       primary: formatHittingEventTitle(event),
@@ -8253,6 +8584,118 @@ function PracticeConsole({
                 <button className="text-button" type="button" onClick={() => onTargetLocation(undefined)}>Clear target</button>
               </div>
             </div>
+          )}
+
+          {mode === "Live BP" && liveBpPitchSheetOpen && (
+            <ModalFrame title={liveBpThrowerSource === "PLAYER" ? "Pitch" : "Log Rep"} onClose={closeLiveBpPitchSheet} panelClassName="practice-live-bp-pitch-sheet">
+              <div className="practice-live-bp-sheet__context">
+                {liveBpThrowerSource === "PLAYER" && liveBpPitcher ? <PlayerAvatar player={liveBpPitcher} size="md" /> : <Gauge size={24} aria-hidden="true" />}
+                <span>
+                  <strong>{liveBpThrowerSource === "PLAYER" ? `${liveBpPitcher?.name ?? "Pitcher"} vs ${liveBpHitter?.name ?? "Hitter"}` : `${liveBpThrowerSourceLabel(liveBpThrowerSource)} Live BP`}</strong>
+                  <small>{liveBpThrowerSource === "PLAYER" ? `${liveBpCount.balls}-${liveBpCount.strikes} · PA ${liveBpPaNumber}` : liveBpHitter?.name ?? "Select hitter"}</small>
+                </span>
+              </div>
+
+              <section className="practice-live-bp-sheet__optional">
+                <div className="practice-live-bp-pitch-options">
+                  {PITCH_TYPES.slice(0, 7).map((pitchType) => (
+                    <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>
+                      {PITCH_TYPE_LABELS[pitchType]}
+                    </button>
+                  ))}
+                </div>
+                <div className="practice-live-bp-value-row">
+                  <div className="velo-stepper">
+                    <button type="button" onClick={() => adjustVelocity(-1)} aria-label="Decrease velocity">-</button>
+                    <label>
+                      <span>Velo</span>
+                      <input inputMode="numeric" value={velocity} onChange={(event) => onVelocity(event.target.value.replace(/[^0-9.]/g, ""))} />
+                    </label>
+                    <button type="button" onClick={() => adjustVelocity(1)} aria-label="Increase velocity">+</button>
+                  </div>
+                  <button className={trackExitVelocity ? "hitting-option-toggle active" : "hitting-option-toggle"} type="button" onClick={() => onTrackExitVelocity(!trackExitVelocity)} aria-pressed={trackExitVelocity}>
+                    EV
+                  </button>
+                </div>
+              </section>
+
+              {liveBpPitchSheetStep === "result" && (
+                <section className="practice-live-bp-sheet__step">
+                  <div>
+                    <span>Pitch result</span>
+                    <small>In Play opens contact detail only when needed.</small>
+                  </div>
+                  <div className="practice-live-bp-result-grid">
+                    <button type="button" onClick={() => saveLiveBpPitch("Ball")}>Ball</button>
+                    <button type="button" onClick={() => saveLiveBpPitch("Called Strike")}>Called Strike</button>
+                    <button type="button" className="impact" onClick={() => saveLiveBpPitch("Whiff")}>Swinging Strike</button>
+                    <button type="button" onClick={() => saveLiveBpPitch("Foul")}>Foul</button>
+                    <button type="button" className="active" onClick={() => setLiveBpPitchSheetStep("contact")}>In Play</button>
+                  </div>
+                </section>
+              )}
+
+              {liveBpPitchSheetStep === "contact" && (
+                <section className="practice-live-bp-sheet__step">
+                  <div>
+                    <span>Contact result</span>
+                    <small>{trackSprayChart ? "Spray opens next. EV is optional." : "Saves as soon as you choose."}</small>
+                  </div>
+                  {trackExitVelocity && (
+                    <label className="exit-velocity-input practice-live-bp-sheet__ev">
+                      <span>EV</span>
+                      <input inputMode="decimal" value={exitVelocity} onChange={(event) => onExitVelocity(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="87" aria-label="Exit velocity in miles per hour" />
+                      <em>mph</em>
+                    </label>
+                  )}
+                  {exitVelocityError && <small className="exit-velocity-error">{exitVelocityError}</small>}
+                  <div className="practice-live-bp-contact-grid">
+                    {HITTING_CONTACT_CHOICES.map((choice) => (
+                      <button key={choice.label} type="button" className={choice.contactQuality === "Hard" ? "impact" : ""} onClick={() => chooseLiveBpContact(choice)}>
+                        {choice.label}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {liveBpPitchSheetStep === "spray" && (
+                <section className="practice-live-bp-sheet__step practice-live-bp-sheet__step--spray">
+                  <div>
+                    <span>Spray location</span>
+                    <small>Tap the field or skip location.</small>
+                  </div>
+                  <PracticeSprayField points={liveBpHitEvents.map((event) => event.fieldLocation).filter(isZonePoint)} activePoint={fieldLocation} onSelect={onFieldLocation} />
+                  {trackExitVelocity && (
+                    <label className="exit-velocity-input practice-live-bp-sheet__ev">
+                      <span>EV</span>
+                      <input inputMode="decimal" value={exitVelocity} onChange={(event) => onExitVelocity(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="87" aria-label="Exit velocity in miles per hour" />
+                      <em>mph</em>
+                    </label>
+                  )}
+                  <div className="practice-live-bp-sheet__actions">
+                    <button className="primary-button" type="button" onClick={saveLiveBpSpray}>Save Pitch</button>
+                    <button className="secondary-button" type="button" onClick={() => saveLiveBpPitch("Ball in play", liveBpBattedBall ?? "Line drive")}>Skip Location</button>
+                  </div>
+                </section>
+              )}
+
+              <section className="practice-live-bp-pa-strip">
+                <span>Finish PA</span>
+                <div>
+                  {LIVE_BP_OUTCOMES.map((outcome) => (
+                    <button key={outcome} type="button" onClick={() => { onCompleteLiveBpPa(outcome); closeLiveBpPitchSheet(); }}>{outcome}</button>
+                  ))}
+                </div>
+              </section>
+
+              <div className="modal-actions">
+                {liveBpPitchSheetStep !== "result" && (
+                  <button className="secondary-button" type="button" onClick={() => setLiveBpPitchSheetStep(liveBpPitchSheetStep === "spray" ? "contact" : "result")}>Back</button>
+                )}
+                <button className="secondary-button" type="button" onClick={closeLiveBpPitchSheet}>Cancel</button>
+              </div>
+            </ModalFrame>
           )}
         </section>
 
@@ -18419,10 +18862,56 @@ function practiceTotals(data: AppData, practiceId: ID) {
     pitches: totals.pitches,
     swings: totals.swings,
     defense: totals.defense,
+    liveBpPas: data.plateAppearances.filter((appearance) => appearance.practiceId === practiceId).length,
     hittingSessions: data.hittingSessions.filter((session) => session.practiceId === practiceId).length,
     pitchingSessions: data.pitchingSessions.filter((session) => session.practiceId === practiceId).length,
     defenseSessions: data.defenseSessions.filter((session) => session.practiceId === practiceId).length,
   };
+}
+
+function buildPracticeReviewSessions(data: AppData, practiceId: ID) {
+  const playerById = new Map(data.players.map((player) => [player.id, player]));
+  const hittingRows = data.hittingSessions
+    .filter((session) => session.practiceId === practiceId)
+    .map((session) => {
+      const isLiveBp = session.type === "Live BP";
+      const hitter = playerById.get(session.hitterId);
+      const events = data.hittingEvents.filter((event) => event.sessionId === session.id);
+      return {
+        id: `hit-${session.id}`,
+        category: (isLiveBp ? "Live BP" : "Hitting") as PracticeMetricsCategory,
+        title: isLiveBp ? `${liveBpThrowerSourceLabel(session.liveBpThrowerSource ?? "PLAYER")} Live BP` : session.type,
+        meta: hitter ? hitter.name : "Hitting session",
+        count: `${events.length} swing${events.length === 1 ? "" : "s"}`,
+      };
+    });
+  const pitchingRows = data.pitchingSessions
+    .filter((session) => session.practiceId === practiceId)
+    .map((session) => {
+      const pitcher = playerById.get(session.pitcherId);
+      const events = data.pitchEvents.filter((event) => event.sessionId === session.id);
+      return {
+        id: `pitch-${session.id}`,
+        category: (session.type === "Live BP" ? "Live BP" : "Pitching") as PracticeMetricsCategory,
+        title: session.type === "Live BP" ? `${liveBpThrowerSourceLabel(session.liveBpThrowerSource ?? "PLAYER")} Live BP` : session.type,
+        meta: pitcher ? pitcher.name : "Pitching session",
+        count: `${events.length} pitch${events.length === 1 ? "" : "es"}`,
+      };
+    });
+  const defenseRows = data.defenseSessions
+    .filter((session) => session.practiceId === practiceId)
+    .map((session) => {
+      const player = playerById.get(session.playerId);
+      const events = data.defenseEvents.filter((event) => event.sessionId === session.id);
+      return {
+        id: `def-${session.id}`,
+        category: "Defense" as PracticeMetricsCategory,
+        title: session.station,
+        meta: player ? player.name : "Defense session",
+        count: `${events.length} rep${events.length === 1 ? "" : "s"}`,
+      };
+    });
+  return [...hittingRows, ...pitchingRows, ...defenseRows];
 }
 
 function buildPracticeStandouts(data: AppData, practiceId: ID) {
@@ -18572,7 +19061,7 @@ function practiceMetricColumns(category: PracticeMetricsCategory): PracticeMetri
   ];
 }
 
-function buildPracticeMetricRows(data: AppData, category: PracticeMetricsCategory): PracticeMetricRow[] {
+function buildPracticeMetricRows(data: AppData, category: PracticeMetricsCategory, practiceId?: ID): PracticeMetricRow[] {
   const hittingSessionTypeById = new Map(data.hittingSessions.map((session) => [session.id, session.type]));
   const pitchingSessionTypeById = new Map(data.pitchingSessions.map((session) => [session.id, session.type]));
   return data.players
@@ -18580,29 +19069,33 @@ function buildPracticeMetricRows(data: AppData, category: PracticeMetricsCategor
     .map((player) => {
       const hittingEvents = data.hittingEvents.filter((event) => (
         event.hitterId === player.id
+        && (!practiceId || event.practiceId === practiceId)
         && !event.isLiveBp
         && hittingSessionTypeById.get(event.sessionId) !== "Live BP"
       ));
       const hittingStats = calculateHittingStats(hittingEvents);
       const pitchEvents = data.pitchEvents.filter((event) => (
         event.pitcherId === player.id
+        && (!practiceId || event.practiceId === practiceId)
         && pitchingSessionTypeById.get(event.sessionId) !== "Live BP"
       ));
       const pitchingStats = calculatePitchingStats(pitchEvents);
-      const defenseEvents = data.defenseEvents.filter((event) => event.playerId === player.id);
+      const defenseEvents = data.defenseEvents.filter((event) => event.playerId === player.id && (!practiceId || event.practiceId === practiceId));
       const cleanDefense = defenseEvents.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
-      const liveBpPitchEvents = data.pitchEvents.filter((event) => event.pitcherId === player.id && pitchingSessionTypeById.get(event.sessionId) === "Live BP");
+      const liveBpPitchEvents = data.pitchEvents.filter((event) => event.pitcherId === player.id && (!practiceId || event.practiceId === practiceId) && pitchingSessionTypeById.get(event.sessionId) === "Live BP");
       const liveBpHittingEvents = data.hittingEvents.filter((event) => (
         event.hitterId === player.id
+        && (!practiceId || event.practiceId === practiceId)
         && (event.isLiveBp || hittingSessionTypeById.get(event.sessionId) === "Live BP" || Boolean(event.pitcherId))
       ));
       const liveBpPitchStats = calculatePitchingStats(liveBpPitchEvents);
       const liveBpHitStats = calculateHittingStats(liveBpHittingEvents);
       const liveBpPas = data.plateAppearances.filter((appearance) => (
         Boolean(appearance.practiceId)
+        && (!practiceId || appearance.practiceId === practiceId)
         && (appearance.pitcherId === player.id || appearance.hitterId === player.id)
       )).length;
-      const defenseSessionCount = data.defenseSessions.filter((session) => session.playerId === player.id).length;
+      const defenseSessionCount = data.defenseSessions.filter((session) => session.playerId === player.id && (!practiceId || session.practiceId === practiceId)).length;
 
       return {
         player,
@@ -18653,10 +19146,10 @@ function practiceMetricSortValue(row: PracticeMetricRow, key: PracticeMetricsSor
   return row[key];
 }
 
-function practiceMetricSummary(data: AppData, category: PracticeMetricsCategory) {
+function practiceMetricSummary(data: AppData, category: PracticeMetricsCategory, practiceId?: ID) {
   if (category === "Pitching") {
     const sessionTypeById = new Map(data.pitchingSessions.map((session) => [session.id, session.type]));
-    const events = data.pitchEvents.filter((event) => sessionTypeById.get(event.sessionId) !== "Live BP");
+    const events = data.pitchEvents.filter((event) => (!practiceId || event.practiceId === practiceId) && sessionTypeById.get(event.sessionId) !== "Live BP");
     const stats = calculatePitchingStats(events);
     return [
       { label: "Pitches", value: stats.totalPitches },
@@ -18666,30 +19159,31 @@ function practiceMetricSummary(data: AppData, category: PracticeMetricsCategory)
     ];
   }
   if (category === "Defense") {
-    const clean = data.defenseEvents.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
+    const events = data.defenseEvents.filter((event) => !practiceId || event.practiceId === practiceId);
+    const clean = events.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
     return [
-      { label: "Reps", value: data.defenseEvents.length },
-      { label: "Clean", value: formatPct(pct(clean, data.defenseEvents.length), 0) },
-      { label: "Errors", value: data.defenseEvents.filter((event) => event.outcome === "Error" || event.outcome === "Missed Rep").length },
-      { label: "Sessions", value: data.defenseSessions.length },
+      { label: "Reps", value: events.length },
+      { label: "Clean", value: formatPct(pct(clean, events.length), 0) },
+      { label: "Errors", value: events.filter((event) => event.outcome === "Error" || event.outcome === "Missed Rep").length },
+      { label: "Sessions", value: data.defenseSessions.filter((session) => !practiceId || session.practiceId === practiceId).length },
     ];
   }
   if (category === "Live BP") {
     const pitchingSessionTypeById = new Map(data.pitchingSessions.map((session) => [session.id, session.type]));
     const hittingSessionTypeById = new Map(data.hittingSessions.map((session) => [session.id, session.type]));
-    const pitches = data.pitchEvents.filter((event) => pitchingSessionTypeById.get(event.sessionId) === "Live BP");
-    const swings = data.hittingEvents.filter((event) => event.isLiveBp || hittingSessionTypeById.get(event.sessionId) === "Live BP" || Boolean(event.pitcherId));
+    const pitches = data.pitchEvents.filter((event) => (!practiceId || event.practiceId === practiceId) && pitchingSessionTypeById.get(event.sessionId) === "Live BP");
+    const swings = data.hittingEvents.filter((event) => (!practiceId || event.practiceId === practiceId) && (event.isLiveBp || hittingSessionTypeById.get(event.sessionId) === "Live BP" || Boolean(event.pitcherId)));
     const pitching = calculatePitchingStats(pitches);
     const hitting = calculateHittingStats(swings);
     return [
       { label: "Pitches", value: pitching.totalPitches },
       { label: "Swings", value: hitting.totalSwings },
-      { label: "PAs", value: data.plateAppearances.filter((appearance) => appearance.practiceId).length },
+      { label: "PAs", value: data.plateAppearances.filter((appearance) => appearance.practiceId && (!practiceId || appearance.practiceId === practiceId)).length },
       { label: "Avg EV", value: formatOptionalMph(hitting.avgExitVelocity) },
     ];
   }
   const sessionTypeById = new Map(data.hittingSessions.map((session) => [session.id, session.type]));
-  const events = data.hittingEvents.filter((event) => !event.isLiveBp && sessionTypeById.get(event.sessionId) !== "Live BP");
+  const events = data.hittingEvents.filter((event) => (!practiceId || event.practiceId === practiceId) && !event.isLiveBp && sessionTypeById.get(event.sessionId) !== "Live BP");
   const stats = calculateHittingStats(events);
   return [
     { label: "Swings", value: stats.totalSwings },

@@ -24982,6 +24982,611 @@ button.weight-room-athlete-table__row:hover {
   }
 }
 
+.practice-active-session-grid {
+  grid-template-columns: 1fr;
+}
+
+.practice-active-session-card {
+  min-height: 66px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-soft) 76%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--burgundy) 62%, transparent);
+}
+
+.practice-session-mode--pitching {
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--success) 58%, transparent);
+}
+
+.practice-session-mode--defense {
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--warning) 58%, transparent);
+}
+
+.practice-session-mode--live-bp {
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--brand-primary) 62%, transparent);
+}
+
+.practice-avatar-row {
+  max-height: min(30dvh, 250px);
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding-bottom: 12px;
+}
+
+.practice-avatar-row::-webkit-scrollbar {
+  display: none;
+}
+
+.practice-metrics-player-button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: block;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.practice-metrics-player-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+  border-radius: 10px;
+}
+
+.practice-review-page {
+  gap: 14px;
+}
+
+.practice-review-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.practice-review-hero > div {
+  min-width: 0;
+}
+
+.practice-review-hero span,
+.practice-review-session-list .panel-heading span,
+.practice-review-table-card .panel-heading span,
+.practice-player-review-card > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.practice-review-hero h1 {
+  margin: 2px 0;
+  font-size: clamp(22px, 2.2vw, 34px);
+  line-height: 1.08;
+}
+
+.practice-review-hero p {
+  margin: 0;
+  color: var(--muted-strong);
+  font-weight: 750;
+}
+
+.practice-review-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  padding: 0;
+}
+
+.practice-review-summary-strip span {
+  min-height: 74px;
+  background: rgba(255, 255, 255, 0.025);
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 12px 16px;
+}
+
+.practice-review-summary-strip strong {
+  font-size: clamp(22px, 2.2vw, 32px);
+  line-height: 1;
+}
+
+.practice-review-summary-strip small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.practice-review-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-soft) 76%, transparent);
+  padding: 5px;
+  width: fit-content;
+}
+
+.practice-review-tabs button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted-strong);
+  padding: 0 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.practice-review-tabs button.active {
+  background: var(--burgundy);
+  color: var(--brand-text-on-primary);
+}
+
+.practice-review-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+  gap: 14px;
+}
+
+.practice-review-session-list,
+.practice-review-table-card {
+  display: grid;
+  gap: 12px;
+}
+
+.practice-review-session-rows,
+.practice-review-note-list {
+  display: grid;
+  gap: 8px;
+}
+
+.practice-review-session-rows button,
+.practice-review-note-list button {
+  min-height: 58px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-soft) 82%, transparent);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.practice-review-note-list button {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.practice-review-session-rows strong,
+.practice-review-note-list strong,
+.practice-review-session-rows small,
+.practice-review-note-list small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.practice-review-session-rows strong,
+.practice-review-note-list strong {
+  display: block;
+  font-weight: 950;
+}
+
+.practice-review-session-rows small,
+.practice-review-note-list small,
+.practice-review-session-rows em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.practice-review-table-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.practice-review-table {
+  min-width: 820px;
+}
+
+.practice-review-player-row {
+  width: 100%;
+  border-left: 0;
+  border-right: 0;
+  border-top: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.practice-review-player-row:hover,
+.practice-review-player-row:focus-visible {
+  background: color-mix(in srgb, var(--brand-soft) 42%, transparent);
+}
+
+.modal-panel.practice-player-review-sheet {
+  width: min(860px, calc(100vw - 28px));
+}
+
+.practice-player-review-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--panel-soft) 78%, transparent);
+}
+
+.practice-player-review-head span {
+  display: grid;
+}
+
+.practice-player-review-head small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.practice-player-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.practice-player-review-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--panel-soft) 76%, transparent);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.practice-player-review-card > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.practice-player-review-card em {
+  font-style: normal;
+  display: grid;
+  gap: 2px;
+}
+
+.practice-player-review-card strong {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.practice-player-review-card small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.practice-hitting-rail {
+  display: grid;
+  gap: 8px;
+}
+
+.practice-hitting-rail > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.practice-hitting-rail__scroll .scroll-cue-panel__body {
+  padding-bottom: 4px;
+}
+
+.practice-hitting-rail__list {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.practice-hitting-rail__list button {
+  flex: 0 0 104px;
+  min-height: 70px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-soft) 78%, transparent);
+  color: var(--text);
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  padding: 8px;
+  cursor: pointer;
+}
+
+.practice-hitting-rail__list button.active {
+  border-color: color-mix(in srgb, var(--tracker-accent) 58%, var(--line));
+  background: color-mix(in srgb, var(--tracker-accent) 20%, var(--panel-soft));
+}
+
+.practice-hitting-rail__list span,
+.practice-hitting-rail__list small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.practice-hitting-rail__list span {
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.practice-hitting-rail__list small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.practice-console--hitting .practice-player-strip {
+  display: none;
+}
+
+.practice-live-bp-action-panel {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--tracker-accent) 12%, transparent), transparent 46%),
+    color-mix(in srgb, var(--panel-soft) 82%, transparent);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+}
+
+.practice-live-bp-action-panel > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.practice-live-bp-action-panel span,
+.practice-live-bp-sheet__step span,
+.practice-live-bp-pa-strip > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.practice-live-bp-action-panel strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 18px;
+}
+
+.practice-live-bp-action-panel small {
+  color: var(--muted-strong);
+  font-weight: 800;
+}
+
+.practice-live-bp-pitch-button {
+  min-height: 52px;
+  min-width: 132px;
+  border-radius: 14px;
+  justify-content: center;
+}
+
+.modal-panel.practice-live-bp-pitch-sheet {
+  width: min(760px, calc(100vw - 28px));
+}
+
+.practice-live-bp-sheet__context {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--panel-soft) 78%, transparent);
+}
+
+.practice-live-bp-sheet__context > svg {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  padding: 9px;
+  color: var(--burgundy-strong);
+  background: var(--burgundy-soft);
+}
+
+.practice-live-bp-sheet__context span {
+  min-width: 0;
+  display: grid;
+}
+
+.practice-live-bp-sheet__context small,
+.practice-live-bp-sheet__step small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.practice-live-bp-sheet__optional,
+.practice-live-bp-sheet__step {
+  display: grid;
+  gap: 10px;
+}
+
+.practice-live-bp-pitch-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.practice-live-bp-pitch-options button,
+.practice-live-bp-result-grid button,
+.practice-live-bp-contact-grid button,
+.practice-live-bp-pa-strip button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel-soft) 84%, transparent);
+  color: var(--text);
+  padding: 0 12px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.practice-live-bp-pitch-options button.active,
+.practice-live-bp-result-grid button.active,
+.practice-live-bp-contact-grid button.impact {
+  border-color: color-mix(in srgb, var(--tracker-accent) 52%, var(--line));
+  background: color-mix(in srgb, var(--tracker-accent) 22%, var(--panel-soft));
+}
+
+.practice-live-bp-result-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.practice-live-bp-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.practice-live-bp-value-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.practice-live-bp-sheet__ev {
+  width: min(220px, 100%);
+}
+
+.practice-live-bp-sheet__step--spray .practice-spray-field {
+  justify-self: center;
+}
+
+.practice-live-bp-sheet__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.practice-live-bp-sheet__actions button {
+  flex: 1 1 160px;
+}
+
+.practice-live-bp-pa-strip {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.practice-live-bp-pa-strip > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+@media (max-width: 1180px) {
+  .practice-hitting-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-hitting-context {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto;
+  }
+
+  .practice-console--live-bp .practice-tracker-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-console--live-bp .tracker-console {
+    order: 1;
+  }
+
+  .practice-console--live-bp .practice-session-panel {
+    order: 2;
+    grid-template-columns: minmax(220px, 0.42fr) minmax(220px, 0.36fr) minmax(0, 1fr);
+  }
+
+  .practice-console--live-bp .practice-tracker-side {
+    order: 3;
+  }
+}
+
+@media (max-width: 820px) {
+  .practice-review-hero,
+  .practice-review-layout,
+  .practice-live-bp-action-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-review-summary-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .practice-review-table-actions {
+    justify-content: flex-start;
+  }
+
+  .practice-player-review-grid,
+  .practice-player-review-card > div,
+  .practice-live-bp-result-grid,
+  .practice-live-bp-contact-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .practice-hitting-rail {
+    display: none;
+  }
+
+  .practice-review-tabs {
+    width: 100%;
+  }
+
+  .practice-review-tabs button {
+    flex: 1 1 84px;
+  }
+
+  .practice-review-summary-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-panel.practice-player-review-sheet,
+  .modal-panel.practice-live-bp-pitch-sheet {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+}
+
 /* Clubhouse 9 shared visual polish: semantic hierarchy over one-off feature paint. */
 html,
 body {
