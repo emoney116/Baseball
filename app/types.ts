@@ -422,6 +422,7 @@ export type PracticeSessionContributorRole = "COACH" | "PLAYER" | "MANAGER";
 export type PracticeEntryPolicy = "COACH_ONLY" | "COACH_AND_ASSIGNED_PLAYERS" | "PLAYER_SELF_ENTRY";
 export type PracticeEntrySource = "COACH" | "PLAYER" | "DEVICE" | "IMPORT";
 export type PracticeVerificationStatus = "COACH_RECORDED" | "PLAYER_RECORDED" | "COACH_VERIFIED";
+export type LiveBpThrowerSource = "PLAYER" | "COACH" | "MACHINE";
 
 export interface PracticeSessionContributor {
   id: ID;
@@ -457,6 +458,7 @@ export type PitchingSession = {
   practiceId: ID;
   pitcherId: ID;
   type: "Bullpen" | "Flat Ground" | "Live" | "Live BP" | "Other";
+  liveBpThrowerSource?: LiveBpThrowerSource;
   catcherId?: ID;
   hitterId?: ID;
   focusTags: PitchFocusTag[];
@@ -503,6 +505,7 @@ export type HittingSession = {
   practiceId: ID;
   hitterId: ID;
   type: "Tee" | "Front Toss" | "Machine" | "Hack Attack - FB" | "Hack Attack - CB" | "Coach BP" | "Live BP" | "Other";
+  liveBpThrowerSource?: LiveBpThrowerSource;
   machineVelocity?: number;
   machinePitchType?: PitchType;
   machineLocation?: string;

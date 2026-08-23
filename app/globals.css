@@ -8663,6 +8663,61 @@ select option {
   grid-template-columns: minmax(360px, 1fr) minmax(260px, 0.64fr);
 }
 
+.live-bp-context-bar {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+  padding: 6px 8px 6px 12px;
+}
+
+.live-bp-context-bar > span,
+.live-bp-thrower-card > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.live-bp-source-segments {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) - 2px);
+  background: rgba(0, 0, 0, 0.14);
+  padding: 3px;
+}
+
+.live-bp-source-segments button {
+  min-height: 28px;
+  border: 0;
+  border-radius: calc(var(--radius) - 5px);
+  background: transparent;
+  color: var(--muted-strong);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.live-bp-source-segments button:hover,
+.live-bp-source-segments button:focus-visible {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.live-bp-source-segments button.active {
+  color: var(--text);
+  background: var(--burgundy-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--burgundy) 40%, transparent);
+}
+
 .live-bp-matchup {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 116px minmax(0, 1fr);
@@ -8726,6 +8781,33 @@ select option {
   background: rgba(255, 255, 255, 0.025);
   display: grid;
   gap: 7px;
+}
+
+.matchup-switch-grid > .live-bp-thrower-card {
+  align-content: center;
+  min-height: 84px;
+  padding: 12px;
+  border-color: color-mix(in srgb, var(--burgundy) 22%, var(--line));
+  background:
+    linear-gradient(135deg, rgba(159, 36, 76, 0.09), rgba(255, 255, 255, 0.025)),
+    rgba(255, 255, 255, 0.025);
+}
+
+.live-bp-thrower-card strong,
+.live-bp-thrower-card small {
+  display: block;
+}
+
+.live-bp-thrower-card strong {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.live-bp-thrower-card small {
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .mini-player-pills {

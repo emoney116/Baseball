@@ -18,7 +18,8 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /function PracticeConsole\(/);
   assert.match(page, /function availablePracticePlayers\(/);
   assert.match(page, /return status === "Present" \|\| status === "Late"/);
-  assert.match(page, /const HITTING_STATIONS: HittingSession\["type"\]\[\] = \["Tee", "Front Toss", "Machine", "Coach BP", "Live BP", "Other"\]/);
+  assert.match(page, /const HITTING_STATIONS: HittingSession\["type"\]\[\] = \["Tee", "Front Toss", "Machine", "Coach BP", "Other"\]/);
+  assert.match(page, /const LIVE_BP_THROWER_SOURCES: LiveBpThrowerSource\[\] = \["PLAYER", "COACH", "MACHINE"\]/);
   assert.match(page, /\(\["Overview", "Metrics", "History"\] as PracticeHubTab\[\]\)/);
   assert.doesNotMatch(page, /\(\["Overview", "Drills", "Throwing", "Metrics", "History"\]/);
   assert.match(page, /const HITTING_RESULT_ACTIONS/);
@@ -52,6 +53,12 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /title=\{currentOpenPractice \? "Current Practice"/);
   assert.match(page, /cta=\{currentOpenPractice \|\| nextPractice \? "Open" : "Start"\}/);
   assert.match(page, /function openHittingQuickStart\(station: HittingSession\["type"\]\)/);
+  assert.match(page, /openPracticeStation\("Hitting", \{ hittingStation: station \}\)/);
+  assert.match(page, /function changeLiveBpThrowerSource\(source: LiveBpThrowerSource\)/);
+  assert.match(page, /onLiveBpThrowerSource=\{changeLiveBpThrowerSource\}/);
+  assert.match(page, /liveBpThrowerSource=\{liveBpThrowerSource\}/);
+  assert.match(page, /liveBpThrowerSourceLabel/);
+  assert.match(page, /liveBpThrowerSource !== "PLAYER"/);
   assert.match(page, /onStartHittingStation=\{openHittingQuickStart\}/);
   assert.match(page, /setPracticeTrackingOpen\(true\)/);
   assert.match(page, /onOpenAttendance=\{\(\) => \(practice \? setPracticeDrilldown\(\{ kind: "attendance" \}\)/);
@@ -80,6 +87,9 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(styles, /\.practice-activity-card--pitching/);
   assert.match(styles, /\.practice-tracker-tabs/);
   assert.match(styles, /\.practice-player-strip/);
+  assert.match(styles, /\.live-bp-context-bar/);
+  assert.match(styles, /\.live-bp-source-segments/);
+  assert.match(styles, /\.live-bp-thrower-card/);
   assert.match(styles, /\.practice-hitting-shell/);
   assert.match(styles, /\.practice-hitting-sheet/);
   assert.match(styles, /\.practice-spray-field/);

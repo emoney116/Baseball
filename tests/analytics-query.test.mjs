@@ -186,6 +186,41 @@ test("source classification keeps Live BP out of Practice while All includes com
   assert.equal(row(all, "p-jacob").cells.opportunities.display, "6");
 });
 
+test("Live BP thrower source filters are structured and deterministic", () => {
+  const data = {
+    ...baseData,
+    hittingSessions: [
+      ...baseData.hittingSessions,
+      hittingSession("live-hit-coach", "practice-aug-19", "p-jackson", "Live BP", { liveBpThrowerSource: "COACH" }),
+    ],
+    hittingEvents: [
+      ...baseData.hittingEvents,
+      hittingEvent("he-live-coach", "practice-aug-19", "live-hit-coach", "p-jackson", "Ball in play", {
+        contactResult: "Line drive",
+        contactQuality: "Hard",
+        isLiveBp: true,
+      }),
+    ],
+  };
+
+  const playerThrown = executeAnalyticsQuery(data, {
+    ...query("hitting", "live-bp"),
+    mode: "situational",
+    filters: { liveBpThrowerSources: ["PLAYER"] },
+  });
+  const coachThrown = executeAnalyticsQuery(data, {
+    ...query("hitting", "live-bp"),
+    mode: "situational",
+    filters: { liveBpThrowerSources: ["COACH"] },
+  });
+
+  assert.equal(playerThrown.filterDefinitions.some((definition) => definition.id === "liveBpThrowerSources"), true);
+  assert.equal(row(playerThrown, "p-jacob").cells.opportunities.display, "1");
+  assert.equal(row(playerThrown, "p-jackson").cells.opportunities.display, "—");
+  assert.equal(row(coachThrown, "p-jacob").cells.opportunities.display, "—");
+  assert.equal(row(coachThrown, "p-jackson").cells.opportunities.display, "1");
+});
+
 test("situational filters narrow supported hitting dimensions", () => {
   const result = executeAnalyticsQuery(baseData, {
     ...query("hitting", "practice"),
@@ -319,7 +354,7 @@ function practice(id, date) {
   };
 }
 
-function hittingSession(id, practiceId, hitterId, type) {
+function hittingSession(id, practiceId, hitterId, type, overrides = {}) {
   return {
     id,
     practiceId,
@@ -327,6 +362,7 @@ function hittingSession(id, practiceId, hitterId, type) {
     type,
     roundGoals: [],
     startedAt: now,
+    ...overrides,
   };
 }
 
