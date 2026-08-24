@@ -479,7 +479,7 @@ const TEAM_MOBILE_NAV_ITEMS: Array<{ key: ViewKey | "more"; label: string; short
   { key: "games", label: "Games", shortLabel: "Games", icon: BaseballIcon },
   { key: "more", label: "More", shortLabel: "More", icon: MoreHorizontal },
 ];
-const MORE_VIEWS: ViewKey[] = ["organizations", "roster", "weights", "analytics", "account"];
+const MORE_VIEWS: ViewKey[] = ["organizations", "teams", "roster", "weights", "analytics", "account"];
 const TEAM_CONTEXT_VIEWS = new Set<ViewKey>(["teamHome", "schedule", "roster", "practice", "weights", "games", "analytics", "profile"]);
 const CREATE_TEAM_VALUE = "__create_team__";
 const ROUTABLE_VIEWS = new Set<ViewKey>([
@@ -805,6 +805,7 @@ export default function MetrolinaBaseballApp() {
   const currentTheme = data?.settings.theme;
 
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const mobileMoreTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [editingPlayerId, setEditingPlayerId] = useState<ID | undefined>();
   const [sessionSummary, setSessionSummary] = useState<{ type: "Hitting" | "Pitching" | "Defense"; sessionId: ID } | null>(null);
   const [practiceSummaryOpen, setPracticeSummaryOpen] = useState(false);
@@ -1431,9 +1432,8 @@ export default function MetrolinaBaseballApp() {
     setSaveStatus("saved");
   }
 
-  function toggleTheme() {
+  function setThemePreference(nextTheme: ThemePreference) {
     if (!data) return;
-    const nextTheme: ThemePreference = data.settings.theme === "dark" ? "light" : "dark";
     saveStoredTheme(data.teamContext?.profile?.id, nextTheme);
     applyDocumentTheme(nextTheme);
     setData((current) => current
@@ -1445,6 +1445,11 @@ export default function MetrolinaBaseballApp() {
           },
         }
       : current);
+  }
+
+  function toggleTheme() {
+    if (!data) return;
+    setThemePreference(data.settings.theme === "dark" ? "light" : "dark");
   }
 
   async function switchTeam(team: TeamOption) {
@@ -2868,11 +2873,13 @@ export default function MetrolinaBaseballApp() {
         {view === "account" && (
           <AccountProfileView
             context={data.teamContext}
+            theme={data.settings.theme}
             onEnterTeam={enterTeam}
             onManageOrganization={openOrganizationManagement}
             onCreateOrganization={() => openTeamCreator(undefined, "organization")}
             onSignOut={signOut}
             onSave={saveAccountProfile}
+            onTheme={setThemePreference}
           />
         )}
 
@@ -2897,8 +2904,11 @@ export default function MetrolinaBaseballApp() {
         {mobileItems.map(({ key, shortLabel, icon: Icon }) => (
           <button
             key={key}
+            ref={key === "more" ? mobileMoreTriggerRef : undefined}
             type="button"
-            className={(key === "more" ? MORE_VIEWS.includes(view) || (inTeamContext && ["roster", "weights", "analytics", "account"].includes(view)) : view === key) ? "active" : ""}
+            className={(key === "more" ? mobileMoreOpen || MORE_VIEWS.includes(view) || (inTeamContext && ["roster", "weights", "analytics", "account"].includes(view)) : view === key) ? "active" : ""}
+            aria-expanded={key === "more" ? mobileMoreOpen : undefined}
+            aria-haspopup={key === "more" ? "menu" : undefined}
             onClick={() => {
               if (key === "more") {
                 setMobileMoreOpen((open) => !open);
@@ -2915,48 +2925,20 @@ export default function MetrolinaBaseballApp() {
       </nav>
 
       {mobileMoreOpen && (
-        <ModalFrame title="More" onClose={() => setMobileMoreOpen(false)} panelClassName="mobile-more-sheet">
-          {inTeamContext && (
-            <button type="button" onClick={() => { returnToClubhouseHome(); setMobileMoreOpen(false); }}>
-              <Home size={17} aria-hidden="true" />
-              Clubhouse Home
-            </button>
-          )}
-          {!inTeamContext && (
-            <button type="button" onClick={() => { goToView("organizations"); setMobileMoreOpen(false); }}>
-              <Building2 size={17} aria-hidden="true" />
-              Organizations
-            </button>
-          )}
-          {inTeamContext && (
-            <button type="button" onClick={() => { goToView("roster"); setMobileMoreOpen(false); }}>
-              <Users size={17} aria-hidden="true" />
-              Roster
-            </button>
-          )}
-          <button type="button" onClick={() => { goToView("weights"); setMobileMoreOpen(false); }}>
-            <Dumbbell size={17} aria-hidden="true" />
-            Weight Room
-          </button>
-          <button type="button" onClick={() => { goToView("analytics"); setMobileMoreOpen(false); }}>
-            <BarChart3 size={17} aria-hidden="true" />
-            Analytics
-          </button>
-          <button type="button" onClick={() => { goToView("account"); setMobileMoreOpen(false); }}>
-            <User size={17} aria-hidden="true" />
-            My Profile
-          </button>
-          {!inTeamContext && (
-            <button type="button" onClick={() => { goToView("teams"); setMobileMoreOpen(false); }}>
-              <Building2 size={17} aria-hidden="true" />
-              Teams
-            </button>
-          )}
-          <button type="button" onClick={() => { toggleTheme(); setMobileMoreOpen(false); }}>
-            {data.settings.theme === "dark" ? <Sun size={17} aria-hidden="true" /> : <Moon size={17} aria-hidden="true" />}
-            {data.settings.theme === "dark" ? "Light" : "Dark"}
-          </button>
-        </ModalFrame>
+        <MobileMoreMenu
+          inTeamContext={inTeamContext}
+          activeView={view}
+          onClose={() => {
+            setMobileMoreOpen(false);
+            mobileMoreTriggerRef.current?.focus();
+          }}
+          onNavigate={(nextView) => {
+            if (inTeamContext && nextView === "home") returnToClubhouseHome();
+            else goToView(nextView);
+            setMobileMoreOpen(false);
+            mobileMoreTriggerRef.current?.focus();
+          }}
+        />
       )}
 
       {startPracticeOpen && (
@@ -3871,20 +3853,94 @@ function ProfileMenu({
   );
 }
 
+type MobileMoreMenuItem = {
+  view: ViewKey;
+  label: string;
+  icon: AppIcon;
+  dividerBefore?: boolean;
+};
+
+function MobileMoreMenu({
+  inTeamContext,
+  activeView,
+  onClose,
+  onNavigate,
+}: {
+  inTeamContext: boolean;
+  activeView: ViewKey;
+  onClose: () => void;
+  onNavigate: (view: ViewKey) => void;
+}) {
+  const items: MobileMoreMenuItem[] = inTeamContext
+    ? [
+        { view: "home", label: "Clubhouse Home", icon: Home },
+        { view: "roster", label: "Roster", icon: Users },
+        { view: "weights", label: "Weight Room", icon: Dumbbell },
+        { view: "analytics", label: "Analytics", icon: BarChart3 },
+        { view: "account", label: "My Profile", icon: User, dividerBefore: true },
+      ]
+    : [
+        { view: "organizations", label: "Organizations", icon: Building2 },
+        { view: "teams", label: "Teams", icon: Building2 },
+        { view: "account", label: "My Profile", icon: User, dividerBefore: true },
+      ];
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <>
+      <button className="mobile-more-dismiss" type="button" aria-label="Close more menu" onClick={onClose} />
+      <div className="mobile-more-menu" role="menu" aria-label="More navigation">
+        <span className="mobile-more-menu__handle" aria-hidden="true" />
+        <div className="mobile-more-menu__title">More</div>
+        <div className="mobile-more-menu__rows">
+          {items.map(({ view: itemView, label, icon: Icon, dividerBefore }) => (
+            <button
+              key={`${itemView}-${label}`}
+              type="button"
+              role="menuitem"
+              className={[
+                "mobile-more-menu__row",
+                activeView === itemView ? "active" : "",
+                dividerBefore ? "with-divider" : "",
+              ].filter(Boolean).join(" ")}
+              onClick={() => onNavigate(itemView)}
+            >
+              <Icon size={18} aria-hidden="true" />
+              <span>{label}</span>
+              <ChevronRight size={15} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
 function AccountProfileView({
   context,
+  theme,
   onEnterTeam,
   onManageOrganization,
   onCreateOrganization,
   onSignOut,
   onSave,
+  onTheme,
 }: {
   context?: TeamContext;
+  theme: ThemePreference;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onManageOrganization: (organization: OrganizationSummary) => void;
   onCreateOrganization: () => void;
   onSignOut: () => void | Promise<void>;
   onSave: (input: { firstName?: string; lastName?: string; displayName?: string; avatarUrl?: string }) => Promise<void>;
+  onTheme: (theme: ThemePreference) => void;
 }) {
   const profile = context?.profile;
   const initialDisplayName = preferredProfileDisplayName(profile);
@@ -4097,6 +4153,21 @@ function AccountProfileView({
           </div>
           <div className="profile-save-row profile-save-row--compact">
             {message && <span className={`profile-save-message profile-save-message--${status}`}>{message}</span>}
+          </div>
+        </article>
+        <article className="panel account-settings-card">
+          <div className="panel-heading tight">
+            <div>
+              <span>Settings</span>
+              <h2>Appearance</h2>
+            </div>
+          </div>
+          <div className="account-appearance-setting">
+            <div>
+              <strong>Theme</strong>
+              <small>Used everywhere you sign in on this device.</small>
+            </div>
+            <SegmentedControl values={["light", "dark"] as ThemePreference[]} active={theme} onChange={onTheme} />
           </div>
         </article>
         <article className="panel account-teams-card">

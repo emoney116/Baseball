@@ -42,6 +42,10 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /Track Exit Velocity/);
   assert.match(page, /Track Spray Location/);
   assert.match(page, /editingHittingEventId/);
+  assert.match(page, /function MobileMoreMenu/);
+  assert.match(page, /"mobile-more-menu__row"/);
+  assert.match(page, /onTheme=\{setThemePreference\}/);
+  assert.match(page, /<h2>Appearance<\/h2>/);
   assert.match(page, /Log Swing/);
   assert.match(page, /What happened\?/);
   assert.match(page, />In Play<\/button>/);
@@ -85,6 +89,8 @@ test("practice hub opens active tracker modes without setup screen", () => {
 
   assert.doesNotMatch(page, /Hard Contact<\/button>/);
   assert.doesNotMatch(page, /practice-hitting-toggles/);
+  assert.doesNotMatch(page, /ModalFrame title="More"/);
+  assert.doesNotMatch(page, /toggleTheme\(\); setMobileMoreOpen\(false\)/);
   assert.doesNotMatch(page, /PITCH<\/button>/);
   assert.doesNotMatch(page, />Drills<\/button>/);
   assert.doesNotMatch(page, />Throwing<\/button>/);
@@ -119,7 +125,9 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(styles, /\.practice-hitting-quality-toggle/);
   assert.match(styles, /\.practice-hitting-more-list/);
   assert.match(styles, /\.practice-hitting-settings-list/);
-  assert.match(styles, /\.modal-panel\.mobile-more-sheet/);
+  assert.match(styles, /\.mobile-more-menu/);
+  assert.match(styles, /\.mobile-more-menu__row/);
+  assert.match(styles, /\.account-appearance-setting/);
   assert.match(styles, /\.practice-live-bp-action-panel/);
   assert.match(styles, /\.practice-live-bp-pitch-sheet/);
   assert.match(styles, /\.practice-review-summary-strip/);
