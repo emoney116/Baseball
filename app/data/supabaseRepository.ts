@@ -13,6 +13,7 @@ import type {
   HittingEvent,
   HittingSession,
   ID,
+  LiveBpThrowerSource,
   AppProfile,
   OrganizationOption,
   PitchEvent,
@@ -1590,6 +1591,7 @@ async function syncPracticeSessions(supabase: SupabaseClient, data: AppData) {
       entry_policy: session.entryPolicy ?? "COACH_ONLY",
       updated_at: session.updatedAt ?? session.endedAt ?? session.startedAt,
       metadata: {
+        liveBpThrowerSource: session.liveBpThrowerSource,
         machineVelocity: session.machineVelocity,
         machinePitchType: session.machinePitchType,
         machineLocation: session.machineLocation,
@@ -1620,6 +1622,7 @@ async function syncPracticeSessions(supabase: SupabaseClient, data: AppData) {
       entry_policy: session.entryPolicy ?? "COACH_ONLY",
       updated_at: session.updatedAt ?? session.endedAt ?? session.startedAt,
       metadata: {
+        liveBpThrowerSource: session.liveBpThrowerSource,
         catcherId: session.catcherId,
         hitterId: session.hitterId,
         focusTags: session.focusTags,
@@ -2648,6 +2651,7 @@ function mapHittingSession(row: any): HittingSession {
     practiceId: row.practice_id,
     hitterId: row.player_id,
     type: row.session_type,
+    liveBpThrowerSource: normalizeLiveBpThrowerSource(metadata.liveBpThrowerSource),
     machineVelocity: metadata.machineVelocity,
     machinePitchType: metadata.machinePitchType,
     machineLocation: metadata.machineLocation,
@@ -2678,6 +2682,7 @@ function mapPitchingSession(row: any): PitchingSession {
     practiceId: row.practice_id,
     pitcherId: row.player_id,
     type: row.session_type,
+    liveBpThrowerSource: normalizeLiveBpThrowerSource(metadata.liveBpThrowerSource),
     catcherId: metadata.catcherId,
     hitterId: metadata.hitterId ?? row.secondary_player_id ?? undefined,
     focusTags: metadata.focusTags ?? [],
@@ -2815,6 +2820,12 @@ function normalizePracticeSessionStatus(status: unknown, endedAt?: string | null
   const value = String(status ?? "").trim().toUpperCase();
   if (value === "COMPLETED" || value === "CANCELLED" || value === "ACTIVE") return value;
   return endedAt ? "COMPLETED" : "ACTIVE";
+}
+
+function normalizeLiveBpThrowerSource(source: unknown): LiveBpThrowerSource | undefined {
+  const value = String(source ?? "").trim().toUpperCase();
+  if (value === "PLAYER" || value === "COACH" || value === "MACHINE") return value;
+  return undefined;
 }
 
 function normalizePracticeEntryPolicy(policy: unknown): PracticeEntryPolicy | undefined {

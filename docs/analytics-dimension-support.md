@@ -5,7 +5,7 @@ Analytics V1 is box-score-first and derives from stored events. The application/
 ## Source Definitions
 
 - `Practice`: non-Live-BP practice hitting, pitching, and defense sessions.
-- `Live BP`: hitting or pitching sessions explicitly marked `Live BP`, including linked player/session events.
+- `Live BP`: hitting or pitching sessions explicitly marked `Live BP`, including linked player/session events and structured thrower source (`Player`, `Coach`, or `Machine`).
 - `Games`: current game pitch/ball-in-play events.
 - `All`: compatible Practice + Live BP metrics, plus Games only where a metric has the same definition. Live BP is not double-counted inside Practice.
 
@@ -21,7 +21,7 @@ Analytics V1 is box-score-first and derives from stored events. The application/
 - Pitch type where captured.
 - Direction and spray coordinate where captured.
 - Exit velocity as nullable numeric `exitVelocityMph`.
-- Live BP flag/session type.
+- Live BP flag/session type and thrower source when the session is Live BP.
 - Game balls in play with hit/base outcomes.
 
 ### Pitching
@@ -32,6 +32,7 @@ Analytics V1 is box-score-first and derives from stored events. The application/
 - Strike, swing, whiff, called strike, ball-in-play flags in Practice/Live BP.
 - Count before/after in Practice/Live BP pitch events.
 - Pitch velocity as nullable numeric field.
+- Live BP thrower source when the session is Live BP.
 - Game pitch outcome and velocity.
 
 ### Defense

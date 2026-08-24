@@ -6,6 +6,7 @@ import type {
   GameEvent,
   HittingEvent,
   ID,
+  LiveBpThrowerSource,
   PitchEvent,
   PitchType,
   Player,
@@ -42,6 +43,7 @@ export interface AnalyticsFilters {
   pitchTypes?: PitchType[];
   countGroups?: Array<"ahead" | "even" | "behind" | "two-strike">;
   drillTypes?: string[];
+  liveBpThrowerSources?: LiveBpThrowerSource[];
   battedBallTypes?: BattedBallType[];
   defenseStations?: string[];
 }
@@ -287,7 +289,33 @@ export const ANALYTICS_FILTERS: AnalyticsFilterDefinition[] = [
     domain: "hitting",
     supportedSources: ["practice", "live-bp"],
     type: "multi-select",
-    options: ["Tee", "Front Toss", "Machine", "Coach BP", "Live BP", "Other"].map((value) => ({ value, label: value })),
+    options: ["Tee", "Front Toss", "Machine", "Coach BP", "Other"].map((value) => ({ value, label: value })),
+    availability: "supported",
+  },
+  {
+    id: "liveBpThrowerSources",
+    label: "Thrower",
+    domain: "hitting",
+    supportedSources: ["all", "live-bp"],
+    type: "multi-select",
+    options: [
+      { value: "PLAYER", label: "Player" },
+      { value: "COACH", label: "Coach" },
+      { value: "MACHINE", label: "Machine" },
+    ],
+    availability: "partial",
+  },
+  {
+    id: "liveBpThrowerSources",
+    label: "Thrower",
+    domain: "pitching",
+    supportedSources: ["all", "live-bp"],
+    type: "multi-select",
+    options: [
+      { value: "PLAYER", label: "Player" },
+      { value: "COACH", label: "Coach" },
+      { value: "MACHINE", label: "Machine" },
+    ],
     availability: "supported",
   },
   {
@@ -791,6 +819,7 @@ function filterHittingEvents(data: AppData, query: AnalyticsQuery, today?: strin
     const isLive = event.isLiveBp || session?.type === "Live BP";
     if (query.source === "practice" && isLive) return false;
     if (query.source === "live-bp" && !isLive) return false;
+    if (isLive && query.filters?.liveBpThrowerSources?.length && !query.filters.liveBpThrowerSources.includes(liveBpThrowerSource(session))) return false;
     if (query.source === "games") return false;
     if (!practice || !dateInRange(practice.date, dateRange)) return false;
     if (query.eventIds?.length && !query.eventIds.includes(practice.id) && !query.eventIds.includes(event.sessionId)) return false;
@@ -807,6 +836,7 @@ function filterPitchEvents(data: AppData, query: AnalyticsQuery, today?: string)
     const isLive = session?.type === "Live BP";
     if (query.source === "practice" && isLive) return false;
     if (query.source === "live-bp" && !isLive) return false;
+    if (isLive && query.filters?.liveBpThrowerSources?.length && !query.filters.liveBpThrowerSources.includes(liveBpThrowerSource(session))) return false;
     if (query.source === "games") return false;
     if (!practice || !dateInRange(practice.date, dateRange)) return false;
     if (query.eventIds?.length && !query.eventIds.includes(practice.id) && !query.eventIds.includes(event.sessionId)) return false;
@@ -855,6 +885,11 @@ function hittingEventMatchesFilters(data: AppData, event: HittingEvent, filters?
     if (!pitcher || !filters.pitcherHands.includes(pitcher.throws)) return false;
   }
   return true;
+}
+
+function liveBpThrowerSource(session?: { liveBpThrowerSource?: LiveBpThrowerSource; type?: string }): LiveBpThrowerSource {
+  if (session?.type === "Live BP") return session.liveBpThrowerSource ?? "PLAYER";
+  return session?.liveBpThrowerSource ?? "PLAYER";
 }
 
 function pitchEventMatchesFilters(data: AppData, event: PitchEvent, filters?: AnalyticsFilters): boolean {
