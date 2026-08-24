@@ -24386,7 +24386,7 @@ button.weight-room-athlete-table__row:hover {
 
 .practice-hitting-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   align-items: stretch;
 }
@@ -24408,7 +24408,7 @@ button.weight-room-athlete-table__row:hover {
 
 .practice-hitting-player-row {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  grid-template-columns: 48px minmax(0, 1fr) 48px 48px;
   gap: 12px;
   align-items: center;
 }
@@ -24441,6 +24441,11 @@ button.weight-room-athlete-table__row:hover {
   gap: 14px;
   text-align: left;
   cursor: pointer;
+}
+
+.practice-hitting-player-card svg {
+  color: var(--muted);
+  flex: 0 0 auto;
 }
 
 .practice-hitting-player-card > span {
@@ -24534,15 +24539,6 @@ button.weight-room-athlete-table__row:hover {
   gap: 10px;
 }
 
-.practice-hitting-toggles {
-  display: inline-flex;
-  gap: 8px;
-}
-
-.practice-hitting-ev-input {
-  width: 150px;
-}
-
 .practice-hitting-log-trigger {
   min-height: 52px;
   min-width: 170px;
@@ -24550,8 +24546,20 @@ button.weight-room-athlete-table__row:hover {
   font-size: 15px;
 }
 
+.practice-hitting-more-trigger {
+  min-height: 52px;
+  border-radius: 14px;
+}
+
 .practice-hitting-ev-error {
   justify-self: center;
+}
+
+.practice-hitting-saved-notice {
+  justify-self: center;
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .practice-hitting-recent {
@@ -24586,6 +24594,7 @@ button.weight-room-athlete-table__row:hover {
   display: grid;
   gap: 3px;
   text-align: left;
+  cursor: pointer;
 }
 
 .practice-hitting-recent-card small,
@@ -24648,6 +24657,10 @@ button.weight-room-athlete-table__row:hover {
   width: min(860px, calc(100vw - 28px));
 }
 
+.modal-panel.practice-hitting-more-sheet {
+  width: min(500px, calc(100vw - 28px));
+}
+
 .practice-hitting-sheet__context {
   display: flex;
   align-items: center;
@@ -24685,11 +24698,27 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .practice-hitting-result-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .practice-hitting-contact-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.practice-hitting-quality-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.practice-hitting-quality-toggle button {
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-soft) 88%, transparent);
+  color: var(--text);
+  font-weight: 950;
+  cursor: pointer;
 }
 
 .practice-hitting-result-grid button,
@@ -24705,6 +24734,7 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .practice-hitting-result-grid button.active,
+.practice-hitting-quality-toggle button.active,
 .practice-hitting-contact-grid button.impact,
 .practice-hitting-choice-list button.active {
   border-color: color-mix(in srgb, var(--tracker-accent) 52%, var(--line));
@@ -24727,6 +24757,70 @@ button.weight-room-athlete-table__row:hover {
 
 .practice-hitting-sheet__spray-actions button {
   flex: 1 1 160px;
+}
+
+.practice-hitting-more-list,
+.practice-hitting-settings-list {
+  display: grid;
+  gap: 8px;
+}
+
+.practice-hitting-more-list button,
+.practice-hitting-settings-list button {
+  min-height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-soft) 88%, transparent);
+  color: var(--text);
+  padding: 10px 12px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.practice-hitting-more-list button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.practice-hitting-settings-list button {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.practice-hitting-more-list button span,
+.practice-hitting-settings-list button span {
+  display: grid;
+  gap: 2px;
+}
+
+.practice-hitting-more-list button small,
+.practice-hitting-settings-list button small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.practice-switch {
+  min-width: 46px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  color: var(--muted);
+  display: inline-grid;
+  place-items: center;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.practice-switch.active {
+  border-color: color-mix(in srgb, var(--tracker-accent) 54%, var(--line));
+  background: color-mix(in srgb, var(--tracker-accent) 24%, var(--panel-soft));
+  color: var(--text);
 }
 
 .practice-spray-field {
@@ -24942,7 +25036,8 @@ button.weight-room-athlete-table__row:hover {
   }
 
   .practice-hitting-player-row {
-    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    grid-template-columns: 40px minmax(0, 1fr) 40px 40px;
+    gap: 8px;
   }
 
   .practice-hitting-nav-button {
@@ -24976,9 +25071,14 @@ button.weight-room-athlete-table__row:hover {
 
   .modal-panel.practice-hitting-sheet,
   .modal-panel.practice-hitting-selector-sheet,
-  .modal-panel.practice-hitting-stats-sheet {
+  .modal-panel.practice-hitting-stats-sheet,
+  .modal-panel.practice-hitting-more-sheet {
     width: calc(100vw - 16px);
     max-height: calc(100dvh - 16px);
+  }
+
+  .practice-hitting-rail {
+    display: none;
   }
 }
 
@@ -25922,4 +26022,55 @@ textarea:focus,
 
 .weight-room-individual-selectors .secondary-button {
   white-space: nowrap;
+}
+
+.modal-panel.mobile-more-sheet {
+  width: min(460px, calc(100vw - 24px));
+  max-height: calc(100dvh - 110px);
+  display: grid;
+  padding: 0;
+}
+
+.modal-panel.mobile-more-sheet .modal-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+}
+
+.modal-panel.mobile-more-sheet .modal-body button {
+  min-height: 58px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-interactive) 78%, transparent);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  padding: 8px;
+  font-size: var(--text-caption);
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.modal-panel.mobile-more-sheet .modal-title .ghost-button {
+  min-height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+}
+
+@media (max-width: 720px) {
+  .modal-panel.mobile-more-sheet {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    width: auto;
+    max-height: min(68dvh, 520px);
+    border-radius: 18px;
+  }
+
+  .modal-panel.mobile-more-sheet .modal-body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
