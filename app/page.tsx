@@ -533,6 +533,76 @@ const ROUTABLE_VIEWS = new Set<ViewKey>([
   "profile",
   "account",
 ]);
+const PRACTICE_ROUTE_PARAM_KEYS = [
+  "practicePanel",
+  "practiceTab",
+  "practiceId",
+  "practiceReviewTab",
+  "practiceMode",
+  "practicePlayer",
+  "hittingStation",
+  "pitchingStation",
+  "defenseStation",
+  "liveBpSource",
+  "liveBpPitcher",
+  "liveBpHitter",
+];
+const ANALYTICS_ROUTE_PARAM_KEYS = [
+  "domain",
+  "source",
+  "mode",
+  "period",
+  "dev",
+  "events",
+  "columns",
+  "sort",
+  "dir",
+  "filters",
+  "start",
+  "end",
+  "practiceId",
+  "detailPlayer",
+];
+const PRACTICE_MODE_PARAM_VALUES: PracticeMode[] = ["Hitting", "Pitching", "Defense", "Live BP"];
+const PRACTICE_HUB_TAB_VALUES: PracticeHubTab[] = ["Overview", "Metrics", "History"];
+const PRACTICE_REVIEW_TAB_VALUES: PracticeReviewTab[] = ["Summary", "Hitting", "Pitching", "Defense", "Live BP"];
+const LIVE_BP_THROWER_SOURCE_VALUES: LiveBpThrowerSource[] = ["PLAYER", "COACH", "MACHINE"];
+
+function clearPracticeRouteParams(url: URL) {
+  PRACTICE_ROUTE_PARAM_KEYS.forEach((key) => url.searchParams.delete(key));
+}
+
+function clearAnalyticsRouteParams(url: URL) {
+  ANALYTICS_ROUTE_PARAM_KEYS.forEach((key) => url.searchParams.delete(key));
+}
+
+function parsePracticeModeParam(value: string | null): PracticeMode {
+  return PRACTICE_MODE_PARAM_VALUES.includes(value as PracticeMode) ? value as PracticeMode : "Hitting";
+}
+
+function parsePracticeHubTabParam(value: string | null): PracticeHubTab {
+  return PRACTICE_HUB_TAB_VALUES.includes(value as PracticeHubTab) ? value as PracticeHubTab : "Overview";
+}
+
+function parsePracticeReviewTabParam(value: string | null): PracticeReviewTab {
+  return PRACTICE_REVIEW_TAB_VALUES.includes(value as PracticeReviewTab) ? value as PracticeReviewTab : "Summary";
+}
+
+function parseHittingStationParam(value: string | null, fallback: HittingSession["type"]): HittingSession["type"] {
+  return HITTING_STATIONS.includes(value as HittingSession["type"]) ? value as HittingSession["type"] : fallback;
+}
+
+function parsePitchingStationParam(value: string | null, fallback: PitchingSession["type"]): PitchingSession["type"] {
+  return PITCHING_STATIONS.includes(value as PitchingSession["type"]) ? value as PitchingSession["type"] : fallback;
+}
+
+function parseDefenseStationParam(value: string | null, fallback: DefenseStation): DefenseStation {
+  return DEFENSE_STATIONS.includes(value as DefenseStation) ? value as DefenseStation : fallback;
+}
+
+function parseLiveBpThrowerSourceParam(value: string | null): LiveBpThrowerSource {
+  return LIVE_BP_THROWER_SOURCE_VALUES.includes(value as LiveBpThrowerSource) ? value as LiveBpThrowerSource : "PLAYER";
+}
 
 const ROSTER_STATUSES: RosterStatus[] = ["Varsity", "JV", "Undecided", "Cut"];
 const ROSTER_FILTERS: RosterFilter[] = ["All", ...ROSTER_STATUSES];
@@ -800,6 +870,7 @@ export default function MetrolinaBaseballApp() {
   const [practiceTrackingOpen, setPracticeTrackingOpen] = useState(false);
   const [practiceHubTab, setPracticeHubTab] = useState<PracticeHubTab>("Overview");
   const [practiceDrilldown, setPracticeDrilldown] = useState<PracticeDrilldown>({ kind: "hub" });
+  const [practiceReviewTab, setPracticeReviewTab] = useState<PracticeReviewTab>("Summary");
   const [practiceMode, setPracticeMode] = useState<PracticeMode>("Hitting");
   const [practicePlayerId, setPracticePlayerId] = useState<ID>("p-jackson-smith");
   const [hittingStation, setHittingStation] = useState<HittingSession["type"]>("Machine");
@@ -859,7 +930,15 @@ export default function MetrolinaBaseballApp() {
   const [practiceSummaryOpen, setPracticeSummaryOpen] = useState(false);
   const [summaryNote, setSummaryNote] = useState("");
 
-  function navigateToView(nextView: ViewKey, options: { replace?: boolean; playerId?: ID } = {}) {
+  function navigateToView(
+    nextView: ViewKey,
+    options: {
+      replace?: boolean;
+      playerId?: ID;
+      keepPracticeRoute?: boolean;
+      mutate?: (url: URL) => void;
+    } = {},
+  ) {
     setView(nextView);
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
@@ -871,11 +950,14 @@ export default function MetrolinaBaseballApp() {
       url.searchParams.delete("team");
       url.searchParams.delete("season");
     }
+    if (nextView !== "practice" || !options.keepPracticeRoute) clearPracticeRouteParams(url);
+    if (nextView !== "analytics") clearAnalyticsRouteParams(url);
+    options.mutate?.(url);
     const nextUrl = `${url.pathname}${url.search}${url.hash}`;
     const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (nextUrl === currentUrl) return;
     const method = options.replace ? "replaceState" : "pushState";
-    window.history[method]({}, "", nextUrl);
+    window.history[method]({ clubhouse: true, view: nextView }, "", nextUrl);
   }
 
   useEffect(() => {
@@ -885,6 +967,8 @@ export default function MetrolinaBaseballApp() {
     return () => {
       cancelled = true;
     };
+  // Load once on app boot; route/popstate changes are handled by dedicated navigation effects.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -898,18 +982,25 @@ export default function MetrolinaBaseballApp() {
       const params = new URLSearchParams(window.location.search);
       const requestedView = params.get("view") as ViewKey | null;
       const nextView = requestedView && ROUTABLE_VIEWS.has(requestedView) ? requestedView : "home";
-      setView(nextView);
-      const requestedPlayer = params.get("player");
-      if (requestedPlayer && data.players.some((player) => player.id === requestedPlayer)) {
-        setSelectedPlayerId(requestedPlayer);
+      const requestedTeam = params.get("team");
+      const requestedSeason = params.get("season");
+      const currentTeam = data.teamContext?.currentTeam;
+      const crossesTeamContext =
+        requestedTeam !== (currentTeam?.teamId ?? null)
+        || (requestedTeam !== null && requestedSeason !== (currentTeam?.seasonId ?? null))
+        || (!requestedTeam && currentTeam && !TEAM_CONTEXT_VIEWS.has(nextView));
+
+      if (crossesTeamContext) {
+        void loadApplicationData(() => false, requestedTeam ?? undefined, requestedSeason ?? undefined);
+        return;
       }
-      const requestedAthlete = params.get("athlete");
-      if (requestedAthlete && data.players.some((player) => player.id === requestedAthlete)) {
-        setSelectedWeightPlayerId(requestedAthlete);
-      }
+
+      applyRouteStateFromParams(data, params);
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
+  // Route restoration intentionally uses the current loaded dataset while allowing URL-driven team changes to reload.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, hydrated]);
 
   useEffect(() => {
@@ -964,6 +1055,200 @@ export default function MetrolinaBaseballApp() {
     [data],
   );
 
+  function playerIdFromParams(loaded: AppData, value: string | null, fallback: ID) {
+    return value && loaded.players.some((player) => player.id === value) ? value : fallback;
+  }
+
+  function routeDefaultPlayerId(loaded: AppData) {
+    const active = activePractice(loaded);
+    return loaded.settings.recentPlayerIds[0] ?? active?.playerIds[0] ?? loaded.players[0]?.id ?? "";
+  }
+
+  function applyRouteStateFromParams(loaded: AppData, params: URLSearchParams, options: { initial?: boolean } = {}) {
+    const requestedView = params.get("view") as ViewKey | null;
+    const nextView = requestedView && ROUTABLE_VIEWS.has(requestedView) ? requestedView : "home";
+    const active = activePractice(loaded);
+    const firstPlayer = routeDefaultPlayerId(loaded);
+    const requestedPlayer = params.get("player");
+    const requestedAthlete = params.get("athlete");
+    const selectedRoutePlayerId = playerIdFromParams(loaded, requestedPlayer, firstPlayer);
+    const practiceRoutePlayerId = playerIdFromParams(loaded, params.get("practicePlayer"), selectedRoutePlayerId);
+
+    setView(nextView);
+    setMobileMoreOpen(false);
+    setMobilePinnedOpen(false);
+
+    if (options.initial) {
+      setSelectedGameId(loaded.games.find((game) => !game.result)?.id ?? loaded.games[0]?.id ?? "");
+      setLiveBpPitcherId(loaded.players.find((player) => player.isPitcher && !player.archived)?.id ?? firstPlayer);
+      setLiveBpHitterId(loaded.players.find((player) => player.isHitter && !player.archived && player.id !== firstPlayer)?.id ?? firstPlayer);
+    }
+
+    setSelectedPlayerId(selectedRoutePlayerId);
+    setPracticePlayerId(practiceRoutePlayerId);
+    setSelectedWeightPlayerId(playerIdFromParams(loaded, requestedAthlete, selectedRoutePlayerId));
+
+    if (nextView !== "practice") {
+      setPracticeTrackingOpen(false);
+      setPracticeDrilldown({ kind: "hub" });
+      setPracticeReviewTab("Summary");
+      return;
+    }
+
+    const hubTab = parsePracticeHubTabParam(params.get("practiceTab"));
+    setPracticeHubTab(hubTab);
+
+    const panel = params.get("practicePanel");
+    if (panel === "review") {
+      const practiceId = params.get("practiceId");
+      setPracticeTrackingOpen(false);
+      setPracticeDrilldown(practiceId && loaded.practices.some((item) => item.id === practiceId) ? { kind: "review", practiceId } : { kind: "hub" });
+      setPracticeReviewTab(parsePracticeReviewTabParam(params.get("practiceReviewTab")));
+      if (practiceId) setPracticeHubTab("History");
+      return;
+    }
+
+    if (panel === "attendance" && active && !active.endedAt) {
+      setPracticeTrackingOpen(false);
+      setPracticeDrilldown({ kind: "attendance" });
+      setPracticeReviewTab("Summary");
+      return;
+    }
+
+    if (panel === "tracking" && active && !active.endedAt) {
+      const nextMode = parsePracticeModeParam(params.get("practiceMode"));
+      const nextHittingStation = parseHittingStationParam(params.get("hittingStation"), hittingStation);
+      const nextPitchingStation = parsePitchingStationParam(params.get("pitchingStation"), pitchingStation);
+      const nextDefenseStation = parseDefenseStationParam(params.get("defenseStation"), defenseStation);
+      const nextLiveBpSource = parseLiveBpThrowerSourceParam(params.get("liveBpSource"));
+      const nextLiveBpPitcher = playerIdFromParams(loaded, params.get("liveBpPitcher"), liveBpPitcherId || practiceRoutePlayerId);
+      const nextLiveBpHitter = playerIdFromParams(loaded, params.get("liveBpHitter"), liveBpHitterId || practiceRoutePlayerId);
+
+      setPracticeMode(nextMode);
+      setHittingStation(nextMode === "Live BP" ? "Live BP" : nextHittingStation);
+      setPitchingStation(nextMode === "Live BP" ? "Live BP" : nextPitchingStation);
+      setDefenseStation(nextDefenseStation);
+      setLiveBpThrowerSource(nextLiveBpSource);
+      setLiveBpPitcherId(nextLiveBpPitcher);
+      setLiveBpHitterId(nextLiveBpHitter);
+      setPracticeDrilldown({ kind: "hub" });
+      setPracticeReviewTab("Summary");
+      setPracticeTrackingOpen(true);
+      return;
+    }
+
+    setPracticeTrackingOpen(false);
+    setPracticeDrilldown({ kind: "hub" });
+    setPracticeReviewTab("Summary");
+  }
+
+  function writePracticeHubRoute(tab: PracticeHubTab = practiceHubTab, options: { replace?: boolean } = {}) {
+    setPracticeTrackingOpen(false);
+    setPracticeDrilldown({ kind: "hub" });
+    setPracticeHubTab(tab);
+    setPracticeReviewTab("Summary");
+    navigateToView("practice", {
+      replace: options.replace,
+      keepPracticeRoute: true,
+      mutate: (url) => {
+        clearPracticeRouteParams(url);
+        if (tab !== "Overview") url.searchParams.set("practiceTab", tab);
+      },
+    });
+  }
+
+  function writePracticeReviewRoute(practiceId: ID, tab: PracticeReviewTab = "Summary", options: { replace?: boolean } = {}) {
+    setPracticeTrackingOpen(false);
+    setPracticeDrilldown({ kind: "review", practiceId });
+    setPracticeHubTab("History");
+    setPracticeReviewTab(tab);
+    navigateToView("practice", {
+      replace: options.replace,
+      keepPracticeRoute: true,
+      mutate: (url) => {
+        clearPracticeRouteParams(url);
+        url.searchParams.set("practicePanel", "review");
+        url.searchParams.set("practiceId", practiceId);
+        if (tab !== "Summary") url.searchParams.set("practiceReviewTab", tab);
+      },
+    });
+  }
+
+  function writePracticeAttendanceRoute(options: { replace?: boolean } = {}) {
+    setPracticeTrackingOpen(false);
+    setPracticeDrilldown({ kind: "attendance" });
+    setPracticeReviewTab("Summary");
+    navigateToView("practice", {
+      replace: options.replace,
+      keepPracticeRoute: true,
+      mutate: (url) => {
+        clearPracticeRouteParams(url);
+        url.searchParams.set("practicePanel", "attendance");
+      },
+    });
+  }
+
+  function writePracticeTrackingRoute(
+    mode: PracticeMode,
+    options: {
+      replace?: boolean;
+      playerId?: ID;
+      hittingStation?: HittingSession["type"];
+      pitchingStation?: PitchingSession["type"];
+      defenseStation?: DefenseStation;
+      liveBpSource?: LiveBpThrowerSource;
+      liveBpPitcherId?: ID;
+      liveBpHitterId?: ID;
+    } = {},
+  ) {
+    setPracticeMode(mode);
+    setPracticeTrackingOpen(true);
+    setPracticeDrilldown({ kind: "hub" });
+    setPracticeReviewTab("Summary");
+    navigateToView("practice", {
+      replace: options.replace,
+      keepPracticeRoute: true,
+      mutate: (url) => {
+        clearPracticeRouteParams(url);
+        url.searchParams.set("practicePanel", "tracking");
+        url.searchParams.set("practiceMode", mode);
+        url.searchParams.set("practicePlayer", options.playerId ?? practicePlayerId);
+        if (mode === "Hitting") url.searchParams.set("hittingStation", options.hittingStation ?? hittingStation);
+        if (mode === "Pitching") url.searchParams.set("pitchingStation", options.pitchingStation ?? pitchingStation);
+        if (mode === "Defense") url.searchParams.set("defenseStation", options.defenseStation ?? defenseStation);
+        if (mode === "Live BP") {
+          url.searchParams.set("hittingStation", "Live BP");
+          url.searchParams.set("pitchingStation", "Live BP");
+          url.searchParams.set("liveBpSource", options.liveBpSource ?? liveBpThrowerSource);
+          url.searchParams.set("liveBpPitcher", options.liveBpPitcherId ?? liveBpPitcherId);
+          url.searchParams.set("liveBpHitter", options.liveBpHitterId ?? liveBpHitterId);
+        }
+      },
+    });
+  }
+
+  function replacePracticeTrackingRoutePatch(patch: Partial<{
+    playerId: ID;
+    hittingStation: HittingSession["type"];
+    pitchingStation: PitchingSession["type"];
+    defenseStation: DefenseStation;
+    liveBpSource: LiveBpThrowerSource;
+    liveBpPitcherId: ID;
+    liveBpHitterId: ID;
+  }>) {
+    if (view !== "practice" || !practiceTrackingOpen) return;
+    writePracticeTrackingRoute(practiceMode, {
+      replace: true,
+      playerId: patch.playerId ?? practicePlayerId,
+      hittingStation: patch.hittingStation ?? hittingStation,
+      pitchingStation: patch.pitchingStation ?? pitchingStation,
+      defenseStation: patch.defenseStation ?? defenseStation,
+      liveBpSource: patch.liveBpSource ?? liveBpThrowerSource,
+      liveBpPitcherId: patch.liveBpPitcherId ?? liveBpPitcherId,
+      liveBpHitterId: patch.liveBpHitterId ?? liveBpHitterId,
+    });
+  }
+
   async function loadApplicationData(
     isCancelled: () => boolean = () => false,
     selectedTeamId?: ID,
@@ -977,29 +1262,13 @@ export default function MetrolinaBaseballApp() {
     if (isLocalDevAuthBypass()) {
       const loaded = withStoredThemePreference(await loadLocalPreviewData());
       const params = new URLSearchParams(window.location.search);
-      const requestedView = params.get("view") as ViewKey | null;
-      const requestedPlayer = params.get("player");
-      const requestedAthlete = params.get("athlete");
       setAuthState(localPreviewAuthState());
       setData(loaded);
       setHydrated(true);
       applyDocumentTheme(loaded.settings.theme);
 
-      const active = activePractice(loaded);
-      const firstPlayer = loaded.settings.recentPlayerIds[0] ?? active?.playerIds[0] ?? loaded.players[0]?.id ?? "";
-      const firstGame = loaded.games.find((game) => !game.result)?.id ?? loaded.games[0]?.id ?? "";
-
       if (!options.silent) {
-        setSelectedPlayerId(requestedPlayer && loaded.players.some((player) => player.id === requestedPlayer) ? requestedPlayer : firstPlayer);
-        setPracticePlayerId(firstPlayer);
-        setSelectedWeightPlayerId(requestedAthlete && loaded.players.some((player) => player.id === requestedAthlete) ? requestedAthlete : firstPlayer);
-        setSelectedGameId(firstGame);
-        setLiveBpPitcherId(loaded.players.find((player) => player.isPitcher && !player.archived)?.id ?? firstPlayer);
-        setLiveBpHitterId(loaded.players.find((player) => player.isHitter && !player.archived && player.id !== firstPlayer)?.id ?? firstPlayer);
-
-        if (requestedView && [...GLOBAL_NAV_ITEMS.map((item) => item.key), ...TEAM_NAV_ITEMS.map((item) => item.key), "profile", "account"].includes(requestedView)) {
-          setView(requestedView);
-        }
+        applyRouteStateFromParams(loaded, params, { initial: true });
       }
       return;
     }
@@ -1016,33 +1285,17 @@ export default function MetrolinaBaseballApp() {
 
     try {
       const params = new URLSearchParams(window.location.search);
-      const requestedTeam = params.get("team") ?? selectedTeamId;
-      const requestedSeason = params.get("season") ?? selectedSeasonId;
+      const requestedTeam = selectedTeamId ?? params.get("team");
+      const requestedSeason = selectedSeasonId ?? params.get("season");
       const loaded = withStoredThemePreference(await supabaseAppRepository.load(requestedTeam ?? undefined, requestedSeason ?? undefined));
       if (isCancelled()) return;
-      const requestedView = params.get("view") as ViewKey | null;
-      const requestedPlayer = params.get("player");
-      const requestedAthlete = params.get("athlete");
 
       setData(loaded);
       setHydrated(true);
       applyDocumentTheme(loaded.settings.theme);
 
-      const active = activePractice(loaded);
-      const firstPlayer = loaded.settings.recentPlayerIds[0] ?? active?.playerIds[0] ?? loaded.players[0]?.id ?? "";
-      const firstGame = loaded.games.find((game) => !game.result)?.id ?? loaded.games[0]?.id ?? "";
-
       if (!options.silent) {
-        setSelectedPlayerId(requestedPlayer && loaded.players.some((player) => player.id === requestedPlayer) ? requestedPlayer : firstPlayer);
-        setPracticePlayerId(firstPlayer);
-        setSelectedWeightPlayerId(requestedAthlete && loaded.players.some((player) => player.id === requestedAthlete) ? requestedAthlete : firstPlayer);
-        setSelectedGameId(firstGame);
-        setLiveBpPitcherId(loaded.players.find((player) => player.isPitcher && !player.archived)?.id ?? firstPlayer);
-        setLiveBpHitterId(loaded.players.find((player) => player.isHitter && !player.archived && player.id !== firstPlayer)?.id ?? firstPlayer);
-
-        if (requestedView && [...GLOBAL_NAV_ITEMS.map((item) => item.key), ...TEAM_NAV_ITEMS.map((item) => item.key), "profile", "account"].includes(requestedView)) {
-          setView(requestedView);
-        }
+        applyRouteStateFromParams(loaded, params, { initial: true });
       }
     } catch (error) {
       if (isCancelled()) return;
@@ -1094,6 +1347,7 @@ export default function MetrolinaBaseballApp() {
     setSelectedPlayerId(playerId);
     setSelectedWeightPlayerId(playerId);
     commit((current) => touchRecentPlayers(current, playerId));
+    replacePracticeTrackingRoutePatch({ playerId });
   }
 
   function updateRosterStatus(playerId: ID, status: RosterStatus) {
@@ -1149,8 +1403,17 @@ export default function MetrolinaBaseballApp() {
         return nextLiveBpHitter ? ensureHittingSession(current, practice, nextLiveBpHitter.id, "Live BP", profileId, liveBpThrowerSource).data : current;
       });
     }
-    setPracticeDrilldown({ kind: "hub" });
-    setPracticeTrackingOpen(true);
+    writePracticeTrackingRoute(mode, {
+      playerId: mode === "Live BP" && liveBpThrowerSource !== "PLAYER"
+        ? nextLiveBpHitter?.id ?? nextPlayer?.id
+        : nextPlayer?.id ?? practicePlayerId,
+      hittingStation: mode === "Hitting" ? selectedHittingStation : hittingStation,
+      pitchingStation: mode === "Pitching" ? pitchingStation : "Live BP",
+      defenseStation,
+      liveBpSource: liveBpThrowerSource,
+      liveBpPitcherId: liveBpThrowerSource === "PLAYER" ? nextPlayer?.id ?? liveBpPitcherId : liveBpPitcherId,
+      liveBpHitterId: nextLiveBpHitter?.id ?? liveBpHitterId,
+    });
   }
 
   function openCurrentPractice(currentPractice = practice) {
@@ -1161,14 +1424,11 @@ export default function MetrolinaBaseballApp() {
     clearPendingHittingContext();
     setStartPracticeOpen(false);
     setPracticeSummaryOpen(false);
-    setPracticeHubTab("Overview");
-    setPracticeDrilldown({ kind: "hub" });
-    setPracticeTrackingOpen(false);
     if (currentPractice.playerIds[0]) {
       setPracticePlayerId(currentPractice.playerIds[0]);
       setSelectedPlayerId(currentPractice.playerIds[0]);
     }
-    navigateToView("practice");
+    writePracticeHubRoute("Overview");
   }
 
   function openOrStartPractice() {
@@ -1203,8 +1463,15 @@ export default function MetrolinaBaseballApp() {
         setLiveBpHitterId(session.secondaryPlayerId ?? session.primaryPlayerId);
       }
     }
-    setPracticeDrilldown({ kind: "hub" });
-    setPracticeTrackingOpen(true);
+    writePracticeTrackingRoute(session.mode, {
+      playerId: session.primaryPlayerId,
+      hittingStation: session.mode === "Hitting" ? normalizeHittingStation(session.station) : hittingStation,
+      pitchingStation: session.mode === "Pitching" ? (session.station as PitchingSession["type"]) || "Bullpen" : "Live BP",
+      defenseStation: session.mode === "Defense" ? (session.station as DefenseStation) || "Infield" : defenseStation,
+      liveBpSource: session.throwerSource ?? "PLAYER",
+      liveBpPitcherId: (session.throwerSource ?? "PLAYER") === "PLAYER" ? session.primaryPlayerId : liveBpPitcherId,
+      liveBpHitterId: session.secondaryPlayerId ?? session.primaryPlayerId,
+    });
     if (!practice) return;
     commit((current) => {
       const profileId = current.teamContext?.profile?.id;
@@ -1504,14 +1771,13 @@ export default function MetrolinaBaseballApp() {
     setTopAccountMenuOpen(false);
     setSidebarAccountMenuOpen(false);
     await loadApplicationData(() => false, team.teamId, team.seasonId);
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      url.searchParams.set("team", team.teamId);
-      if (team.seasonId) url.searchParams.set("season", team.seasonId);
-      else url.searchParams.delete("season");
-      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
-    }
-    navigateToView("teamHome");
+    navigateToView("teamHome", {
+      mutate: (url) => {
+        url.searchParams.set("team", team.teamId);
+        if (team.seasonId) url.searchParams.set("season", team.seasonId);
+        else url.searchParams.delete("season");
+      },
+    });
   }
 
   async function enterTeam(team: TeamOption) {
@@ -1541,17 +1807,16 @@ export default function MetrolinaBaseballApp() {
       setSelectedPlayerId(playerId);
       setPracticePlayerId(playerId);
     }
-    navigateToView("analytics");
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    url.searchParams.set("view", "analytics");
-    url.searchParams.set("domain", category === "Pitching" ? "pitching" : category === "Defense" ? "defense" : "hitting");
-    url.searchParams.set("source", category === "Live BP" ? "live-bp" : "practice");
-    url.searchParams.set("mode", "box-score");
-    url.searchParams.set("period", "season");
-    url.searchParams.set("practiceId", practiceId);
-    if (playerId) url.searchParams.set("player", playerId);
-    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    navigateToView("analytics", {
+      playerId,
+      mutate: (url) => {
+        url.searchParams.set("domain", category === "Pitching" ? "pitching" : category === "Defense" ? "defense" : "hitting");
+        url.searchParams.set("source", category === "Live BP" ? "live-bp" : "practice");
+        url.searchParams.set("mode", "box-score");
+        url.searchParams.set("period", "season");
+        url.searchParams.set("practiceId", practiceId);
+      },
+    });
   }
 
   function openPublicOrganization(organization: PublicDirectoryOrganizationSummary) {
@@ -1669,22 +1934,26 @@ export default function MetrolinaBaseballApp() {
   function updateActiveHittingStation(station: HittingSession["type"]) {
     setHittingStation(station);
     clearPendingHittingContext();
+    replacePracticeTrackingRoutePatch({ hittingStation: station });
   }
 
   function selectLiveBpPitcher(playerId: ID) {
     clearPendingHittingContext();
     setLiveBpPitcherId(playerId);
+    replacePracticeTrackingRoutePatch({ liveBpPitcherId: playerId });
   }
 
   function selectLiveBpHitter(playerId: ID) {
     clearPendingHittingContext();
     setLiveBpHitterId(playerId);
+    replacePracticeTrackingRoutePatch({ liveBpHitterId: playerId });
   }
 
   function changeLiveBpThrowerSource(source: LiveBpThrowerSource) {
     clearPendingHittingContext();
     setLiveBpThrowerSource(source);
     setLiveBpCount({ balls: 0, strikes: 0 });
+    replacePracticeTrackingRoutePatch({ liveBpSource: source });
   }
 
   function parsePendingExitVelocity() {
@@ -2151,6 +2420,7 @@ export default function MetrolinaBaseballApp() {
     }));
     setPracticeTrackingOpen(false);
     setPracticeSummaryOpen(false);
+    writePracticeReviewRoute(practice.id, "Summary", { replace: true });
   }
 
   function createPracticeRecord(practiceDraft: Practice, attendanceDraft: PracticeAttendance[], options: { openPractice?: boolean } = {}) {
@@ -2169,12 +2439,11 @@ export default function MetrolinaBaseballApp() {
       };
     });
     if (options.openPractice) {
-      navigateToView("practice");
-      setPracticeTrackingOpen(false);
       if (practiceDraft.playerIds[0]) {
         setPracticePlayerId(practiceDraft.playerIds[0]);
         setSelectedPlayerId(practiceDraft.playerIds[0]);
       }
+      writePracticeHubRoute("Overview");
     }
   }
 
@@ -2758,14 +3027,14 @@ export default function MetrolinaBaseballApp() {
             data={data}
             practice={practice}
             tab={practiceHubTab}
-            onTab={setPracticeHubTab}
+            onTab={(tab) => writePracticeHubRoute(tab)}
             onStartPractice={openOrStartPractice}
             onOpenStation={openPracticeStation}
             onStartHittingStation={openHittingQuickStart}
             onOpenSession={resumePracticeSession}
-            onOpenPracticeReview={(practiceId) => setPracticeDrilldown({ kind: "review", practiceId })}
+            onOpenPracticeReview={(practiceId) => writePracticeReviewRoute(practiceId)}
             onOpenPracticeAnalytics={openPracticeAnalytics}
-            onOpenAttendance={() => (practice ? setPracticeDrilldown({ kind: "attendance" }) : openOrStartPractice())}
+            onOpenAttendance={() => (practice ? writePracticeAttendanceRoute() : openOrStartPractice())}
             onEndPractice={endPractice}
             onStatus={updatePracticeAttendance}
           />
@@ -2775,7 +3044,9 @@ export default function MetrolinaBaseballApp() {
           <PracticeReview
             data={data}
             practice={data.practices.find((item) => item.id === practiceDrilldown.practiceId)}
-            onBack={() => setPracticeDrilldown({ kind: "hub" })}
+            tab={practiceReviewTab}
+            onTab={(tab) => writePracticeReviewRoute(practiceDrilldown.practiceId, tab)}
+            onBack={() => writePracticeHubRoute("History", { replace: true })}
             onOpenAnalytics={(category, playerId) => openPracticeAnalytics(practiceDrilldown.practiceId, category, playerId)}
           />
         )}
@@ -2784,7 +3055,7 @@ export default function MetrolinaBaseballApp() {
           <PracticeAttendanceDrilldown
             data={data}
             practice={practice}
-            onBack={() => setPracticeDrilldown({ kind: "hub" })}
+            onBack={() => writePracticeHubRoute("Overview", { replace: true })}
             onMarkAllPresent={markPracticeRosterPresent}
             onStatus={updatePracticeAttendance}
           />
@@ -2815,12 +3086,30 @@ export default function MetrolinaBaseballApp() {
             liveBpThrowerSource={liveBpThrowerSource}
             liveBpCount={liveBpCount}
             liveBpPaNumber={liveBpPaNumber}
-            onMode={setPracticeMode}
+            onMode={(nextMode) => {
+              setPracticeMode(nextMode);
+              writePracticeTrackingRoute(nextMode, {
+                replace: true,
+                playerId: practicePlayerId,
+                hittingStation,
+                pitchingStation: nextMode === "Live BP" ? "Live BP" : pitchingStation,
+                defenseStation,
+                liveBpSource: liveBpThrowerSource,
+                liveBpPitcherId,
+                liveBpHitterId,
+              });
+            }}
             onSelectPlayer={selectPracticePlayer}
             onOpenPlayer={openPlayer}
             onHittingStation={updateActiveHittingStation}
-            onPitchingStation={setPitchingStation}
-            onDefenseStation={setDefenseStation}
+            onPitchingStation={(station) => {
+              setPitchingStation(station);
+              replacePracticeTrackingRoutePatch({ pitchingStation: station });
+            }}
+            onDefenseStation={(station) => {
+              setDefenseStation(station);
+              replacePracticeTrackingRoutePatch({ defenseStation: station });
+            }}
             onPitchType={setSelectedPitchType}
             onVelocity={setVelocity}
             onTrackExitVelocity={setTrackExitVelocity}
@@ -2846,7 +3135,7 @@ export default function MetrolinaBaseballApp() {
             onUndo={undoPracticeEvent}
             onOpenSessionNotes={openSessionSummary}
             onSessionHeartbeat={touchActivePracticeSession}
-            onExitTracking={() => setPracticeTrackingOpen(false)}
+            onExitTracking={() => writePracticeHubRoute("Overview", { replace: true })}
             onEndPractice={endPractice}
             onStartPractice={openOrStartPractice}
           />
@@ -7446,15 +7735,18 @@ function PracticeHistoryTab({ data, onOpenPractice }: { data: AppData; onOpenPra
 function PracticeReview({
   data,
   practice,
+  tab,
+  onTab,
   onBack,
   onOpenAnalytics,
 }: {
   data: AppData;
   practice?: Practice;
+  tab: PracticeReviewTab;
+  onTab: (tab: PracticeReviewTab) => void;
   onBack: () => void;
   onOpenAnalytics: (category: PracticeMetricsCategory, playerId?: ID) => void;
 }) {
-  const [tab, setTab] = useState<PracticeReviewTab>("Summary");
   const [liveBpSide, setLiveBpSide] = useState<"Hitters" | "Pitchers">("Hitters");
   const [sort, setSort] = useState<{ key: PracticeMetricsSortKey; direction: SortDirection }>({ key: "swings", direction: "desc" });
   const [selectedPlayerId, setSelectedPlayerId] = useState<ID | undefined>();
@@ -7476,6 +7768,9 @@ function PracticeReview({
   const attendance = data.attendance.filter((row) => row.practiceId === practice.id);
   const activeAttendance = attendance.filter((row) => row.status !== "Absent");
   const columns = tab === "Summary" ? [] : practiceMetricColumns(tab);
+  const effectiveSort = tab !== "Summary" && !columns.some((column) => column.key === sort.key)
+    ? { key: defaultPracticeMetricSort(tab), direction: "desc" as SortDirection }
+    : sort;
   const rows = tab === "Summary"
     ? []
     : sortPracticeMetricRows(
@@ -7483,7 +7778,7 @@ function PracticeReview({
         tab !== "Live BP"
           || (liveBpSide === "Hitters" ? row.liveBpSwings > 0 || row.liveBpPas > 0 : row.liveBpPitches > 0)
       )),
-      sort,
+      effectiveSort,
     );
   const summaryItems = [
     { label: "Players", value: activeAttendance.length || practice.playerIds.length },
@@ -7509,8 +7804,8 @@ function PracticeReview({
   }
 
   function changeTab(nextTab: PracticeReviewTab) {
-    setTab(nextTab);
     if (nextTab !== "Summary") setSort({ key: defaultPracticeMetricSort(nextTab), direction: "desc" });
+    onTab(nextTab);
   }
 
   return (
@@ -7612,7 +7907,7 @@ function PracticeReview({
               {columns.map((column) => (
                 <button key={column.key} type="button" role="columnheader" className={column.numeric ? "numeric" : ""} onClick={() => updateSort(column.key)}>
                   {column.label}
-                  {sort.key === column.key && (sort.direction === "asc" ? <ChevronUp size={12} aria-hidden="true" /> : <ChevronDown size={12} aria-hidden="true" />)}
+                  {effectiveSort.key === column.key && (effectiveSort.direction === "asc" ? <ChevronUp size={12} aria-hidden="true" /> : <ChevronDown size={12} aria-hidden="true" />)}
                 </button>
               ))}
             </div>
@@ -14474,7 +14769,7 @@ function AnalyticsView({
   const [askPendingQuestionId, setAskPendingQuestionId] = useState<string | undefined>();
   const [askThinking, setAskThinking] = useState(false);
   const askTimerRef = useRef<number | undefined>(undefined);
-  const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>();
+  const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>(() => readInitialAnalyticsDetailPlayerId(data));
   const [metricIds, setMetricIds] = useState<string[] | undefined>(initialState.metricIds);
   const context = useMemo(() => ({
     teamId: data.teamContext?.currentTeam?.teamId,
@@ -14536,6 +14831,28 @@ function AnalyticsView({
   useEffect(() => () => {
     if (askTimerRef.current !== undefined) window.clearTimeout(askTimerRef.current);
   }, []);
+
+  useEffect(() => {
+    const handleAnalyticsPopState = () => {
+      const next = readInitialAnalyticsState();
+      setDomain(next.domain);
+      setSource(next.source);
+      setMode(next.mode);
+      setTimeRange(next.timeRange);
+      setDevelopmentView(next.developmentView);
+      setEventIds(next.eventIds);
+      setCustomRange(next.customRange);
+      setFilters(next.filters);
+      setSort(next.sort ?? defaultAnalyticsSort(next.domain, next.source, next.mode));
+      setMetricIds(next.metricIds);
+      setDetailPlayerId(readInitialAnalyticsDetailPlayerId(data));
+      setEventSelectorOpen(false);
+      setFiltersOpen(false);
+      setColumnsOpen(false);
+    };
+    window.addEventListener("popstate", handleAnalyticsPopState);
+    return () => window.removeEventListener("popstate", handleAnalyticsPopState);
+  }, [data]);
 
   function handleDomain(nextDomain: AnalyticsDomain) {
     setDomain(nextDomain);
@@ -14633,6 +14950,27 @@ function AnalyticsView({
     setAskOpen(false);
   }
 
+  function writeAnalyticsDetailRoute(playerId: ID | undefined, options: { replace?: boolean } = {}) {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (playerId) url.searchParams.set("detailPlayer", playerId);
+    else url.searchParams.delete("detailPlayer");
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (nextUrl === currentUrl) return;
+    window.history[options.replace ? "replaceState" : "pushState"]({ clubhouse: true, view: "analytics" }, "", nextUrl);
+  }
+
+  function openAnalyticsPlayerDetail(playerId: ID) {
+    setDetailPlayerId(playerId);
+    writeAnalyticsDetailRoute(playerId);
+  }
+
+  function closeAnalyticsPlayerDetail() {
+    setDetailPlayerId(undefined);
+    writeAnalyticsDetailRoute(undefined, { replace: true });
+  }
+
   return (
     <div className="page-stack analytics-page">
       <SectionHeader title="Analytics" />
@@ -14724,7 +15062,7 @@ function AnalyticsView({
         result={result}
         sort={sort}
         onSort={handleSort}
-        onOpenPlayer={(playerId) => setDetailPlayerId(playerId)}
+        onOpenPlayer={openAnalyticsPlayerDetail}
         onClearFilters={() => {
           setFilters({});
           setEventIds([]);
@@ -14761,7 +15099,7 @@ function AnalyticsView({
         <AnalyticsPlayerDrawer
           row={selectedDetailRow}
           result={result}
-          onClose={() => setDetailPlayerId(undefined)}
+          onClose={closeAnalyticsPlayerDetail}
           onOpenProfile={() => {
             setDetailPlayerId(undefined);
             onOpenPlayer(selectedDetailRow.player.id);
@@ -15207,6 +15545,12 @@ function readInitialAnalyticsState(): {
       end: params.get("end") ?? undefined,
     },
   };
+}
+
+function readInitialAnalyticsDetailPlayerId(data: AppData): ID | undefined {
+  if (typeof window === "undefined") return undefined;
+  const detailPlayerId = new URLSearchParams(window.location.search).get("detailPlayer");
+  return detailPlayerId && data.players.some((player) => player.id === detailPlayerId) ? detailPlayerId : undefined;
 }
 
 function parseAnalyticsParam<T extends string>(value: string | null, allowed: T[], fallback: T): T {

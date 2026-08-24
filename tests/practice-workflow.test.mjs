@@ -84,6 +84,13 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /cta=\{currentOpenPractice \|\| nextPractice \? "Open" : "Start"\}/);
   assert.match(page, /function openHittingQuickStart\(station: HittingSession\["type"\]\)/);
   assert.match(page, /openPracticeStation\("Hitting", \{ hittingStation: station \}\)/);
+  assert.match(page, /const PRACTICE_ROUTE_PARAM_KEYS/);
+  assert.match(page, /function applyRouteStateFromParams/);
+  assert.match(page, /function writePracticeTrackingRoute/);
+  assert.match(page, /function writePracticeReviewRoute/);
+  assert.match(page, /function writePracticeAttendanceRoute/);
+  assert.match(page, /practicePanel", "tracking"/);
+  assert.match(page, /practicePanel", "review"/);
   assert.match(page, /function changeLiveBpThrowerSource\(source: LiveBpThrowerSource\)/);
   assert.match(page, /onLiveBpThrowerSource=\{changeLiveBpThrowerSource\}/);
   assert.match(page, /liveBpThrowerSource=\{liveBpThrowerSource\}/);
@@ -91,11 +98,14 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /liveBpThrowerSource !== "PLAYER"/);
   assert.match(page, /onStartHittingStation=\{openHittingQuickStart\}/);
   assert.match(page, /setPracticeTrackingOpen\(true\)/);
-  assert.match(page, /onOpenAttendance=\{\(\) => \(practice \? setPracticeDrilldown\(\{ kind: "attendance" \}\)/);
-  assert.match(page, /onOpenPracticeReview=\{\(practiceId\) => setPracticeDrilldown\(\{ kind: "review", practiceId \}\)\}/);
+  assert.match(page, /onOpenAttendance=\{\(\) => \(practice \? writePracticeAttendanceRoute\(\)/);
+  assert.match(page, /onOpenPracticeReview=\{\(practiceId\) => writePracticeReviewRoute\(practiceId\)\}/);
   assert.match(page, /onOpenStation=\{openPracticeStation\}/);
   assert.match(page, /onUndo=\{undoPracticeEvent\}/);
   assert.match(page, /function openPracticeAnalytics\(practiceId: ID, category: PracticeMetricsCategory = "Hitting", playerId\?: ID\)/);
+  assert.match(page, /detailPlayer/);
+  assert.match(page, /function openAnalyticsPlayerDetail/);
+  assert.match(page, /window\.history\[options\.replace \? "replaceState" : "pushState"\]/);
 
   assert.doesNotMatch(page, /Hard Contact<\/button>/);
   assert.doesNotMatch(page, /practice-hitting-toggles/);
