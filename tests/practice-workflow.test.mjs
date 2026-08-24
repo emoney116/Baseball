@@ -5,6 +5,7 @@ import test from "node:test";
 test("practice hub opens active tracker modes without setup screen", () => {
   const page = readFileSync("app/page.tsx", "utf8");
   const styles = readFileSync("app/globals.css", "utf8");
+  const taxonomy = readFileSync("app/lib/hittingTaxonomy.ts", "utf8");
   const attendanceListBlocks = styles.match(/\.attendance-roster__list \{[^}]+\}/g) ?? [];
 
   assert.match(page, /type PracticeHubTab = "Overview" \| "Metrics" \| "History"/);
@@ -25,11 +26,22 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /\(\["Overview", "Metrics", "History"\] as PracticeHubTab\[\]\)/);
   assert.doesNotMatch(page, /\(\["Overview", "Drills", "Throwing", "Metrics", "History"\]/);
   assert.match(page, /const HITTING_RESULT_ACTIONS/);
-  assert.match(page, /label: "Hard LD"/);
-  assert.match(page, /const HITTING_BATTED_BALL_CHOICES/);
-  assert.match(page, /function createHittingContactDraft/);
+  assert.match(taxonomy, /PRACTICE_HITTING_RESULT_OPTIONS/);
+  assert.match(taxonomy, /label: "Hard Ground Ball"/);
+  assert.match(taxonomy, /label: "Hard Fly Ball"/);
+  assert.match(taxonomy, /label: "Line Drive"/);
+  assert.match(taxonomy, /isPracticeHardContactEvent/);
+  assert.match(taxonomy, /defaultPracticeHittingPitchMode/);
+  assert.match(taxonomy, /HittingPitchTrackingMode/);
+  assert.doesNotMatch(page, /function createHittingContactDraft/);
   assert.match(page, /const HITTING_CONTACT_CHOICES/);
   assert.match(page, /exitVelocityMph/);
+  assert.match(page, /hittingPitchTrackingMode/);
+  assert.match(page, /onHittingPitchTrackingMode/);
+  assert.match(page, /practice-hitting-quick-controls/);
+  assert.match(page, /practice-hitting-pitch-panel/);
+  assert.match(page, /practice-hitting-stats-scope/);
+  assert.match(page, /practice-hitting-session-filter/);
   assert.match(page, /function updateHittingEvent/);
   assert.match(page, /onUpdateHittingEvent=\{updateHittingEvent\}/);
   assert.match(page, /function clearPendingHittingContext\(\)/);
@@ -58,8 +70,7 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /<h2>Appearance<\/h2>/);
   assert.match(page, /Log Swing/);
   assert.match(page, /What happened\?/);
-  assert.match(page, />In Play<\/button>/);
-  assert.match(page, /Skip Location/);
+  assert.doesNotMatch(page, /Save Swing<\/button>[\s\S]{0,240}Skip Location/);
   assert.match(page, /practice-live-bp-pitch-button/);
   assert.match(page, /practice-live-bp-pitch-sheet/);
   assert.match(page, /Pitch result/);
@@ -102,12 +113,14 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /onOpenPracticeReview=\{\(practiceId\) => writePracticeReviewRoute\(practiceId\)\}/);
   assert.match(page, /onOpenStation=\{openPracticeStation\}/);
   assert.match(page, /onUndo=\{undoPracticeEvent\}/);
-  assert.match(page, /function openPracticeAnalytics\(practiceId: ID, category: PracticeMetricsCategory = "Hitting", playerId\?: ID\)/);
+  assert.match(page, /function openPracticeAnalytics\(practiceId: ID, category: PracticeMetricsCategory = "Hitting", playerId\?: ID, eventId\?: ID\)/);
   assert.match(page, /detailPlayer/);
   assert.match(page, /function openAnalyticsPlayerDetail/);
   assert.match(page, /window\.history\[options\.replace \? "replaceState" : "pushState"\]/);
 
   assert.doesNotMatch(page, /Hard Contact<\/button>/);
+  assert.doesNotMatch(page, /practice-hitting-quality-toggle/);
+  assert.doesNotMatch(page, /practice-hitting-contact-grid/);
   assert.doesNotMatch(page, /practice-hitting-toggles/);
   assert.doesNotMatch(page, /ModalFrame title="More"/);
   assert.doesNotMatch(page, /toggleTheme\(\); setMobileMoreOpen\(false\)/);
@@ -119,8 +132,8 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /StrikeZone points=\{pitchEvents\.map/);
   assert.match(page, /function PracticeMetricsTab/);
   assert.match(page, /function PracticeHistoryTab/);
-  assert.match(page, /buildPracticeMetricRows\(data, category, practiceId\)/);
-  assert.match(page, /practiceMetricSummary\(data, category, practiceId\)/);
+  assert.match(page, /buildPracticeMetricRows\(data, category, practiceId, effectiveHittingSessionFilterId\)/);
+  assert.match(page, /practiceMetricSummary\(data, category, practiceId, effectiveHittingSessionFilterId\)/);
   assert.match(page, /function buildPracticeReviewSessions/);
   assert.match(page, /View Full Practice Analytics/);
   assert.match(page, /role="columnheader"/);
@@ -142,7 +155,10 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(styles, /\.practice-hitting-shell/);
   assert.match(styles, /\.practice-hitting-sheet/);
   assert.match(styles, /\.practice-hitting-rail/);
-  assert.match(styles, /\.practice-hitting-quality-toggle/);
+  assert.match(styles, /\.practice-hitting-quick-controls/);
+  assert.match(styles, /\.practice-hitting-pitch-panel/);
+  assert.match(styles, /\.practice-hitting-session-filter/);
+  assert.doesNotMatch(styles, /\.practice-hitting-quality-toggle/);
   assert.match(styles, /\.practice-hitting-more-list/);
   assert.match(styles, /\.practice-hitting-settings-list/);
   assert.match(styles, /\.mobile-more-menu/);

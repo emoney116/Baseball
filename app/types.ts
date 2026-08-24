@@ -96,6 +96,7 @@ export type ContactQuality =
   | "Medium contact"
   | "Hard contact";
 export type HittingContactQuality = "Poor" | "Weak" | "Solid" | "Hard" | "Barrel";
+export type HittingPitchTrackingMode = "OFF" | "ONE" | "MULTI";
 
 export type Direction =
   | "Pull"
@@ -508,6 +509,8 @@ export type HittingSession = {
   liveBpThrowerSource?: LiveBpThrowerSource;
   machineVelocity?: number;
   machinePitchType?: PitchType;
+  pitchTrackingMode?: HittingPitchTrackingMode;
+  defaultPitchType?: PitchType;
   machineLocation?: string;
   distance?: string;
   machineType?: string;

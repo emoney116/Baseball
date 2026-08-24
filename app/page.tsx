@@ -107,6 +107,17 @@ import {
   shortDate,
   trendByPractice,
 } from "./lib/stats";
+import {
+  defaultPracticeHittingPitchMode,
+  isPracticeHittingPitchTypeAvailable,
+  isPracticeHardContactEvent,
+  pitchModeLabel,
+  PRACTICE_HITTING_RESULT_OPTIONS,
+  practiceHittingResultLabel,
+  resolvePracticeHittingPitchMode,
+  resolvePracticeHittingPitchType,
+  type PracticeHittingResultOption,
+} from "./lib/hittingTaxonomy";
 import { deriveConcurrentPracticeTotals, nextSessionSequence, touchSessionContributor } from "./lib/practiceConcurrency";
 import {
   advanceWorkoutGroupStation,
@@ -146,6 +157,7 @@ import type {
   GameType,
   HittingContactQuality,
   HittingEvent,
+  HittingPitchTrackingMode,
   HittingSession,
   ID,
   LiveBpThrowerSource,
@@ -661,47 +673,11 @@ const PRACTICE_METRIC_SCOPES: PracticeMetricsScope[] = ["Team", "Players"];
 const PRACTICE_ACTIVE_SESSION_GRACE_MS = 2 * 60 * 1000;
 const PRACTICE_ACTIVE_SESSION_TICK_MS = 30 * 1000;
 const PRACTICE_SESSION_HEARTBEAT_MS = 45 * 1000;
-const HITTING_RESULT_ACTIONS: Array<{
-  label: string;
-  action: HittingEvent["action"];
-  contactResult?: BattedBallType;
-  contactQuality?: HittingContactQuality;
-  tone?: "hard" | "soft" | "miss";
-}> = [
-  { label: "Hard GB", action: "Ball in play", contactResult: "Ground ball", contactQuality: "Hard", tone: "hard" },
-  { label: "Soft GB", action: "Ball in play", contactResult: "Ground ball", contactQuality: "Weak", tone: "soft" },
-  { label: "Miss", action: "Miss", tone: "miss" },
-  { label: "Hard LD", action: "Ball in play", contactResult: "Line drive", contactQuality: "Hard", tone: "hard" },
-  { label: "Soft LD", action: "Ball in play", contactResult: "Line drive", contactQuality: "Solid", tone: "soft" },
-  { label: "Foul", action: "Foul" },
-  { label: "Hard FB", action: "Ball in play", contactResult: "Fly ball", contactQuality: "Hard", tone: "hard" },
-  { label: "Soft FB", action: "Ball in play", contactResult: "Fly ball", contactQuality: "Weak", tone: "soft" },
-  { label: "Pop Up", action: "Ball in play", contactResult: "Pop up", contactQuality: "Weak" },
-];
-type HittingSheetStep = "result" | "contact" | "spray";
+const HITTING_RESULT_ACTIONS = PRACTICE_HITTING_RESULT_OPTIONS;
+type HittingSheetStep = "result" | "detail";
 type LiveBpPitchSheetStep = "result" | "contact" | "spray";
-type HittingContactIntensity = "Hard" | "Soft";
-type HittingContactDraft = {
-  label: string;
-  action: HittingEvent["action"];
-  contactResult?: BattedBallType;
-  contactQuality?: HittingContactQuality;
-};
-const HITTING_BATTED_BALL_CHOICES: Array<{ label: string; result: BattedBallType }> = [
-  { label: "Ground Ball", result: "Ground ball" },
-  { label: "Line Drive", result: "Line drive" },
-  { label: "Fly Ball", result: "Fly ball" },
-  { label: "Popup", result: "Pop up" },
-];
-const HITTING_CONTACT_CHOICES: HittingContactDraft[] = [
-  { label: "Hard GB", action: "Ball in play", contactResult: "Ground ball", contactQuality: "Hard" },
-  { label: "Hard LD", action: "Ball in play", contactResult: "Line drive", contactQuality: "Hard" },
-  { label: "Hard FB", action: "Ball in play", contactResult: "Fly ball", contactQuality: "Hard" },
-  { label: "Soft GB", action: "Ball in play", contactResult: "Ground ball", contactQuality: "Weak" },
-  { label: "Soft LD", action: "Ball in play", contactResult: "Line drive", contactQuality: "Solid" },
-  { label: "Soft FB", action: "Ball in play", contactResult: "Fly ball", contactQuality: "Weak" },
-  { label: "Pop Up", action: "Ball in play", contactResult: "Pop up", contactQuality: "Weak" },
-];
+type HittingContactDraft = PracticeHittingResultOption;
+const HITTING_CONTACT_CHOICES: HittingContactDraft[] = PRACTICE_HITTING_RESULT_OPTIONS.filter((option) => option.action === "Ball in play");
 const PITCHING_STATIONS: PitchingSession["type"][] = ["Bullpen", "Flat Ground", "Live", "Other"];
 const DEFENSE_STATIONS: DefenseStation[] = ["Infield", "Outfield", "Catching", "PFP", "Situational defense", "Team defense"];
 const GAME_TYPES: GameType[] = ["Fall Game", "Scrimmage", "Showcase", "Regular Season", "Tournament", "Other"];
@@ -877,6 +853,7 @@ export default function MetrolinaBaseballApp() {
   const [pitchingStation, setPitchingStation] = useState<PitchingSession["type"]>("Bullpen");
   const [defenseStation, setDefenseStation] = useState<DefenseStation>("Infield");
   const [selectedPitchType, setSelectedPitchType] = useState<PitchType>("4-Seam");
+  const [hittingPitchTrackingMode, setHittingPitchTrackingMode] = useState<HittingPitchTrackingMode>("ONE");
   const [velocity, setVelocity] = useState<string>("84");
   const [trackExitVelocity, setTrackExitVelocity] = useState(false);
   const [exitVelocity, setExitVelocity] = useState("");
@@ -1798,7 +1775,7 @@ export default function MetrolinaBaseballApp() {
     }
   }
 
-  function openPracticeAnalytics(practiceId: ID, category: PracticeMetricsCategory = "Hitting", playerId?: ID) {
+  function openPracticeAnalytics(practiceId: ID, category: PracticeMetricsCategory = "Hitting", playerId?: ID, eventId?: ID) {
     clearPendingHittingContext();
     setPracticeTrackingOpen(false);
     setPracticeDrilldown({ kind: "review", practiceId });
@@ -1815,6 +1792,9 @@ export default function MetrolinaBaseballApp() {
         url.searchParams.set("mode", "box-score");
         url.searchParams.set("period", "season");
         url.searchParams.set("practiceId", practiceId);
+        url.searchParams.set("events", eventId ?? practiceId);
+        if (playerId) url.searchParams.set("detailPlayer", playerId);
+        else url.searchParams.delete("detailPlayer");
       },
     });
   }
@@ -1933,8 +1913,56 @@ export default function MetrolinaBaseballApp() {
 
   function updateActiveHittingStation(station: HittingSession["type"]) {
     setHittingStation(station);
+    setHittingPitchTrackingMode(defaultPracticeHittingPitchMode(station));
     clearPendingHittingContext();
     replacePracticeTrackingRoutePatch({ hittingStation: station });
+  }
+
+  function updateCurrentHittingSessionSettings(update: Partial<Pick<HittingSession, "pitchTrackingMode" | "defaultPitchType" | "machinePitchType">>) {
+    if (!practice || !practicePlayer) return;
+    commit((current) => {
+      let updated = false;
+      const now = new Date().toISOString();
+      return {
+        ...current,
+        hittingSessions: current.hittingSessions.map((session) => {
+          if (
+            updated
+            || session.practiceId !== practice.id
+            || session.hitterId !== practicePlayer.id
+            || !isPracticeSessionReusable(session)
+            || !(session.type === hittingStation || (hittingStation === "Machine" && isMachineHittingStation(session.type)))
+          ) {
+            return session;
+          }
+          updated = true;
+          return {
+            ...session,
+            ...update,
+            updatedAt: now,
+          };
+        }),
+      };
+    });
+  }
+
+  function changeHittingPitchTrackingMode(mode: HittingPitchTrackingMode) {
+    const nextMode = isPracticeHittingPitchTypeAvailable(hittingStation) ? mode : "OFF";
+    setHittingPitchTrackingMode(nextMode);
+    updateCurrentHittingSessionSettings({
+      pitchTrackingMode: nextMode,
+      defaultPitchType: nextMode === "OFF" ? undefined : selectedPitchType,
+      machinePitchType: nextMode === "OFF" ? undefined : selectedPitchType,
+    });
+  }
+
+  function changeSelectedPitchType(pitchType: PitchType) {
+    setSelectedPitchType(pitchType);
+    if (practiceMode !== "Hitting" || !isPracticeHittingPitchTypeAvailable(hittingStation)) return;
+    updateCurrentHittingSessionSettings({
+      defaultPitchType: pitchType,
+      machinePitchType: pitchType,
+    });
   }
 
   function selectLiveBpPitcher(playerId: ID) {
@@ -1970,19 +1998,26 @@ export default function MetrolinaBaseballApp() {
     return parsed;
   }
 
-  function logHitting(action: HittingEvent["action"], contactResult?: BattedBallType, contactQuality?: HittingContactQuality, direction?: Direction, sprayPoint?: ZonePoint | null) {
+  function logHitting(action: HittingEvent["action"], contactResult?: BattedBallType, contactQuality?: HittingContactQuality, direction?: Direction, sprayPoint?: ZonePoint | null, pitchType?: PitchType) {
     if (!practice || !practicePlayer) return;
     const exitVelocityMph = parsePendingExitVelocity();
     if (exitVelocityMph === null) return;
     commit((current) => {
       const profileId = current.teamContext?.profile?.id;
-      const next = ensureHittingSession(current, practice, practicePlayer.id, hittingStation, profileId);
+      const pitchMode = resolvePracticeHittingPitchMode(hittingStation, undefined, hittingPitchTrackingMode);
+      const next = ensureHittingSession(current, practice, practicePlayer.id, hittingStation, profileId, "PLAYER", {
+        pitchTrackingMode: pitchMode,
+        defaultPitchType: pitchMode === "OFF" ? undefined : pitchType ?? selectedPitchType,
+        machineVelocity: isMachineHittingStation(hittingStation) && velocity ? Number(velocity) : undefined,
+      });
       const session = next.session;
       const eventNumber = next.data.hittingEvents.filter((event) => event.sessionId === session.id).length + 1;
       const isBip = action === "Ball in play";
       const captureSpray = trackSprayChart && isBip;
-      const resolvedFieldLocation = captureSpray ? (sprayPoint === undefined ? fieldLocation : sprayPoint ?? undefined) : undefined;
+      const resolvedFieldLocation = captureSpray ? sprayPoint ?? undefined : undefined;
       const resolvedDirection = resolvedFieldLocation ? direction ?? deriveHitDirectionFromFieldLocation(resolvedFieldLocation, practicePlayer.bats) : undefined;
+      const sessionPitchMode = resolvePracticeHittingPitchMode(hittingStation, session, hittingPitchTrackingMode);
+      const resolvedPitchType = sessionPitchMode === "OFF" ? undefined : pitchType ?? resolvePracticeHittingPitchType(session, selectedPitchType);
       const eventId = createId("he");
       const createdAt = new Date().toISOString();
       const event: HittingEvent = {
@@ -1996,7 +2031,7 @@ export default function MetrolinaBaseballApp() {
         contactQuality: isBip ? contactQuality : undefined,
         direction: resolvedDirection,
         fieldLocation: resolvedFieldLocation,
-        pitchType: hittingStationUsesPitchType(hittingStation) ? selectedPitchType : undefined,
+        pitchType: resolvedPitchType,
         velocity: isMachineHittingStation(hittingStation) && velocity ? Number(velocity) : undefined,
         exitVelocityMph,
         isLiveBp: hittingStation === "Live BP",
@@ -3047,7 +3082,7 @@ export default function MetrolinaBaseballApp() {
             tab={practiceReviewTab}
             onTab={(tab) => writePracticeReviewRoute(practiceDrilldown.practiceId, tab)}
             onBack={() => writePracticeHubRoute("History", { replace: true })}
-            onOpenAnalytics={(category, playerId) => openPracticeAnalytics(practiceDrilldown.practiceId, category, playerId)}
+            onOpenAnalytics={(category, playerId, eventId) => openPracticeAnalytics(practiceDrilldown.practiceId, category, playerId, eventId)}
           />
         )}
 
@@ -3072,6 +3107,7 @@ export default function MetrolinaBaseballApp() {
             pitchingStation={pitchingStation}
             defenseStation={defenseStation}
             selectedPitchType={selectedPitchType}
+            hittingPitchTrackingMode={hittingPitchTrackingMode}
             velocity={velocity}
             trackExitVelocity={trackExitVelocity}
             exitVelocity={exitVelocity}
@@ -3101,6 +3137,7 @@ export default function MetrolinaBaseballApp() {
             }}
             onSelectPlayer={selectPracticePlayer}
             onOpenPlayer={openPlayer}
+            onOpenPracticeAnalytics={practice ? (category, playerId, eventId) => openPracticeAnalytics(practice.id, category, playerId, eventId) : undefined}
             onHittingStation={updateActiveHittingStation}
             onPitchingStation={(station) => {
               setPitchingStation(station);
@@ -3110,7 +3147,8 @@ export default function MetrolinaBaseballApp() {
               setDefenseStation(station);
               replacePracticeTrackingRoutePatch({ defenseStation: station });
             }}
-            onPitchType={setSelectedPitchType}
+            onPitchType={changeSelectedPitchType}
+            onHittingPitchTrackingMode={changeHittingPitchTrackingMode}
             onVelocity={setVelocity}
             onTrackExitVelocity={setTrackExitVelocity}
             onExitVelocity={(value) => {
@@ -7230,7 +7268,7 @@ function PracticeHome({
   onStartHittingStation: (station: HittingSession["type"]) => void;
   onOpenSession: (session: PracticeActiveSessionRow) => void;
   onOpenPracticeReview: (practiceId: ID) => void;
-  onOpenPracticeAnalytics: (practiceId: ID, category?: PracticeMetricsCategory, playerId?: ID) => void;
+  onOpenPracticeAnalytics: (practiceId: ID, category?: PracticeMetricsCategory, playerId?: ID, eventId?: ID) => void;
   onOpenAttendance: () => void;
   onEndPractice: () => void;
   onStatus: (playerId: ID, status: PracticeAttendanceStatus) => void;
@@ -7428,7 +7466,7 @@ function PracticeHome({
         </>
       )}
 
-      {tab === "Metrics" && <PracticeMetricsTab data={data} practiceId={practice?.id} onOpenAnalytics={practice ? (category, playerId) => onOpenPracticeAnalytics(practice.id, category, playerId) : undefined} />}
+      {tab === "Metrics" && <PracticeMetricsTab data={data} practiceId={practice?.id} onOpenAnalytics={practice ? (category, playerId, eventId) => onOpenPracticeAnalytics(practice.id, category, playerId, eventId) : undefined} />}
       {tab === "History" && <PracticeHistoryTab data={data} onOpenPractice={onOpenPracticeReview} />}
     </div>
   );
@@ -7603,17 +7641,22 @@ function PracticeMetricsTab({
 }: {
   data: AppData;
   practiceId?: ID;
-  onOpenAnalytics?: (category: PracticeMetricsCategory, playerId?: ID) => void;
+  onOpenAnalytics?: (category: PracticeMetricsCategory, playerId?: ID, eventId?: ID) => void;
 }) {
   const [scope, setScope] = useState<PracticeMetricsScope>("Team");
   const [category, setCategory] = useState<PracticeMetricsCategory>("Hitting");
+  const [hittingSessionFilterId, setHittingSessionFilterId] = useState<ID | "all">("all");
   const [sort, setSort] = useState<{ key: PracticeMetricsSortKey; direction: SortDirection }>({ key: "swings", direction: "desc" });
   const columns = practiceMetricColumns(category);
+  const hittingSessionOptions = useMemo(() => practiceHittingSessionOptions(data, practiceId), [data, practiceId]);
+  const selectedHittingSessionAvailable = hittingSessionFilterId !== "all" && hittingSessionOptions.some((session) => session.id === hittingSessionFilterId);
+  const effectiveHittingSessionFilterId = category === "Hitting" && selectedHittingSessionAvailable ? hittingSessionFilterId : undefined;
+  const activeHittingSessionFilterId = effectiveHittingSessionFilterId ?? "all";
   const rows = useMemo(() => {
-    const baseRows = buildPracticeMetricRows(data, category, practiceId);
+    const baseRows = buildPracticeMetricRows(data, category, practiceId, effectiveHittingSessionFilterId);
     return sortPracticeMetricRows(baseRows, sort);
-  }, [data, category, sort, practiceId]);
-  const summary = practiceMetricSummary(data, category, practiceId);
+  }, [data, category, sort, practiceId, effectiveHittingSessionFilterId]);
+  const summary = practiceMetricSummary(data, category, practiceId, effectiveHittingSessionFilterId);
 
   function updateSort(key: PracticeMetricsSortKey) {
     setSort((current) => ({
@@ -7634,6 +7677,16 @@ function PracticeMetricsTab({
           setCategory(nextCategory);
           setSort({ key: defaultPracticeMetricSort(nextCategory), direction: "desc" });
         }} />
+        {category === "Hitting" && hittingSessionOptions.length > 1 && (
+          <div className="practice-hitting-session-filter" aria-label="Hitting session filter">
+            <button type="button" className={activeHittingSessionFilterId === "all" ? "active" : ""} onClick={() => setHittingSessionFilterId("all")}>All Sessions</button>
+            {hittingSessionOptions.map((session) => (
+              <button key={session.id} type="button" className={activeHittingSessionFilterId === session.id ? "active" : ""} onClick={() => setHittingSessionFilterId(session.id)}>
+                {hittingSessionAnalyticsLabel(session)}
+              </button>
+            ))}
+          </div>
+        )}
       </article>
 
       <article className="panel practice-metrics-summary">
@@ -7643,7 +7696,7 @@ function PracticeMetricsTab({
             <span>{scope === "Team" ? "Team box-score view" : "Player table view"}</span>
           </div>
           {onOpenAnalytics && (
-            <button className="text-button" type="button" onClick={() => onOpenAnalytics(category)}>
+            <button className="text-button" type="button" onClick={() => onOpenAnalytics(category, undefined, effectiveHittingSessionFilterId)}>
               View Full Analytics
               <ChevronRight size={15} aria-hidden="true" />
             </button>
@@ -7679,7 +7732,7 @@ function PracticeMetricsTab({
               {columns.map((column) => (
                 <span key={`${row.player.id}-${column.key}`} className={column.numeric ? "numeric" : ""} role="cell">
                   {column.key === "player" && onOpenAnalytics ? (
-                    <button className="practice-metrics-player-button" type="button" onClick={() => onOpenAnalytics(category, row.player.id)}>
+                    <button className="practice-metrics-player-button" type="button" onClick={() => onOpenAnalytics(category, row.player.id, effectiveHittingSessionFilterId)}>
                       {column.render(row)}
                     </button>
                   ) : column.render(row)}
@@ -7745,12 +7798,16 @@ function PracticeReview({
   tab: PracticeReviewTab;
   onTab: (tab: PracticeReviewTab) => void;
   onBack: () => void;
-  onOpenAnalytics: (category: PracticeMetricsCategory, playerId?: ID) => void;
+  onOpenAnalytics: (category: PracticeMetricsCategory, playerId?: ID, eventId?: ID) => void;
 }) {
   const [liveBpSide, setLiveBpSide] = useState<"Hitters" | "Pitchers">("Hitters");
   const [sort, setSort] = useState<{ key: PracticeMetricsSortKey; direction: SortDirection }>({ key: "swings", direction: "desc" });
   const [selectedPlayerId, setSelectedPlayerId] = useState<ID | undefined>();
+  const [hittingSessionFilterId, setHittingSessionFilterId] = useState<ID | "all">("all");
   const selectedPlayer = data.players.find((player) => player.id === selectedPlayerId);
+  const reviewHittingSessionOptions = useMemo(() => practice ? practiceHittingSessionOptions(data, practice.id) : [], [data, practice]);
+  const selectedReviewHittingSessionAvailable = hittingSessionFilterId !== "all" && reviewHittingSessionOptions.some((session) => session.id === hittingSessionFilterId);
+  const activeReviewHittingSessionFilterId = selectedReviewHittingSessionAvailable ? hittingSessionFilterId : "all";
 
   if (!practice) {
     return (
@@ -7767,6 +7824,8 @@ function PracticeReview({
   const totals = practiceTotals(data, practice.id);
   const attendance = data.attendance.filter((row) => row.practiceId === practice.id);
   const activeAttendance = attendance.filter((row) => row.status !== "Absent");
+  const hittingSessionOptions = reviewHittingSessionOptions;
+  const effectiveHittingSessionFilterId = tab === "Hitting" && activeReviewHittingSessionFilterId !== "all" ? activeReviewHittingSessionFilterId : undefined;
   const columns = tab === "Summary" ? [] : practiceMetricColumns(tab);
   const effectiveSort = tab !== "Summary" && !columns.some((column) => column.key === sort.key)
     ? { key: defaultPracticeMetricSort(tab), direction: "desc" as SortDirection }
@@ -7774,7 +7833,7 @@ function PracticeReview({
   const rows = tab === "Summary"
     ? []
     : sortPracticeMetricRows(
-      buildPracticeMetricRows(data, tab, practice.id).filter((row) => (
+      buildPracticeMetricRows(data, tab, practice.id, effectiveHittingSessionFilterId).filter((row) => (
         tab !== "Live BP"
           || (liveBpSide === "Hitters" ? row.liveBpSwings > 0 || row.liveBpPas > 0 : row.liveBpPitches > 0)
       )),
@@ -7790,7 +7849,7 @@ function PracticeReview({
   const sessionRows = buildPracticeReviewSessions(data, practice.id);
   const standouts = buildPracticeStandouts(data, practice.id);
   const selectedPlayerRows = selectedPlayer ? {
-    Hitting: buildPracticeMetricRows(data, "Hitting", practice.id).find((row) => row.player.id === selectedPlayer.id),
+    Hitting: buildPracticeMetricRows(data, "Hitting", practice.id, effectiveHittingSessionFilterId).find((row) => row.player.id === selectedPlayer.id),
     Pitching: buildPracticeMetricRows(data, "Pitching", practice.id).find((row) => row.player.id === selectedPlayer.id),
     Defense: buildPracticeMetricRows(data, "Defense", practice.id).find((row) => row.player.id === selectedPlayer.id),
     "Live BP": buildPracticeMetricRows(data, "Live BP", practice.id).find((row) => row.player.id === selectedPlayer.id),
@@ -7819,7 +7878,7 @@ function PracticeReview({
           <h1>{shortDate(practice.date)} · {data.teamContext?.currentTeam?.teamName ?? "Team Practice"}</h1>
           <p>{[practice.type, practice.location, formatPracticeTimeRange(practice)].filter(Boolean).join(" · ")}</p>
         </div>
-        <button className="primary-button" type="button" onClick={() => onOpenAnalytics(activeCategory)}>
+        <button className="primary-button" type="button" onClick={() => onOpenAnalytics(activeCategory, undefined, effectiveHittingSessionFilterId)}>
           <BarChart3 size={16} aria-hidden="true" />
           View Full Practice Analytics
         </button>
@@ -7896,7 +7955,17 @@ function PracticeReview({
             </div>
             <div className="practice-review-table-actions">
               {tab === "Live BP" && <SegmentedControl values={["Hitters", "Pitchers"] as ("Hitters" | "Pitchers")[]} active={liveBpSide} onChange={setLiveBpSide} />}
-              <button className="text-button" type="button" onClick={() => onOpenAnalytics(tab)}>
+              {tab === "Hitting" && hittingSessionOptions.length > 1 && (
+                <div className="practice-hitting-session-filter" aria-label="Hitting session filter">
+                  <button type="button" className={activeReviewHittingSessionFilterId === "all" ? "active" : ""} onClick={() => setHittingSessionFilterId("all")}>All Sessions</button>
+                  {hittingSessionOptions.map((session) => (
+                    <button key={session.id} type="button" className={activeReviewHittingSessionFilterId === session.id ? "active" : ""} onClick={() => setHittingSessionFilterId(session.id)}>
+                      {hittingSessionAnalyticsLabel(session)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button className="text-button" type="button" onClick={() => onOpenAnalytics(tab, undefined, effectiveHittingSessionFilterId)}>
                 View Analytics
                 <ChevronRight size={15} aria-hidden="true" />
               </button>
@@ -7969,7 +8038,7 @@ function PracticeReview({
             )}
           </div>
           <div className="modal-actions">
-            <button className="secondary-button" type="button" onClick={() => onOpenAnalytics(activeCategory, selectedPlayer.id)}>
+            <button className="secondary-button" type="button" onClick={() => onOpenAnalytics(activeCategory, selectedPlayer.id, activeCategory === "Hitting" ? effectiveHittingSessionFilterId : undefined)}>
               View Full Player Analytics
               <ChevronRight size={15} aria-hidden="true" />
             </button>
@@ -8044,6 +8113,7 @@ function PracticeConsole({
   pitchingStation,
   defenseStation,
   selectedPitchType,
+  hittingPitchTrackingMode,
   velocity,
   trackExitVelocity,
   exitVelocity,
@@ -8061,10 +8131,12 @@ function PracticeConsole({
   onMode,
   onSelectPlayer,
   onOpenPlayer,
+  onOpenPracticeAnalytics,
   onHittingStation,
   onPitchingStation,
   onDefenseStation,
   onPitchType,
+  onHittingPitchTrackingMode,
   onVelocity,
   onTrackExitVelocity,
   onExitVelocity,
@@ -8099,6 +8171,7 @@ function PracticeConsole({
   pitchingStation: PitchingSession["type"];
   defenseStation: DefenseStation;
   selectedPitchType: PitchType;
+  hittingPitchTrackingMode: HittingPitchTrackingMode;
   velocity: string;
   trackExitVelocity: boolean;
   exitVelocity: string;
@@ -8116,10 +8189,12 @@ function PracticeConsole({
   onMode: (mode: PracticeMode) => void;
   onSelectPlayer: (playerId: ID) => void;
   onOpenPlayer: (playerId: ID) => void;
+  onOpenPracticeAnalytics?: (category: PracticeMetricsCategory, playerId?: ID, eventId?: ID) => void;
   onHittingStation: (station: HittingSession["type"]) => void;
   onPitchingStation: (station: PitchingSession["type"]) => void;
   onDefenseStation: (station: DefenseStation) => void;
   onPitchType: (pitchType: PitchType) => void;
+  onHittingPitchTrackingMode: (mode: HittingPitchTrackingMode) => void;
   onVelocity: (value: string) => void;
   onTrackExitVelocity: (enabled: boolean) => void;
   onExitVelocity: (value: string) => void;
@@ -8128,7 +8203,7 @@ function PracticeConsole({
   onTargetLocation: (point: ZonePoint | undefined) => void;
   onFieldLocation: (point: ZonePoint) => void;
   onHitDirection: (direction: Direction) => void;
-  onLogHitting: (action: HittingEvent["action"], contactResult?: BattedBallType, quality?: HittingContactQuality, direction?: Direction, sprayPoint?: ZonePoint | null) => void;
+  onLogHitting: (action: HittingEvent["action"], contactResult?: BattedBallType, quality?: HittingContactQuality, direction?: Direction, sprayPoint?: ZonePoint | null, pitchType?: PitchType) => void;
   onUpdateHittingEvent: (eventId: ID, update: {
     action: HittingEvent["action"];
     contactResult?: BattedBallType;
@@ -8159,12 +8234,14 @@ function PracticeConsole({
   const [hittingSheetOpen, setHittingSheetOpen] = useState(false);
   const [hittingSheetStep, setHittingSheetStep] = useState<HittingSheetStep>("result");
   const [hittingDraft, setHittingDraft] = useState<HittingContactDraft | null>(null);
+  const [hittingSheetFieldLocation, setHittingSheetFieldLocation] = useState<ZonePoint | undefined>();
   const [hittingPlayersOpen, setHittingPlayersOpen] = useState(false);
   const [hittingSessionOpen, setHittingSessionOpen] = useState(false);
   const [hittingStatsOpen, setHittingStatsOpen] = useState(false);
   const [hittingOptionsOpen, setHittingOptionsOpen] = useState(false);
   const [hittingSettingsOpen, setHittingSettingsOpen] = useState(false);
-  const [hittingContactIntensity, setHittingContactIntensity] = useState<HittingContactIntensity>("Hard");
+  const [hittingPitchTypeOpen, setHittingPitchTypeOpen] = useState(false);
+  const [hittingStatsScopeSessionId, setHittingStatsScopeSessionId] = useState<ID | "all">("all");
   const [editingHittingEventId, setEditingHittingEventId] = useState<ID | undefined>();
   const [hittingSavedNotice, setHittingSavedNotice] = useState("");
   const [liveBpPitchSheetOpen, setLiveBpPitchSheetOpen] = useState(false);
@@ -8266,13 +8343,46 @@ function PracticeConsole({
       : mode === "Defense"
         ? activeTotals.defenders
       : liveBpThrowerSource === "PLAYER" ? [liveBpPitcher?.id, liveBpHitter?.id].filter(Boolean).length : Number(Boolean(liveBpHitter));
-  const hittingHardCount = Math.round((hitStats.hardHitPct / 100) * hitStats.ballsInPlay);
-  const hittingMissCount = Math.round((hitStats.whiffPct / 100) * hitStats.totalSwings);
-  const hittingContactCount = Math.round((hitStats.contactPct / 100) * hitStats.totalSwings);
-  const hittingPitchTypeLabel = hittingStationUsesPitchType(hittingStation) ? practicePitchTypeLabel(selectedPitchType) : undefined;
+  const hittingPitchTypeAvailable = isPracticeHittingPitchTypeAvailable(hittingStation);
+  const effectiveHittingPitchMode = resolvePracticeHittingPitchMode(hittingStation, hittingSession, hittingPitchTrackingMode);
+  const effectiveHittingPitchType = resolvePracticeHittingPitchType(hittingSession, selectedPitchType) ?? selectedPitchType;
+  const hittingPitchTypeLabel = effectiveHittingPitchMode === "OFF"
+    ? undefined
+    : effectiveHittingPitchMode === "MULTI"
+      ? `Multi - ${practicePitchTypeLabel(selectedPitchType)}`
+      : practicePitchTypeLabel(effectiveHittingPitchType);
   const hittingSessionContext = [hittingStation, hittingPitchTypeLabel].filter(Boolean).join(" - ");
   const recentHittingEvents = hittingEvents.slice(0, 3);
   const hittingSprayPoints = hittingEvents.map((event) => event.fieldLocation).filter(isZonePoint);
+  const practiceHittingSessions = useMemo(() => (
+    practice
+      ? data.hittingSessions.filter((session) => (
+        session.practiceId === practice.id
+        && session.hitterId === player.id
+        && session.type !== "Live BP"
+        && isPracticeSessionReusable(session)
+      ))
+      : []
+  ), [data, practice, player.id]);
+  const selectedStatsScopeAvailable = hittingStatsScopeSessionId !== "all" && practiceHittingSessions.some((session) => session.id === hittingStatsScopeSessionId);
+  const effectiveHittingStatsScopeSessionId = selectedStatsScopeAvailable ? hittingStatsScopeSessionId : "all";
+  const practiceHittingEvents = practice
+    ? data.hittingEvents.filter((event) => (
+      event.practiceId === practice.id
+      && event.hitterId === player.id
+      && !event.isLiveBp
+      && data.hittingSessions.find((session) => session.id === event.sessionId)?.type !== "Live BP"
+    ))
+    : hittingEvents;
+  const scopedHittingEvents = effectiveHittingStatsScopeSessionId === "all"
+    ? practiceHittingEvents
+    : practiceHittingEvents.filter((event) => event.sessionId === effectiveHittingStatsScopeSessionId);
+  const scopedHitStats = calculateHittingStats(scopedHittingEvents);
+  const scopedHittingHardCount = scopedHittingEvents.filter(isPracticeHardContactEvent).length;
+  const scopedHittingMissCount = scopedHittingEvents.filter((event) => event.action === "Miss").length;
+  const scopedHittingContactCount = scopedHittingEvents.filter((event) => event.action === "Ball in play" || event.action === "Foul").length;
+  const scopedHittingSprayPoints = scopedHittingEvents.map((event) => event.fieldLocation).filter(isZonePoint);
+  const scopedHittingPitchSplits = buildHittingPitchSplits(scopedHittingEvents);
   const compactHittingMetrics = [
     { label: "Swings", value: String(hitStats.totalSwings) },
     { label: "Contact", value: formatPct(hitStats.contactPct) },
@@ -8336,7 +8446,7 @@ function PracticeConsole({
     setEditingHittingEventId(undefined);
     setHittingDraft(null);
     setHittingSheetStep("result");
-    setHittingContactIntensity("Hard");
+    setHittingSheetFieldLocation(undefined);
     setHittingSavedNotice("");
     setHittingSheetOpen(true);
   }
@@ -8346,6 +8456,7 @@ function PracticeConsole({
     setEditingHittingEventId(undefined);
     setHittingDraft(null);
     setHittingSheetStep("result");
+    setHittingSheetFieldLocation(undefined);
   }
 
   function showHittingSavedNotice(message = "Swing logged") {
@@ -8361,7 +8472,8 @@ function PracticeConsole({
   }
 
   function sessionPitchType() {
-    return hittingStationUsesPitchType(hittingStation) ? selectedPitchType : undefined;
+    if (effectiveHittingPitchMode === "OFF") return undefined;
+    return effectiveHittingPitchMode === "ONE" ? effectiveHittingPitchType : selectedPitchType;
   }
 
   function sessionVelocity() {
@@ -8378,10 +8490,11 @@ function PracticeConsole({
 
   function saveHittingAction(action: HittingEvent["action"], draft?: HittingContactDraft, sprayPoint?: ZonePoint | null) {
     const isBip = action === "Ball in play";
-    const resolvedFieldLocation = isBip && trackSprayChart ? (sprayPoint === undefined ? fieldLocation : sprayPoint ?? undefined) : undefined;
+    const resolvedFieldLocation = isBip && trackSprayChart ? sprayPoint ?? undefined : undefined;
     const resolvedDirection = resolvedFieldLocation ? deriveHitDirectionFromFieldLocation(resolvedFieldLocation, player.bats) : undefined;
     const exitVelocityMph = parseOptionalSheetExitVelocity();
     if (exitVelocityMph === null) return;
+    const resolvedPitchType = sessionPitchType();
 
     if (editingHittingEventId) {
       onUpdateHittingEvent(editingHittingEventId, {
@@ -8391,25 +8504,26 @@ function PracticeConsole({
         direction: resolvedDirection,
         fieldLocation: resolvedFieldLocation,
         exitVelocityMph,
-        pitchType: sessionPitchType(),
+        pitchType: resolvedPitchType,
         velocity: sessionVelocity(),
       });
       finishHittingSave("Swing updated");
       return;
     }
 
-    onLogHitting(action, draft?.contactResult, draft?.contactQuality, resolvedDirection, sprayPoint);
+    onLogHitting(action, draft?.contactResult, draft?.contactQuality, resolvedDirection, sprayPoint, resolvedPitchType);
     finishHittingSave("Swing logged");
   }
 
-  function logImmediateHitting(action: HittingEvent["action"]) {
-    saveHittingAction(action);
-  }
-
-  function chooseContactResult(draft: HittingContactDraft) {
+  function chooseHittingResult(draft: HittingContactDraft) {
+    if (draft.action !== "Ball in play") {
+      saveHittingAction(draft.action, draft);
+      return;
+    }
     if (trackSprayChart || trackExitVelocity) {
       setHittingDraft(draft);
-      setHittingSheetStep("spray");
+      setHittingSheetFieldLocation(undefined);
+      setHittingSheetStep("detail");
       return;
     }
     saveHittingAction(draft.action, draft);
@@ -8424,15 +8538,19 @@ function PracticeConsole({
     setEditingHittingEventId(event.id);
     setHittingSavedNotice("");
     onExitVelocity(event.exitVelocityMph !== undefined ? String(event.exitVelocityMph) : "");
-    if (isZonePoint(event.fieldLocation)) onFieldLocation(event.fieldLocation);
+    setHittingSheetFieldLocation(isZonePoint(event.fieldLocation) ? event.fieldLocation : undefined);
+    if (event.pitchType) onPitchType(event.pitchType);
     if (event.action === "Ball in play") {
-      const intensity: HittingContactIntensity = event.contactQuality === "Hard" || event.contactQuality === "Barrel" ? "Hard" : "Soft";
-      setHittingContactIntensity(intensity);
-      setHittingDraft(createHittingContactDraft(intensity, event.contactResult ?? "Line drive"));
-      setHittingSheetStep(trackSprayChart || trackExitVelocity ? "spray" : "contact");
+      const draft = HITTING_RESULT_ACTIONS.find((item) => (
+        item.action === event.action
+        && item.contactResult === event.contactResult
+        && item.contactQuality === event.contactQuality
+      )) ?? HITTING_RESULT_ACTIONS.find((item) => item.id === "line-drive") ?? null;
+      setHittingDraft(draft);
+      setHittingSheetStep(trackSprayChart || trackExitVelocity ? "detail" : "result");
     } else {
-      setHittingDraft(null);
-      setHittingContactIntensity("Hard");
+      const draft = HITTING_RESULT_ACTIONS.find((item) => item.action === event.action) ?? null;
+      setHittingDraft(draft);
       setHittingSheetStep("result");
     }
     setHittingSheetOpen(true);
@@ -8567,6 +8685,19 @@ function PracticeConsole({
                   <Plus size={18} aria-hidden="true" />
                   Log Swing
                 </button>
+                <div className="practice-hitting-quick-controls" aria-label="Hitting tracking options">
+                  <button type="button" className={trackExitVelocity ? "active" : ""} onClick={() => onTrackExitVelocity(!trackExitVelocity)} aria-pressed={trackExitVelocity}>
+                    EV <strong>{trackExitVelocity ? "On" : "Off"}</strong>
+                  </button>
+                  <button type="button" className={trackSprayChart ? "active" : ""} onClick={() => onTrackSprayChart(!trackSprayChart)} aria-pressed={trackSprayChart}>
+                    Spray <strong>{trackSprayChart ? "On" : "Off"}</strong>
+                  </button>
+                  {hittingPitchTypeAvailable && (
+                    <button type="button" className={effectiveHittingPitchMode !== "OFF" ? "active" : ""} onClick={() => setHittingPitchTypeOpen(true)} aria-pressed={effectiveHittingPitchMode !== "OFF"}>
+                      Pitch <strong>{effectiveHittingPitchMode === "OFF" ? "Off" : effectiveHittingPitchMode === "MULTI" ? "Multi" : PITCH_TYPE_LABELS[effectiveHittingPitchType]}</strong>
+                    </button>
+                  )}
+                </div>
                 <button className="secondary-button practice-hitting-more-trigger" type="button" onClick={() => setHittingOptionsOpen(true)}>
                   <MoreHorizontal size={18} aria-hidden="true" />
                   More
@@ -8630,46 +8761,43 @@ function PracticeConsole({
                 <section className="practice-hitting-sheet__step">
                   <div>
                     <span>What happened?</span>
-                    <small>Pick the first result. Foul and Miss save immediately.</small>
+                    <small>{effectiveHittingPitchMode === "MULTI" ? `Pitch: ${practicePitchTypeLabel(selectedPitchType)}` : "Foul and Miss save immediately."}</small>
                   </div>
+                  {effectiveHittingPitchMode === "MULTI" && (
+                    <div className="practice-hitting-inline-pitch" aria-label="Pitch type for this swing">
+                      {PITCH_TYPES.map((pitchType) => (
+                        <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>
+                          {PITCH_TYPE_LABELS[pitchType]}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="practice-hitting-result-grid">
-                    <button className="active" type="button" onClick={() => setHittingSheetStep("contact")}>In Play</button>
-                    <button type="button" onClick={() => logImmediateHitting("Foul")}>Foul</button>
-                    <button type="button" onClick={() => logImmediateHitting("Miss")}>Miss</button>
-                  </div>
-                </section>
-              )}
-
-              {hittingSheetStep === "contact" && (
-                <section className="practice-hitting-sheet__step">
-                  <div>
-                    <span>Ball in play</span>
-                    <small>{trackSprayChart || trackExitVelocity ? "Add only the details you need next." : "Saves as soon as you choose the batted ball."}</small>
-                  </div>
-                  <div className="practice-hitting-quality-toggle" aria-label="Contact quality">
-                    {(["Hard", "Soft"] as HittingContactIntensity[]).map((quality) => (
-                      <button key={quality} type="button" className={hittingContactIntensity === quality ? "active" : ""} onClick={() => setHittingContactIntensity(quality)}>
-                        {quality}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="practice-hitting-contact-grid">
-                    {HITTING_BATTED_BALL_CHOICES.map((choice) => (
-                      <button key={choice.result} type="button" className={hittingContactIntensity === "Hard" ? "impact" : ""} onClick={() => chooseContactResult(createHittingContactDraft(hittingContactIntensity, choice.result))}>
-                        {choice.label}
+                    {HITTING_RESULT_ACTIONS.map((result) => (
+                      <button key={result.id} type="button" className={hittingDraft?.id === result.id ? "active" : ""} onClick={() => chooseHittingResult(result)}>
+                        {result.label}
                       </button>
                     ))}
                   </div>
                 </section>
               )}
 
-              {hittingSheetStep === "spray" && (
+              {hittingSheetStep === "detail" && (
                 <section className="practice-hitting-sheet__step practice-hitting-sheet__step--spray">
                   <div>
                     <span>{trackSprayChart ? "Where did it go?" : "Finish swing"}</span>
-                    <small>{hittingDraft?.label ?? "Contact"}{trackSprayChart ? " - tap to place, or skip location." : " - EV is optional."}</small>
+                    <small>{hittingDraft?.label ?? "Contact"}{trackSprayChart ? " - location is optional." : " - EV is optional."}</small>
                   </div>
-                  {trackSprayChart && <PracticeSprayField points={hittingSprayPoints} activePoint={fieldLocation} onSelect={onFieldLocation} />}
+                  {effectiveHittingPitchMode === "MULTI" && (
+                    <div className="practice-hitting-inline-pitch" aria-label="Pitch type for this swing">
+                      {PITCH_TYPES.map((pitchType) => (
+                        <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>
+                          {PITCH_TYPE_LABELS[pitchType]}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {trackSprayChart && <PracticeSprayField points={hittingSprayPoints} activePoint={hittingSheetFieldLocation} onSelect={setHittingSheetFieldLocation} />}
                   {trackExitVelocity && (
                     <label className="exit-velocity-input practice-hitting-sheet__ev">
                       <span>EV</span>
@@ -8678,15 +8806,15 @@ function PracticeConsole({
                     </label>
                   )}
                   <div className="practice-hitting-sheet__spray-actions">
-                    <button className="primary-button" type="button" onClick={() => saveHittingContact(fieldLocation)}>Save Swing</button>
-                    {trackSprayChart && <button className="secondary-button" type="button" onClick={() => saveHittingContact(null)}>Skip Location</button>}
+                    <button className="primary-button" type="button" onClick={() => saveHittingContact(hittingSheetFieldLocation)}>Save Swing</button>
+                    {hittingSheetFieldLocation && <button className="text-button" type="button" onClick={() => setHittingSheetFieldLocation(undefined)}>Clear location</button>}
                   </div>
                 </section>
               )}
 
               <div className="modal-actions">
                 {hittingSheetStep !== "result" && (
-                  <button className="secondary-button" type="button" onClick={() => setHittingSheetStep(hittingSheetStep === "spray" ? "contact" : "result")}>Back</button>
+                  <button className="secondary-button" type="button" onClick={() => setHittingSheetStep("result")}>Back</button>
                 )}
                 <button className="secondary-button" type="button" onClick={closeHittingSheet}>Cancel</button>
               </div>
@@ -8740,6 +8868,40 @@ function PracticeConsole({
             </ModalFrame>
           )}
 
+          {hittingPitchTypeOpen && (
+            <ModalFrame title="Pitch Type" onClose={() => setHittingPitchTypeOpen(false)} panelClassName="practice-hitting-more-sheet">
+              <section className="practice-hitting-pitch-panel">
+                <div>
+                  <span>Tracking Mode</span>
+                  <div className="practice-hitting-pitch-modes">
+                    {(["OFF", "ONE", "MULTI"] as HittingPitchTrackingMode[]).map((modeOption) => (
+                      <button key={modeOption} type="button" className={effectiveHittingPitchMode === modeOption ? "active" : ""} onClick={() => onHittingPitchTrackingMode(modeOption)}>
+                        {pitchModeLabel(modeOption)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {effectiveHittingPitchMode !== "OFF" && (
+                  <div>
+                    <span>{effectiveHittingPitchMode === "ONE" ? "Session Pitch" : "Current Pitch"}</span>
+                    <div className="practice-hitting-choice-list practice-hitting-choice-list--compact">
+                      {PITCH_TYPES.map((pitchType) => (
+                        <button key={pitchType} type="button" className={pitchType === (effectiveHittingPitchMode === "ONE" ? effectiveHittingPitchType : selectedPitchType) ? "active" : ""} onClick={() => onPitchType(pitchType)}>
+                          {practicePitchTypeLabel(pitchType)}
+                        </button>
+                      ))}
+                    </div>
+                    <small>{effectiveHittingPitchMode === "ONE" ? "New swings inherit this pitch type until you change it." : "This stays selected for the next swing until changed."}</small>
+                  </div>
+                )}
+                {!hittingPitchTypeAvailable && <CompactEmpty title="Pitch type is unavailable for this drill" />}
+              </section>
+              <div className="modal-actions">
+                <button className="primary-button" type="button" onClick={() => setHittingPitchTypeOpen(false)}>Done</button>
+              </div>
+            </ModalFrame>
+          )}
+
           {hittingSettingsOpen && (
             <ModalFrame title="Tracking Settings" onClose={() => setHittingSettingsOpen(false)} panelClassName="practice-hitting-more-sheet">
               <div className="practice-hitting-settings-list">
@@ -8757,12 +8919,12 @@ function PracticeConsole({
                   </span>
                   <em className={trackSprayChart ? "practice-switch active" : "practice-switch"}>{trackSprayChart ? "On" : "Off"}</em>
                 </button>
-                <button type="button" onClick={() => { setHittingSettingsOpen(false); setHittingSessionOpen(true); }} aria-pressed={hittingStationUsesPitchType(hittingStation)}>
+                <button type="button" onClick={() => { setHittingSettingsOpen(false); setHittingPitchTypeOpen(true); }} aria-pressed={effectiveHittingPitchMode !== "OFF"} disabled={!hittingPitchTypeAvailable}>
                   <span>
                     <strong>Track Pitch Type</strong>
-                    <small>{hittingStationUsesPitchType(hittingStation) ? practicePitchTypeLabel(selectedPitchType) : "Change session type to enable"}</small>
+                    <small>{hittingPitchTypeAvailable ? `${pitchModeLabel(effectiveHittingPitchMode)}${hittingPitchTypeLabel ? ` - ${hittingPitchTypeLabel}` : ""}` : "Machine and Coach BP only"}</small>
                   </span>
-                  <em className={hittingStationUsesPitchType(hittingStation) ? "practice-switch active" : "practice-switch"}>{hittingStationUsesPitchType(hittingStation) ? "On" : "Off"}</em>
+                  <em className={effectiveHittingPitchMode !== "OFF" ? "practice-switch active" : "practice-switch"}>{effectiveHittingPitchMode === "OFF" ? "Off" : "On"}</em>
                 </button>
                 <button type="button" onClick={() => { setHittingSettingsOpen(false); setHittingSessionOpen(true); }} aria-pressed={isMachineHittingStation(hittingStation)}>
                   <span>
@@ -8809,17 +8971,24 @@ function PracticeConsole({
                     {HITTING_STATIONS.map((station) => (
                       <button key={station} type="button" className={station === hittingStation ? "active" : ""} onClick={() => onHittingStation(station)}>
                         <strong>{station}</strong>
-                        <small>{hittingStationUsesPitchType(station) ? "Pitch type available" : "No pitch type needed"}</small>
+                        <small>{isPracticeHittingPitchTypeAvailable(station) ? "Pitch type available" : "No pitch type needed"}</small>
                       </button>
                     ))}
                   </div>
                 </div>
-                {hittingStationUsesPitchType(hittingStation) && (
+                {hittingPitchTypeAvailable && (
                   <div>
                     <span>Pitch Type</span>
+                    <div className="practice-hitting-pitch-modes">
+                      {(["OFF", "ONE", "MULTI"] as HittingPitchTrackingMode[]).map((modeOption) => (
+                        <button key={modeOption} type="button" className={effectiveHittingPitchMode === modeOption ? "active" : ""} onClick={() => onHittingPitchTrackingMode(modeOption)}>
+                          {pitchModeLabel(modeOption)}
+                        </button>
+                      ))}
+                    </div>
                     <div className="practice-hitting-choice-list practice-hitting-choice-list--compact">
-                      {PITCH_TYPES.map((pitchType) => (
-                        <button key={pitchType} type="button" className={pitchType === selectedPitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>
+                      {effectiveHittingPitchMode !== "OFF" && PITCH_TYPES.map((pitchType) => (
+                        <button key={pitchType} type="button" className={pitchType === (effectiveHittingPitchMode === "ONE" ? effectiveHittingPitchType : selectedPitchType) ? "active" : ""} onClick={() => onPitchType(pitchType)}>
                           {practicePitchTypeLabel(pitchType)}
                         </button>
                       ))}
@@ -8847,37 +9016,69 @@ function PracticeConsole({
           )}
 
           {hittingStatsOpen && (
-            <ModalFrame title={`${player.name} Today`} onClose={() => setHittingStatsOpen(false)} panelClassName="practice-hitting-stats-sheet">
+            <ModalFrame title={`${player.name} Hitting`} onClose={() => setHittingStatsOpen(false)} panelClassName="practice-hitting-stats-sheet">
+              <div className="practice-hitting-stats-scope" aria-label="Hitting analytics scope">
+                <button type="button" className={effectiveHittingStatsScopeSessionId === "all" ? "active" : ""} onClick={() => setHittingStatsScopeSessionId("all")}>
+                  All Sessions
+                  <small>{practiceHittingEvents.length} swings</small>
+                </button>
+                {practiceHittingSessions.map((session) => {
+                  const sessionEvents = practiceHittingEvents.filter((event) => event.sessionId === session.id);
+                  return (
+                    <button key={session.id} type="button" className={effectiveHittingStatsScopeSessionId === session.id ? "active" : ""} onClick={() => setHittingStatsScopeSessionId(session.id)}>
+                      {hittingSessionAnalyticsLabel(session)}
+                      <small>{sessionEvents.length} swings</small>
+                    </button>
+                  );
+                })}
+              </div>
               <div className="practice-hitting-stats-grid">
-                <StatTile label="Swings" value={hitStats.totalSwings} />
-                <StatTile label="Contact" value={formatPct(hitStats.contactPct)} sub={`${hittingContactCount}/${hitStats.totalSwings}`} />
-                <StatTile label="Hard" value={formatPct(hitStats.hardHitPct)} sub={`${hittingHardCount}/${hitStats.ballsInPlay} BIP`} />
-                <StatTile label="Miss" value={formatPct(hitStats.whiffPct)} sub={`${hittingMissCount}/${hitStats.totalSwings}`} />
-                {hitStats.avgExitVelocity !== undefined && <StatTile label="Avg EV" value={`${formatNumber(hitStats.avgExitVelocity, 1)} mph`} sub={`${hitStats.exitVelocityRecorded} recorded`} />}
-                {hitStats.maxExitVelocity !== undefined && <StatTile label="Max EV" value={`${formatNumber(hitStats.maxExitVelocity, 1)} mph`} />}
+                <StatTile label="Swings" value={scopedHitStats.totalSwings} />
+                <StatTile label="Contact" value={formatPct(scopedHitStats.contactPct)} sub={`${scopedHittingContactCount}/${scopedHitStats.totalSwings}`} />
+                <StatTile label="Hard" value={formatPct(scopedHitStats.hardHitPct)} sub={`${scopedHittingHardCount}/${scopedHitStats.ballsInPlay} BIP`} />
+                <StatTile label="Miss" value={formatPct(scopedHitStats.whiffPct)} sub={`${scopedHittingMissCount}/${scopedHitStats.totalSwings}`} />
+                {scopedHitStats.avgExitVelocity !== undefined && <StatTile label="Avg EV" value={`${formatNumber(scopedHitStats.avgExitVelocity, 1)} mph`} sub={`${scopedHitStats.exitVelocityRecorded} recorded`} />}
+                {scopedHitStats.maxExitVelocity !== undefined && <StatTile label="Max EV" value={`${formatNumber(scopedHitStats.maxExitVelocity, 1)} mph`} />}
               </div>
               <section className="practice-hitting-stats-breakdown">
                 <div>
                   <span>Ball Type</span>
-                  <MetricBar label="Ground" value={hitStats.groundBallPct} />
-                  <MetricBar label="Line" value={hitStats.lineDrivePct} />
-                  <MetricBar label="Fly" value={hitStats.flyBallPct} />
+                  <MetricBar label="Ground" value={scopedHitStats.groundBallPct} />
+                  <MetricBar label="Line" value={scopedHitStats.lineDrivePct} />
+                  <MetricBar label="Fly" value={scopedHitStats.flyBallPct} />
                 </div>
                 <div>
                   <span>Spray</span>
-                  <PracticeSprayField points={hittingSprayPoints} activePoint={undefined} />
+                  <PracticeSprayField points={scopedHittingSprayPoints} activePoint={undefined} />
                 </div>
               </section>
+              {scopedHittingPitchSplits.length > 0 && (
+                <section className="practice-hitting-pitch-splits">
+                  <span>Pitch Splits</span>
+                  {scopedHittingPitchSplits.map((split) => (
+                    <em key={split.pitchType}>
+                      <strong>{PITCH_TYPE_LABELS[split.pitchType]}</strong>
+                      <small>{split.swings} swings · {formatPct(split.contactPct, 0)} contact · {formatPct(split.hardPct, 0)} hard</small>
+                    </em>
+                  ))}
+                </section>
+              )}
               <PracticeRecentEventTable
                 title="Recent Swings"
-                rows={hittingEvents.slice(0, 8).map((event) => ({
+                rows={scopedHittingEvents.slice(0, 8).map((event) => ({
                   id: event.id,
                   time: formatTime(event.createdAt),
                   primary: formatHittingEventTitle(event),
                   secondary: formatHittingEventDetail(event),
-                  tone: event.contactQuality === "Hard" || event.action === "Foul" ? "positive" : event.action === "Miss" ? "negative" : undefined,
+                  tone: isPracticeHardContactEvent(event) || event.action === "Foul" ? "positive" : event.action === "Miss" ? "negative" : undefined,
                 }))}
               />
+              <div className="modal-actions">
+                <button className="secondary-button" type="button" onClick={() => onOpenPracticeAnalytics ? onOpenPracticeAnalytics("Hitting", player.id, effectiveHittingStatsScopeSessionId === "all" ? undefined : effectiveHittingStatsScopeSessionId) : onOpenPlayer(player.id)}>
+                  View Full Analytics
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+              </div>
             </ModalFrame>
           )}
         </>
@@ -9045,12 +9246,9 @@ function PracticeConsole({
                 <div className="quick-pad quick-pad--hitting quick-pad--swing-results">
                   {HITTING_RESULT_ACTIONS.map((result) => (
                     <button
-                      key={result.label}
+                      key={result.id}
                       type="button"
-                      className={[
-                        result.tone ? `swing-result swing-result--${result.tone}` : "swing-result",
-                        result.tone === "hard" ? "impact" : "",
-                      ].filter(Boolean).join(" ")}
+                      className="swing-result"
                       onClick={() => onLogHitting(result.action, result.contactResult, result.contactQuality)}
                     >
                       {result.label}
@@ -9585,10 +9783,7 @@ function PracticeSprayField({ points, activePoint, onSelect }: { points: ZonePoi
 }
 
 function formatHittingEventTitle(event: HittingEvent) {
-  if (event.action === "Ball in play") {
-    const quality = event.contactQuality === "Hard" || event.contactQuality === "Barrel" ? "Hard" : "Soft";
-    return `${quality} ${shortBattedBallLabel(event.contactResult)}`;
-  }
+  if (event.action === "Ball in play") return practiceHittingResultLabel(event);
   if (event.action === "Swing") return "Other";
   if (event.action === "Took pitch") return "Take";
   return event.action;
@@ -9603,12 +9798,23 @@ function formatHittingEventDetail(event: HittingEvent) {
   return parts.length ? parts.join(" - ") : "--";
 }
 
-function shortBattedBallLabel(value?: BattedBallType) {
-  if (value === "Ground ball") return "GB";
-  if (value === "Line drive") return "LD";
-  if (value === "Fly ball") return "FB";
-  if (value === "Pop up") return "Pop Up";
-  return "Contact";
+function buildHittingPitchSplits(events: HittingEvent[]) {
+  return PITCH_TYPES
+    .map((pitchType) => {
+      const pitchEvents = events.filter((event) => event.pitchType === pitchType);
+      const swings = pitchEvents.filter((event) => event.action !== "Took pitch").length;
+      const contacts = pitchEvents.filter((event) => event.action === "Ball in play" || event.action === "Foul").length;
+      const ballsInPlay = pitchEvents.filter((event) => event.action === "Ball in play").length;
+      const hard = pitchEvents.filter(isPracticeHardContactEvent).length;
+      return {
+        pitchType,
+        swings,
+        contactPct: pct(contacts, swings),
+        hardPct: pct(hard, ballsInPlay),
+      };
+    })
+    .filter((split) => split.swings > 0)
+    .sort((left, right) => right.swings - left.swings || left.pitchType.localeCompare(right.pitchType));
 }
 
 function practicePitchTypeLabel(pitchType: PitchType) {
@@ -15777,7 +15983,7 @@ function PlayerProfile({
               <StatTile label="Swings" value={hitStats.totalSwings} />
               <StatTile label="Contact %" value={formatPct(hitStats.contactPct)} />
               <StatTile label="Hard Hit" value={formatPct(hitStats.hardHitPct)} />
-              <StatTile label="Barrel" value={formatPct(hitStats.barrelPct)} accent />
+              <StatTile label="Impact" value={formatPct(hitStats.barrelPct)} accent />
               {hitStats.exitVelocityRecorded > 0 && (
                 <StatTile label="Avg EV" value={`${formatNumber(hitStats.avgExitVelocity, 1)} mph`} sub={`${hitStats.exitVelocityRecorded} recorded`} />
               )}
@@ -18586,7 +18792,7 @@ function buildWeeklyMvp(data: AppData): AwardResult | undefined {
       score,
       reasons: [
         liveAtBats ? `${formatPct(hittingStats.liveBpAvg * 100, 0)} Live BP AVG` : undefined,
-        hittingStats.ballsInPlay ? `${Math.round(hittingStats.barrelPct)}% barrel rate` : undefined,
+        hittingStats.ballsInPlay ? `${Math.round(hittingStats.barrelPct)}% impact contact` : undefined,
         hittingStats.ballsInPlay ? `${Math.round(hittingStats.hardHitPct)}% hard contact` : undefined,
         pitchingStats.totalPitches ? `${Math.round(pitchingStats.strikePct)}% strike rate` : `${attendance} practices attended`,
       ].filter((reason): reason is string => Boolean(reason)),
@@ -19708,7 +19914,7 @@ function buildPracticeStandouts(data: AppData, practiceId: ID) {
     return { player, events, clean: events.filter((event) => event.outcome !== "Error").length };
   });
   const hardHit = hitterRows.filter((row) => row.stats.totalSwings >= 8).sort((a, b) => b.stats.hardHitPct - a.stats.hardHitPct)[0];
-  const barrel = hitterRows.filter((row) => row.stats.totalSwings >= 8).sort((a, b) => b.stats.barrelPct - a.stats.barrelPct)[0];
+  const impact = hitterRows.filter((row) => row.stats.totalSwings >= 8).sort((a, b) => b.stats.barrelPct - a.stats.barrelPct)[0];
   const maxExitVelocity = hitterRows.filter((row) => row.stats.maxExitVelocity !== undefined).sort((a, b) => (b.stats.maxExitVelocity ?? 0) - (a.stats.maxExitVelocity ?? 0))[0];
   const strike = pitcherRows.filter((row) => row.stats.totalPitches >= 12).sort((a, b) => b.stats.strikePct - a.stats.strikePct)[0];
   const command = pitcherRows.filter((row) => row.stats.totalPitches >= 12).sort((a, b) => b.stats.intendedTargetHitPct - a.stats.intendedTargetHitPct)[0];
@@ -19716,7 +19922,7 @@ function buildPracticeStandouts(data: AppData, practiceId: ID) {
 
   return [
     hardHit && { label: "Top Hard-Hit %", player: hardHit.player, value: `${formatPct(hardHit.stats.hardHitPct)} / ${hardHit.stats.totalSwings} swings` },
-    barrel && { label: "Top Barrel %", player: barrel.player, value: `${formatPct(barrel.stats.barrelPct)} / ${barrel.stats.totalSwings} swings` },
+    impact && { label: "Top Impact %", player: impact.player, value: `${formatPct(impact.stats.barrelPct)} / ${impact.stats.totalSwings} swings` },
     maxExitVelocity && { label: "Top EV", player: maxExitVelocity.player, value: `${formatNumber(maxExitVelocity.stats.maxExitVelocity, 1)} mph / ${maxExitVelocity.stats.exitVelocityRecorded} recorded` },
     strike && { label: "Best Strike %", player: strike.player, value: `${formatPct(strike.stats.strikePct)} / ${strike.stats.totalPitches} pitches` },
     command && command.stats.intendedTargetHitPct > 0 && { label: "Best Command %", player: command.player, value: `${formatPct(command.stats.intendedTargetHitPct)} target hit` },
@@ -19729,29 +19935,7 @@ function isMachineHittingStation(station: HittingSession["type"]) {
 }
 
 function hittingStationUsesPitchType(station: HittingSession["type"]) {
-  return station === "Machine" || station === "Coach BP" || station === "Live BP" || station === "Other" || station === "Hack Attack - FB" || station === "Hack Attack - CB";
-}
-
-function battedBallAbbreviation(result?: BattedBallType) {
-  if (result === "Ground ball") return "GB";
-  if (result === "Line drive") return "LD";
-  if (result === "Fly ball") return "FB";
-  if (result === "Pop up") return "PU";
-  return "";
-}
-
-function createHittingContactDraft(intensity: HittingContactIntensity, contactResult: BattedBallType): HittingContactDraft {
-  const contactQuality: HittingContactQuality = intensity === "Hard"
-    ? "Hard"
-    : contactResult === "Line drive"
-      ? "Solid"
-      : "Weak";
-  return {
-    label: `${intensity} ${battedBallAbbreviation(contactResult)}`,
-    action: "Ball in play",
-    contactResult,
-    contactQuality,
-  };
+  return isPracticeHittingPitchTypeAvailable(station);
 }
 
 function deriveHitDirectionFromFieldLocation(point: ZonePoint, bats?: Player["bats"]): Direction {
@@ -19885,7 +20069,22 @@ function practiceMetricColumns(category: PracticeMetricsCategory): PracticeMetri
   ];
 }
 
-function buildPracticeMetricRows(data: AppData, category: PracticeMetricsCategory, practiceId?: ID): PracticeMetricRow[] {
+function practiceHittingSessionOptions(data: AppData, practiceId?: ID) {
+  if (!practiceId) return [];
+  return data.hittingSessions
+    .filter((session) => session.practiceId === practiceId && session.type !== "Live BP")
+    .slice()
+    .sort((left, right) => left.startedAt.localeCompare(right.startedAt));
+}
+
+function hittingSessionAnalyticsLabel(session: HittingSession) {
+  const pitchType = resolvePracticeHittingPitchType(session);
+  const pitchMode = resolvePracticeHittingPitchMode(session.type, session);
+  const pitch = pitchMode !== "OFF" && pitchType ? ` - ${PITCH_TYPE_LABELS[pitchType]}` : "";
+  return `${normalizeHittingStation(session.type)}${pitch} · ${formatTime(session.startedAt)}`;
+}
+
+function buildPracticeMetricRows(data: AppData, category: PracticeMetricsCategory, practiceId?: ID, hittingSessionId?: ID): PracticeMetricRow[] {
   const hittingSessionTypeById = new Map(data.hittingSessions.map((session) => [session.id, session.type]));
   const pitchingSessionTypeById = new Map(data.pitchingSessions.map((session) => [session.id, session.type]));
   return data.players
@@ -19894,6 +20093,7 @@ function buildPracticeMetricRows(data: AppData, category: PracticeMetricsCategor
       const hittingEvents = data.hittingEvents.filter((event) => (
         event.hitterId === player.id
         && (!practiceId || event.practiceId === practiceId)
+        && (!hittingSessionId || event.sessionId === hittingSessionId)
         && !event.isLiveBp
         && hittingSessionTypeById.get(event.sessionId) !== "Live BP"
       ));
@@ -19970,7 +20170,7 @@ function practiceMetricSortValue(row: PracticeMetricRow, key: PracticeMetricsSor
   return row[key];
 }
 
-function practiceMetricSummary(data: AppData, category: PracticeMetricsCategory, practiceId?: ID) {
+function practiceMetricSummary(data: AppData, category: PracticeMetricsCategory, practiceId?: ID, hittingSessionId?: ID) {
   if (category === "Pitching") {
     const sessionTypeById = new Map(data.pitchingSessions.map((session) => [session.id, session.type]));
     const events = data.pitchEvents.filter((event) => (!practiceId || event.practiceId === practiceId) && sessionTypeById.get(event.sessionId) !== "Live BP");
@@ -20007,7 +20207,12 @@ function practiceMetricSummary(data: AppData, category: PracticeMetricsCategory,
     ];
   }
   const sessionTypeById = new Map(data.hittingSessions.map((session) => [session.id, session.type]));
-  const events = data.hittingEvents.filter((event) => (!practiceId || event.practiceId === practiceId) && !event.isLiveBp && sessionTypeById.get(event.sessionId) !== "Live BP");
+  const events = data.hittingEvents.filter((event) => (
+    (!practiceId || event.practiceId === practiceId)
+    && (!hittingSessionId || event.sessionId === hittingSessionId)
+    && !event.isLiveBp
+    && sessionTypeById.get(event.sessionId) !== "Live BP"
+  ));
   const stats = calculateHittingStats(events);
   return [
     { label: "Swings", value: stats.totalSwings },
@@ -20303,7 +20508,7 @@ function buildSessionSummary(data: AppData, summary: { type: "Hitting" | "Pitchi
         { label: "Swings", value: stats.totalSwings },
         { label: "Contact", value: formatPct(stats.contactPct) },
         { label: "Hard Hit", value: formatPct(stats.hardHitPct) },
-        { label: "Barrel", value: formatPct(stats.barrelPct) },
+        { label: "Impact", value: formatPct(stats.barrelPct) },
         { label: "Line Drive", value: formatPct(stats.lineDrivePct) },
         ...(stats.exitVelocityRecorded > 0 ? [{ label: "Avg EV", value: `${formatNumber(stats.avgExitVelocity, 1)} mph`, sub: `${stats.exitVelocityRecorded} recorded` }] : []),
         ...(stats.maxExitVelocity !== undefined ? [{ label: "Max EV", value: `${formatNumber(stats.maxExitVelocity, 1)} mph` }] : []),
@@ -20345,7 +20550,21 @@ function buildSessionSummary(data: AppData, summary: { type: "Hitting" | "Pitchi
   };
 }
 
-function ensureHittingSession(data: AppData, practice: Practice, playerId: ID, type: HittingSession["type"], profileId?: ID, liveBpThrowerSource: LiveBpThrowerSource = "PLAYER") {
+type EnsureHittingSessionOptions = {
+  pitchTrackingMode?: HittingPitchTrackingMode;
+  defaultPitchType?: PitchType;
+  machineVelocity?: number;
+};
+
+function ensureHittingSession(
+  data: AppData,
+  practice: Practice,
+  playerId: ID,
+  type: HittingSession["type"],
+  profileId?: ID,
+  liveBpThrowerSource: LiveBpThrowerSource = "PLAYER",
+  options: EnsureHittingSessionOptions = {},
+) {
   const now = new Date().toISOString();
   const existing = data.hittingSessions.find((session) => (
     session.practiceId === practice.id
@@ -20355,8 +20574,18 @@ function ensureHittingSession(data: AppData, practice: Practice, playerId: ID, t
     && (type !== "Live BP" || (session.liveBpThrowerSource ?? "PLAYER") === liveBpThrowerSource)
   ));
   if (existing) {
+    const nextPitchMode = type === "Live BP"
+      ? existing.pitchTrackingMode
+      : options.pitchTrackingMode ?? existing.pitchTrackingMode ?? defaultPracticeHittingPitchMode(type);
+    const nextDefaultPitchType = type === "Live BP" || nextPitchMode === "OFF"
+      ? undefined
+      : options.defaultPitchType ?? existing.defaultPitchType ?? existing.machinePitchType;
     const session = {
       ...existing,
+      pitchTrackingMode: nextPitchMode,
+      defaultPitchType: nextDefaultPitchType,
+      machinePitchType: nextPitchMode === "OFF" ? undefined : nextDefaultPitchType ?? existing.machinePitchType,
+      machineVelocity: options.machineVelocity ?? existing.machineVelocity,
       contributorProfileIds: withContributorProfile(existing.contributorProfileIds, profileId),
       updatedAt: now,
     };
@@ -20367,6 +20596,10 @@ function ensureHittingSession(data: AppData, practice: Practice, playerId: ID, t
     };
     return { data: nextData, session };
   }
+  const pitchTrackingMode = type === "Live BP" ? undefined : options.pitchTrackingMode ?? defaultPracticeHittingPitchMode(type);
+  const defaultPitchType = type !== "Live BP" && pitchTrackingMode !== "OFF"
+    ? options.defaultPitchType ?? (type === "Hack Attack - CB" ? "Curveball" : "4-Seam")
+    : undefined;
   const session: HittingSession = {
     id: createId("hs"),
     practiceId: practice.id,
@@ -20375,8 +20608,10 @@ function ensureHittingSession(data: AppData, practice: Practice, playerId: ID, t
     liveBpThrowerSource: type === "Live BP" ? liveBpThrowerSource : undefined,
     roundGoals: ["Line drives"],
     plannedReps: 20,
-    machineVelocity: isMachineHittingStation(type) ? 85 : undefined,
-    machinePitchType: isMachineHittingStation(type) ? (type === "Hack Attack - CB" ? "Curveball" : "4-Seam") : undefined,
+    machineVelocity: isMachineHittingStation(type) ? options.machineVelocity ?? 85 : undefined,
+    machinePitchType: defaultPitchType,
+    pitchTrackingMode,
+    defaultPitchType,
     startedAt: now,
     title: type === "Live BP" ? `${liveBpThrowerSourceLabel(liveBpThrowerSource)} Live BP` : `${type} - Hitting`,
     status: "ACTIVE",

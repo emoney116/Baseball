@@ -62,9 +62,9 @@ const baseData = {
     hittingEvent("he-2", "practice-aug-17", "hit-1", "p-jacob", "Foul"),
     hittingEvent("he-3", "practice-aug-17", "hit-1", "p-jacob", "Ball in play", { contactResult: "Line drive", contactQuality: "Hard", exitVelocityMph: 90 }),
     hittingEvent("he-4", "practice-aug-17", "hit-1", "p-jacob", "Ball in play", { contactResult: "Ground ball", contactQuality: "Solid", exitVelocityMph: 86 }),
-    hittingEvent("he-5", "practice-aug-19", "hit-2", "p-jacob", "Ball in play", { contactResult: "Fly ball", contactQuality: "Barrel", exitVelocityMph: 95 }),
+    hittingEvent("he-5", "practice-aug-19", "hit-2", "p-jacob", "Ball in play", { contactResult: "Fly ball", contactQuality: "Barrel", exitVelocityMph: 95, pitchType: "Slider" }),
     hittingEvent("he-live-1", "practice-aug-19", "live-hit-1", "p-jacob", "Ball in play", { contactResult: "Line drive", contactQuality: "Hard", exitVelocityMph: 92, isLiveBp: true }),
-    hittingEvent("he-mylo-1", "practice-aug-19", "hit-2", "p-mylo", "Ball in play", { contactResult: "Line drive", contactQuality: "Hard", exitVelocityMph: 88 }),
+    hittingEvent("he-mylo-1", "practice-aug-19", "hit-2", "p-mylo", "Ball in play", { contactResult: "Line drive", contactQuality: "Hard", exitVelocityMph: 88, pitchType: "Slider" }),
   ],
   defenseSessions: [],
   defenseEvents: [],
@@ -149,6 +149,26 @@ test("event filtering changes denominators and excludes unselected practices", (
   assert.equal(jacob.cells.swings.display, "4");
   assert.equal(jacob.cells.contactPct.display, "75%");
   assert.equal(jacob.cells.maxEv.display, "90.0");
+});
+
+test("hitting session and pitch-type filters scope practice analytics", () => {
+  const sessionFiltered = executeAnalyticsQuery(baseData, {
+    ...query("hitting", "practice"),
+    eventIds: ["hit-2"],
+  });
+  const pitchFiltered = executeAnalyticsQuery(baseData, {
+    ...query("hitting", "practice"),
+    mode: "situational",
+    filters: { pitchTypes: ["Slider"] },
+  });
+
+  assert.equal(row(sessionFiltered, "p-jacob").cells.opportunities.display, "1");
+  assert.equal(row(sessionFiltered, "p-mylo").cells.opportunities.display, "1");
+  assert.equal(sessionFiltered.teamTotals.cells.swings.display, "2");
+  assert.equal(pitchFiltered.filterDefinitions.some((definition) => definition.id === "pitchTypes"), true);
+  assert.equal(row(pitchFiltered, "p-jacob").cells.opportunities.display, "1");
+  assert.equal(row(pitchFiltered, "p-mylo").cells.opportunities.display, "1");
+  assert.equal(pitchFiltered.teamTotals.cells.swings.display, "2");
 });
 
 test("date range filtering uses the current date window", () => {

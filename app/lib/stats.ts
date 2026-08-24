@@ -9,6 +9,7 @@ import type {
   PitchingSession,
   Practice,
 } from "../types";
+import { isPracticeHardContactEvent } from "./hittingTaxonomy.ts";
 
 export interface PitchingStats {
   totalPitches: number;
@@ -162,7 +163,7 @@ export function calculateHittingStats(events: HittingEvent[]): HittingStats {
   const misses = events.filter((event) => event.action === "Miss").length;
   const ballsInPlay = events.filter((event) => event.action === "Ball in play").length;
   const contacts = events.filter((event) => event.action === "Ball in play" || event.action === "Foul").length;
-  const hard = events.filter((event) => event.contactQuality === "Hard" || event.contactQuality === "Barrel").length;
+  const hard = events.filter(isPracticeHardContactEvent).length;
   const barrels = events.filter((event) => event.contactQuality === "Barrel").length;
   const lines = events.filter((event) => event.contactResult === "Line drive").length;
   const ground = events.filter((event) => event.contactResult === "Ground ball").length;
@@ -182,7 +183,7 @@ export function calculateHittingStats(events: HittingEvent[]): HittingStats {
   const liveSlg = totalBases / liveAtBats;
   const exitVelocities = events.map((event) => event.exitVelocityMph).filter(isNumber);
   const hardExitVelocities = events
-    .filter((event) => event.contactQuality === "Hard" || event.contactQuality === "Barrel")
+    .filter(isPracticeHardContactEvent)
     .map((event) => event.exitVelocityMph)
     .filter(isNumber);
 
@@ -383,7 +384,7 @@ function isNumber(value: unknown): value is number {
 function metricLabel(metric: string): string {
   const labels: Record<string, string> = {
     hardHitPct: "Hard-hit %",
-    barrelPct: "Barrel %",
+    barrelPct: "Impact %",
     contactPct: "Contact %",
     lineDrivePct: "Line-drive %",
     whiffPct: "Whiff %",
