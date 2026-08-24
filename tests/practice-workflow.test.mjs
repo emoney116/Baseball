@@ -43,7 +43,12 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /Track Spray Location/);
   assert.match(page, /editingHittingEventId/);
   assert.match(page, /function MobileMoreMenu/);
+  assert.match(page, /function MobilePinnedMenu/);
   assert.match(page, /"mobile-more-menu__row"/);
+  assert.match(page, /"--bottom-nav-count": mobileNavCount/);
+  assert.match(page, /className="mobile-more-menu__avatar"/);
+  assert.match(page, /<span>Pinned<\/span>/);
+  assert.match(page, /aria-label="Pinned teams"/);
   assert.match(page, /onTheme=\{setThemePreference\}/);
   assert.match(page, /<h2>Appearance<\/h2>/);
   assert.match(page, /Log Swing/);
@@ -127,6 +132,9 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(styles, /\.practice-hitting-settings-list/);
   assert.match(styles, /\.mobile-more-menu/);
   assert.match(styles, /\.mobile-more-menu__row/);
+  assert.match(styles, /\.mobile-pinned-menu/);
+  assert.match(styles, /--bottom-nav-count/);
+  assert.match(styles, /\.bottom-nav button\.active::before/);
   assert.match(styles, /\.account-appearance-setting/);
   assert.match(styles, /\.practice-live-bp-action-panel/);
   assert.match(styles, /\.practice-live-bp-pitch-sheet/);

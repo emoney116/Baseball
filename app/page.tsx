@@ -805,7 +805,9 @@ export default function MetrolinaBaseballApp() {
   const currentTheme = data?.settings.theme;
 
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [mobilePinnedOpen, setMobilePinnedOpen] = useState(false);
   const mobileMoreTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const mobilePinnedTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [editingPlayerId, setEditingPlayerId] = useState<ID | undefined>();
   const [sessionSummary, setSessionSummary] = useState<{ type: "Hitting" | "Pitching" | "Defense"; sessionId: ID } | null>(null);
   const [practiceSummaryOpen, setPracticeSummaryOpen] = useState(false);
@@ -2492,6 +2494,10 @@ export default function MetrolinaBaseballApp() {
   const inTeamContext = searchInTeamContext;
   const sidebarItems = inTeamContext ? TEAM_NAV_ITEMS : GLOBAL_NAV_ITEMS;
   const mobileItems = inTeamContext ? TEAM_MOBILE_NAV_ITEMS : MOBILE_NAV_ITEMS;
+  const mobileNavCount = mobileItems.length + (pinnedTeams.length ? 1 : 0);
+  const mobilePrimaryItems = mobileItems.filter((item) => item.key !== "more") as Array<{ key: ViewKey; label: string; shortLabel: string; icon: AppIcon }>;
+  const mobileMoreItem = mobileItems.find((item) => item.key === "more");
+  const MobileMoreIcon = mobileMoreItem?.icon;
 
   return (
     <main className="ops-shell">
@@ -2900,34 +2906,62 @@ export default function MetrolinaBaseballApp() {
         )}
       </section>
 
-      <nav className="bottom-nav" aria-label="Mobile navigation">
-        {mobileItems.map(({ key, shortLabel, icon: Icon }) => (
+      <nav className="bottom-nav" aria-label="Mobile navigation" style={{ "--bottom-nav-count": mobileNavCount } as React.CSSProperties}>
+        {mobilePrimaryItems.map(({ key, shortLabel, icon: Icon }) => (
           <button
             key={key}
-            ref={key === "more" ? mobileMoreTriggerRef : undefined}
             type="button"
-            className={(key === "more" ? mobileMoreOpen || MORE_VIEWS.includes(view) || (inTeamContext && ["roster", "weights", "analytics", "account"].includes(view)) : view === key) ? "active" : ""}
-            aria-expanded={key === "more" ? mobileMoreOpen : undefined}
-            aria-haspopup={key === "more" ? "menu" : undefined}
+            className={view === key ? "active" : ""}
             onClick={() => {
-              if (key === "more") {
-                setMobileMoreOpen((open) => !open);
-                return;
-              }
               setMobileMoreOpen(false);
-                goToView(key);
+              setMobilePinnedOpen(false);
+              goToView(key);
             }}
           >
             <Icon size={19} aria-hidden="true" />
             <span>{shortLabel}</span>
           </button>
         ))}
+        {pinnedTeams.length > 0 && (
+          <button
+            ref={mobilePinnedTriggerRef}
+            type="button"
+            className={mobilePinnedOpen ? "active" : ""}
+            aria-expanded={mobilePinnedOpen}
+            aria-haspopup="menu"
+            onClick={() => {
+              setMobileMoreOpen(false);
+              setMobilePinnedOpen((open) => !open);
+            }}
+          >
+            <Pin size={19} aria-hidden="true" />
+            <span>Pinned</span>
+          </button>
+        )}
+        {mobileMoreItem && MobileMoreIcon && (
+          <button
+            key={mobileMoreItem.key}
+            ref={mobileMoreTriggerRef}
+            type="button"
+            className={mobileMoreOpen || MORE_VIEWS.includes(view) || (inTeamContext && ["roster", "weights", "analytics", "account"].includes(view)) ? "active" : ""}
+            aria-expanded={mobileMoreOpen}
+            aria-haspopup="menu"
+            onClick={() => {
+              setMobilePinnedOpen(false);
+              setMobileMoreOpen((open) => !open);
+            }}
+          >
+            <MobileMoreIcon size={19} aria-hidden="true" />
+            <span>{mobileMoreItem.shortLabel}</span>
+          </button>
+        )}
       </nav>
 
       {mobileMoreOpen && (
         <MobileMoreMenu
           inTeamContext={inTeamContext}
           activeView={view}
+          profile={data.teamContext?.profile}
           onClose={() => {
             setMobileMoreOpen(false);
             mobileMoreTriggerRef.current?.focus();
@@ -2937,6 +2971,22 @@ export default function MetrolinaBaseballApp() {
             else goToView(nextView);
             setMobileMoreOpen(false);
             mobileMoreTriggerRef.current?.focus();
+          }}
+        />
+      )}
+
+      {mobilePinnedOpen && (
+        <MobilePinnedMenu
+          teams={pinnedTeams}
+          context={data.teamContext}
+          onClose={() => {
+            setMobilePinnedOpen(false);
+            mobilePinnedTriggerRef.current?.focus();
+          }}
+          onEnterTeam={(team) => {
+            setMobilePinnedOpen(false);
+            void enterTeam(team);
+            mobilePinnedTriggerRef.current?.focus();
           }}
         />
       )}
@@ -3863,11 +3913,13 @@ type MobileMoreMenuItem = {
 function MobileMoreMenu({
   inTeamContext,
   activeView,
+  profile,
   onClose,
   onNavigate,
 }: {
   inTeamContext: boolean;
   activeView: ViewKey;
+  profile?: AppProfile;
   onClose: () => void;
   onNavigate: (view: ViewKey) => void;
 }) {
@@ -3912,8 +3964,66 @@ function MobileMoreMenu({
               ].filter(Boolean).join(" ")}
               onClick={() => onNavigate(itemView)}
             >
-              <Icon size={18} aria-hidden="true" />
+              {itemView === "account" ? (
+                <IdentityAvatar
+                  id={profile?.id}
+                  name={preferredProfileDisplayName(profile) || "My Profile"}
+                  src={profile?.avatarUrl}
+                  size="xs"
+                  className="mobile-more-menu__avatar"
+                />
+              ) : (
+                <Icon size={18} aria-hidden="true" />
+              )}
               <span>{label}</span>
+              <ChevronRight size={15} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function MobilePinnedMenu({
+  teams,
+  context,
+  onClose,
+  onEnterTeam,
+}: {
+  teams: TeamOption[];
+  context?: TeamContext;
+  onClose: () => void;
+  onEnterTeam: (team: TeamOption) => void;
+}) {
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <>
+      <button className="mobile-more-dismiss" type="button" aria-label="Close pinned teams" onClick={onClose} />
+      <div className="mobile-more-menu mobile-pinned-menu" role="menu" aria-label="Pinned teams">
+        <span className="mobile-more-menu__handle" aria-hidden="true" />
+        <div className="mobile-more-menu__title">Pinned</div>
+        <div className="mobile-more-menu__rows">
+          {teams.map((team) => (
+            <button
+              key={teamValue(team)}
+              type="button"
+              role="menuitem"
+              className="mobile-more-menu__row mobile-pinned-menu__row"
+              onClick={() => onEnterTeam(team)}
+            >
+              <OrganizationLogo name={team.organizationName} logoUrl={team.logoUrl ?? teamOrganizationLogo(team, context)} />
+              <span>
+                <strong>{shortTeamName(team.teamName)}</strong>
+                <small>{team.seasonName ?? "Current season"}</small>
+              </span>
               <ChevronRight size={15} aria-hidden="true" />
             </button>
           ))}
