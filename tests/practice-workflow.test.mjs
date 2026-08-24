@@ -44,6 +44,11 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /editingHittingEventId/);
   assert.match(page, /function MobileMoreMenu/);
   assert.match(page, /function MobilePinnedMenu/);
+  assert.match(page, /function useBottomNavMenuStyle/);
+  assert.match(page, /const showMobilePinned = !inTeamContext && pinnedTeams\.length > 0/);
+  assert.match(page, /shortLabel: "Team Home"/);
+  assert.match(page, /team-workspace-header--compact/);
+  assert.match(page, /Clubhouse Home/);
   assert.match(page, /"mobile-more-menu__row"/);
   assert.match(page, /"--bottom-nav-count": mobileNavCount/);
   assert.match(page, /className="mobile-more-menu__avatar"/);
@@ -133,6 +138,8 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(styles, /\.mobile-more-menu/);
   assert.match(styles, /\.mobile-more-menu__row/);
   assert.match(styles, /\.mobile-pinned-menu/);
+  assert.match(styles, /\.team-workspace-header--compact \{[\s\S]*display: none/);
+  assert.match(styles, /@media \(max-width: 1180px\) \{[\s\S]*\.team-workspace-header--compact \{[\s\S]*display: grid/);
   assert.match(styles, /--bottom-nav-count/);
   assert.match(styles, /\.bottom-nav button\.active::before/);
   assert.match(styles, /\.account-appearance-setting/);

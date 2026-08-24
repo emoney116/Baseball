@@ -3421,6 +3421,7 @@ textarea:focus-visible {
 }
 
 .team-workspace-header--compact {
+  display: none;
   min-height: 62px;
   padding: 10px 14px;
 }
@@ -17029,6 +17030,10 @@ body,
 }
 
 @media (max-width: 1180px) {
+  .team-workspace-header--compact {
+    display: grid;
+  }
+
   .team-workspace-header {
     grid-template-columns: auto minmax(0, 1fr);
   }

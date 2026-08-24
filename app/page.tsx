@@ -238,6 +238,50 @@ function withStoredThemePreference(appData: AppData): AppData {
   };
 }
 
+function useBottomNavMenuStyle(
+  triggerRef: React.RefObject<HTMLButtonElement | null>,
+  open: boolean,
+  preferredWidth: number,
+): React.CSSProperties | undefined {
+  const [style, setStyle] = useState<React.CSSProperties | undefined>();
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const animationFrame = window.requestAnimationFrame(updatePosition);
+
+    function updatePosition() {
+      if (typeof window === "undefined" || window.innerWidth <= 720 || !triggerRef.current) {
+        setStyle(undefined);
+        return;
+      }
+
+      const rect = triggerRef.current.getBoundingClientRect();
+      const width = Math.min(preferredWidth, window.innerWidth - 24);
+      const left = Math.min(
+        Math.max(rect.left + rect.width / 2 - width / 2, 12),
+        window.innerWidth - width - 12,
+      );
+      const bottom = Math.max(window.innerHeight - rect.top + 8, 78);
+      setStyle({
+        left,
+        right: "auto",
+        bottom,
+        width,
+      });
+    }
+
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("orientationchange", updatePosition);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("orientationchange", updatePosition);
+    };
+  }, [open, preferredWidth, triggerRef]);
+
+  return open ? style : undefined;
+}
+
 type WeightRoomExercise = {
   name: string;
   category: WeightRoomExerciseCategory;
@@ -473,7 +517,7 @@ const MOBILE_NAV_ITEMS: Array<{ key: ViewKey | "more"; label: string; shortLabel
   { key: "more", label: "More", shortLabel: "More", icon: MoreHorizontal },
 ];
 const TEAM_MOBILE_NAV_ITEMS: Array<{ key: ViewKey | "more"; label: string; shortLabel: string; icon: AppIcon }> = [
-  { key: "teamHome", label: "Team Home", shortLabel: "Home", icon: Home },
+  { key: "teamHome", label: "Team Home", shortLabel: "Team Home", icon: Home },
   { key: "schedule", label: "Schedule", shortLabel: "Schedule", icon: ScheduleCalendarIcon },
   { key: "practice", label: "Practice", shortLabel: "Practice", icon: ClipboardList },
   { key: "games", label: "Games", shortLabel: "Games", icon: BaseballIcon },
@@ -808,6 +852,8 @@ export default function MetrolinaBaseballApp() {
   const [mobilePinnedOpen, setMobilePinnedOpen] = useState(false);
   const mobileMoreTriggerRef = useRef<HTMLButtonElement | null>(null);
   const mobilePinnedTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const mobileMoreMenuStyle = useBottomNavMenuStyle(mobileMoreTriggerRef, mobileMoreOpen, 268);
+  const mobilePinnedMenuStyle = useBottomNavMenuStyle(mobilePinnedTriggerRef, mobilePinnedOpen, 292);
   const [editingPlayerId, setEditingPlayerId] = useState<ID | undefined>();
   const [sessionSummary, setSessionSummary] = useState<{ type: "Hitting" | "Pitching" | "Defense"; sessionId: ID } | null>(null);
   const [practiceSummaryOpen, setPracticeSummaryOpen] = useState(false);
@@ -2494,7 +2540,8 @@ export default function MetrolinaBaseballApp() {
   const inTeamContext = searchInTeamContext;
   const sidebarItems = inTeamContext ? TEAM_NAV_ITEMS : GLOBAL_NAV_ITEMS;
   const mobileItems = inTeamContext ? TEAM_MOBILE_NAV_ITEMS : MOBILE_NAV_ITEMS;
-  const mobileNavCount = mobileItems.length + (pinnedTeams.length ? 1 : 0);
+  const showMobilePinned = !inTeamContext && pinnedTeams.length > 0;
+  const mobileNavCount = mobileItems.length + (showMobilePinned ? 1 : 0);
   const mobilePrimaryItems = mobileItems.filter((item) => item.key !== "more") as Array<{ key: ViewKey; label: string; shortLabel: string; icon: AppIcon }>;
   const mobileMoreItem = mobileItems.find((item) => item.key === "more");
   const MobileMoreIcon = mobileMoreItem?.icon;
@@ -2922,7 +2969,7 @@ export default function MetrolinaBaseballApp() {
             <span>{shortLabel}</span>
           </button>
         ))}
-        {pinnedTeams.length > 0 && (
+        {showMobilePinned && (
           <button
             ref={mobilePinnedTriggerRef}
             type="button"
@@ -2962,6 +3009,7 @@ export default function MetrolinaBaseballApp() {
           inTeamContext={inTeamContext}
           activeView={view}
           profile={data.teamContext?.profile}
+          style={mobileMoreMenuStyle}
           onClose={() => {
             setMobileMoreOpen(false);
             mobileMoreTriggerRef.current?.focus();
@@ -2975,10 +3023,11 @@ export default function MetrolinaBaseballApp() {
         />
       )}
 
-      {mobilePinnedOpen && (
+      {mobilePinnedOpen && showMobilePinned && (
         <MobilePinnedMenu
           teams={pinnedTeams}
           context={data.teamContext}
+          style={mobilePinnedMenuStyle}
           onClose={() => {
             setMobilePinnedOpen(false);
             mobilePinnedTriggerRef.current?.focus();
@@ -3742,7 +3791,18 @@ function TeamWorkspaceHeader({
   const current = context?.currentTeam;
   if (!current) return null;
   const isTeamHome = view === "teamHome";
-  if (!isTeamHome) return null;
+  if (!isTeamHome) {
+    return (
+      <section className="team-workspace-header team-workspace-header--compact">
+        <OrganizationLogo name={current.organizationName} logoUrl={teamOrganizationLogo(current, context)} />
+        <div className="team-workspace-header__identity">
+          <span>{current.organizationName}</span>
+          <TeamIdentitySwitcher context={context} current={current} onSwitch={onSwitch} onClubhouseHome={onClubhouseHome} compact />
+          <small>{current.seasonName ?? "Current season"}</small>
+        </div>
+      </section>
+    );
+  }
   return (
     <section className="team-workspace-header team-workspace-header--home">
       <OrganizationLogo name={current.organizationName} logoUrl={teamOrganizationLogo(current, context)} />
@@ -3822,7 +3882,7 @@ function TeamIdentitySwitcher({
             </div>
           ))}
           <button className="team-switcher-home-row" type="button" onClick={() => { setOpen(false); onClubhouseHome(); }}>
-            <Home size={15} aria-hidden="true" />
+            <ChevronLeft size={15} aria-hidden="true" />
             Clubhouse Home
           </button>
         </div>
@@ -3914,12 +3974,14 @@ function MobileMoreMenu({
   inTeamContext,
   activeView,
   profile,
+  style,
   onClose,
   onNavigate,
 }: {
   inTeamContext: boolean;
   activeView: ViewKey;
   profile?: AppProfile;
+  style?: React.CSSProperties;
   onClose: () => void;
   onNavigate: (view: ViewKey) => void;
 }) {
@@ -3948,7 +4010,7 @@ function MobileMoreMenu({
   return (
     <>
       <button className="mobile-more-dismiss" type="button" aria-label="Close more menu" onClick={onClose} />
-      <div className="mobile-more-menu" role="menu" aria-label="More navigation">
+      <div className="mobile-more-menu" role="menu" aria-label="More navigation" style={style}>
         <span className="mobile-more-menu__handle" aria-hidden="true" />
         <div className="mobile-more-menu__title">More</div>
         <div className="mobile-more-menu__rows">
@@ -3988,11 +4050,13 @@ function MobileMoreMenu({
 function MobilePinnedMenu({
   teams,
   context,
+  style,
   onClose,
   onEnterTeam,
 }: {
   teams: TeamOption[];
   context?: TeamContext;
+  style?: React.CSSProperties;
   onClose: () => void;
   onEnterTeam: (team: TeamOption) => void;
 }) {
@@ -4007,7 +4071,7 @@ function MobilePinnedMenu({
   return (
     <>
       <button className="mobile-more-dismiss" type="button" aria-label="Close pinned teams" onClick={onClose} />
-      <div className="mobile-more-menu mobile-pinned-menu" role="menu" aria-label="Pinned teams">
+      <div className="mobile-more-menu mobile-pinned-menu" role="menu" aria-label="Pinned teams" style={style}>
         <span className="mobile-more-menu__handle" aria-hidden="true" />
         <div className="mobile-more-menu__title">Pinned</div>
         <div className="mobile-more-menu__rows">
