@@ -418,6 +418,7 @@ html {
 body {
   margin: 0;
   min-height: 100%;
+  overflow-x: hidden;
   color: var(--text);
   font-family: var(--font);
   font-size: var(--text-body);
@@ -16467,6 +16468,9 @@ body,
   .bottom-nav {
     left: 10px;
     right: 10px;
+    width: auto;
+    max-width: none;
+    transform: none;
     bottom: calc(10px + env(safe-area-inset-bottom));
   }
 
@@ -25182,6 +25186,35 @@ button.weight-room-athlete-table__row:hover {
     grid-template-columns: 1fr;
   }
 
+  .practice-hitting-entry-bar {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .practice-hitting-log-trigger,
+  .practice-hitting-more-trigger {
+    width: 100%;
+  }
+
+  .practice-hitting-quick-controls,
+  .practice-hitting-inline-pitch,
+  .practice-hitting-pitch-modes,
+  .practice-hitting-session-filter {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+  }
+
+  .practice-hitting-session-filter {
+    max-width: 100%;
+    overflow-x: auto;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(126px, 1fr);
+    grid-template-columns: none;
+    justify-content: start;
+  }
+
   .practice-hitting-context {
     grid-template-columns: 1fr;
   }
@@ -26156,6 +26189,10 @@ textarea:focus,
   bottom: calc(84px + env(safe-area-inset-bottom));
   z-index: 62;
   width: min(268px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  max-height: min(420px, calc(100dvh - 112px - env(safe-area-inset-bottom)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid color-mix(in srgb, var(--line-strong) 76%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--panel-strong) 94%, transparent);
@@ -26297,11 +26334,36 @@ textarea:focus,
 }
 
 @media (max-width: 720px) {
+  .segmented-control,
+  .practice-filter-tabs,
+  .roster-status-tabs {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+  }
+
+  .segmented-control::-webkit-scrollbar,
+  .practice-filter-tabs::-webkit-scrollbar,
+  .roster-status-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .segmented-control button,
+  .practice-filter-tabs button,
+  .roster-status-tabs button {
+    flex: 0 0 auto;
+  }
+
   .mobile-more-menu {
     left: 12px;
     right: 12px;
     bottom: calc(84px + env(safe-area-inset-bottom));
     width: auto;
+    max-width: none;
+    max-height: calc(100dvh - 112px - env(safe-area-inset-bottom));
     border-radius: 20px;
     padding: 7px;
   }
@@ -26331,5 +26393,33 @@ textarea:focus,
 
   .account-appearance-setting {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .practice-tracker-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .practice-tracker-tabs button {
+    min-width: 0;
+    flex: initial;
+  }
+}
+
+@media (max-width: 360px) {
+  .bottom-nav {
+    grid-template-columns: repeat(var(--bottom-nav-count, 5), minmax(0, 1fr));
+    padding: 2px;
+  }
+
+  .bottom-nav button {
+    padding-inline: 1px;
+  }
+
+  .bottom-nav span {
+    font-size: 8.5px;
   }
 }

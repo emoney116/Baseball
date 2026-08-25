@@ -4,6 +4,7 @@ import test from "node:test";
 
 test("practice hub opens active tracker modes without setup screen", () => {
   const page = readFileSync("app/page.tsx", "utf8");
+  const layout = readFileSync("app/layout.tsx", "utf8");
   const styles = readFileSync("app/globals.css", "utf8");
   const taxonomy = readFileSync("app/lib/hittingTaxonomy.ts", "utf8");
   const attendanceListBlocks = styles.match(/\.attendance-roster__list \{[^}]+\}/g) ?? [];
@@ -57,8 +58,13 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /function MobileMoreMenu/);
   assert.match(page, /function MobilePinnedMenu/);
   assert.match(page, /function useBottomNavMenuStyle/);
+  assert.match(layout, /export const viewport/);
+  assert.match(layout, /width: "device-width"/);
+  assert.match(layout, /viewportFit: "cover"/);
   assert.match(page, /const showMobilePinned = !inTeamContext && pinnedTeams\.length > 0/);
-  assert.match(page, /shortLabel: "Team Home"/);
+  assert.match(page, /\{ key: "teamHome", label: "Team Home", shortLabel: "Home"/);
+  assert.match(page, /aria-label=\{label\}/);
+  assert.match(page, /aria-current=\{view === key \? "page" : undefined\}/);
   assert.match(page, /team-workspace-header--compact/);
   assert.match(page, /Clubhouse Home/);
   assert.match(page, /"mobile-more-menu__row"/);
@@ -162,8 +168,15 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(styles, /\.practice-hitting-more-list/);
   assert.match(styles, /\.practice-hitting-settings-list/);
   assert.match(styles, /\.mobile-more-menu/);
+  assert.match(styles, /\.mobile-more-menu \{[\s\S]*max-height: min\(420px, calc\(100dvh - 112px - env\(safe-area-inset-bottom\)\)\)/);
+  assert.match(styles, /\.mobile-more-menu \{[\s\S]*overflow-y: auto/);
   assert.match(styles, /\.mobile-more-menu__row/);
   assert.match(styles, /\.mobile-pinned-menu/);
+  assert.match(styles, /@media \(max-width: 720px\) \{[\s\S]*\.bottom-nav \{[\s\S]*width: auto;[\s\S]*transform: none/);
+  assert.match(styles, /@media \(max-width: 720px\) \{[\s\S]*\.segmented-control,[\s\S]*\.practice-filter-tabs,[\s\S]*\.roster-status-tabs \{[\s\S]*overflow-x: auto/);
+  assert.match(styles, /@media \(max-width: 560px\) \{[\s\S]*\.practice-tracker-tabs \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 680px\) \{[\s\S]*\.practice-hitting-entry-bar \{[\s\S]*grid-template-columns: 1fr/);
+  assert.match(styles, /@media \(max-width: 680px\) \{[\s\S]*\.practice-hitting-quick-controls,[\s\S]*\.practice-hitting-inline-pitch,[\s\S]*\.practice-hitting-pitch-modes,[\s\S]*\.practice-hitting-session-filter \{[\s\S]*grid-template-columns: repeat\(auto-fit, minmax\(86px, 1fr\)\)/);
   assert.match(styles, /\.team-workspace-header--compact \{[\s\S]*display: none/);
   assert.match(styles, /@media \(max-width: 1180px\) \{[\s\S]*\.team-workspace-header--compact \{[\s\S]*display: grid/);
   assert.match(styles, /--bottom-nav-count/);
