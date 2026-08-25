@@ -262,18 +262,26 @@ function useBottomNavMenuStyle(
     const animationFrame = window.requestAnimationFrame(updatePosition);
 
     function updatePosition() {
-      if (typeof window === "undefined" || window.innerWidth <= 720 || !triggerRef.current) {
+      if (typeof window === "undefined" || !triggerRef.current) {
+        setStyle(undefined);
+        return;
+      }
+      const viewport = window.visualViewport;
+      const viewportWidth = viewport?.width ?? window.innerWidth;
+      const viewportHeight = viewport?.height ?? window.innerHeight;
+      const viewportLeft = viewport?.offsetLeft ?? 0;
+      if (viewportWidth <= 720) {
         setStyle(undefined);
         return;
       }
 
       const rect = triggerRef.current.getBoundingClientRect();
-      const width = Math.min(preferredWidth, window.innerWidth - 24);
+      const width = Math.min(preferredWidth, viewportWidth - 24);
       const left = Math.min(
-        Math.max(rect.left + rect.width / 2 - width / 2, 12),
-        window.innerWidth - width - 12,
+        Math.max(rect.left + rect.width / 2 - width / 2, viewportLeft + 12),
+        viewportLeft + viewportWidth - width - 12,
       );
-      const bottom = Math.max(window.innerHeight - rect.top + 8, 78);
+      const bottom = Math.max(viewportHeight - rect.top + 8, 78);
       setStyle({
         left,
         right: "auto",
@@ -529,7 +537,7 @@ const MOBILE_NAV_ITEMS: Array<{ key: ViewKey | "more"; label: string; shortLabel
   { key: "more", label: "More", shortLabel: "More", icon: MoreHorizontal },
 ];
 const TEAM_MOBILE_NAV_ITEMS: Array<{ key: ViewKey | "more"; label: string; shortLabel: string; icon: AppIcon }> = [
-  { key: "teamHome", label: "Team Home", shortLabel: "Team Home", icon: Home },
+  { key: "teamHome", label: "Team Home", shortLabel: "Home", icon: Home },
   { key: "schedule", label: "Schedule", shortLabel: "Schedule", icon: ScheduleCalendarIcon },
   { key: "practice", label: "Practice", shortLabel: "Practice", icon: ClipboardList },
   { key: "games", label: "Games", shortLabel: "Games", icon: BaseballIcon },
@@ -3281,10 +3289,12 @@ export default function MetrolinaBaseballApp() {
       </section>
 
       <nav className="bottom-nav" aria-label="Mobile navigation" style={{ "--bottom-nav-count": mobileNavCount } as React.CSSProperties}>
-        {mobilePrimaryItems.map(({ key, shortLabel, icon: Icon }) => (
+        {mobilePrimaryItems.map(({ key, label, shortLabel, icon: Icon }) => (
           <button
             key={key}
             type="button"
+            aria-label={label}
+            aria-current={view === key ? "page" : undefined}
             className={view === key ? "active" : ""}
             onClick={() => {
               setMobileMoreOpen(false);
@@ -3303,6 +3313,7 @@ export default function MetrolinaBaseballApp() {
             className={mobilePinnedOpen ? "active" : ""}
             aria-expanded={mobilePinnedOpen}
             aria-haspopup="menu"
+            aria-label="Pinned teams"
             onClick={() => {
               setMobileMoreOpen(false);
               setMobilePinnedOpen((open) => !open);
@@ -3320,6 +3331,7 @@ export default function MetrolinaBaseballApp() {
             className={mobileMoreOpen || MORE_VIEWS.includes(view) || (inTeamContext && ["roster", "weights", "analytics", "account"].includes(view)) ? "active" : ""}
             aria-expanded={mobileMoreOpen}
             aria-haspopup="menu"
+            aria-label="More navigation"
             onClick={() => {
               setMobilePinnedOpen(false);
               setMobileMoreOpen((open) => !open);

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import type React from "react";
 import { APP_DESCRIPTION, APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
@@ -44,6 +44,12 @@ export const metadata: Metadata = {
     title: APP_NAME,
     statusBarStyle: "black-translucent",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
