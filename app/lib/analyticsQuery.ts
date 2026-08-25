@@ -12,6 +12,7 @@ import type {
   Player,
   Practice,
 } from "../types";
+import { isPracticeHardContactEvent } from "./hittingTaxonomy.ts";
 import { buildWeightRoomScoreRows, type WeightRoomWindow } from "./weightRoom.ts";
 
 export type AnalyticsDomain = "hitting" | "pitching" | "defense" | "development";
@@ -192,9 +193,9 @@ export const ANALYTICS_METRICS: AnalyticsMetricDefinition[] = [
   metric("contactPct", "Contact %", "hitting", "percentage", ["all", "practice", "live-bp"], "Balls in play plus fouls divided by swings.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
   metric("swingMissPct", "Whiff %", "hitting", "percentage", ["all", "practice", "live-bp"], "Misses divided by swings.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
   metric("takePct", "Take %", "hitting", "percentage", ["all", "practice", "live-bp"], "Taken pitches divided by tracked opportunities.", true, true),
-  metric("hard", "Hard", "hitting", "integer", ["all", "practice", "live-bp"], "Hard or barrel balls in play.", true, true),
-  metric("hardPct", "Hard %", "hitting", "percentage", ["all", "practice", "live-bp"], "Hard or barrel contact divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-  metric("barrelPct", "Barrel %", "hitting", "percentage", ["all", "practice", "live-bp"], "Barrel contact divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+  metric("hard", "Hard", "hitting", "integer", ["all", "practice", "live-bp"], "Explicit hard-contact balls in play.", true, true),
+  metric("hardPct", "Hard %", "hitting", "percentage", ["all", "practice", "live-bp"], "Explicit hard-contact outcomes divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+  metric("barrelPct", "Impact %", "hitting", "percentage", ["all", "practice", "live-bp"], "Legacy barrel/impact-quality contact divided by balls in play. This is not a true barrel calculation.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
   metric("lineDrivePct", "LD %", "hitting", "percentage", ["all", "practice", "live-bp"], "Line drives divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
   metric("groundBallPct", "GB %", "hitting", "percentage", ["all", "practice", "live-bp"], "Ground balls divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
   metric("flyBallPct", "FB %", "hitting", "percentage", ["all", "practice", "live-bp"], "Fly balls divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
@@ -634,7 +635,7 @@ function hittingRow(player: Player, events: HittingEvent[]): AnalyticsRow {
   const fouls = events.filter((event) => event.action === "Foul").length;
   const contacts = events.filter((event) => event.action === "Ball in play" || event.action === "Foul").length;
   const ballsInPlay = events.filter((event) => event.action === "Ball in play").length;
-  const hard = events.filter((event) => event.contactQuality === "Hard" || event.contactQuality === "Barrel").length;
+  const hard = events.filter(isPracticeHardContactEvent).length;
   const barrels = events.filter((event) => event.contactQuality === "Barrel").length;
   const evs = events.map((event) => event.exitVelocityMph).filter(isNumber);
   return makeRow(player, {
@@ -650,7 +651,7 @@ function hittingRow(player: Player, events: HittingEvent[]): AnalyticsRow {
     takePct: rateCell(takes, events.length, "takes"),
     hard: countCell(hard, ballsInPlay),
     hardPct: rateCell(hard, ballsInPlay, "hard contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-    barrelPct: rateCell(barrels, ballsInPlay, "barrels", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    barrelPct: rateCell(barrels, ballsInPlay, "impact contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     lineDrivePct: rateCell(events.filter((event) => event.contactResult === "Line drive").length, ballsInPlay, "line drives", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     groundBallPct: rateCell(events.filter((event) => event.contactResult === "Ground ball").length, ballsInPlay, "ground balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     flyBallPct: rateCell(events.filter((event) => event.contactResult === "Fly ball").length, ballsInPlay, "fly balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
@@ -948,24 +949,29 @@ function buildEventOptions(data: AppData, domain: AnalyticsDomain, source: Analy
     ...data.hittingSessions.filter((session) => session.type === "Live BP").map((session) => sessionEventOption(data, session.id, session.practiceId, "Live BP - Hitting")),
     ...data.pitchingSessions.filter((session) => session.type === "Live BP").map((session) => sessionEventOption(data, session.id, session.practiceId, "Live BP - Pitching")),
   ];
+  const hittingSessionOptions = domain === "hitting"
+    ? data.hittingSessions
+      .filter((session) => session.type !== "Live BP")
+      .map((session) => sessionEventOption(data, session.id, session.practiceId, `${session.type} Hitting`, "practice"))
+    : [];
   const sources = source === "all" ? ["games", "practice", "live-bp"] : [source];
   return [
     ...(sources.includes("games") ? gameOptions : []),
-    ...(sources.includes("practice") ? practiceOptions : []),
+    ...(sources.includes("practice") ? [...practiceOptions, ...hittingSessionOptions] : []),
     ...(sources.includes("live-bp") ? liveOptions : []),
   ]
     .filter((event) => domain !== "defense" || event.source !== "games")
     .sort((left, right) => (right.date ?? "").localeCompare(left.date ?? ""));
 }
 
-function sessionEventOption(data: AppData, id: ID, practiceId: ID, labelPrefix: string): AnalyticsEventOption {
+function sessionEventOption(data: AppData, id: ID, practiceId: ID, labelPrefix: string, source: AnalyticsEventOption["source"] = "live-bp"): AnalyticsEventOption {
   const practice = data.practices.find((item) => item.id === practiceId);
   return {
     id,
     label: `${practice ? shortDate(practice.date) : "Session"} ${labelPrefix}`,
     meta: practice?.name,
     date: practice?.date,
-    source: "live-bp",
+    source,
   };
 }
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { calculateHittingStats, calculatePitchingStats, pct } from "../app/lib/stats.ts";
+import { isPracticeHardContactEvent, PRACTICE_HITTING_RESULT_OPTIONS } from "../app/lib/hittingTaxonomy.ts";
 
 const now = "2026-08-12T22:00:00.000Z";
 
@@ -58,6 +59,23 @@ test("practice hitting metrics preserve sample denominators", () => {
   assert.equal(Math.round(stats.hardHitPct), 67);
   assert.equal(Math.round(stats.barrelPct), 33);
   assert.equal(Math.round(stats.lineDrivePct), 33);
+});
+
+test("practice hitting taxonomy centralizes hard-contact outcomes", () => {
+  const events = PRACTICE_HITTING_RESULT_OPTIONS.map((option, index) => hittingEvent(
+    `he-tax-${index}`,
+    option.action,
+    option.contactResult,
+    option.contactQuality,
+  ));
+  const hardLabels = events
+    .filter(isPracticeHardContactEvent)
+    .map((event) => PRACTICE_HITTING_RESULT_OPTIONS.find((option) => option.contactResult === event.contactResult && option.contactQuality === event.contactQuality)?.label)
+    .filter(Boolean);
+
+  assert.deepEqual(hardLabels, ["Hard Ground Ball", "Line Drive", "Hard Fly Ball"]);
+  assert.equal(isPracticeHardContactEvent(hittingEvent("he-fly", "Ball in play", "Fly ball", "Solid")), false);
+  assert.equal(isPracticeHardContactEvent(hittingEvent("he-miss", "Miss")), false);
 });
 
 test("practice hitting metrics calculate exit velocity from recorded swings only", () => {

@@ -858,6 +858,8 @@ function makeHittingSession(
     plannedReps,
     machineVelocity,
     machinePitchType: machineVelocity ? "4-Seam" : undefined,
+    pitchTrackingMode: machineVelocity ? "ONE" : type === "Coach BP" ? "ONE" : "OFF",
+    defaultPitchType: machineVelocity || type === "Coach BP" ? "4-Seam" : undefined,
     machineLocation: machineVelocity ? "Middle-away" : undefined,
     distance: type === "Machine" ? "55 ft" : undefined,
     coachBpStyle: type === "Coach BP" ? "Overhand" : type === "Front Toss" ? "Front toss" : undefined,
