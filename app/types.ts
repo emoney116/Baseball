@@ -78,6 +78,7 @@ export type PitchType =
   | "Curveball"
   | "Changeup"
   | "Splitter"
+  | "Knuckleball"
   | "Other";
 
 export type PitchOutcome =

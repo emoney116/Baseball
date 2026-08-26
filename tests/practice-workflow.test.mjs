@@ -75,7 +75,11 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /onTheme=\{setThemePreference\}/);
   assert.match(page, /<h2>Appearance<\/h2>/);
   assert.match(page, /Log Swing/);
-  assert.match(page, /What happened\?/);
+  assert.doesNotMatch(page, /What happened\?/);
+  assert.doesNotMatch(page, /Foul and Miss save immediately/);
+  assert.match(page, /Knuckleball/);
+  assert.match(page, /aria-label="Hitting station"/);
+  assert.match(page, /practice-hitting-sheet__toggle/);
   assert.doesNotMatch(page, /Save Swing<\/button>[\s\S]{0,240}Skip Location/);
   assert.match(page, /practice-live-bp-pitch-button/);
   assert.match(page, /practice-live-bp-pitch-sheet/);
@@ -160,6 +164,9 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(styles, /\.live-bp-thrower-card/);
   assert.match(styles, /\.practice-hitting-shell/);
   assert.match(styles, /\.practice-hitting-sheet/);
+  assert.match(styles, /\.practice-hitting-sheet__context-controls/);
+  assert.match(styles, /\.practice-hitting-station-select/);
+  assert.match(styles, /\.practice-hitting-sheet__toggle/);
   assert.match(styles, /\.practice-hitting-rail/);
   assert.match(styles, /\.practice-hitting-quick-controls/);
   assert.match(styles, /\.practice-hitting-pitch-panel/);
@@ -177,6 +184,7 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(styles, /@media \(max-width: 560px\) \{[\s\S]*\.practice-tracker-tabs \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /@media \(max-width: 680px\) \{[\s\S]*\.practice-hitting-entry-bar \{[\s\S]*grid-template-columns: 1fr/);
   assert.match(styles, /@media \(max-width: 680px\) \{[\s\S]*\.practice-hitting-quick-controls,[\s\S]*\.practice-hitting-inline-pitch,[\s\S]*\.practice-hitting-pitch-modes,[\s\S]*\.practice-hitting-session-filter \{[\s\S]*grid-template-columns: repeat\(auto-fit, minmax\(86px, 1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 980px\) \{[\s\S]*\.ops-main--practice-tracking > \.team-workspace-header--compact \{[\s\S]*display: none/);
   assert.match(styles, /\.team-workspace-header--compact \{[\s\S]*display: none/);
   assert.match(styles, /@media \(max-width: 1180px\) \{[\s\S]*\.team-workspace-header--compact \{[\s\S]*display: grid/);
   assert.match(styles, /--bottom-nav-count/);

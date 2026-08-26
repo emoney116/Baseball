@@ -655,7 +655,7 @@ const ATTENDANCE_STATUS_KEY: Array<{ status: PracticeAttendanceStatus; short: st
   { status: "Absent", short: "A", className: "absent" },
   { status: "Excused", short: "E", className: "excused" },
 ];
-const PITCH_TYPES: PitchType[] = ["4-Seam", "2-Seam", "Sinker", "Cutter", "Slider", "Curveball", "Changeup", "Splitter", "Other"];
+const PITCH_TYPES: PitchType[] = ["4-Seam", "2-Seam", "Sinker", "Cutter", "Slider", "Curveball", "Changeup", "Splitter", "Knuckleball", "Other"];
 const PITCH_TYPE_LABELS: Record<PitchType, string> = {
   "4-Seam": "4S",
   "2-Seam": "2S",
@@ -665,6 +665,7 @@ const PITCH_TYPE_LABELS: Record<PitchType, string> = {
   Curveball: "CB",
   Changeup: "CH",
   Splitter: "SP",
+  Knuckleball: "KN",
   Other: "OT",
 };
 const HITTING_STATIONS: HittingSession["type"][] = ["Tee", "Front Toss", "Machine", "Coach BP", "Other"];
@@ -2913,7 +2914,7 @@ export default function MetrolinaBaseballApp() {
         </div>
       </aside>
 
-      <section className="ops-main">
+      <section className={["ops-main", view === "practice" && practiceTrackingOpen ? "ops-main--practice-tracking" : ""].filter(Boolean).join(" ")}>
         {!inTeamContext && (
           <TopCommand
             onStartPractice={() => setStartPracticeOpen(true)}
@@ -8331,7 +8332,6 @@ function PracticeConsole({
         : liveBpThrowerSource === "PLAYER"
           ? liveBpPitchingSession
           : liveBpHittingSession;
-  const presentCount = practice ? availablePlayers.length : activeTotals.players;
   const roundNumber = practice
     ? Math.max(1, data.hittingSessions.filter((session) => session.practiceId === practice.id && session.hitterId === player.id && matchesHittingStation(session)).length || 1)
     : 1;
@@ -8364,6 +8364,8 @@ function PracticeConsole({
       ? `Multi - ${practicePitchTypeLabel(selectedPitchType)}`
       : practicePitchTypeLabel(effectiveHittingPitchType);
   const hittingSessionContext = [hittingStation, hittingPitchTypeLabel].filter(Boolean).join(" - ");
+  const hittingStationLabel = normalizeHittingStation(hittingStation);
+  const hittingStationOptions = HITTING_STATIONS.map((station) => ({ value: station, label: station }));
   const recentHittingEvents = hittingEvents.slice(0, 3);
   const hittingSprayPoints = hittingEvents.map((event) => event.fieldLocation).filter(isZonePoint);
   const practiceHittingSessions = useMemo(() => (
@@ -8618,10 +8620,6 @@ function PracticeConsole({
             <h2>{practice ? `${practice.location || "No location"} - ${formatPracticeTimeRange(practice)}` : "Active Practice"}</h2>
           </div>
         </div>
-        <div className="practice-tracker-presence">
-          <strong>{practice ? presentCount : activeTotals.players}</strong>
-          <span>Present</span>
-        </div>
         {practice ? (
           <div className="practice-header__buttons">
             <button className="ghost-button" type="button" onClick={onExitTracking}>Practice Home</button>
@@ -8662,7 +8660,6 @@ function PracticeConsole({
                   <PlayerAvatar player={player} size="lg" />
                   <span>
                     <strong>{player.name}</strong>
-                    <small>#{player.jerseyNumber} - {positionLine(player)} - Bats: {player.bats}</small>
                   </span>
                   <ChevronDown size={16} aria-hidden="true" />
                 </button>
@@ -8676,8 +8673,7 @@ function PracticeConsole({
 
               <button className="practice-hitting-session-pill" type="button" onClick={() => setHittingSessionOpen(true)}>
                 <span>
-                  <strong>{hittingSessionContext}</strong>
-                  <small>Started {sessionStarted} - {activeModeSessions.length > 1 ? `${activeModeSessions.length} active sessions` : "Current session"}</small>
+                  <strong>{hittingStationLabel}</strong>
                 </span>
                 <ChevronDown size={16} aria-hidden="true" />
               </button>
@@ -8762,19 +8758,42 @@ function PracticeConsole({
           {hittingSheetOpen && (
             <ModalFrame title={editingHittingEventId ? "Edit Swing" : "Log Swing"} onClose={closeHittingSheet} panelClassName="practice-hitting-sheet">
               <div className="practice-hitting-sheet__context">
-                <PlayerAvatar player={player} size="md" />
-                <span>
-                  <strong>{player.name}</strong>
-                  <small>{hittingSessionContext}</small>
-                </span>
+                <div className="practice-hitting-sheet__context-main">
+                  <PlayerAvatar player={player} size="sm" compact />
+                  <span className="practice-hitting-sheet__context-copy">
+                    <strong>{player.name}</strong>
+                  </span>
+                </div>
+                <div className="practice-hitting-sheet__context-controls">
+                  <ChoiceSelect
+                    value={hittingStation}
+                    options={hittingStationOptions}
+                    onChange={(value) => onHittingStation(value as HittingSession["type"])}
+                    className="practice-hitting-station-select"
+                    showSelectedDescription={false}
+                    aria-label="Hitting station"
+                  />
+                  <button type="button" className={trackExitVelocity ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => onTrackExitVelocity(!trackExitVelocity)} aria-pressed={trackExitVelocity}>
+                    EV <strong>{trackExitVelocity ? "On" : "Off"}</strong>
+                  </button>
+                  {hittingPitchTypeAvailable && (
+                    <button
+                      type="button"
+                      className={effectiveHittingPitchMode !== "OFF" ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"}
+                      onClick={() => onHittingPitchTrackingMode(effectiveHittingPitchMode === "OFF" ? defaultPracticeHittingPitchMode(hittingStation) : "OFF")}
+                      aria-pressed={effectiveHittingPitchMode !== "OFF"}
+                    >
+                      Pitch <strong>{effectiveHittingPitchMode === "OFF" ? "Off" : "On"}</strong>
+                    </button>
+                  )}
+                  <button type="button" className={trackSprayChart ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => onTrackSprayChart(!trackSprayChart)} aria-pressed={trackSprayChart}>
+                    Spray <strong>{trackSprayChart ? "On" : "Off"}</strong>
+                  </button>
+                </div>
               </div>
 
               {hittingSheetStep === "result" && (
                 <section className="practice-hitting-sheet__step">
-                  <div>
-                    <span>What happened?</span>
-                    <small>{effectiveHittingPitchMode === "MULTI" ? `Pitch: ${practicePitchTypeLabel(selectedPitchType)}` : "Foul and Miss save immediately."}</small>
-                  </div>
                   {effectiveHittingPitchMode === "MULTI" && (
                     <div className="practice-hitting-inline-pitch" aria-label="Pitch type for this swing">
                       {PITCH_TYPES.map((pitchType) => (
@@ -8796,10 +8815,6 @@ function PracticeConsole({
 
               {hittingSheetStep === "detail" && (
                 <section className="practice-hitting-sheet__step practice-hitting-sheet__step--spray">
-                  <div>
-                    <span>{trackSprayChart ? "Where did it go?" : "Finish swing"}</span>
-                    <small>{hittingDraft?.label ?? "Contact"}{trackSprayChart ? " - location is optional." : " - EV is optional."}</small>
-                  </div>
                   {effectiveHittingPitchMode === "MULTI" && (
                     <div className="practice-hitting-inline-pitch" aria-label="Pitch type for this swing">
                       {PITCH_TYPES.map((pitchType) => (
@@ -8983,7 +8998,6 @@ function PracticeConsole({
                     {HITTING_STATIONS.map((station) => (
                       <button key={station} type="button" className={station === hittingStation ? "active" : ""} onClick={() => onHittingStation(station)}>
                         <strong>{station}</strong>
-                        <small>{isPracticeHittingPitchTypeAvailable(station) ? "Pitch type available" : "No pitch type needed"}</small>
                       </button>
                     ))}
                   </div>
