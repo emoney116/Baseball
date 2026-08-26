@@ -258,7 +258,7 @@ export const ANALYTICS_FILTERS: AnalyticsFilterDefinition[] = [
     domain: "hitting",
     supportedSources: ["all", "practice", "live-bp", "games"],
     type: "multi-select",
-    options: ["4-Seam", "2-Seam", "Sinker", "Cutter", "Slider", "Curveball", "Changeup", "Splitter", "Other"].map((value) => ({ value, label: value })),
+    options: ["4-Seam", "2-Seam", "Sinker", "Cutter", "Slider", "Curveball", "Changeup", "Splitter", "Knuckleball", "Other"].map((value) => ({ value, label: value })),
     availability: "supported",
   },
   {
@@ -267,7 +267,7 @@ export const ANALYTICS_FILTERS: AnalyticsFilterDefinition[] = [
     domain: "pitching",
     supportedSources: ["all", "practice", "live-bp", "games"],
     type: "multi-select",
-    options: ["4-Seam", "2-Seam", "Sinker", "Cutter", "Slider", "Curveball", "Changeup", "Splitter", "Other"].map((value) => ({ value, label: value })),
+    options: ["4-Seam", "2-Seam", "Sinker", "Cutter", "Slider", "Curveball", "Changeup", "Splitter", "Knuckleball", "Other"].map((value) => ({ value, label: value })),
     availability: "supported",
   },
   {
