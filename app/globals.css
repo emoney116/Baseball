@@ -25934,6 +25934,394 @@ button.weight-room-athlete-table__row:hover {
   gap: 7px;
 }
 
+.practice-pitching-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.practice-pitching-stage {
+  min-height: clamp(460px, 62dvh, 660px);
+  padding: clamp(18px, 2.3vw, 30px);
+  display: grid;
+  align-content: center;
+  gap: clamp(14px, 1.8vw, 22px);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--tracker-accent) 9%, transparent), transparent 34%),
+    var(--panel);
+}
+
+.practice-pitching-player-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px 48px;
+  gap: 12px;
+  align-items: center;
+}
+
+.practice-pitching-player-card {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.practice-pitching-player-card > span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.practice-pitching-player-card strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(24px, 3vw, 38px);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.practice-pitching-player-card small {
+  color: var(--muted-strong);
+  font-size: 13px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.practice-pitching-session-pill {
+  width: min(220px, 100%);
+  justify-self: center;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+  min-height: 44px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.practice-pitching-session-pill span {
+  min-width: 0;
+  display: grid;
+  text-align: left;
+}
+
+.practice-pitching-session-pill strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+}
+
+.practice-pitching-live-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.82fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+.practice-pitching-location-card {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--panel-soft) 80%, transparent);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.practice-pitching-location-card > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.practice-pitching-location-card > div:first-child span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.practice-pitching-location-card > div:first-child small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: none;
+}
+
+.practice-pitching-recent-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.modal-panel.practice-pitching-sheet {
+  width: min(760px, calc(100vw - 28px));
+}
+
+.modal-panel.practice-pitching-stats-sheet {
+  width: min(940px, calc(100vw - 28px));
+}
+
+.practice-pitching-sheet__context-controls {
+  grid-template-columns: minmax(132px, 1fr) repeat(3, auto);
+}
+
+.practice-pitching-sheet__step {
+  display: grid;
+  gap: 12px;
+}
+
+.practice-pitching-sheet__step > div > span,
+.practice-pitching-location-entry > div > span,
+.practice-pitching-stats-breakdown > div > span {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.practice-pitching-location-entry {
+  display: grid;
+  gap: 10px;
+}
+
+.practice-pitching-location-entry > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.practice-pitching-location-entry small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.practice-pitching-type-row button {
+  flex: 1 1 52px;
+  padding-inline: 10px;
+}
+
+.practice-pitching-session-pitch {
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-soft) 82%, transparent);
+  color: var(--text);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.practice-pitching-session-pitch strong {
+  font-size: 13px;
+  font-weight: 950;
+  text-align: right;
+}
+
+.practice-pitching-velocity-input {
+  width: min(220px, 100%);
+}
+
+.practice-pitching-result-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.practice-pitching-result-grid button {
+  min-height: 52px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-soft) 88%, transparent);
+  color: var(--text);
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.practice-pitching-result-grid button.active {
+  border-color: color-mix(in srgb, var(--tracker-accent) 52%, var(--line));
+  background: color-mix(in srgb, var(--tracker-accent) 22%, var(--panel-soft));
+}
+
+.practice-pitch-location-grid {
+  position: relative;
+  width: min(420px, 100%);
+  aspect-ratio: 1.22 / 1;
+  justify-self: center;
+  border: 1px solid color-mix(in srgb, var(--tracker-accent) 24%, var(--line));
+  border-radius: 18px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 100%, rgba(255, 255, 255, 0.07), transparent 42%),
+    color-mix(in srgb, var(--panel) 88%, transparent);
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: repeat(5, minmax(0, 1fr));
+  gap: 0;
+  padding: 10px;
+}
+
+.practice-pitch-location-grid__zone,
+.practice-pitch-location-grid__plate {
+  position: absolute;
+  pointer-events: none;
+}
+
+.practice-pitch-location-grid__zone {
+  left: 25%;
+  top: 20%;
+  width: 50%;
+  height: 60%;
+  border: 1px solid color-mix(in srgb, var(--text) 32%, transparent);
+  background:
+    linear-gradient(to right, transparent calc(33.33% - 0.5px), color-mix(in srgb, var(--text) 16%, transparent) calc(33.33% - 0.5px) calc(33.33% + 0.5px), transparent calc(33.33% + 0.5px), transparent calc(66.66% - 0.5px), color-mix(in srgb, var(--text) 16%, transparent) calc(66.66% - 0.5px) calc(66.66% + 0.5px), transparent calc(66.66% + 0.5px)),
+    linear-gradient(to bottom, transparent calc(33.33% - 0.5px), color-mix(in srgb, var(--text) 16%, transparent) calc(33.33% - 0.5px) calc(33.33% + 0.5px), transparent calc(33.33% + 0.5px), transparent calc(66.66% - 0.5px), color-mix(in srgb, var(--text) 16%, transparent) calc(66.66% - 0.5px) calc(66.66% + 0.5px), transparent calc(66.66% + 0.5px));
+}
+
+.practice-pitch-location-grid__plate {
+  left: 50%;
+  bottom: 4%;
+  width: 56px;
+  height: 22px;
+  border: 1px solid color-mix(in srgb, var(--text) 26%, transparent);
+  transform: translateX(-50%);
+  clip-path: polygon(0 0, 100% 0, 86% 58%, 50% 100%, 14% 58%);
+}
+
+.practice-pitch-location-grid__bucket {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: color-mix(in srgb, var(--muted-strong) 88%, var(--text));
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 950;
+  cursor: default;
+}
+
+.practice-pitch-location-grid--interactive .practice-pitch-location-grid__bucket {
+  cursor: pointer;
+}
+
+.practice-pitch-location-grid__bucket:disabled {
+  opacity: 1;
+}
+
+.practice-pitch-location-grid--interactive .practice-pitch-location-grid__bucket:hover,
+.practice-pitch-location-grid__bucket.active {
+  background: color-mix(in srgb, var(--tracker-accent) 20%, transparent);
+  color: var(--text);
+}
+
+.practice-pitch-location-grid__bucket--zone {
+  color: var(--text);
+}
+
+.practice-pitch-location-grid__bucket em {
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tracker-accent) 28%, var(--panel-soft));
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.practice-pitch-location-grid__bucket.active em {
+  background: var(--tracker-accent);
+}
+
+.practice-pitching-stats-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.practice-pitching-stats-breakdown {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.72fr) minmax(280px, 1fr);
+  gap: 12px;
+}
+
+.practice-pitching-stats-breakdown > div {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--panel-soft) 82%, transparent);
+  padding: 12px;
+  display: grid;
+  gap: 9px;
+}
+
+.practice-pitching-stats-breakdown em {
+  border: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 76%, transparent);
+  color: var(--text);
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-style: normal;
+}
+
+.practice-pitching-stats-breakdown em small {
+  color: var(--muted);
+  font-weight: 800;
+  text-align: right;
+}
+
+.practice-pitching-location-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.practice-pitching-location-filter button {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--muted);
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.practice-pitching-location-filter button.active {
+  border-color: color-mix(in srgb, var(--tracker-accent) 48%, var(--line));
+  background: color-mix(in srgb, var(--tracker-accent) 18%, var(--panel-soft));
+  color: var(--text);
+}
+
+.practice-console--pitching .practice-player-strip {
+  display: none;
+}
+
 @media (max-width: 1180px) {
   .practice-hitting-shell {
     grid-template-columns: 1fr;
@@ -25979,8 +26367,14 @@ button.weight-room-athlete-table__row:hover {
 
   .practice-player-review-grid,
   .practice-player-review-card > div,
+  .practice-pitching-live-grid,
+  .practice-pitching-stats-breakdown,
   .practice-live-bp-result-grid,
   .practice-live-bp-contact-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-pitching-recent-list {
     grid-template-columns: 1fr;
   }
 }
@@ -26003,9 +26397,61 @@ button.weight-room-athlete-table__row:hover {
   }
 
   .modal-panel.practice-player-review-sheet,
+  .modal-panel.practice-pitching-sheet,
+  .modal-panel.practice-pitching-stats-sheet,
   .modal-panel.practice-live-bp-pitch-sheet {
     width: calc(100vw - 16px);
     max-height: calc(100dvh - 16px);
+  }
+
+  .practice-pitching-stage {
+    min-height: auto;
+    padding: 14px;
+    align-content: start;
+  }
+
+  .practice-pitching-player-row {
+    grid-template-columns: 40px minmax(0, 1fr) 40px 40px;
+    gap: 8px;
+  }
+
+  .practice-pitching-player-card {
+    gap: 10px;
+  }
+
+  .practice-pitching-player-card .player-avatar--lg {
+    width: 42px;
+    height: 42px;
+    font-size: 13px;
+  }
+
+  .practice-pitching-player-card strong {
+    font-size: clamp(20px, 7vw, 26px);
+  }
+
+  .practice-pitching-player-card small {
+    font-size: 11px;
+  }
+
+  .practice-pitching-sheet .modal-body {
+    gap: 10px;
+  }
+
+  .practice-pitching-sheet__context-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .practice-pitch-location-grid {
+    padding: 6px;
+  }
+
+  .practice-pitch-location-grid__bucket {
+    font-size: 9px;
+  }
+
+  .practice-pitching-location-entry > div {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 

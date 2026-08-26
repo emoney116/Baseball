@@ -218,6 +218,7 @@ export const ANALYTICS_METRICS: AnalyticsMetricDefinition[] = [
   metric("babip", "BABIP", "hitting", "decimal", ["games"], "Hits excluding home runs divided by tracked balls in play excluding home runs.", true, false),
   metric("pitches", "Pitches", "pitching", "integer", ["all", "practice", "live-bp", "games"], "Logged pitches in the selected scope.", true, true),
   metric("strikePct", "Strike %", "pitching", "percentage", ["all", "practice", "live-bp", "games"], "Strikes divided by total pitches.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
+  metric("zonePct", "Zone %", "pitching", "percentage", ["all", "practice", "live-bp"], "Pitches charted inside the strike zone divided by total charted pitches.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
   metric("whiffPct", "Whiff %", "pitching", "percentage", ["all", "practice", "live-bp", "games"], "Whiffs divided by swings.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
   metric("cswPct", "CSW %", "pitching", "percentage", ["all", "practice", "live-bp", "games"], "Called strikes plus whiffs divided by total pitches.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
   metric("avgPitchVelo", "Avg Pitch Velo", "pitching", "velocity", ["all", "practice", "live-bp", "games"], "Average recorded pitch velocity.", true, true, 3),
@@ -376,13 +377,13 @@ export const ASK_CLUBHOUSE_QUESTIONS: AskClubhouseQuestion[] = [
     sort: { metricId: "strikePct", direction: "desc" },
     limit: 5,
   }),
-  askQuestion("highest-csw", "Which pitchers have the highest CSW %?", "pitching", "cswPct", "CSW %, minimum 18 pitches", {
+  askQuestion("highest-zone-pct", "Which pitchers are in the zone most often?", "pitching", "zonePct", "Zone %, minimum 18 pitches", {
     domain: "pitching",
     source: "all",
     mode: "box-score",
     timeRange: "season",
     groupBy: "player",
-    sort: { metricId: "cswPct", direction: "desc" },
+    sort: { metricId: "zonePct", direction: "desc" },
     limit: 5,
   }),
   askQuestion("weight-room-development", "Who leads Weight Room Development?", "development", "weightScore", "Existing Weight Room Development score", {
@@ -521,7 +522,7 @@ function buildPitchingResult(
     .map((player) => pitchingRow(player, practiceEvents.filter((event) => event.pitcherId === player.id), gameEvents.filter((event) => event.pitcherId === player.id)));
   const teamTotals = pitchingTeamRow(data, practiceEvents, gameEvents);
   if (query.source === "games") warnings.push("Game pitching currently supports pitch-level metrics, not full innings/ERA/WHIP.");
-  return assembleResult("Team Pitching", data, query, sourceLabel, rows, teamTotals, ["pitches", "strikePct", "whiffPct", "cswPct", "avgPitchVelo", "maxPitchVelo"], warnings, availableEvents, filterDefinitions, scopeLabel);
+  return assembleResult("Team Pitching", data, query, sourceLabel, rows, teamTotals, ["pitches", "strikePct", "zonePct", "avgPitchVelo", "maxPitchVelo"], warnings, availableEvents, filterDefinitions, scopeLabel);
 }
 
 function buildDefenseResult(
@@ -709,9 +710,11 @@ function pitchingRow(player: Player, pitchEvents: PitchEvent[], gameEvents: Game
   const swings = pitches.filter((pitch) => pitch.isSwing).length;
   const whiffs = pitches.filter((pitch) => pitch.isWhiff).length;
   const velocities = pitches.map((pitch) => pitch.velocity).filter(isNumber);
+  const locatedPitches = pitches.filter((pitch) => pitch.hasLocation);
   return makeRow(player, {
     pitches: countCell(pitches.length, pitches.length),
     strikePct: rateCell(pitches.filter((pitch) => pitch.isStrike).length, pitches.length, "strikes", ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
+    zonePct: rateCell(locatedPitches.filter((pitch) => pitch.isZone).length, locatedPitches.length, "zone pitches", ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
     whiffPct: rateCell(whiffs, swings, "whiffs", ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
     cswPct: rateCell(pitches.filter((pitch) => pitch.isCalledStrike || pitch.isWhiff).length, pitches.length, "CSW", ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
     avgPitchVelo: averageCell(velocities, "velocity", 3),
@@ -769,7 +772,7 @@ function buildSummary(data: AppData, query: AnalyticsQuery, rows: AnalyticsRow[]
         ? ["hits", "avg", "slg"]
         : ["swings", "contactPct", "hardPct", "avgEv"]
       : query.domain === "pitching"
-        ? ["pitches", "strikePct", "cswPct", "avgPitchVelo"]
+        ? ["pitches", "strikePct", "zonePct", "avgPitchVelo"]
         : query.domain === "defense"
           ? ["reps", "cleanPct", "errors"]
           : ["workouts", "attendancePct", "practiceReps"];
@@ -787,7 +790,7 @@ function buildInsights(query: AnalyticsQuery, rows: AnalyticsRow[]): AnalyticsIn
   const metricIds = query.domain === "hitting"
     ? query.source === "games" ? ["avg", "hits"] : ["contactPct", "hardPct", "avgEv"]
     : query.domain === "pitching"
-      ? ["strikePct", "cswPct", "avgPitchVelo"]
+      ? ["strikePct", "zonePct", "avgPitchVelo"]
       : query.domain === "defense"
         ? ["cleanPct", "greatPlays"]
         : ["weightScore", "attendancePct", "practiceReps"];
@@ -1120,6 +1123,8 @@ function practicePitchSample(event: PitchEvent) {
   return {
     isStrike: event.isStrike,
     isSwing: event.isSwing,
+    isZone: event.isZone,
+    hasLocation: Boolean(event.location),
     isWhiff: Boolean(event.isWhiff || event.outcome === "Whiff"),
     isCalledStrike: Boolean(event.isCalledStrike || event.outcome === "Called Strike"),
     velocity: event.velocity,
@@ -1130,10 +1135,20 @@ function gamePitchSample(event: GameEvent) {
   return {
     isStrike: event.pitchOutcome !== "Ball",
     isSwing: event.pitchOutcome === "Swinging Strike" || event.pitchOutcome === "Foul" || event.pitchOutcome === "In Play",
+    isZone: isAnalyticsZonePoint(event.location),
+    hasLocation: Boolean(event.location),
     isWhiff: event.pitchOutcome === "Swinging Strike",
     isCalledStrike: event.pitchOutcome === "Called Strike",
     velocity: event.velocity,
   };
+}
+
+function isAnalyticsZonePoint(location: unknown): boolean {
+  if (!location || typeof location !== "object") return false;
+  const point = location as { x?: unknown; y?: unknown; isZone?: unknown };
+  if (typeof point.isZone === "boolean") return point.isZone;
+  if (typeof point.x !== "number" || typeof point.y !== "number") return false;
+  return point.x >= 0.22 && point.x <= 0.78 && point.y >= 0.18 && point.y <= 0.82;
 }
 
 function countGroup(count?: { balls: number; strikes: number }): "ahead" | "even" | "behind" | "two-strike" {

@@ -25,6 +25,9 @@ function hittingEvent(id, action, contactResult, contactQuality, direction = "Mi
 function pitchEvent(id, outcome, overrides = {}) {
   const isBip = outcome === "Ball in play";
   const isSwing = ["Swing", "Whiff", "Foul", "Ball in play"].includes(outcome);
+  const location = outcome === "Ball"
+    ? { x: 0.5, y: 0.08, zoneId: "outside_up_middle", zoneLabel: "Up", isZone: false }
+    : { x: 0.5, y: 0.5, zoneId: "zone_middle_middle", zoneLabel: "Zone Middle", isZone: true };
   return {
     id,
     practiceId: "practice-test",
@@ -35,10 +38,11 @@ function pitchEvent(id, outcome, overrides = {}) {
     outcome,
     isStrike: outcome !== "Ball" && outcome !== "HBP",
     isSwing,
-    isZone: true,
+    isZone: location.isZone,
     isWhiff: outcome === "Whiff",
     isCalledStrike: outcome === "Called Strike",
     isBallInPlay: isBip,
+    location,
     createdAt: now,
     ...overrides,
   };

@@ -265,13 +265,14 @@ test("column registry can produce a narrowed box score without changing calculat
   assert.equal(row(result, "p-jacob").cells.avgEv.display, "90.3");
 });
 
-test("pitching query calculates strike and CSW rates with game source support", () => {
+test("pitching query calculates strike and zone rates with game source support", () => {
   const result = executeAnalyticsQuery(baseData, query("pitching", "all"));
   const mylo = row(result, "p-mylo");
 
   assert.equal(mylo.cells.pitches.display, "7");
   assert.equal(mylo.cells.strikePct.display, "71%");
-  assert.equal(mylo.cells.cswPct.display, "43%");
+  assert.equal(mylo.cells.zonePct.display, "75%");
+  assert.deepEqual(result.columns.map((column) => column.metricId), ["pitches", "strikePct", "zonePct", "avgPitchVelo", "maxPitchVelo"]);
   assert.equal(mylo.cells.avgPitchVelo.display, "83.0");
 });
 
@@ -414,6 +415,9 @@ function hittingEvent(id, practiceId, sessionId, hitterId, action, overrides = {
 
 function pitchEvent(id, practiceId, sessionId, pitcherId, outcome, overrides = {}) {
   const isSwing = ["Swing", "Whiff", "Foul", "Ball in play"].includes(outcome);
+  const location = outcome === "Ball"
+    ? { x: 0.5, y: 0.08, zoneId: "outside_up_middle", zoneLabel: "Up", isZone: false }
+    : { x: 0.5, y: 0.5, zoneId: "zone_middle_middle", zoneLabel: "Zone Middle", isZone: true };
   return {
     id,
     practiceId,
@@ -424,10 +428,11 @@ function pitchEvent(id, practiceId, sessionId, pitcherId, outcome, overrides = {
     outcome,
     isStrike: outcome !== "Ball" && outcome !== "HBP",
     isSwing,
-    isZone: outcome !== "Ball",
+    isZone: location.isZone,
     isWhiff: outcome === "Whiff",
     isCalledStrike: outcome === "Called Strike",
     isBallInPlay: outcome === "Ball in play",
+    location,
     createdAt: now,
     ...overrides,
   };

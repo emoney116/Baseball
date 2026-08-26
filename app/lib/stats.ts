@@ -109,7 +109,8 @@ export function calculatePitchingStats(events: PitchEvent[]): PitchingStats {
   const groundBalls = events.filter((event) => event.battedBall === "Ground ball").length;
   const lineDrives = events.filter((event) => event.battedBall === "Line drive").length;
   const flyBalls = events.filter((event) => event.battedBall === "Fly ball").length;
-  const zonePitches = events.filter((event) => event.isZone).length;
+  const locationTrackedPitches = events.filter((event) => event.location).length;
+  const zonePitches = events.filter((event) => event.location && event.isZone).length;
   const chases = events.filter((event) => event.isChase).length;
   const firstPitchEvents = events.filter((event) => event.countBefore?.balls === 0 && event.countBefore?.strikes === 0);
   const velocities = events.map((event) => event.velocity).filter(isNumber);
@@ -130,7 +131,7 @@ export function calculatePitchingStats(events: PitchEvent[]): PitchingStats {
     strikePct: pct(strikes, totalPitches),
     ballPct: pct(balls, totalPitches),
     firstPitchStrikePct: pct(firstPitchEvents.filter((event) => event.isStrike).length, firstPitchEvents.length),
-    zonePct: pct(zonePitches, totalPitches),
+    zonePct: pct(zonePitches, locationTrackedPitches),
     chasePct: pct(chases, events.filter((event) => event.isSwing && !event.isZone).length || swings),
     whiffPct: pct(whiffs, swings),
     swingPct: pct(swings, totalPitches),
@@ -354,7 +355,7 @@ function groupPitchTypes(events: PitchEvent[]): Record<string, PitchTypeStats> {
       pitches: groupEvents.length,
       usagePct: pct(groupEvents.length, events.length),
       strikePct: pct(groupEvents.filter((item) => item.isStrike).length, groupEvents.length),
-      zonePct: pct(groupEvents.filter((item) => item.isZone).length, groupEvents.length),
+      zonePct: pct(groupEvents.filter((item) => item.location && item.isZone).length, groupEvents.filter((item) => item.location).length),
       whiffPct: pct(groupEvents.filter((item) => item.isWhiff).length, groupEvents.filter((item) => item.isSwing).length),
       avgVelocity: average(velocities),
       maxVelocity: velocities.length ? Math.max(...velocities) : undefined,

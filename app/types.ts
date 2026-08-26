@@ -900,9 +900,35 @@ export interface DevelopmentGoal {
   updatedAt: string;
 }
 
+export type PitchLocationZoneId =
+  | "zone_high_arm"
+  | "zone_high_middle"
+  | "zone_high_glove"
+  | "zone_middle_arm"
+  | "zone_middle_middle"
+  | "zone_middle_glove"
+  | "zone_low_arm"
+  | "zone_low_middle"
+  | "zone_low_glove"
+  | "outside_up_arm"
+  | "outside_up_middle"
+  | "outside_up_glove"
+  | "outside_arm_high"
+  | "outside_arm_middle"
+  | "outside_arm_low"
+  | "outside_glove_high"
+  | "outside_glove_middle"
+  | "outside_glove_low"
+  | "outside_down_arm"
+  | "outside_down_middle"
+  | "outside_down_glove";
+
 export interface ZonePoint {
   x: number;
   y: number;
+  zoneId?: PitchLocationZoneId;
+  zoneLabel?: string;
+  isZone?: boolean;
 }
 
 export interface CountState {
