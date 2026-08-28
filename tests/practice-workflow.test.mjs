@@ -220,6 +220,11 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(styles, /\.practice-hitting-sheet__context-controls/);
   assert.match(styles, /\.practice-hitting-station-select/);
   assert.match(styles, /\.practice-hitting-sheet__toggle/);
+  assert.match(styles, /\.modal-panel\.practice-hitting-sheet \.modal-body,[\s\S]*grid-auto-rows: max-content/);
+  assert.match(styles, /@media \(max-width: 560px\) \{[\s\S]*\.practice-summary-actions \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 560px\) \{[\s\S]*\.modal-panel\.practice-hitting-sheet > \.modal-footer-slot > \.modal-actions,[\s\S]*display: flex/);
+  assert.match(styles, /@media \(max-width: 560px\) \{[\s\S]*\.modal-panel\.practice-hitting-sheet \.modal-actions \.primary-button,[\s\S]*width: auto/);
+  assert.match(styles, /@media \(max-width: 560px\) \{[\s\S]*\.practice-hitting-sheet__spray-actions button,[\s\S]*flex: 0 1 auto/);
   assert.match(styles, /\.practice-hitting-rail/);
   assert.match(styles, /\.practice-hitting-quick-controls/);
   assert.match(styles, /\.practice-hitting-pitch-panel/);
