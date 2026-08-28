@@ -133,6 +133,18 @@
   --leading-section-title: 1.25;
   --leading-body: 1.45;
   --leading-compact: 1.2;
+  --mobile-page-gutter: clamp(12px, 3.6vw, 16px);
+  --mobile-section-gap: 10px;
+  --mobile-surface-padding: 12px;
+  --mobile-surface-padding-tight: 9px;
+  --mobile-control-height: 44px;
+  --mobile-control-height-compact: 36px;
+  --mobile-primary-height: 48px;
+  --mobile-icon-target: 40px;
+  --mobile-sheet-padding: 10px;
+  --mobile-sheet-radius: 18px;
+  --mobile-bottom-nav-safe-space: calc(94px + env(safe-area-inset-bottom));
+  --mobile-practice-mode-nav-space: calc(158px + env(safe-area-inset-bottom));
 }
 
 [data-theme="light"] {
@@ -28390,6 +28402,23 @@ textarea:focus,
   .account-appearance-setting {
     grid-template-columns: 1fr;
   }
+
+  .account-appearance-setting .segmented-control {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(78px, 1fr));
+    width: fit-content;
+    min-width: 168px;
+    max-width: 100%;
+    justify-self: start;
+    overflow: hidden;
+  }
+
+  .account-appearance-setting .segmented-control button {
+    flex: initial;
+    min-width: 78px;
+    min-height: 34px;
+    padding-inline: 10px;
+  }
 }
 
 @media (max-width: 560px) {
@@ -28579,5 +28608,1013 @@ textarea:focus,
 
   .practice-pitching-breakdown-table > div {
     min-width: 496px;
+  }
+}
+
+/* Mobile productization Phase 1: shared phone primitives over page-by-page patches. */
+@media (max-width: 720px) {
+  html,
+  body,
+  .ops-shell,
+  .ops-main {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  .ops-main {
+    padding: var(--mobile-page-gutter) var(--mobile-page-gutter) var(--mobile-bottom-nav-safe-space);
+  }
+
+  .ops-main--practice-tracking {
+    padding-bottom: var(--mobile-practice-mode-nav-space);
+  }
+
+  .page-stack,
+  .dashboard-grid,
+  .home-ops-grid,
+  .home-secondary-grid,
+  .weights-grid,
+  .analytics-grid,
+  .profile-grid,
+  .profile-overview-grid,
+  .account-grid,
+  .schedule-page,
+  .practice-home,
+  .practice-console,
+  .weight-room-page,
+  .games-page {
+    min-width: 0;
+    max-width: 100%;
+    gap: var(--mobile-section-gap);
+  }
+
+  .panel,
+  .section-header,
+  .top-command,
+  .team-workspace-header,
+  .home-info-card,
+  .account-card,
+  .profile-header,
+  .practice-summary-strip,
+  .practice-active-sessions-card,
+  .practice-attendance-overview,
+  .practice-plan-card,
+  .practice-recent-card,
+  .practice-tracker-header,
+  .practice-hitting-stage,
+  .practice-pitching-stage,
+  .analytics-table-panel,
+  .weight-room-shell-header,
+  .weight-room-active-top,
+  .weight-room-station-board,
+  .weight-room-active-side,
+  .weight-room-completed-summary {
+    min-width: 0;
+    border-radius: 14px;
+    padding: var(--mobile-surface-padding);
+  }
+
+  .section-header,
+  .top-command {
+    min-height: 0;
+  }
+
+  .section-header h2,
+  .top-command h1 {
+    font-size: clamp(22px, 6vw, 28px);
+    line-height: 1.08;
+  }
+
+  .section-header p,
+  .section-header small,
+  .top-command small {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .team-workspace-header {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    min-height: 58px;
+    gap: 9px;
+    align-items: center;
+  }
+
+  .team-workspace-header > .organization-logo {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+  }
+
+  .team-workspace-header__identity > span {
+    font-size: 10px;
+    line-height: 1.1;
+  }
+
+  .team-workspace-header__identity strong,
+  .team-identity-switcher__button strong {
+    max-width: min(62vw, 280px);
+    font-size: 14px;
+    line-height: 1.1;
+  }
+
+  .team-workspace-header__identity small {
+    font-size: 10px;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .ghost-button,
+  .choice-select__button,
+  .form-choice,
+  .schedule-picker-button {
+    min-height: var(--mobile-control-height);
+    padding-inline: 12px;
+    border-radius: 11px;
+    font-size: var(--text-button);
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+
+  .primary-button {
+    min-height: var(--mobile-primary-height);
+  }
+
+  .text-button {
+    min-height: var(--mobile-control-height-compact);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .icon-button,
+  .modal-close-button {
+    width: var(--mobile-icon-target);
+    min-width: var(--mobile-icon-target);
+    height: var(--mobile-icon-target);
+    min-height: var(--mobile-icon-target);
+    padding: 0;
+  }
+
+  .modal-backdrop {
+    place-items: end center;
+    align-items: end;
+    padding: max(8px, env(safe-area-inset-top)) var(--mobile-page-gutter) 0;
+  }
+
+  .modal-panel,
+  .modal-panel--import,
+  .modal-panel--player,
+  .modal-panel--practice-start,
+  .modal-panel.practice-hitting-sheet,
+  .modal-panel.practice-pitching-sheet,
+  .modal-panel.practice-live-bp-pitch-sheet,
+  .modal-panel.practice-hitting-selector-sheet,
+  .modal-panel.practice-hitting-more-sheet,
+  .modal-panel.practice-hitting-stats-sheet,
+  .modal-panel.practice-pitching-stats-sheet,
+  .modal-panel.practice-player-review-sheet,
+  .schedule-event-modal,
+  .weight-room-exercise-picker-modal,
+  .weight-room-preset-modal,
+  .weight-room-auto-groups-modal,
+  .weight-room-exercise-modal,
+  .weight-room-finish-modal,
+  .weight-room-scoring-modal {
+    width: min(480px, calc(100vw - 24px));
+    max-height: min(90dvh, calc(100dvh - env(safe-area-inset-top) - 8px));
+    border-radius: var(--mobile-sheet-radius) var(--mobile-sheet-radius) 0 0;
+  }
+
+  .modal-title {
+    position: relative;
+    min-height: 44px;
+    padding: 18px var(--mobile-sheet-padding) 10px;
+  }
+
+  .modal-title::before {
+    content: "";
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    width: 38px;
+    height: 4px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--muted) 34%, transparent);
+    transform: translateX(-50%);
+  }
+
+  .modal-title h2 {
+    font-size: 17px;
+    line-height: 1.15;
+  }
+
+  .modal-body {
+    gap: var(--mobile-section-gap);
+    padding: var(--mobile-sheet-padding);
+  }
+
+  .modal-panel > .modal-footer-slot > .modal-actions,
+  .modal-body .modal-actions,
+  .modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    padding: 9px var(--mobile-sheet-padding) calc(9px + env(safe-area-inset-bottom));
+    grid-template-columns: none;
+  }
+
+  .modal-body .modal-actions {
+    bottom: calc(-1 * var(--mobile-sheet-padding));
+    margin: 0 calc(-1 * var(--mobile-sheet-padding)) calc(-1 * var(--mobile-sheet-padding));
+  }
+
+  .modal-actions .primary-button {
+    flex: 1 1 148px;
+    width: auto;
+    min-width: min(148px, 100%);
+    min-height: var(--mobile-primary-height);
+  }
+
+  .modal-actions .primary-button:only-child {
+    width: 100%;
+  }
+
+  .modal-actions .secondary-button,
+  .modal-actions .ghost-button,
+  .modal-actions .text-button {
+    flex: 0 1 auto;
+    width: auto;
+    min-width: 74px;
+    min-height: var(--mobile-control-height-compact);
+    padding-inline: 12px;
+  }
+
+  .compact-empty {
+    min-height: 52px;
+    padding: 10px;
+  }
+
+  .mini-stat-grid,
+  .live-metrics,
+  .analytics-summary-strip,
+  .practice-analytics-summary-strip,
+  .practice-review-summary-strip,
+  .weight-room-pulse-metrics,
+  .weight-room-review-metrics,
+  .weight-room-completed-metrics,
+  .weight-room-leaderboard-summary,
+  .practice-hitting-metric-line {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .analytics-summary-strip,
+  .practice-analytics-summary-strip,
+  .practice-review-summary-strip,
+  .weight-room-completed-metrics,
+  .weight-room-leaderboard-summary {
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  .analytics-summary-strip > div,
+  .practice-analytics-summary-strip span,
+  .practice-review-summary-strip span,
+  .weight-room-completed-metric,
+  .weight-room-leaderboard-summary > span,
+  .stat-tile,
+  .live-metrics div {
+    min-height: 54px;
+    padding: 8px 10px;
+  }
+
+  .analytics-summary-strip strong,
+  .practice-analytics-summary-strip strong,
+  .practice-review-summary-strip strong,
+  .weight-room-completed-metric strong,
+  .weight-room-leaderboard-summary strong,
+  .stat-tile strong,
+  .live-metrics strong {
+    font-size: clamp(18px, 5vw, 22px);
+    line-height: 1;
+  }
+
+  .analytics-summary-strip span,
+  .analytics-summary-strip small,
+  .practice-analytics-summary-strip small,
+  .practice-analytics-summary-strip em,
+  .practice-review-summary-strip small,
+  .practice-review-summary-strip em,
+  .weight-room-completed-metric small,
+  .weight-room-completed-metric em,
+  .weight-room-leaderboard-summary small,
+  .stat-tile span,
+  .live-metrics span,
+  .live-metrics small {
+    font-size: 10px;
+    line-height: 1.15;
+  }
+
+  .analytics-controls {
+    gap: 8px;
+  }
+
+  .analytics-controls__row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .analytics-controls__row::-webkit-scrollbar {
+    display: none;
+  }
+
+  .analytics-controls__row > .segmented-control,
+  .analytics-controls__row > .choice-select,
+  .analytics-popover-wrap {
+    flex: 0 0 auto;
+    width: auto;
+  }
+
+  .analytics-scroll-panel {
+    max-height: min(60dvh, 520px);
+    overflow: auto;
+  }
+
+  .analytics-box-score__cell {
+    min-height: 40px;
+    padding: 6px 8px;
+  }
+
+  .analytics-box-score__row--head .analytics-box-score__cell {
+    min-height: 34px;
+    font-size: 10px;
+  }
+
+  .analytics-player-cell {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .analytics-player-cell small {
+    display: none;
+  }
+
+  .analytics-metric-key > div {
+    columns: 1;
+  }
+
+  .analytics-insight-list button {
+    min-height: 44px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 3px 8px;
+    padding-block: 7px;
+  }
+
+  .analytics-insight-list span,
+  .analytics-insight-list small {
+    grid-column: 1 / -1;
+  }
+
+  .analytics-drawer {
+    width: 100vw;
+    max-width: 100vw;
+    height: min(84dvh, 100%);
+    padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .account-card {
+    grid-template-columns: 58px minmax(0, 1fr);
+    gap: 10px;
+    min-height: 0;
+  }
+
+  .account-avatar {
+    --size: 58px;
+    width: 58px;
+    height: 58px;
+    font-size: 17px;
+  }
+
+  .profile-line strong {
+    font-size: 16px;
+  }
+
+  .home-info-card {
+    min-height: 62px;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 9px;
+  }
+
+  .home-info-card__icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .home-info-card strong {
+    font-size: 15px;
+  }
+
+  .home-info-card small,
+  .home-info-card em,
+  .home-info-card b {
+    font-size: 11px;
+  }
+
+  .roster-table-shell,
+  .staff-roster-shell,
+  .weight-room-result-table,
+  .weight-room-leaderboard-table,
+  .weight-room-completed-exercise-table,
+  .weight-room-completed-athlete-table,
+  .weight-room-completed-drill-table,
+  .weight-room-completed-weigh-table,
+  .practice-review-table,
+  .practice-pitching-breakdown-table {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .practice-tracker-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .practice-header__buttons {
+    min-width: 0;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .practice-header__buttons .primary-button,
+  .practice-header__buttons .secondary-button,
+  .practice-header__buttons .ghost-button {
+    min-height: var(--mobile-control-height-compact);
+    padding-inline: 9px;
+    font-size: 11px;
+  }
+
+  .practice-summary-strip {
+    gap: 9px;
+  }
+
+  .practice-summary-strip__identity {
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 9px;
+  }
+
+  .practice-summary-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .practice-summary-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .practice-summary-actions .practice-activity-card--compact {
+    min-height: 42px;
+    padding: 7px 8px;
+  }
+
+  .practice-active-session-card {
+    min-height: 54px;
+    padding: 8px 9px;
+  }
+
+  .practice-avatar-row {
+    max-height: min(26dvh, 190px);
+    overflow-y: auto;
+    padding-bottom: 10px;
+  }
+
+  .practice-console--active {
+    padding-bottom: var(--mobile-practice-mode-nav-space);
+  }
+
+  .practice-console--active .practice-tracker-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    left: 50%;
+    right: auto;
+    width: min(calc(100vw - (var(--mobile-page-gutter) * 2)), 392px);
+    max-width: calc(100vw - (var(--mobile-page-gutter) * 2));
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    overflow: hidden;
+    transform: translateX(-50%);
+  }
+
+  .practice-console--active .practice-tracker-tabs button {
+    flex: 0 1 auto;
+    min-width: 0;
+    width: 100%;
+    gap: 4px;
+    padding-inline: 2px;
+  }
+
+  .practice-console--active .practice-tracker-tabs button span {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .practice-console--active .practice-hitting-stage,
+  .practice-console--pitching .practice-pitching-stage {
+    min-height: auto;
+    padding: var(--mobile-surface-padding);
+    gap: 10px;
+    align-content: start;
+  }
+
+  .practice-console--active .practice-hitting-player-row,
+  .practice-console--active .practice-pitching-player-row {
+    grid-template-columns: 34px minmax(0, 1fr) 34px 34px;
+    gap: 7px;
+  }
+
+  .practice-console--active .practice-hitting-player-card,
+  .practice-console--active .practice-pitching-player-card {
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .practice-console--active .practice-hitting-player-card small,
+  .practice-console--active .practice-pitching-player-card small {
+    display: none;
+  }
+
+  .practice-console--active .practice-hitting-player-card strong,
+  .practice-console--active .practice-pitching-player-card strong {
+    max-width: min(48vw, 184px);
+    font-size: clamp(20px, 6vw, 26px);
+  }
+
+  .practice-console--active .practice-hitting-entry-bar {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 7px;
+    overflow: hidden;
+  }
+
+  .practice-console--active .practice-hitting-log-trigger {
+    width: 100%;
+    min-height: 50px;
+  }
+
+  .practice-console--active .practice-hitting-more-trigger {
+    min-width: 46px;
+    min-height: 42px;
+  }
+
+  .practice-console--active .practice-hitting-quick-controls {
+    grid-column: 1 / -1;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .practice-console--active .practice-hitting-quick-controls button {
+    min-width: 0;
+    min-height: 36px;
+    padding-inline: 6px;
+    font-size: 10.5px;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .practice-console--pitching .practice-pitching-location-card {
+    padding: var(--mobile-surface-padding-tight);
+  }
+
+  .practice-console--pitching .practice-pitch-location-grid {
+    width: 100%;
+    max-width: 360px;
+    min-height: clamp(260px, 48dvh, 340px);
+    padding: 30px 38px 34px;
+  }
+
+  .practice-console--pitching .practice-pitch-location-grid__stage {
+    width: min(250px, calc(100vw - 104px));
+  }
+
+  .practice-hitting-sheet__context,
+  .practice-pitching-sheet__context,
+  .practice-live-bp-sheet__context {
+    min-height: 0;
+    gap: 8px;
+    padding: 8px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--panel-soft) 68%, transparent);
+  }
+
+  .practice-hitting-sheet__context-main {
+    gap: 8px;
+  }
+
+  .practice-hitting-sheet__context-main .player-avatar,
+  .practice-live-bp-sheet__context .player-avatar {
+    --size: 32px;
+    width: 32px;
+    height: 32px;
+    font-size: 11px;
+  }
+
+  .practice-hitting-sheet__context-copy strong {
+    max-width: 100%;
+    font-size: 13px;
+    line-height: 1.15;
+  }
+
+  .practice-hitting-sheet__context-copy small {
+    font-size: 10px;
+  }
+
+  .practice-hitting-sheet__context-controls,
+  .practice-pitching-sheet__context-controls {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .practice-hitting-station-select.choice-select {
+    grid-column: 1 / -1;
+  }
+
+  .practice-hitting-station-select .choice-select__button,
+  .practice-pitch-type-select .choice-select__button,
+  .practice-hitting-sheet__toggle {
+    min-height: 34px;
+    border-radius: 10px;
+    font-size: 10.5px;
+  }
+
+  .practice-hitting-sheet__toggle {
+    padding-inline: 6px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .practice-hitting-sheet__step,
+  .practice-pitching-sheet__step,
+  .practice-live-bp-sheet__step {
+    gap: 8px;
+  }
+
+  .practice-hitting-result-grid,
+  .practice-live-bp-pitch-options,
+  .practice-live-bp-result-grid,
+  .practice-live-bp-contact-grid {
+    gap: 6px;
+  }
+
+  .practice-hitting-result-grid button,
+  .practice-hitting-choice-list button,
+  .practice-live-bp-pitch-options button,
+  .practice-live-bp-result-grid button,
+  .practice-live-bp-contact-grid button,
+  .practice-pitching-result-grid button {
+    min-height: 42px;
+    padding: 7px 8px;
+    border-radius: 11px;
+    font-size: 11px;
+    line-height: 1.05;
+    white-space: nowrap;
+  }
+
+  .modal-panel.practice-hitting-sheet .modal-body,
+  .modal-panel.practice-pitching-sheet .modal-body,
+  .modal-panel.practice-live-bp-pitch-sheet .modal-body {
+    grid-auto-rows: max-content;
+    gap: 8px;
+  }
+
+  .practice-hitting-sheet__step--spray .practice-spray-field,
+  .practice-live-bp-sheet__step--spray .practice-spray-field {
+    width: 100%;
+    max-width: none;
+    height: clamp(190px, 36dvh, 280px);
+    aspect-ratio: auto;
+  }
+
+  .practice-hitting-sheet__spray-actions,
+  .practice-live-bp-sheet__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .practice-hitting-sheet__spray-actions .primary-button,
+  .practice-live-bp-sheet__actions .primary-button {
+    flex: 1 1 150px;
+    width: auto;
+    min-height: var(--mobile-primary-height);
+    max-height: var(--mobile-primary-height);
+  }
+
+  .practice-hitting-sheet__spray-actions .text-button,
+  .practice-live-bp-sheet__actions .secondary-button,
+  .practice-live-bp-sheet__actions .text-button {
+    flex: 0 1 auto;
+    min-height: var(--mobile-control-height-compact);
+  }
+
+  .practice-pitching-sheet__top-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .modal-panel.practice-pitching-sheet .practice-pitch-location-grid,
+  .modal-panel.practice-pitching-stats-sheet .practice-pitch-location-grid {
+    width: 100%;
+    max-width: 360px;
+    min-height: clamp(250px, 45dvh, 330px);
+    padding: 30px 38px 34px;
+  }
+
+  .modal-panel.practice-pitching-sheet .practice-pitch-location-grid__stage,
+  .modal-panel.practice-pitching-stats-sheet .practice-pitch-location-grid__stage {
+    width: min(250px, calc(100vw - 104px));
+  }
+
+  .practice-pitch-location-grid__axis {
+    font-size: 8px;
+  }
+
+  .practice-pitch-location-grid__axis--left,
+  .practice-pitch-location-grid__axis--right {
+    width: 42px;
+  }
+
+  .exit-velocity-input,
+  .practice-pitching-velocity-input {
+    min-height: 40px;
+    width: 100%;
+  }
+
+  .exit-velocity-input input {
+    font-size: 18px;
+  }
+
+  .practice-hitting-rail {
+    display: none;
+  }
+
+  .switcher-list,
+  .compact-player-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .switcher-list button,
+  .compact-player-grid button {
+    min-height: 48px;
+    border-radius: 12px;
+    padding: 7px 8px;
+  }
+
+  .mobile-more-menu,
+  .mobile-pinned-menu {
+    position: fixed;
+    left: var(--mobile-page-gutter);
+    right: var(--mobile-page-gutter);
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    width: auto;
+    max-width: none;
+  }
+}
+
+@media (max-width: 430px) {
+  :root {
+    --mobile-page-gutter: 10px;
+    --mobile-section-gap: 8px;
+    --mobile-surface-padding: 10px;
+    --mobile-surface-padding-tight: 8px;
+    --mobile-bottom-nav-safe-space: calc(86px + env(safe-area-inset-bottom));
+    --mobile-practice-mode-nav-space: calc(146px + env(safe-area-inset-bottom));
+  }
+
+  .bottom-nav {
+    left: 50%;
+    right: auto;
+    width: min(calc(100vw - 20px), calc(var(--bottom-nav-count, 5) * 62px));
+    max-width: calc(100vw - 20px);
+    grid-template-columns: repeat(var(--bottom-nav-count, 5), minmax(0, 1fr));
+    min-height: 58px;
+    border-radius: 15px;
+    transform: translateX(-50%);
+  }
+
+  .bottom-nav button {
+    min-width: 0;
+    min-height: 50px;
+    padding-inline: 1px;
+  }
+
+  .bottom-nav span {
+    font-size: 9px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .team-workspace-header {
+    min-height: 52px;
+  }
+
+  .team-workspace-header > .organization-logo {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+  }
+
+  .team-workspace-header__identity > span {
+    display: none;
+  }
+
+  .section-header h2,
+  .top-command h1 {
+    font-size: clamp(20px, 6vw, 25px);
+  }
+
+  .practice-home > .section-header {
+    gap: 7px;
+  }
+
+  .practice-title-actions {
+    grid-template-columns: minmax(78px, 0.8fr) repeat(2, minmax(76px, 1fr));
+  }
+
+  .practice-title-actions time,
+  .practice-title-actions .primary-button,
+  .practice-title-actions .secondary-button {
+    min-height: 34px;
+    padding-inline: 7px;
+    font-size: 10.5px;
+  }
+
+  .practice-tabs button {
+    min-height: 34px;
+    font-size: 11px;
+  }
+
+  .practice-summary-strip__identity strong {
+    font-size: 16px;
+  }
+
+  .practice-summary-strip__identity em {
+    font-size: 11px;
+  }
+
+  .practice-summary-actions .practice-activity-card--compact {
+    min-height: 40px;
+  }
+
+  .practice-console--active .practice-tracker-header {
+    padding: 8px;
+  }
+
+  .practice-console--active .practice-header__buttons .ghost-button,
+  .practice-console--active .practice-header__buttons .secondary-button {
+    min-width: 50px;
+    padding-inline: 7px;
+  }
+
+  .practice-console--active .practice-hitting-player-row,
+  .practice-console--active .practice-pitching-player-row {
+    grid-template-columns: 32px minmax(0, 1fr) 32px 32px;
+  }
+
+  .practice-console--active .practice-hitting-player-card .player-avatar--lg,
+  .practice-console--active .practice-pitching-player-card .player-avatar--lg {
+    --size: 34px;
+    width: 34px;
+    height: 34px;
+  }
+
+  .practice-console--active .practice-hitting-player-card strong,
+  .practice-console--active .practice-pitching-player-card strong {
+    max-width: min(44vw, 154px);
+    font-size: 20px;
+  }
+
+  .practice-console--active .practice-hitting-metric-line {
+    max-width: 312px;
+    gap: 5px;
+  }
+
+  .practice-console--active .practice-hitting-metric-line span,
+  .practice-console--active .practice-hitting-metric-line em {
+    min-height: 44px;
+    padding: 5px 3px;
+  }
+
+  .practice-console--active .practice-hitting-metric-line strong {
+    font-size: 18px;
+  }
+
+  .practice-console--active .practice-hitting-metric-line small {
+    font-size: 9px;
+  }
+
+  .practice-console--active .practice-tracker-tabs {
+    max-width: calc(100vw - 20px);
+    width: min(calc(100vw - 20px), 390px);
+    min-height: 56px;
+    bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+
+  .practice-console--active .practice-tracker-tabs button {
+    min-height: 46px;
+    font-size: 9.5px;
+  }
+
+  .practice-console--pitching .practice-pitch-location-grid,
+  .modal-panel.practice-pitching-sheet .practice-pitch-location-grid,
+  .modal-panel.practice-pitching-stats-sheet .practice-pitch-location-grid {
+    min-height: clamp(238px, 42dvh, 304px);
+    padding: 28px 34px 32px;
+  }
+
+  .practice-console--pitching .practice-pitch-location-grid__stage,
+  .modal-panel.practice-pitching-sheet .practice-pitch-location-grid__stage,
+  .modal-panel.practice-pitching-stats-sheet .practice-pitch-location-grid__stage {
+    width: min(232px, calc(100vw - 92px));
+  }
+
+  .practice-hitting-sheet__step--spray .practice-spray-field,
+  .practice-live-bp-sheet__step--spray .practice-spray-field {
+    height: clamp(186px, 32dvh, 252px);
+  }
+}
+
+@media (max-width: 560px) {
+  .bottom-nav {
+    left: 50%;
+    right: auto;
+    width: min(calc(100vw - 20px), 360px);
+    max-width: calc(100vw - 20px);
+    grid-template-columns: repeat(var(--bottom-nav-count, 5), minmax(0, 1fr));
+    transform: translateX(-50%);
+  }
+
+  .bottom-nav button {
+    min-width: 0;
+    padding-inline: 1px;
+  }
+
+  .bottom-nav span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .practice-console--active .practice-tracker-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    left: 50%;
+    right: auto;
+    width: min(calc(100vw - 20px), 360px);
+    max-width: calc(100vw - 20px);
+    overflow: hidden;
+    transform: translateX(-50%);
+  }
+
+  .practice-console--active .practice-tracker-tabs button {
+    flex: 0 1 auto;
+    min-width: 0;
+    width: 100%;
+    padding-inline: 1px;
+  }
+
+  .practice-console--active .practice-hitting-entry-bar,
+  .practice-console--pitching .practice-hitting-entry-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .practice-console--active .practice-hitting-more-trigger,
+  .practice-console--pitching .practice-hitting-more-trigger {
+    width: 100%;
+  }
+
+  .practice-console--active .practice-hitting-quick-controls,
+  .practice-console--pitching .practice-hitting-quick-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
