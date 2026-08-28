@@ -1145,7 +1145,17 @@ function gamePitchSample(event: GameEvent) {
 
 function isAnalyticsZonePoint(location: unknown): boolean {
   if (!location || typeof location !== "object") return false;
-  const point = location as { x?: unknown; y?: unknown; isZone?: unknown };
+  const point = location as { x?: unknown; y?: unknown; isZone?: unknown; zoneId?: unknown };
+  if (typeof point.zoneId === "string") {
+    const modernGrid = point.zoneId.match(/^pitch_r([1-5])c([1-5])$/);
+    if (modernGrid) {
+      const row = Number(modernGrid[1]);
+      const column = Number(modernGrid[2]);
+      return row >= 2 && row <= 4 && column >= 2 && column <= 4;
+    }
+    if (point.zoneId.startsWith("zone_")) return true;
+    if (point.zoneId.startsWith("outside_")) return false;
+  }
   if (typeof point.isZone === "boolean") return point.isZone;
   if (typeof point.x !== "number" || typeof point.y !== "number") return false;
   return point.x >= 0.22 && point.x <= 0.78 && point.y >= 0.18 && point.y <= 0.82;

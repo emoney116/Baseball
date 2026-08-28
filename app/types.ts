@@ -900,7 +900,34 @@ export interface DevelopmentGoal {
   updatedAt: string;
 }
 
-export type PitchLocationZoneId =
+export type PitchLocationGridZoneId =
+  | "pitch_r1c1"
+  | "pitch_r1c2"
+  | "pitch_r1c3"
+  | "pitch_r1c4"
+  | "pitch_r1c5"
+  | "pitch_r2c1"
+  | "pitch_r2c2"
+  | "pitch_r2c3"
+  | "pitch_r2c4"
+  | "pitch_r2c5"
+  | "pitch_r3c1"
+  | "pitch_r3c2"
+  | "pitch_r3c3"
+  | "pitch_r3c4"
+  | "pitch_r3c5"
+  | "pitch_r4c1"
+  | "pitch_r4c2"
+  | "pitch_r4c3"
+  | "pitch_r4c4"
+  | "pitch_r4c5"
+  | "pitch_r5c1"
+  | "pitch_r5c2"
+  | "pitch_r5c3"
+  | "pitch_r5c4"
+  | "pitch_r5c5";
+
+export type LegacyPitchLocationZoneId =
   | "zone_high_arm"
   | "zone_high_middle"
   | "zone_high_glove"
@@ -922,6 +949,8 @@ export type PitchLocationZoneId =
   | "outside_down_arm"
   | "outside_down_middle"
   | "outside_down_glove";
+
+export type PitchLocationZoneId = PitchLocationGridZoneId | LegacyPitchLocationZoneId;
 
 export interface ZonePoint {
   x: number;

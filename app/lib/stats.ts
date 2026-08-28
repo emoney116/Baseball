@@ -8,6 +8,7 @@ import type {
   PitchType,
   PitchingSession,
   Practice,
+  ZonePoint,
 } from "../types";
 import { isPracticeHardContactEvent } from "./hittingTaxonomy.ts";
 
@@ -110,7 +111,7 @@ export function calculatePitchingStats(events: PitchEvent[]): PitchingStats {
   const lineDrives = events.filter((event) => event.battedBall === "Line drive").length;
   const flyBalls = events.filter((event) => event.battedBall === "Fly ball").length;
   const locationTrackedPitches = events.filter((event) => event.location).length;
-  const zonePitches = events.filter((event) => event.location && event.isZone).length;
+  const zonePitches = events.filter((event) => isPitchLocationZone(event.location, event.isZone)).length;
   const chases = events.filter((event) => event.isChase).length;
   const firstPitchEvents = events.filter((event) => event.countBefore?.balls === 0 && event.countBefore?.strikes === 0);
   const velocities = events.map((event) => event.velocity).filter(isNumber);
@@ -132,7 +133,7 @@ export function calculatePitchingStats(events: PitchEvent[]): PitchingStats {
     ballPct: pct(balls, totalPitches),
     firstPitchStrikePct: pct(firstPitchEvents.filter((event) => event.isStrike).length, firstPitchEvents.length),
     zonePct: pct(zonePitches, locationTrackedPitches),
-    chasePct: pct(chases, events.filter((event) => event.isSwing && !event.isZone).length || swings),
+    chasePct: pct(chases, events.filter((event) => event.isSwing && !isPitchLocationZone(event.location, event.isZone)).length || swings),
     whiffPct: pct(whiffs, swings),
     swingPct: pct(swings, totalPitches),
     calledStrikePct: pct(calledStrikes, totalPitches),
@@ -355,7 +356,7 @@ function groupPitchTypes(events: PitchEvent[]): Record<string, PitchTypeStats> {
       pitches: groupEvents.length,
       usagePct: pct(groupEvents.length, events.length),
       strikePct: pct(groupEvents.filter((item) => item.isStrike).length, groupEvents.length),
-      zonePct: pct(groupEvents.filter((item) => item.location && item.isZone).length, groupEvents.filter((item) => item.location).length),
+      zonePct: pct(groupEvents.filter((item) => isPitchLocationZone(item.location, item.isZone)).length, groupEvents.filter((item) => item.location).length),
       whiffPct: pct(groupEvents.filter((item) => item.isWhiff).length, groupEvents.filter((item) => item.isSwing).length),
       avgVelocity: average(velocities),
       maxVelocity: velocities.length ? Math.max(...velocities) : undefined,
@@ -364,6 +365,23 @@ function groupPitchTypes(events: PitchEvent[]): Record<string, PitchTypeStats> {
 
     return groups;
   }, {});
+}
+
+function isPitchLocationZone(location?: ZonePoint, fallbackIsZone = false): boolean {
+  if (!location) return false;
+  if (location.zoneId) {
+    const modernGrid = location.zoneId.match(/^pitch_r([1-5])c([1-5])$/);
+    if (modernGrid) {
+      const row = Number(modernGrid[1]);
+      const column = Number(modernGrid[2]);
+      return row >= 2 && row <= 4 && column >= 2 && column <= 4;
+    }
+    if (location.zoneId.startsWith("zone_")) return true;
+    if (location.zoneId.startsWith("outside_")) return false;
+  }
+  if (typeof location.isZone === "boolean") return location.isZone;
+  if (fallbackIsZone) return true;
+  return location.x >= 0.22 && location.x <= 0.78 && location.y >= 0.18 && location.y <= 0.82;
 }
 
 function isPull(direction?: Direction): boolean {

@@ -163,6 +163,7 @@ import type {
   LiveBpThrowerSource,
   PitchOutcome,
   PitchEvent,
+  PitchLocationGridZoneId,
   PitchLocationZoneId,
   PitchType,
   PitchingSession,
@@ -701,29 +702,66 @@ type PitchLogOptions = {
 };
 const HITTING_CONTACT_CHOICES: HittingContactDraft[] = PRACTICE_HITTING_RESULT_OPTIONS.filter((option) => option.action === "Ball in play");
 const PITCHING_STATIONS: PitchingSession["type"][] = ["Bullpen", "Flat Ground", "Live", "Other"];
-const PITCH_LOCATION_BUCKETS: Array<{ id: PitchLocationZoneId; label: string; shortLabel: string; x: number; y: number; isZone: boolean; row: number; column: number }> = [
-  { id: "outside_up_arm", label: "Up Arm", shortLabel: "Up A", x: 0.32, y: 0.08, isZone: false, row: 1, column: 2 },
-  { id: "outside_up_middle", label: "Up", shortLabel: "Up", x: 0.5, y: 0.08, isZone: false, row: 1, column: 3 },
-  { id: "outside_up_glove", label: "Up Glove", shortLabel: "Up G", x: 0.68, y: 0.08, isZone: false, row: 1, column: 4 },
-  { id: "outside_arm_high", label: "Arm High", shortLabel: "A H", x: 0.12, y: 0.25, isZone: false, row: 2, column: 1 },
-  { id: "zone_high_arm", label: "Zone High Arm", shortLabel: "H A", x: 0.32, y: 0.25, isZone: true, row: 2, column: 2 },
-  { id: "zone_high_middle", label: "Zone High Middle", shortLabel: "H M", x: 0.5, y: 0.25, isZone: true, row: 2, column: 3 },
-  { id: "zone_high_glove", label: "Zone High Glove", shortLabel: "H G", x: 0.68, y: 0.25, isZone: true, row: 2, column: 4 },
-  { id: "outside_glove_high", label: "Glove High", shortLabel: "G H", x: 0.88, y: 0.25, isZone: false, row: 2, column: 5 },
-  { id: "outside_arm_middle", label: "Arm Middle", shortLabel: "A M", x: 0.12, y: 0.5, isZone: false, row: 3, column: 1 },
-  { id: "zone_middle_arm", label: "Zone Middle Arm", shortLabel: "M A", x: 0.32, y: 0.5, isZone: true, row: 3, column: 2 },
-  { id: "zone_middle_middle", label: "Zone Middle", shortLabel: "M", x: 0.5, y: 0.5, isZone: true, row: 3, column: 3 },
-  { id: "zone_middle_glove", label: "Zone Middle Glove", shortLabel: "M G", x: 0.68, y: 0.5, isZone: true, row: 3, column: 4 },
-  { id: "outside_glove_middle", label: "Glove Middle", shortLabel: "G M", x: 0.88, y: 0.5, isZone: false, row: 3, column: 5 },
-  { id: "outside_arm_low", label: "Arm Low", shortLabel: "A L", x: 0.12, y: 0.75, isZone: false, row: 4, column: 1 },
-  { id: "zone_low_arm", label: "Zone Low Arm", shortLabel: "L A", x: 0.32, y: 0.75, isZone: true, row: 4, column: 2 },
-  { id: "zone_low_middle", label: "Zone Low Middle", shortLabel: "L M", x: 0.5, y: 0.75, isZone: true, row: 4, column: 3 },
-  { id: "zone_low_glove", label: "Zone Low Glove", shortLabel: "L G", x: 0.68, y: 0.75, isZone: true, row: 4, column: 4 },
-  { id: "outside_glove_low", label: "Glove Low", shortLabel: "G L", x: 0.88, y: 0.75, isZone: false, row: 4, column: 5 },
-  { id: "outside_down_arm", label: "Down Arm", shortLabel: "Dn A", x: 0.32, y: 0.93, isZone: false, row: 5, column: 2 },
-  { id: "outside_down_middle", label: "Down", shortLabel: "Dn", x: 0.5, y: 0.93, isZone: false, row: 5, column: 3 },
-  { id: "outside_down_glove", label: "Down Glove", shortLabel: "Dn G", x: 0.68, y: 0.93, isZone: false, row: 5, column: 4 },
+type PitchLocationGridAxis = 1 | 2 | 3 | 4 | 5;
+type PitchLocationBucket = {
+  id: PitchLocationGridZoneId;
+  x: number;
+  y: number;
+  row: PitchLocationGridAxis;
+  column: PitchLocationGridAxis;
+  isZone: boolean;
+  isCorner: boolean;
+};
+const PITCH_LOCATION_BUCKETS: PitchLocationBucket[] = [
+  { id: "pitch_r1c1", x: 0.1, y: 0.1, row: 1, column: 1, isZone: false, isCorner: true },
+  { id: "pitch_r1c2", x: 0.3, y: 0.1, row: 1, column: 2, isZone: false, isCorner: false },
+  { id: "pitch_r1c3", x: 0.5, y: 0.1, row: 1, column: 3, isZone: false, isCorner: false },
+  { id: "pitch_r1c4", x: 0.7, y: 0.1, row: 1, column: 4, isZone: false, isCorner: false },
+  { id: "pitch_r1c5", x: 0.9, y: 0.1, row: 1, column: 5, isZone: false, isCorner: true },
+  { id: "pitch_r2c1", x: 0.1, y: 0.3, row: 2, column: 1, isZone: false, isCorner: false },
+  { id: "pitch_r2c2", x: 0.3, y: 0.3, row: 2, column: 2, isZone: true, isCorner: false },
+  { id: "pitch_r2c3", x: 0.5, y: 0.3, row: 2, column: 3, isZone: true, isCorner: false },
+  { id: "pitch_r2c4", x: 0.7, y: 0.3, row: 2, column: 4, isZone: true, isCorner: false },
+  { id: "pitch_r2c5", x: 0.9, y: 0.3, row: 2, column: 5, isZone: false, isCorner: false },
+  { id: "pitch_r3c1", x: 0.1, y: 0.5, row: 3, column: 1, isZone: false, isCorner: false },
+  { id: "pitch_r3c2", x: 0.3, y: 0.5, row: 3, column: 2, isZone: true, isCorner: false },
+  { id: "pitch_r3c3", x: 0.5, y: 0.5, row: 3, column: 3, isZone: true, isCorner: false },
+  { id: "pitch_r3c4", x: 0.7, y: 0.5, row: 3, column: 4, isZone: true, isCorner: false },
+  { id: "pitch_r3c5", x: 0.9, y: 0.5, row: 3, column: 5, isZone: false, isCorner: false },
+  { id: "pitch_r4c1", x: 0.1, y: 0.7, row: 4, column: 1, isZone: false, isCorner: false },
+  { id: "pitch_r4c2", x: 0.3, y: 0.7, row: 4, column: 2, isZone: true, isCorner: false },
+  { id: "pitch_r4c3", x: 0.5, y: 0.7, row: 4, column: 3, isZone: true, isCorner: false },
+  { id: "pitch_r4c4", x: 0.7, y: 0.7, row: 4, column: 4, isZone: true, isCorner: false },
+  { id: "pitch_r4c5", x: 0.9, y: 0.7, row: 4, column: 5, isZone: false, isCorner: false },
+  { id: "pitch_r5c1", x: 0.1, y: 0.9, row: 5, column: 1, isZone: false, isCorner: true },
+  { id: "pitch_r5c2", x: 0.3, y: 0.9, row: 5, column: 2, isZone: false, isCorner: false },
+  { id: "pitch_r5c3", x: 0.5, y: 0.9, row: 5, column: 3, isZone: false, isCorner: false },
+  { id: "pitch_r5c4", x: 0.7, y: 0.9, row: 5, column: 4, isZone: false, isCorner: false },
+  { id: "pitch_r5c5", x: 0.9, y: 0.9, row: 5, column: 5, isZone: false, isCorner: true },
 ];
+const LEGACY_PITCH_LOCATION_ID_MAP: Partial<Record<PitchLocationZoneId, PitchLocationGridZoneId>> = {
+  outside_up_arm: "pitch_r1c2",
+  outside_up_middle: "pitch_r1c3",
+  outside_up_glove: "pitch_r1c4",
+  outside_arm_high: "pitch_r2c1",
+  zone_high_arm: "pitch_r2c2",
+  zone_high_middle: "pitch_r2c3",
+  zone_high_glove: "pitch_r2c4",
+  outside_glove_high: "pitch_r2c5",
+  outside_arm_middle: "pitch_r3c1",
+  zone_middle_arm: "pitch_r3c2",
+  zone_middle_middle: "pitch_r3c3",
+  zone_middle_glove: "pitch_r3c4",
+  outside_glove_middle: "pitch_r3c5",
+  outside_arm_low: "pitch_r4c1",
+  zone_low_arm: "pitch_r4c2",
+  zone_low_middle: "pitch_r4c3",
+  zone_low_glove: "pitch_r4c4",
+  outside_glove_low: "pitch_r4c5",
+  outside_down_arm: "pitch_r5c2",
+  outside_down_middle: "pitch_r5c3",
+  outside_down_glove: "pitch_r5c4",
+};
 const DEFENSE_STATIONS: DefenseStation[] = ["Infield", "Outfield", "Catching", "PFP", "Situational defense", "Team defense"];
 const GAME_TYPES: GameType[] = ["Fall Game", "Scrimmage", "Showcase", "Regular Season", "Tournament", "Other"];
 const SCHEDULE_EVENT_TYPES: ScheduleEventType[] = ["Game", "Practice", "Lift", "Scrimmage", "Tournament", "Other"];
@@ -8378,6 +8416,9 @@ function PracticeConsole({
   const [pitchingPitchTypeOpen, setPitchingPitchTypeOpen] = useState(false);
   const [pitchingStatsScopeSessionId, setPitchingStatsScopeSessionId] = useState<ID | "all">("all");
   const [pitchingLocationFilter, setPitchingLocationFilter] = useState<PitchType | "all">("all");
+  const [pitchingLivePitchFilters, setPitchingLivePitchFilters] = useState<PitchType[]>([]);
+  const [pitchingLivePitchFilterOpen, setPitchingLivePitchFilterOpen] = useState(false);
+  const [showAllPitchingPlayers, setShowAllPitchingPlayers] = useState(false);
   const [pitchingSavedNotice, setPitchingSavedNotice] = useState("");
   const [pitchingVelocityError, setPitchingVelocityError] = useState("");
   const [liveBpPitchSheetOpen, setLiveBpPitchSheetOpen] = useState(false);
@@ -8392,7 +8433,7 @@ function PracticeConsole({
     return availablePlayers.length ? availablePlayers : stablePracticeLineupPlayers(data, practice);
   }, [availablePlayers, data, practice]);
   const playerPool = useMemo(() => players
-    .filter((item) => mode !== "Pitching" || item.isPitcher)
+    .filter((item) => mode !== "Pitching" || showAllPitchingPlayers || item.isPitcher)
     .filter((item) => mode !== "Hitting" || item.isHitter)
     .filter((item) => mode !== "Live BP" || (liveBpThrowerSource === "PLAYER" ? item.isPitcher || item.isHitter : item.isHitter))
     .filter((item) => switcherFilter === "All"
@@ -8400,7 +8441,7 @@ function PracticeConsole({
       || (switcherFilter === "Hitters" && item.isHitter)
       || (switcherFilter === "Infield" && ["P", "C", "1B", "2B", "3B", "SS"].includes(item.primaryPosition))
       || (switcherFilter === "Outfield" && ["LF", "CF", "RF", "OF"].includes(item.primaryPosition)))
-    .filter((item) => `${item.name} ${item.jerseyNumber} ${item.primaryPosition} ${item.secondaryPosition ?? ""}`.toLowerCase().includes(switcherQuery.toLowerCase())), [players, mode, switcherFilter, switcherQuery, liveBpThrowerSource]);
+    .filter((item) => `${item.name} ${item.jerseyNumber} ${item.primaryPosition} ${item.secondaryPosition ?? ""}`.toLowerCase().includes(switcherQuery.toLowerCase())), [players, mode, showAllPitchingPlayers, switcherFilter, switcherQuery, liveBpThrowerSource]);
   const matchesHittingStation = (session: HittingSession) => (
     session.type === hittingStation
     || (hittingStation === "Machine" && isMachineHittingStation(session.type))
@@ -8440,7 +8481,10 @@ function PracticeConsole({
     : data.hittingEvents.filter((event) => event.practiceId === practice?.id && event.hitterId === liveBpHitter?.id && event.pitcherId === liveBpPitcher?.id);
   const liveBpPitchStats = calculatePitchingStats(liveBpPitchEvents);
   const liveBpHitStats = calculateHittingStats(liveBpHitEvents);
-  const pitchStats = calculatePitchingStats(pitchEvents);
+  const filteredPitchEvents = pitchingLivePitchFilters.length
+    ? pitchEvents.filter((event) => pitchingLivePitchFilters.includes(event.pitchType))
+    : pitchEvents;
+  const pitchStats = calculatePitchingStats(filteredPitchEvents);
   const hitStats = calculateHittingStats(hittingEvents);
   const cleanDefenseReps = defenseEvents.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
   const defenseCleanPct = pct(cleanDefenseReps, defenseEvents.length);
@@ -8554,8 +8598,7 @@ function PracticeConsole({
   const pitchingLocationFilteredEvents = pitchingLocationFilter === "all"
     ? scopedPitchingEvents
     : scopedPitchingEvents.filter((event) => event.pitchType === pitchingLocationFilter);
-  const scopedPitchingLocationPoints = pitchingLocationFilteredEvents.map((event) => event.location).filter(isZonePoint);
-  const recentPitchEvents = pitchEvents.slice(0, 5);
+  const recentPitchEvents = filteredPitchEvents.slice(0, 5);
   const selectedPitchModeLabel = pitchingPitchTrackingMode === "OFF"
     ? "Off"
     : pitchingPitchTrackingMode === "ONE"
@@ -8563,12 +8606,16 @@ function PracticeConsole({
       : "Multi";
   const pitchingSessionLabel = pitchingStation === "Bullpen" ? "Bullpen" : pitchingStation;
   const pitchingSessionContext = pitchingSessionLabel;
+  const pitchingLivePitchFilterLabel = pitchingLivePitchFilters.length === 0
+    ? "All"
+    : pitchingLivePitchFilters.length === 1
+      ? PITCH_TYPE_LABELS[pitchingLivePitchFilters[0]]
+      : `${pitchingLivePitchFilters.length} pitches`;
   const compactPitchingMetrics = [
     { label: "Pitches", value: String(pitchStats.totalPitches) },
     { label: "Strike", value: formatPct(pitchStats.strikePct) },
-    ...(trackPitchVelocity && pitchStats.avgVelocity !== undefined ? [{ label: "Avg Velo", value: `${formatNumber(pitchStats.avgVelocity, 1)}` }] : []),
-    ...(trackPitchVelocity && pitchStats.maxVelocity !== undefined ? [{ label: "Max Velo", value: `${formatNumber(pitchStats.maxVelocity, 1)}` }] : []),
-    ...(trackPitchVelocity && pitchStats.avgVelocity === undefined ? [{ label: "Zone", value: formatPct(pitchStats.zonePct) }] : []),
+    ...(trackPitchVelocity ? [{ label: "Avg Velo", value: pitchStats.avgVelocity !== undefined ? `${formatNumber(pitchStats.avgVelocity, 1)}` : "-" }] : []),
+    ...(trackPitchVelocity ? [{ label: "Max Velo", value: pitchStats.maxVelocity !== undefined ? `${formatNumber(pitchStats.maxVelocity, 1)}` : "-" }] : []),
   ].slice(0, 4);
   const pitchingSaveDisabled = trackPitchLocation && !pitchingDraft.location;
 
@@ -8835,6 +8882,14 @@ function PracticeConsole({
     setPitchingPlayersOpen(false);
   }
 
+  function togglePitchingLivePitchFilter(pitchType: PitchType) {
+    setPitchingLivePitchFilters((current) => (
+      current.includes(pitchType)
+        ? current.filter((item) => item !== pitchType)
+        : [...current, pitchType]
+    ));
+  }
+
   function openLiveBpPitchSheet() {
     setLiveBpPitchSheetStep("result");
     setLiveBpBattedBall(undefined);
@@ -8882,14 +8937,21 @@ function PracticeConsole({
         </div>
         {practice ? (
           <div className="practice-header__buttons">
-            <button className="ghost-button" type="button" onClick={onExitTracking}>Practice Home</button>
+            <button className="ghost-button" type="button" onClick={onExitTracking}>
+              <span className="practice-action-label-full">Practice Home</span>
+              <span className="practice-action-label-short">Home</span>
+            </button>
             {mode !== "Hitting" && mode !== "Pitching" && (
               <button className="ghost-button" type="button" onClick={onUndo}>
                 <Undo2 size={16} aria-hidden="true" />
-                Undo Last
+                <span className="practice-action-label-full">Undo Last</span>
+                <span className="practice-action-label-short">Undo</span>
               </button>
             )}
-            <button className="secondary-button" type="button" onClick={onEndPractice}>End Practice</button>
+            <button className="secondary-button" type="button" onClick={onEndPractice}>
+              <span className="practice-action-label-full">End Practice</span>
+              <span className="practice-action-label-short">End</span>
+            </button>
           </div>
         ) : (
           <button className="primary-button" type="button" onClick={onStartPractice}>
@@ -9407,6 +9469,11 @@ function PracticeConsole({
                   </span>
                 ))}
               </div>
+              <button className="practice-pitching-filter-pill" type="button" onClick={() => setPitchingLivePitchFilterOpen(true)} aria-label="Filter pitching metrics by pitch type">
+                <span>Pitch Filter</span>
+                <strong>{pitchingLivePitchFilterLabel}</strong>
+                <ChevronDown size={15} aria-hidden="true" />
+              </button>
 
               <div className="practice-hitting-entry-bar practice-pitching-entry-bar">
                 <button className="primary-button practice-hitting-log-trigger" type="button" onClick={() => openPitchingSheet()}>
@@ -9441,7 +9508,7 @@ function PracticeConsole({
                     </button>
                   </div>
                   {trackPitchLocation ? (
-                    <PracticePitchLocationGrid points={pitchEvents.map((event) => event.location).filter(isZonePoint)} />
+                    <PracticePitchLocationGrid pitches={filteredPitchEvents} pitcher={player} mode="live" />
                   ) : (
                     <CompactEmpty title="Location tracking off" />
                   )}
@@ -9553,12 +9620,14 @@ function PracticeConsole({
                   <div className="practice-pitching-location-entry">
                     <div>
                       <span>Location</span>
-                      <small>{pitchingDraft.location ? `${pitchLocationLabel(pitchingDraft.location)} · ${pitchingOutcomeForLocation(pitchingDraft.location) === "Ball" ? "Ball" : "Strike"}` : "Catcher View · tap one bucket."}</small>
+                      <small>{pitchingDraft.location ? `${pitchLocationLabel(pitchingDraft.location, player)} · ${pitchingOutcomeForLocation(pitchingDraft.location) === "Ball" ? "Ball" : "Strike"}` : "Catcher View · tap one bucket."}</small>
                     </div>
                     <PracticePitchLocationGrid
-                      points={pitchEvents.map((event) => event.location).filter(isZonePoint)}
+                      pitches={pitchEvents}
                       activePoint={pitchingDraft.location}
                       onSelect={choosePitchingLocation}
+                      pitcher={player}
+                      mode="entry"
                     />
                   </div>
                 ) : (
@@ -9575,6 +9644,36 @@ function PracticeConsole({
               <div className="modal-actions">
                 <button className="secondary-button" type="button" onClick={closePitchingSheet}>Cancel</button>
                 <button className="primary-button" type="button" onClick={savePitchingPitch} disabled={pitchingSaveDisabled}>Save Pitch</button>
+              </div>
+            </ModalFrame>
+          )}
+
+          {pitchingLivePitchFilterOpen && (
+            <ModalFrame title="Pitch Filter" onClose={() => setPitchingLivePitchFilterOpen(false)} panelClassName="practice-hitting-selector-sheet">
+              <section className="practice-pitching-filter-sheet">
+                <button type="button" className={pitchingLivePitchFilters.length === 0 ? "active" : ""} onClick={() => setPitchingLivePitchFilters([])}>
+                  <span>
+                    <strong>All Pitches</strong>
+                    <small>{pitchEvents.length} total</small>
+                  </span>
+                  {pitchingLivePitchFilters.length === 0 && <Check size={16} aria-hidden="true" />}
+                </button>
+                {PITCH_TYPES.map((pitchType) => {
+                  const active = pitchingLivePitchFilters.includes(pitchType);
+                  const count = pitchEvents.filter((event) => event.pitchType === pitchType).length;
+                  return (
+                    <button key={pitchType} type="button" className={active ? "active" : ""} onClick={() => togglePitchingLivePitchFilter(pitchType)} aria-pressed={active}>
+                      <span>
+                        <strong>{practicePitchTypeLabel(pitchType)}</strong>
+                        <small>{count} pitches</small>
+                      </span>
+                      <em aria-hidden="true">{active && <Check size={15} />}</em>
+                    </button>
+                  );
+                })}
+              </section>
+              <div className="modal-actions">
+                <button className="primary-button" type="button" onClick={() => setPitchingLivePitchFilterOpen(false)}>Done</button>
               </div>
             </ModalFrame>
           )}
@@ -9610,7 +9709,7 @@ function PracticeConsole({
                   <BarChart3 size={17} aria-hidden="true" />
                   <span>
                     <strong>View Session Analytics</strong>
-                    <small>{pitchStats.totalPitches} pitches today</small>
+                    <small>{pitchStats.totalPitches} filtered pitches</small>
                   </span>
                   <ChevronRight size={15} aria-hidden="true" />
                 </button>
@@ -9690,12 +9789,20 @@ function PracticeConsole({
           )}
 
           {pitchingPlayersOpen && (
-            <ModalFrame title="Pitchers" onClose={() => setPitchingPlayersOpen(false)} panelClassName="practice-hitting-selector-sheet">
+            <ModalFrame title={showAllPitchingPlayers ? "Players" : "Pitchers"} onClose={() => setPitchingPlayersOpen(false)} panelClassName="practice-hitting-selector-sheet">
               <label className="switcher-search">
                 <Search size={14} aria-hidden="true" />
-                <input value={switcherQuery} onChange={(event) => setSwitcherQuery(event.target.value)} placeholder="Search present pitchers..." />
+                <input value={switcherQuery} onChange={(event) => setSwitcherQuery(event.target.value)} placeholder={showAllPitchingPlayers ? "Search present players..." : "Search present pitchers..."} />
               </label>
-              <ScrollablePanel className="practice-hitting-player-picker" bodyClassName="practice-hitting-player-picker__list" ariaLabel="present pitchers">
+              <div className="practice-pitching-player-scope" aria-label="Pitcher picker scope">
+                <button type="button" className={!showAllPitchingPlayers ? "active" : ""} onClick={() => setShowAllPitchingPlayers(false)}>
+                  Pitchers
+                </button>
+                <button type="button" className={showAllPitchingPlayers ? "active" : ""} onClick={() => setShowAllPitchingPlayers(true)}>
+                  All Players
+                </button>
+              </div>
+              <ScrollablePanel className="practice-hitting-player-picker" bodyClassName="practice-hitting-player-picker__list" ariaLabel={showAllPitchingPlayers ? "present players" : "present pitchers"}>
                 {playerPool.map((item) => (
                   <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => selectPitcher(item.id)}>
                     <PlayerAvatar player={item} size="sm" compact />
@@ -9705,7 +9812,7 @@ function PracticeConsole({
                     </span>
                   </button>
                 ))}
-                {!playerPool.length && <CompactEmpty title="No available pitchers" />}
+                {!playerPool.length && <CompactEmpty title={showAllPitchingPlayers ? "No available players" : "No available pitchers"} />}
               </ScrollablePanel>
             </ModalFrame>
           )}
@@ -9795,7 +9902,7 @@ function PracticeConsole({
                       </button>
                     ))}
                   </div>
-                  <PracticePitchLocationGrid points={scopedPitchingLocationPoints} />
+                  <PracticePitchLocationGrid pitches={pitchingLocationFilteredEvents} pitcher={player} mode="analytics" />
                 </div>
               </section>
               <PracticeRecentEventTable
@@ -10434,39 +10541,132 @@ function PracticeSprayField({ points, activePoint, onSelect }: { points: ZonePoi
   );
 }
 
-function PracticePitchLocationGrid({ points, activePoint, onSelect }: { points: ZonePoint[]; activePoint?: ZonePoint; onSelect?: (point: ZonePoint) => void }) {
+type PitchLocationGridMode = "entry" | "live" | "analytics";
+type PitchLocationGridEntry = {
+  point: ZonePoint;
+  pitch?: PitchEvent;
+};
+type PitchLocationBucketStats = {
+  count: number;
+  strikes: number;
+  balls: number;
+  velocities: number[];
+};
+
+function PracticePitchLocationGrid({
+  points = [],
+  pitches,
+  activePoint,
+  onSelect,
+  pitcher,
+  mode = onSelect ? "entry" : "live",
+}: {
+  points?: ZonePoint[];
+  pitches?: PitchEvent[];
+  activePoint?: ZonePoint;
+  onSelect?: (point: ZonePoint) => void;
+  pitcher?: Player;
+  mode?: PitchLocationGridMode;
+}) {
+  const [inspectedBucketId, setInspectedBucketId] = useState<PitchLocationGridZoneId | undefined>();
   const activeBucket = pitchLocationBucketFromPoint(activePoint);
-  const counts = points.reduce<Record<string, number>>((totals, point) => {
-    const bucket = pitchLocationBucketFromPoint(point);
-    if (bucket) totals[bucket.id] = (totals[bucket.id] ?? 0) + 1;
+  const entries: PitchLocationGridEntry[] = pitches
+    ? pitches.reduce<PitchLocationGridEntry[]>((list, pitch) => {
+      if (isZonePoint(pitch.location)) list.push({ pitch, point: pitch.location });
+      return list;
+    }, [])
+    : points.filter(isZonePoint).map((point) => ({ point }));
+  const bucketStats = entries.reduce<Partial<Record<PitchLocationGridZoneId, PitchLocationBucketStats>>>((totals, entry) => {
+    const bucket = pitchLocationBucketFromPoint(entry.point);
+    if (!bucket) return totals;
+    const stats = totals[bucket.id] ?? { count: 0, strikes: 0, balls: 0, velocities: [] };
+    stats.count += 1;
+    if (entry.pitch) {
+      if (entry.pitch.isStrike) stats.strikes += 1;
+      if (entry.pitch.outcome === "Ball") stats.balls += 1;
+      if (entry.pitch.velocity !== undefined) stats.velocities.push(entry.pitch.velocity);
+    } else if (bucket.isZone) {
+      stats.strikes += 1;
+    } else {
+      stats.balls += 1;
+    }
+    totals[bucket.id] = stats;
     return totals;
   }, {});
+  const maxCount = Math.max(1, ...Object.values(bucketStats).map((stats) => stats?.count ?? 0));
+  const markerSeen: Partial<Record<PitchLocationGridZoneId, number>> = {};
+  const markers = entries.slice(-80).map((entry, index) => {
+    const bucket = pitchLocationBucketFromPoint(entry.point);
+    if (!bucket) return undefined;
+    const occurrence = markerSeen[bucket.id] ?? 0;
+    markerSeen[bucket.id] = occurrence + 1;
+    const offset = pitchMarkerOffset(occurrence);
+    return {
+      key: `${bucket.id}-${index}`,
+      x: clampNumber(bucket.x + offset.x, 0.04, 0.96),
+      y: clampNumber(bucket.y + offset.y, 0.04, 0.96),
+      inZone: bucket.isZone,
+    };
+  }).filter(Boolean) as Array<{ key: string; x: number; y: number; inZone: boolean }>;
+  const inspectedBucket = inspectedBucketId ? PITCH_LOCATION_BUCKETS.find((bucket) => bucket.id === inspectedBucketId) : undefined;
+  const inspectedStats = inspectedBucket ? bucketStats[inspectedBucket.id] : undefined;
+  const inspectable = mode === "analytics" && !onSelect;
+  const labels = pitchLocationOrientationLabels(pitcher);
+  const className = [
+    "practice-pitch-location-grid",
+    `practice-pitch-location-grid--${mode}`,
+    onSelect ? "practice-pitch-location-grid--interactive" : "",
+    inspectable ? "practice-pitch-location-grid--inspectable" : "",
+  ].filter(Boolean).join(" ");
 
   return (
-    <div className={onSelect ? "practice-pitch-location-grid practice-pitch-location-grid--interactive" : "practice-pitch-location-grid"} role={onSelect ? "group" : "img"} aria-label={onSelect ? "Pitch location selector" : "Pitch location chart"}>
-      <span className="practice-pitch-location-grid__zone" aria-hidden="true" />
-      <span className="practice-pitch-location-grid__plate" aria-hidden="true" />
-      {PITCH_LOCATION_BUCKETS.map((bucket) => {
-        const className = [
-          "practice-pitch-location-grid__bucket",
-          bucket.isZone ? "practice-pitch-location-grid__bucket--zone" : "practice-pitch-location-grid__bucket--outside",
-          activeBucket?.id === bucket.id ? "active" : "",
-        ].filter(Boolean).join(" ");
-        return (
-          <button
-            key={bucket.id}
-            type="button"
-            className={className}
-            style={{ gridColumn: bucket.column, gridRow: bucket.row }}
-            onClick={() => onSelect?.(makePitchLocationPoint(bucket))}
-            disabled={!onSelect}
-            aria-label={`${bucket.label}, ${bucket.isZone ? "strike" : "ball"}`}
-          >
-            <span>{bucket.shortLabel}</span>
-            {counts[bucket.id] ? <em>{counts[bucket.id]}</em> : null}
-          </button>
-        );
-      })}
+    <div className={className} role={onSelect || inspectable ? "group" : "img"} aria-label={onSelect ? "Pitch location selector" : "Pitch location chart"}>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--up">Up</span>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--down">Down</span>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--left">{labels.left}</span>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--right">{labels.right}</span>
+      <div className="practice-pitch-location-grid__stage">
+        <span className="practice-pitch-location-grid__zone" aria-hidden="true" />
+        <span className="practice-pitch-location-grid__plate" aria-hidden="true" />
+        {PITCH_LOCATION_BUCKETS.map((bucket) => {
+          const stats = bucketStats[bucket.id];
+          const heat = stats?.count ? Math.min(0.62, 0.16 + (stats.count / maxCount) * 0.46) : 0;
+          const bucketClassName = [
+            "practice-pitch-location-grid__bucket",
+            bucket.isZone ? "practice-pitch-location-grid__bucket--zone" : "practice-pitch-location-grid__bucket--outside",
+            activeBucket?.id === bucket.id || inspectedBucketId === bucket.id ? "active" : "",
+          ].filter(Boolean).join(" ");
+          return (
+            <button
+              key={bucket.id}
+              type="button"
+              className={bucketClassName}
+              style={{ gridColumn: bucket.column, gridRow: bucket.row, "--pitch-heat-opacity": heat } as React.CSSProperties}
+              onClick={() => {
+                if (onSelect) onSelect(makePitchLocationPoint(bucket, pitcher));
+                else if (inspectable) setInspectedBucketId(bucket.id);
+              }}
+              disabled={!onSelect && !inspectable}
+              title={pitchLocationBucketDetail(bucket, stats, pitcher)}
+              aria-label={pitchLocationBucketDetail(bucket, stats, pitcher)}
+            >
+              <span className="practice-pitch-location-grid__heat" aria-hidden="true" />
+            </button>
+          );
+        })}
+        <span className="practice-pitch-location-grid__marker-layer" aria-hidden="true">
+          {markers.map((marker) => (
+            <i key={marker.key} className={marker.inZone ? "in-zone" : ""} style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }} />
+          ))}
+          {activeBucket && <b style={{ left: `${activeBucket.x * 100}%`, top: `${activeBucket.y * 100}%` }} />}
+        </span>
+      </div>
+      {inspectable && inspectedBucket && (
+        <div className="practice-pitch-location-grid__detail">
+          <strong>{pitchLocationLabelFromBucket(inspectedBucket, pitcher)}</strong>
+          <span>{inspectedStats ? pitchLocationStatsSummary(inspectedStats) : "No pitches in this bucket"}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -10505,9 +10705,10 @@ function pitchingSessionAnalyticsLabel(session: PitchingSession) {
   return `${session.type} · ${formatTime(session.startedAt)}`;
 }
 
-function pitchLocationLabel(point: ZonePoint) {
+function pitchLocationLabel(point: ZonePoint, pitcher?: Player) {
   const bucket = pitchLocationBucketFromPoint(point);
-  return bucket?.label ?? point.zoneLabel ?? `Zone ${zoneLabel(point)}`;
+  if (bucket && pitcher) return pitchLocationLabelFromBucket(bucket, pitcher);
+  return point.zoneLabel ?? (bucket ? pitchLocationLabelFromBucket(bucket, pitcher) : `Zone ${zoneLabel(point)}`);
 }
 
 function pitchingOutcomeForLocation(point: ZonePoint): PitchOutcome {
@@ -10516,14 +10717,23 @@ function pitchingOutcomeForLocation(point: ZonePoint): PitchOutcome {
 
 function isPitchLocationInZone(point?: ZonePoint) {
   if (!point) return false;
+  const bucket = pitchLocationBucketFromPoint(point);
+  if (bucket) return bucket.isZone;
   if (typeof point.isZone === "boolean") return point.isZone;
   return point.x >= 0.22 && point.x <= 0.78 && point.y >= 0.18 && point.y <= 0.82;
 }
 
-function pitchLocationBucketFromPoint(point?: ZonePoint) {
+function normalizePitchLocationZoneId(zoneId?: PitchLocationZoneId): PitchLocationGridZoneId | undefined {
+  if (!zoneId) return undefined;
+  if (PITCH_LOCATION_BUCKETS.some((bucket) => bucket.id === zoneId)) return zoneId as PitchLocationGridZoneId;
+  return LEGACY_PITCH_LOCATION_ID_MAP[zoneId];
+}
+
+function pitchLocationBucketFromPoint(point?: ZonePoint): PitchLocationBucket | undefined {
   if (!point) return undefined;
   if (point.zoneId) {
-    const exact = PITCH_LOCATION_BUCKETS.find((bucket) => bucket.id === point.zoneId);
+    const normalizedId = normalizePitchLocationZoneId(point.zoneId);
+    const exact = PITCH_LOCATION_BUCKETS.find((bucket) => bucket.id === normalizedId);
     if (exact) return exact;
   }
   return PITCH_LOCATION_BUCKETS
@@ -10534,14 +10744,75 @@ function pitchLocationBucketFromPoint(point?: ZonePoint) {
     .sort((left, right) => left.distance - right.distance)[0]?.bucket;
 }
 
-function makePitchLocationPoint(bucket: (typeof PITCH_LOCATION_BUCKETS)[number]): ZonePoint {
+function makePitchLocationPoint(bucket: PitchLocationBucket, pitcher?: Player): ZonePoint {
   return {
     x: bucket.x,
     y: bucket.y,
     zoneId: bucket.id,
-    zoneLabel: bucket.label,
+    zoneLabel: pitchLocationLabelFromBucket(bucket, pitcher),
     isZone: bucket.isZone,
   };
+}
+
+function pitchMarkerOffset(index: number) {
+  const offsets = [
+    { x: 0, y: 0 },
+    { x: -0.016, y: -0.012 },
+    { x: 0.016, y: -0.012 },
+    { x: -0.016, y: 0.012 },
+    { x: 0.016, y: 0.012 },
+    { x: 0, y: -0.022 },
+    { x: 0, y: 0.022 },
+  ];
+  return offsets[index % offsets.length];
+}
+
+function pitchLocationOrientationLabels(pitcher?: Player) {
+  const throwsLeft = pitcher?.throws === "L";
+  return {
+    left: throwsLeft ? "Glove Side" : "Arm Side",
+    right: throwsLeft ? "Arm Side" : "Glove Side",
+  };
+}
+
+function pitchLocationVerticalLabel(row: PitchLocationGridAxis) {
+  if (row === 1) return "Up";
+  if (row === 2) return "High";
+  if (row === 4) return "Low";
+  if (row === 5) return "Down";
+  return "Middle";
+}
+
+function pitchLocationHorizontalLabel(column: PitchLocationGridAxis, pitcher?: Player) {
+  if (column === 3) return "Middle";
+  if (!pitcher) return column < 3 ? "Left" : "Right";
+  const labels = pitchLocationOrientationLabels(pitcher);
+  return column < 3 ? labels.left : labels.right;
+}
+
+function pitchLocationLabelFromBucket(bucket: PitchLocationBucket, pitcher?: Player) {
+  const vertical = pitchLocationVerticalLabel(bucket.row);
+  const horizontal = pitchLocationHorizontalLabel(bucket.column, pitcher);
+  if (vertical === "Middle" && horizontal === "Middle") return "Middle";
+  if (vertical === "Middle") return horizontal;
+  if (horizontal === "Middle") return vertical;
+  return `${vertical} ${horizontal}`;
+}
+
+function pitchLocationBucketDetail(bucket: PitchLocationBucket, stats?: PitchLocationBucketStats, pitcher?: Player) {
+  const zone = bucket.isZone ? "strike zone" : bucket.isCorner ? "outside corner" : "ball zone";
+  if (!stats?.count) return `${pitchLocationLabelFromBucket(bucket, pitcher)} - ${zone}`;
+  const avgVelocity = stats.velocities.length
+    ? `${formatNumber(stats.velocities.reduce((sum, value) => sum + value, 0) / stats.velocities.length, 1)} mph avg`
+    : undefined;
+  return [pitchLocationLabelFromBucket(bucket, pitcher), `${stats.count} pitches`, `${stats.strikes} strikes`, avgVelocity].filter(Boolean).join(" - ");
+}
+
+function pitchLocationStatsSummary(stats: PitchLocationBucketStats) {
+  const velocity = stats.velocities.length
+    ? ` · ${formatNumber(stats.velocities.reduce((sum, value) => sum + value, 0) / stats.velocities.length, 1)} mph avg`
+    : "";
+  return `${stats.count} pitches · ${stats.strikes} strikes${velocity}`;
 }
 
 function buildHittingPitchSplits(events: HittingEvent[]) {
