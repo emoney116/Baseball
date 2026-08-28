@@ -976,6 +976,8 @@ export default function MetrolinaBaseballApp() {
   const [topAccountMenuOpen, setTopAccountMenuOpen] = useState(false);
   const [sidebarAccountMenuOpen, setSidebarAccountMenuOpen] = useState(false);
   const lastGlobalRefreshRef = useRef(0);
+  const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const persistSequenceRef = useRef(0);
   const searchInTeamContext = TEAM_CONTEXT_VIEWS.has(view);
   const currentTheme = data?.settings.theme;
 
@@ -1374,21 +1376,34 @@ export default function MetrolinaBaseballApp() {
     });
   }
 
-  async function persistChange(previous: AppData, next: AppData) {
+  function persistChange(previous: AppData, next: AppData) {
+    const sequence = ++persistSequenceRef.current;
     setSaveStatus("saving");
     setSaveError(null);
-    try {
-      if (isLocalDevAuthBypass()) {
-        await saveLocalPreviewData(next);
-        setSaveStatus("saved");
-        return;
-      }
-      await supabaseAppRepository.sync(previous, next);
-      setSaveStatus("saved");
-    } catch (error) {
-      setSaveStatus("error");
-      setSaveError(error instanceof Error ? error.message : "Unable to save.");
-    }
+
+    const run = persistQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          if (isLocalDevAuthBypass()) {
+            await saveLocalPreviewData(next);
+            if (sequence === persistSequenceRef.current) setSaveStatus("saved");
+            return;
+          }
+          await supabaseAppRepository.sync(previous, next);
+          if (sequence === persistSequenceRef.current) setSaveStatus("saved");
+        } catch (error) {
+          if (sequence === persistSequenceRef.current) {
+            setSaveStatus("error");
+            setSaveError(error instanceof Error ? error.message : "Unable to save.");
+          } else {
+            console.warn("Queued save failed after a newer save was scheduled.", error);
+          }
+        }
+      });
+
+    persistQueueRef.current = run;
+    return run;
   }
 
   function openPlayer(playerId: ID) {
@@ -7650,7 +7665,7 @@ function PracticeActiveSessionsCard({
       <div className="panel-heading tight">
         <div>
           <h2>Active Sessions · {sessions.length}</h2>
-          <span>Live tracking contexts</span>
+          <span>Live or recently used tracking</span>
         </div>
       </div>
 
@@ -9939,7 +9954,7 @@ function PracticeConsole({
             </button>
           </div>
           <div className="practice-session-meta-stack">
-            <span><b>Status</b><em>{currentSession && isPracticeSessionLive(data, currentSession.id, activityClock) ? "Active now" : "Recent context"}</em></span>
+            <span><b>Status</b><em>{currentSession && isPracticeSessionLive(data, currentSession.id, activityClock) ? "Live now" : "Recent context"}</em></span>
             <span><b>Started</b><em>{sessionStarted}</em></span>
             <span><b>Players</b><em>{sessionParticipants || 1}</em></span>
             <span><b>Reps</b><em>{sessionReps}</em></span>
@@ -10030,7 +10045,7 @@ function PracticeConsole({
                 <div className="hitting-context-controls">
                   {hittingStationUsesPitchType(hittingStation) && (
                     <div className="pitch-type-row pitch-type-row--compact" aria-label="Pitch type">
-                      {PITCH_TYPES.slice(0, 6).map((pitchType) => (
+                      {PITCH_TYPES.map((pitchType) => (
                         <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>
                           {PITCH_TYPE_LABELS[pitchType]}
                         </button>
@@ -10292,7 +10307,7 @@ function PracticeConsole({
 
               <section className="practice-live-bp-sheet__optional">
                 <div className="practice-live-bp-pitch-options">
-                  {PITCH_TYPES.slice(0, 7).map((pitchType) => (
+                  {PITCH_TYPES.map((pitchType) => (
                     <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>
                       {PITCH_TYPE_LABELS[pitchType]}
                     </button>
@@ -10542,6 +10557,7 @@ function PracticeSprayField({ points, activePoint, onSelect }: { points: ZonePoi
 }
 
 type PitchLocationGridMode = "entry" | "live" | "analytics";
+type PitchLocationMetricMode = "heat" | "percent" | "count";
 type PitchLocationGridEntry = {
   point: ZonePoint;
   pitch?: PitchEvent;
@@ -10569,6 +10585,7 @@ function PracticePitchLocationGrid({
   mode?: PitchLocationGridMode;
 }) {
   const [inspectedBucketId, setInspectedBucketId] = useState<PitchLocationGridZoneId | undefined>();
+  const [metricMode, setMetricMode] = useState<PitchLocationMetricMode>("heat");
   const activeBucket = pitchLocationBucketFromPoint(activePoint);
   const entries: PitchLocationGridEntry[] = pitches
     ? pitches.reduce<PitchLocationGridEntry[]>((list, pitch) => {
@@ -10594,6 +10611,7 @@ function PracticePitchLocationGrid({
     return totals;
   }, {});
   const maxCount = Math.max(1, ...Object.values(bucketStats).map((stats) => stats?.count ?? 0));
+  const totalLocations = entries.length;
   const markerSeen: Partial<Record<PitchLocationGridZoneId, number>> = {};
   const markers = entries.slice(-80).map((entry, index) => {
     const bucket = pitchLocationBucketFromPoint(entry.point);
@@ -10611,26 +10629,34 @@ function PracticePitchLocationGrid({
   const inspectedBucket = inspectedBucketId ? PITCH_LOCATION_BUCKETS.find((bucket) => bucket.id === inspectedBucketId) : undefined;
   const inspectedStats = inspectedBucket ? bucketStats[inspectedBucket.id] : undefined;
   const inspectable = mode === "analytics" && !onSelect;
+  const cycleable = !onSelect;
   const labels = pitchLocationOrientationLabels(pitcher);
   const className = [
     "practice-pitch-location-grid",
     `practice-pitch-location-grid--${mode}`,
     onSelect ? "practice-pitch-location-grid--interactive" : "",
     inspectable ? "practice-pitch-location-grid--inspectable" : "",
+    cycleable ? `practice-pitch-location-grid--${metricMode}` : "",
   ].filter(Boolean).join(" ");
 
   return (
-    <div className={className} role={onSelect || inspectable ? "group" : "img"} aria-label={onSelect ? "Pitch location selector" : "Pitch location chart"}>
+    <div className={className} role={onSelect || cycleable ? "group" : "img"} aria-label={onSelect ? "Pitch location selector" : "Pitch location chart"}>
       <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--up">Up</span>
       <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--down">Down</span>
       <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--left">{labels.left}</span>
       <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--right">{labels.right}</span>
+      {cycleable && (
+        <span className="practice-pitch-location-grid__mode" aria-live="polite">
+          {metricMode === "heat" ? "Heat" : metricMode === "percent" ? "%" : "#"}
+        </span>
+      )}
       <div className="practice-pitch-location-grid__stage">
         <span className="practice-pitch-location-grid__zone" aria-hidden="true" />
         <span className="practice-pitch-location-grid__plate" aria-hidden="true" />
         {PITCH_LOCATION_BUCKETS.map((bucket) => {
           const stats = bucketStats[bucket.id];
-          const heat = stats?.count ? Math.min(0.62, 0.16 + (stats.count / maxCount) * 0.46) : 0;
+          const heat = pitchLocationHeatOpacity(stats, totalLocations, maxCount);
+          const bucketMetric = pitchLocationBucketMetricLabel(metricMode, stats, totalLocations);
           const bucketClassName = [
             "practice-pitch-location-grid__bucket",
             bucket.isZone ? "practice-pitch-location-grid__bucket--zone" : "practice-pitch-location-grid__bucket--outside",
@@ -10644,13 +10670,17 @@ function PracticePitchLocationGrid({
               style={{ gridColumn: bucket.column, gridRow: bucket.row, "--pitch-heat-opacity": heat } as React.CSSProperties}
               onClick={() => {
                 if (onSelect) onSelect(makePitchLocationPoint(bucket, pitcher));
-                else if (inspectable) setInspectedBucketId(bucket.id);
+                else {
+                  if (inspectable) setInspectedBucketId(bucket.id);
+                  setMetricMode(nextPitchLocationMetricMode);
+                }
               }}
-              disabled={!onSelect && !inspectable}
+              disabled={!onSelect && !cycleable}
               title={pitchLocationBucketDetail(bucket, stats, pitcher)}
               aria-label={pitchLocationBucketDetail(bucket, stats, pitcher)}
             >
               <span className="practice-pitch-location-grid__heat" aria-hidden="true" />
+              {bucketMetric && <span className="practice-pitch-location-grid__bucket-metric">{bucketMetric}</span>}
             </button>
           );
         })}
@@ -10669,6 +10699,26 @@ function PracticePitchLocationGrid({
       )}
     </div>
   );
+}
+
+function nextPitchLocationMetricMode(mode: PitchLocationMetricMode): PitchLocationMetricMode {
+  if (mode === "heat") return "percent";
+  if (mode === "percent") return "count";
+  return "heat";
+}
+
+function pitchLocationHeatOpacity(stats: PitchLocationBucketStats | undefined, totalLocations: number, maxCount: number) {
+  if (!stats?.count || totalLocations === 0) return 0;
+  const relativeDensity = stats.count / Math.max(1, maxCount);
+  const absoluteDensity = Math.min(1, stats.count / 10);
+  const sampleConfidence = Math.min(1, totalLocations / 18);
+  return Math.min(0.7, 0.06 + ((relativeDensity * 0.45) + (absoluteDensity * 0.55)) * (0.22 + sampleConfidence * 0.48));
+}
+
+function pitchLocationBucketMetricLabel(mode: PitchLocationMetricMode, stats: PitchLocationBucketStats | undefined, totalLocations: number) {
+  if (mode === "heat" || !stats?.count || totalLocations === 0) return "";
+  if (mode === "percent") return formatPct(pct(stats.count, totalLocations));
+  return String(stats.count);
 }
 
 function formatHittingEventTitle(event: HittingEvent) {
@@ -15928,7 +15978,7 @@ function GamesView({
             <div className="game-input-layout">
               <div>
                 <div className="pitch-type-row">
-                  {PITCH_TYPES.slice(0, 7).map((pitchType) => (
+                  {PITCH_TYPES.map((pitchType) => (
                     <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>{pitchType}</button>
                   ))}
                 </div>
@@ -21258,9 +21308,6 @@ function isPracticeSessionLive(data: AppData, sessionId: ID, nowMs = Date.now())
 
 function practiceSessionLastActivityAt(data: AppData, sessionId: ID) {
   const timestamps = [
-    data.hittingSessions.find((session) => session.id === sessionId)?.updatedAt,
-    data.pitchingSessions.find((session) => session.id === sessionId)?.updatedAt,
-    data.defenseSessions.find((session) => session.id === sessionId)?.updatedAt,
     ...data.practiceSessionContributors.filter((row) => row.sessionId === sessionId).map((row) => row.lastActiveAt),
     ...data.hittingEvents.filter((event) => event.sessionId === sessionId).map((event) => event.createdAt),
     ...data.pitchEvents.filter((event) => event.sessionId === sessionId).map((event) => event.createdAt),
@@ -21271,7 +21318,8 @@ function practiceSessionLastActivityAt(data: AppData, sessionId: ID) {
 
 function practiceSessionActivityLabel(lastActiveAt: string, nowMs: number) {
   const ageMs = Math.max(0, nowMs - Date.parse(lastActiveAt));
-  if (ageMs < 60 * 1000) return "Active now";
+  if (ageMs < PRACTICE_SESSION_HEARTBEAT_MS + 15 * 1000) return "Live now";
+  if (ageMs < PRACTICE_ACTIVE_SESSION_GRACE_MS) return "Recently active";
   const minutes = Math.max(1, Math.round(ageMs / 60000));
   return `${minutes}m ago`;
 }

@@ -37,6 +37,16 @@ test("practice architecture supports concurrent sessions and append-only events"
   assert.match(page, /const PRACTICE_ACTIVE_SESSION_GRACE_MS = 2 \* 60 \* 1000/);
   assert.match(page, /function isPracticeSessionLive/);
   assert.match(page, /function practiceSessionLastActivityAt/);
+  const activityStart = page.indexOf("function practiceSessionLastActivityAt");
+  const activityEnd = page.indexOf("function practiceSessionActivityLabel", activityStart);
+  const activityFunction = page.slice(activityStart, activityEnd);
+  assert.match(activityFunction, /practiceSessionContributors/);
+  assert.match(activityFunction, /hittingEvents/);
+  assert.match(activityFunction, /pitchEvents/);
+  assert.doesNotMatch(activityFunction, /updatedAt/);
+  assert.match(page, /const persistQueueRef = useRef<Promise<void>>\(Promise\.resolve\(\)\)/);
+  assert.match(page, /const persistSequenceRef = useRef\(0\)/);
+  assert.match(page, /persistQueueRef\.current[\s\S]*await supabaseAppRepository\.sync\(previous, next\)/);
   assert.match(page, /function isPracticeSessionReusable/);
   assert.doesNotMatch(page, /function buildPracticeActivityFeed/);
   assert.match(page, /const activeSessions = practice && !practiceEndedAt \? buildActivePracticeSessions/);

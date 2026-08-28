@@ -79,6 +79,7 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /Log Swing/);
   assert.doesNotMatch(page, /What happened\?/);
   assert.doesNotMatch(page, /Foul and Miss save immediately/);
+  assert.doesNotMatch(page, /Active now/);
   assert.match(page, /Knuckleball/);
   assert.match(page, /aria-label="Hitting station"/);
   assert.match(page, /practice-hitting-sheet__toggle/);
@@ -90,6 +91,11 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /practice-pitching-session-pill/);
   assert.match(page, /practice-pitching-entry-bar/);
   assert.match(page, /function PracticePitchLocationGrid/);
+  assert.match(page, /type PitchLocationMetricMode = "heat" \| "percent" \| "count"/);
+  assert.match(page, /setMetricMode\(nextPitchLocationMetricMode\)/);
+  assert.match(page, /function pitchLocationHeatOpacity/);
+  assert.match(page, /function pitchLocationBucketMetricLabel/);
+  assert.match(page, /practice-pitch-location-grid__bucket-metric/);
   assert.match(page, /PITCH_LOCATION_BUCKETS/);
   const pitchBucketBlock = page.match(/const PITCH_LOCATION_BUCKETS[\s\S]*?\];/)?.[0] ?? "";
   assert.equal((pitchBucketBlock.match(/id: "pitch_r/g) ?? []).length, 25);
@@ -206,6 +212,10 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(styles, /\.practice-hitting-shell/);
   assert.match(styles, /\.practice-pitching-shell/);
   assert.match(styles, /\.practice-pitch-location-grid/);
+  assert.match(styles, /\.practice-pitch-location-grid__bucket-metric/);
+  assert.match(styles, /@media \(max-width: 640px\) \{[\s\S]*\.practice-console--active \.practice-tracker-tabs \{[\s\S]*position: fixed/);
+  assert.match(styles, /@media \(max-width: 640px\) \{[\s\S]*\.practice-console--active \.practice-tracker-tabs \{[\s\S]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(max-width: 640px\) \{[\s\S]*\.practice-console--active \.practice-hitting-metric-line \{[\s\S]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.practice-hitting-sheet/);
   assert.match(styles, /\.practice-hitting-sheet__context-controls/);
   assert.match(styles, /\.practice-hitting-station-select/);
