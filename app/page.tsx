@@ -3912,6 +3912,7 @@ type ChoiceOption = {
   description?: string;
   icon?: React.ReactNode;
 };
+type ChoiceSelectMobilePresentation = "auto" | "popover" | "sheet";
 
 function ChoiceSelect({
   label,
@@ -3924,6 +3925,7 @@ function ChoiceSelect({
   placeholder = "Select",
   open: controlledOpen,
   onOpenChange,
+  mobilePresentation = "auto",
   "aria-label": ariaLabel,
 }: {
   label?: string;
@@ -3936,6 +3938,7 @@ function ChoiceSelect({
   placeholder?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  mobilePresentation?: ChoiceSelectMobilePresentation;
   "aria-label"?: string;
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
@@ -3978,7 +3981,9 @@ function ChoiceSelect({
     const availableBelow = Math.max(0, viewportBottom - rect.bottom - viewportPadding - gap);
     const availableAbove = Math.max(0, rect.top - viewportTop - viewportPadding - gap);
     const bestAvailable = Math.max(availableBelow, availableAbove);
-    const shouldUseSheet = viewportWidth <= 640 || (viewportWidth <= 900 && viewportHeight <= 540) || bestAvailable < 132;
+    const shouldUseSheet = mobilePresentation === "sheet" || (
+      mobilePresentation === "auto" && (viewportWidth <= 640 || (viewportWidth <= 900 && viewportHeight <= 540) || bestAvailable < 132)
+    );
     if (shouldUseSheet) {
       const maxHeight = Math.min(320, Math.max(196, viewportHeight - viewportPadding * 2));
       setMenuPosition({
@@ -4008,7 +4013,7 @@ function ChoiceSelect({
       viewportBottom - menuHeight - viewportPadding,
     );
     setMenuPosition({ top, left, width, maxHeight, placement });
-  }, [options]);
+  }, [mobilePresentation, options]);
 
   const focusOption = useCallback((index?: number) => {
     const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
@@ -8479,6 +8484,7 @@ function PracticeConsole({
   const [liveBpBattedBall, setLiveBpBattedBall] = useState<BattedBallType | undefined>();
   const [activityClock, setActivityClock] = useState(() => Date.now());
   const onSessionHeartbeatRef = useRef(onSessionHeartbeat);
+  const pitchingFilterMenuRef = useRef<HTMLDivElement | null>(null);
   const practiceId = practice?.id;
   const practiceEndedAt = practice?.endedAt;
   const availablePlayers = useMemo(() => availablePracticePlayers(data, practice), [data, practice]);
@@ -8584,8 +8590,13 @@ function PracticeConsole({
       ? `Multi - ${practicePitchTypeLabel(selectedPitchType)}`
       : practicePitchTypeLabel(effectiveHittingPitchType);
   const hittingSessionContext = [hittingStation, hittingPitchTypeLabel].filter(Boolean).join(" - ");
-  const hittingStationLabel = normalizeHittingStation(hittingStation);
+  const practiceModeOptions: ChoiceOption[] = (["Hitting", "Pitching", "Defense", "Live BP"] as PracticeMode[]).map((practiceMode) => ({
+    value: practiceMode,
+    label: practiceMode,
+    icon: practiceModeIcon(practiceMode),
+  }));
   const hittingStationOptions = HITTING_STATIONS.map((station) => ({ value: station, label: station }));
+  const pitchingStationOptions = PITCHING_STATIONS.map((station) => ({ value: station, label: station }));
   const hittingTrackingSummary = [
     trackExitVelocity ? "EV" : undefined,
     trackSprayChart ? "Spray" : undefined,
@@ -8699,6 +8710,24 @@ function PracticeConsole({
   useEffect(() => {
     onSessionHeartbeatRef.current = onSessionHeartbeat;
   }, [onSessionHeartbeat]);
+
+  useEffect(() => {
+    if (!pitchingLivePitchFilterOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && pitchingFilterMenuRef.current?.contains(target)) return;
+      setPitchingLivePitchFilterOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPitchingLivePitchFilterOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [pitchingLivePitchFilterOpen]);
 
   useEffect(() => {
     if (!practiceId || practiceEndedAt || !currentSession?.id) return;
@@ -9034,13 +9063,19 @@ function PracticeConsole({
         )}
       </section>
 
-      <button className="practice-mode-picker-trigger panel" type="button" onClick={() => setPracticeModePickerOpen(true)} aria-haspopup="dialog" aria-expanded={practiceModePickerOpen}>
-        <span>
-          {practiceModeIcon(mode)}
-          <strong>{mode}</strong>
-        </span>
-        <ChevronDown size={16} aria-hidden="true" />
-      </button>
+      <div className="practice-mode-picker-trigger">
+        <ChoiceSelect
+          value={mode}
+          options={practiceModeOptions}
+          onChange={(value) => changeMode(value as PracticeMode)}
+          className="practice-mode-select"
+          open={practiceModePickerOpen}
+          onOpenChange={setPracticeModePickerOpen}
+          showSelectedDescription={false}
+          mobilePresentation="popover"
+          aria-label="Practice tracking mode"
+        />
+      </div>
 
       <nav className="practice-tracker-tabs panel" aria-label="Practice tracker modes">
         {(["Hitting", "Pitching", "Defense", "Live BP"] as PracticeMode[]).map((tab) => (
@@ -9050,25 +9085,6 @@ function PracticeConsole({
           </button>
         ))}
       </nav>
-
-      {practiceModePickerOpen && (
-        <ModalFrame title="Tracking" onClose={() => setPracticeModePickerOpen(false)} panelClassName="practice-mode-picker-sheet">
-          <div className="practice-mode-picker-list">
-            {(["Hitting", "Pitching", "Defense", "Live BP"] as PracticeMode[]).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                className={mode === tab ? `active practice-mode-${practiceModeClass(tab)}` : ""}
-                onClick={() => changeMode(tab)}
-              >
-                {practiceModeIcon(tab)}
-                <span>{tab}</span>
-                {mode === tab ? <Check size={15} aria-hidden="true" /> : <ChevronRight size={15} aria-hidden="true" />}
-              </button>
-            ))}
-          </div>
-        </ModalFrame>
-      )}
 
       {mode === "Hitting" ? (
         <>
@@ -9093,12 +9109,15 @@ function PracticeConsole({
                 </button>
               </div>
 
-              <button className="practice-hitting-session-pill" type="button" onClick={() => setHittingSessionOpen(true)}>
-                <span>
-                  <strong>{hittingStationLabel}</strong>
-                </span>
-                <ChevronDown size={16} aria-hidden="true" />
-              </button>
+              <ChoiceSelect
+                value={hittingStation}
+                options={hittingStationOptions}
+                onChange={(value) => onHittingStation(value as HittingSession["type"])}
+                className="practice-hitting-session-select practice-session-select"
+                showSelectedDescription={false}
+                mobilePresentation="popover"
+                aria-label="Hitting session type"
+              />
 
               <div className="practice-hitting-metric-line" aria-label="Current hitter hitting metrics">
                 {compactHittingMetrics.map((metric) => (
@@ -9140,6 +9159,16 @@ function PracticeConsole({
               </div>
               {exitVelocityError && <small className="exit-velocity-error practice-hitting-ev-error">{exitVelocityError}</small>}
               {hittingSavedNotice && <small className="practice-hitting-saved-notice">{hittingSavedNotice}</small>}
+
+              {trackSprayChart && (
+                <section className="practice-hitting-live-spray" aria-label="Hitting spray chart">
+                  <div>
+                    <span>Spray</span>
+                    <small>{hittingSprayPoints.length ? `${hittingSprayPoints.length} balls in play` : "No balls in play yet"}</small>
+                  </div>
+                  <PracticeSprayField points={hittingSprayPoints} />
+                </section>
+              )}
 
               <section className="practice-hitting-recent" aria-label="Recent hitting events">
                 <div>
@@ -9198,6 +9227,7 @@ function PracticeConsole({
                     onChange={(value) => onHittingStation(value as HittingSession["type"])}
                     className="practice-hitting-station-select"
                     showSelectedDescription={false}
+                    mobilePresentation="popover"
                     aria-label="Hitting station"
                   />
                   <button type="button" className={trackExitVelocity ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => onTrackExitVelocity(!trackExitVelocity)} aria-pressed={trackExitVelocity}>
@@ -9559,12 +9589,15 @@ function PracticeConsole({
                 </button>
               </div>
 
-              <button className="practice-pitching-session-pill" type="button" onClick={() => setPitchingSessionOpen(true)}>
-                <span>
-                  <strong>{pitchingSessionContext}</strong>
-                </span>
-                <ChevronDown size={16} aria-hidden="true" />
-              </button>
+              <ChoiceSelect
+                value={pitchingStation}
+                options={pitchingStationOptions}
+                onChange={(value) => onPitchingStation(value as PitchingSession["type"])}
+                className="practice-pitching-session-select practice-session-select"
+                showSelectedDescription={false}
+                mobilePresentation="popover"
+                aria-label="Pitching session type"
+              />
 
               <div className="practice-hitting-metric-line practice-pitching-metric-line" aria-label="Current pitcher metrics">
                 {compactPitchingMetrics.map((metric) => (
@@ -9608,11 +9641,45 @@ function PracticeConsole({
                   <div className="practice-pitching-location-card__head">
                     <span>Location <small>Catcher View</small></span>
                     <div className="practice-pitching-location-card__tools">
-                      <button className="practice-pitching-filter-pill" type="button" onClick={() => setPitchingLivePitchFilterOpen(true)} aria-label="Filter pitching metrics by pitch type">
-                        <span>Pitch Filter</span>
-                        <strong>{pitchingLivePitchFilterLabel}</strong>
-                        <ChevronDown size={15} aria-hidden="true" />
-                      </button>
+                      <div className="practice-pitching-filter-menu" ref={pitchingFilterMenuRef}>
+                        <button
+                          className="practice-pitching-filter-pill"
+                          type="button"
+                          onClick={() => setPitchingLivePitchFilterOpen((open) => !open)}
+                          aria-label="Filter pitching metrics by pitch type"
+                          aria-haspopup="menu"
+                          aria-expanded={pitchingLivePitchFilterOpen}
+                        >
+                          <span>Pitch Filter</span>
+                          <strong>{pitchingLivePitchFilterLabel}</strong>
+                          <ChevronDown size={15} aria-hidden="true" />
+                        </button>
+                        {pitchingLivePitchFilterOpen && (
+                          <div className="practice-pitching-filter-popover practice-pitching-filter-sheet" role="menu" aria-label="Pitch filter">
+                            <button type="button" role="menuitemcheckbox" aria-checked={pitchingLivePitchFilters.length === 0} className={pitchingLivePitchFilters.length === 0 ? "active" : ""} onClick={() => setPitchingLivePitchFilters([])}>
+                              <span>
+                                <strong>All Pitches</strong>
+                                <small>{pitchEvents.length} total</small>
+                              </span>
+                              {pitchingLivePitchFilters.length === 0 && <Check size={16} aria-hidden="true" />}
+                            </button>
+                            {pitchingLivePitchFilterOptions.map((pitchType) => {
+                              const active = pitchingLivePitchFilters.includes(pitchType);
+                              const count = pitchEvents.filter((event) => event.pitchType === pitchType).length;
+                              return (
+                                <button key={pitchType} type="button" role="menuitemcheckbox" aria-checked={active} className={active ? "active" : ""} onClick={() => togglePitchingLivePitchFilter(pitchType)}>
+                                  <span>
+                                    <strong><i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />{practicePitchTypeLabel(pitchType)}</strong>
+                                    <small>{count} pitches</small>
+                                  </span>
+                                  <em aria-hidden="true">{active && <Check size={15} />}</em>
+                                </button>
+                              );
+                            })}
+                            {!pitchingLivePitchFilterOptions.length && <CompactEmpty title="No pitch types logged yet" />}
+                          </div>
+                        )}
+                      </div>
                       <button className="text-button" type="button" onClick={() => setPitchingStatsOpen(true)}>
                         Details
                         <ChevronRight size={14} aria-hidden="true" />
@@ -9684,10 +9751,11 @@ function PracticeConsole({
                 <div className="practice-hitting-sheet__context-controls practice-pitching-sheet__context-controls">
                   <ChoiceSelect
                     value={pitchingStation}
-                    options={PITCHING_STATIONS.map((station) => ({ value: station, label: station }))}
+                    options={pitchingStationOptions}
                     onChange={(value) => onPitchingStation(value as PitchingSession["type"])}
                     className="practice-hitting-station-select"
                     showSelectedDescription={false}
+                    mobilePresentation="popover"
                     aria-label="Pitching session type"
                   />
                   <button type="button" className={pitchingPitchTrackingMode !== "OFF" ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => setPitchingPitchTypeOpen(true)} aria-pressed={pitchingPitchTrackingMode !== "OFF"}>
@@ -9714,6 +9782,7 @@ function PracticeConsole({
                           onChange={(value) => setPitchingDraft((current) => ({ ...current, pitchType: value as PitchType }))}
                           className="practice-pitch-type-select"
                           showSelectedDescription={false}
+                          mobilePresentation="popover"
                           aria-label="Pitch type for this pitch"
                         />
                       </div>
@@ -9769,37 +9838,6 @@ function PracticeConsole({
               <div className="modal-actions">
                 <button className="secondary-button" type="button" onClick={closePitchingSheet}>Cancel</button>
                 <button className="primary-button" type="button" onClick={savePitchingPitch} disabled={pitchingSaveDisabled}>Save Pitch</button>
-              </div>
-            </ModalFrame>
-          )}
-
-          {pitchingLivePitchFilterOpen && (
-            <ModalFrame title="Pitch Filter" onClose={() => setPitchingLivePitchFilterOpen(false)} panelClassName="practice-hitting-selector-sheet">
-              <section className="practice-pitching-filter-sheet">
-                <button type="button" className={pitchingLivePitchFilters.length === 0 ? "active" : ""} onClick={() => setPitchingLivePitchFilters([])}>
-                  <span>
-                    <strong>All Pitches</strong>
-                    <small>{pitchEvents.length} total</small>
-                  </span>
-                  {pitchingLivePitchFilters.length === 0 && <Check size={16} aria-hidden="true" />}
-                </button>
-                {pitchingLivePitchFilterOptions.map((pitchType) => {
-                  const active = pitchingLivePitchFilters.includes(pitchType);
-                  const count = pitchEvents.filter((event) => event.pitchType === pitchType).length;
-                  return (
-                    <button key={pitchType} type="button" className={active ? "active" : ""} onClick={() => togglePitchingLivePitchFilter(pitchType)} aria-pressed={active}>
-                      <span>
-                        <strong><i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />{practicePitchTypeLabel(pitchType)}</strong>
-                        <small>{count} pitches</small>
-                      </span>
-                      <em aria-hidden="true">{active && <Check size={15} />}</em>
-                    </button>
-                  );
-                })}
-                {!pitchingLivePitchFilterOptions.length && <CompactEmpty title="No pitch types logged yet" />}
-              </section>
-              <div className="modal-actions">
-                <button className="primary-button" type="button" onClick={() => setPitchingLivePitchFilterOpen(false)}>Done</button>
               </div>
             </ModalFrame>
           )}
@@ -10840,6 +10878,7 @@ function PracticePitchLocationGrid({
         {PITCH_LOCATION_BUCKETS.map((bucket) => {
           const stats = bucketStats[bucket.id];
           const heat = pitchLocationHeatOpacity(stats, totalLocations, maxCount);
+          const heatColor = pitchLocationHeatColor(stats, maxCount);
           const bucketMetric = pitchLocationBucketMetricLabel(metricMode, stats, totalLocations);
           const bucketClassName = [
             "practice-pitch-location-grid__bucket",
@@ -10851,7 +10890,12 @@ function PracticePitchLocationGrid({
               key={bucket.id}
               type="button"
               className={bucketClassName}
-              style={{ gridColumn: bucket.column, gridRow: bucket.row, "--pitch-heat-opacity": heat } as React.CSSProperties}
+              style={{
+                gridColumn: bucket.column,
+                gridRow: bucket.row,
+                "--pitch-heat-opacity": heat,
+                "--pitch-heat-color": heatColor,
+              } as React.CSSProperties}
               onClick={() => {
                 if (onSelect) onSelect(makePitchLocationPoint(bucket, pitcher));
                 else if (inspectable) setInspectedBucketId(bucket.id);
@@ -10887,7 +10931,6 @@ function PracticePitchLocationGrid({
 function nextPitchLocationMetricMode(mode: PitchLocationMetricMode): PitchLocationMetricMode {
   if (mode === "heat") return "percent";
   if (mode === "percent") return "count";
-  if (mode === "count") return "dots";
   return "heat";
 }
 
@@ -10909,6 +10952,16 @@ function pitchLocationHeatOpacity(stats: PitchLocationBucketStats | undefined, t
   const absoluteDensity = Math.min(1, stats.count / 10);
   const sampleConfidence = Math.min(1, totalLocations / 18);
   return Math.min(0.7, 0.06 + ((relativeDensity * 0.45) + (absoluteDensity * 0.55)) * (0.22 + sampleConfidence * 0.48));
+}
+
+function pitchLocationHeatColor(stats: PitchLocationBucketStats | undefined, maxCount: number) {
+  if (!stats?.count) return "var(--pitch-heat-empty)";
+  const ratio = stats.count / Math.max(1, maxCount);
+  if (ratio >= 0.78) return "var(--pitch-heat-hot)";
+  if (ratio >= 0.52) return "var(--pitch-heat-warm)";
+  if (ratio >= 0.3) return "var(--pitch-heat-mid)";
+  if (ratio >= 0.14) return "var(--pitch-heat-cool)";
+  return "var(--pitch-heat-cold)";
 }
 
 function pitchLocationBucketMetricLabel(mode: PitchLocationMetricMode, stats: PitchLocationBucketStats | undefined, totalLocations: number) {

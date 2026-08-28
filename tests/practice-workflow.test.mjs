@@ -88,12 +88,13 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /practice-live-bp-pitch-sheet/);
   assert.match(page, /Pitch result/);
   assert.match(page, /practice-pitching-shell/);
-  assert.match(page, /practice-pitching-session-pill/);
+  assert.match(page, /practice-pitching-session-select practice-session-select/);
   assert.match(page, /practice-pitching-entry-bar/);
   assert.match(page, /function PracticePitchLocationGrid/);
   assert.match(page, /type PitchLocationMetricMode = "dots" \| "heat" \| "percent" \| "count"/);
   assert.match(page, /metricMode: nextPitchLocationMetricMode\(currentMetricMode\)/);
   assert.match(page, /function pitchLocationHeatOpacity/);
+  assert.match(page, /function pitchLocationHeatColor/);
   assert.match(page, /function pitchLocationBucketMetricLabel/);
   assert.match(page, /practice-pitch-location-grid__bucket-metric/);
   assert.match(page, /PITCH_LOCATION_BUCKETS/);

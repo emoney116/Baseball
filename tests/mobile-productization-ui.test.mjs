@@ -56,17 +56,22 @@ test("phase two phone composition keeps live tracking focused on the next rep", 
   const phase2Layer = css.match(/\/\* Mobile productization Phase 2:[\s\S]*$/)?.[0] ?? "";
 
   assert.match(page, /practiceModePickerOpen/);
-  assert.match(page, /className="practice-mode-picker-trigger panel"/);
+  assert.match(page, /className="practice-mode-picker-trigger"/);
+  assert.match(page, /className="practice-mode-select"/);
+  assert.match(page, /mobilePresentation="popover"/);
   assert.match(page, /className="secondary-button practice-tracking-control-trigger"/);
+  assert.match(page, /className="practice-hitting-live-spray"/);
   assert.match(page, /hittingTrackingSummary/);
   assert.match(page, /pitchingTrackingSummary/);
 
   assert.match(phase2Layer, /\.practice-mode-picker-trigger,[\s\S]*\.practice-tracking-control-trigger\s*\{[\s\S]*display:\s*none/);
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-console--active \.practice-tracker-tabs\s*\{[\s\S]*display:\s*none/);
-  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-mode-picker-trigger\s*\{[\s\S]*display:\s*flex/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-mode-picker-trigger\s*\{[\s\S]*display:\s*grid/);
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-console--active \.practice-hitting-quick-controls,[\s\S]*\.practice-console--pitching \.practice-hitting-quick-controls\s*\{[\s\S]*display:\s*none/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-console--hitting \.practice-hitting-quick-controls\s*\{[\s\S]*display:\s*grid/);
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-tracking-control-trigger\s*\{[\s\S]*display:\s*inline-flex/);
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.ops-main--practice-tracking \.team-workspace-header--compact\s*\{[\s\S]*display:\s*none/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-home \.practice-overview-grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\)/);
 
   assert.match(page, /const analyticsDomainOptions: ChoiceOption\[\]/);
   assert.match(page, /className="analytics-domain-select-wrap"/);
@@ -80,9 +85,11 @@ test("phase two phone composition keeps live tracking focused on the next rep", 
 
   assert.match(page, /"Knuckleball"/);
   assert.match(page, /function defaultPitchLocationMetricMode\(mode: PitchLocationGridMode\): PitchLocationMetricMode \{\s*void mode;\s*return "heat";\s*\}/);
+  assert.match(page, /function pitchLocationHeatColor/);
   assert.match(page, /if \(mode === "heat"\) return "percent";/);
   assert.match(page, /if \(mode === "percent"\) return "count";/);
-  assert.match(page, /if \(mode === "count"\) return "dots";/);
+  assert.match(page, /return "heat";\s*\}/);
+  assert.match(phase2Layer, /\.practice-pitch-location-grid--heat \.practice-pitch-location-grid__marker-layer i\s*\{[\s\S]*display:\s*none/);
 
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.weight-room-shell-header__identity \.organization-logo\s*\{[\s\S]*display:\s*none/);
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.weight-room-overview-grid,[\s\S]*\.weight-room-review-grid\s*\{[\s\S]*grid-template-columns:\s*1fr/);

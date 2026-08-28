@@ -56,10 +56,12 @@
   --pitch-type-sp: #8675c4;
   --pitch-type-kn: #a878c8;
   --pitch-type-ot: #9aa4b2;
-  --pitch-heat-cool: #174135;
-  --pitch-heat-mid: #5f985a;
-  --pitch-heat-warm: #c9983e;
-  --pitch-heat-hot: #d65a44;
+  --pitch-heat-empty: rgba(146, 156, 170, 0.13);
+  --pitch-heat-cold: #2d6cdf;
+  --pitch-heat-cool: #1f93d1;
+  --pitch-heat-mid: #37b777;
+  --pitch-heat-warm: #d5a934;
+  --pitch-heat-hot: #e14b44;
   --spray-heat-cool: #19543e;
   --spray-heat-warm: #c59d4a;
   --spray-heat-hot: #d0554e;
@@ -205,10 +207,12 @@
   --pitch-type-sp: #6d5aac;
   --pitch-type-kn: #865aa3;
   --pitch-type-ot: #69727e;
-  --pitch-heat-cool: #dcece4;
-  --pitch-heat-mid: #74ae72;
-  --pitch-heat-warm: #d1a23e;
-  --pitch-heat-hot: #c94d3f;
+  --pitch-heat-empty: rgba(112, 121, 133, 0.14);
+  --pitch-heat-cold: #4e86e8;
+  --pitch-heat-cool: #2b9fd2;
+  --pitch-heat-mid: #34a867;
+  --pitch-heat-warm: #d59b2a;
+  --pitch-heat-hot: #cc3f38;
   --spray-heat-cool: #dcece4;
   --spray-heat-warm: #d0a84b;
   --spray-heat-hot: #c94f49;
@@ -4056,6 +4060,9 @@ textarea:focus-visible {
 @media (max-width: 640px) {
   .choice-select__menu--portal {
     min-width: 0;
+  }
+
+  .choice-select__menu--portal[data-placement="sheet"] {
     border-radius: 16px 16px 0 0;
   }
 
@@ -24628,6 +24635,23 @@ button.weight-room-athlete-table__row:hover {
   font-weight: 800;
 }
 
+.practice-session-select.choice-select {
+  width: min(260px, 100%);
+  justify-self: center;
+}
+
+.practice-session-select .choice-select__button {
+  min-height: 46px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+  padding-inline: 14px;
+}
+
+.practice-session-select .choice-select__button strong {
+  font-size: 16px;
+  font-weight: 900;
+}
+
 .practice-hitting-metric-line {
   display: flex;
   justify-content: center;
@@ -24735,6 +24759,10 @@ button.weight-room-athlete-table__row:hover {
 .practice-hitting-recent {
   display: grid;
   gap: 10px;
+}
+
+.practice-hitting-live-spray {
+  display: none;
 }
 
 .practice-hitting-recent > div:first-child,
@@ -27119,6 +27147,25 @@ button.weight-room-athlete-table__row:hover {
   white-space: nowrap;
 }
 
+.practice-pitching-filter-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.practice-pitching-filter-popover {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(260px, calc(100vw - 32px));
+  max-height: min(320px, 58dvh);
+  border: 1px solid color-mix(in srgb, var(--line-strong) 82%, transparent);
+  border-radius: 14px;
+  background: var(--surface-overlay);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.36);
+  padding: 8px;
+}
+
 .practice-pitching-filter-sheet,
 .practice-pitching-player-scope {
   display: grid;
@@ -27311,7 +27358,7 @@ button.weight-room-athlete-table__row:hover {
   min-height: 0;
   border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
   border-radius: 0;
-  background: color-mix(in srgb, var(--panel-soft) 30%, transparent);
+  background: var(--pitch-heat-empty, color-mix(in srgb, var(--panel-soft) 30%, transparent));
   padding: 0;
   display: block;
   overflow: hidden;
@@ -27334,9 +27381,9 @@ button.weight-room-athlete-table__row:hover {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--pitch-heat-hot) 78%, transparent) 0 12%, color-mix(in srgb, var(--pitch-heat-warm) 64%, transparent) 36%, color-mix(in srgb, var(--pitch-heat-mid) 52%, transparent) 62%, color-mix(in srgb, var(--pitch-heat-cool) 36%, transparent) 82%, transparent 100%);
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--pitch-heat-color, var(--pitch-heat-cold)) 92%, transparent) 0 24%, color-mix(in srgb, var(--pitch-heat-color, var(--pitch-heat-cold)) 68%, transparent) 58%, color-mix(in srgb, var(--pitch-heat-color, var(--pitch-heat-cold)) 36%, transparent) 100%);
   opacity: var(--pitch-heat-opacity, 0);
-  filter: blur(2px) saturate(0.96);
+  filter: blur(2px) saturate(1.06);
 }
 
 .practice-pitch-location-grid--dots .practice-pitch-location-grid__heat {
@@ -29674,14 +29721,12 @@ textarea:focus,
 }
 
 .practice-pitch-location-grid--heat .practice-pitch-location-grid__heat {
-  opacity: min(0.86, calc(var(--pitch-heat-opacity, 0) * 1.25));
-  filter: blur(3px) saturate(1.08);
+  opacity: min(0.92, calc(var(--pitch-heat-opacity, 0) * 1.35));
+  filter: blur(2.5px) saturate(1.12);
 }
 
 .practice-pitch-location-grid--heat .practice-pitch-location-grid__marker-layer i {
-  background: color-mix(in srgb, var(--text) 88%, var(--pitch-color, var(--pitch-type-ot)));
-  opacity: 0.72;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--panel) 78%, transparent), 0 4px 12px rgba(0, 0, 0, 0.22);
+  display: none;
 }
 
 @media (max-width: 560px) {
@@ -29704,30 +29749,36 @@ textarea:focus,
 
   .practice-mode-picker-trigger {
     width: 100%;
-    min-height: 42px;
+    min-height: auto;
     border-color: color-mix(in srgb, var(--tracker-accent) 22%, var(--line));
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--panel) 92%, transparent);
     color: var(--text);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 7px 10px;
-    font: inherit;
-    cursor: pointer;
+    display: grid;
+    padding: 0;
   }
 
-  .practice-mode-picker-trigger > span {
+  .practice-mode-picker-trigger .choice-select__button {
+    min-height: 42px;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    padding: 0 10px;
+    box-shadow: none;
+  }
+
+  .practice-mode-picker-trigger .choice-select__icon svg {
+    color: var(--tracker-accent);
+  }
+
+  .practice-mode-picker-trigger .choice-select__button > span {
     min-width: 0;
     display: inline-flex;
     align-items: center;
     gap: 8px;
   }
 
-  .practice-mode-picker-trigger svg:first-child {
-    color: var(--tracker-accent);
-  }
-
-  .practice-mode-picker-trigger strong {
+  .practice-mode-picker-trigger .choice-select__button strong {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -29738,6 +29789,18 @@ textarea:focus,
 
   .modal-panel.practice-mode-picker-sheet {
     width: min(360px, calc(100vw - 24px));
+  }
+
+  .practice-home .practice-overview-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .practice-home .practice-active-sessions-card,
+  .practice-home .practice-attendance-overview,
+  .practice-home .practice-plan-card,
+  .practice-home .practice-recent-card {
+    grid-column: 1 / -1;
   }
 
   .practice-console--active .practice-tracker-header {
@@ -29817,14 +29880,21 @@ textarea:focus,
     line-height: 1.02;
   }
 
+  .practice-console--active .practice-session-select,
   .practice-console--active .practice-hitting-session-pill,
   .practice-console--active .practice-pitching-session-pill {
     width: min(230px, 100%);
+  }
+
+  .practice-console--active .practice-session-select .choice-select__button,
+  .practice-console--active .practice-hitting-session-pill,
+  .practice-console--active .practice-pitching-session-pill {
     min-height: 36px;
     padding-inline: 10px;
     border-radius: 11px;
   }
 
+  .practice-console--active .practice-session-select .choice-select__button strong,
   .practice-console--active .practice-hitting-session-pill strong,
   .practice-console--active .practice-pitching-session-pill strong {
     font-size: 13px;
@@ -29865,6 +29935,38 @@ textarea:focus,
   .practice-console--active .practice-hitting-quick-controls,
   .practice-console--pitching .practice-hitting-quick-controls {
     display: none;
+  }
+
+  .practice-console--hitting .practice-hitting-entry-bar {
+    grid-template-columns: minmax(0, 1fr) 42px;
+  }
+
+  .practice-console--hitting .practice-tracking-control-trigger {
+    display: none;
+  }
+
+  .practice-console--hitting .practice-hitting-quick-controls {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+    order: 2;
+  }
+
+  .practice-console--hitting .practice-hitting-quick-controls button {
+    min-width: 0;
+    min-height: 34px;
+    padding-inline: 5px;
+    border-radius: 10px;
+    font-size: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .practice-console--hitting .practice-hitting-quick-controls strong {
+    margin-left: 3px;
+    font-size: 9.5px;
   }
 
   .practice-console--active .practice-hitting-log-trigger {
@@ -29914,6 +30016,43 @@ textarea:focus,
     gap: 6px;
   }
 
+  .practice-hitting-live-spray {
+    border: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--panel-soft) 82%, transparent);
+    display: grid;
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .practice-hitting-live-spray > div:first-child {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 950;
+    text-transform: uppercase;
+  }
+
+  .practice-hitting-live-spray small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted-strong);
+    font-size: 9.5px;
+    font-weight: 850;
+    text-transform: none;
+  }
+
+  .practice-hitting-live-spray .practice-spray-field {
+    width: 100%;
+    height: clamp(166px, 30dvh, 220px);
+    border-radius: 13px;
+  }
+
   .practice-console--active .practice-hitting-recent > div:first-child {
     font-size: 10px;
   }
@@ -29923,7 +30062,29 @@ textarea:focus,
     gap: 5px;
   }
 
-  .practice-console--active .practice-hitting-recent-card,
+  .practice-console--active .practice-hitting-recent-card {
+    min-height: 38px;
+    padding: 6px 0;
+    border: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+    border-radius: 0;
+    background: transparent;
+    grid-template-columns: 58px minmax(0, 1fr) minmax(0, 0.9fr);
+    align-items: center;
+    gap: 7px;
+  }
+
+  .practice-console--active .practice-hitting-recent-card small,
+  .practice-console--active .practice-hitting-recent-card strong,
+  .practice-console--active .practice-hitting-recent-card em {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10.5px;
+    line-height: 1.1;
+  }
+
   .practice-console--pitching .practice-pitching-recent-row {
     min-height: 38px;
     padding: 6px 8px;
@@ -30368,6 +30529,10 @@ textarea:focus,
   .practice-console--pitching .practice-pitch-location-grid__stage,
   .modal-panel.practice-pitching-sheet .practice-pitch-location-grid__stage {
     width: min(202px, calc(100vw - 82px));
+  }
+
+  .practice-console--active .practice-session-select {
+    width: min(210px, 100%);
   }
 
   .modal-panel.practice-hitting-sheet .practice-spray-field {
