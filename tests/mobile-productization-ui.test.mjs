@@ -49,3 +49,42 @@ test("mobile productization primitives keep phone workflows compact and app-like
   assert.match(mobileLayer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-console--active \.practice-tracker-tabs\s*\{[\s\S]*width:\s*min\(calc\(100vw - 20px\), 360px\)/);
   assert.match(mobileLayer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-console--active \.practice-hitting-quick-controls,[\s\S]*\.practice-console--pitching \.practice-hitting-quick-controls\s*\{[\s\S]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
 });
+
+test("phase two phone composition keeps live tracking focused on the next rep", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  const page = readFileSync("app/page.tsx", "utf8");
+  const phase2Layer = css.match(/\/\* Mobile productization Phase 2:[\s\S]*$/)?.[0] ?? "";
+
+  assert.match(page, /practiceModePickerOpen/);
+  assert.match(page, /className="practice-mode-picker-trigger panel"/);
+  assert.match(page, /className="secondary-button practice-tracking-control-trigger"/);
+  assert.match(page, /hittingTrackingSummary/);
+  assert.match(page, /pitchingTrackingSummary/);
+
+  assert.match(phase2Layer, /\.practice-mode-picker-trigger,[\s\S]*\.practice-tracking-control-trigger\s*\{[\s\S]*display:\s*none/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-console--active \.practice-tracker-tabs\s*\{[\s\S]*display:\s*none/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-mode-picker-trigger\s*\{[\s\S]*display:\s*flex/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-console--active \.practice-hitting-quick-controls,[\s\S]*\.practice-console--pitching \.practice-hitting-quick-controls\s*\{[\s\S]*display:\s*none/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-tracking-control-trigger\s*\{[\s\S]*display:\s*inline-flex/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.ops-main--practice-tracking \.team-workspace-header--compact\s*\{[\s\S]*display:\s*none/);
+
+  assert.match(page, /const analyticsDomainOptions: ChoiceOption\[\]/);
+  assert.match(page, /className="analytics-domain-select-wrap"/);
+  assert.match(page, /className="analytics-source-select-wrap"/);
+  assert.match(phase2Layer, /\.analytics-domain-select-wrap,[\s\S]*\.analytics-source-select-wrap,[\s\S]*\.analytics-development-select-wrap\s*\{[\s\S]*display:\s*none/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-domain-tabs,[\s\S]*\.analytics-source-tabs,[\s\S]*\.analytics-development-tabs\s*\{[\s\S]*display:\s*none/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-domain-select-wrap,[\s\S]*\.analytics-source-select-wrap,[\s\S]*\.analytics-development-select-wrap\s*\{[\s\S]*display:\s*block/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-box-score__row\s*\{[\s\S]*min-width:\s*720px/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-box-score__cell--player\s*\{[\s\S]*width:\s*148px/);
+  assert.match(phase2Layer, /@media \(max-width: 430px\) \{[\s\S]*\.practice-console--active \.practice-hitting-metric-line,[\s\S]*\.practice-console--active \.practice-pitching-metric-line\s*\{[\s\S]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
+
+  assert.match(page, /"Knuckleball"/);
+  assert.match(page, /function defaultPitchLocationMetricMode\(mode: PitchLocationGridMode\): PitchLocationMetricMode \{\s*void mode;\s*return "heat";\s*\}/);
+  assert.match(page, /if \(mode === "heat"\) return "percent";/);
+  assert.match(page, /if \(mode === "percent"\) return "count";/);
+  assert.match(page, /if \(mode === "count"\) return "dots";/);
+
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.weight-room-shell-header__identity \.organization-logo\s*\{[\s\S]*display:\s*none/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.weight-room-overview-grid,[\s\S]*\.weight-room-review-grid\s*\{[\s\S]*grid-template-columns:\s*1fr/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.account-card--editable\s*\{[\s\S]*min-height:\s*auto/);
+});

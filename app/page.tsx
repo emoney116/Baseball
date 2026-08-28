@@ -8437,6 +8437,7 @@ function PracticeConsole({
 }) {
   const [switcherQuery, setSwitcherQuery] = useState("");
   const [switcherFilter, setSwitcherFilter] = useState<PracticeTrackerPlayerFilter>("All");
+  const [practiceModePickerOpen, setPracticeModePickerOpen] = useState(false);
   const [hittingSheetOpen, setHittingSheetOpen] = useState(false);
   const [hittingSheetStep, setHittingSheetStep] = useState<HittingSheetStep>("result");
   const [hittingDraft, setHittingDraft] = useState<HittingContactDraft | null>(null);
@@ -8585,6 +8586,11 @@ function PracticeConsole({
   const hittingSessionContext = [hittingStation, hittingPitchTypeLabel].filter(Boolean).join(" - ");
   const hittingStationLabel = normalizeHittingStation(hittingStation);
   const hittingStationOptions = HITTING_STATIONS.map((station) => ({ value: station, label: station }));
+  const hittingTrackingSummary = [
+    trackExitVelocity ? "EV" : undefined,
+    trackSprayChart ? "Spray" : undefined,
+    hittingPitchTypeAvailable && effectiveHittingPitchMode !== "OFF" ? "Pitch" : undefined,
+  ].filter(Boolean).join(" · ") || "Basic";
   const recentHittingEvents = hittingEvents.slice(0, 3);
   const hittingSprayPoints = hittingEvents.map((event) => event.fieldLocation).filter(isZonePoint);
   const practiceHittingSessions = useMemo(() => (
@@ -8665,15 +8671,20 @@ function PracticeConsole({
     : pitchingLivePitchFilters.length === 1
       ? PITCH_TYPE_LABELS[pitchingLivePitchFilters[0]]
       : `${pitchingLivePitchFilters.length} pitches`;
+  const pitchingTrackingSummary = [
+    pitchingPitchTrackingMode !== "OFF" ? "Pitch" : undefined,
+    trackPitchVelocity ? "Velo" : undefined,
+    trackPitchLocation ? "Location" : undefined,
+  ].filter(Boolean).join(" · ") || "Basic";
   const pitchingLivePitchFilterOptions = PITCH_TYPES.filter((pitchType) => pitchEvents.some((event) => event.pitchType === pitchType));
   const filteredPitchLocationCount = filteredPitchEvents.filter((event) => isZonePoint(event.location)).length;
   const hasFilteredVelocity = pitchStats.avgVelocity !== undefined || pitchStats.maxVelocity !== undefined;
   const compactPitchingMetrics = [
     { label: "Pitches", value: String(pitchStats.totalPitches) },
     { label: "Strike", value: formatPct(pitchStats.strikePct) },
-    ...(trackPitchVelocity && hasFilteredVelocity ? [{ label: "Avg Velo", value: formatNumber(pitchStats.avgVelocity, 1) }] : []),
-    ...(trackPitchVelocity && hasFilteredVelocity ? [{ label: "Max Velo", value: formatNumber(pitchStats.maxVelocity, 1) }] : []),
-    ...(!hasFilteredVelocity && filteredPitchLocationCount ? [{ label: "Zone", value: formatPct(pitchStats.zonePct) }] : []),
+    ...(trackPitchVelocity ? [{ label: "Avg Velo", value: hasFilteredVelocity ? formatNumber(pitchStats.avgVelocity, 1) : "--" }] : []),
+    ...(trackPitchVelocity ? [{ label: "Max Velo", value: hasFilteredVelocity ? formatNumber(pitchStats.maxVelocity, 1) : "--" }] : []),
+    ...(!trackPitchVelocity && filteredPitchLocationCount ? [{ label: "Zone", value: formatPct(pitchStats.zonePct) }] : []),
   ].slice(0, 4);
   const pitchingPitchTypeOptions = PITCH_TYPES.map((pitchType) => ({ value: pitchType, label: practicePitchTypeLabel(pitchType) }));
   const pitchingAnalyticsPitchTypes = PITCH_TYPES.filter((pitchType) => scopedPitchingEvents.some((event) => event.pitchType === pitchType));
@@ -8700,6 +8711,7 @@ function PracticeConsole({
   }, [currentSession?.id, mode, practiceId, practiceEndedAt]);
 
   function changeMode(nextMode: PracticeMode) {
+    setPracticeModePickerOpen(false);
     onMode(nextMode);
     if (nextMode === "Live BP") {
       onPitchingStation("Live BP");
@@ -9022,6 +9034,14 @@ function PracticeConsole({
         )}
       </section>
 
+      <button className="practice-mode-picker-trigger panel" type="button" onClick={() => setPracticeModePickerOpen(true)} aria-haspopup="dialog" aria-expanded={practiceModePickerOpen}>
+        <span>
+          {practiceModeIcon(mode)}
+          <strong>{mode}</strong>
+        </span>
+        <ChevronDown size={16} aria-hidden="true" />
+      </button>
+
       <nav className="practice-tracker-tabs panel" aria-label="Practice tracker modes">
         {(["Hitting", "Pitching", "Defense", "Live BP"] as PracticeMode[]).map((tab) => (
           <button key={tab} type="button" className={mode === tab ? `active practice-mode-${practiceModeClass(tab)}` : ""} onClick={() => changeMode(tab)}>
@@ -9030,6 +9050,25 @@ function PracticeConsole({
           </button>
         ))}
       </nav>
+
+      {practiceModePickerOpen && (
+        <ModalFrame title="Tracking" onClose={() => setPracticeModePickerOpen(false)} panelClassName="practice-mode-picker-sheet">
+          <div className="practice-mode-picker-list">
+            {(["Hitting", "Pitching", "Defense", "Live BP"] as PracticeMode[]).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                className={mode === tab ? `active practice-mode-${practiceModeClass(tab)}` : ""}
+                onClick={() => changeMode(tab)}
+              >
+                {practiceModeIcon(tab)}
+                <span>{tab}</span>
+                {mode === tab ? <Check size={15} aria-hidden="true" /> : <ChevronRight size={15} aria-hidden="true" />}
+              </button>
+            ))}
+          </div>
+        </ModalFrame>
+      )}
 
       {mode === "Hitting" ? (
         <>
@@ -9089,6 +9128,11 @@ function PracticeConsole({
                     </button>
                   )}
                 </div>
+                <button className="secondary-button practice-tracking-control-trigger" type="button" onClick={() => setHittingSettingsOpen(true)}>
+                  <Gauge size={17} aria-hidden="true" />
+                  <span>Tracking</span>
+                  <strong>{hittingTrackingSummary}</strong>
+                </button>
                 <button className="secondary-button practice-hitting-more-trigger" type="button" onClick={() => setHittingOptionsOpen(true)}>
                   <MoreHorizontal size={18} aria-hidden="true" />
                   More
@@ -9363,7 +9407,7 @@ function PracticeConsole({
                     <PlayerAvatar player={item} size="sm" compact />
                     <span>
                       <strong>{item.name}</strong>
-                      <small>#{item.jerseyNumber} - {positionLine(item)}</small>
+                      <small>#{item.jerseyNumber}</small>
                     </span>
                   </button>
                 ))}
@@ -9547,6 +9591,11 @@ function PracticeConsole({
                     Location <strong>{trackPitchLocation ? "On" : "Off"}</strong>
                   </button>
                 </div>
+                <button className="secondary-button practice-tracking-control-trigger" type="button" onClick={() => setPitchingSettingsOpen(true)}>
+                  <Gauge size={17} aria-hidden="true" />
+                  <span>Tracking</span>
+                  <strong>{pitchingTrackingSummary}</strong>
+                </button>
                 <button className="secondary-button practice-hitting-more-trigger" type="button" onClick={() => setPitchingOptionsOpen(true)}>
                   <MoreHorizontal size={18} aria-hidden="true" />
                   More
@@ -10806,8 +10855,9 @@ function PracticePitchLocationGrid({
               onClick={() => {
                 if (onSelect) onSelect(makePitchLocationPoint(bucket, pitcher));
                 else if (inspectable) setInspectedBucketId(bucket.id);
+                else if (cycleable) cycleMetricMode();
               }}
-              disabled={!onSelect && !inspectable}
+              disabled={!onSelect && !inspectable && !cycleable}
               title={pitchLocationBucketDetail(bucket, stats, pitcher)}
               aria-label={pitchLocationBucketDetail(bucket, stats, pitcher)}
             >
@@ -10835,14 +10885,15 @@ function PracticePitchLocationGrid({
 }
 
 function nextPitchLocationMetricMode(mode: PitchLocationMetricMode): PitchLocationMetricMode {
-  if (mode === "dots") return "percent";
+  if (mode === "heat") return "percent";
   if (mode === "percent") return "count";
-  if (mode === "count") return "heat";
-  return "dots";
+  if (mode === "count") return "dots";
+  return "heat";
 }
 
 function defaultPitchLocationMetricMode(mode: PitchLocationGridMode): PitchLocationMetricMode {
-  return mode === "live" ? "dots" : "heat";
+  void mode;
+  return "heat";
 }
 
 function pitchLocationMetricModeLabel(mode: PitchLocationMetricMode) {
@@ -16271,6 +16322,30 @@ function AnalyticsView({
   const result = useMemo(() => executeAnalyticsQuery(data, query), [data, query]);
   const selectedDetailRow = detailPlayerId ? result.rows.find((row) => row.player.id === detailPlayerId) : undefined;
   const activeFilterCount = Object.values(filters).reduce((total, value) => total + (Array.isArray(value) ? value.length : 0), 0);
+  const analyticsDomainOptions: ChoiceOption[] = [
+    { value: "hitting", label: "Hitting" },
+    { value: "pitching", label: "Pitching" },
+    { value: "defense", label: "Defense" },
+    { value: "development", label: "Development" },
+  ];
+  const analyticsSourceOptions: ChoiceOption[] = [
+    { value: "games", label: "Games" },
+    { value: "practice", label: "Practice" },
+    { value: "live-bp", label: "Live BP" },
+    { value: "all", label: "All" },
+  ];
+  const analyticsTimeRangeOptions: ChoiceOption[] = [
+    { value: "7d", label: "7D" },
+    { value: "30d", label: "30D" },
+    { value: "season", label: "Season" },
+    { value: "custom", label: "Custom" },
+  ];
+  const analyticsDevelopmentOptions: ChoiceOption[] = [
+    { value: "overview", label: "Overview" },
+    { value: "weight-room", label: "Weight Room" },
+    { value: "attendance", label: "Attendance" },
+    { value: "trends", label: "Trends" },
+  ];
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -16453,26 +16528,63 @@ function AnalyticsView({
       <SectionHeader title="Analytics" />
 
       <section className="analytics-controls" aria-label="Analytics controls">
-        <SegmentedControl values={["hitting", "pitching", "defense", "development"] as AnalyticsDomain[]} active={domain} onChange={handleDomain} />
-        <div className="analytics-controls__row">
+        <div className="analytics-domain-tabs">
+          <SegmentedControl values={["hitting", "pitching", "defense", "development"] as AnalyticsDomain[]} active={domain} onChange={handleDomain} />
+        </div>
+        <div className="analytics-domain-select-wrap">
+          <ChoiceSelect
+            value={domain}
+            className="analytics-domain-select"
+            showSelectedDescription={false}
+            options={analyticsDomainOptions}
+            onChange={(value) => handleDomain(value as AnalyticsDomain)}
+            aria-label="Analytics category"
+          />
+        </div>
+        <div className="analytics-controls__row analytics-controls__row--primary">
           {domain !== "development" ? (
             <>
-              <SegmentedControl values={["box-score", "situational"] as AnalyticsMode[]} active={mode} onChange={handleMode} />
-              <SegmentedControl values={["games", "practice", "live-bp", "all"] as AnalyticsSource[]} active={source} onChange={handleSource} />
+              <div className="analytics-mode-tabs">
+                <SegmentedControl values={["box-score", "situational"] as AnalyticsMode[]} active={mode} onChange={handleMode} />
+              </div>
+              <div className="analytics-source-tabs">
+                <SegmentedControl values={["games", "practice", "live-bp", "all"] as AnalyticsSource[]} active={source} onChange={handleSource} />
+              </div>
+              <div className="analytics-source-select-wrap">
+                <ChoiceSelect
+                  value={source}
+                  className="analytics-source-select"
+                  showSelectedDescription={false}
+                  options={analyticsSourceOptions}
+                  onChange={(value) => handleSource(value as AnalyticsSource)}
+                  aria-label="Analytics source"
+                />
+              </div>
             </>
           ) : (
-            <SegmentedControl values={["overview", "weight-room", "attendance", "trends"] as AnalyticsDevelopmentView[]} active={developmentView} onChange={setDevelopmentView} />
+            <>
+              <div className="analytics-development-tabs">
+                <SegmentedControl values={["overview", "weight-room", "attendance", "trends"] as AnalyticsDevelopmentView[]} active={developmentView} onChange={setDevelopmentView} />
+              </div>
+              <div className="analytics-development-select-wrap">
+                <ChoiceSelect
+                  value={developmentView}
+                  className="analytics-development-select"
+                  showSelectedDescription={false}
+                  options={analyticsDevelopmentOptions}
+                  onChange={(value) => setDevelopmentView(value as AnalyticsDevelopmentView)}
+                  aria-label="Development analytics view"
+                />
+              </div>
+            </>
           )}
+        </div>
+        <div className="analytics-controls__row analytics-controls__row--filters">
           <ChoiceSelect
             value={timeRange}
             className="analytics-select"
             showSelectedDescription={false}
-            options={[
-              { value: "7d", label: "7D" },
-              { value: "30d", label: "30D" },
-              { value: "season", label: "Season" },
-              { value: "custom", label: "Custom" },
-            ]}
+            options={analyticsTimeRangeOptions}
             onChange={(value) => setTimeRange(value as AnalyticsTimeRange)}
             aria-label="Analytics time range"
           />
