@@ -91,8 +91,8 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /practice-pitching-session-pill/);
   assert.match(page, /practice-pitching-entry-bar/);
   assert.match(page, /function PracticePitchLocationGrid/);
-  assert.match(page, /type PitchLocationMetricMode = "heat" \| "percent" \| "count"/);
-  assert.match(page, /setMetricMode\(nextPitchLocationMetricMode\)/);
+  assert.match(page, /type PitchLocationMetricMode = "dots" \| "heat" \| "percent" \| "count"/);
+  assert.match(page, /metricMode: nextPitchLocationMetricMode\(currentMetricMode\)/);
   assert.match(page, /function pitchLocationHeatOpacity/);
   assert.match(page, /function pitchLocationBucketMetricLabel/);
   assert.match(page, /practice-pitch-location-grid__bucket-metric/);
@@ -189,8 +189,8 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /PracticePitchLocationGrid[\s\S]{0,120}pitches=\{pitchEvents\}/);
   assert.match(page, /function PracticeMetricsTab/);
   assert.match(page, /function PracticeHistoryTab/);
-  assert.match(page, /buildPracticeMetricRows\(data, category, practiceId, effectiveHittingSessionFilterId\)/);
-  assert.match(page, /practiceMetricSummary\(data, category, practiceId, effectiveHittingSessionFilterId\)/);
+  assert.match(page, /buildPracticeMetricRows\(data, category, practiceId, effectiveHittingSessionFilterId, effectivePitchingSessionFilterId\)/);
+  assert.match(page, /practiceMetricSummary\(data, category, practiceId, effectiveHittingSessionFilterId, effectivePitchingSessionFilterId\)/);
   assert.match(page, /function buildPracticeReviewSessions/);
   assert.match(page, /View Full Practice Analytics/);
   assert.match(page, /role="columnheader"/);
