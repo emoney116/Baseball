@@ -62,6 +62,8 @@ test("phase two phone composition keeps live tracking focused on the next rep", 
   assert.match(page, /practice-hitting-more-trigger/);
   assert.match(page, /PracticeHittingChartCarousel/);
   assert.match(page, /PracticeHittingPitchLocationGrid/);
+  assert.match(page, /Filter hitting charts by pitch type/);
+  assert.match(page, /pitchFilters\.length/);
   assert.match(page, /trackHittingPitchLocation/);
   assert.match(page, /trackHittingPitchVelocity/);
   assert.match(page, /VelocityPickerField/);

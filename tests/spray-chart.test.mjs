@@ -81,3 +81,15 @@ test("distribution sectors and labels radiate from home plate", () => {
   assert.ok(label.x > SPRAY_FIELD_GEOMETRY.thirdBase.x);
   assert.ok(label.x < SPRAY_FIELD_GEOMETRY.firstBase.x);
 });
+
+test("spray field mound is centered inside the infield diamond", () => {
+  const infieldCenterY = (
+    SPRAY_FIELD_GEOMETRY.secondBase.y +
+    SPRAY_FIELD_GEOMETRY.firstBase.y +
+    SPRAY_FIELD_GEOMETRY.thirdBase.y +
+    646
+  ) / 4;
+
+  assert.equal(SPRAY_FIELD_GEOMETRY.mound.x, SPRAY_FIELD_GEOMETRY.secondBase.x);
+  assert.ok(Math.abs(SPRAY_FIELD_GEOMETRY.mound.y - infieldCenterY) < 12);
+});

@@ -266,6 +266,7 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(styles, /\.practice-review-table/);
   assert.match(styles, /\.practice-spray-field/);
   assert.match(styles, /\.practice-hitting-live-charts/);
+  assert.match(styles, /\.practice-hitting-live-charts__tools/);
   assert.match(styles, /\.practice-hitting-live-charts__scroller \{[\s\S]*scroll-snap-type: x mandatory/);
   assert.match(styles, /\.practice-pitch-location-grid--heat \.practice-pitch-location-grid__marker-layer i \{[\s\S]*display: none/);
 });

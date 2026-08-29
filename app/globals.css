@@ -24772,7 +24772,7 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .practice-hitting-live-charts {
-  width: min(520px, 100%);
+  width: min(760px, 100%);
   justify-self: center;
   border: 1px solid color-mix(in srgb, var(--line) 74%, transparent);
   border-radius: 16px;
@@ -24829,6 +24829,19 @@ button.weight-room-athlete-table__row:hover {
   text-transform: none;
 }
 
+.practice-hitting-live-charts__tools {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.practice-hitting-chart-filter .practice-pitching-filter-popover {
+  top: calc(100% + 6px);
+  right: 0;
+}
+
 .practice-hitting-live-charts__scroller {
   display: grid;
   grid-auto-flow: column;
@@ -24853,7 +24866,7 @@ button.weight-room-athlete-table__row:hover {
 .practice-hitting-live-charts .practice-spray-field,
 .practice-hitting-live-charts .practice-pitch-location-grid {
   width: 100%;
-  max-width: 430px;
+  max-width: 620px;
 }
 
 .practice-hitting-live-charts .practice-pitch-location-grid {
@@ -30859,6 +30872,21 @@ textarea:focus,
     font-size: 10px;
     font-weight: 950;
     text-transform: uppercase;
+  }
+
+  .practice-hitting-live-charts__tools {
+    gap: 5px;
+  }
+
+  .practice-hitting-chart-filter .practice-pitching-filter-pill {
+    min-height: 28px;
+    padding: 5px 7px;
+    border-radius: 999px;
+    font-size: 9.5px;
+  }
+
+  .practice-hitting-chart-filter .practice-pitching-filter-pill span {
+    display: none;
   }
 
   .practice-hitting-live-charts__head small {

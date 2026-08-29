@@ -45,7 +45,7 @@ export const SPRAY_FIELD_GEOMETRY = {
   firstBase: { x: 652, y: 535 },
   secondBase: { x: 500, y: 420 },
   thirdBase: { x: 348, y: 535 },
-  mound: { x: 500, y: 585 },
+  mound: { x: 500, y: 540 },
 };
 
 export const SPRAY_FIELD_PATHS = {
@@ -64,7 +64,7 @@ export const SPRAY_FIELD_PATHS = {
   infieldArc: "M 306 466 C 360 402 434 374 500 374 C 566 374 640 402 694 466",
   diamond: "M 500 646 L 348 535 L 500 420 L 652 535 Z",
   homePlate: "M 500 646 L 526 664 L 514 690 L 486 690 L 474 664 Z",
-  mound: "M 500 573 C 520 573 536 584 536 598 C 536 613 520 624 500 624 C 480 624 464 613 464 598 C 464 584 480 573 500 573 Z",
+  mound: "M 500 516 C 523 516 542 527 542 540 C 542 554 523 565 500 565 C 477 565 458 554 458 540 C 458 527 477 516 500 516 Z",
 };
 
 export const SPRAY_HOME_PLATE_ORIGIN: ZonePoint = unprojectSprayPoint(SPRAY_FIELD_GEOMETRY.home);

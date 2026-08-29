@@ -11609,15 +11609,53 @@ function PracticeHittingChartCarousel({
 }) {
   const [sprayMode, setSprayMode] = useState<PracticeChartMetricMode>("dots");
   const [pitchLocationMode, setPitchLocationMode] = useState<PracticeChartMetricMode>("heat");
-  const ballsInPlayCount = events.filter((event) => event.action === "Ball in play").length;
-  const sprayPoints = events.filter((event) => event.action === "Ball in play").map((event) => event.fieldLocation).filter(isZonePoint);
-  const pitchLocationEvents = events.filter((event) => isZonePoint(event.pitchLocation));
+  const [pitchFilters, setPitchFilters] = useState<PitchType[]>([]);
+  const [pitchFilterOpen, setPitchFilterOpen] = useState(false);
+  const pitchFilterRef = useRef<HTMLDivElement | null>(null);
+  const pitchFilterOptions = PITCH_TYPES.filter((pitchType) => events.some((event) => event.pitchType === pitchType));
+  const filteredEvents = pitchFilters.length
+    ? events.filter((event) => event.pitchType && pitchFilters.includes(event.pitchType))
+    : events;
+  const pitchFilterLabel = pitchFilters.length === 0
+    ? "All"
+    : pitchFilters.length === 1
+      ? PITCH_TYPE_LABELS[pitchFilters[0]]
+      : `${pitchFilters.length} pitches`;
+  const ballsInPlayCount = filteredEvents.filter((event) => event.action === "Ball in play").length;
+  const sprayPoints = filteredEvents.filter((event) => event.action === "Ball in play").map((event) => event.fieldLocation).filter(isZonePoint);
+  const pitchLocationEvents = filteredEvents.filter((event) => isZonePoint(event.pitchLocation));
   const views = [
     showSpray ? { id: "spray", label: "Spray", count: sprayChartCountLabel(ballsInPlayCount, sprayPoints.length) } : undefined,
     showPitchLocation ? { id: "location", label: "Pitch Map", count: pitchLocationEvents.length ? `${pitchLocationEvents.length} tracked` : "No pitch locations" } : undefined,
   ].filter(Boolean) as Array<{ id: "spray" | "location"; label: string; count: string }>;
 
+  useEffect(() => {
+    if (!pitchFilterOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && pitchFilterRef.current?.contains(target)) return;
+      setPitchFilterOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPitchFilterOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [pitchFilterOpen]);
+
   if (!views.length) return null;
+
+  function togglePitchFilter(pitchType: PitchType) {
+    setPitchFilters((current) => (
+      current.includes(pitchType)
+        ? current.filter((item) => item !== pitchType)
+        : [...current, pitchType]
+    ));
+  }
 
   return (
     <section className="practice-hitting-live-charts" aria-label="Hitting charts">
@@ -11626,13 +11664,54 @@ function PracticeHittingChartCarousel({
           <span>{views.length === 1 ? views[0].label : "Charts"}</span>
           <small>{views.map((view) => view.count).join(" · ")}</small>
         </div>
-        {views.length > 1 && (
-          <div className="practice-hitting-live-charts__pills" aria-label="Swipe between hitting charts">
-            {views.map((view) => (
-              <span key={view.id}>{view.label}</span>
-            ))}
+        <div className="practice-hitting-live-charts__tools">
+          {views.length > 1 && (
+            <div className="practice-hitting-live-charts__pills" aria-label="Swipe between hitting charts">
+              {views.map((view) => (
+                <span key={view.id}>{view.label}</span>
+              ))}
+            </div>
+          )}
+          <div className="practice-hitting-chart-filter practice-pitching-filter-menu" ref={pitchFilterRef}>
+            <button
+              className="practice-pitching-filter-pill"
+              type="button"
+              onClick={() => setPitchFilterOpen((open) => !open)}
+              aria-label="Filter hitting charts by pitch type"
+              aria-haspopup="menu"
+              aria-expanded={pitchFilterOpen}
+            >
+              <span>Pitch Filter</span>
+              <strong>{pitchFilterLabel}</strong>
+              <ChevronDown size={15} aria-hidden="true" />
+            </button>
+            {pitchFilterOpen && (
+              <div className="practice-pitching-filter-popover practice-pitching-filter-sheet" role="menu" aria-label="Hitting chart pitch filter">
+                <button type="button" role="menuitemcheckbox" aria-checked={pitchFilters.length === 0} className={pitchFilters.length === 0 ? "active" : ""} onClick={() => setPitchFilters([])}>
+                  <span>
+                    <strong>All Pitches</strong>
+                    <small>{events.length} swings</small>
+                  </span>
+                  {pitchFilters.length === 0 && <Check size={16} aria-hidden="true" />}
+                </button>
+                {pitchFilterOptions.map((pitchType) => {
+                  const active = pitchFilters.includes(pitchType);
+                  const count = events.filter((event) => event.pitchType === pitchType).length;
+                  return (
+                    <button key={pitchType} type="button" role="menuitemcheckbox" aria-checked={active} className={active ? "active" : ""} onClick={() => togglePitchFilter(pitchType)}>
+                      <span>
+                        <strong><i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />{practicePitchTypeLabel(pitchType)}</strong>
+                        <small>{count} swings</small>
+                      </span>
+                      <em aria-hidden="true">{active && <Check size={15} />}</em>
+                    </button>
+                  );
+                })}
+                {!pitchFilterOptions.length && <CompactEmpty title="No pitch types logged yet" />}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
       <div className="practice-hitting-live-charts__scroller" aria-label="Swipe charts">
         {showSpray && (
@@ -11785,7 +11864,7 @@ function PracticeSprayField({
           <line className="practice-spray-field__foul-line" x1={home.x} y1={home.y} x2={rightFoul.x} y2={rightFoul.y} />
           <path className="practice-spray-field__diamond-line" d={SPRAY_FIELD_PATHS.diamond} />
           <path className="practice-spray-field__mound" d={SPRAY_FIELD_PATHS.mound} />
-          <line className="practice-spray-field__mound-rubber" x1="491" y1="598" x2="509" y2="598" />
+          <line className="practice-spray-field__mound-rubber" x1={SPRAY_FIELD_GEOMETRY.mound.x - 12} y1={SPRAY_FIELD_GEOMETRY.mound.y} x2={SPRAY_FIELD_GEOMETRY.mound.x + 12} y2={SPRAY_FIELD_GEOMETRY.mound.y} />
           {[
             SPRAY_FIELD_GEOMETRY.secondBase,
             SPRAY_FIELD_GEOMETRY.firstBase,
