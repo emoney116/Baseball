@@ -66,6 +66,8 @@ const SEASON_NAME = "Fall 2026";
 const SELECTED_TEAM_STORAGE_KEY = "clubhouse9-current-team-v2";
 
 type SupabaseClient = ReturnType<typeof createClient>;
+const HITTING_EVENT_OPTIONAL_COLUMNS = ["pitch_location", "exit_velocity_mph"] as const;
+const missingHittingEventOptionalColumns = new Set<(typeof HITTING_EVENT_OPTIONAL_COLUMNS)[number]>();
 
 type Foundation = {
   organizationId: string;
@@ -1685,13 +1687,24 @@ async function syncPracticeEvents(supabase: SupabaseClient, data: AppData) {
 }
 
 async function upsertHittingEvents(supabase: SupabaseClient, events: HittingEvent[]) {
-  const rows = events.map((event) => mapHittingEventToRow(event));
-  try {
-    await upsertRows(supabase, "hitting_events", rows);
-  } catch (error) {
-    if (!isMissingHittingPitchLocationColumn(error)) throw error;
-    await upsertRows(supabase, "hitting_events", rows.map(removeHittingPitchLocationColumn));
+  let rows = events
+    .map((event) => mapHittingEventToRow(event))
+    .map((row) => removeMissingHittingEventOptionalColumns(row, missingHittingEventOptionalColumns));
+
+  for (let attempt = 0; attempt <= HITTING_EVENT_OPTIONAL_COLUMNS.length; attempt += 1) {
+    try {
+      await upsertRows(supabase, "hitting_events", rows);
+      return;
+    } catch (error) {
+      const missingColumn = missingHittingEventOptionalColumn(error);
+      if (!missingColumn || missingHittingEventOptionalColumns.has(missingColumn)) throw error;
+      missingHittingEventOptionalColumns.add(missingColumn);
+      rows = rows.map((row) => removeHittingEventOptionalColumns(row, [missingColumn]));
+    }
   }
+
+  const missingColumn = Array.from(missingHittingEventOptionalColumns).join(", ") || "unknown";
+  throw new PersistenceError("save-failed", `Unable to sync hitting events after removing optional columns: ${missingColumn}.`);
 }
 
 async function upsertDefenseEvents(supabase: SupabaseClient, events: DefenseEvent[]) {
@@ -3279,13 +3292,23 @@ function mapHittingEventToRow(event: HittingEvent) {
   };
 }
 
-function removeHittingPitchLocationColumn(row: Record<string, unknown>) {
+function removeMissingHittingEventOptionalColumns(
+  row: Record<string, unknown>,
+  missingColumns: Set<(typeof HITTING_EVENT_OPTIONAL_COLUMNS)[number]>,
+) {
+  return removeHittingEventOptionalColumns(row, Array.from(missingColumns));
+}
+
+function removeHittingEventOptionalColumns(
+  row: Record<string, unknown>,
+  columns: readonly (typeof HITTING_EVENT_OPTIONAL_COLUMNS)[number][],
+) {
   const legacySafeRow = { ...row };
-  delete legacySafeRow.pitch_location;
+  for (const column of columns) delete legacySafeRow[column];
   return legacySafeRow;
 }
 
-function isMissingHittingPitchLocationColumn(error: unknown) {
+function missingHittingEventOptionalColumn(error: unknown) {
   const message = error instanceof PersistenceError
     ? error.message
     : typeof error === "object" && error
@@ -3297,11 +3320,9 @@ function isMissingHittingPitchLocationColumn(error: unknown) {
         ].join(" ")
       : String(error ?? "");
   const normalized = message.toLowerCase();
-  return normalized.includes("pitch_location") && (
-    normalized.includes("schema cache")
-    || normalized.includes("could not find")
-    || normalized.includes("column")
-  );
+  const isMissingColumn = normalized.includes("schema cache") || normalized.includes("could not find") || normalized.includes("column");
+  if (!isMissingColumn) return undefined;
+  return HITTING_EVENT_OPTIONAL_COLUMNS.find((column) => normalized.includes(column));
 }
 
 function removeDefenseTrackingColumns(row: Record<string, unknown>) {

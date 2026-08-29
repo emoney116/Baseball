@@ -137,8 +137,9 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(analytics, /metric\("zonePct", "Zone %"/);
   assert.match(analytics, /isAnalyticsZonePoint/);
   assert.match(page, /function PracticeSprayField/);
-  assert.match(page, /function buildSprayDirectionBuckets/);
-  assert.match(page, /practice-spray-field__sector-metric--infield/);
+  assert.match(page, /getSprayDistribution/);
+  assert.match(page, /SPRAY_HOME_PLATE_ORIGIN/);
+  assert.match(page, /practice-spray-field__sector-label/);
   assert.match(page, /function deriveHitDirectionFromFieldLocation/);
   assert.match(page, /practicePitchTypeLabel/);
   assert.match(page, /attendance-roster__scroll/);

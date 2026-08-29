@@ -59,11 +59,12 @@ test("phase two phone composition keeps live tracking focused on the next rep", 
   assert.match(page, /className="practice-mode-picker-trigger"/);
   assert.match(page, /className="practice-mode-select"/);
   assert.match(page, /mobilePresentation="popover"/);
-  assert.match(page, /className="secondary-button practice-tracking-control-trigger"/);
+  assert.match(page, /practice-hitting-more-trigger/);
   assert.match(page, /PracticeHittingChartCarousel/);
   assert.match(page, /PracticeHittingPitchLocationGrid/);
   assert.match(page, /trackHittingPitchLocation/);
-  assert.match(page, /hittingTrackingSummary/);
+  assert.match(page, /trackHittingPitchVelocity/);
+  assert.match(page, /VelocityPickerField/);
   assert.match(page, /showAllPitchingPlayers \? "On" : "Off"/);
 
   assert.match(phase2Layer, /\.practice-mode-picker-trigger,[\s\S]*\.practice-tracking-control-trigger\s*\{[\s\S]*display:\s*none/);
@@ -71,9 +72,9 @@ test("phase two phone composition keeps live tracking focused on the next rep", 
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-mode-picker-trigger\s*\{[\s\S]*display:\s*grid/);
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-console--active \.practice-hitting-quick-controls,[\s\S]*\.practice-console--pitching \.practice-hitting-quick-controls\s*\{[\s\S]*display:\s*none/);
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-console--hitting \.practice-hitting-quick-controls\s*\{[\s\S]*display:\s*grid/);
-  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-console--hitting \.practice-hitting-quick-controls\s*\{[\s\S]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-console--hitting \.practice-hitting-quick-controls\s*\{[\s\S]*grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\)/);
   assert.match(phase2Layer, /@media \(max-width: 360px\) \{[\s\S]*\.practice-console--hitting \.practice-hitting-quick-controls,[\s\S]*\.modal-panel\.practice-hitting-sheet \.practice-hitting-sheet__context-controls\s*\{[\s\S]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-tracking-control-trigger\s*\{[\s\S]*display:\s*inline-flex/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-console--hitting \.practice-tracking-control-trigger\s*\{[\s\S]*display:\s*none/);
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.ops-main--practice-tracking \.team-workspace-header--compact\s*\{[\s\S]*display:\s*none/);
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-home \.practice-overview-grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\)/);
 
@@ -96,8 +97,8 @@ test("phase two phone composition keeps live tracking focused on the next rep", 
   assert.match(phase2Layer, /\.practice-pitch-location-grid--heat \.practice-pitch-location-grid__marker-layer i\s*\{[\s\S]*display:\s*none/);
   assert.match(css, /\.practice-pitch-location-grid--heat \.practice-pitch-location-grid__marker-layer i\s*\{[\s\S]*display:\s*none/);
   assert.match(css, /\.practice-hitting-live-charts__scroller\s*\{[\s\S]*scroll-snap-type:\s*x mandatory/);
-  assert.match(css, /\.practice-spray-field__sector-lines/);
-  assert.match(css, /\.practice-spray-field__sector-metric--infield/);
+  assert.match(css, /\.practice-spray-field__sector\s*\{/);
+  assert.match(css, /\.practice-spray-field__sector-label text/);
 
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.weight-room-shell-header__identity \.organization-logo\s*\{[\s\S]*display:\s*none/);
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.weight-room-overview-grid,[\s\S]*\.weight-room-review-grid\s*\{[\s\S]*grid-template-columns:\s*1fr/);
