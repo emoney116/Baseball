@@ -118,10 +118,11 @@ import {
 import {
   getSprayDistribution,
   getSprayHeatClusters,
+  getSpraySectorBoundaryPoint,
+  projectSprayPoint,
+  SPRAY_FIELD_GEOMETRY,
+  SPRAY_FIELD_PATHS,
   SPRAY_FIELD_VIEWBOX,
-  SPRAY_HOME_PLATE_ORIGIN,
-  SPRAY_LEFT_FOUL_POINT,
-  SPRAY_RIGHT_FOUL_POINT,
   type SprayLaneDistribution,
 } from "./lib/sprayChart";
 import {
@@ -11681,9 +11682,9 @@ function PracticeSprayField({
   batterHandedness?: Player["bats"];
 }) {
   const chartId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
-  const home = spraySvgPoint(SPRAY_HOME_PLATE_ORIGIN);
-  const leftFoul = spraySvgPoint(SPRAY_LEFT_FOUL_POINT);
-  const rightFoul = spraySvgPoint(SPRAY_RIGHT_FOUL_POINT);
+  const home = SPRAY_FIELD_GEOMETRY.home;
+  const leftFoul = SPRAY_FIELD_GEOMETRY.leftFoulPole;
+  const rightFoul = SPRAY_FIELD_GEOMETRY.rightFoulPole;
   const heatClusters = getSprayHeatClusters(points);
   const maxHeatValue = Math.max(1, ...heatClusters.map((cluster) => cluster.value));
   const sectorDistribution = getSprayDistribution(points, batterHandedness);
@@ -11733,74 +11734,79 @@ function PracticeSprayField({
             <stop offset="100%" stopColor="var(--spray-heat-cold)" stopOpacity="0" />
           </radialGradient>
           <clipPath id={`sprayFair-${chartId}`}>
-            <path d="M 50 72 L 5.5 22 Q 50 2 94.5 22 L 50 72 Z" />
+            <path d={SPRAY_FIELD_PATHS.fairTerritory} />
           </clipPath>
         </defs>
+        <g clipPath={`url(#sprayFair-${chartId})`}>
+          <path className="practice-spray-field__outfield" d={SPRAY_FIELD_PATHS.fairTerritory} fill={`url(#sprayGrass-${chartId})`} />
+          <path className="practice-spray-field__field-band" d={SPRAY_FIELD_PATHS.outfieldBandDeep} />
+          <path className="practice-spray-field__field-band practice-spray-field__field-band--alt" d={SPRAY_FIELD_PATHS.outfieldBandShallow} />
+          {showSectorMetrics && (
+            <g className="practice-spray-field__sector-layer">
+              {sectorDistribution.lanes.map((lane) => (
+                <path
+                  key={lane.id}
+                  className="practice-spray-field__sector"
+                  d={lane.path}
+                  style={{ "--spray-sector-opacity": lane.intensity } as React.CSSProperties}
+                />
+              ))}
+              {sectorDistribution.lanes.slice(1).map((lane) => {
+                const boundary = getSpraySectorBoundaryPoint(lane.startAngle);
+                return <line key={`${lane.id}-line`} className="practice-spray-field__sector-line" x1={home.x} y1={home.y} x2={boundary.x} y2={boundary.y} />;
+              })}
+            </g>
+          )}
+          {mode === "heat" && (
+            <g className="practice-spray-field__heat">
+              {heatClusters.map((cluster, index) => {
+                const point = projectSprayPoint(cluster);
+                return (
+                  <circle
+                    key={`${cluster.x}-${cluster.y}-${index}`}
+                    cx={point.x}
+                    cy={point.y}
+                    r={sprayHeatRadius(cluster.value, maxHeatValue)}
+                    fill={`url(#sprayHeat-${chartId})`}
+                    opacity={sprayHeatOpacity(cluster.value, maxHeatValue, points.length)}
+                  />
+                );
+              })}
+            </g>
+          )}
+        </g>
         <g className="practice-spray-field__ground">
-          <path className="practice-spray-field__outfield" d="M 50 72 L 5.5 22 Q 50 2 94.5 22 L 87 49 Q 50 36 13 49 Z" fill={`url(#sprayGrass-${chartId})`} />
-          <path className="practice-spray-field__stripe practice-spray-field__stripe--left" d="M 20 36 Q 50 15 80 36 L 73 43 Q 50 28 27 43 Z" />
-          <path className="practice-spray-field__stripe practice-spray-field__stripe--middle" d="M 30 28 Q 50 18 70 28 L 65 36 Q 50 29 35 36 Z" />
-          <path className="practice-spray-field__dirt" d="M 50 72 C 37 67 28 58 27 49 C 33 42 42 38 50 38 C 58 38 67 42 73 49 C 72 58 63 67 50 72 Z" fill={`url(#sprayDirt-${chartId})`} />
-          <path className="practice-spray-field__infield-grass" d="M 50 69 L 35.5 57 L 50 44 L 64.5 57 Z" />
-          <path className="practice-spray-field__arc-line" d="M 12 27 Q 50 6 88 27" />
-          <path className="practice-spray-field__arc-line practice-spray-field__arc-line--infield" d="M 29 50 Q 50 36 71 50" />
+          <path className="practice-spray-field__field-outline" d={SPRAY_FIELD_PATHS.fairTerritory} />
+          <path className="practice-spray-field__warning-line" d={SPRAY_FIELD_PATHS.warningTrack} />
+          <path className="practice-spray-field__dirt" d={SPRAY_FIELD_PATHS.infieldDirt} fill={`url(#sprayDirt-${chartId})`} />
+          <path className="practice-spray-field__infield-grass" d={SPRAY_FIELD_PATHS.infieldGrass} />
+          <path className="practice-spray-field__arc-line practice-spray-field__arc-line--infield" d={SPRAY_FIELD_PATHS.infieldArc} />
           <line className="practice-spray-field__foul-line" x1={home.x} y1={home.y} x2={leftFoul.x} y2={leftFoul.y} />
           <line className="practice-spray-field__foul-line" x1={home.x} y1={home.y} x2={rightFoul.x} y2={rightFoul.y} />
-          <path className="practice-spray-field__diamond-line" d="M 50 70.5 L 35.5 57 L 50 44 L 64.5 57 Z" />
+          <path className="practice-spray-field__diamond-line" d={SPRAY_FIELD_PATHS.diamond} />
+          <path className="practice-spray-field__mound" d={SPRAY_FIELD_PATHS.mound} />
+          <line className="practice-spray-field__mound-rubber" x1="491" y1="598" x2="509" y2="598" />
           {[
-            { x: 50, y: 44 },
-            { x: 64.5, y: 57 },
-            { x: 35.5, y: 57 },
-          ].map((base) => <rect key={`${base.x}-${base.y}`} className="practice-spray-field__base" x={base.x - 0.9} y={base.y - 0.9} width="1.8" height="1.8" transform={`rotate(45 ${base.x} ${base.y})`} />)}
-          <path className="practice-spray-field__plate" d="M 50 71.2 L 52.3 72.8 L 51.4 75.1 L 48.6 75.1 L 47.7 72.8 Z" />
+            SPRAY_FIELD_GEOMETRY.secondBase,
+            SPRAY_FIELD_GEOMETRY.firstBase,
+            SPRAY_FIELD_GEOMETRY.thirdBase,
+          ].map((base) => <rect key={`${base.x}-${base.y}`} className="practice-spray-field__base" x={base.x - 10} y={base.y - 10} width="20" height="20" rx="2" transform={`rotate(45 ${base.x} ${base.y})`} />)}
+          <path className="practice-spray-field__plate" d={SPRAY_FIELD_PATHS.homePlate} />
         </g>
-        {showSectorMetrics && (
-          <g className="practice-spray-field__sector-layer" clipPath={`url(#sprayFair-${chartId})`}>
-            {sectorDistribution.lanes.map((lane) => (
-              <path
-                key={lane.id}
-                className="practice-spray-field__sector"
-                d={lane.path}
-                style={{ "--spray-sector-opacity": lane.intensity } as React.CSSProperties}
-              />
-            ))}
-            {sectorDistribution.lanes.slice(1).map((lane) => {
-              const boundary = spraySectorBoundaryPoint(lane.startAngle);
-              return <line key={`${lane.id}-line`} className="practice-spray-field__sector-line" x1={home.x} y1={home.y} x2={boundary.x} y2={boundary.y} />;
-            })}
-          </g>
-        )}
-        {mode === "heat" && (
-          <g className="practice-spray-field__heat" clipPath={`url(#sprayFair-${chartId})`}>
-            {heatClusters.map((cluster, index) => {
-              const point = spraySvgPoint(cluster);
-              return (
-                <circle
-                  key={`${cluster.x}-${cluster.y}-${index}`}
-                  cx={point.x}
-                  cy={point.y}
-                  r={sprayHeatRadius(cluster.value, maxHeatValue)}
-                  fill={`url(#sprayHeat-${chartId})`}
-                  opacity={sprayHeatOpacity(cluster.value, maxHeatValue, points.length)}
-                />
-              );
-            })}
-          </g>
-        )}
         {showPointDots && (
-          <g className="practice-spray-field__dots">
+          <g className="practice-spray-field__dots" clipPath={`url(#sprayFair-${chartId})`}>
             {points.slice(-120).map((point, index) => {
-              const dot = spraySvgPoint(point);
-              return <circle key={`${point.x}-${point.y}-${index}`} className="practice-spray-field__dot" cx={dot.x} cy={dot.y} r="0.95" />;
+              const dot = projectSprayPoint(point);
+              return <circle key={`${point.x}-${point.y}-${index}`} className="practice-spray-field__dot" cx={dot.x} cy={dot.y} r="7.5" />;
             })}
           </g>
         )}
         {activePoint && (() => {
-          const active = spraySvgPoint(activePoint);
+          const active = projectSprayPoint(activePoint);
           return (
             <g className="practice-spray-field__active-point">
-              <circle cx={active.x} cy={active.y} r="2.8" />
-              <circle cx={active.x} cy={active.y} r="5" />
+              <circle cx={active.x} cy={active.y} r="16" />
+              <circle cx={active.x} cy={active.y} r="31" />
             </g>
           );
         })()}
@@ -11818,7 +11824,7 @@ function PracticeSprayField({
 }
 
 function SpraySectorLabel({ lane, mode }: { lane: SprayLaneDistribution; mode: PracticeChartMetricMode }) {
-  const labelPoint = spraySvgPoint(lane.labelPoint);
+  const labelPoint = lane.labelPoint;
   const value = mode === "count" ? String(lane.count) : formatPct(lane.pct, 0);
   return (
     <g className="practice-spray-field__sector-label" transform={`translate(${labelPoint.x.toFixed(2)} ${labelPoint.y.toFixed(2)})`}>
@@ -11830,22 +11836,8 @@ function SpraySectorLabel({ lane, mode }: { lane: SprayLaneDistribution; mode: P
   );
 }
 
-function spraySvgPoint(point: ZonePoint) {
-  return {
-    x: point.x * SPRAY_FIELD_VIEWBOX.width,
-    y: point.y * SPRAY_FIELD_VIEWBOX.height,
-  };
-}
-
-function spraySectorBoundaryPoint(angle: number) {
-  return spraySvgPoint({
-    x: SPRAY_HOME_PLATE_ORIGIN.x + Math.cos(angle) * 0.76,
-    y: SPRAY_HOME_PLATE_ORIGIN.y - Math.sin(angle) * 0.76,
-  });
-}
-
 function sprayHeatRadius(value: number, maxValue: number) {
-  return 9 + (value / Math.max(1, maxValue)) * 11;
+  return 44 + (value / Math.max(1, maxValue)) * 62;
 }
 
 function sprayHeatOpacity(value: number, maxValue: number, total: number) {

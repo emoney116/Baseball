@@ -25215,13 +25215,13 @@ button.weight-room-athlete-table__row:hover {
 
 .practice-spray-field {
   position: relative;
-  width: min(460px, 100%);
-  aspect-ratio: 100 / 78;
+  width: min(540px, 100%);
+  aspect-ratio: 10 / 7;
   border: 1px solid color-mix(in srgb, var(--line) 74%, var(--success) 18%);
   border-radius: 16px;
   overflow: hidden;
   background:
-    radial-gradient(ellipse at 50% 96%, color-mix(in srgb, var(--success) 12%, transparent), transparent 54%),
+    radial-gradient(ellipse at 50% 96%, color-mix(in srgb, var(--success) 10%, transparent), transparent 58%),
     linear-gradient(180deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel-soft) 86%, transparent));
   cursor: crosshair;
   isolation: isolate;
@@ -25255,9 +25255,9 @@ button.weight-room-athlete-table__row:hover {
 
 .practice-spray-field__svg {
   position: absolute;
-  inset: 4% 4% 3%;
-  width: 92%;
-  height: 93%;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   overflow: visible;
   pointer-events: none;
 }
@@ -25271,28 +25271,46 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .practice-spray-field__outfield {
-  opacity: 0.9;
+  opacity: 0.96;
 }
 
-.practice-spray-field__stripe {
+.practice-spray-field__field-band {
   fill: color-mix(in srgb, var(--success) 16%, transparent);
-  opacity: 0.5;
+  opacity: 0.32;
+}
+
+.practice-spray-field__field-band--alt {
+  fill: color-mix(in srgb, var(--panel) 12%, transparent);
+  opacity: 0.2;
 }
 
 .practice-spray-field__dirt {
-  opacity: 0.78;
+  opacity: 0.86;
 }
 
 .practice-spray-field__infield-grass {
   fill: color-mix(in srgb, var(--success) 28%, rgba(5, 22, 17, 0.7));
-  opacity: 0.72;
+  opacity: 0.82;
 }
 
+.practice-spray-field__field-outline,
+.practice-spray-field__warning-line,
 .practice-spray-field__arc-line,
 .practice-spray-field__diamond-line {
   fill: none;
   stroke: color-mix(in srgb, var(--text) 28%, transparent);
-  stroke-width: 0.45;
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
+}
+
+.practice-spray-field__field-outline {
+  stroke: color-mix(in srgb, var(--text) 34%, var(--success) 20%);
+}
+
+.practice-spray-field__warning-line {
+  stroke: color-mix(in srgb, var(--warning) 34%, transparent);
+  stroke-width: 3;
+  opacity: 0.55;
 }
 
 .practice-spray-field__arc-line--infield {
@@ -25300,8 +25318,22 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .practice-spray-field__foul-line {
-  stroke: color-mix(in srgb, var(--text) 58%, transparent);
-  stroke-width: 0.55;
+  stroke: color-mix(in srgb, var(--text) 62%, transparent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.practice-spray-field__mound {
+  fill: color-mix(in srgb, var(--spray-field-dirt-bottom) 72%, var(--panel) 10%);
+  stroke: color-mix(in srgb, var(--text) 18%, transparent);
+  stroke-width: 2;
+  opacity: 0.72;
+}
+
+.practice-spray-field__mound-rubber {
+  stroke: color-mix(in srgb, var(--text) 70%, transparent);
+  stroke-width: 4;
   stroke-linecap: round;
 }
 
@@ -25309,14 +25341,16 @@ button.weight-room-athlete-table__row:hover {
 .practice-spray-field__plate {
   fill: color-mix(in srgb, var(--text) 86%, var(--panel) 14%);
   stroke: color-mix(in srgb, var(--panel) 58%, transparent);
-  stroke-width: 0.25;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
 }
 
 .practice-spray-field__sector {
   fill: var(--spray-heat-warm);
   opacity: var(--spray-sector-opacity, 0);
-  stroke: color-mix(in srgb, var(--warning) 42%, transparent);
-  stroke-width: 0.25;
+  stroke: color-mix(in srgb, var(--warning) 28%, transparent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
 }
 
 .practice-spray-field__sector:nth-child(1),
@@ -25329,45 +25363,49 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .practice-spray-field__sector-line {
-  stroke: color-mix(in srgb, var(--warning) 54%, transparent);
-  stroke-width: 0.35;
+  stroke: color-mix(in srgb, var(--text) 34%, transparent);
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
 }
 
 .practice-spray-field__sector-label text {
   fill: var(--text);
-  font-size: 4px;
+  font-size: 36px;
   font-weight: 900;
   paint-order: stroke;
   stroke: color-mix(in srgb, var(--panel) 82%, transparent);
-  stroke-width: 0.5px;
+  stroke-width: 5px;
 }
 
 .practice-spray-field__sector-label tspan + tspan {
   fill: color-mix(in srgb, var(--text) 76%, transparent);
-  font-size: 2.4px;
+  font-size: 20px;
   font-weight: 780;
 }
 
 .practice-spray-field__heat circle {
-  filter: blur(0.7px) saturate(1.08);
+  filter: blur(9px) saturate(1.08);
 }
 
 .practice-spray-field__dot {
   fill: color-mix(in srgb, var(--text) 72%, var(--brand-primary) 18%);
   stroke: color-mix(in srgb, var(--panel) 82%, transparent);
-  stroke-width: 0.45;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
 }
 
 .practice-spray-field__active-point circle:first-child {
   fill: var(--tracker-accent);
   stroke: color-mix(in srgb, var(--panel) 82%, transparent);
-  stroke-width: 0.75;
+  stroke-width: 5;
+  vector-effect: non-scaling-stroke;
 }
 
 .practice-spray-field__active-point circle:last-child {
   fill: none;
   stroke: color-mix(in srgb, var(--tracker-accent) 82%, transparent);
-  stroke-width: 0.7;
+  stroke-width: 4;
+  vector-effect: non-scaling-stroke;
 }
 
 .practice-hitting-sheet__velocity-grid {
@@ -27719,14 +27757,6 @@ button.weight-room-athlete-table__row:hover {
   color: var(--text);
   font-size: 12px;
   font-weight: 950;
-}
-
-.practice-spray-field__sector-metric--infield {
-  opacity: 0.92;
-}
-
-.practice-spray-field__sector-metric--outfield {
-  background: color-mix(in srgb, var(--panel) 76%, var(--success) 10%);
 }
 
 .practice-pitching-recent-row:last-child {

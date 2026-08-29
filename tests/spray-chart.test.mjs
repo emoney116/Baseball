@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  getDistributionLabelPoint,
+  getDistributionSector,
   getSprayDistribution,
   getSprayLane,
+  projectSprayPoint,
+  SPRAY_FIELD_GEOMETRY,
+  SPRAY_FIELD_PATHS,
+  SPRAY_FIELD_VIEWBOX,
   sprayPointForLane,
 } from "../app/lib/sprayChart.ts";
 
@@ -50,4 +56,28 @@ test("spray distribution omits points outside fair territory", () => {
 
   assert.equal(distribution.total, 1);
   assert.deepEqual(distribution.lanes.map((lane) => lane.count), [0, 0, 1, 0, 0]);
+});
+
+test("spray chart uses one fixed SVG field coordinate system", () => {
+  assert.deepEqual(SPRAY_FIELD_VIEWBOX, { width: 1000, height: 700 });
+  assert.match(SPRAY_FIELD_PATHS.fairTerritory, /^M 500 660 L 55 245 C /);
+  assert.match(SPRAY_FIELD_PATHS.fairTerritory, /945 245 Z$/);
+
+  const projectedHome = projectSprayPoint({
+    x: SPRAY_FIELD_GEOMETRY.home.x / SPRAY_FIELD_VIEWBOX.width,
+    y: SPRAY_FIELD_GEOMETRY.home.y / SPRAY_FIELD_VIEWBOX.height,
+  });
+  assert.deepEqual(projectedHome, SPRAY_FIELD_GEOMETRY.home);
+});
+
+test("distribution sectors and labels radiate from home plate", () => {
+  const sector = getDistributionSector(2);
+  const label = getDistributionLabelPoint(2);
+
+  assert.match(sector.path, /^M 500\.00 660\.00 L /);
+  assert.equal(sector.labelPoint.x, label.x);
+  assert.equal(sector.labelPoint.y, label.y);
+  assert.ok(label.y < SPRAY_FIELD_GEOMETRY.secondBase.y);
+  assert.ok(label.x > SPRAY_FIELD_GEOMETRY.thirdBase.x);
+  assert.ok(label.x < SPRAY_FIELD_GEOMETRY.firstBase.x);
 });
