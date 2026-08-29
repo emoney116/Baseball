@@ -24761,8 +24761,93 @@ button.weight-room-athlete-table__row:hover {
   gap: 10px;
 }
 
-.practice-hitting-live-spray {
+.practice-hitting-live-charts {
+  width: min(520px, 100%);
+  justify-self: center;
+  border: 1px solid color-mix(in srgb, var(--line) 74%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--panel-soft) 82%, transparent);
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.practice-hitting-live-charts__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.practice-hitting-live-charts__head > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.practice-hitting-live-charts__head span {
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.practice-hitting-live-charts__head small {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.practice-hitting-live-charts__pills {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.practice-hitting-live-charts__pills span {
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
+  color: var(--text);
+  padding: 5px 8px;
+  font-size: 10px;
+  text-transform: none;
+}
+
+.practice-hitting-live-charts__scroller {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 100%;
+  gap: 10px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.practice-hitting-live-charts__scroller::-webkit-scrollbar {
   display: none;
+}
+
+.practice-hitting-live-charts__panel {
+  scroll-snap-align: start;
+  display: grid;
+  place-items: center;
+}
+
+.practice-hitting-live-charts .practice-spray-field,
+.practice-hitting-live-charts .practice-pitch-location-grid {
+  width: 100%;
+  max-width: 430px;
+}
+
+.practice-hitting-live-charts .practice-pitch-location-grid {
+  min-height: 290px;
 }
 
 .practice-hitting-recent > div:first-child,
@@ -24898,7 +24983,7 @@ button.weight-room-athlete-table__row:hover {
 
 .practice-hitting-sheet__context-controls {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) repeat(3, auto);
+  grid-template-columns: minmax(150px, 1fr) repeat(4, auto);
   align-items: center;
   gap: 8px;
 }
@@ -24986,6 +25071,39 @@ button.weight-room-athlete-table__row:hover {
 
 .practice-hitting-sheet__ev {
   width: min(210px, 100%);
+}
+
+.practice-hitting-sheet__pitch-location {
+  display: grid;
+  gap: 8px;
+}
+
+.practice-hitting-sheet__pitch-location > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.practice-hitting-sheet__pitch-location > div:first-child small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  text-transform: none;
+}
+
+.practice-hitting-sheet__pitch-location .practice-pitch-location-grid {
+  width: min(300px, 100%);
+  min-height: 230px;
+  padding: 24px 34px 28px;
+}
+
+.practice-hitting-sheet__pitch-location .practice-pitch-location-grid__stage {
+  width: min(198px, 100%);
 }
 
 .practice-hitting-sheet__step--spray {
@@ -25088,13 +25206,13 @@ button.weight-room-athlete-table__row:hover {
 .practice-spray-field {
   position: relative;
   width: min(420px, 100%);
-  aspect-ratio: 1.55 / 1;
+  aspect-ratio: 1.42 / 1;
   border: 1px solid color-mix(in srgb, var(--spray-heat-cool) 28%, var(--line));
   border-radius: 18px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 104%, color-mix(in srgb, var(--warning) 24%, transparent) 0 20%, transparent 21%),
-    radial-gradient(ellipse at 50% 82%, color-mix(in srgb, var(--spray-heat-cool) 22%, transparent), transparent 64%),
+    radial-gradient(circle at 50% 104%, color-mix(in srgb, var(--warning) 24%, transparent) 0 18%, transparent 18.5%),
+    radial-gradient(ellipse at 50% 82%, color-mix(in srgb, var(--spray-heat-cool) 18%, transparent), transparent 64%),
     linear-gradient(180deg, color-mix(in srgb, var(--surface-interactive) 80%, transparent), color-mix(in srgb, var(--panel-soft) 74%, var(--spray-heat-cool) 10%));
   cursor: crosshair;
   isolation: isolate;
@@ -25104,13 +25222,32 @@ button.weight-room-athlete-table__row:hover {
   cursor: default;
 }
 
+.practice-spray-field__mode,
 .practice-spray-field__arc,
+.practice-spray-field__grass,
 .practice-spray-field__infield,
 .practice-spray-field__diamond,
 .practice-spray-field__foul,
-.practice-spray-field__heat-layer {
+.practice-spray-field__heat-layer,
+.practice-spray-field__sector-lines,
+.practice-spray-field__sector-metrics {
   position: absolute;
   pointer-events: none;
+}
+
+.practice-spray-field__mode {
+  top: 9px;
+  right: 9px;
+  z-index: 7;
+  min-width: 38px;
+  min-height: 26px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 950;
 }
 
 .practice-spray-field__heat-layer {
@@ -25130,23 +25267,57 @@ button.weight-room-athlete-table__row:hover {
   filter: blur(5px) saturate(0.96);
 }
 
+.practice-spray-field--dots .practice-spray-field__heat-layer em {
+  opacity: 0;
+}
+
+.practice-spray-field--percent .practice-spray-field__heat-layer em,
+.practice-spray-field--count .practice-spray-field__heat-layer em {
+  opacity: calc(var(--spray-heat-opacity, 0) * 0.38);
+}
+
+.practice-spray-field__grass {
+  left: 10%;
+  right: 10%;
+  bottom: 11%;
+  border-radius: 999px 999px 0 0;
+  background:
+    repeating-radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--success) 18%, transparent) 0 12px, transparent 13px 26px),
+    linear-gradient(180deg, color-mix(in srgb, var(--success) 10%, transparent), transparent);
+}
+
+.practice-spray-field__grass--outfield {
+  z-index: 0;
+  height: 74%;
+  opacity: 0.48;
+}
+
+.practice-spray-field__grass--infield {
+  z-index: 1;
+  left: 32%;
+  right: 32%;
+  bottom: 5%;
+  height: 38%;
+  opacity: 0.34;
+}
+
 .practice-spray-field__arc {
   z-index: 2;
-  left: 14%;
-  right: 14%;
-  bottom: 10%;
-  height: 74%;
-  border: 1px solid rgba(255, 255, 255, 0.13);
+  left: 10%;
+  right: 10%;
+  bottom: 8%;
+  height: 80%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-bottom: 0;
   border-radius: 999px 999px 0 0;
 }
 
 .practice-spray-field__foul {
   z-index: 3;
-  bottom: 7%;
+  bottom: 8%;
   left: 50%;
   width: 1px;
-  height: 90%;
+  height: 94%;
   background: rgba(255, 255, 255, 0.34);
   transform-origin: bottom;
 }
@@ -25161,22 +25332,54 @@ button.weight-room-athlete-table__row:hover {
 
 .practice-spray-field__infield {
   z-index: 2;
-  left: 37%;
-  right: 37%;
-  bottom: 8%;
-  height: 28%;
-  border-radius: 50% 50% 10px 10px;
-  background: rgba(236, 191, 112, 0.26);
+  left: 31%;
+  right: 31%;
+  bottom: 7%;
+  height: 35%;
+  border-radius: 52% 52% 12px 12px;
+  background:
+    radial-gradient(circle at 50% 92%, rgba(236, 191, 112, 0.38) 0 21%, transparent 22%),
+    rgba(236, 191, 112, 0.22);
 }
 
 .practice-spray-field__diamond {
   z-index: 4;
   left: 50%;
-  bottom: 10%;
-  width: 17%;
+  bottom: 9%;
+  width: 18%;
   aspect-ratio: 1;
   border: 2px solid rgba(255, 255, 255, 0.56);
   transform: translateX(-50%) rotate(45deg);
+}
+
+.practice-spray-field__sector-lines {
+  z-index: 4;
+  inset: 0;
+  background:
+    conic-gradient(from 241deg at 50% 88%, transparent 0 11deg, color-mix(in srgb, var(--warning) 74%, transparent) 11deg 11.35deg, transparent 11.35deg 22deg, color-mix(in srgb, var(--warning) 74%, transparent) 22deg 22.35deg, transparent 22.35deg 34deg, color-mix(in srgb, var(--warning) 74%, transparent) 34deg 34.35deg, transparent 34.35deg 45deg, color-mix(in srgb, var(--warning) 74%, transparent) 45deg 45.35deg, transparent 45.35deg 62deg, transparent 62deg 360deg),
+    conic-gradient(from 241deg at 50% 88%, color-mix(in srgb, var(--danger) 36%, transparent) 0 11deg, color-mix(in srgb, var(--warning) 34%, transparent) 11deg 22deg, color-mix(in srgb, var(--success) 28%, transparent) 22deg 34deg, color-mix(in srgb, var(--warning) 34%, transparent) 34deg 45deg, color-mix(in srgb, var(--danger) 36%, transparent) 45deg 62deg, transparent 62deg 360deg);
+  clip-path: polygon(50% 88%, 5% 27%, 8% 64%, 40% 100%, 60% 100%, 92% 64%, 95% 27%);
+  opacity: 0.78;
+}
+
+.practice-spray-field__sector-metrics {
+  z-index: 7;
+  inset: 0;
+}
+
+.practice-spray-field__sector-metrics em {
+  position: absolute;
+  min-width: 34px;
+  min-height: 24px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  transform: translate(-50%, -50%);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 950;
 }
 
 .practice-spray-field i,
@@ -25444,7 +25647,7 @@ button.weight-room-athlete-table__row:hover {
   }
 
   .practice-hitting-sheet__context-controls {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .practice-hitting-station-select.choice-select {
@@ -26972,6 +27175,14 @@ button.weight-room-athlete-table__row:hover {
   font-weight: 950;
 }
 
+.practice-spray-field__sector-metric--infield {
+  opacity: 0.92;
+}
+
+.practice-spray-field__sector-metric--outfield {
+  background: color-mix(in srgb, var(--panel) 76%, var(--success) 10%);
+}
+
 .practice-pitching-recent-row:last-child {
   border-bottom: 0;
 }
@@ -27390,6 +27601,10 @@ button.weight-room-athlete-table__row:hover {
   opacity: calc(var(--pitch-heat-opacity, 0) * 0.34);
 }
 
+.practice-pitch-location-grid--heat .practice-pitch-location-grid__marker-layer i {
+  display: none;
+}
+
 .practice-pitch-location-grid--percent .practice-pitch-location-grid__heat,
 .practice-pitch-location-grid--count .practice-pitch-location-grid__heat {
   opacity: calc(var(--pitch-heat-opacity, 0) * 0.18);
@@ -27446,6 +27661,31 @@ button.weight-room-athlete-table__row:hover {
 .practice-pitch-location-grid__marker-layer i.in-zone {
   background: var(--pitch-color, var(--pitch-type-ot));
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--panel) 82%, transparent), 0 4px 12px color-mix(in srgb, var(--pitch-color, var(--pitch-type-ot)) 24%, transparent);
+}
+
+.practice-pitch-location-grid--hitting {
+  border-color: color-mix(in srgb, var(--line) 72%, var(--tracker-accent) 18%);
+}
+
+.practice-pitch-location-grid--hitting .practice-pitch-location-grid__marker-layer i {
+  width: 7px;
+  height: 7px;
+  opacity: 0.78;
+}
+
+.practice-pitch-location-grid__marker-layer i.hitting-location-hard {
+  background: var(--pitch-heat-hot);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--panel) 82%, transparent), 0 4px 14px color-mix(in srgb, var(--pitch-heat-hot) 34%, transparent);
+}
+
+.practice-pitch-location-grid__marker-layer i.hitting-location-contact {
+  background: var(--pitch-heat-mid);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--panel) 82%, transparent), 0 4px 12px color-mix(in srgb, var(--pitch-heat-mid) 26%, transparent);
+}
+
+.practice-pitch-location-grid__marker-layer i.hitting-location-miss {
+  background: var(--pitch-heat-cold);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--panel) 82%, transparent), 0 4px 12px color-mix(in srgb, var(--pitch-heat-cold) 26%, transparent);
 }
 
 .practice-pitch-location-grid--live .practice-pitch-location-grid__marker-layer i,
@@ -29948,7 +30188,7 @@ textarea:focus,
   .practice-console--hitting .practice-hitting-quick-controls {
     grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 5px;
     order: 2;
   }
@@ -30016,7 +30256,8 @@ textarea:focus,
     gap: 6px;
   }
 
-  .practice-hitting-live-spray {
+  .practice-hitting-live-charts {
+    width: 100%;
     border: 1px solid color-mix(in srgb, var(--line) 76%, transparent);
     border-radius: 14px;
     background: color-mix(in srgb, var(--panel-soft) 82%, transparent);
@@ -30025,7 +30266,7 @@ textarea:focus,
     padding: 8px;
   }
 
-  .practice-hitting-live-spray > div:first-child {
+  .practice-hitting-live-charts__head {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -30036,7 +30277,7 @@ textarea:focus,
     text-transform: uppercase;
   }
 
-  .practice-hitting-live-spray small {
+  .practice-hitting-live-charts__head small {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -30047,10 +30288,20 @@ textarea:focus,
     text-transform: none;
   }
 
-  .practice-hitting-live-spray .practice-spray-field {
+  .practice-hitting-live-charts .practice-spray-field,
+  .practice-hitting-live-charts .practice-pitch-location-grid {
     width: 100%;
     height: clamp(166px, 30dvh, 220px);
+    min-height: 166px;
     border-radius: 13px;
+  }
+
+  .practice-hitting-live-charts .practice-pitch-location-grid {
+    padding: 24px 30px 28px;
+  }
+
+  .practice-hitting-live-charts .practice-pitch-location-grid__stage {
+    width: min(194px, calc(100vw - 96px));
   }
 
   .practice-console--active .practice-hitting-recent > div:first-child {
@@ -30195,7 +30446,7 @@ textarea:focus,
 
   .modal-panel.practice-hitting-sheet .practice-hitting-sheet__context-controls,
   .modal-panel.practice-pitching-sheet .practice-pitching-sheet__context-controls {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 5px;
   }
 
@@ -30535,11 +30786,31 @@ textarea:focus,
     width: min(210px, 100%);
   }
 
+  .practice-hitting-live-charts .practice-spray-field,
+  .practice-hitting-live-charts .practice-pitch-location-grid {
+    height: clamp(164px, 25dvh, 210px);
+  }
+
+  .practice-hitting-live-charts .practice-pitch-location-grid {
+    padding: 23px 25px 27px;
+  }
+
+  .practice-hitting-live-charts .practice-pitch-location-grid__stage {
+    width: min(194px, calc(100vw - 76px));
+  }
+
   .modal-panel.practice-hitting-sheet .practice-spray-field {
     height: clamp(154px, 24dvh, 208px);
   }
 
   .weight-room-shell-header__actions {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 360px) {
+  .practice-console--hitting .practice-hitting-quick-controls,
+  .modal-panel.practice-hitting-sheet .practice-hitting-sheet__context-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

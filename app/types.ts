@@ -537,6 +537,7 @@ export type HittingEvent = {
   contactQuality?: HittingContactQuality;
   direction?: Direction;
   fieldLocation?: ZonePoint;
+  pitchLocation?: ZonePoint;
   pitchType?: PitchType;
   velocity?: number;
   exitVelocityMph?: number;

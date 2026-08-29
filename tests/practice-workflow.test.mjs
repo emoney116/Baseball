@@ -45,6 +45,13 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /practice-hitting-pitch-panel/);
   assert.match(page, /practice-hitting-stats-scope/);
   assert.match(page, /practice-hitting-session-filter/);
+  assert.match(page, /trackHittingPitchLocation/);
+  assert.match(page, /pitchLocation: trackHittingPitchLocation \? pitchLocationPoint : undefined/);
+  assert.match(page, /PracticeHittingChartCarousel/);
+  assert.match(page, /PracticeHittingPitchLocationGrid/);
+  assert.match(page, /nextHittingChartMetricMode/);
+  assert.match(page, /label: "Hard Contact"/);
+  assert.match(page, /label: "Max EV"/);
   assert.match(page, /function updateHittingEvent/);
   assert.match(page, /onUpdateHittingEvent=\{updateHittingEvent\}/);
   assert.match(page, /function clearPendingHittingContext\(\)/);
@@ -91,7 +98,7 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /practice-pitching-session-select practice-session-select/);
   assert.match(page, /practice-pitching-entry-bar/);
   assert.match(page, /function PracticePitchLocationGrid/);
-  assert.match(page, /type PitchLocationMetricMode = "dots" \| "heat" \| "percent" \| "count"/);
+  assert.match(page, /type PitchLocationMetricMode = PracticeChartMetricMode/);
   assert.match(page, /metricMode: nextPitchLocationMetricMode\(currentMetricMode\)/);
   assert.match(page, /function pitchLocationHeatOpacity/);
   assert.match(page, /function pitchLocationHeatColor/);
@@ -130,6 +137,8 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(analytics, /metric\("zonePct", "Zone %"/);
   assert.match(analytics, /isAnalyticsZonePoint/);
   assert.match(page, /function PracticeSprayField/);
+  assert.match(page, /function buildSprayDirectionBuckets/);
+  assert.match(page, /practice-spray-field__sector-metric--infield/);
   assert.match(page, /function deriveHitDirectionFromFieldLocation/);
   assert.match(page, /practicePitchTypeLabel/);
   assert.match(page, /attendance-roster__scroll/);
@@ -254,4 +263,7 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(styles, /\.practice-review-summary-strip/);
   assert.match(styles, /\.practice-review-table/);
   assert.match(styles, /\.practice-spray-field/);
+  assert.match(styles, /\.practice-hitting-live-charts/);
+  assert.match(styles, /\.practice-hitting-live-charts__scroller \{[\s\S]*scroll-snap-type: x mandatory/);
+  assert.match(styles, /\.practice-pitch-location-grid--heat \.practice-pitch-location-grid__marker-layer i \{[\s\S]*display: none/);
 });

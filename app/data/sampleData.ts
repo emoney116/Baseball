@@ -994,6 +994,7 @@ function generateHittingEvents(session: HittingSession, sessionIndex: number): H
     const action = actions[(index + sessionIndex) % actions.length];
     const inPlay = action === "Ball in play";
     const fieldLocation = makeFieldPoint(index, sessionIndex);
+    const pitchLocation = session.type === "Tee" ? undefined : makeZonePoint(index + 2, sessionIndex + 5);
 
     return {
       id: `${session.id}-hit-${index + 1}`,
@@ -1007,6 +1008,7 @@ function generateHittingEvents(session: HittingSession, sessionIndex: number): H
       direction: inPlay ? directions[(index + sessionIndex) % directions.length] : undefined,
       fieldLocation: inPlay ? fieldLocation : undefined,
       pitchType: session.machinePitchType ?? (session.type === "Live BP" ? "4-Seam" : undefined),
+      pitchLocation,
       velocity: session.machineVelocity,
       isLiveBp: session.type === "Live BP",
       createdByProfileId: session.createdByProfileId,
