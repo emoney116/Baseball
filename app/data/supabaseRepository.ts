@@ -1675,8 +1675,18 @@ async function syncPracticeSessionContributors(supabase: SupabaseClient, data: A
 
 async function syncPracticeEvents(supabase: SupabaseClient, data: AppData) {
   await upsertRows(supabase, "pitch_events", data.pitchEvents.map(mapPitchEventToRow));
-  await upsertRows(supabase, "hitting_events", data.hittingEvents.map(mapHittingEventToRow));
+  await upsertHittingEvents(supabase, data.hittingEvents);
   await upsertRows(supabase, "defense_events", data.defenseEvents.map(mapDefenseEventToRow));
+}
+
+async function upsertHittingEvents(supabase: SupabaseClient, events: HittingEvent[]) {
+  const rows = events.map((event) => mapHittingEventToRow(event));
+  try {
+    await upsertRows(supabase, "hitting_events", rows);
+  } catch (error) {
+    if (!isMissingHittingPitchLocationColumn(error)) throw error;
+    await upsertRows(supabase, "hitting_events", rows.map(removeHittingPitchLocationColumn));
+  }
 }
 
 async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: Foundation, data: AppData) {
@@ -3240,6 +3250,31 @@ function mapHittingEventToRow(event: HittingEvent) {
     idempotency_key: event.idempotencyKey ?? event.id,
     session_sequence: event.sessionSequence ?? null,
   };
+}
+
+function removeHittingPitchLocationColumn(row: Record<string, unknown>) {
+  const legacySafeRow = { ...row };
+  delete legacySafeRow.pitch_location;
+  return legacySafeRow;
+}
+
+function isMissingHittingPitchLocationColumn(error: unknown) {
+  const message = error instanceof PersistenceError
+    ? error.message
+    : typeof error === "object" && error
+      ? [
+          "message" in error ? String(error.message) : "",
+          "details" in error ? String(error.details) : "",
+          "hint" in error ? String(error.hint) : "",
+          "code" in error ? String(error.code) : "",
+        ].join(" ")
+      : String(error ?? "");
+  const normalized = message.toLowerCase();
+  return normalized.includes("pitch_location") && (
+    normalized.includes("schema cache")
+    || normalized.includes("could not find")
+    || normalized.includes("column")
+  );
 }
 
 function mapDefenseEventToRow(event: DefenseEvent) {

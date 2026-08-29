@@ -64,7 +64,7 @@ test("phase two phone composition keeps live tracking focused on the next rep", 
   assert.match(page, /PracticeHittingPitchLocationGrid/);
   assert.match(page, /trackHittingPitchLocation/);
   assert.match(page, /hittingTrackingSummary/);
-  assert.match(page, /pitchingTrackingSummary/);
+  assert.match(page, /showAllPitchingPlayers \? "On" : "Off"/);
 
   assert.match(phase2Layer, /\.practice-mode-picker-trigger,[\s\S]*\.practice-tracking-control-trigger\s*\{[\s\S]*display:\s*none/);
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-console--active \.practice-tracker-tabs\s*\{[\s\S]*display:\s*none/);

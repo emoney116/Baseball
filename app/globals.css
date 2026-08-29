@@ -25205,15 +25205,14 @@ button.weight-room-athlete-table__row:hover {
 
 .practice-spray-field {
   position: relative;
-  width: min(420px, 100%);
-  aspect-ratio: 1.42 / 1;
-  border: 1px solid color-mix(in srgb, var(--spray-heat-cool) 28%, var(--line));
-  border-radius: 18px;
+  width: min(460px, 100%);
+  aspect-ratio: 1.16 / 1;
+  border: 1px solid color-mix(in srgb, var(--line) 74%, var(--success) 18%);
+  border-radius: 16px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 104%, color-mix(in srgb, var(--warning) 24%, transparent) 0 18%, transparent 18.5%),
-    radial-gradient(ellipse at 50% 82%, color-mix(in srgb, var(--spray-heat-cool) 18%, transparent), transparent 64%),
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-interactive) 80%, transparent), color-mix(in srgb, var(--panel-soft) 74%, var(--spray-heat-cool) 10%));
+    radial-gradient(ellipse at 50% 90%, color-mix(in srgb, var(--success) 14%, transparent), transparent 56%),
+    linear-gradient(180deg, color-mix(in srgb, var(--panel) 92%, transparent), color-mix(in srgb, var(--panel-soft) 86%, transparent));
   cursor: crosshair;
   isolation: isolate;
 }
@@ -25251,20 +25250,21 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .practice-spray-field__heat-layer {
-  inset: 0;
-  z-index: 1;
+  z-index: 4;
+  inset: 8% 4% 7%;
+  clip-path: polygon(50% 96%, 4% 36%, 9% 67%, 38% 99%, 62% 99%, 91% 67%, 96% 36%);
 }
 
 .practice-spray-field__heat-layer em {
   position: absolute;
-  width: 28%;
+  width: 24%;
   aspect-ratio: 1;
   border-radius: 999px;
   transform: translate(-50%, -50%);
   background:
-    radial-gradient(circle, color-mix(in srgb, var(--spray-heat-hot) 72%, transparent) 0 12%, color-mix(in srgb, var(--spray-heat-warm) 52%, transparent) 36%, color-mix(in srgb, var(--spray-heat-cool) 38%, transparent) 68%, transparent 100%);
+    radial-gradient(circle, color-mix(in srgb, var(--spray-heat-hot) 78%, transparent) 0 18%, color-mix(in srgb, var(--spray-heat-warm) 50%, transparent) 44%, color-mix(in srgb, var(--spray-heat-cool) 34%, transparent) 70%, transparent 100%);
   opacity: var(--spray-heat-opacity, 0);
-  filter: blur(5px) saturate(0.96);
+  filter: blur(8px) saturate(1.02);
 }
 
 .practice-spray-field--dots .practice-spray-field__heat-layer em {
@@ -25273,41 +25273,43 @@ button.weight-room-athlete-table__row:hover {
 
 .practice-spray-field--percent .practice-spray-field__heat-layer em,
 .practice-spray-field--count .practice-spray-field__heat-layer em {
-  opacity: calc(var(--spray-heat-opacity, 0) * 0.38);
+  opacity: calc(var(--spray-heat-opacity, 0) * 0.2);
 }
 
 .practice-spray-field__grass {
-  left: 10%;
-  right: 10%;
-  bottom: 11%;
-  border-radius: 999px 999px 0 0;
+  left: 7%;
+  right: 7%;
+  bottom: 8%;
+  border-radius: 50% 50% 16% 16%;
   background:
-    repeating-radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--success) 18%, transparent) 0 12px, transparent 13px 26px),
-    linear-gradient(180deg, color-mix(in srgb, var(--success) 10%, transparent), transparent);
+    radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--success) 20%, transparent), transparent 64%),
+    linear-gradient(180deg, color-mix(in srgb, var(--success) 18%, transparent), color-mix(in srgb, var(--success) 8%, transparent));
+  clip-path: polygon(50% 98%, 3% 39%, 9% 66%, 38% 99%, 62% 99%, 91% 66%, 97% 39%);
 }
 
 .practice-spray-field__grass--outfield {
   z-index: 0;
-  height: 74%;
-  opacity: 0.48;
+  height: 78%;
+  opacity: 0.78;
 }
 
 .practice-spray-field__grass--infield {
   z-index: 1;
-  left: 32%;
-  right: 32%;
+  left: 34%;
+  right: 34%;
   bottom: 5%;
-  height: 38%;
-  opacity: 0.34;
+  height: 34%;
+  opacity: 0.52;
+  clip-path: ellipse(50% 48% at 50% 88%);
 }
 
 .practice-spray-field__arc {
   z-index: 2;
-  left: 10%;
-  right: 10%;
-  bottom: 8%;
+  left: 8%;
+  right: 8%;
+  bottom: 7%;
   height: 80%;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
   border-bottom: 0;
   border-radius: 999px 999px 0 0;
 }
@@ -25317,8 +25319,8 @@ button.weight-room-athlete-table__row:hover {
   bottom: 8%;
   left: 50%;
   width: 1px;
-  height: 94%;
-  background: rgba(255, 255, 255, 0.34);
+  height: 90%;
+  background: color-mix(in srgb, var(--text) 34%, transparent);
   transform-origin: bottom;
 }
 
@@ -25334,32 +25336,33 @@ button.weight-room-athlete-table__row:hover {
   z-index: 2;
   left: 31%;
   right: 31%;
-  bottom: 7%;
-  height: 35%;
+  bottom: 6%;
+  height: 32%;
   border-radius: 52% 52% 12px 12px;
   background:
-    radial-gradient(circle at 50% 92%, rgba(236, 191, 112, 0.38) 0 21%, transparent 22%),
-    rgba(236, 191, 112, 0.22);
+    radial-gradient(circle at 50% 92%, rgba(219, 173, 98, 0.42) 0 20%, transparent 20.5%),
+    rgba(188, 138, 73, 0.3);
+  clip-path: ellipse(50% 46% at 50% 88%);
 }
 
 .practice-spray-field__diamond {
   z-index: 4;
   left: 50%;
-  bottom: 9%;
-  width: 18%;
+  bottom: 10%;
+  width: 16%;
   aspect-ratio: 1;
-  border: 2px solid rgba(255, 255, 255, 0.56);
+  border: 2px solid color-mix(in srgb, var(--text) 56%, transparent);
   transform: translateX(-50%) rotate(45deg);
 }
 
 .practice-spray-field__sector-lines {
-  z-index: 4;
+  z-index: 5;
   inset: 0;
   background:
-    conic-gradient(from 241deg at 50% 88%, transparent 0 11deg, color-mix(in srgb, var(--warning) 74%, transparent) 11deg 11.35deg, transparent 11.35deg 22deg, color-mix(in srgb, var(--warning) 74%, transparent) 22deg 22.35deg, transparent 22.35deg 34deg, color-mix(in srgb, var(--warning) 74%, transparent) 34deg 34.35deg, transparent 34.35deg 45deg, color-mix(in srgb, var(--warning) 74%, transparent) 45deg 45.35deg, transparent 45.35deg 62deg, transparent 62deg 360deg),
-    conic-gradient(from 241deg at 50% 88%, color-mix(in srgb, var(--danger) 36%, transparent) 0 11deg, color-mix(in srgb, var(--warning) 34%, transparent) 11deg 22deg, color-mix(in srgb, var(--success) 28%, transparent) 22deg 34deg, color-mix(in srgb, var(--warning) 34%, transparent) 34deg 45deg, color-mix(in srgb, var(--danger) 36%, transparent) 45deg 62deg, transparent 62deg 360deg);
-  clip-path: polygon(50% 88%, 5% 27%, 8% 64%, 40% 100%, 60% 100%, 92% 64%, 95% 27%);
-  opacity: 0.78;
+    conic-gradient(from 240deg at 50% 88%, transparent 0 12deg, color-mix(in srgb, var(--warning) 70%, transparent) 12deg 12.25deg, transparent 12.25deg 24deg, color-mix(in srgb, var(--warning) 70%, transparent) 24deg 24.25deg, transparent 24.25deg 36deg, color-mix(in srgb, var(--warning) 70%, transparent) 36deg 36.25deg, transparent 36.25deg 48deg, color-mix(in srgb, var(--warning) 70%, transparent) 48deg 48.25deg, transparent 48.25deg 60deg, transparent 60deg 360deg),
+    conic-gradient(from 240deg at 50% 88%, color-mix(in srgb, var(--danger) 18%, transparent) 0 12deg, color-mix(in srgb, var(--warning) 18%, transparent) 12deg 24deg, color-mix(in srgb, var(--success) 16%, transparent) 24deg 36deg, color-mix(in srgb, var(--warning) 18%, transparent) 36deg 48deg, color-mix(in srgb, var(--danger) 18%, transparent) 48deg 60deg, transparent 60deg 360deg);
+  clip-path: polygon(50% 93%, 4% 35%, 9% 66%, 38% 99%, 62% 99%, 91% 66%, 96% 35%);
+  opacity: 0.7;
 }
 
 .practice-spray-field__sector-metrics {
@@ -27602,6 +27605,10 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .practice-pitch-location-grid--heat .practice-pitch-location-grid__marker-layer i {
+  display: none;
+}
+
+.practice-pitch-location-grid--heat .practice-pitch-location-grid__marker-layer {
   display: none;
 }
 
@@ -29961,11 +29968,15 @@ textarea:focus,
 }
 
 .practice-pitch-location-grid--heat .practice-pitch-location-grid__heat {
-  opacity: min(0.92, calc(var(--pitch-heat-opacity, 0) * 1.35));
-  filter: blur(2.5px) saturate(1.12);
+  opacity: min(0.96, calc(var(--pitch-heat-opacity, 0) * 1.48));
+  filter: blur(2.5px) saturate(1.16);
 }
 
 .practice-pitch-location-grid--heat .practice-pitch-location-grid__marker-layer i {
+  display: none;
+}
+
+.practice-pitch-location-grid--heat .practice-pitch-location-grid__marker-layer {
   display: none;
 }
 

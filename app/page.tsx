@@ -8699,11 +8699,6 @@ function PracticeConsole({
     : pitchingLivePitchFilters.length === 1
       ? PITCH_TYPE_LABELS[pitchingLivePitchFilters[0]]
       : `${pitchingLivePitchFilters.length} pitches`;
-  const pitchingTrackingSummary = [
-    pitchingPitchTrackingMode !== "OFF" ? "Pitch" : undefined,
-    trackPitchVelocity ? "Velo" : undefined,
-    trackPitchLocation ? "Location" : undefined,
-  ].filter(Boolean).join(" · ") || "Basic";
   const pitchingLivePitchFilterOptions = PITCH_TYPES.filter((pitchType) => pitchEvents.some((event) => event.pitchType === pitchType));
   const filteredPitchLocationCount = filteredPitchEvents.filter((event) => isZonePoint(event.location)).length;
   const hasFilteredVelocity = pitchStats.avgVelocity !== undefined || pitchStats.maxVelocity !== undefined;
@@ -9696,12 +9691,10 @@ function PracticeConsole({
                   <button type="button" className={trackPitchLocation ? "active" : ""} onClick={() => setTrackPitchLocation(!trackPitchLocation)} aria-pressed={trackPitchLocation}>
                     Location <strong>{trackPitchLocation ? "On" : "Off"}</strong>
                   </button>
+                  <button type="button" className={showAllPitchingPlayers ? "active" : ""} onClick={() => setShowAllPitchingPlayers(!showAllPitchingPlayers)} aria-pressed={showAllPitchingPlayers}>
+                    All <strong>{showAllPitchingPlayers ? "On" : "Off"}</strong>
+                  </button>
                 </div>
-                <button className="secondary-button practice-tracking-control-trigger" type="button" onClick={() => setPitchingSettingsOpen(true)}>
-                  <Gauge size={17} aria-hidden="true" />
-                  <span>Tracking</span>
-                  <strong>{pitchingTrackingSummary}</strong>
-                </button>
                 <button className="secondary-button practice-hitting-more-trigger" type="button" onClick={() => setPitchingOptionsOpen(true)}>
                   <MoreHorizontal size={18} aria-hidden="true" />
                   More
@@ -9839,6 +9832,9 @@ function PracticeConsole({
                   </button>
                   <button type="button" className={trackPitchLocation ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => setTrackPitchLocation(!trackPitchLocation)} aria-pressed={trackPitchLocation}>
                     Location <strong>{trackPitchLocation ? "On" : "Off"}</strong>
+                  </button>
+                  <button type="button" className={showAllPitchingPlayers ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => setShowAllPitchingPlayers(!showAllPitchingPlayers)} aria-pressed={showAllPitchingPlayers}>
+                    All <strong>{showAllPitchingPlayers ? "On" : "Off"}</strong>
                   </button>
                 </div>
               </div>
@@ -10787,7 +10783,7 @@ function PracticeHittingChartCarousel({
   showSpray: boolean;
   showPitchLocation: boolean;
 }) {
-  const [sprayMode, setSprayMode] = useState<PracticeChartMetricMode>("heat");
+  const [sprayMode, setSprayMode] = useState<PracticeChartMetricMode>("dots");
   const [pitchLocationMode, setPitchLocationMode] = useState<PracticeChartMetricMode>("heat");
   const sprayPoints = events.map((event) => event.fieldLocation).filter(isZonePoint);
   const pitchLocationEvents = events.filter((event) => isZonePoint(event.pitchLocation));
@@ -11103,7 +11099,7 @@ function nextHittingChartMetricMode(mode: PracticeChartMetricMode): PracticeChar
 }
 
 function chartMetricModeLabel(mode: PracticeChartMetricMode) {
-  if (mode === "dots") return "Dots";
+  if (mode === "dots") return "Spray";
   if (mode === "percent") return "%";
   if (mode === "count") return "#";
   return "Heat";
