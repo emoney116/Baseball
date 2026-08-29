@@ -158,7 +158,41 @@ export type DefenseStation =
   | "Situational defense"
   | "Team defense";
 
+export type DefenseDrillContext =
+  | "Infield Ground Balls"
+  | "Backhands"
+  | "Forehands"
+  | "Slow Rollers"
+  | "Double Plays"
+  | "First Base Picks"
+  | "Outfield Fly Balls"
+  | "Outfield Routes"
+  | "Cutoffs & Relays"
+  | "Catcher Blocking"
+  | "Catcher Throwdowns"
+  | "Bunt Defense"
+  | "Pitcher Fielding Practice"
+  | "Team Defense"
+  | "Other";
+export type DefenseRepType = "Ground Ball" | "Fly Ball" | "Line Drive" | "Throw" | "Double Play" | "Block" | "Pick" | "Bunt" | "Other";
+export type DefenseRepSubtype =
+  | "Routine"
+  | "Forehand"
+  | "Backhand"
+  | "Slow Roller"
+  | "Charge"
+  | "Drop Step"
+  | "Over Shoulder"
+  | "Cutoff"
+  | "Relay"
+  | "Block"
+  | "Throwdown"
+  | "Pick"
+  | "Bunt"
+  | "Other";
 export type DefenseOutcome = "Clean" | "Error" | "Missed Rep" | "Good Play" | "Great Play";
+export type DefenseThrowResult = "Accurate" | "Inaccurate" | "No Throw";
+export type DefenseDifficulty = "Routine" | "Difficult" | "Plus";
 export type ThrowQuality = "Poor" | "Average" | "Good" | "Plus";
 export type ExerciseKind = "Lift" | "Test" | "Speed" | "Jump" | "Custom";
 export type GameType =
@@ -550,6 +584,8 @@ export type DefenseSession = {
   practiceId: ID;
   playerId: ID;
   station: DefenseStation;
+  drillContext?: DefenseDrillContext;
+  positionWorked?: Position;
   mode: "Quick Practice" | "Drill";
   startedAt: string;
   endedAt?: string;
@@ -565,6 +601,16 @@ export type DefenseEvent = {
   station: DefenseStation;
   eventNumber: number;
   outcome: DefenseOutcome;
+  positionWorked?: Position;
+  drillContext?: DefenseDrillContext;
+  repType?: DefenseRepType;
+  repSubtype?: DefenseRepSubtype;
+  result?: DefenseOutcome;
+  throwResult?: DefenseThrowResult;
+  difficulty?: DefenseDifficulty;
+  location?: ZonePoint;
+  timingSeconds?: number;
+  deviceSource?: string;
   throwQuality?: ThrowQuality;
   footwork?: "Needs work" | "Solid" | "Plus";
   decision?: "Late" | "Correct" | "Advanced";

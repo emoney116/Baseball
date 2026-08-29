@@ -1,5 +1,10 @@
 import type {
   AppData,
+  DefenseEvent,
+  DefenseOutcome,
+  DefenseRepSubtype,
+  DefenseRepType,
+  DefenseThrowResult,
   Direction,
   HittingEvent,
   HittingSession,
@@ -86,6 +91,34 @@ export interface HittingStats {
   avgExitVelocity?: number;
   maxExitVelocity?: number;
   hardAvgExitVelocity?: number;
+}
+
+export interface DefenseSplitStats {
+  key: string;
+  label: string;
+  reps: number;
+  cleanReps: number;
+  errors: number;
+  greatPlays: number;
+  cleanPct: number;
+  throwAttempts: number;
+  accurateThrows: number;
+  throwAccuracyPct: number;
+}
+
+export interface DefenseStats {
+  totalReps: number;
+  cleanReps: number;
+  errors: number;
+  greatPlays: number;
+  cleanPct: number;
+  throwAttempts: number;
+  accurateThrows: number;
+  throwAccuracyPct: number;
+  byRepType: Record<string, DefenseSplitStats>;
+  bySubtype: Record<string, DefenseSplitStats>;
+  byPosition: Record<string, DefenseSplitStats>;
+  byDrill: Record<string, DefenseSplitStats>;
 }
 
 export interface Leader<T> {
@@ -219,6 +252,71 @@ export function calculateHittingStats(events: HittingEvent[]): HittingStats {
     maxExitVelocity: exitVelocities.length ? Math.max(...exitVelocities) : undefined,
     hardAvgExitVelocity: average(hardExitVelocities),
   };
+}
+
+export function calculateDefenseStats(events: DefenseEvent[]): DefenseStats {
+  const totalReps = events.length;
+  const cleanReps = events.filter(isCleanDefenseEvent).length;
+  const errors = events.filter(isDefenseErrorEvent).length;
+  const greatPlays = events.filter((event) => defenseEventResult(event) === "Great Play").length;
+  const throwResults = events.map(defenseEventThrowResult).filter((result): result is DefenseThrowResult => Boolean(result));
+  const trackedThrows = throwResults.filter((result) => result !== "No Throw");
+  const accurateThrows = trackedThrows.filter((result) => result === "Accurate").length;
+
+  return {
+    totalReps,
+    cleanReps,
+    errors,
+    greatPlays,
+    cleanPct: pct(cleanReps, totalReps),
+    throwAttempts: trackedThrows.length,
+    accurateThrows,
+    throwAccuracyPct: pct(accurateThrows, trackedThrows.length),
+    byRepType: groupDefenseSplits(events, (event) => defenseEventRepType(event)),
+    bySubtype: groupDefenseSplits(events, (event) => defenseEventRepSubtype(event)),
+    byPosition: groupDefenseSplits(events, (event) => defenseEventPosition(event)),
+    byDrill: groupDefenseSplits(events, (event) => defenseEventDrillContext(event)),
+  };
+}
+
+export function defenseEventResult(event: DefenseEvent): DefenseOutcome {
+  return event.result ?? event.outcome;
+}
+
+export function defenseEventRepType(event: DefenseEvent): DefenseRepType {
+  if (event.repType) return event.repType;
+  if (event.outcome === "Good Play" || event.outcome === "Great Play") return "Other";
+  if (event.station === "Outfield") return "Fly Ball";
+  if (event.station === "Catching") return "Block";
+  if (event.station === "PFP") return "Throw";
+  return "Ground Ball";
+}
+
+export function defenseEventRepSubtype(event: DefenseEvent): DefenseRepSubtype | "Not tracked" {
+  return event.repSubtype ?? "Not tracked";
+}
+
+export function defenseEventPosition(event: DefenseEvent, fallback = "—"): string {
+  return event.positionWorked ?? fallback;
+}
+
+export function defenseEventDrillContext(event: DefenseEvent): string {
+  return event.drillContext ?? event.station;
+}
+
+export function defenseEventThrowResult(event: DefenseEvent): DefenseThrowResult | undefined {
+  if (event.throwResult) return event.throwResult;
+  if (!event.throwQuality) return undefined;
+  return event.throwQuality === "Poor" ? "Inaccurate" : "Accurate";
+}
+
+export function isDefenseErrorEvent(event: DefenseEvent): boolean {
+  const result = defenseEventResult(event);
+  return result === "Error" || result === "Missed Rep";
+}
+
+export function isCleanDefenseEvent(event: DefenseEvent): boolean {
+  return !isDefenseErrorEvent(event);
 }
 
 export function playerPitchEvents(data: AppData, playerId: ID): PitchEvent[] {
@@ -365,6 +463,38 @@ function groupPitchTypes(events: PitchEvent[]): Record<string, PitchTypeStats> {
 
     return groups;
   }, {});
+}
+
+function groupDefenseSplits(events: DefenseEvent[], keyForEvent: (event: DefenseEvent) => string): Record<string, DefenseSplitStats> {
+  const groups = new Map<string, DefenseEvent[]>();
+  for (const event of events) {
+    const key = keyForEvent(event);
+    groups.set(key, [...(groups.get(key) ?? []), event]);
+  }
+
+  return Object.fromEntries(
+    [...groups.entries()].map(([key, groupEvents]) => [key, buildDefenseSplit(key, groupEvents)]),
+  );
+}
+
+function buildDefenseSplit(key: string, events: DefenseEvent[]): DefenseSplitStats {
+  const cleanReps = events.filter(isCleanDefenseEvent).length;
+  const errors = events.filter(isDefenseErrorEvent).length;
+  const throwResults = events.map(defenseEventThrowResult).filter((result): result is DefenseThrowResult => Boolean(result));
+  const trackedThrows = throwResults.filter((result) => result !== "No Throw");
+  const accurateThrows = trackedThrows.filter((result) => result === "Accurate").length;
+  return {
+    key,
+    label: key,
+    reps: events.length,
+    cleanReps,
+    errors,
+    greatPlays: events.filter((event) => defenseEventResult(event) === "Great Play").length,
+    cleanPct: pct(cleanReps, events.length),
+    throwAttempts: trackedThrows.length,
+    accurateThrows,
+    throwAccuracyPct: pct(accurateThrows, trackedThrows.length),
+  };
 }
 
 function isPitchLocationZone(location?: ZonePoint, fallbackIsZone = false): boolean {

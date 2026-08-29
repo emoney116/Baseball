@@ -276,6 +276,70 @@ test("pitching query calculates strike and zone rates with game source support",
   assert.equal(mylo.cells.avgPitchVelo.display, "83.0");
 });
 
+test("defense query uses worked position, structured filters, and weighted team rates", () => {
+  const data = {
+    ...baseData,
+    defenseSessions: [
+      defenseSession("def-ss", "practice-aug-17", "p-jacob", "Infield", { drillContext: "Backhands", positionWorked: "SS" }),
+      defenseSession("def-cf", "practice-aug-17", "p-mylo", "Outfield", { drillContext: "Outfield Routes", positionWorked: "CF" }),
+    ],
+    defenseEvents: [
+      ...Array.from({ length: 8 }, (_, index) => defenseEvent(`de-j-${index + 1}`, "practice-aug-17", "def-ss", "p-jacob", {
+        outcome: index === 0 ? "Error" : "Clean",
+        result: index === 0 ? "Error" : "Clean",
+        throwResult: index === 1 ? "No Throw" : "Accurate",
+      })),
+      defenseEvent("de-j-forehand", "practice-aug-17", "def-ss", "p-jacob", { repSubtype: "Forehand" }),
+      defenseEvent("de-mylo-1", "practice-aug-17", "def-cf", "p-mylo", {
+        station: "Outfield",
+        positionWorked: "CF",
+        drillContext: "Outfield Routes",
+        repType: "Fly Ball",
+        repSubtype: "Going Back",
+      }),
+    ],
+  };
+
+  const result = executeAnalyticsQuery(data, {
+    ...query("defense", "practice"),
+    mode: "situational",
+    filters: {
+      defensePositions: ["SS"],
+      defenseDrills: ["Backhands"],
+      defenseRepSubtypes: ["Backhand"],
+    },
+    sort: { metricId: "cleanPct", direction: "desc" },
+  });
+  const jacob = row(result, "p-jacob");
+
+  assert.equal(result.filterDefinitions.some((definition) => definition.id === "defensePositions"), true);
+  assert.deepEqual(result.columns.map((column) => column.metricId), ["positionWorked", "reps", "cleanReps", "errors", "cleanPct", "throwAcc", "throws", "accurateThrows", "greatPlays"]);
+  assert.equal(jacob.cells.positionWorked.display, "SS");
+  assert.equal(jacob.cells.reps.display, "8");
+  assert.equal(jacob.cells.cleanReps.display, "7");
+  assert.equal(jacob.cells.errors.display, "1");
+  assert.equal(jacob.cells.cleanPct.display, "88%");
+  assert.equal(jacob.cells.cleanPct.sample, "7/8");
+  assert.equal(jacob.cells.throwAcc.display, "100%");
+  assert.equal(jacob.cells.throwAcc.sample, "7/7");
+  assert.equal(row(result, "p-mylo").cells.reps.display, "—");
+  assert.equal(result.teamTotals.cells.reps.display, "8");
+  assert.equal(result.teamTotals.cells.cleanPct.display, "88%");
+});
+
+test("game defense source does not reuse practice defensive reps", () => {
+  const data = {
+    ...baseData,
+    defenseSessions: [defenseSession("def-ss", "practice-aug-17", "p-jacob", "Infield")],
+    defenseEvents: [defenseEvent("de-j-1", "practice-aug-17", "def-ss", "p-jacob")],
+  };
+  const result = executeAnalyticsQuery(data, query("defense", "games"));
+
+  assert.equal(row(result, "p-jacob").cells.reps.display, "—");
+  assert.equal(result.teamTotals.cells.reps.display, "—");
+  assert.equal(result.warnings.some((warning) => warning.includes("future tracking gaps")), true);
+});
+
 test("game hitting source only exposes supported ball-in-play metrics", () => {
   const result = executeAnalyticsQuery(baseData, query("hitting", "games"));
   const labels = result.columns.map((column) => column.label);
@@ -398,6 +462,20 @@ function pitchingSession(id, practiceId, pitcherId, type) {
   };
 }
 
+function defenseSession(id, practiceId, playerId, station, overrides = {}) {
+  return {
+    id,
+    practiceId,
+    playerId,
+    station,
+    drillContext: "Backhands",
+    positionWorked: "SS",
+    mode: "Drill",
+    startedAt: now,
+    ...overrides,
+  };
+}
+
 function hittingEvent(id, practiceId, sessionId, hitterId, action, overrides = {}) {
   return {
     id,
@@ -408,6 +486,26 @@ function hittingEvent(id, practiceId, sessionId, hitterId, action, overrides = {
     action,
     direction: "Middle",
     pitchType: "4-Seam",
+    createdAt: now,
+    ...overrides,
+  };
+}
+
+function defenseEvent(id, practiceId, sessionId, playerId, overrides = {}) {
+  return {
+    id,
+    practiceId,
+    sessionId,
+    playerId,
+    station: "Infield",
+    eventNumber: Number(id.replace(/\D/g, "")) || 1,
+    outcome: "Clean",
+    positionWorked: "SS",
+    drillContext: "Backhands",
+    repType: "Ground Ball",
+    repSubtype: "Backhand",
+    result: "Clean",
+    throwResult: "Accurate",
     createdAt: now,
     ...overrides,
   };

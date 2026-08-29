@@ -85,7 +85,7 @@ test("phase two phone composition keeps live tracking focused on the next rep", 
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-domain-select-wrap,[\s\S]*\.analytics-source-select-wrap,[\s\S]*\.analytics-development-select-wrap\s*\{[\s\S]*display:\s*block/);
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-box-score__row\s*\{[\s\S]*min-width:\s*720px/);
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-box-score__cell--player\s*\{[\s\S]*width:\s*148px/);
-  assert.match(phase2Layer, /@media \(max-width: 430px\) \{[\s\S]*\.practice-console--active \.practice-hitting-metric-line,[\s\S]*\.practice-console--active \.practice-pitching-metric-line\s*\{[\s\S]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-console--active \.practice-hitting-metric-line,[\s\S]*\.practice-console--active \.practice-pitching-metric-line\s*\{[\s\S]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
 
   assert.match(page, /"Knuckleball"/);
   assert.match(page, /function defaultPitchLocationMetricMode\(mode: PitchLocationGridMode\): PitchLocationMetricMode \{\s*void mode;\s*return "heat";\s*\}/);

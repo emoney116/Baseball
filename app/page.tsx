@@ -95,12 +95,20 @@ import {
 } from "./lib/rosterImport";
 import {
   activePractice,
+  calculateDefenseStats,
   calculateHittingStats,
   calculatePitchingStats,
+  defenseEventDrillContext,
+  defenseEventPosition,
+  defenseEventRepSubtype,
+  defenseEventRepType,
+  defenseEventResult,
+  defenseEventThrowResult,
   formatDecimal,
   formatNumber,
   formatPct,
   fullDate,
+  isDefenseErrorEvent,
   pct,
   playerHittingEvents,
   playerPitchEvents,
@@ -146,9 +154,15 @@ import type {
   AppProfile,
   BattedBallType,
   CountState,
+  DefenseDifficulty,
+  DefenseDrillContext,
   DefenseEvent,
   DefenseOutcome,
+  DefenseRepSubtype,
+  DefenseRepType,
+  DefenseSession,
   DefenseStation,
+  DefenseThrowResult,
   Direction,
   ExerciseKind,
   Game,
@@ -219,7 +233,7 @@ type PracticeRosterPreset = "All" | "Varsity" | "JV" | "Custom";
 type PracticeHubTab = "Overview" | "Metrics" | "History";
 type PracticeMetricsScope = "Team" | "Players";
 type PracticeMetricsCategory = "Hitting" | "Pitching" | "Defense" | "Live BP";
-type PracticeMetricsSortKey = "player" | "swings" | "contact" | "hard" | "avgEv" | "maxEv" | "pitches" | "strike" | "zone" | "avgVelo" | "maxVelo" | "reps" | "clean" | "errors" | "greatPlays" | "defenseSessions" | "liveBpPitches" | "liveBpSwings" | "liveBpPas";
+type PracticeMetricsSortKey = "player" | "swings" | "contact" | "hard" | "avgEv" | "maxEv" | "pitches" | "strike" | "zone" | "avgVelo" | "maxVelo" | "positionWorked" | "reps" | "cleanReps" | "clean" | "errors" | "greatPlays" | "throws" | "accurateThrows" | "throwAcc" | "defenseSessions" | "liveBpPitches" | "liveBpSwings" | "liveBpPas";
 type PracticeReviewTab = "Summary" | PracticeMetricsCategory;
 type PracticeDrilldown = { kind: "hub" } | { kind: "attendance" } | { kind: "review"; practiceId: ID };
 type LiveBpOutcomeLabel = "K" | "BB" | "HBP" | "1B" | "2B" | "3B" | "HR" | "Out" | "Error" | "FC";
@@ -404,14 +418,31 @@ type PracticeMetricRow = {
   zone: number;
   avgVelo?: number;
   maxVelo?: number;
+  positionWorked: string;
   reps: number;
+  cleanReps: number;
   clean: number;
   errors: number;
   greatPlays: number;
+  throws: number;
+  accurateThrows: number;
+  throwAcc?: number;
   defenseSessions: number;
   liveBpPitches: number;
   liveBpSwings: number;
   liveBpPas: number;
+};
+
+type DefenseLogDraft = {
+  positionWorked: Position;
+  drillContext: DefenseDrillContext;
+  repType: DefenseRepType;
+  repSubtype?: DefenseRepSubtype;
+  result: DefenseOutcome;
+  throwResult?: DefenseThrowResult;
+  difficulty?: DefenseDifficulty;
+  location?: ZonePoint;
+  coachNote?: string;
 };
 
 interface ScheduleItem {
@@ -776,6 +807,39 @@ const LEGACY_PITCH_LOCATION_ID_MAP: Partial<Record<PitchLocationZoneId, PitchLoc
   outside_down_glove: "pitch_r5c4",
 };
 const DEFENSE_STATIONS: DefenseStation[] = ["Infield", "Outfield", "Catching", "PFP", "Situational defense", "Team defense"];
+type DefenseDrillOption = {
+  value: DefenseDrillContext;
+  label: string;
+  station: DefenseStation;
+  positions: Position[];
+  defaultPosition: Position;
+  defaultRepType: DefenseRepType;
+  defaultRepSubtype?: DefenseRepSubtype;
+  repTypeLocked?: boolean;
+  subtypeLocked?: boolean;
+  throwRelevant: boolean;
+};
+const DEFENSE_REP_TYPES: DefenseRepType[] = ["Ground Ball", "Fly Ball", "Line Drive", "Double Play", "Throw", "Block", "Pick", "Bunt", "Other"];
+const DEFENSE_RESULTS: DefenseOutcome[] = ["Clean", "Error", "Good Play", "Great Play", "Missed Rep"];
+const DEFENSE_THROW_RESULTS: DefenseThrowResult[] = ["Accurate", "Inaccurate", "No Throw"];
+const DEFENSE_DIFFICULTIES: DefenseDifficulty[] = ["Routine", "Difficult", "Plus"];
+const DEFENSE_DRILLS: DefenseDrillOption[] = [
+  { value: "Infield Ground Balls", label: "Infield Ground Balls", station: "Infield", positions: ["1B", "2B", "3B", "SS", "INF"], defaultPosition: "SS", defaultRepType: "Ground Ball", defaultRepSubtype: "Routine", throwRelevant: true },
+  { value: "Backhands", label: "Backhands", station: "Infield", positions: ["1B", "2B", "3B", "SS", "INF"], defaultPosition: "SS", defaultRepType: "Ground Ball", defaultRepSubtype: "Backhand", repTypeLocked: true, subtypeLocked: true, throwRelevant: true },
+  { value: "Forehands", label: "Forehands", station: "Infield", positions: ["1B", "2B", "3B", "SS", "INF"], defaultPosition: "SS", defaultRepType: "Ground Ball", defaultRepSubtype: "Forehand", repTypeLocked: true, subtypeLocked: true, throwRelevant: true },
+  { value: "Slow Rollers", label: "Slow Rollers", station: "Infield", positions: ["1B", "2B", "3B", "SS", "INF"], defaultPosition: "3B", defaultRepType: "Ground Ball", defaultRepSubtype: "Slow Roller", repTypeLocked: true, subtypeLocked: true, throwRelevant: true },
+  { value: "Double Plays", label: "Double Plays", station: "Infield", positions: ["1B", "2B", "3B", "SS", "INF"], defaultPosition: "SS", defaultRepType: "Double Play", defaultRepSubtype: "Routine", repTypeLocked: true, throwRelevant: true },
+  { value: "First Base Picks", label: "First Base Picks", station: "Infield", positions: ["1B"], defaultPosition: "1B", defaultRepType: "Pick", defaultRepSubtype: "Pick", repTypeLocked: true, subtypeLocked: true, throwRelevant: false },
+  { value: "Outfield Fly Balls", label: "Outfield Fly Balls", station: "Outfield", positions: ["LF", "CF", "RF", "OF"], defaultPosition: "CF", defaultRepType: "Fly Ball", defaultRepSubtype: "Routine", throwRelevant: true },
+  { value: "Outfield Routes", label: "Outfield Routes", station: "Outfield", positions: ["LF", "CF", "RF", "OF"], defaultPosition: "CF", defaultRepType: "Fly Ball", defaultRepSubtype: "Drop Step", throwRelevant: true },
+  { value: "Cutoffs & Relays", label: "Cutoffs & Relays", station: "Outfield", positions: ["LF", "CF", "RF", "OF", "SS", "2B", "3B", "1B"], defaultPosition: "CF", defaultRepType: "Throw", defaultRepSubtype: "Cutoff", throwRelevant: true },
+  { value: "Catcher Blocking", label: "Catcher Blocking", station: "Catching", positions: ["C"], defaultPosition: "C", defaultRepType: "Block", defaultRepSubtype: "Block", repTypeLocked: true, subtypeLocked: true, throwRelevant: false },
+  { value: "Catcher Throwdowns", label: "Catcher Throwdowns", station: "Catching", positions: ["C"], defaultPosition: "C", defaultRepType: "Throw", defaultRepSubtype: "Throwdown", repTypeLocked: true, subtypeLocked: true, throwRelevant: true },
+  { value: "Bunt Defense", label: "Bunt Defense", station: "Situational defense", positions: ["P", "C", "1B", "2B", "3B", "SS", "INF"], defaultPosition: "3B", defaultRepType: "Bunt", defaultRepSubtype: "Bunt", throwRelevant: true },
+  { value: "Pitcher Fielding Practice", label: "Pitcher Fielding Practice", station: "PFP", positions: ["P", "RHP", "LHP"], defaultPosition: "P", defaultRepType: "Ground Ball", defaultRepSubtype: "Routine", throwRelevant: true },
+  { value: "Team Defense", label: "Team Defense", station: "Team defense", positions: ["P", "C", "1B", "2B", "3B", "SS", "INF", "LF", "CF", "RF", "OF"], defaultPosition: "SS", defaultRepType: "Ground Ball", defaultRepSubtype: "Routine", throwRelevant: true },
+  { value: "Other", label: "Other", station: "Team defense", positions: ["P", "C", "1B", "2B", "3B", "SS", "INF", "LF", "CF", "RF", "OF", "UTL", "UTIL"], defaultPosition: "SS", defaultRepType: "Other", defaultRepSubtype: "Other", throwRelevant: false },
+];
 const GAME_TYPES: GameType[] = ["Fall Game", "Scrimmage", "Showcase", "Regular Season", "Tournament", "Other"];
 const SCHEDULE_EVENT_TYPES: ScheduleEventType[] = ["Game", "Practice", "Lift", "Scrimmage", "Tournament", "Other"];
 const SCHEDULE_EVENT_ACCENTS: Record<ScheduleEventType, string> = {
@@ -2483,11 +2547,14 @@ export default function MetrolinaBaseballApp() {
     setLiveBpHitterId(next.id);
   }
 
-  function logDefense(outcome: DefenseOutcome, errorType?: DefenseEvent["errorType"]) {
+  function logDefense(draft: DefenseLogDraft) {
     if (!practice || !practicePlayer) return;
     commit((current) => {
       const profileId = current.teamContext?.profile?.id;
-      const next = ensureDefenseSession(current, practice, practicePlayer.id, defenseStation, profileId);
+      const next = ensureDefenseSession(current, practice, practicePlayer.id, defenseStationForDrill(draft.drillContext), profileId, {
+        drillContext: draft.drillContext,
+        positionWorked: draft.positionWorked,
+      });
       const session = next.session;
       const eventNumber = next.data.defenseEvents.filter((event) => event.sessionId === session.id).length + 1;
       const eventId = createId("de");
@@ -2497,14 +2564,24 @@ export default function MetrolinaBaseballApp() {
         practiceId: practice.id,
         sessionId: session.id,
         playerId: practicePlayer.id,
-        station: defenseStation,
+        station: session.station,
         eventNumber,
-        outcome,
-        throwQuality: outcome === "Great Play" ? "Plus" : outcome === "Error" ? "Average" : "Good",
-        footwork: outcome === "Error" ? "Needs work" : outcome === "Great Play" ? "Plus" : "Solid",
-        decision: outcome === "Great Play" ? "Advanced" : "Correct",
-        range: outcome === "Great Play" ? "Plus" : outcome === "Good Play" ? "Difficult" : "Routine",
-        errorType: outcome === "Error" ? errorType ?? "Fielding" : undefined,
+        outcome: draft.result,
+        positionWorked: draft.positionWorked,
+        drillContext: draft.drillContext,
+        repType: draft.repType,
+        repSubtype: draft.repSubtype,
+        result: draft.result,
+        throwResult: draft.throwResult,
+        difficulty: draft.difficulty,
+        location: draft.location,
+        deviceSource: "manual",
+        throwQuality: throwQualityForDefenseDraft(draft),
+        footwork: draft.result === "Error" ? "Needs work" : draft.result === "Great Play" ? "Plus" : "Solid",
+        decision: draft.result === "Great Play" ? "Advanced" : "Correct",
+        range: defenseRangeForDraft(draft),
+        errorType: draft.result === "Error" ? defenseErrorTypeForDraft(draft) : undefined,
+        coachNote: draft.coachNote,
         createdAt,
         createdByProfileId: profileId,
         entrySource: "COACH",
@@ -2513,6 +2590,41 @@ export default function MetrolinaBaseballApp() {
         sessionSequence: nextSessionSequence(next.data.defenseEvents, session.id),
       };
       return touchRecentPlayers({ ...next.data, defenseEvents: [event, ...next.data.defenseEvents] }, practicePlayer.id);
+    });
+  }
+
+  function updateDefenseEvent(eventId: ID, draft: DefenseLogDraft) {
+    if (!practice || !practicePlayer) return;
+    commit((current) => {
+      const profileId = current.teamContext?.profile?.id;
+      const next = ensureDefenseSession(current, practice, practicePlayer.id, defenseStationForDrill(draft.drillContext), profileId, {
+        drillContext: draft.drillContext,
+        positionWorked: draft.positionWorked,
+      });
+      return touchRecentPlayers({
+        ...next.data,
+        defenseEvents: next.data.defenseEvents.map((event) => event.id === eventId ? {
+          ...event,
+          sessionId: next.session.id,
+          station: next.session.station,
+          positionWorked: draft.positionWorked,
+          drillContext: draft.drillContext,
+          repType: draft.repType,
+          repSubtype: draft.repSubtype,
+          result: draft.result,
+          outcome: draft.result,
+          throwResult: draft.throwResult,
+          difficulty: draft.difficulty,
+          location: draft.location,
+          deviceSource: "manual",
+          throwQuality: throwQualityForDefenseDraft(draft),
+          footwork: draft.result === "Error" ? "Needs work" : draft.result === "Great Play" ? "Plus" : "Solid",
+          decision: draft.result === "Great Play" ? "Advanced" : "Correct",
+          range: defenseRangeForDraft(draft),
+          errorType: draft.result === "Error" ? defenseErrorTypeForDraft(draft) : undefined,
+          coachNote: draft.coachNote,
+        } : event),
+      }, practicePlayer.id);
     });
   }
 
@@ -3339,6 +3451,7 @@ export default function MetrolinaBaseballApp() {
             onCompleteLiveBpPa={completeLiveBpPa}
             onNextLiveBpHitter={advanceLiveBpHitter}
             onLogDefense={logDefense}
+            onUpdateDefenseEvent={updateDefenseEvent}
             onUndo={undoPracticeEvent}
             onOpenSessionNotes={openSessionSummary}
             onSessionHeartbeat={touchActivePracticeSession}
@@ -8241,10 +8354,12 @@ function PracticeReview({
             )}
             {selectedPlayerRows.Defense && (
               <PracticePlayerReviewCard title="Defense" metrics={[
+                ["Pos", selectedPlayerRows.Defense.positionWorked],
                 ["Reps", selectedPlayerRows.Defense.reps],
-                ["Clean", formatPct(selectedPlayerRows.Defense.clean, 0)],
+                ["Clean Reps", selectedPlayerRows.Defense.cleanReps],
+                ["Clean %", formatPct(selectedPlayerRows.Defense.clean, 0)],
                 ["Errors", selectedPlayerRows.Defense.errors],
-                ["Plus", selectedPlayerRows.Defense.greatPlays],
+                ["Throw Acc.", selectedPlayerRows.Defense.throws ? formatPct(selectedPlayerRows.Defense.throwAcc, 0) : "--"],
               ]} />
             )}
           </div>
@@ -8369,6 +8484,7 @@ function PracticeConsole({
   onCompleteLiveBpPa,
   onNextLiveBpHitter,
   onLogDefense,
+  onUpdateDefenseEvent,
   onUndo,
   onOpenSessionNotes,
   onSessionHeartbeat,
@@ -8446,7 +8562,8 @@ function PracticeConsole({
   onLogLiveBpPitch: (outcome: PitchOutcome, battedBall?: BattedBallType) => void;
   onCompleteLiveBpPa: (outcome: LiveBpOutcomeLabel) => void;
   onNextLiveBpHitter: () => void;
-  onLogDefense: (outcome: DefenseOutcome, errorType?: DefenseEvent["errorType"]) => void;
+  onLogDefense: (draft: DefenseLogDraft) => void;
+  onUpdateDefenseEvent: (eventId: ID, draft: DefenseLogDraft) => void;
   onUndo: () => void;
   onOpenSessionNotes: () => void;
   onSessionHeartbeat: (mode: PracticeMode, sessionId: ID) => void;
@@ -8494,6 +8611,29 @@ function PracticeConsole({
   const [showAllPitchingPlayers, setShowAllPitchingPlayers] = useState(false);
   const [pitchingSavedNotice, setPitchingSavedNotice] = useState("");
   const [pitchingVelocityError, setPitchingVelocityError] = useState("");
+  const initialDefenseDrill = defaultDefenseDrillForStation(defenseStation);
+  const initialDefensePosition = defaultDefensePositionForPlayer(player, initialDefenseDrill);
+  const [selectedDefenseDrill, setSelectedDefenseDrill] = useState<DefenseDrillContext>(initialDefenseDrill);
+  const [selectedDefensePosition, setSelectedDefensePosition] = useState<Position>(initialDefensePosition);
+  const defenseDrill = defenseStationForDrill(selectedDefenseDrill) === defenseStation ? selectedDefenseDrill : initialDefenseDrill;
+  const defensePosition = defensePositionOptions(defenseDrill).includes(selectedDefensePosition)
+    ? selectedDefensePosition
+    : defaultDefensePositionForPlayer(player, defenseDrill);
+  const setDefenseDrill = setSelectedDefenseDrill;
+  const setDefensePosition = setSelectedDefensePosition;
+  const [trackDefenseLocation, setTrackDefenseLocation] = useState(false);
+  const [trackDefenseDifficulty, setTrackDefenseDifficulty] = useState(false);
+  const [defenseSheetOpen, setDefenseSheetOpen] = useState(false);
+  const [defenseDraft, setDefenseDraft] = useState<DefenseLogDraft>(() => createDefenseLogDraft(player, initialDefenseDrill, initialDefensePosition));
+  const [editingDefenseEventId, setEditingDefenseEventId] = useState<ID | undefined>();
+  const [defensePlayersOpen, setDefensePlayersOpen] = useState(false);
+  const [defenseSessionOpen, setDefenseSessionOpen] = useState(false);
+  const [defenseStatsOpen, setDefenseStatsOpen] = useState(false);
+  const [defenseOptionsOpen, setDefenseOptionsOpen] = useState(false);
+  const [defenseSettingsOpen, setDefenseSettingsOpen] = useState(false);
+  const [defenseStatsScopeSessionId, setDefenseStatsScopeSessionId] = useState<ID | "all">("all");
+  const [defenseStatsDrillFilter, setDefenseStatsDrillFilter] = useState<DefenseDrillContext | "all">("all");
+  const [defenseSavedNotice, setDefenseSavedNotice] = useState("");
   const [liveBpPitchSheetOpen, setLiveBpPitchSheetOpen] = useState(false);
   const [liveBpPitchSheetStep, setLiveBpPitchSheetStep] = useState<LiveBpPitchSheetStep>("result");
   const [liveBpBattedBall, setLiveBpBattedBall] = useState<BattedBallType | undefined>();
@@ -8527,7 +8667,14 @@ function PracticeConsole({
     ? data.pitchingSessions.find((session) => session.practiceId === practice.id && session.pitcherId === player.id && session.type === pitchingStation && isPracticeSessionReusable(session))
     : undefined;
   const defenseSession = practice
-    ? data.defenseSessions.find((session) => session.practiceId === practice.id && session.playerId === player.id && session.station === defenseStation && isPracticeSessionReusable(session))
+    ? data.defenseSessions.find((session) => (
+      session.practiceId === practice.id
+      && session.playerId === player.id
+      && session.station === defenseStationForDrill(defenseDrill)
+      && (session.drillContext ?? defaultDefenseDrillForStation(session.station)) === defenseDrill
+      && (session.positionWorked ? session.positionWorked === defensePosition : true)
+      && isPracticeSessionReusable(session)
+    ))
     : undefined;
   const pitchEvents = data.pitchEvents.filter((event) => pitchingSession ? event.sessionId === pitchingSession.id : event.pitcherId === player.id && (!practice || event.practiceId === practice.id));
   const hittingEvents = data.hittingEvents.filter((event) => hittingSession ? event.sessionId === hittingSession.id : event.hitterId === player.id && (!practice || event.practiceId === practice.id));
@@ -8560,8 +8707,9 @@ function PracticeConsole({
     : pitchEvents;
   const pitchStats = calculatePitchingStats(filteredPitchEvents);
   const hitStats = calculateHittingStats(hittingEvents);
-  const cleanDefenseReps = defenseEvents.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
-  const defenseCleanPct = pct(cleanDefenseReps, defenseEvents.length);
+  const defenseStats = calculateDefenseStats(defenseEvents);
+  const cleanDefenseReps = defenseStats.cleanReps;
+  const defenseCleanPct = defenseStats.cleanPct;
   const activeSessions = practiceId && !practiceEndedAt ? buildActivePracticeSessions(data, practiceId, activityClock) : [];
   const activeModeSessions = activeSessions.filter((session) => session.mode === mode);
   const currentSession = mode === "Hitting"
@@ -8713,6 +8861,41 @@ function PracticeConsole({
   const pitchingAnalyticsPitchTypes = PITCH_TYPES.filter((pitchType) => scopedPitchingEvents.some((event) => event.pitchType === pitchType));
   const pitchingLocationSummary = buildPitchLocationSummary(pitchingLocationFilteredEvents, player);
   const pitchingSaveDisabled = trackPitchLocation && !pitchingDraft.location;
+  const defenseDrillChoices = DEFENSE_DRILLS.map((drill) => ({ value: drill.value, label: drill.label }));
+  const defensePositionChoices = defensePositionOptions(defenseDrill).map((position) => ({ value: position, label: position }));
+  const defenseDrillConfig = defenseDrillOption(defenseDrill);
+  const defenseDraftConfig = defenseDrillOption(defenseDraft.drillContext);
+  const defenseRepSubtypeChoices = defenseSubtypeOptions(defenseDraft.repType, defenseDraft.positionWorked);
+  const defenseTracksThrow = defenseDrillThrowRelevant(defenseDraft.drillContext, defenseDraft.repType);
+  const recentDefenseEvents = defenseEvents.slice(0, 5);
+  const compactDefenseMetrics = [
+    { label: "Reps", value: String(defenseStats.totalReps) },
+    { label: "Clean", value: formatPct(defenseStats.cleanPct, 0) },
+    { label: "Errors", value: String(defenseStats.errors) },
+    ...(defenseStats.throwAttempts > 0 ? [{ label: "Throw Acc.", value: formatPct(defenseStats.throwAccuracyPct, 0) }] : []),
+  ].slice(0, 4);
+  const practiceDefenseSessions = useMemo(() => (
+    practice
+      ? data.defenseSessions.filter((session) => (
+        session.practiceId === practice.id
+        && session.playerId === player.id
+        && isPracticeSessionReusable(session)
+      ))
+      : []
+  ), [data, practice, player.id]);
+  const selectedDefenseStatsScopeAvailable = defenseStatsScopeSessionId !== "all" && practiceDefenseSessions.some((session) => session.id === defenseStatsScopeSessionId);
+  const effectiveDefenseStatsScopeSessionId = selectedDefenseStatsScopeAvailable ? defenseStatsScopeSessionId : "all";
+  const practiceDefenseEvents = practice
+    ? data.defenseEvents.filter((event) => event.practiceId === practice.id && event.playerId === player.id)
+    : defenseEvents;
+  const scopedDefenseEvents = effectiveDefenseStatsScopeSessionId === "all"
+    ? practiceDefenseEvents
+    : practiceDefenseEvents.filter((event) => event.sessionId === effectiveDefenseStatsScopeSessionId);
+  const filteredDefenseStatsEvents = defenseStatsDrillFilter === "all"
+    ? scopedDefenseEvents
+    : scopedDefenseEvents.filter((event) => defenseEventDrillContext(event) === defenseStatsDrillFilter);
+  const scopedDefenseStats = calculateDefenseStats(filteredDefenseStatsEvents);
+  const defenseSessionContext = `${defensePosition} - ${defenseDrillConfig.label}`;
 
   useEffect(() => {
     if (!playerPool.length || playerPool.some((item) => item.id === player.id)) return;
@@ -8766,7 +8949,17 @@ function PracticeConsole({
     onSelectPlayer(row.primaryPlayerId);
     if (row.mode === "Hitting") onHittingStation(normalizeHittingStation(row.station));
     if (row.mode === "Pitching") onPitchingStation((row.station as PitchingSession["type"]) || "Bullpen");
-    if (row.mode === "Defense") onDefenseStation((row.station as DefenseStation) || "Infield");
+    if (row.mode === "Defense") {
+      const session = data.defenseSessions.find((item) => item.id === row.sessionId);
+      const nextStation = session?.station ?? (row.station as DefenseStation) ?? "Infield";
+      const nextDrill = session?.drillContext ?? defaultDefenseDrillForStation(nextStation);
+      const nextPlayer = data.players.find((item) => item.id === row.primaryPlayerId) ?? player;
+      const nextPosition = session?.positionWorked ?? defaultDefensePositionForPlayer(nextPlayer, nextDrill);
+      onDefenseStation(nextStation);
+      setDefenseDrill(nextDrill);
+      setDefensePosition(nextPosition);
+      setDefenseDraft(createDefenseLogDraft(nextPlayer, nextDrill, nextPosition));
+    }
     if (row.mode === "Live BP") {
       onPitchingStation("Live BP");
       onHittingStation("Live BP");
@@ -9012,6 +9205,82 @@ function PracticeConsole({
         ? current.filter((item) => item !== pitchType)
         : [...current, pitchType]
     ));
+  }
+
+  function changeDefenseDrill(nextDrill: DefenseDrillContext) {
+    const option = defenseDrillOption(nextDrill);
+    const nextPosition = option.positions.includes(defensePosition)
+      ? defensePosition
+      : defaultDefensePositionForPlayer(player, nextDrill);
+    setDefenseDrill(nextDrill);
+    setDefensePosition(nextPosition);
+    onDefenseStation(option.station);
+    setDefenseDraft(createDefenseLogDraft(player, nextDrill, nextPosition, {
+      location: trackDefenseLocation ? defenseDraft.location : undefined,
+    }));
+  }
+
+  function changeDefensePosition(nextPosition: Position) {
+    setDefensePosition(nextPosition);
+    setDefenseDraft((current) => ({
+      ...current,
+      positionWorked: nextPosition,
+      drillContext: defenseDrill,
+    }));
+  }
+
+  function resetDefenseDraft(event?: DefenseEvent) {
+    if (event) {
+      const draft = defenseDraftFromEvent(event, player, defenseDrill, defensePosition);
+      setDefenseDrill(draft.drillContext);
+      setDefensePosition(draft.positionWorked);
+      onDefenseStation(defenseStationForDrill(draft.drillContext));
+      setDefenseDraft(draft);
+      setTrackDefenseLocation(Boolean(draft.location));
+      setTrackDefenseDifficulty(Boolean(draft.difficulty));
+      return;
+    }
+    setDefenseDraft(createDefenseLogDraft(player, defenseDrill, defensePosition));
+  }
+
+  function openDefenseSheet(event?: DefenseEvent) {
+    setEditingDefenseEventId(event?.id);
+    setDefenseSavedNotice("");
+    resetDefenseDraft(event);
+    setDefenseSheetOpen(true);
+  }
+
+  function closeDefenseSheet() {
+    setDefenseSheetOpen(false);
+    setEditingDefenseEventId(undefined);
+    resetDefenseDraft();
+  }
+
+  function showDefenseSavedNotice(message = "Rep logged") {
+    setDefenseSavedNotice(message);
+    window.setTimeout(() => setDefenseSavedNotice(""), 1800);
+  }
+
+  function saveDefenseRep() {
+    const draft = normalizeDefenseDraft(defenseDraft, trackDefenseLocation, trackDefenseDifficulty);
+    setDefenseDrill(draft.drillContext);
+    setDefensePosition(draft.positionWorked);
+    onDefenseStation(defenseStationForDrill(draft.drillContext));
+    if (editingDefenseEventId) {
+      onUpdateDefenseEvent(editingDefenseEventId, draft);
+      closeDefenseSheet();
+      showDefenseSavedNotice("Rep updated");
+      return;
+    }
+    onLogDefense(draft);
+    if (currentSession?.id) onSessionHeartbeat(mode, currentSession.id);
+    closeDefenseSheet();
+    showDefenseSavedNotice("Rep logged");
+  }
+
+  function selectDefender(playerId: ID) {
+    onSelectPlayer(playerId);
+    setDefensePlayersOpen(false);
   }
 
   function openLiveBpPitchSheet() {
@@ -10186,6 +10455,448 @@ function PracticeConsole({
             </ModalFrame>
           )}
         </>
+      ) : mode === "Defense" ? (
+        <>
+          <section className="practice-defense-shell">
+            <main className="practice-defense-stage panel">
+              <div className="practice-pitching-player-row practice-defense-player-row">
+                <button className="practice-hitting-nav-button" type="button" disabled={!previousPlayer} onClick={() => previousPlayer && onSelectPlayer(previousPlayer.id)} aria-label="Previous defender">
+                  <ChevronLeft size={20} aria-hidden="true" />
+                </button>
+                <button className="practice-pitching-player-card practice-defense-player-card" type="button" onClick={() => setDefensePlayersOpen(true)}>
+                  <PlayerAvatar player={player} size="lg" />
+                  <span>
+                    <strong>{player.name}</strong>
+                    <small>{defenseSessionContext}</small>
+                  </span>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </button>
+                <button className="practice-hitting-nav-button practice-hitting-nav-button--stats" type="button" onClick={() => setDefenseStatsOpen(true)} aria-label="Open defender stats">
+                  <BarChart3 size={18} aria-hidden="true" />
+                </button>
+                <button className="practice-hitting-nav-button" type="button" disabled={!nextPlayer} onClick={() => nextPlayer && onSelectPlayer(nextPlayer.id)} aria-label="Next defender">
+                  <ChevronRight size={20} aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="practice-defense-context-row">
+                <ChoiceSelect
+                  value={defenseDrill}
+                  options={defenseDrillChoices}
+                  onChange={(value) => changeDefenseDrill(value as DefenseDrillContext)}
+                  className="practice-defense-drill-select practice-session-select"
+                  showSelectedDescription={false}
+                  mobilePresentation="popover"
+                  aria-label="Defense drill"
+                />
+                <ChoiceSelect
+                  value={defensePosition}
+                  options={defensePositionChoices}
+                  onChange={(value) => changeDefensePosition(value as Position)}
+                  className="practice-defense-position-select practice-session-select"
+                  showSelectedDescription={false}
+                  mobilePresentation="popover"
+                  aria-label="Position worked"
+                />
+              </div>
+
+              <div className="practice-hitting-metric-line practice-defense-metric-line" aria-label="Current defender metrics">
+                {compactDefenseMetrics.map((metric) => (
+                  <span key={metric.label}>
+                    <strong>{metric.value}</strong>
+                    <small>{metric.label}</small>
+                  </span>
+                ))}
+              </div>
+
+              <div className="practice-hitting-entry-bar practice-defense-entry-bar">
+                <button className="primary-button practice-hitting-log-trigger" type="button" onClick={() => openDefenseSheet()}>
+                  <Plus size={18} aria-hidden="true" />
+                  Log Rep
+                </button>
+                <div className="practice-hitting-quick-controls practice-defense-quick-controls" aria-label="Defense tracking options">
+                  <button type="button" className={trackDefenseLocation ? "active" : ""} onClick={() => setTrackDefenseLocation(!trackDefenseLocation)} aria-pressed={trackDefenseLocation}>
+                    Loc <strong>{trackDefenseLocation ? "On" : "Off"}</strong>
+                  </button>
+                  <button type="button" className={trackDefenseDifficulty ? "active" : ""} onClick={() => setTrackDefenseDifficulty(!trackDefenseDifficulty)} aria-pressed={trackDefenseDifficulty}>
+                    Diff <strong>{trackDefenseDifficulty ? "On" : "Off"}</strong>
+                  </button>
+                </div>
+                <button className="secondary-button practice-hitting-more-trigger" type="button" onClick={() => setDefenseOptionsOpen(true)}>
+                  <MoreHorizontal size={18} aria-hidden="true" />
+                  More
+                </button>
+              </div>
+              {defenseSavedNotice && <small className="practice-hitting-saved-notice">{defenseSavedNotice}</small>}
+
+              <section className="practice-defense-recent" aria-label="Recent defensive reps">
+                <div>
+                  <span>Recent</span>
+                  <button className="text-button" type="button" onClick={onUndo} disabled={!recentDefenseEvents.length}>
+                    <Undo2 size={14} aria-hidden="true" />
+                    Undo
+                  </button>
+                </div>
+                <div className="practice-defense-recent-list">
+                  {recentDefenseEvents.map((event) => (
+                    <button key={event.id} type="button" className={`practice-defense-recent-row practice-defense-recent-row--${defenseEventTone(event)}`} onClick={() => openDefenseSheet(event)}>
+                      <small>{event.eventNumber}</small>
+                      <strong>{defenseEventRepType(event)}</strong>
+                      <span>{defenseEventRepSubtype(event)}</span>
+                      <em>{defenseEventResult(event)}</em>
+                      <b>{defenseEventThrowResult(event)}</b>
+                    </button>
+                  ))}
+                  {!recentDefenseEvents.length && <CompactEmpty title="Ready for the first rep" />}
+                </div>
+              </section>
+
+              <section className="practice-defense-summary-grid" aria-label="Defense breakdown">
+                <DefenseBreakdownCard title="Rep Types" splits={Object.values(defenseStats.byRepType)} />
+                <DefenseBreakdownCard title="Subtypes" splits={Object.values(defenseStats.bySubtype)} />
+              </section>
+
+              <section className="practice-hitting-rail practice-defense-rail" aria-label="Defender switcher">
+                <div>
+                  <span>Defenders</span>
+                  <button className="text-button" type="button" onClick={() => setDefensePlayersOpen(true)}>
+                    Players
+                    <ChevronRight size={14} aria-hidden="true" />
+                  </button>
+                </div>
+                <ScrollablePanel className="practice-hitting-rail__scroll" bodyClassName="practice-hitting-rail__list" ariaLabel="defender rail" direction="horizontal">
+                  {playerPool.map((item) => (
+                    <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => onSelectPlayer(item.id)}>
+                      <PlayerAvatar player={item} size="sm" compact />
+                      <span>{lastName(item.name)}</span>
+                      <small>#{item.jerseyNumber}</small>
+                    </button>
+                  ))}
+                </ScrollablePanel>
+              </section>
+            </main>
+          </section>
+
+          {defenseSheetOpen && (
+            <ModalFrame title={editingDefenseEventId ? "Edit Rep" : "Log Rep"} onClose={closeDefenseSheet} panelClassName="practice-defense-sheet">
+              <div className="practice-hitting-sheet__context practice-defense-sheet__context">
+                <div className="practice-hitting-sheet__context-main">
+                  <PlayerAvatar player={player} size="sm" compact />
+                  <span className="practice-hitting-sheet__context-copy">
+                    <strong>{player.name}</strong>
+                    <small>{defenseDraft.positionWorked} - {defenseDraft.drillContext}</small>
+                  </span>
+                </div>
+                <div className="practice-hitting-sheet__context-controls practice-defense-sheet__context-controls">
+                  <ChoiceSelect
+                    value={defenseDraft.drillContext}
+                    options={defenseDrillChoices}
+                    onChange={(value) => {
+                      const nextDrill = value as DefenseDrillContext;
+                      const nextPosition = defaultDefensePositionForPlayer(player, nextDrill);
+                      setDefenseDraft(createDefenseLogDraft(player, nextDrill, nextPosition, defenseDraft));
+                    }}
+                    className="practice-defense-drill-select"
+                    showSelectedDescription={false}
+                    mobilePresentation="popover"
+                    aria-label="Rep drill"
+                  />
+                  <ChoiceSelect
+                    value={defenseDraft.positionWorked}
+                    options={defensePositionOptions(defenseDraft.drillContext).map((position) => ({ value: position, label: position }))}
+                    onChange={(value) => setDefenseDraft((current) => ({ ...current, positionWorked: value as Position }))}
+                    className="practice-defense-position-select"
+                    showSelectedDescription={false}
+                    mobilePresentation="popover"
+                    aria-label="Rep position"
+                  />
+                  <button type="button" className={trackDefenseLocation ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => setTrackDefenseLocation(!trackDefenseLocation)} aria-pressed={trackDefenseLocation}>
+                    Loc <strong>{trackDefenseLocation ? "On" : "Off"}</strong>
+                  </button>
+                  <button type="button" className={trackDefenseDifficulty ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => setTrackDefenseDifficulty(!trackDefenseDifficulty)} aria-pressed={trackDefenseDifficulty}>
+                    Diff <strong>{trackDefenseDifficulty ? "On" : "Off"}</strong>
+                  </button>
+                </div>
+              </div>
+
+              <section className="practice-defense-sheet__step">
+                {!defenseDraftConfig.repTypeLocked && (
+                  <div className="practice-defense-option-section">
+                    <span>Rep Type</span>
+                    <div className="practice-defense-choice-grid">
+                      {DEFENSE_REP_TYPES.map((repType) => (
+                        <button key={repType} type="button" className={defenseDraft.repType === repType ? "active" : ""} onClick={() => setDefenseDraft((current) => {
+                          const nextSubtype = defenseSubtypeOptions(repType, current.positionWorked)[0];
+                          return { ...current, repType, repSubtype: nextSubtype, throwResult: defenseDrillThrowRelevant(current.drillContext, repType) ? current.throwResult ?? "Accurate" : undefined };
+                        })}>
+                          {repType}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {!defenseDraftConfig.subtypeLocked && defenseRepSubtypeChoices.length > 0 && (
+                  <div className="practice-defense-option-section">
+                    <span>{defenseDraft.repType} Type</span>
+                    <div className="practice-defense-choice-grid">
+                      {defenseRepSubtypeChoices.map((subtype) => (
+                        <button key={subtype} type="button" className={defenseDraft.repSubtype === subtype ? "active" : ""} onClick={() => setDefenseDraft((current) => ({ ...current, repSubtype: subtype }))}>
+                          {subtype}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="practice-defense-option-section">
+                  <span>Result</span>
+                  <div className="practice-defense-result-grid">
+                    {DEFENSE_RESULTS.map((result) => (
+                      <button key={result} type="button" className={defenseDraft.result === result ? `active ${defenseResultTone(result)}` : defenseResultTone(result)} onClick={() => setDefenseDraft((current) => ({ ...current, result }))}>
+                        {result}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {defenseTracksThrow && (
+                  <div className="practice-defense-option-section">
+                    <span>Throw</span>
+                    <div className="practice-defense-choice-grid practice-defense-choice-grid--three">
+                      {DEFENSE_THROW_RESULTS.map((throwResult) => (
+                        <button key={throwResult} type="button" className={defenseDraft.throwResult === throwResult ? "active" : ""} onClick={() => setDefenseDraft((current) => ({ ...current, throwResult }))}>
+                          {throwResult}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {trackDefenseDifficulty && (
+                  <div className="practice-defense-option-section">
+                    <span>Difficulty</span>
+                    <div className="practice-defense-choice-grid practice-defense-choice-grid--three">
+                      {DEFENSE_DIFFICULTIES.map((difficulty) => (
+                        <button key={difficulty} type="button" className={defenseDraft.difficulty === difficulty ? "active" : ""} onClick={() => setDefenseDraft((current) => ({ ...current, difficulty }))}>
+                          {difficulty}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {trackDefenseLocation && (
+                  <div className="practice-defense-location-entry">
+                    <div>
+                      <span>Location</span>
+                      <small>Optional</small>
+                    </div>
+                    <PracticeSprayField points={[]} activePoint={defenseDraft.location} onSelect={(location) => setDefenseDraft((current) => ({ ...current, location }))} />
+                  </div>
+                )}
+              </section>
+
+              <div className="modal-actions">
+                <button className="secondary-button" type="button" onClick={closeDefenseSheet}>Cancel</button>
+                <button className="primary-button" type="button" onClick={saveDefenseRep}>Save Rep</button>
+              </div>
+            </ModalFrame>
+          )}
+
+          {defenseOptionsOpen && (
+            <ModalFrame title="Defense Options" onClose={() => setDefenseOptionsOpen(false)} panelClassName="practice-hitting-more-sheet">
+              <div className="practice-hitting-more-list">
+                <button type="button" onClick={() => { setDefenseOptionsOpen(false); setDefenseSettingsOpen(true); }}>
+                  <Gauge size={17} aria-hidden="true" />
+                  <span>
+                    <strong>Tracking Settings</strong>
+                    <small>Location and difficulty</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+                <button type="button" onClick={() => { setDefenseOptionsOpen(false); setDefenseSessionOpen(true); }}>
+                  <ClipboardList size={17} aria-hidden="true" />
+                  <span>
+                    <strong>Session Details</strong>
+                    <small>{defenseSessionContext}</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+                <button type="button" onClick={() => { setDefenseOptionsOpen(false); onOpenSessionNotes(); }}>
+                  <Edit3 size={17} aria-hidden="true" />
+                  <span>
+                    <strong>Session Notes</strong>
+                    <small>Coach context and focus</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+                <button type="button" onClick={() => { setDefenseOptionsOpen(false); setDefenseStatsOpen(true); }}>
+                  <BarChart3 size={17} aria-hidden="true" />
+                  <span>
+                    <strong>View Session Analytics</strong>
+                    <small>{defenseStats.totalReps} reps today</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+                <button type="button" disabled={!recentDefenseEvents.length} onClick={() => { setDefenseOptionsOpen(false); onUndo(); showDefenseSavedNotice("Last rep undone"); }}>
+                  <Undo2 size={17} aria-hidden="true" />
+                  <span>
+                    <strong>Undo Last Rep</strong>
+                    <small>Remove the most recent rep</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+              </div>
+            </ModalFrame>
+          )}
+
+          {defenseSettingsOpen && (
+            <ModalFrame title="Tracking Settings" onClose={() => setDefenseSettingsOpen(false)} panelClassName="practice-hitting-more-sheet">
+              <div className="practice-hitting-settings-list">
+                <button type="button" onClick={() => setTrackDefenseLocation(!trackDefenseLocation)} aria-pressed={trackDefenseLocation}>
+                  <span>
+                    <strong>Track Location</strong>
+                    <small>Optional fielded-ball location for deeper review</small>
+                  </span>
+                  <em className={trackDefenseLocation ? "practice-switch active" : "practice-switch"}>{trackDefenseLocation ? "On" : "Off"}</em>
+                </button>
+                <button type="button" onClick={() => setTrackDefenseDifficulty(!trackDefenseDifficulty)} aria-pressed={trackDefenseDifficulty}>
+                  <span>
+                    <strong>Track Difficulty</strong>
+                    <small>Routine, difficult, or plus rep context</small>
+                  </span>
+                  <em className={trackDefenseDifficulty ? "practice-switch active" : "practice-switch"}>{trackDefenseDifficulty ? "On" : "Off"}</em>
+                </button>
+              </div>
+              <div className="modal-actions">
+                <button className="primary-button" type="button" onClick={() => setDefenseSettingsOpen(false)}>Done</button>
+              </div>
+            </ModalFrame>
+          )}
+
+          {defensePlayersOpen && (
+            <ModalFrame title="Defenders" onClose={() => setDefensePlayersOpen(false)} panelClassName="practice-hitting-selector-sheet">
+              <label className="switcher-search">
+                <Search size={14} aria-hidden="true" />
+                <input value={switcherQuery} onChange={(event) => setSwitcherQuery(event.target.value)} placeholder="Search present players..." />
+              </label>
+              <SegmentedControl values={["All", "Infield", "Outfield", "Pitchers"] as PracticeTrackerPlayerFilter[]} active={switcherFilter} onChange={setSwitcherFilter} />
+              <ScrollablePanel className="practice-hitting-player-picker" bodyClassName="practice-hitting-player-picker__list" ariaLabel="present defenders">
+                {playerPool.map((item) => (
+                  <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => selectDefender(item.id)}>
+                    <PlayerAvatar player={item} size="sm" compact />
+                    <span>
+                      <strong>{item.name}</strong>
+                      <small>#{item.jerseyNumber} · {positionLine(item)}</small>
+                    </span>
+                  </button>
+                ))}
+                {!playerPool.length && <CompactEmpty title="No available defenders" />}
+              </ScrollablePanel>
+            </ModalFrame>
+          )}
+
+          {defenseSessionOpen && (
+            <ModalFrame title="Defense Session" onClose={() => setDefenseSessionOpen(false)} panelClassName="practice-hitting-selector-sheet">
+              <section className="practice-hitting-session-sheet">
+                <div>
+                  <span>Drill</span>
+                  <div className="practice-hitting-choice-list">
+                    {DEFENSE_DRILLS.map((drill) => (
+                      <button key={drill.value} type="button" className={drill.value === defenseDrill ? "active" : ""} onClick={() => changeDefenseDrill(drill.value)}>
+                        <strong>{drill.label}</strong>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span>Worked Position</span>
+                  <div className="practice-hitting-choice-list practice-hitting-choice-list--compact">
+                    {defensePositionChoices.map((position) => (
+                      <button key={position.value} type="button" className={position.value === defensePosition ? "active" : ""} onClick={() => changeDefensePosition(position.value as Position)}>
+                        {position.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span>Active Sessions</span>
+                  <div className="practice-hitting-choice-list">
+                    {activeModeSessions.slice(0, 5).map((session) => (
+                      <button key={session.id} type="button" className={session.sessionId === currentSession?.id ? "active" : ""} onClick={() => { selectSession(session); setDefenseSessionOpen(false); }}>
+                        <strong>{session.title}</strong>
+                        <small>{session.playerLine} - {session.count}</small>
+                      </button>
+                    ))}
+                    {!activeModeSessions.length && <CompactEmpty title="No active defense sessions" />}
+                  </div>
+                </div>
+              </section>
+              <div className="modal-actions">
+                <button className="primary-button" type="button" onClick={() => setDefenseSessionOpen(false)}>Done</button>
+              </div>
+            </ModalFrame>
+          )}
+
+          {defenseStatsOpen && (
+            <ModalFrame title={`${player.name} Defense`} onClose={() => setDefenseStatsOpen(false)} panelClassName="practice-defense-stats-sheet">
+              <div className="practice-hitting-stats-scope" aria-label="Defense analytics scope">
+                <button type="button" className={effectiveDefenseStatsScopeSessionId === "all" ? "active" : ""} onClick={() => setDefenseStatsScopeSessionId("all")}>
+                  All Sessions
+                  <small>{practiceDefenseEvents.length} reps</small>
+                </button>
+                {practiceDefenseSessions.map((session) => {
+                  const sessionEvents = practiceDefenseEvents.filter((event) => event.sessionId === session.id);
+                  return (
+                    <button key={session.id} type="button" className={effectiveDefenseStatsScopeSessionId === session.id ? "active" : ""} onClick={() => setDefenseStatsScopeSessionId(session.id)}>
+                      {defenseSessionAnalyticsLabel(session)}
+                      <small>{sessionEvents.length} reps</small>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="practice-pitching-location-filter practice-pitching-location-filter--analytics" aria-label="Defense drill filter">
+                <button type="button" className={defenseStatsDrillFilter === "all" ? "active" : ""} onClick={() => setDefenseStatsDrillFilter("all")}>All Drills</button>
+                {DEFENSE_DRILLS.filter((drill) => scopedDefenseEvents.some((event) => defenseEventDrillContext(event) === drill.value)).map((drill) => (
+                  <button key={drill.value} type="button" className={defenseStatsDrillFilter === drill.value ? "active" : ""} onClick={() => setDefenseStatsDrillFilter(drill.value)}>
+                    {drill.label}
+                  </button>
+                ))}
+              </div>
+              <PracticeSummaryStrip
+                items={[
+                  { label: "Reps", value: scopedDefenseStats.totalReps },
+                  { label: "Clean", value: formatPct(scopedDefenseStats.cleanPct, 0), detail: `${scopedDefenseStats.cleanReps}/${scopedDefenseStats.totalReps}` },
+                  { label: "Errors", value: scopedDefenseStats.errors },
+                  { label: "Throw Acc.", value: scopedDefenseStats.throwAttempts ? formatPct(scopedDefenseStats.throwAccuracyPct, 0) : "--", detail: scopedDefenseStats.throwAttempts ? `${scopedDefenseStats.accurateThrows}/${scopedDefenseStats.throwAttempts}` : undefined },
+                ]}
+              />
+              <section className="practice-defense-breakdown-grid">
+                <DefenseBreakdownCard title="Rep Type" splits={Object.values(scopedDefenseStats.byRepType)} />
+                <DefenseBreakdownCard title="Subtype" splits={Object.values(scopedDefenseStats.bySubtype)} />
+                <DefenseBreakdownCard title="Position" splits={Object.values(scopedDefenseStats.byPosition)} />
+                <DefenseBreakdownCard title="Drill" splits={Object.values(scopedDefenseStats.byDrill)} />
+              </section>
+              <PracticeRecentEventTable
+                title="Recent Reps"
+                rows={filteredDefenseStatsEvents.slice(0, 8).map((event) => ({
+                  id: event.id,
+                  time: formatTime(event.createdAt),
+                  primary: defenseEventRepType(event),
+                  secondary: [defenseEventRepSubtype(event), defenseEventPosition(event, player.primaryPosition), defenseEventResult(event), defenseEventThrowResult(event)].filter((value) => value && value !== "Not tracked").join(" - ") || "--",
+                  tone: isDefenseErrorEvent(event) ? "negative" : "positive",
+                }))}
+              />
+              <div className="modal-actions">
+                <button className="secondary-button" type="button" onClick={() => onOpenPracticeAnalytics ? onOpenPracticeAnalytics("Defense", player.id, effectiveDefenseStatsScopeSessionId === "all" ? undefined : effectiveDefenseStatsScopeSessionId) : onOpenPlayer(player.id)}>
+                  View Full Analytics
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+              </div>
+            </ModalFrame>
+          )}
+        </>
       ) : (
         <>
       <section className="practice-tracker-grid">
@@ -10386,60 +11097,6 @@ function PracticeConsole({
                   <small>Turn on Spray Chart when you want direction or field-location detail.</small>
                 </div>
               )}
-            </div>
-          )}
-
-          {mode === "Defense" && (
-            <div className="tracking-layout tracking-layout--dense">
-              <div className="tracking-main">
-                <div className="session-context">
-                  <div>
-                    <span>Defense Session</span>
-                    <strong>{defenseStation}</strong>
-                    <small>{defenseEvents.length} reps logged</small>
-                  </div>
-                  <SegmentedControl values={DEFENSE_STATIONS} active={defenseStation} onChange={onDefenseStation} />
-                </div>
-                <LiveMetrics
-                  items={[
-                    { label: "Attempts", value: defenseEvents.length },
-                    { label: "Clean", value: defenseEvents.filter((event) => event.outcome === "Clean" || event.outcome === "Good Play" || event.outcome === "Great Play").length },
-                    { label: "Clean %", value: formatPct(defenseCleanPct), detail: `${defenseEvents.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length}/${defenseEvents.length}` },
-                    { label: "Plus Plays", value: defenseEvents.filter((event) => event.outcome === "Great Play").length },
-                  ]}
-                />
-                <div className="quick-pad quick-pad--defense">
-                  <button type="button" onClick={() => onLogDefense("Clean")}>Clean</button>
-                  <button type="button" onClick={() => onLogDefense("Error")}>Error</button>
-                  <button type="button" className="impact" onClick={() => onLogDefense("Great Play")}>Great Play</button>
-                  <button type="button" onClick={() => onLogDefense("Missed Rep")}>Missed Rep</button>
-                </div>
-                <span className="tracker-subhead">Play type</span>
-                <div className="direction-row">
-                  <button type="button" onClick={() => onLogDefense("Clean")}>Ground Ball</button>
-                  <button type="button" onClick={() => onLogDefense("Clean")}>Fly Ball</button>
-                  <button type="button" onClick={() => onLogDefense("Clean")}>Throw</button>
-                  <button type="button" onClick={() => onLogDefense("Good Play")}>Double Play</button>
-                  <button type="button" onClick={() => onLogDefense("Error", "Fielding")}>Fielding Error</button>
-                  <button type="button" onClick={() => onLogDefense("Error", "Throwing")}>Throwing Error</button>
-                </div>
-                <PracticeRecentEventTable
-                  title="Recent Reps"
-                  rows={defenseEvents.slice(0, 6).map((event) => ({
-                    id: event.id,
-                    time: formatTime(event.createdAt),
-                    primary: event.outcome,
-                    secondary: [event.station, event.errorType].filter(Boolean).join(" - ") || "--",
-                    tone: event.outcome === "Error" || event.outcome === "Missed Rep" ? "negative" : "positive",
-                  }))}
-                />
-              </div>
-              <div className="tracking-visual defense-visual">
-                <Shield size={42} aria-hidden="true" />
-                <h3>{defenseStation}</h3>
-                <MetricBar label="Clean rep rate" value={defenseCleanPct} />
-                <MetricBar label="Difficult plays made" value={pct(defenseEvents.filter((event) => event.outcome === "Great Play").length, defenseEvents.length)} />
-              </div>
             </div>
           )}
 
@@ -10670,13 +11327,6 @@ function PracticeConsole({
               ...(hitStats.exitVelocityRecorded && hitStats.maxExitVelocity !== undefined ? [{ label: "Max EV", value: `${formatNumber(hitStats.maxExitVelocity, 1)} mph`, detail: `${hitStats.exitVelocityRecorded} recorded` }] : []),
             ]} />
           )}
-          {mode === "Defense" && (
-            <LiveMetrics items={[
-              { label: "Total Reps", value: defenseEvents.length },
-              { label: "Clean", value: cleanDefenseReps, detail: formatPct(defenseCleanPct) },
-              { label: "Great Plays", value: defenseEvents.filter((event) => event.outcome === "Great Play").length },
-            ]} />
-          )}
           {mode === "Live BP" && (
             <LiveMetrics items={[
               { label: "Pitches", value: liveBpThrowerSource === "PLAYER" ? liveBpPitchStats.totalPitches : liveBpHitEvents.length },
@@ -10768,6 +11418,39 @@ function PracticeRecentEventTable({ title, rows }: { title: string; rows: Array<
         </span>
       ))}
       {!rows.length && <CompactEmpty title="Ready when you are" />}
+    </div>
+  );
+}
+
+function DefenseBreakdownCard({
+  title,
+  splits,
+}: {
+  title: string;
+  splits: Array<{ key: string; reps: number; cleanReps: number; cleanPct: number; errors: number; throwAttempts: number; accurateThrows: number; throwAccuracyPct: number }>;
+}) {
+  const rows = splits
+    .filter((split) => split.reps > 0)
+    .sort((left, right) => right.reps - left.reps || left.key.localeCompare(right.key))
+    .slice(0, 5);
+
+  return (
+    <div className="practice-defense-breakdown-card">
+      <div>
+        <span>{title}</span>
+        <small>{rows.length ? "Clean % by reps" : "No reps yet"}</small>
+      </div>
+      {rows.map((split) => (
+        <div key={split.key} className="practice-defense-breakdown-row">
+          <span>
+            <strong>{split.key}</strong>
+            <small>{split.cleanReps}/{split.reps} clean{split.throwAttempts ? ` · ${split.accurateThrows}/${split.throwAttempts} throws` : ""}</small>
+          </span>
+          <MetricBar label={split.key} value={split.cleanPct} />
+          <em>{formatPct(split.cleanPct, 0)}</em>
+        </div>
+      ))}
+      {!rows.length && <CompactEmpty title="Ready for the first rep" />}
     </div>
   );
 }
@@ -21907,11 +22590,12 @@ function practiceMetricColumns(category: PracticeMetricsCategory): PracticeMetri
   if (category === "Defense") {
     return [
       playerColumn,
+      { key: "positionWorked", label: "Pos", render: (row) => row.positionWorked },
       { key: "reps", label: "Reps", numeric: true, render: (row) => row.reps },
-      { key: "clean", label: "Clean %", numeric: true, render: (row) => formatPct(row.clean, 0) },
+      { key: "cleanReps", label: "Clean", numeric: true, render: (row) => row.cleanReps },
       { key: "errors", label: "Errors", numeric: true, render: (row) => row.errors },
-      { key: "greatPlays", label: "Plus Plays", numeric: true, render: (row) => row.greatPlays },
-      { key: "defenseSessions", label: "Sessions", numeric: true, render: (row) => row.defenseSessions },
+      { key: "clean", label: "Clean %", numeric: true, render: (row) => formatPct(row.clean, 0) },
+      { key: "throwAcc", label: "Throw Acc.", numeric: true, render: (row) => row.throws ? formatPct(row.throwAcc, 0) : "--" },
     ];
   }
 
@@ -21981,7 +22665,7 @@ function buildPracticeMetricRows(data: AppData, category: PracticeMetricsCategor
       ));
       const pitchingStats = calculatePitchingStats(pitchEvents);
       const defenseEvents = data.defenseEvents.filter((event) => event.playerId === player.id && (!practiceId || event.practiceId === practiceId));
-      const cleanDefense = defenseEvents.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
+      const defenseStats = calculateDefenseStats(defenseEvents);
       const liveBpPitchEvents = data.pitchEvents.filter((event) => event.pitcherId === player.id && (!practiceId || event.practiceId === practiceId) && pitchingSessionTypeById.get(event.sessionId) === "Live BP");
       const liveBpHittingEvents = data.hittingEvents.filter((event) => (
         event.hitterId === player.id
@@ -22009,10 +22693,15 @@ function buildPracticeMetricRows(data: AppData, category: PracticeMetricsCategor
         zone: pitchingStats.zonePct,
         avgVelo: pitchingStats.avgVelocity,
         maxVelo: pitchingStats.maxVelocity,
-        reps: defenseEvents.length,
-        clean: pct(cleanDefense, defenseEvents.length),
-        errors: defenseEvents.filter((event) => event.outcome === "Error" || event.outcome === "Missed Rep").length,
-        greatPlays: defenseEvents.filter((event) => event.outcome === "Great Play").length,
+        positionWorked: mostCommonDefensePosition(defenseEvents, player),
+        reps: defenseStats.totalReps,
+        cleanReps: defenseStats.cleanReps,
+        clean: defenseStats.cleanPct,
+        errors: defenseStats.errors,
+        greatPlays: defenseStats.greatPlays,
+        throws: defenseStats.throwAttempts,
+        accurateThrows: defenseStats.accurateThrows,
+        throwAcc: defenseStats.throwAttempts ? defenseStats.throwAccuracyPct : undefined,
         defenseSessions: defenseSessionCount,
         liveBpPitches: liveBpPitchStats.totalPitches,
         liveBpSwings: liveBpHitStats.totalSwings,
@@ -22064,12 +22753,12 @@ function practiceMetricSummary(data: AppData, category: PracticeMetricsCategory,
   }
   if (category === "Defense") {
     const events = data.defenseEvents.filter((event) => !practiceId || event.practiceId === practiceId);
-    const clean = events.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
+    const stats = calculateDefenseStats(events);
     return [
-      { label: "Reps", value: events.length },
-      { label: "Clean", value: formatPct(pct(clean, events.length), 0) },
-      { label: "Errors", value: events.filter((event) => event.outcome === "Error" || event.outcome === "Missed Rep").length },
-      { label: "Sessions", value: data.defenseSessions.filter((session) => !practiceId || session.practiceId === practiceId).length },
+      { label: "Reps", value: stats.totalReps },
+      { label: "Clean", value: formatPct(stats.cleanPct, 0) },
+      { label: "Errors", value: stats.errors },
+      { label: "Throw Acc.", value: stats.throwAttempts ? formatPct(stats.throwAccuracyPct, 0) : "--" },
     ];
   }
   if (category === "Live BP") {
@@ -22223,10 +22912,10 @@ function buildActivePracticeSessions(data: AppData, practiceId: ID, nowMs = Date
           id: `def-${session.id}`,
           mode: "Defense" as const,
           sessionId: session.id,
-          title: session.title ?? `${session.station} Defense`,
+          title: session.drillContext ?? session.title ?? `${session.station} Defense`,
           station: session.station,
           primaryPlayerId: session.playerId,
-          playerLine: player?.name ?? "Defender",
+          playerLine: [player?.name ?? "Defender", session.positionWorked].filter(Boolean).join(" · "),
           count: `${events.length} reps`,
           contributors: contributorLabels(data, session.id, session.createdByProfileId, session.contributorProfileIds),
           isMine: Boolean(currentProfileId && (session.createdByProfileId === currentProfileId || session.contributorProfileIds?.includes(currentProfileId))),
@@ -22291,12 +22980,13 @@ function buildPlayerRecentActivity(data: AppData, player: Player) {
       .map((session) => {
         const practice = practicesById.get(session.practiceId);
         const reps = data.defenseEvents.filter((event) => event.sessionId === session.id);
+        const stats = calculateDefenseStats(reps);
         return {
           key: `def-${session.id}`,
           date: practice?.date ?? session.startedAt,
           type: "Defense",
-          title: session.station,
-          meta: `${shortDate(practice?.date ?? session.startedAt.slice(0, 10))} - ${reps.length} reps - ${formatPct(pct(reps.filter((event) => event.outcome !== "Error").length, reps.length))} clean`,
+          title: session.drillContext ?? session.station,
+          meta: `${shortDate(practice?.date ?? session.startedAt.slice(0, 10))} - ${stats.totalReps} reps - ${formatPct(stats.cleanPct)} clean`,
           summaryType: "Defense" as const,
           sessionId: session.id,
         };
@@ -22417,13 +23107,20 @@ function buildSessionSummary(data: AppData, summary: { type: "Hitting" | "Pitchi
   const session = data.defenseSessions.find((item) => item.id === summary.sessionId);
   const player = data.players.find((item) => item.id === session?.playerId);
   const events = data.defenseEvents.filter((event) => event.sessionId === summary.sessionId);
+  const stats = calculateDefenseStats(events);
+  const repTypes = Object.values(stats.byRepType)
+    .sort((left, right) => right.reps - left.reps)
+    .slice(0, 3)
+    .map((item) => `${item.label} ${item.reps}`)
+    .join(" / ");
   return {
-    title: `${player?.name ?? "Defender"} - ${session?.station ?? "Defense"}`,
+    title: `${player?.name ?? "Defender"} - ${session?.drillContext ?? session?.station ?? "Defense"}`,
     stats: [
-      { label: "Attempts", value: events.length },
-      { label: "Clean", value: events.filter((event) => event.outcome !== "Error").length },
-      { label: "Clean %", value: formatPct(pct(events.filter((event) => event.outcome !== "Error").length, events.length)) },
-      { label: "Great Plays", value: events.filter((event) => event.outcome === "Great Play").length },
+      { label: "Reps", value: stats.totalReps },
+      { label: "Clean", value: stats.cleanReps },
+      { label: "Clean %", value: formatPct(stats.cleanPct) },
+      { label: "Errors", value: stats.errors },
+      { label: "Throw Acc.", value: stats.throwAttempts ? formatPct(stats.throwAccuracyPct) : "--", sub: repTypes || undefined },
     ],
   };
 }
@@ -22562,12 +23259,167 @@ function ensurePitchingSession(data: AppData, practice: Practice, playerId: ID, 
   };
 }
 
-function ensureDefenseSession(data: AppData, practice: Practice, playerId: ID, station: DefenseStation, profileId?: ID) {
+function defenseDrillOption(value: DefenseDrillContext): DefenseDrillOption {
+  return DEFENSE_DRILLS.find((drill) => drill.value === value) ?? DEFENSE_DRILLS[0];
+}
+
+function defaultDefenseDrillForStation(station: DefenseStation): DefenseDrillContext {
+  return DEFENSE_DRILLS.find((drill) => drill.station === station)?.value ?? "Team Defense";
+}
+
+function defenseStationForDrill(drill: DefenseDrillContext): DefenseStation {
+  return defenseDrillOption(drill).station;
+}
+
+function defensePositionOptions(drill: DefenseDrillContext): Position[] {
+  return defenseDrillOption(drill).positions;
+}
+
+function defaultDefensePositionForPlayer(player: Player, drill: DefenseDrillContext): Position {
+  const options = defensePositionOptions(drill);
+  if (options.includes(player.primaryPosition)) return player.primaryPosition;
+  if (player.secondaryPosition && options.includes(player.secondaryPosition)) return player.secondaryPosition;
+  if ((player.primaryPosition === "RHP" || player.primaryPosition === "LHP") && options.includes("P")) return "P";
+  return defenseDrillOption(drill).defaultPosition;
+}
+
+function defenseSubtypeOptions(repType: DefenseRepType, position?: Position): DefenseRepSubtype[] {
+  if (repType === "Ground Ball") return ["Routine", "Forehand", "Backhand", "Slow Roller", "Charge"];
+  if (repType === "Fly Ball") return ["Routine", "Drop Step", "Over Shoulder"];
+  if (repType === "Line Drive") return ["Routine", "Forehand", "Backhand"];
+  if (repType === "Double Play") return ["Routine", "Forehand", "Backhand"];
+  if (repType === "Throw") return position === "C" ? ["Throwdown", "Other"] : ["Cutoff", "Relay", "Routine"];
+  if (repType === "Block") return ["Block"];
+  if (repType === "Pick") return ["Pick"];
+  if (repType === "Bunt") return ["Bunt"];
+  return ["Other"];
+}
+
+function defenseDrillThrowRelevant(drill: DefenseDrillContext, repType: DefenseRepType) {
+  if (repType === "Block" || repType === "Pick") return false;
+  return defenseDrillOption(drill).throwRelevant || repType === "Throw" || repType === "Double Play" || repType === "Bunt";
+}
+
+function createDefenseLogDraft(player: Player, drill: DefenseDrillContext, position: Position, seed?: Partial<DefenseLogDraft>): DefenseLogDraft {
+  const option = defenseDrillOption(drill);
+  const repType = option.repTypeLocked ? option.defaultRepType : seed?.repType ?? option.defaultRepType;
+  const subtypeOptions = defenseSubtypeOptions(repType, position);
+  const repSubtype = option.subtypeLocked
+    ? option.defaultRepSubtype
+    : seed?.repSubtype && subtypeOptions.includes(seed.repSubtype)
+      ? seed.repSubtype
+      : option.defaultRepSubtype ?? subtypeOptions[0];
+  return {
+    positionWorked: position,
+    drillContext: drill,
+    repType,
+    repSubtype,
+    result: seed?.result ?? "Clean",
+    throwResult: defenseDrillThrowRelevant(drill, repType) ? seed?.throwResult ?? "Accurate" : undefined,
+    difficulty: seed?.difficulty,
+    location: seed?.location,
+    coachNote: seed?.coachNote,
+  };
+}
+
+function defenseDraftFromEvent(event: DefenseEvent, player: Player, fallbackDrill: DefenseDrillContext, fallbackPosition: Position): DefenseLogDraft {
+  const drill = event.drillContext ?? fallbackDrill;
+  const position = event.positionWorked ?? fallbackPosition ?? defaultDefensePositionForPlayer(player, drill);
+  return createDefenseLogDraft(player, drill, position, {
+    repType: defenseEventRepType(event),
+    repSubtype: event.repSubtype,
+    result: defenseEventResult(event),
+    throwResult: defenseEventThrowResult(event),
+    difficulty: event.difficulty,
+    location: event.location,
+    coachNote: event.coachNote,
+  });
+}
+
+function normalizeDefenseDraft(draft: DefenseLogDraft, trackLocation: boolean, trackDifficulty: boolean): DefenseLogDraft {
+  const repType = defenseDrillOption(draft.drillContext).repTypeLocked ? defenseDrillOption(draft.drillContext).defaultRepType : draft.repType;
+  const subtype = defenseDrillOption(draft.drillContext).subtypeLocked
+    ? defenseDrillOption(draft.drillContext).defaultRepSubtype
+    : draft.repSubtype;
+  const throwResult = defenseDrillThrowRelevant(draft.drillContext, repType) ? draft.throwResult ?? "Accurate" : undefined;
+  return {
+    ...draft,
+    repType,
+    repSubtype: subtype,
+    throwResult,
+    difficulty: trackDifficulty ? draft.difficulty : undefined,
+    location: trackLocation ? draft.location : undefined,
+  };
+}
+
+function defenseResultTone(result: DefenseOutcome) {
+  if (result === "Error" || result === "Missed Rep") return "negative";
+  if (result === "Great Play" || result === "Good Play" || result === "Clean") return "positive";
+  return "";
+}
+
+function defenseEventTone(event: DefenseEvent) {
+  return isDefenseErrorEvent(event) ? "negative" : "positive";
+}
+
+function throwQualityForDefenseDraft(draft: DefenseLogDraft) {
+  if (draft.throwResult === "Inaccurate") return "Poor";
+  if (draft.result === "Great Play") return "Plus";
+  if (draft.throwResult === "Accurate" || draft.result === "Clean" || draft.result === "Good Play") return "Good";
+  return "Average";
+}
+
+function defenseRangeForDraft(draft: DefenseLogDraft) {
+  if (draft.difficulty) return draft.difficulty;
+  if (draft.result === "Great Play") return "Plus";
+  if (draft.result === "Good Play") return "Difficult";
+  return "Routine";
+}
+
+function defenseErrorTypeForDraft(draft: DefenseLogDraft): DefenseEvent["errorType"] {
+  if (draft.throwResult === "Inaccurate") return "Throwing";
+  if (draft.repType === "Throw" || draft.repType === "Double Play") return "Throwing";
+  return "Fielding";
+}
+
+function defenseSessionAnalyticsLabel(session: DefenseSession) {
+  const drill = session.drillContext ?? defaultDefenseDrillForStation(session.station);
+  return [session.positionWorked, drill, formatTime(session.startedAt)].filter(Boolean).join(" - ");
+}
+
+function mostCommonDefensePosition(events: DefenseEvent[], player: Player) {
+  const counts = new Map<string, number>();
+  events.forEach((event) => {
+    const position = defenseEventPosition(event, player.primaryPosition);
+    counts.set(position, (counts.get(position) ?? 0) + 1);
+  });
+  return [...counts.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0]?.[0] ?? player.primaryPosition;
+}
+
+function ensureDefenseSession(
+  data: AppData,
+  practice: Practice,
+  playerId: ID,
+  station: DefenseStation,
+  profileId?: ID,
+  options?: { drillContext?: DefenseDrillContext; positionWorked?: Position },
+) {
   const now = new Date().toISOString();
-  const existing = data.defenseSessions.find((session) => session.practiceId === practice.id && session.playerId === playerId && session.station === station && isPracticeSessionReusable(session));
+  const drillContext = options?.drillContext ?? defaultDefenseDrillForStation(station);
+  const positionWorked = options?.positionWorked;
+  const existing = data.defenseSessions.find((session) => (
+    session.practiceId === practice.id
+    && session.playerId === playerId
+    && session.station === station
+    && (session.drillContext ?? defaultDefenseDrillForStation(session.station)) === drillContext
+    && (positionWorked ? session.positionWorked === positionWorked : true)
+    && isPracticeSessionReusable(session)
+  ));
   if (existing) {
     const session = {
       ...existing,
+      drillContext: existing.drillContext ?? drillContext,
+      positionWorked: existing.positionWorked ?? positionWorked,
       contributorProfileIds: withContributorProfile(existing.contributorProfileIds, profileId),
       updatedAt: now,
     };
@@ -22583,9 +23435,11 @@ function ensureDefenseSession(data: AppData, practice: Practice, playerId: ID, s
     practiceId: practice.id,
     playerId,
     station,
+    drillContext,
+    positionWorked,
     mode: "Quick Practice" as const,
     startedAt: now,
-    title: `${station} - Defense`,
+    title: `${drillContext} - Defense`,
     status: "ACTIVE" as const,
     createdByProfileId: profileId,
     contributorProfileIds: withContributorProfile([], profileId),

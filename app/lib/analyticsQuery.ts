@@ -1,7 +1,12 @@
 import type {
   AppData,
   BattedBallType,
+  DefenseDrillContext,
   DefenseEvent,
+  DefenseOutcome,
+  DefenseRepSubtype,
+  DefenseRepType,
+  DefenseThrowResult,
   GameBallInPlayOutcome,
   GameEvent,
   HittingEvent,
@@ -13,6 +18,15 @@ import type {
   Practice,
 } from "../types";
 import { isPracticeHardContactEvent } from "./hittingTaxonomy.ts";
+import {
+  calculateDefenseStats,
+  defenseEventDrillContext,
+  defenseEventPosition,
+  defenseEventRepSubtype,
+  defenseEventRepType,
+  defenseEventResult,
+  defenseEventThrowResult,
+} from "./stats.ts";
 import { buildWeightRoomScoreRows, type WeightRoomWindow } from "./weightRoom.ts";
 
 export type AnalyticsDomain = "hitting" | "pitching" | "defense" | "development";
@@ -47,6 +61,12 @@ export interface AnalyticsFilters {
   liveBpThrowerSources?: LiveBpThrowerSource[];
   battedBallTypes?: BattedBallType[];
   defenseStations?: string[];
+  defensePositions?: string[];
+  defenseDrills?: DefenseDrillContext[];
+  defenseRepTypes?: DefenseRepType[];
+  defenseRepSubtypes?: DefenseRepSubtype[];
+  defenseResults?: DefenseOutcome[];
+  defenseThrowResults?: DefenseThrowResult[];
 }
 
 export interface AnalyticsQuery {
@@ -223,10 +243,15 @@ export const ANALYTICS_METRICS: AnalyticsMetricDefinition[] = [
   metric("cswPct", "CSW %", "pitching", "percentage", ["all", "practice", "live-bp", "games"], "Called strikes plus whiffs divided by total pitches.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
   metric("avgPitchVelo", "Avg Pitch Velo", "pitching", "velocity", ["all", "practice", "live-bp", "games"], "Average recorded pitch velocity.", true, true, 3),
   metric("maxPitchVelo", "Max Pitch Velo", "pitching", "velocity", ["all", "practice", "live-bp", "games"], "Highest recorded pitch velocity.", true, true, 1),
+  metric("positionWorked", "Pos", "defense", "text", ["all", "practice"], "Primary tracked defensive position in the selected scope.", true, true),
   metric("reps", "Reps", "defense", "integer", ["all", "practice"], "Logged defensive reps.", true, true),
+  metric("cleanReps", "Clean", "defense", "integer", ["all", "practice"], "Clean, good, or great defensive reps.", true, true),
   metric("cleanPct", "Clean %", "defense", "percentage", ["all", "practice"], "Clean, good, or great defensive reps divided by total reps.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.defenseReps),
   metric("errors", "Errors", "defense", "integer", ["all", "practice"], "Logged defensive errors.", true, true),
   metric("greatPlays", "Great Plays", "defense", "integer", ["all", "practice"], "Logged great plays.", true, true),
+  metric("throws", "Throws", "defense", "integer", ["all", "practice"], "Defensive throws with tracked throw result, excluding no-throw reps.", true, true),
+  metric("accurateThrows", "Acc Throws", "defense", "integer", ["all", "practice"], "Tracked defensive throws marked accurate.", true, true),
+  metric("throwAcc", "Throw Acc.", "defense", "percentage", ["all", "practice"], "Accurate tracked throws divided by throws with tracked throw result. No Throw is excluded.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.defenseReps),
   metric("weightScore", "Weight Room Score", "development", "integer", ["all"], "Existing Weight Room Development score. This is not a total baseball development score.", true, false, ANALYTICS_SAMPLE_THRESHOLDS.weightRoomWorkouts),
   metric("workouts", "Workouts", "development", "integer", ["all"], "Completed workout sessions.", true, false),
   metric("workoutCompletionPct", "Workout Completion", "development", "percentage", ["all"], "Completed workouts divided by assigned workout sessions.", true, false),
@@ -336,6 +361,76 @@ export const ANALYTICS_FILTERS: AnalyticsFilterDefinition[] = [
     supportedSources: ["all", "practice"],
     type: "multi-select",
     options: ["Infield", "Outfield", "Catching", "PFP", "Situational defense", "Team defense"].map((value) => ({ value, label: value })),
+    availability: "supported",
+  },
+  {
+    id: "defensePositions",
+    label: "Position",
+    domain: "defense",
+    supportedSources: ["all", "practice"],
+    type: "multi-select",
+    options: ["P", "C", "1B", "2B", "3B", "SS", "INF", "LF", "CF", "RF", "OF"].map((value) => ({ value, label: value })),
+    availability: "supported",
+  },
+  {
+    id: "defenseDrills",
+    label: "Drill",
+    domain: "defense",
+    supportedSources: ["all", "practice"],
+    type: "multi-select",
+    options: [
+      "Infield Ground Balls",
+      "Backhands",
+      "Forehands",
+      "Slow Rollers",
+      "Double Plays",
+      "First Base Picks",
+      "Outfield Fly Balls",
+      "Outfield Routes",
+      "Cutoffs & Relays",
+      "Catcher Blocking",
+      "Catcher Throwdowns",
+      "Bunt Defense",
+      "Pitcher Fielding Practice",
+      "Team Defense",
+      "Other",
+    ].map((value) => ({ value, label: value })),
+    availability: "supported",
+  },
+  {
+    id: "defenseRepTypes",
+    label: "Rep Type",
+    domain: "defense",
+    supportedSources: ["all", "practice"],
+    type: "multi-select",
+    options: ["Ground Ball", "Fly Ball", "Line Drive", "Double Play", "Throw", "Block", "Pick", "Bunt", "Other"].map((value) => ({ value, label: value })),
+    availability: "supported",
+  },
+  {
+    id: "defenseRepSubtypes",
+    label: "Subtype",
+    domain: "defense",
+    supportedSources: ["all", "practice"],
+    type: "multi-select",
+    options: ["Routine", "Forehand", "Backhand", "Slow Roller", "Charge", "Drop Step", "Over Shoulder", "Cutoff", "Relay", "Block", "Throwdown", "Pick", "Bunt", "Other"].map((value) => ({ value, label: value })),
+    availability: "supported",
+  },
+  {
+    id: "defenseResults",
+    label: "Result",
+    domain: "defense",
+    supportedSources: ["all", "practice"],
+    type: "multi-select",
+    options: ["Clean", "Error", "Good Play", "Great Play", "Missed Rep"].map((value) => ({ value, label: value })),
+    availability: "supported",
+  },
+  {
+    id: "defenseThrowResults",
+    label: "Throw",
+    domain: "defense",
+    supportedSources: ["all", "practice"],
+    type: "multi-select",
+    options: ["Accurate", "Inaccurate", "No Throw"].map((value) => ({ value, label: value })),
     availability: "supported",
   },
 ];
@@ -535,11 +630,16 @@ function buildDefenseResult(
   sourceLabel: string,
   today?: string,
 ): AnalyticsResult {
-  if (query.source === "games" || query.source === "live-bp") warnings.push("Defense V1 is currently powered by practice defensive reps. Game defensive box score stats are documented as a future tracking gap.");
-  const events = filterDefenseEvents(data, { ...query, source: query.source === "games" || query.source === "live-bp" ? "practice" : query.source }, today);
+  if (query.source === "games" || query.source === "live-bp") {
+    warnings.push("Defense V1 is currently powered by practice defensive reps. Game and Live BP defensive box score stats are documented as future tracking gaps.");
+    const rows = currentRosterPlayers(data).map((player) => defenseRow(player, []));
+    const teamTotals = defenseTeamRow(data, []);
+    return assembleResult("Team Defense", data, query, sourceLabel, rows, teamTotals, ["positionWorked", "reps", "cleanReps", "errors", "cleanPct", "throwAcc", "throws", "accurateThrows", "greatPlays"], warnings, availableEvents, filterDefinitions, scopeLabel);
+  }
+  const events = filterDefenseEvents(data, query, today);
   const rows = currentRosterPlayers(data).map((player) => defenseRow(player, events.filter((event) => event.playerId === player.id)));
   const teamTotals = defenseTeamRow(data, events);
-  return assembleResult("Team Defense", data, query, sourceLabel, rows, teamTotals, ["reps", "cleanPct", "errors", "greatPlays"], warnings, availableEvents, filterDefinitions, scopeLabel);
+  return assembleResult("Team Defense", data, query, sourceLabel, rows, teamTotals, ["positionWorked", "reps", "cleanReps", "errors", "cleanPct", "throwAcc", "throws", "accurateThrows", "greatPlays"], warnings, availableEvents, filterDefinitions, scopeLabel);
 }
 
 function buildDevelopmentResult(
@@ -732,12 +832,19 @@ function pitchingTeamRow(data: AppData, pitchEvents: PitchEvent[], gameEvents: G
 }
 
 function defenseRow(player: Player, events: DefenseEvent[]): AnalyticsRow {
-  const clean = events.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
+  const stats = calculateDefenseStats(events);
+  const positions = events.map((event) => defenseEventPosition(event, "")).filter(Boolean);
+  const position = mostCommonString(positions) ?? (events.length ? player.primaryPosition : "—");
   return makeRow(player, {
-    reps: countCell(events.length, events.length),
-    cleanPct: rateCell(clean, events.length, "clean reps", ANALYTICS_SAMPLE_THRESHOLDS.defenseReps),
-    errors: countCell(events.filter((event) => event.outcome === "Error").length, events.length),
-    greatPlays: countCell(events.filter((event) => event.outcome === "Great Play").length, events.length),
+    positionWorked: cell(position, position, events.length ? "available" : "not-tracked"),
+    reps: countCell(stats.totalReps, stats.totalReps),
+    cleanReps: countCell(stats.cleanReps, stats.totalReps),
+    cleanPct: rateCell(stats.cleanReps, stats.totalReps, "clean reps", ANALYTICS_SAMPLE_THRESHOLDS.defenseReps),
+    errors: countCell(stats.errors, stats.totalReps),
+    greatPlays: countCell(stats.greatPlays, stats.totalReps),
+    throws: countCell(stats.throwAttempts, stats.throwAttempts),
+    accurateThrows: countCell(stats.accurateThrows, stats.throwAttempts),
+    throwAcc: rateCell(stats.accurateThrows, stats.throwAttempts, "accurate throws", ANALYTICS_SAMPLE_THRESHOLDS.defenseReps),
   });
 }
 
@@ -774,7 +881,7 @@ function buildSummary(data: AppData, query: AnalyticsQuery, rows: AnalyticsRow[]
       : query.domain === "pitching"
         ? ["pitches", "strikePct", "zonePct", "avgPitchVelo"]
         : query.domain === "defense"
-          ? ["reps", "cleanPct", "errors"]
+          ? ["reps", "cleanPct", "errors", "throwAcc"]
           : ["workouts", "attendancePct", "practiceReps"];
     for (const metricId of metricIds) {
       const metricItem = metricById(metricId);
@@ -792,7 +899,7 @@ function buildInsights(query: AnalyticsQuery, rows: AnalyticsRow[]): AnalyticsIn
     : query.domain === "pitching"
       ? ["strikePct", "zonePct", "avgPitchVelo"]
       : query.domain === "defense"
-        ? ["cleanPct", "greatPlays"]
+        ? ["cleanPct", "throwAcc", "greatPlays"]
         : ["weightScore", "attendancePct", "practiceReps"];
   return metricIds.flatMap((metricId) => {
     const metricItem = metricById(metricId);
@@ -855,6 +962,15 @@ function filterDefenseEvents(data: AppData, query: AnalyticsQuery, today?: strin
     if (!practice || !dateInRange(practice.date, dateRange)) return false;
     if (query.eventIds?.length && !query.eventIds.includes(practice.id) && !query.eventIds.includes(event.sessionId)) return false;
     if (query.filters?.defenseStations?.length && !query.filters.defenseStations.includes(event.station)) return false;
+    if (query.filters?.defensePositions?.length && !query.filters.defensePositions.includes(defenseEventPosition(event, ""))) return false;
+    if (query.filters?.defenseDrills?.length && !query.filters.defenseDrills.includes(defenseEventDrillContext(event) as DefenseDrillContext)) return false;
+    if (query.filters?.defenseRepTypes?.length && !query.filters.defenseRepTypes.includes(defenseEventRepType(event))) return false;
+    if (query.filters?.defenseRepSubtypes?.length && !query.filters.defenseRepSubtypes.includes(defenseEventRepSubtype(event) as DefenseRepSubtype)) return false;
+    if (query.filters?.defenseResults?.length && !query.filters.defenseResults.includes(defenseEventResult(event))) return false;
+    if (query.filters?.defenseThrowResults?.length) {
+      const throwResult = defenseEventThrowResult(event);
+      if (!throwResult || !query.filters.defenseThrowResults.includes(throwResult)) return false;
+    }
     return true;
   });
 }
@@ -957,10 +1073,13 @@ function buildEventOptions(data: AppData, domain: AnalyticsDomain, source: Analy
       .filter((session) => session.type !== "Live BP")
       .map((session) => sessionEventOption(data, session.id, session.practiceId, `${session.type} Hitting`, "practice"))
     : [];
+  const defenseSessionOptions = domain === "defense"
+    ? data.defenseSessions.map((session) => sessionEventOption(data, session.id, session.practiceId, `${session.drillContext ?? session.station} Defense`, "practice"))
+    : [];
   const sources = source === "all" ? ["games", "practice", "live-bp"] : [source];
   return [
     ...(sources.includes("games") ? gameOptions : []),
-    ...(sources.includes("practice") ? [...practiceOptions, ...hittingSessionOptions] : []),
+    ...(sources.includes("practice") ? [...practiceOptions, ...hittingSessionOptions, ...defenseSessionOptions] : []),
     ...(sources.includes("live-bp") ? liveOptions : []),
   ]
     .filter((event) => domain !== "defense" || event.source !== "games")
@@ -1208,6 +1327,12 @@ function shortDate(date: string): string {
 
 function isNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function mostCommonString(values: string[]): string | undefined {
+  const counts = new Map<string, number>();
+  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1);
+  return [...counts.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0]?.[0];
 }
 
 const sourceLabels: Record<AnalyticsSource, string> = {
