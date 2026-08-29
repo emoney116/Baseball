@@ -88,7 +88,7 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.doesNotMatch(page, /Foul and Miss save immediately/);
   assert.doesNotMatch(page, /Active now/);
   assert.match(page, /Knuckleball/);
-  assert.match(page, /aria-label="Hitting station"/);
+  assert.match(page, /aria-label="Hitting session type"/);
   assert.match(page, /practice-hitting-sheet__toggle/);
   assert.doesNotMatch(page, /Save Swing<\/button>[\s\S]{0,240}Skip Location/);
   assert.match(page, /practice-live-bp-pitch-button/);
@@ -114,7 +114,12 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /LEGACY_PITCH_LOCATION_ID_MAP/);
   assert.match(page, /practice-pitch-location-grid__marker-layer/);
   assert.match(page, /pitchLocationOrientationLabels/);
-  assert.match(page, /Catcher View/);
+  assert.doesNotMatch(page, /Catcher View/);
+  assert.match(page, /type HittingSheetStep = "setup" \| "result" \| "detail"/);
+  assert.match(page, /practice-hitting-sheet__flow/);
+  assert.match(page, /aria-label="Switch hitting charts"/);
+  assert.match(page, /function selectChartView/);
+  assert.match(page, /onChange\(String\(option\)\);\s*setOpen\(false\);/);
   assert.match(page, /Pitch Filter/);
   assert.match(page, /pitchingLivePitchFilters/);
   assert.match(page, /All Players/);

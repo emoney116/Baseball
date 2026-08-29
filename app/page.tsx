@@ -745,7 +745,7 @@ const PRACTICE_ACTIVE_SESSION_GRACE_MS = 2 * 60 * 1000;
 const PRACTICE_ACTIVE_SESSION_TICK_MS = 30 * 1000;
 const PRACTICE_SESSION_HEARTBEAT_MS = 45 * 1000;
 const HITTING_RESULT_ACTIONS = PRACTICE_HITTING_RESULT_OPTIONS;
-type HittingSheetStep = "result" | "detail";
+type HittingSheetStep = "setup" | "result" | "detail";
 type LiveBpPitchSheetStep = "result" | "contact" | "spray";
 type HittingContactDraft = PracticeHittingResultOption;
 type PracticeChartMetricMode = "heat" | "dots" | "percent" | "count";
@@ -9020,7 +9020,7 @@ function PracticeConsole({
   function openHittingSheet() {
     setEditingHittingEventId(undefined);
     setHittingDraft(null);
-    setHittingSheetStep("result");
+    setHittingSheetStep(hittingHasSetupStep() ? "setup" : "result");
     setHittingSheetFieldLocation(undefined);
     setHittingSheetPitchLocation(undefined);
     setHittingSavedNotice("");
@@ -9031,9 +9031,13 @@ function PracticeConsole({
     setHittingSheetOpen(false);
     setEditingHittingEventId(undefined);
     setHittingDraft(null);
-    setHittingSheetStep("result");
+    setHittingSheetStep("setup");
     setHittingSheetFieldLocation(undefined);
     setHittingSheetPitchLocation(undefined);
+  }
+
+  function hittingHasSetupStep() {
+    return effectiveHittingPitchMode === "MULTI" || trackHittingPitchLocation || trackHittingPitchVelocity;
   }
 
   function showHittingSavedNotice(message = "Swing logged") {
@@ -9098,17 +9102,12 @@ function PracticeConsole({
   }
 
   function chooseHittingResult(draft: HittingContactDraft) {
+    setHittingDraft(draft);
     if (draft.action !== "Ball in play") {
-      if (trackHittingPitchLocation || trackHittingPitchVelocity) {
-        setHittingDraft(draft);
-        setHittingSheetStep("detail");
-        return;
-      }
       saveHittingAction(draft.action, draft);
       return;
     }
-    if (trackSprayChart || trackExitVelocity || trackHittingPitchLocation || trackHittingPitchVelocity) {
-      setHittingDraft(draft);
+    if (trackSprayChart || trackExitVelocity) {
       setHittingSheetFieldLocation(undefined);
       setHittingSheetStep("detail");
       return;
@@ -9136,11 +9135,11 @@ function PracticeConsole({
         && item.contactQuality === event.contactQuality
       )) ?? HITTING_RESULT_ACTIONS.find((item) => item.id === "line-drive") ?? null;
       setHittingDraft(draft);
-      setHittingSheetStep(trackSprayChart || trackExitVelocity || trackHittingPitchLocation || trackHittingPitchVelocity ? "detail" : "result");
+      setHittingSheetStep(hittingHasSetupStep() ? "setup" : (trackSprayChart || trackExitVelocity ? "detail" : "result"));
     } else {
       const draft = HITTING_RESULT_ACTIONS.find((item) => item.action === event.action) ?? null;
       setHittingDraft(draft);
-      setHittingSheetStep(trackHittingPitchLocation || trackHittingPitchVelocity ? "detail" : "result");
+      setHittingSheetStep(hittingHasSetupStep() ? "setup" : "result");
     }
     setHittingSheetOpen(true);
   }
@@ -9460,7 +9459,6 @@ function PracticeConsole({
                     <small>{metric.label}</small>
                   </span>
                 ))}
-                {hitStats.exitVelocityRecorded > 0 && <em>{hitStats.exitVelocityRecorded} EV recorded</em>}
               </div>
 
               <div className="practice-hitting-entry-bar">
@@ -9495,14 +9493,12 @@ function PracticeConsole({
               {exitVelocityError && <small className="exit-velocity-error practice-hitting-ev-error">{exitVelocityError}</small>}
               {hittingSavedNotice && <small className="practice-hitting-saved-notice">{hittingSavedNotice}</small>}
 
-              {(trackSprayChart || trackHittingPitchLocation) && (
-                <PracticeHittingChartCarousel
-                  events={hittingEvents}
-                  hitter={player}
-                  showSpray={trackSprayChart}
-                  showPitchLocation={trackHittingPitchLocation}
-                />
-              )}
+              <PracticeHittingChartCarousel
+                events={hittingEvents}
+                hitter={player}
+                showSpray
+                showPitchLocation
+              />
 
               <section className="practice-hitting-recent" aria-label="Recent hitting events">
                 <div>
@@ -9513,9 +9509,9 @@ function PracticeConsole({
                   </button>
                 </div>
                 <div className="practice-hitting-recent-list">
-                  {recentHittingEvents.map((event) => (
+                  {recentHittingEvents.map((event, index) => (
                     <button key={event.id} type="button" className="practice-hitting-recent-card" onClick={() => openEditHittingEvent(event)}>
-                      <small>{formatTime(event.createdAt)}</small>
+                      <small>#{hittingEvents.length - index}</small>
                       <strong>{formatHittingEventTitle(event)}</strong>
                       <em>{formatHittingEventDetail(event)}</em>
                     </button>
@@ -9547,50 +9543,18 @@ function PracticeConsole({
 
           {hittingSheetOpen && (
             <ModalFrame title={editingHittingEventId ? "Edit Swing" : "Log Swing"} onClose={closeHittingSheet} panelClassName="practice-hitting-sheet">
-              <div className="practice-hitting-sheet__context">
-                <div className="practice-hitting-sheet__context-main">
-                  <PlayerAvatar player={player} size="sm" compact />
-                  <span className="practice-hitting-sheet__context-copy">
-                    <strong>{player.name}</strong>
-                  </span>
-                </div>
-                <div className="practice-hitting-sheet__context-controls">
-                  <ChoiceSelect
-                    value={hittingStation}
-                    options={hittingStationOptions}
-                    onChange={(value) => onHittingStation(value as HittingSession["type"])}
-                    className="practice-hitting-station-select"
-                    showSelectedDescription={false}
-                    mobilePresentation="popover"
-                    aria-label="Hitting station"
-                  />
-                  <button type="button" className={trackExitVelocity ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => onTrackExitVelocity(!trackExitVelocity)} aria-pressed={trackExitVelocity}>
-                    EV <strong>{trackExitVelocity ? "On" : "Off"}</strong>
-                  </button>
-                  <button type="button" className={trackHittingPitchVelocity ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => onTrackHittingPitchVelocity(!trackHittingPitchVelocity)} aria-pressed={trackHittingPitchVelocity}>
-                    Velo <strong>{trackHittingPitchVelocity ? "On" : "Off"}</strong>
-                  </button>
-                  {hittingPitchTypeAvailable && (
-                    <button
-                      type="button"
-                      className={effectiveHittingPitchMode !== "OFF" ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"}
-                      onClick={() => onHittingPitchTrackingMode(effectiveHittingPitchMode === "OFF" ? defaultPracticeHittingPitchMode(hittingStation) : "OFF")}
-                      aria-pressed={effectiveHittingPitchMode !== "OFF"}
-                    >
-                      Pitch <strong>{effectiveHittingPitchMode === "OFF" ? "Off" : "On"}</strong>
-                    </button>
-                  )}
-                  <button type="button" className={trackSprayChart ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => onTrackSprayChart(!trackSprayChart)} aria-pressed={trackSprayChart}>
-                    Spray <strong>{trackSprayChart ? "On" : "Off"}</strong>
-                  </button>
-                  <button type="button" className={trackHittingPitchLocation ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => onTrackHittingPitchLocation(!trackHittingPitchLocation)} aria-pressed={trackHittingPitchLocation}>
-                    Loc <strong>{trackHittingPitchLocation ? "On" : "Off"}</strong>
-                  </button>
-                </div>
+              <div className="practice-hitting-sheet__flow" aria-label="Swing log steps">
+                <span className={hittingSheetStep === "setup" ? "active" : ""}>Pitch</span>
+                <span className={hittingSheetStep === "result" ? "active" : ""}>Result</span>
+                <span className={hittingSheetStep === "detail" ? "active" : ""}>Contact</span>
               </div>
 
-              {hittingSheetStep === "result" && (
+              {hittingSheetStep === "setup" && (
                 <section className="practice-hitting-sheet__step">
+                  <div className="practice-hitting-sheet__step-head">
+                    <span>Pitch Details</span>
+                    <small>Optional for this swing.</small>
+                  </div>
                   {effectiveHittingPitchMode === "MULTI" && (
                     <div className="practice-hitting-inline-pitch" aria-label="Pitch type for this swing">
                       {PITCH_TYPES.map((pitchType) => (
@@ -9598,6 +9562,17 @@ function PracticeConsole({
                           {PITCH_TYPE_LABELS[pitchType]}
                         </button>
                       ))}
+                    </div>
+                  )}
+                  {trackHittingPitchVelocity && (
+                    <div className="practice-hitting-sheet__velocity-grid">
+                      <VelocityPickerField
+                        label="Pitch Velo"
+                        value={velocity}
+                        onChange={onVelocity}
+                        defaultValue={DEFAULT_TRACKING_VELOCITY_MPH}
+                        ariaLabel="Pitch velocity in miles per hour"
+                      />
                     </div>
                   )}
                   {trackHittingPitchLocation && (
@@ -9615,6 +9590,19 @@ function PracticeConsole({
                       />
                     </div>
                   )}
+                  {!hittingHasSetupStep() && <CompactEmpty title="No pitch details enabled" />}
+                  <div className="practice-hitting-sheet__step-actions">
+                    <button className="primary-button" type="button" onClick={() => setHittingSheetStep("result")}>Next</button>
+                  </div>
+                </section>
+              )}
+
+              {hittingSheetStep === "result" && (
+                <section className="practice-hitting-sheet__step">
+                  <div className="practice-hitting-sheet__step-head">
+                    <span>Pitch Result</span>
+                    <small>Choose the outcome.</small>
+                  </div>
                   <div className="practice-hitting-result-grid">
                     {HITTING_RESULT_ACTIONS.map((result) => (
                       <button key={result.id} type="button" className={hittingDraft?.id === result.id ? "active" : ""} onClick={() => chooseHittingResult(result)}>
@@ -9627,53 +9615,22 @@ function PracticeConsole({
 
               {hittingSheetStep === "detail" && (
                 <section className="practice-hitting-sheet__step practice-hitting-sheet__step--spray">
-                  {effectiveHittingPitchMode === "MULTI" && (
-                    <div className="practice-hitting-inline-pitch" aria-label="Pitch type for this swing">
-                      {PITCH_TYPES.map((pitchType) => (
-                        <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>
-                          {PITCH_TYPE_LABELS[pitchType]}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {trackHittingPitchLocation && (
-                    <div className="practice-hitting-sheet__pitch-location">
-                      <div>
-                        <span>Pitch Location</span>
-                        <small>Optional</small>
-                      </div>
-                      <PracticeHittingPitchLocationGrid
-                        events={hittingEvents}
-                        hitter={player}
-                        activePoint={hittingSheetPitchLocation}
-                        onSelect={setHittingSheetPitchLocation}
-                        mode="dots"
-                      />
-                    </div>
-                  )}
+                  <div className="practice-hitting-sheet__step-head">
+                    <span>Contact Details</span>
+                    <small>Spray and EV are optional.</small>
+                  </div>
                   {trackSprayChart && hittingSheetIsBallInPlay && (
                     <PracticeSprayField points={hittingSprayPoints} activePoint={hittingSheetFieldLocation} onSelect={setHittingSheetFieldLocation} batterHandedness={player.bats} />
                   )}
-                  {((trackExitVelocity && hittingSheetIsBallInPlay) || trackHittingPitchVelocity) && (
+                  {trackExitVelocity && hittingSheetIsBallInPlay && (
                     <div className="practice-hitting-sheet__velocity-grid">
-                      {trackExitVelocity && hittingSheetIsBallInPlay && (
-                        <VelocityPickerField
-                          label="EV"
-                          value={exitVelocity}
-                          onChange={onExitVelocity}
-                          defaultValue={DEFAULT_TRACKING_VELOCITY_MPH}
-                          ariaLabel="Exit velocity in miles per hour"
-                        />
-                      )}
-                      {trackHittingPitchVelocity && (
-                        <VelocityPickerField
-                          label="Pitch Velo"
-                          value={velocity}
-                          onChange={onVelocity}
-                          defaultValue={DEFAULT_TRACKING_VELOCITY_MPH}
-                          ariaLabel="Pitch velocity in miles per hour"
-                        />
-                      )}
+                      <VelocityPickerField
+                        label="EV"
+                        value={exitVelocity}
+                        onChange={onExitVelocity}
+                        defaultValue={DEFAULT_TRACKING_VELOCITY_MPH}
+                        ariaLabel="Exit velocity in miles per hour"
+                      />
                     </div>
                   )}
                   <div className="practice-hitting-sheet__spray-actions">
@@ -9684,7 +9641,10 @@ function PracticeConsole({
               )}
 
               <div className="modal-actions">
-                {hittingSheetStep !== "result" && (
+                {hittingSheetStep === "result" && hittingHasSetupStep() && (
+                  <button className="secondary-button" type="button" onClick={() => setHittingSheetStep("setup")}>Back</button>
+                )}
+                {hittingSheetStep === "detail" && (
                   <button className="secondary-button" type="button" onClick={() => setHittingSheetStep("result")}>Back</button>
                 )}
                 <button className="secondary-button" type="button" onClick={closeHittingSheet}>Cancel</button>
@@ -10035,7 +9995,7 @@ function PracticeConsole({
               <section className="practice-pitching-live-grid">
                 <div className="practice-pitching-location-card">
                   <div className="practice-pitching-location-card__head">
-                    <span>Location <small>Catcher View</small></span>
+                    <span>Location</span>
                     <div className="practice-pitching-location-card__tools">
                       <div className="practice-pitching-filter-menu" ref={pitchingFilterMenuRef}>
                         <button
@@ -10207,7 +10167,7 @@ function PracticeConsole({
                   <div className="practice-pitching-location-entry">
                     <div>
                       <span>Location</span>
-                      <small>{pitchingDraft.location ? pitchLocationLabel(pitchingDraft.location, player) : "Catcher View"}</small>
+                      <small>{pitchingDraft.location ? pitchLocationLabel(pitchingDraft.location, player) : "Optional"}</small>
                     </div>
                     <PracticePitchLocationGrid
                       pitches={pitchEvents}
@@ -10457,7 +10417,7 @@ function PracticeConsole({
               <section className="practice-pitching-stats-breakdown practice-pitching-analytics-grid">
                 <div className="practice-pitching-location-card practice-pitching-location-card--analytics">
                   <div className="practice-pitching-location-card__head">
-                    <span>Location <small>Catcher View</small></span>
+                    <span>Location</span>
                   </div>
                   <PracticePitchLocationGrid pitches={pitchingLocationFilteredEvents} pitcher={player} mode="analytics" />
                   <div className="practice-pitching-location-summary">
@@ -11532,6 +11492,7 @@ function VelocityPickerField({
   const [open, setOpen] = useState(false);
   const [draftValue, setDraftValue] = useState(() => normalizedVelocityValue(value, defaultValue));
   const selectedRef = useRef<HTMLButtonElement | null>(null);
+  const pointerStartRef = useRef<number | null>(null);
   const currentValue = normalizedVelocityValue(value, defaultValue);
 
   useEffect(() => {
@@ -11576,7 +11537,15 @@ function VelocityPickerField({
                 role="option"
                 aria-selected={draftValue === option}
                 className={draftValue === option ? "active" : ""}
-                onClick={() => setDraftValue(option)}
+                onPointerDown={(event) => { pointerStartRef.current = event.clientY; }}
+                onClick={(event) => {
+                  const moved = pointerStartRef.current !== null && Math.abs(event.clientY - pointerStartRef.current) > 8;
+                  pointerStartRef.current = null;
+                  setDraftValue(option);
+                  if (moved) return;
+                  onChange(String(option));
+                  setOpen(false);
+                }}
               >
                 <span>{option}</span>
                 <em>mph</em>
@@ -11612,6 +11581,8 @@ function PracticeHittingChartCarousel({
   const [pitchFilters, setPitchFilters] = useState<PitchType[]>([]);
   const [pitchFilterOpen, setPitchFilterOpen] = useState(false);
   const pitchFilterRef = useRef<HTMLDivElement | null>(null);
+  const chartScrollerRef = useRef<HTMLDivElement | null>(null);
+  const [requestedViewId, setRequestedViewId] = useState<"spray" | "location">("spray");
   const pitchFilterOptions = PITCH_TYPES.filter((pitchType) => events.some((event) => event.pitchType === pitchType));
   const filteredEvents = pitchFilters.length
     ? events.filter((event) => event.pitchType && pitchFilters.includes(event.pitchType))
@@ -11624,10 +11595,12 @@ function PracticeHittingChartCarousel({
   const ballsInPlayCount = filteredEvents.filter((event) => event.action === "Ball in play").length;
   const sprayPoints = filteredEvents.filter((event) => event.action === "Ball in play").map((event) => event.fieldLocation).filter(isZonePoint);
   const pitchLocationEvents = filteredEvents.filter((event) => isZonePoint(event.pitchLocation));
-  const views = [
+  const views = useMemo(() => [
     showSpray ? { id: "spray", label: "Spray", count: sprayChartCountLabel(ballsInPlayCount, sprayPoints.length) } : undefined,
-    showPitchLocation ? { id: "location", label: "Pitch Map", count: pitchLocationEvents.length ? `${pitchLocationEvents.length} tracked` : "No pitch locations" } : undefined,
-  ].filter(Boolean) as Array<{ id: "spray" | "location"; label: string; count: string }>;
+    showPitchLocation ? { id: "location", label: "Pitch Map", count: `${pitchLocationEvents.length} tracked` } : undefined,
+  ].filter(Boolean) as Array<{ id: "spray" | "location"; label: string; count: string }>, [ballsInPlayCount, pitchLocationEvents.length, showPitchLocation, showSpray, sprayPoints.length]);
+
+  const activeViewId = views.some((view) => view.id === requestedViewId) ? requestedViewId : views[0]?.id;
 
   useEffect(() => {
     if (!pitchFilterOpen) return;
@@ -11649,6 +11622,21 @@ function PracticeHittingChartCarousel({
 
   if (!views.length) return null;
 
+  function selectChartView(viewId: "spray" | "location") {
+    setRequestedViewId(viewId);
+    window.requestAnimationFrame(() => {
+      const target = chartScrollerRef.current?.querySelector<HTMLElement>(`[data-chart-view="${viewId}"]`);
+      target?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+    });
+  }
+
+  function syncActiveChartView(event: React.UIEvent<HTMLDivElement>) {
+    const container = event.currentTarget;
+    const index = Math.round(container.scrollLeft / Math.max(1, container.clientWidth));
+    const nextView = views[index];
+    if (nextView && nextView.id !== activeViewId) setRequestedViewId(nextView.id);
+  }
+
   function togglePitchFilter(pitchType: PitchType) {
     setPitchFilters((current) => (
       current.includes(pitchType)
@@ -11660,15 +11648,13 @@ function PracticeHittingChartCarousel({
   return (
     <section className="practice-hitting-live-charts" aria-label="Hitting charts">
       <div className="practice-hitting-live-charts__head">
-        <div>
-          <span>{views.length === 1 ? views[0].label : "Charts"}</span>
-          <small>{views.map((view) => view.count).join(" · ")}</small>
-        </div>
         <div className="practice-hitting-live-charts__tools">
           {views.length > 1 && (
-            <div className="practice-hitting-live-charts__pills" aria-label="Swipe between hitting charts">
+            <div className="practice-hitting-live-charts__pills" aria-label="Switch hitting charts">
               {views.map((view) => (
-                <span key={view.id}>{view.label}</span>
+                <button key={view.id} type="button" className={activeViewId === view.id ? "active" : ""} onClick={() => selectChartView(view.id)}>
+                  {view.label}
+                </button>
               ))}
             </div>
           )}
@@ -11713,9 +11699,9 @@ function PracticeHittingChartCarousel({
           </div>
         </div>
       </div>
-      <div className="practice-hitting-live-charts__scroller" aria-label="Swipe charts">
+      <div ref={chartScrollerRef} className="practice-hitting-live-charts__scroller" aria-label="Swipe charts" onScroll={syncActiveChartView}>
         {showSpray && (
-          <div className="practice-hitting-live-charts__panel">
+          <div className="practice-hitting-live-charts__panel" data-chart-view="spray">
             <PracticeSprayField
               points={sprayPoints}
               mode={sprayMode}
@@ -11725,7 +11711,7 @@ function PracticeHittingChartCarousel({
           </div>
         )}
         {showPitchLocation && (
-          <div className="practice-hitting-live-charts__panel">
+          <div className="practice-hitting-live-charts__panel" data-chart-view="location">
             <PracticeHittingPitchLocationGrid
               events={pitchLocationEvents}
               hitter={hitter}
@@ -11992,13 +11978,29 @@ function PracticeHittingPitchLocationGrid({
   ].filter(Boolean).join(" ");
 
   return (
-    <div className={className} role={onSelect || cycleable ? "group" : "img"} aria-label={onSelect ? "Hitter pitch location selector" : "Hitter pitch location chart"}>
+    <div
+      className={className}
+      role={onSelect || cycleable ? "group" : "img"}
+      tabIndex={cycleable ? 0 : undefined}
+      onClick={(event) => {
+        if (!cycleable) return;
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        if (target?.closest("button")) return;
+        onModeCycle?.();
+      }}
+      onKeyDown={(event) => {
+        if (!cycleable || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        onModeCycle?.();
+      }}
+      aria-label={onSelect ? "Hitter pitch location selector" : "Hitter pitch location chart"}
+    >
       <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--up">Up</span>
       <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--down">Down</span>
       <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--left">{labels.left}</span>
       <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--right">{labels.right}</span>
       {cycleable && (
-        <button className="practice-pitch-location-grid__mode" type="button" onClick={onModeCycle} aria-label={`Hitting pitch location mode: ${chartMetricModeLabel(mode)}`}>
+        <button className="practice-pitch-location-grid__mode" type="button" onClick={(event) => { event.stopPropagation(); onModeCycle?.(); }} aria-label={`Hitting pitch location mode: ${chartMetricModeLabel(mode)}`}>
           {chartMetricModeLabel(mode)}
         </button>
       )}
@@ -12024,7 +12026,8 @@ function PracticeHittingPitchLocationGrid({
                 "--pitch-heat-opacity": hittingPitchLocationHeatOpacity(stats, totalLocations, maxCount),
                 "--pitch-heat-color": hittingPitchLocationHeatColor(stats),
               } as React.CSSProperties}
-              onClick={() => {
+              onClick={(event) => {
+                event.stopPropagation();
                 if (onSelect) onSelect(makeHittingPitchLocationPoint(bucket, hitter));
                 else if (cycleable) onModeCycle?.();
               }}
@@ -12236,13 +12239,29 @@ function PracticePitchLocationGrid({
   ].filter(Boolean).join(" ");
 
   return (
-    <div className={className} role={onSelect || cycleable ? "group" : "img"} aria-label={onSelect ? "Pitch location selector" : "Pitch location chart"}>
+    <div
+      className={className}
+      role={onSelect || cycleable ? "group" : "img"}
+      tabIndex={cycleable ? 0 : undefined}
+      onClick={(event) => {
+        if (!cycleable) return;
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        if (target?.closest("button")) return;
+        cycleMetricMode();
+      }}
+      onKeyDown={(event) => {
+        if (!cycleable || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        cycleMetricMode();
+      }}
+      aria-label={onSelect ? "Pitch location selector" : "Pitch location chart"}
+    >
       <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--up">Up</span>
       <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--down">Down</span>
       <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--left">{labels.left}</span>
       <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--right">{labels.right}</span>
       {cycleable && (
-        <button className="practice-pitch-location-grid__mode" type="button" onClick={cycleMetricMode} aria-label={`Pitch location mode: ${pitchLocationMetricModeLabel(metricMode)}`}>
+        <button className="practice-pitch-location-grid__mode" type="button" onClick={(event) => { event.stopPropagation(); cycleMetricMode(); }} aria-label={`Pitch location mode: ${pitchLocationMetricModeLabel(metricMode)}`}>
           {pitchLocationMetricModeLabel(metricMode)}
         </button>
       )}
@@ -12270,7 +12289,8 @@ function PracticePitchLocationGrid({
                 "--pitch-heat-opacity": heat,
                 "--pitch-heat-color": heatColor,
               } as React.CSSProperties}
-              onClick={() => {
+              onClick={(event) => {
+                event.stopPropagation();
                 if (onSelect) onSelect(makePitchLocationPoint(bucket, pitcher));
                 else if (inspectable) setInspectedBucketId(bucket.id);
                 else if (cycleable) cycleMetricMode();
@@ -12345,7 +12365,12 @@ function pitchLocationBucketMetricLabel(mode: PitchLocationMetricMode, stats: Pi
 }
 
 function formatHittingEventTitle(event: HittingEvent) {
-  if (event.action === "Ball in play") return practiceHittingResultLabel(event);
+  if (event.action === "Ball in play") {
+    return [
+      hittingContactQualityShortLabel(event.contactQuality),
+      battedBallShortLabel(event.contactResult),
+    ].filter(Boolean).join(" ") || practiceHittingResultLabel(event);
+  }
   if (event.action === "Swing") return "Other";
   if (event.action === "Took pitch") return "Take";
   return event.action;
@@ -12353,12 +12378,27 @@ function formatHittingEventTitle(event: HittingEvent) {
 
 function formatHittingEventDetail(event: HittingEvent) {
   const parts = [
-    event.pitchType ? practicePitchTypeLabel(event.pitchType) : undefined,
-    event.velocity !== undefined ? `${formatNumber(event.velocity, 1)} velo` : undefined,
-    event.direction,
-    event.exitVelocityMph !== undefined ? `${formatNumber(event.exitVelocityMph, 1)} EV` : undefined,
+    event.velocity !== undefined ? `${formatNumber(event.velocity, 0)} mph` : undefined,
+    event.pitchType ? PITCH_TYPE_LABELS[event.pitchType] : undefined,
+    event.action === "Ball in play" ? event.direction : undefined,
+    event.exitVelocityMph !== undefined ? `${formatNumber(event.exitVelocityMph, 0)} EV` : undefined,
   ].filter(Boolean);
-  return parts.length ? parts.join(" - ") : "--";
+  return parts.length ? parts.join(" · ") : "--";
+}
+
+function battedBallShortLabel(type?: BattedBallType) {
+  if (type === "Ground ball") return "GB";
+  if (type === "Line drive") return "LD";
+  if (type === "Fly ball") return "FB";
+  if (type === "Pop up") return "Popup";
+  return undefined;
+}
+
+function hittingContactQualityShortLabel(quality?: HittingContactQuality) {
+  if (quality === "Hard" || quality === "Barrel") return "Hard";
+  if (quality === "Weak") return "Soft";
+  if (quality === "Solid") return "Solid";
+  return undefined;
 }
 
 function formatPitchingEventTitle(event: PitchEvent) {

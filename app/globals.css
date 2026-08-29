@@ -24785,7 +24785,7 @@ button.weight-room-athlete-table__row:hover {
 .practice-hitting-live-charts__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
 }
 
@@ -24819,14 +24819,23 @@ button.weight-room-athlete-table__row:hover {
   gap: 5px;
 }
 
-.practice-hitting-live-charts__pills span {
+.practice-hitting-live-charts__pills button {
   border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--panel) 78%, transparent);
   color: var(--text);
-  padding: 5px 8px;
+  min-height: 32px;
+  padding: 5px 10px;
   font-size: 10px;
+  font-weight: 950;
   text-transform: none;
+  cursor: pointer;
+}
+
+.practice-hitting-live-charts__pills button.active {
+  border-color: color-mix(in srgb, var(--tracker-accent) 48%, var(--line));
+  background: color-mix(in srgb, var(--tracker-accent) 18%, var(--panel-soft));
+  color: var(--text);
 }
 
 .practice-hitting-live-charts__tools {
@@ -24998,6 +25007,30 @@ button.weight-room-athlete-table__row:hover {
   gap: 4px;
 }
 
+.practice-hitting-sheet__flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.practice-hitting-sheet__flow span {
+  min-height: 32px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-soft) 78%, transparent);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.practice-hitting-sheet__flow span.active {
+  border-color: color-mix(in srgb, var(--tracker-accent) 52%, var(--line));
+  background: color-mix(in srgb, var(--tracker-accent) 18%, var(--panel-soft));
+  color: var(--text);
+}
+
 .practice-hitting-sheet__context-copy small,
 .practice-hitting-sheet__step small {
   color: var(--muted);
@@ -25048,12 +25081,29 @@ button.weight-room-athlete-table__row:hover {
   color: var(--text);
 }
 
-.practice-hitting-sheet__step > div:first-child span,
+.practice-hitting-sheet__step-head span,
 .practice-hitting-session-sheet span,
 .practice-hitting-stats-breakdown span {
   color: var(--text);
   font-size: 15px;
   font-weight: 950;
+}
+
+.practice-hitting-sheet__step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.practice-hitting-sheet__step-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.practice-hitting-sheet__step-actions .primary-button {
+  min-width: 132px;
 }
 
 .practice-hitting-result-grid {
@@ -25470,7 +25520,7 @@ button.weight-room-athlete-table__row:hover {
   z-index: 40;
   left: 50%;
   bottom: calc(100% + 8px);
-  width: min(260px, 88vw);
+  width: min(224px, 84vw);
   transform: translateX(-50%);
   border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
   border-radius: 18px;
@@ -25512,11 +25562,11 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .velocity-picker-field__wheel {
-  max-height: 216px;
+  max-height: 184px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-snap-type: y mandatory;
-  padding: 72px 0;
+  padding: 56px 0;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--panel) 98%, transparent), transparent 24%, transparent 76%, color-mix(in srgb, var(--panel) 98%, transparent)),
     color-mix(in srgb, var(--panel-soft) 58%, transparent);
@@ -25534,12 +25584,11 @@ button.weight-room-athlete-table__row:hover {
   border-radius: 0;
   background: transparent;
   color: color-mix(in srgb, var(--text) 66%, transparent);
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 0 42px;
+  padding: 0 24px;
   scroll-snap-align: center;
 }
 
@@ -25549,13 +25598,15 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .velocity-picker-field__wheel button span {
-  justify-self: end;
+  min-width: 46px;
+  text-align: right;
   font-size: 22px;
   font-weight: 950;
 }
 
 .velocity-picker-field__wheel button em {
   min-width: 32px;
+  text-align: left;
   color: var(--muted);
   font-size: 12px;
   font-style: normal;
@@ -25746,7 +25797,7 @@ button.weight-room-athlete-table__row:hover {
   }
 
   .practice-hitting-player-card {
-    justify-content: flex-start;
+    justify-content: center;
     gap: 8px;
   }
 
@@ -30698,7 +30749,7 @@ textarea:focus,
 
   .practice-console--active .practice-hitting-player-card,
   .practice-console--active .practice-pitching-player-card {
-    justify-content: flex-start;
+    justify-content: center;
     gap: 7px;
   }
 
@@ -31502,7 +31553,7 @@ textarea:focus,
     left: 50%;
     right: auto;
     bottom: calc(84px + env(safe-area-inset-bottom));
-    width: min(292px, calc(100vw - 36px));
+    width: min(236px, calc(100vw - 36px));
     transform: translateX(-50%);
   }
 
