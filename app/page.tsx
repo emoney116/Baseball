@@ -18135,6 +18135,15 @@ function AnalyticsView({
   }, [askOpen]);
 
   useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (askOpen) document.body.dataset.askClubhouseOpen = "true";
+    else delete document.body.dataset.askClubhouseOpen;
+    return () => {
+      delete document.body.dataset.askClubhouseOpen;
+    };
+  }, [askOpen]);
+
+  useEffect(() => {
     const handleAnalyticsPopState = () => {
       const next = readInitialAnalyticsState();
       setDomain(next.domain);
@@ -18863,6 +18872,7 @@ function AskClubhouseDrawer({
           </button>
           <div className="ask-header__title">
             <strong>Ask Clubhouse</strong>
+            <small>{scopeLabel || "Team analytics"}</small>
           </div>
           <div className="ask-header__actions">
             <button className="ghost-button ask-header__new-button" type="button" onClick={onNewChat} aria-label="Start a new Ask Clubhouse chat" title="New Chat">
