@@ -24,10 +24,31 @@ test("Ask Clubhouse UI supports structured answers and deduped setup/error state
   assert.match(page, /type AskClubhouseUiPayload/);
   assert.match(page, /function AskClubhouseRankingAnswer/);
   assert.match(page, /function AskClubhouseComparisonAnswer/);
+  assert.match(page, /function AskClubhouseTextRanking/);
+  assert.match(page, /function stripAskMarkdownInline/);
+  assert.match(page, /function parseAskClubhouseTextAnswer/);
   assert.match(page, /function AskClubhouseStatusCard/);
   assert.match(page, /function dedupeAskClubhouseMessages/);
   assert.match(page, /normalizeAskContent\(message\.content\) === normalizeAskContent\(error\)/);
   assert.match(page, /ASK_CLUBHOUSE_GENERIC_STAGE = "Analyzing your Clubhouse data\.\.\."/);
+});
+
+test("Ask Clubhouse suggestions stay on the landing state instead of repeating after answers", () => {
+  const page = readFileSync("app/page.tsx", "utf8");
+
+  assert.match(page, /ASK_CLUBHOUSE_UI_SUGGESTIONS/);
+  assert.doesNotMatch(page, /function AskClubhouseFollowUps/);
+  assert.doesNotMatch(page, /<AskClubhouseFollowUps/);
+});
+
+test("Ask Clubhouse answer styles include hierarchy and flat text rankings", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+
+  assert.match(css, /\.ask-answer-primary\s*\{/);
+  assert.match(css, /\.ask-answer-scope\s*\{/);
+  assert.match(css, /\.ask-data-note\s*\{/);
+  assert.match(css, /\.ask-ranking--text\s*\{/);
+  assert.match(css, /\.ask-header__close-button\s*\{/);
 });
 
 test("Ask Clubhouse mock states are local development only", () => {
