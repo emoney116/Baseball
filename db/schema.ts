@@ -495,3 +495,58 @@ export const weeklyAwards = pgTable("weekly_awards", {
 }, (table) => ({
   awardKey: uniqueIndex("weekly_awards_unique_key").on(table.seasonId, table.playerId, table.awardType, table.weekStart),
 }));
+
+export const aiConversations = pgTable("ai_conversations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  profileId: uuid("profile_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  organizationId: uuid("organization_id").references(() => organizations.id, { onDelete: "set null" }),
+  teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
+  seasonId: uuid("season_id").references(() => seasons.id, { onDelete: "set null" }),
+  title: text("title"),
+  scope: jsonb("scope").default({}).notNull(),
+  ...timestamps,
+}, (table) => ({
+  profileUpdatedIdx: index("ai_conversations_profile_updated_idx").on(table.profileId, table.updatedAt),
+  teamUpdatedIdx: index("ai_conversations_team_updated_idx").on(table.teamId, table.updatedAt),
+}));
+
+export const aiMessages = pgTable("ai_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  conversationId: uuid("conversation_id").notNull().references(() => aiConversations.id, { onDelete: "cascade" }),
+  profileId: uuid("profile_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  metadata: jsonb("metadata").default({}).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  conversationCreatedIdx: index("ai_messages_conversation_created_idx").on(table.conversationId, table.createdAt),
+  profileCreatedIdx: index("ai_messages_profile_created_idx").on(table.profileId, table.createdAt),
+}));
+
+export const aiUsageEvents = pgTable("ai_usage_events", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  conversationId: uuid("conversation_id").references(() => aiConversations.id, { onDelete: "set null" }),
+  messageId: uuid("message_id").references(() => aiMessages.id, { onDelete: "set null" }),
+  profileId: uuid("profile_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  organizationId: uuid("organization_id").references(() => organizations.id, { onDelete: "set null" }),
+  teamId: uuid("team_id").references(() => teams.id, { onDelete: "set null" }),
+  seasonId: uuid("season_id").references(() => seasons.id, { onDelete: "set null" }),
+  requestHash: text("request_hash"),
+  model: text("model"),
+  status: text("status").default("started").notNull(),
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  totalTokens: integer("total_tokens"),
+  toolCallCount: integer("tool_call_count").default(0).notNull(),
+  webSearchCount: integer("web_search_count").default(0).notNull(),
+  latencyMs: integer("latency_ms"),
+  errorCode: text("error_code"),
+  safeToolNames: jsonb("safe_tool_names").default([]).notNull(),
+  safeToolParams: jsonb("safe_tool_params").default([]).notNull(),
+  metadata: jsonb("metadata").default({}).notNull(),
+  ...timestamps,
+}, (table) => ({
+  profileCreatedIdx: index("ai_usage_events_profile_created_idx").on(table.profileId, table.createdAt),
+  teamCreatedIdx: index("ai_usage_events_team_created_idx").on(table.teamId, table.createdAt),
+  requestHashIdx: index("ai_usage_events_request_hash_idx").on(table.profileId, table.requestHash, table.createdAt),
+}));

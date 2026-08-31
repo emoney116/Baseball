@@ -33,6 +33,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  Send,
   Shield,
   Sparkles,
   Sun,
@@ -63,7 +64,6 @@ import {
   analyticsEventSummary,
   defaultAnalyticsSort,
   executeAnalyticsQuery,
-  runAskClubhouseQuestion,
   type AnalyticsCell,
   type AnalyticsColumn,
   type AnalyticsDevelopmentView,
@@ -77,8 +77,15 @@ import {
   type AnalyticsRow,
   type AnalyticsSource,
   type AnalyticsTimeRange,
-  type AskClubhouseResponse,
 } from "./lib/analyticsQuery";
+import type {
+  AskClubhouseAction,
+  AskClubhouseApiResponse,
+  AskClubhouseClientMessage,
+  AskClubhouseEvidenceItem,
+  AskClubhouseStatus,
+  AskClubhouseUsageSnapshot,
+} from "./lib/askClubhouse/types";
 import {
   applyRosterImportPlan,
   buildRosterImportPlan,
@@ -263,6 +270,15 @@ type WeightRoomSortState<K extends string> = { key: K; direction: SortDirection 
 type WorkoutMeasurementType = "WEIGHT_REPS" | "BODYWEIGHT_REPS" | "REPS_ONLY" | "TIME" | "DISTANCE" | "HEIGHT" | "WEIGHT_ONLY" | "COUNT" | "COMPLETION" | "RPE_ONLY" | "CUSTOM";
 type WorkoutPerformanceDirection = "HIGHER_IS_BETTER" | "LOWER_IS_BETTER";
 type WorkoutTargetStyle = "Standard" | "Max Reps" | "Target Reps" | "Max Time" | "Target Time" | "Best Time" | "Best Distance" | "Max Weight" | "Completion";
+type AskClubhouseChatMessage = AskClubhouseClientMessage & {
+  id: ID;
+  status?: AskClubhouseStatus;
+  evidence?: AskClubhouseEvidenceItem[];
+  actions?: AskClubhouseAction[];
+  followUps?: string[];
+  usage?: AskClubhouseUsageSnapshot;
+  pending?: boolean;
+};
 
 function withStoredThemePreference(appData: AppData): AppData {
   const theme = readStoredTheme(appData.teamContext?.profile?.id);
@@ -17761,10 +17777,12 @@ function AnalyticsView({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [askOpen, setAskOpen] = useState(false);
-  const [askResponse, setAskResponse] = useState<AskClubhouseResponse | undefined>();
-  const [askPendingQuestionId, setAskPendingQuestionId] = useState<string | undefined>();
-  const [askThinking, setAskThinking] = useState(false);
-  const askTimerRef = useRef<number | undefined>(undefined);
+  const [askConversationId, setAskConversationId] = useState<ID | undefined>();
+  const [askMessages, setAskMessages] = useState<AskClubhouseChatMessage[]>([]);
+  const [askInput, setAskInput] = useState("");
+  const [askSending, setAskSending] = useState(false);
+  const [askStage, setAskStage] = useState("Reading the question...");
+  const [askError, setAskError] = useState<string | undefined>();
   const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>(() => readInitialAnalyticsDetailPlayerId(data));
   const [metricIds, setMetricIds] = useState<string[] | undefined>(initialState.metricIds);
   const context = useMemo(() => ({
@@ -17848,9 +17866,16 @@ function AnalyticsView({
     if (nextUrl !== currentUrl) window.history.replaceState({}, "", nextUrl);
   }, [customRange.end, customRange.start, developmentView, domain, eventIds, filters, metricIds, mode, sort, source, timeRange]);
 
-  useEffect(() => () => {
-    if (askTimerRef.current !== undefined) window.clearTimeout(askTimerRef.current);
-  }, []);
+  useEffect(() => {
+    if (!askSending) return undefined;
+    const stages = ["Reading the question...", "Checking Clubhouse data...", "Comparing the sample...", "Building the answer..."];
+    let index = 0;
+    const interval = window.setInterval(() => {
+      index = (index + 1) % stages.length;
+      setAskStage(stages[index]);
+    }, 1200);
+    return () => window.clearInterval(interval);
+  }, [askSending]);
 
   useEffect(() => {
     const handleAnalyticsPopState = () => {
@@ -17934,39 +17959,114 @@ function AnalyticsView({
     });
   }
 
-  function handleAskQuestion(questionId: string) {
+  async function handleAskQuestion(question: string) {
+    const nextQuestion = question.trim();
+    if (!nextQuestion || askSending) return;
     setAskOpen(true);
-    setAskPendingQuestionId(questionId);
-    setAskResponse(undefined);
-    setAskThinking(true);
-    if (askTimerRef.current !== undefined) window.clearTimeout(askTimerRef.current);
-    askTimerRef.current = window.setTimeout(() => {
-      setAskResponse(runAskClubhouseQuestion(data, questionId, context));
-      setAskThinking(false);
-      askTimerRef.current = undefined;
-    }, 520);
+    setAskError(undefined);
+    setAskInput("");
+    setAskStage("Reading the question...");
+    setAskSending(true);
+    const userMessage: AskClubhouseChatMessage = {
+      id: `ask-user-${Date.now()}`,
+      role: "user",
+      content: nextQuestion,
+      createdAt: new Date().toISOString(),
+    };
+    const pendingMessage: AskClubhouseChatMessage = {
+      id: `ask-pending-${Date.now()}`,
+      role: "assistant",
+      content: "Reading the question...",
+      createdAt: new Date().toISOString(),
+      pending: true,
+    };
+    const history = [...askMessages, userMessage].slice(-8);
+    setAskMessages((current) => [...current, userMessage, pendingMessage]);
+    try {
+      const response = await fetch("/api/ai/chat", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: nextQuestion,
+          conversationId: askConversationId,
+          messages: history.map(({ role, content, createdAt }) => ({ role, content, createdAt })),
+          uiContext: {
+            teamId: context.teamId,
+            seasonId: context.seasonId,
+            organizationId: context.organizationId,
+            analytics: {
+              domain: query.domain,
+              source: query.source,
+              mode: query.mode,
+              timeRange: query.timeRange,
+              developmentView: query.developmentView,
+              eventIds: query.eventIds,
+              filters: query.filters,
+              sort: query.sort,
+              groupBy: "player",
+            },
+          },
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as AskClubhouseApiResponse;
+      const assistantMessage: AskClubhouseChatMessage = {
+        id: payload.message?.id ?? `ask-assistant-${Date.now()}`,
+        role: "assistant",
+        content: payload.answer ?? payload.message?.content ?? "Ask Clubhouse could not answer that yet.",
+        createdAt: payload.message?.createdAt ?? new Date().toISOString(),
+        status: payload.status,
+        evidence: payload.evidence,
+        actions: payload.actions,
+        followUps: payload.followUps,
+        usage: payload.usage,
+      };
+      if (payload.conversationId) setAskConversationId(payload.conversationId);
+      if (!response.ok || !payload.ok) setAskError(payload.answer);
+      setAskMessages((current) => current.map((messageItem) => messageItem.pending ? assistantMessage : messageItem));
+    } catch {
+      const failedMessage: AskClubhouseChatMessage = {
+        id: `ask-error-${Date.now()}`,
+        role: "assistant",
+        content: "Ask Clubhouse is temporarily unavailable. Try again in a bit.",
+        createdAt: new Date().toISOString(),
+        status: "failed",
+      };
+      setAskError(failedMessage.content);
+      setAskMessages((current) => current.map((messageItem) => messageItem.pending ? failedMessage : messageItem));
+    } finally {
+      setAskSending(false);
+    }
   }
 
   function closeAskClubhouse() {
-    if (askTimerRef.current !== undefined) {
-      window.clearTimeout(askTimerRef.current);
-      askTimerRef.current = undefined;
-    }
-    setAskThinking(false);
     setAskOpen(false);
   }
 
-  function applyAskResult(response: AskClubhouseResponse) {
-    const next = response.result.query;
+  function startNewAskChat() {
+    setAskConversationId(undefined);
+    setAskMessages([]);
+    setAskInput("");
+    setAskError(undefined);
+  }
+
+  function applyAskAction(action: AskClubhouseAction) {
+    const next = action.query;
+    const nextSource = next.source ?? "all";
+    const nextMode = next.mode ?? "box-score";
     setDomain(next.domain);
-    setSource(next.source);
-    setMode(next.mode);
-    setTimeRange(next.timeRange);
+    setSource(nextSource);
+    setMode(nextMode);
+    setTimeRange(next.timeRange ?? "season");
     setDevelopmentView(next.developmentView ?? "overview");
     setEventIds(next.eventIds ?? []);
     setFilters(next.filters ?? {});
     setMetricIds(next.metrics);
-    setSort(next.sort ?? defaultAnalyticsSort(next.domain, next.source, next.mode));
+    setSort(next.sort ?? defaultAnalyticsSort(next.domain, nextSource, nextMode));
+    if (action.playerId) {
+      setDetailPlayerId(action.playerId);
+      writeAnalyticsDetailRoute(action.playerId);
+    }
     setAskOpen(false);
   }
 
@@ -18144,12 +18244,18 @@ function AnalyticsView({
 
       {askOpen && (
         <AskClubhouseDrawer
-          response={askResponse}
-          pendingQuestionId={askPendingQuestionId}
-          thinking={askThinking}
+          messages={askMessages}
+          input={askInput}
+          sending={askSending}
+          stage={askStage}
+          error={askError}
+          scopeLabel={[data.teamContext?.currentTeam?.teamName, result.scopeLabel].filter(Boolean).join(" · ")}
           onClose={closeAskClubhouse}
+          onNewChat={startNewAskChat}
+          onInput={setAskInput}
           onQuestion={handleAskQuestion}
-          onApply={applyAskResult}
+          onSubmit={() => handleAskQuestion(askInput)}
+          onAction={applyAskAction}
         />
       )}
       {selectedDetailRow && (
@@ -18444,75 +18550,149 @@ function AnalyticsFilterPanel({
 }
 
 function AskClubhouseDrawer({
-  response,
-  pendingQuestionId,
-  thinking,
+  messages,
+  input,
+  sending,
+  stage,
+  error,
+  scopeLabel,
   onClose,
+  onNewChat,
+  onInput,
   onQuestion,
-  onApply,
+  onSubmit,
+  onAction,
 }: {
-  response?: AskClubhouseResponse;
-  pendingQuestionId?: string;
-  thinking: boolean;
+  messages: AskClubhouseChatMessage[];
+  input: string;
+  sending: boolean;
+  stage: string;
+  error?: string;
+  scopeLabel: string;
   onClose: () => void;
-  onQuestion: (questionId: string) => void;
-  onApply: (response: AskClubhouseResponse) => void;
+  onNewChat: () => void;
+  onInput: (value: string) => void;
+  onQuestion: (question: string) => void;
+  onSubmit: () => void;
+  onAction: (action: AskClubhouseAction) => void;
 }) {
-  const pendingQuestion = ASK_CLUBHOUSE_QUESTIONS.find((question) => question.id === pendingQuestionId);
-  const activeQuestionId = response?.question.id ?? pendingQuestionId;
-  const followUps = ASK_CLUBHOUSE_QUESTIONS.filter((question) => question.id !== activeQuestionId).slice(0, 3);
+  const suggestions = ASK_CLUBHOUSE_QUESTIONS.map((question) => question.label);
+  const latestFollowUps = [...messages].reverse().find((message) => message.followUps?.length)?.followUps;
+  const promptChips = (messages.length ? latestFollowUps : suggestions)?.slice(0, 4) ?? [];
+  const canSend = input.trim().length > 0 && !sending;
   return (
     <div className="analytics-drawer-backdrop" role="presentation">
       <aside className="analytics-drawer analytics-ask-drawer" aria-label="Ask Clubhouse">
         <div className="analytics-drawer__head">
           <div>
             <h2><Sparkles size={17} aria-hidden="true" /> Ask Clubhouse</h2>
+            <small>{scopeLabel || "Team analytics"}</small>
           </div>
-          <button className="ghost-button" type="button" onClick={onClose} aria-label="Close Ask Clubhouse">
-            <X size={16} aria-hidden="true" />
-          </button>
+          <div className="ask-drawer-actions">
+            <button className="ghost-button" type="button" onClick={onNewChat}>New Chat</button>
+            <button className="ghost-button" type="button" onClick={onClose} aria-label="Close Ask Clubhouse">
+              <X size={16} aria-hidden="true" />
+            </button>
+          </div>
         </div>
         <section className="ask-chat" aria-label="Ask Clubhouse chat">
-          <div className="ask-message ask-message--assistant">
-            <strong>What do you want to know?</strong>
-            <span>Pick a starter question and I will run it against your current team data.</span>
-          </div>
-          {(pendingQuestion || response) && (
-            <div className="ask-message ask-message--user">
-              {response?.question.label ?? pendingQuestion?.label}
+          {!messages.length && (
+            <div className="ask-empty-state">
+              <strong>What do you want to know?</strong>
+              <span>Ask anything about your team, players, development, or baseball.</span>
             </div>
           )}
-          {thinking && (
-            <div className="ask-message ask-message--assistant ask-message--thinking">
-              <span aria-hidden="true" />
-              Thinking...
-            </div>
-          )}
-          {response && (
-            <div className="ask-message ask-message--assistant ask-message--result">
-              <small>{response.question.criteria}</small>
-              <h3>{response.lines.length ? response.question.label : "Not enough qualified data yet"}</h3>
-              {response.lines.length ? response.lines.map((line) => (
-                <div key={line.playerId}>
-                  <strong>{line.label}</strong>
-                  <em>{line.value}</em>
-                  {line.sample && <small>{line.sample}</small>}
-                </div>
-              )) : <p>There is not a qualified sample for that question in this selection yet.</p>}
-              <button type="button" className="primary-button" onClick={() => onApply(response)}>View in Analytics</button>
-            </div>
-          )}
+          {messages.map((message) => (
+            <AskClubhouseMessageBubble
+              key={message.id}
+              message={message.pending ? { ...message, content: stage } : message}
+              onAction={onAction}
+              onFollowUp={onQuestion}
+            />
+          ))}
+          {error && !sending && <p className="ask-inline-error">{error}</p>}
         </section>
-        <div className="ask-question-list">
-          <span>{response ? "Follow ups" : "Suggested questions"}</span>
-          {(response ? followUps : ASK_CLUBHOUSE_QUESTIONS).map((question) => (
-            <button key={question.id} type="button" className={activeQuestionId === question.id ? "active" : ""} onClick={() => onQuestion(question.id)}>
-              {question.label}
+        <div className="ask-question-list" aria-label={messages.length ? "Suggested follow ups" : "Suggested questions"}>
+          {promptChips.map((question) => (
+            <button key={question} type="button" onClick={() => onQuestion(question)} disabled={sending}>
+              {question}
+              <ChevronRight size={14} aria-hidden="true" />
             </button>
           ))}
         </div>
+        <form
+          className="ask-composer"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (canSend) onSubmit();
+          }}
+        >
+          <textarea
+            value={input}
+            onChange={(event) => onInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                if (canSend) onSubmit();
+              }
+            }}
+            placeholder="Ask about a player, practice, game, or trend..."
+            rows={2}
+            maxLength={4000}
+            disabled={sending}
+          />
+          <button className="primary-button ask-send-button" type="submit" disabled={!canSend} aria-label="Send Ask Clubhouse message">
+            <Send size={16} aria-hidden="true" />
+          </button>
+        </form>
       </aside>
     </div>
+  );
+}
+
+function AskClubhouseMessageBubble({
+  message,
+  onAction,
+  onFollowUp,
+}: {
+  message: AskClubhouseChatMessage;
+  onAction: (action: AskClubhouseAction) => void;
+  onFollowUp: (question: string) => void;
+}) {
+  return (
+    <article className={`ask-message ask-message--${message.role}${message.pending ? " ask-message--thinking" : ""}`}>
+      {message.pending && <span aria-hidden="true" />}
+      <p>{message.content}</p>
+      {message.evidence?.length ? (
+        <div className="ask-evidence-list">
+          {message.evidence.map((item) => (
+            <div key={`${message.id}-${item.title}`}>
+              <strong>{item.title}</strong>
+              <small>{item.summary}</small>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {message.actions?.length ? (
+        <div className="ask-action-list">
+          {message.actions.map((action) => (
+            <button key={`${message.id}-${action.label}`} type="button" onClick={() => onAction(action)}>
+              {action.label}
+              <ChevronRight size={13} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {message.followUps?.length ? (
+        <div className="ask-followup-list">
+          {message.followUps.slice(0, 3).map((question) => (
+            <button key={`${message.id}-${question}`} type="button" onClick={() => onFollowUp(question)}>
+              {question}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </article>
   );
 }
 
