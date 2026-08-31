@@ -78,6 +78,7 @@ export type PitchType =
   | "Curveball"
   | "Changeup"
   | "Splitter"
+  | "Knuckleball"
   | "Other";
 
 export type PitchOutcome =
@@ -96,6 +97,7 @@ export type ContactQuality =
   | "Medium contact"
   | "Hard contact";
 export type HittingContactQuality = "Poor" | "Weak" | "Solid" | "Hard" | "Barrel";
+export type HittingPitchTrackingMode = "OFF" | "ONE" | "MULTI";
 
 export type Direction =
   | "Pull"
@@ -156,7 +158,41 @@ export type DefenseStation =
   | "Situational defense"
   | "Team defense";
 
+export type DefenseDrillContext =
+  | "Infield Ground Balls"
+  | "Backhands"
+  | "Forehands"
+  | "Slow Rollers"
+  | "Double Plays"
+  | "First Base Picks"
+  | "Outfield Fly Balls"
+  | "Outfield Routes"
+  | "Cutoffs & Relays"
+  | "Catcher Blocking"
+  | "Catcher Throwdowns"
+  | "Bunt Defense"
+  | "Pitcher Fielding Practice"
+  | "Team Defense"
+  | "Other";
+export type DefenseRepType = "Ground Ball" | "Fly Ball" | "Line Drive" | "Throw" | "Double Play" | "Block" | "Pick" | "Bunt" | "Other";
+export type DefenseRepSubtype =
+  | "Routine"
+  | "Forehand"
+  | "Backhand"
+  | "Slow Roller"
+  | "Charge"
+  | "Drop Step"
+  | "Over Shoulder"
+  | "Cutoff"
+  | "Relay"
+  | "Block"
+  | "Throwdown"
+  | "Pick"
+  | "Bunt"
+  | "Other";
 export type DefenseOutcome = "Clean" | "Error" | "Missed Rep" | "Good Play" | "Great Play";
+export type DefenseThrowResult = "Accurate" | "Inaccurate" | "No Throw";
+export type DefenseDifficulty = "Routine" | "Difficult" | "Plus";
 export type ThrowQuality = "Poor" | "Average" | "Good" | "Plus";
 export type ExerciseKind = "Lift" | "Test" | "Speed" | "Jump" | "Custom";
 export type GameType =
@@ -555,6 +591,8 @@ export type HittingSession = {
   liveBpThrowerSource?: LiveBpThrowerSource;
   machineVelocity?: number;
   machinePitchType?: PitchType;
+  pitchTrackingMode?: HittingPitchTrackingMode;
+  defaultPitchType?: PitchType;
   machineLocation?: string;
   distance?: string;
   machineType?: string;
@@ -580,6 +618,7 @@ export type HittingEvent = {
   contactQuality?: HittingContactQuality;
   direction?: Direction;
   fieldLocation?: ZonePoint;
+  pitchLocation?: ZonePoint;
   pitchType?: PitchType;
   velocity?: number;
   exitVelocityMph?: number;
@@ -592,6 +631,8 @@ export type DefenseSession = {
   practiceId: ID;
   playerId: ID;
   station: DefenseStation;
+  drillContext?: DefenseDrillContext;
+  positionWorked?: Position;
   mode: "Quick Practice" | "Drill";
   startedAt: string;
   endedAt?: string;
@@ -607,6 +648,16 @@ export type DefenseEvent = {
   station: DefenseStation;
   eventNumber: number;
   outcome: DefenseOutcome;
+  positionWorked?: Position;
+  drillContext?: DefenseDrillContext;
+  repType?: DefenseRepType;
+  repSubtype?: DefenseRepSubtype;
+  result?: DefenseOutcome;
+  throwResult?: DefenseThrowResult;
+  difficulty?: DefenseDifficulty;
+  location?: ZonePoint;
+  timingSeconds?: number;
+  deviceSource?: string;
   throwQuality?: ThrowQuality;
   footwork?: "Needs work" | "Solid" | "Plus";
   decision?: "Late" | "Correct" | "Advanced";
@@ -969,9 +1020,64 @@ export interface DevelopmentGoal {
   updatedAt: string;
 }
 
+export type PitchLocationGridZoneId =
+  | "pitch_r1c1"
+  | "pitch_r1c2"
+  | "pitch_r1c3"
+  | "pitch_r1c4"
+  | "pitch_r1c5"
+  | "pitch_r2c1"
+  | "pitch_r2c2"
+  | "pitch_r2c3"
+  | "pitch_r2c4"
+  | "pitch_r2c5"
+  | "pitch_r3c1"
+  | "pitch_r3c2"
+  | "pitch_r3c3"
+  | "pitch_r3c4"
+  | "pitch_r3c5"
+  | "pitch_r4c1"
+  | "pitch_r4c2"
+  | "pitch_r4c3"
+  | "pitch_r4c4"
+  | "pitch_r4c5"
+  | "pitch_r5c1"
+  | "pitch_r5c2"
+  | "pitch_r5c3"
+  | "pitch_r5c4"
+  | "pitch_r5c5";
+
+export type LegacyPitchLocationZoneId =
+  | "zone_high_arm"
+  | "zone_high_middle"
+  | "zone_high_glove"
+  | "zone_middle_arm"
+  | "zone_middle_middle"
+  | "zone_middle_glove"
+  | "zone_low_arm"
+  | "zone_low_middle"
+  | "zone_low_glove"
+  | "outside_up_arm"
+  | "outside_up_middle"
+  | "outside_up_glove"
+  | "outside_arm_high"
+  | "outside_arm_middle"
+  | "outside_arm_low"
+  | "outside_glove_high"
+  | "outside_glove_middle"
+  | "outside_glove_low"
+  | "outside_down_arm"
+  | "outside_down_middle"
+  | "outside_down_glove";
+
+export type PitchLocationZoneId = PitchLocationGridZoneId | LegacyPitchLocationZoneId;
+
 export interface ZonePoint {
   x: number;
   y: number;
+  zoneId?: PitchLocationZoneId;
+  zoneLabel?: string;
+  isZone?: boolean;
 }
 
 export interface CountState {

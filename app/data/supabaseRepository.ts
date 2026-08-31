@@ -66,6 +66,8 @@ const SEASON_NAME = "Fall 2026";
 const SELECTED_TEAM_STORAGE_KEY = "clubhouse9-current-team-v2";
 
 type SupabaseClient = ReturnType<typeof createClient>;
+const HITTING_EVENT_OPTIONAL_COLUMNS = ["pitch_location", "exit_velocity_mph"] as const;
+const missingHittingEventOptionalColumns = new Set<(typeof HITTING_EVENT_OPTIONAL_COLUMNS)[number]>();
 
 type Foundation = {
   organizationId: string;
@@ -1594,6 +1596,8 @@ async function syncPracticeSessions(supabase: SupabaseClient, data: AppData) {
         liveBpThrowerSource: session.liveBpThrowerSource,
         machineVelocity: session.machineVelocity,
         machinePitchType: session.machinePitchType,
+        pitchTrackingMode: session.pitchTrackingMode,
+        defaultPitchType: session.defaultPitchType,
         machineLocation: session.machineLocation,
         distance: session.distance,
         machineType: session.machineType,
@@ -1646,7 +1650,12 @@ async function syncPracticeSessions(supabase: SupabaseClient, data: AppData) {
       station: session.station,
       entry_policy: session.entryPolicy ?? "COACH_ONLY",
       updated_at: session.updatedAt ?? session.endedAt ?? session.startedAt,
-      metadata: { mode: session.mode, plannedReps: session.plannedReps },
+      metadata: {
+        mode: session.mode,
+        plannedReps: session.plannedReps,
+        drillContext: session.drillContext,
+        positionWorked: session.positionWorked,
+      },
     })),
   ];
   if (rows.length === 0) return;
@@ -1673,8 +1682,39 @@ async function syncPracticeSessionContributors(supabase: SupabaseClient, data: A
 
 async function syncPracticeEvents(supabase: SupabaseClient, data: AppData) {
   await upsertRows(supabase, "pitch_events", data.pitchEvents.map(mapPitchEventToRow));
-  await upsertRows(supabase, "hitting_events", data.hittingEvents.map(mapHittingEventToRow));
-  await upsertRows(supabase, "defense_events", data.defenseEvents.map(mapDefenseEventToRow));
+  await upsertHittingEvents(supabase, data.hittingEvents);
+  await upsertDefenseEvents(supabase, data.defenseEvents);
+}
+
+async function upsertHittingEvents(supabase: SupabaseClient, events: HittingEvent[]) {
+  let rows = events
+    .map((event) => mapHittingEventToRow(event))
+    .map((row) => removeMissingHittingEventOptionalColumns(row, missingHittingEventOptionalColumns));
+
+  for (let attempt = 0; attempt <= HITTING_EVENT_OPTIONAL_COLUMNS.length; attempt += 1) {
+    try {
+      await upsertRows(supabase, "hitting_events", rows);
+      return;
+    } catch (error) {
+      const missingColumn = missingHittingEventOptionalColumn(error);
+      if (!missingColumn || missingHittingEventOptionalColumns.has(missingColumn)) throw error;
+      missingHittingEventOptionalColumns.add(missingColumn);
+      rows = rows.map((row) => removeHittingEventOptionalColumns(row, [missingColumn]));
+    }
+  }
+
+  const missingColumn = Array.from(missingHittingEventOptionalColumns).join(", ") || "unknown";
+  throw new PersistenceError("save-failed", `Unable to sync hitting events after removing optional columns: ${missingColumn}.`);
+}
+
+async function upsertDefenseEvents(supabase: SupabaseClient, events: DefenseEvent[]) {
+  const rows = events.map((event) => mapDefenseEventToRow(event));
+  try {
+    await upsertRows(supabase, "defense_events", rows);
+  } catch (error) {
+    if (!isMissingDefenseTrackingColumn(error)) throw error;
+    await upsertRows(supabase, "defense_events", rows.map(removeDefenseTrackingColumns));
+  }
 }
 
 async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: Foundation, data: AppData) {
@@ -2657,6 +2697,8 @@ function mapHittingSession(row: any): HittingSession {
     liveBpThrowerSource: normalizeLiveBpThrowerSource(metadata.liveBpThrowerSource),
     machineVelocity: metadata.machineVelocity,
     machinePitchType: metadata.machinePitchType,
+    pitchTrackingMode: metadata.pitchTrackingMode,
+    defaultPitchType: metadata.defaultPitchType,
     machineLocation: metadata.machineLocation,
     distance: metadata.distance,
     machineType: metadata.machineType,
@@ -2712,6 +2754,8 @@ function mapDefenseSession(row: any): DefenseSession {
     practiceId: row.practice_id,
     playerId: row.player_id,
     station: row.session_type,
+    drillContext: metadata.drillContext,
+    positionWorked: metadata.positionWorked,
     mode: metadata.mode ?? "Quick Practice",
     startedAt: row.started_at,
     endedAt: row.ended_at ?? undefined,
@@ -2780,6 +2824,7 @@ function mapHittingEvent(row: any): HittingEvent {
     contactQuality: row.contact_quality ?? undefined,
     direction: row.direction ?? undefined,
     fieldLocation: row.field_location ?? undefined,
+    pitchLocation: row.pitch_location ?? undefined,
     pitchType: row.pitch_type ?? undefined,
     velocity: toNumber(row.velocity),
     exitVelocityMph: toNumber(row.exit_velocity_mph),
@@ -2803,6 +2848,16 @@ function mapDefenseEvent(row: any): DefenseEvent {
     station: row.station,
     eventNumber: row.event_number,
     outcome: row.outcome,
+    positionWorked: row.position_worked ?? undefined,
+    drillContext: row.drill_context ?? undefined,
+    repType: row.rep_type ?? undefined,
+    repSubtype: row.rep_subtype ?? undefined,
+    result: row.result ?? undefined,
+    throwResult: row.throw_result ?? undefined,
+    difficulty: row.difficulty ?? undefined,
+    location: row.location ?? undefined,
+    timingSeconds: toNumber(row.timing_seconds),
+    deviceSource: row.device_source ?? undefined,
     throwQuality: row.throw_quality ?? undefined,
     footwork: row.footwork ?? undefined,
     decision: row.decision ?? undefined,
@@ -3250,6 +3305,7 @@ function mapHittingEventToRow(event: HittingEvent) {
     contact_quality: event.contactQuality ?? null,
     direction: event.direction ?? null,
     field_location: event.fieldLocation ?? null,
+    pitch_location: event.pitchLocation ?? null,
     pitch_type: event.pitchType ?? null,
     velocity: event.velocity ?? null,
     exit_velocity_mph: event.exitVelocityMph ?? null,
@@ -3265,6 +3321,83 @@ function mapHittingEventToRow(event: HittingEvent) {
   };
 }
 
+function removeMissingHittingEventOptionalColumns(
+  row: Record<string, unknown>,
+  missingColumns: Set<(typeof HITTING_EVENT_OPTIONAL_COLUMNS)[number]>,
+) {
+  return removeHittingEventOptionalColumns(row, Array.from(missingColumns));
+}
+
+function removeHittingEventOptionalColumns(
+  row: Record<string, unknown>,
+  columns: readonly (typeof HITTING_EVENT_OPTIONAL_COLUMNS)[number][],
+) {
+  const legacySafeRow = { ...row };
+  for (const column of columns) delete legacySafeRow[column];
+  return legacySafeRow;
+}
+
+function missingHittingEventOptionalColumn(error: unknown) {
+  const message = error instanceof PersistenceError
+    ? error.message
+    : typeof error === "object" && error
+      ? [
+          "message" in error ? String(error.message) : "",
+          "details" in error ? String(error.details) : "",
+          "hint" in error ? String(error.hint) : "",
+          "code" in error ? String(error.code) : "",
+        ].join(" ")
+      : String(error ?? "");
+  const normalized = message.toLowerCase();
+  const isMissingColumn = normalized.includes("schema cache") || normalized.includes("could not find") || normalized.includes("column");
+  if (!isMissingColumn) return undefined;
+  return HITTING_EVENT_OPTIONAL_COLUMNS.find((column) => normalized.includes(column));
+}
+
+function removeDefenseTrackingColumns(row: Record<string, unknown>) {
+  const legacySafeRow = { ...row };
+  [
+    "position_worked",
+    "drill_context",
+    "rep_type",
+    "rep_subtype",
+    "result",
+    "throw_result",
+    "difficulty",
+    "location",
+    "timing_seconds",
+    "device_source",
+  ].forEach((column) => {
+    delete legacySafeRow[column];
+  });
+  return legacySafeRow;
+}
+
+function isMissingDefenseTrackingColumn(error: unknown) {
+  const message = error instanceof PersistenceError
+    ? error.message
+    : typeof error === "object" && error
+      ? [
+          "message" in error ? String(error.message) : "",
+          "details" in error ? String(error.details) : "",
+          "hint" in error ? String(error.hint) : "",
+          "code" in error ? String(error.code) : "",
+        ].join(" ")
+      : String(error ?? "");
+  const normalized = message.toLowerCase();
+  const defenseColumns = [
+    "position_worked",
+    "drill_context",
+    "rep_type",
+    "rep_subtype",
+    "throw_result",
+    "timing_seconds",
+    "device_source",
+  ];
+  return defenseColumns.some((column) => normalized.includes(column))
+    && (normalized.includes("schema cache") || normalized.includes("could not find") || normalized.includes("column"));
+}
+
 function mapDefenseEventToRow(event: DefenseEvent) {
   return {
     id: event.id,
@@ -3274,6 +3407,16 @@ function mapDefenseEventToRow(event: DefenseEvent) {
     station: event.station,
     event_number: event.eventNumber,
     outcome: event.outcome,
+    position_worked: event.positionWorked ?? null,
+    drill_context: event.drillContext ?? null,
+    rep_type: event.repType ?? null,
+    rep_subtype: event.repSubtype ?? null,
+    result: event.result ?? event.outcome,
+    throw_result: event.throwResult ?? null,
+    difficulty: event.difficulty ?? event.range ?? null,
+    location: event.location ?? null,
+    timing_seconds: event.timingSeconds ?? null,
+    device_source: event.deviceSource ?? null,
     throw_quality: event.throwQuality ?? null,
     footwork: event.footwork ?? null,
     decision: event.decision ?? null,
