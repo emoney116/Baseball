@@ -60,7 +60,6 @@ import { APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
 import { cityOptionsForState, US_STATE_OPTIONS } from "./lib/locations";
 import { applyDocumentTheme, readStoredTheme, saveStoredTheme, type ThemePreference } from "./lib/themePreference";
 import {
-  ASK_CLUBHOUSE_QUESTIONS,
   analyticsEventSummary,
   defaultAnalyticsSort,
   executeAnalyticsQuery,
@@ -278,7 +277,250 @@ type AskClubhouseChatMessage = AskClubhouseClientMessage & {
   followUps?: string[];
   usage?: AskClubhouseUsageSnapshot;
   pending?: boolean;
+  ui?: AskClubhouseUiPayload;
 };
+
+type AskClubhouseUiMetric = {
+  label: string;
+  value: string;
+  sub?: string;
+};
+
+type AskClubhouseRankingRow = {
+  rank: number;
+  initials: string;
+  name: string;
+  value: string;
+};
+
+type AskClubhouseComparisonRow = {
+  label: string;
+  practice: string;
+  games: string;
+  emphasis?: "practice" | "games";
+};
+
+type AskClubhouseUiPayload =
+  | {
+      kind: "ranking";
+      headline: string;
+      metrics: AskClubhouseUiMetric[];
+      explanation: string;
+      rankingLabel: string;
+      rankingValueLabel: string;
+      ranking: AskClubhouseRankingRow[];
+      footnote: string;
+    }
+  | {
+      kind: "comparison";
+      title: string;
+      rows: AskClubhouseComparisonRow[];
+      explanation: string;
+      barLabel: string;
+      practiceValue: number;
+      gamesValue: number;
+      actionLabel?: string;
+    };
+
+type AskClubhouseInitialState = {
+  open: boolean;
+  messages: AskClubhouseChatMessage[];
+  sending?: boolean;
+  stage?: string;
+  error?: string;
+};
+
+const ASK_CLUBHOUSE_GENERIC_STAGE = "Analyzing your Clubhouse data...";
+const ASK_CLUBHOUSE_SETUP_TITLE = "Ask Clubhouse is finishing setup.";
+const ASK_CLUBHOUSE_SETUP_BODY = "The latest database update needs to complete before team-data questions are available.";
+const ASK_CLUBHOUSE_ERROR_TITLE = "I couldn't complete that analysis right now.";
+const ASK_CLUBHOUSE_ERROR_BODY = "Your Clubhouse data was not changed.";
+
+const ASK_CLUBHOUSE_UI_SUGGESTIONS: Array<{ label: string; icon: LucideIcon }> = [
+  { label: "Who are my hottest hitters?", icon: TrendingUp },
+  { label: "Compare Practice vs Games", icon: BarChart3 },
+  { label: "Who has improved most?", icon: Gauge },
+  { label: "Who has the best bullpen Strike %?", icon: Trophy },
+  { label: "Show our highest exit velocities", icon: Sparkles },
+  { label: "Who is leading the Weight Room?", icon: Dumbbell },
+];
+
+const ASK_CLUBHOUSE_MOCK_TIME = "2026-08-30T13:41:00.000Z";
+
+const ASK_CLUBHOUSE_MOCK_ACTION: AskClubhouseAction = {
+  type: "open_analytics",
+  label: "View Practice Hitting",
+  query: {
+    domain: "hitting",
+    source: "practice",
+    mode: "box-score",
+    timeRange: "30d",
+    groupBy: "player",
+    sort: { metricId: "hardPct", direction: "desc" },
+  },
+};
+
+function readInitialAskClubhouseFixture(): AskClubhouseInitialState | undefined {
+  if (process.env.NODE_ENV === "production" || typeof window === "undefined") return undefined;
+  const params = new URLSearchParams(window.location.search);
+  const fixture = params.get("askMock") ?? params.get("askState");
+  if (!fixture) return undefined;
+
+  const question = "Who is my hottest hitter in Practice right now?";
+  const userMessage = makeAskFixtureMessage("user", question);
+  const rankingMessage = makeAskFixtureMessage(
+    "assistant",
+    "Mylo White is your hottest Practice hitter over the last 30 days.",
+    {
+      status: "completed",
+      actions: [ASK_CLUBHOUSE_MOCK_ACTION],
+      followUps: ["Why is Mylo first?", "Compare him to Games", "Show his last 3 practices"],
+      evidence: [{ title: "Practice hitting", summary: "Based on 6 practices from Aug 1-30." }],
+      ui: {
+        kind: "ranking",
+        headline: "Mylo White is your hottest Practice hitter over the last 30 days.",
+        metrics: [
+          { label: "Hard Contact", value: "46%" },
+          { label: "Avg EV", value: "84.7", sub: "mph" },
+          { label: "Swings", value: "38" },
+        ],
+        explanation: "He's led the team in Hard Contact while also producing the second-highest average exit velocity.",
+        rankingLabel: "Player",
+        rankingValueLabel: "Hard Contact",
+        ranking: [
+          { rank: 1, initials: "MW", name: "Mylo White", value: "46%" },
+          { rank: 2, initials: "JS", name: "Jacob Seamon", value: "42%" },
+          { rank: 3, initials: "JP", name: "Jackson Pierce", value: "39%" },
+        ],
+        footnote: "Based on 6 practices · Aug 1-30",
+      },
+    },
+  );
+
+  switch (fixture) {
+    case "empty":
+      return { open: true, messages: [] };
+    case "submitted":
+      return { open: true, messages: [userMessage] };
+    case "analyzing":
+      return {
+        open: true,
+        sending: true,
+        stage: ASK_CLUBHOUSE_GENERIC_STAGE,
+        messages: [
+          userMessage,
+          makeAskFixtureMessage("assistant", ASK_CLUBHOUSE_GENERIC_STAGE, { pending: true }),
+        ],
+      };
+    case "ranking":
+    case "followups":
+      return { open: true, messages: [userMessage, rankingMessage] };
+    case "comparison":
+      return {
+        open: true,
+        messages: [
+          makeAskFixtureMessage("user", "Compare Mylo to his Games stats."),
+          makeAskFixtureMessage("assistant", "Mylo's quality of contact is stronger in Practice, while his Game results remain solid.", {
+            status: "completed",
+            actions: [{
+              ...ASK_CLUBHOUSE_MOCK_ACTION,
+              label: "View Mylo's Hitting",
+            }],
+            followUps: ["Show his last 3 practices", "Compare Jacob next", "Which pitch type is best?"],
+            ui: {
+              kind: "comparison",
+              title: "Mylo White",
+              rows: [
+                { label: "Contact %", practice: "81%", games: "76%", emphasis: "practice" },
+                { label: "Hard Contact %", practice: "46%", games: "39%", emphasis: "practice" },
+                { label: "Avg EV", practice: "84.7", games: "83.1", emphasis: "practice" },
+                { label: "Barrel %", practice: "12%", games: "8%", emphasis: "practice" },
+                { label: "Swings", practice: "38", games: "42" },
+              ],
+              explanation: "His Practice contact quality has separated from Games, but the gap is small enough to keep watching over the next few sessions.",
+              barLabel: "Hard Contact %",
+              practiceValue: 46,
+              gamesValue: 39,
+            },
+          }),
+        ],
+      };
+    case "nodata":
+    case "no-data":
+      return {
+        open: true,
+        messages: [
+          makeAskFixtureMessage("user", "Who has the highest EV this week?"),
+          makeAskFixtureMessage("assistant", "I don't have enough tracked exit velocity data for this week yet.", {
+            status: "no_data",
+            followUps: ["Use this month", "Practice Hitting only", "All Sessions"],
+          }),
+        ],
+      };
+    case "refusal":
+      return {
+        open: true,
+        messages: [
+          makeAskFixtureMessage("user", "Write my English essay."),
+          makeAskFixtureMessage("assistant", "I'm built for Clubhouse 9 and baseball-related questions. Ask me about your team, players, practices, games, development, or baseball strategy.", {
+            status: "refused",
+          }),
+        ],
+      };
+    case "setup":
+      return {
+        open: true,
+        messages: [
+          makeAskFixtureMessage("user", question),
+          makeAskFixtureMessage("assistant", `${ASK_CLUBHOUSE_SETUP_TITLE} ${ASK_CLUBHOUSE_SETUP_BODY}`, {
+            status: "unavailable",
+          }),
+        ],
+      };
+    case "error":
+      return {
+        open: true,
+        messages: [
+          makeAskFixtureMessage("user", question),
+          makeAskFixtureMessage("assistant", `${ASK_CLUBHOUSE_ERROR_TITLE} ${ASK_CLUBHOUSE_ERROR_BODY}`, {
+            status: "failed",
+          }),
+        ],
+      };
+    case "long":
+      return {
+        open: true,
+        messages: [
+          makeAskFixtureMessage("user", "Give me a careful but concise breakdown of our practice hitters and what each player should focus on before the next game."),
+          makeAskFixtureMessage("assistant", "The short version: Mylo White and Jacob Seamon are driving the strongest contact quality right now, while Andrew Peters is showing enough contact consistency to earn more game-speed reps. I would keep Mylo in Machine and Coach BP, give Jacob more pitch-location work away, and use Andrew in shorter competitive rounds so his swing decisions stay sharp. The next useful split is Practice vs Games, because that will show whether the cage work is transferring.", {
+            status: "completed",
+            followUps: ["Compare Practice vs Games", "Show Jacob's pitch map", "Who needs Tee work?"],
+          }),
+        ],
+      };
+    default:
+      return undefined;
+  }
+}
+
+function makeAskFixtureMessage(
+  role: AskClubhouseChatMessage["role"],
+  content: string,
+  overrides: Partial<AskClubhouseChatMessage> = {},
+): AskClubhouseChatMessage {
+  const slug = content
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 42) || "message";
+  return {
+    id: overrides.id ?? `ask-fixture-${role}-${slug}`,
+    role,
+    content,
+    createdAt: ASK_CLUBHOUSE_MOCK_TIME,
+    ...overrides,
+  };
+}
 
 function withStoredThemePreference(appData: AppData): AppData {
   const theme = readStoredTheme(appData.teamContext?.profile?.id);
@@ -17776,13 +18018,14 @@ function AnalyticsView({
   const [eventSelectorOpen, setEventSelectorOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
-  const [askOpen, setAskOpen] = useState(false);
+  const initialAskFixture = useMemo(() => readInitialAskClubhouseFixture(), []);
+  const [askOpen, setAskOpen] = useState(Boolean(initialAskFixture?.open));
   const [askConversationId, setAskConversationId] = useState<ID | undefined>();
-  const [askMessages, setAskMessages] = useState<AskClubhouseChatMessage[]>([]);
+  const [askMessages, setAskMessages] = useState<AskClubhouseChatMessage[]>(() => initialAskFixture?.messages ?? []);
   const [askInput, setAskInput] = useState("");
-  const [askSending, setAskSending] = useState(false);
-  const [askStage, setAskStage] = useState("Reading the question...");
-  const [askError, setAskError] = useState<string | undefined>();
+  const [askSending, setAskSending] = useState(Boolean(initialAskFixture?.sending));
+  const [askStage, setAskStage] = useState(initialAskFixture?.stage ?? ASK_CLUBHOUSE_GENERIC_STAGE);
+  const [askError, setAskError] = useState<string | undefined>(initialAskFixture?.error);
   const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>(() => readInitialAnalyticsDetailPlayerId(data));
   const [metricIds, setMetricIds] = useState<string[] | undefined>(initialState.metricIds);
   const context = useMemo(() => ({
@@ -17867,15 +18110,12 @@ function AnalyticsView({
   }, [customRange.end, customRange.start, developmentView, domain, eventIds, filters, metricIds, mode, sort, source, timeRange]);
 
   useEffect(() => {
-    if (!askSending) return undefined;
-    const stages = ["Reading the question...", "Checking Clubhouse data...", "Comparing the sample...", "Building the answer..."];
-    let index = 0;
-    const interval = window.setInterval(() => {
-      index = (index + 1) % stages.length;
-      setAskStage(stages[index]);
-    }, 1200);
-    return () => window.clearInterval(interval);
-  }, [askSending]);
+    if (process.env.NODE_ENV === "production" || typeof window === "undefined" || !askOpen) return;
+    const askTheme = new URLSearchParams(window.location.search).get("askTheme");
+    if (askTheme !== "light" && askTheme !== "dark") return;
+    document.documentElement.dataset.theme = askTheme;
+    document.documentElement.style.colorScheme = askTheme;
+  }, [askOpen]);
 
   useEffect(() => {
     const handleAnalyticsPopState = () => {
@@ -17965,7 +18205,7 @@ function AnalyticsView({
     setAskOpen(true);
     setAskError(undefined);
     setAskInput("");
-    setAskStage("Reading the question...");
+    setAskStage(ASK_CLUBHOUSE_GENERIC_STAGE);
     setAskSending(true);
     const userMessage: AskClubhouseChatMessage = {
       id: `ask-user-${Date.now()}`,
@@ -17976,7 +18216,7 @@ function AnalyticsView({
     const pendingMessage: AskClubhouseChatMessage = {
       id: `ask-pending-${Date.now()}`,
       role: "assistant",
-      content: "Reading the question...",
+      content: ASK_CLUBHOUSE_GENERIC_STAGE,
       createdAt: new Date().toISOString(),
       pending: true,
     };
@@ -18028,7 +18268,7 @@ function AnalyticsView({
       const failedMessage: AskClubhouseChatMessage = {
         id: `ask-error-${Date.now()}`,
         role: "assistant",
-        content: "Ask Clubhouse is temporarily unavailable. Try again in a bit.",
+        content: `${ASK_CLUBHOUSE_ERROR_TITLE} ${ASK_CLUBHOUSE_ERROR_BODY}`,
         createdAt: new Date().toISOString(),
         status: "failed",
       };
@@ -18576,50 +18816,80 @@ function AskClubhouseDrawer({
   onSubmit: () => void;
   onAction: (action: AskClubhouseAction) => void;
 }) {
-  const suggestions = ASK_CLUBHOUSE_QUESTIONS.map((question) => question.label);
-  const latestFollowUps = [...messages].reverse().find((message) => message.followUps?.length)?.followUps;
-  const promptChips = (messages.length ? latestFollowUps : suggestions)?.slice(0, 4) ?? [];
+  const [showAllIdeas, setShowAllIdeas] = useState(() => {
+    if (process.env.NODE_ENV === "production" || typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("askIdeas") === "all";
+  });
+  const visibleMessages = useMemo(() => dedupeAskClubhouseMessages(messages), [messages]);
+  const lastUserQuestion = [...visibleMessages].reverse().find((message) => message.role === "user")?.content;
+  const suggestions = showAllIdeas ? ASK_CLUBHOUSE_UI_SUGGESTIONS : ASK_CLUBHOUSE_UI_SUGGESTIONS.slice(0, 4);
   const canSend = input.trim().length > 0 && !sending;
+  const shouldShowInlineError = Boolean(
+    error
+    && !sending
+    && !visibleMessages.some((message) => !message.pending && message.role === "assistant" && normalizeAskContent(message.content) === normalizeAskContent(error)),
+  );
+
   return (
-    <div className="analytics-drawer-backdrop" role="presentation">
-      <aside className="analytics-drawer analytics-ask-drawer" aria-label="Ask Clubhouse">
-        <div className="analytics-drawer__head">
-          <div>
-            <h2><Sparkles size={17} aria-hidden="true" /> Ask Clubhouse</h2>
+    <div
+      className="analytics-drawer-backdrop analytics-ask-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <aside className="analytics-drawer analytics-ask-drawer" role="dialog" aria-modal="true" aria-label="Ask Clubhouse">
+        <header className="ask-header">
+          <button className="ask-header__back" type="button" onClick={onClose} aria-label="Back to Analytics">
+            <ChevronLeft size={18} aria-hidden="true" />
+            <span>Analytics</span>
+          </button>
+          <div className="ask-header__title">
+            <strong>Ask Clubhouse</strong>
             <small>{scopeLabel || "Team analytics"}</small>
           </div>
-          <div className="ask-drawer-actions">
-            <button className="ghost-button" type="button" onClick={onNewChat}>New Chat</button>
+          <div className="ask-header__actions">
+            <button className="ghost-button" type="button" onClick={onNewChat} aria-label="Start a new Ask Clubhouse chat" title="New Chat">
+              <RefreshCw size={15} aria-hidden="true" />
+              <span>New</span>
+            </button>
             <button className="ghost-button" type="button" onClick={onClose} aria-label="Close Ask Clubhouse">
               <X size={16} aria-hidden="true" />
             </button>
           </div>
-        </div>
+        </header>
         <section className="ask-chat" aria-label="Ask Clubhouse chat">
-          {!messages.length && (
-            <div className="ask-empty-state">
-              <strong>What do you want to know?</strong>
-              <span>Ask anything about your team, players, development, or baseball.</span>
-            </div>
+          {!visibleMessages.length && (
+            <AskClubhouseLanding
+              scopeLabel={scopeLabel}
+              suggestions={suggestions}
+              showAllIdeas={showAllIdeas}
+              sending={sending}
+              onQuestion={onQuestion}
+              onToggleIdeas={() => setShowAllIdeas((current) => !current)}
+            />
           )}
-          {messages.map((message) => (
+          {visibleMessages.map((message) => (
             <AskClubhouseMessageBubble
               key={message.id}
               message={message.pending ? { ...message, content: stage } : message}
               onAction={onAction}
               onFollowUp={onQuestion}
+              onRetry={() => {
+                if (lastUserQuestion) onQuestion(lastUserQuestion);
+              }}
             />
           ))}
-          {error && !sending && <p className="ask-inline-error">{error}</p>}
+          {shouldShowInlineError && (
+            <AskClubhouseStatusCard
+              tone="error"
+              title={ASK_CLUBHOUSE_ERROR_TITLE}
+              body={error ?? ASK_CLUBHOUSE_ERROR_BODY}
+              actionLabel={lastUserQuestion ? "Try Again" : undefined}
+              onAction={lastUserQuestion ? () => onQuestion(lastUserQuestion) : undefined}
+            />
+          )}
         </section>
-        <div className="ask-question-list" aria-label={messages.length ? "Suggested follow ups" : "Suggested questions"}>
-          {promptChips.map((question) => (
-            <button key={question} type="button" onClick={() => onQuestion(question)} disabled={sending}>
-              {question}
-              <ChevronRight size={14} aria-hidden="true" />
-            </button>
-          ))}
-        </div>
         <form
           className="ask-composer"
           onSubmit={(event) => {
@@ -18636,7 +18906,7 @@ function AskClubhouseDrawer({
                 if (canSend) onSubmit();
               }
             }}
-            placeholder="Ask about a player, practice, game, or trend..."
+            placeholder={visibleMessages.length ? "Ask a follow-up..." : "Ask about your team..."}
             rows={2}
             maxLength={4000}
             disabled={sending}
@@ -18650,50 +18920,339 @@ function AskClubhouseDrawer({
   );
 }
 
+function AskClubhouseLanding({
+  scopeLabel,
+  suggestions,
+  showAllIdeas,
+  sending,
+  onQuestion,
+  onToggleIdeas,
+}: {
+  scopeLabel: string;
+  suggestions: Array<{ label: string; icon: LucideIcon }>;
+  showAllIdeas: boolean;
+  sending: boolean;
+  onQuestion: (question: string) => void;
+  onToggleIdeas: () => void;
+}) {
+  return (
+    <div className="ask-empty-state">
+      <div className="ask-empty-state__intro">
+        <span className="ask-mark" aria-hidden="true">
+          <Sparkles size={19} />
+        </span>
+        <h3>Ask Clubhouse</h3>
+        <em>{scopeLabel || "Team analytics"}</em>
+        <strong>What do you want to know?</strong>
+        <p>Ask anything about your team, players, practices, games, development, or baseball.</p>
+      </div>
+      <div className="ask-suggestion-stack" aria-label="Suggested questions">
+        {suggestions.map(({ label, icon: Icon }) => (
+          <button key={label} type="button" onClick={() => onQuestion(label)} disabled={sending}>
+            <Icon size={16} aria-hidden="true" />
+            <span>{label}</span>
+            <ChevronRight size={14} aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+      <button className="ask-show-more" type="button" onClick={onToggleIdeas}>
+        {showAllIdeas ? "Show fewer ideas" : "Show more ideas"}
+        {showAllIdeas ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+      </button>
+    </div>
+  );
+}
+
 function AskClubhouseMessageBubble({
   message,
   onAction,
   onFollowUp,
+  onRetry,
 }: {
   message: AskClubhouseChatMessage;
   onAction: (action: AskClubhouseAction) => void;
   onFollowUp: (question: string) => void;
+  onRetry: () => void;
 }) {
+  const isAssistant = message.role === "assistant";
   return (
     <article className={`ask-message ask-message--${message.role}${message.pending ? " ask-message--thinking" : ""}`}>
-      {message.pending && <span aria-hidden="true" />}
-      <p>{message.content}</p>
-      {message.evidence?.length ? (
-        <div className="ask-evidence-list">
-          {message.evidence.map((item) => (
-            <div key={`${message.id}-${item.title}`}>
-              <strong>{item.title}</strong>
-              <small>{item.summary}</small>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {message.actions?.length ? (
-        <div className="ask-action-list">
-          {message.actions.map((action) => (
-            <button key={`${message.id}-${action.label}`} type="button" onClick={() => onAction(action)}>
-              {action.label}
-              <ChevronRight size={13} aria-hidden="true" />
-            </button>
-          ))}
-        </div>
-      ) : null}
-      {message.followUps?.length ? (
-        <div className="ask-followup-list">
-          {message.followUps.slice(0, 3).map((question) => (
-            <button key={`${message.id}-${question}`} type="button" onClick={() => onFollowUp(question)}>
-              {question}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      <header className="ask-message__meta">
+        <span>
+          {isAssistant && <Sparkles size={15} aria-hidden="true" />}
+          {isAssistant ? "Ask Clubhouse" : "You"}
+        </span>
+        {message.createdAt && <time dateTime={message.createdAt}>{formatAskMessageTime(message.createdAt)}</time>}
+      </header>
+      {message.pending ? (
+        <AskClubhouseThinking stage={message.content} />
+      ) : isAssistant ? (
+        <AskClubhouseAssistantAnswer message={message} onAction={onAction} onFollowUp={onFollowUp} onRetry={onRetry} />
+      ) : (
+        <p className="ask-user-question">{message.content}</p>
+      )}
     </article>
   );
+}
+
+function AskClubhouseAssistantAnswer({
+  message,
+  onAction,
+  onFollowUp,
+  onRetry,
+}: {
+  message: AskClubhouseChatMessage;
+  onAction: (action: AskClubhouseAction) => void;
+  onFollowUp: (question: string) => void;
+  onRetry: () => void;
+}) {
+  if (isAskSetupMessage(message)) {
+    return (
+      <AskClubhouseStatusCard
+        tone="setup"
+        title={ASK_CLUBHOUSE_SETUP_TITLE}
+        body={ASK_CLUBHOUSE_SETUP_BODY}
+        actionLabel="Try Again"
+        onAction={onRetry}
+      />
+    );
+  }
+
+  if (message.status === "failed" || message.status === "unavailable") {
+    return (
+      <AskClubhouseStatusCard
+        tone="error"
+        title={ASK_CLUBHOUSE_ERROR_TITLE}
+        body={ASK_CLUBHOUSE_ERROR_BODY}
+        actionLabel="Try Again"
+        onAction={onRetry}
+      />
+    );
+  }
+
+  if (message.status === "no_data") {
+    return (
+      <>
+        <AskClubhouseStatusCard
+          tone="notice"
+          title={message.content}
+          body="Try a broader date range, another data source, or all tracked sessions."
+        />
+        <AskClubhouseFollowUps message={message} onFollowUp={onFollowUp} />
+      </>
+    );
+  }
+
+  if (message.status === "refused") {
+    return <p className="ask-answer-copy">{message.content}</p>;
+  }
+
+  return (
+    <>
+      {message.ui?.kind === "ranking" && <AskClubhouseRankingAnswer payload={message.ui} />}
+      {message.ui?.kind === "comparison" && <AskClubhouseComparisonAnswer payload={message.ui} />}
+      {!message.ui && <AskClubhouseTextAnswer content={message.content} />}
+      <AskClubhouseEvidence message={message} />
+      <AskClubhouseActions message={message} onAction={onAction} />
+      <AskClubhouseFollowUps message={message} onFollowUp={onFollowUp} />
+    </>
+  );
+}
+
+function AskClubhouseThinking({ stage }: { stage: string }) {
+  return (
+    <div className="ask-thinking-block" aria-live="polite">
+      <span aria-hidden="true" />
+      <strong>{stage || ASK_CLUBHOUSE_GENERIC_STAGE}</strong>
+    </div>
+  );
+}
+
+function AskClubhouseTextAnswer({ content }: { content: string }) {
+  const paragraphs = content.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
+  return (
+    <div className="ask-answer-copy">
+      {paragraphs.length ? paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>) : <p>{content}</p>}
+    </div>
+  );
+}
+
+function AskClubhouseRankingAnswer({ payload }: { payload: Extract<AskClubhouseUiPayload, { kind: "ranking" }> }) {
+  return (
+    <div className="ask-structured-answer">
+      <h3>{payload.headline}</h3>
+      <div className="ask-metric-strip" aria-label="Key metrics">
+        {payload.metrics.map((metric) => (
+          <div key={metric.label}>
+            <strong>{metric.value}</strong>
+            <span>{metric.label}</span>
+            {metric.sub && <small>{metric.sub}</small>}
+          </div>
+        ))}
+      </div>
+      <p>{payload.explanation}</p>
+      <div className="ask-ranking">
+        <div className="ask-ranking__head">
+          <span>{payload.rankingLabel}</span>
+          <span>{payload.rankingValueLabel}</span>
+        </div>
+        {payload.ranking.map((row) => (
+          <div key={`${row.rank}-${row.name}`} className="ask-ranking__row">
+            <b>{row.rank}</b>
+            <span className="ask-ranking__avatar">{row.initials}</span>
+            <strong>{row.name}</strong>
+            <em>{row.value}</em>
+          </div>
+        ))}
+      </div>
+      <small className="ask-answer-footnote">{payload.footnote}</small>
+    </div>
+  );
+}
+
+function AskClubhouseComparisonAnswer({ payload }: { payload: Extract<AskClubhouseUiPayload, { kind: "comparison" }> }) {
+  const maxValue = Math.max(payload.practiceValue, payload.gamesValue, 1);
+  return (
+    <div className="ask-structured-answer">
+      <h3>{payload.title}</h3>
+      <div className="ask-comparison">
+        <div className="ask-comparison__head">
+          <span />
+          <span>Practice</span>
+          <span>Games</span>
+        </div>
+        {payload.rows.map((row) => (
+          <div key={row.label} className="ask-comparison__row">
+            <strong>{row.label}</strong>
+            <span className={row.emphasis === "practice" ? "active" : ""}>{row.practice}</span>
+            <span className={row.emphasis === "games" ? "active" : ""}>{row.games}</span>
+          </div>
+        ))}
+      </div>
+      <p>{payload.explanation}</p>
+      <div className="ask-bar-compare" aria-label={payload.barLabel}>
+        <span>{payload.barLabel}</span>
+        <div>
+          <i style={{ width: `${Math.max(8, (payload.practiceValue / maxValue) * 100)}%` }} />
+          <b>{payload.practiceValue}%</b>
+        </div>
+        <div>
+          <i style={{ width: `${Math.max(8, (payload.gamesValue / maxValue) * 100)}%` }} />
+          <b>{payload.gamesValue}%</b>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AskClubhouseEvidence({ message }: { message: AskClubhouseChatMessage }) {
+  if (!message.evidence?.length) return null;
+  return (
+    <div className="ask-evidence-list">
+      {message.evidence.map((item) => (
+        <div key={`${message.id}-${item.title}`}>
+          <strong>{item.title}</strong>
+          <small>{item.summary}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AskClubhouseActions({
+  message,
+  onAction,
+}: {
+  message: AskClubhouseChatMessage;
+  onAction: (action: AskClubhouseAction) => void;
+}) {
+  if (!message.actions?.length) return null;
+  return (
+    <div className="ask-action-list">
+      {message.actions.map((action) => (
+        <button key={`${message.id}-${action.label}`} type="button" onClick={() => onAction(action)}>
+          <BarChart3 size={15} aria-hidden="true" />
+          <span>{action.label}</span>
+          <ChevronRight size={14} aria-hidden="true" />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AskClubhouseFollowUps({
+  message,
+  onFollowUp,
+}: {
+  message: AskClubhouseChatMessage;
+  onFollowUp: (question: string) => void;
+}) {
+  if (!message.followUps?.length) return null;
+  return (
+    <div className="ask-followup-list">
+      <span>You might also ask</span>
+      {message.followUps.slice(0, 3).map((question) => (
+        <button key={`${message.id}-${question}`} type="button" onClick={() => onFollowUp(question)}>
+          {question}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AskClubhouseStatusCard({
+  tone,
+  title,
+  body,
+  actionLabel,
+  onAction,
+}: {
+  tone: "setup" | "error" | "notice";
+  title: string;
+  body: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <div className={`ask-status-card ask-status-card--${tone}`}>
+      <strong>{title}</strong>
+      <p>{body}</p>
+      {actionLabel && onAction && (
+        <button type="button" onClick={onAction}>
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function dedupeAskClubhouseMessages(messages: AskClubhouseChatMessage[]): AskClubhouseChatMessage[] {
+  return messages.reduce<AskClubhouseChatMessage[]>((deduped, message) => {
+    const previous = deduped[deduped.length - 1];
+    if (
+      previous
+      && previous.role === message.role
+      && previous.status === message.status
+      && normalizeAskContent(previous.content) === normalizeAskContent(message.content)
+    ) {
+      return deduped;
+    }
+    return [...deduped, message];
+  }, []);
+}
+
+function normalizeAskContent(value: string | undefined): string {
+  return (value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function isAskSetupMessage(message: AskClubhouseChatMessage): boolean {
+  return message.status === "unavailable" && normalizeAskContent(message.content).includes("ask clubhouse is finishing setup");
+}
+
+function formatAskMessageTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function AnalyticsPlayerDrawer({
