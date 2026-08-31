@@ -40,9 +40,10 @@ test("scorekeeper starts with outcome and records pitch detail last", () => {
   assert.match(page, /Final step · \{pendingPitchOutcome\}/);
 });
 
-test("field tracking renders a real diamond, spray line, and draggable runners", () => {
-  assert.match(visuals, /field-chart__infield-dirt/);
-  assert.match(visuals, /field-chart__home-plate/);
+test("field tracking renders the generated field asset, spray line, and draggable runners", () => {
+  assert.match(visuals, /field-chart__image/);
+  assert.match(globalCss, /baseball-field-spray-chart-v1\.png/);
+  assert.match(globalCss, /aspect-ratio:\s*1 \/ 1/);
   assert.match(visuals, /field-chart__spray-line/);
   assert.match(page, /draggable=\{Boolean\(runner\)\}/);
   assert.match(page, /onMoveRunner/);

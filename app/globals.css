@@ -13039,65 +13039,24 @@ button.analytics-box-score__row:hover {
 }
 
 .field-chart {
-  aspect-ratio: 1.16 / 1;
-  min-height: 280px;
-  background: #164b35;
+  aspect-ratio: 1 / 1;
+  min-height: 0;
+  background: #243b19;
 }
 
-.field-chart__field {
+.field-chart__image,
+.field-chart__overlay {
   height: 100%;
   inset: 0;
   position: absolute;
   width: 100%;
 }
 
-.field-chart__outfield {
-  stroke: rgba(255, 255, 255, 0.18);
-  stroke-width: 0.45;
-}
-
-.field-chart__mow {
-  fill: none;
-  opacity: 0.18;
-  stroke: #d9f2df;
-  stroke-width: 3.5;
-}
-
-.field-chart__infield-dirt {
-  stroke: rgba(72, 43, 23, 0.42);
-  stroke-width: 0.5;
-}
-
-.field-chart__infield-grass {
-  fill: #236347;
-  stroke: rgba(255, 255, 255, 0.18);
-  stroke-width: 0.35;
-}
-
-.field-chart__foul-line,
-.field-chart__fence {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.86);
-  stroke-width: 0.55;
-  vector-effect: non-scaling-stroke;
-}
-
-.field-chart__fence {
-  stroke-width: 0.85;
-}
-
-.field-chart__mound {
-  fill: #ad7a45;
-  stroke: rgba(255, 255, 255, 0.34);
-  stroke-width: 0.35;
-}
-
-.field-chart__rubber,
-.field-chart__base,
-.field-chart__home-plate {
-  fill: #fff;
-  stroke: rgba(15, 23, 42, 0.38);
-  stroke-width: 0.35;
+.field-chart__image {
+  background-image: url("/game-tracking/baseball-field-spray-chart-v1.png");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
 }
 
 .field-chart__spray-line-glow,
@@ -13118,74 +13077,6 @@ button.analytics-box-score__row:hover {
   stroke-linecap: round;
   stroke-width: 2.5;
 }
-
-/* Legacy span layers are intentionally suppressed; the SVG field preserves the same interaction box. */
-.field-chart__grass,
-.field-chart__dirt,
-.field-chart__diamond,
-.field-chart__line,
-.field-chart__home {
-  display: none;
-}
-
-/*
-.field-chart__grass {
-  position: absolute;
-  inset: 8%;
-  border-radius: 50% 50% 42% 42%;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-}
-
-.field-chart__dirt {
-  position: absolute;
-  left: 35%;
-  top: 50%;
-  width: 30%;
-  height: 30%;
-  transform: rotate(45deg);
-  background: #b47a3e;
-  opacity: 0.78;
-}
-
-.field-chart__diamond {
-  position: absolute;
-  left: 41%;
-  top: 58%;
-  width: 18%;
-  height: 18%;
-  transform: rotate(45deg);
-  border: 2px solid rgba(255, 255, 255, 0.62);
-}
-
-.field-chart__line {
-  position: absolute;
-  bottom: 11%;
-  width: 2px;
-  height: 78%;
-  background: rgba(255, 255, 255, 0.58);
-  transform-origin: bottom;
-}
-
-.field-chart__line--left {
-  left: 50%;
-  transform: rotate(-42deg);
-}
-
-.field-chart__line--right {
-  left: 50%;
-  transform: rotate(42deg);
-}
-
-.field-chart__home {
-  position: absolute;
-  left: 48%;
-  bottom: 9%;
-  width: 4%;
-  height: 4%;
-  transform: rotate(45deg);
-  background: rgba(255, 255, 255, 0.88);
-}
-*/
 
 .field-chart__label {
   position: absolute;
