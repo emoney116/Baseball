@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateHittingStats, calculatePitchingStats, pct } from "../app/lib/stats.ts";
+import { calculateDefenseStats, calculateHittingStats, calculatePitchingStats, pct } from "../app/lib/stats.ts";
 import { isPracticeHardContactEvent, PRACTICE_HITTING_RESULT_OPTIONS } from "../app/lib/hittingTaxonomy.ts";
 
 const now = "2026-08-12T22:00:00.000Z";
@@ -25,6 +25,9 @@ function hittingEvent(id, action, contactResult, contactQuality, direction = "Mi
 function pitchEvent(id, outcome, overrides = {}) {
   const isBip = outcome === "Ball in play";
   const isSwing = ["Swing", "Whiff", "Foul", "Ball in play"].includes(outcome);
+  const location = outcome === "Ball"
+    ? { x: 0.5, y: 0.1, zoneId: "pitch_r1c3", zoneLabel: "Up", isZone: false }
+    : { x: 0.5, y: 0.5, zoneId: "pitch_r3c3", zoneLabel: "Middle", isZone: true };
   return {
     id,
     practiceId: "practice-test",
@@ -35,10 +38,31 @@ function pitchEvent(id, outcome, overrides = {}) {
     outcome,
     isStrike: outcome !== "Ball" && outcome !== "HBP",
     isSwing,
-    isZone: true,
+    isZone: location.isZone,
     isWhiff: outcome === "Whiff",
     isCalledStrike: outcome === "Called Strike",
     isBallInPlay: isBip,
+    location,
+    createdAt: now,
+    ...overrides,
+  };
+}
+
+function defenseEvent(id, overrides = {}) {
+  return {
+    id,
+    practiceId: "practice-test",
+    sessionId: "session-defense",
+    playerId: "player-defender",
+    station: "Infield",
+    eventNumber: Number(id.replace(/\D/g, "")) || 1,
+    outcome: "Clean",
+    positionWorked: "SS",
+    drillContext: "Backhands",
+    repType: "Ground Ball",
+    repSubtype: "Backhand",
+    result: "Clean",
+    throwResult: "Accurate",
     createdAt: now,
     ...overrides,
   };
@@ -109,6 +133,28 @@ test("practice pitching metrics calculate strikes, zone, CSW, and velocity", () 
   assert.equal(stats.cswPct, 40);
   assert.equal(stats.avgVelocity, 83);
   assert.equal(stats.maxVelocity, 85);
+});
+
+test("practice defense metrics use structured reps and exclude no-throw from accuracy", () => {
+  const stats = calculateDefenseStats([
+    defenseEvent("de-1"),
+    defenseEvent("de-2", { outcome: "Error", result: "Error", throwResult: "Inaccurate" }),
+    defenseEvent("de-3", { repSubtype: "Slow Roller", throwResult: "No Throw" }),
+    defenseEvent("de-4", { outcome: "Great Play", result: "Great Play", repSubtype: "Routine", positionWorked: "CF", drillContext: "Outfield Routes", repType: "Fly Ball" }),
+  ]);
+
+  assert.equal(stats.totalReps, 4);
+  assert.equal(stats.cleanReps, 3);
+  assert.equal(stats.errors, 1);
+  assert.equal(stats.greatPlays, 1);
+  assert.equal(stats.cleanPct, 75);
+  assert.equal(stats.throwAttempts, 3);
+  assert.equal(stats.accurateThrows, 2);
+  assert.equal(Math.round(stats.throwAccuracyPct), 67);
+  assert.equal(stats.byRepType["Ground Ball"].reps, 3);
+  assert.equal(stats.bySubtype.Backhand.cleanPct, 50);
+  assert.equal(stats.byPosition.SS.reps, 3);
+  assert.equal(stats.byDrill.Backhands.errors, 1);
 });
 
 test("attendance helper treats zero sample as zero percent", () => {

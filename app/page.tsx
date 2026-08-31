@@ -33,6 +33,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  Send,
   Shield,
   Sparkles,
   Sun,
@@ -59,11 +60,9 @@ import { APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
 import { cityOptionsForState, US_STATE_OPTIONS } from "./lib/locations";
 import { applyDocumentTheme, readStoredTheme, saveStoredTheme, type ThemePreference } from "./lib/themePreference";
 import {
-  ASK_CLUBHOUSE_QUESTIONS,
   analyticsEventSummary,
   defaultAnalyticsSort,
   executeAnalyticsQuery,
-  runAskClubhouseQuestion,
   type AnalyticsCell,
   type AnalyticsColumn,
   type AnalyticsDevelopmentView,
@@ -77,8 +76,15 @@ import {
   type AnalyticsRow,
   type AnalyticsSource,
   type AnalyticsTimeRange,
-  type AskClubhouseResponse,
 } from "./lib/analyticsQuery";
+import type {
+  AskClubhouseAction,
+  AskClubhouseApiResponse,
+  AskClubhouseClientMessage,
+  AskClubhouseEvidenceItem,
+  AskClubhouseStatus,
+  AskClubhouseUsageSnapshot,
+} from "./lib/askClubhouse/types";
 import {
   applyRosterImportPlan,
   buildRosterImportPlan,
@@ -95,18 +101,36 @@ import {
 } from "./lib/rosterImport";
 import {
   activePractice,
+  calculateDefenseStats,
   calculateHittingStats,
   calculatePitchingStats,
+  defenseEventDrillContext,
+  defenseEventPosition,
+  defenseEventRepSubtype,
+  defenseEventRepType,
+  defenseEventResult,
+  defenseEventThrowResult,
   formatDecimal,
   formatNumber,
   formatPct,
   fullDate,
+  isDefenseErrorEvent,
   pct,
   playerHittingEvents,
   playerPitchEvents,
   shortDate,
   trendByPractice,
 } from "./lib/stats";
+import {
+  getSprayDistribution,
+  getSprayHeatClusters,
+  getSpraySectorBoundaryPoint,
+  projectSprayPoint,
+  SPRAY_FIELD_GEOMETRY,
+  SPRAY_FIELD_PATHS,
+  SPRAY_FIELD_VIEWBOX,
+  type SprayLaneDistribution,
+} from "./lib/sprayChart";
 import {
   defaultPracticeHittingPitchMode,
   isPracticeHittingPitchTypeAvailable,
@@ -146,9 +170,15 @@ import type {
   AppProfile,
   BattedBallType,
   CountState,
+  DefenseDifficulty,
+  DefenseDrillContext,
   DefenseEvent,
   DefenseOutcome,
+  DefenseRepSubtype,
+  DefenseRepType,
+  DefenseSession,
   DefenseStation,
+  DefenseThrowResult,
   Direction,
   ExerciseKind,
   Game,
@@ -163,6 +193,8 @@ import type {
   LiveBpThrowerSource,
   PitchOutcome,
   PitchEvent,
+  PitchLocationGridZoneId,
+  PitchLocationZoneId,
   PitchType,
   PitchingSession,
   PlateAppearance,
@@ -217,7 +249,7 @@ type PracticeRosterPreset = "All" | "Varsity" | "JV" | "Custom";
 type PracticeHubTab = "Overview" | "Metrics" | "History";
 type PracticeMetricsScope = "Team" | "Players";
 type PracticeMetricsCategory = "Hitting" | "Pitching" | "Defense" | "Live BP";
-type PracticeMetricsSortKey = "player" | "swings" | "contact" | "hard" | "avgEv" | "maxEv" | "pitches" | "strike" | "zone" | "avgVelo" | "maxVelo" | "reps" | "clean" | "errors" | "greatPlays" | "defenseSessions" | "liveBpPitches" | "liveBpSwings" | "liveBpPas";
+type PracticeMetricsSortKey = "player" | "swings" | "contact" | "hard" | "avgEv" | "maxEv" | "pitches" | "strike" | "zone" | "avgVelo" | "maxVelo" | "positionWorked" | "reps" | "cleanReps" | "clean" | "errors" | "greatPlays" | "throws" | "accurateThrows" | "throwAcc" | "defenseSessions" | "liveBpPitches" | "liveBpSwings" | "liveBpPas";
 type PracticeReviewTab = "Summary" | PracticeMetricsCategory;
 type PracticeDrilldown = { kind: "hub" } | { kind: "attendance" } | { kind: "review"; practiceId: ID };
 type LiveBpOutcomeLabel = "K" | "BB" | "HBP" | "1B" | "2B" | "3B" | "HR" | "Out" | "Error" | "FC";
@@ -237,6 +269,258 @@ type WeightRoomSortState<K extends string> = { key: K; direction: SortDirection 
 type WorkoutMeasurementType = "WEIGHT_REPS" | "BODYWEIGHT_REPS" | "REPS_ONLY" | "TIME" | "DISTANCE" | "HEIGHT" | "WEIGHT_ONLY" | "COUNT" | "COMPLETION" | "RPE_ONLY" | "CUSTOM";
 type WorkoutPerformanceDirection = "HIGHER_IS_BETTER" | "LOWER_IS_BETTER";
 type WorkoutTargetStyle = "Standard" | "Max Reps" | "Target Reps" | "Max Time" | "Target Time" | "Best Time" | "Best Distance" | "Max Weight" | "Completion";
+type AskClubhouseChatMessage = AskClubhouseClientMessage & {
+  id: ID;
+  status?: AskClubhouseStatus;
+  evidence?: AskClubhouseEvidenceItem[];
+  actions?: AskClubhouseAction[];
+  followUps?: string[];
+  usage?: AskClubhouseUsageSnapshot;
+  pending?: boolean;
+  ui?: AskClubhouseUiPayload;
+};
+
+type AskClubhouseUiMetric = {
+  label: string;
+  value: string;
+  sub?: string;
+};
+
+type AskClubhouseRankingRow = {
+  rank: number;
+  initials: string;
+  name: string;
+  value: string;
+};
+
+type AskClubhouseComparisonRow = {
+  label: string;
+  practice: string;
+  games: string;
+  emphasis?: "practice" | "games";
+};
+
+type AskClubhouseUiPayload =
+  | {
+      kind: "ranking";
+      headline: string;
+      metrics: AskClubhouseUiMetric[];
+      explanation: string;
+      rankingLabel: string;
+      rankingValueLabel: string;
+      ranking: AskClubhouseRankingRow[];
+      footnote: string;
+    }
+  | {
+      kind: "comparison";
+      title: string;
+      rows: AskClubhouseComparisonRow[];
+      explanation: string;
+      barLabel: string;
+      practiceValue: number;
+      gamesValue: number;
+      actionLabel?: string;
+    };
+
+type AskClubhouseInitialState = {
+  open: boolean;
+  messages: AskClubhouseChatMessage[];
+  sending?: boolean;
+  stage?: string;
+  error?: string;
+};
+
+const ASK_CLUBHOUSE_GENERIC_STAGE = "Analyzing your Clubhouse data...";
+const ASK_CLUBHOUSE_SETUP_TITLE = "Ask Clubhouse is finishing setup.";
+const ASK_CLUBHOUSE_SETUP_BODY = "The latest database update needs to complete before team-data questions are available.";
+const ASK_CLUBHOUSE_ERROR_TITLE = "I couldn't complete that analysis right now.";
+const ASK_CLUBHOUSE_ERROR_BODY = "Your Clubhouse data was not changed.";
+
+const ASK_CLUBHOUSE_UI_SUGGESTIONS: Array<{ label: string; icon: LucideIcon }> = [
+  { label: "Who are my hottest hitters?", icon: TrendingUp },
+  { label: "Compare Practice vs Games", icon: BarChart3 },
+  { label: "Who has improved most?", icon: Gauge },
+  { label: "Who has the best bullpen Strike %?", icon: Trophy },
+  { label: "Show our highest exit velocities", icon: Sparkles },
+  { label: "Who is leading the Weight Room?", icon: Dumbbell },
+];
+
+const ASK_CLUBHOUSE_MOCK_TIME = "2026-08-30T13:41:00.000Z";
+
+const ASK_CLUBHOUSE_MOCK_ACTION: AskClubhouseAction = {
+  type: "open_analytics",
+  label: "View Practice Hitting",
+  query: {
+    domain: "hitting",
+    source: "practice",
+    mode: "box-score",
+    timeRange: "30d",
+    groupBy: "player",
+    sort: { metricId: "hardPct", direction: "desc" },
+  },
+};
+
+function readInitialAskClubhouseFixture(): AskClubhouseInitialState | undefined {
+  if (process.env.NODE_ENV === "production" || typeof window === "undefined") return undefined;
+  const params = new URLSearchParams(window.location.search);
+  const fixture = params.get("askMock") ?? params.get("askState");
+  if (!fixture) return undefined;
+
+  const question = "Who is my hottest hitter in Practice right now?";
+  const userMessage = makeAskFixtureMessage("user", question);
+  const rankingMessage = makeAskFixtureMessage(
+    "assistant",
+    "Mylo White is your hottest Practice hitter over the last 30 days.",
+    {
+      status: "completed",
+      actions: [ASK_CLUBHOUSE_MOCK_ACTION],
+      followUps: ["Why is Mylo first?", "Compare him to Games", "Show his last 3 practices"],
+      evidence: [{ title: "Practice hitting", summary: "Based on 6 practices from Aug 1-30." }],
+      ui: {
+        kind: "ranking",
+        headline: "Mylo White is your hottest Practice hitter over the last 30 days.",
+        metrics: [
+          { label: "Hard Contact", value: "46%" },
+          { label: "Avg EV", value: "84.7", sub: "mph" },
+          { label: "Swings", value: "38" },
+        ],
+        explanation: "He's led the team in Hard Contact while also producing the second-highest average exit velocity.",
+        rankingLabel: "Player",
+        rankingValueLabel: "Hard Contact",
+        ranking: [
+          { rank: 1, initials: "MW", name: "Mylo White", value: "46%" },
+          { rank: 2, initials: "JS", name: "Jacob Seamon", value: "42%" },
+          { rank: 3, initials: "JP", name: "Jackson Pierce", value: "39%" },
+        ],
+        footnote: "Based on 6 practices · Aug 1-30",
+      },
+    },
+  );
+
+  switch (fixture) {
+    case "empty":
+      return { open: true, messages: [] };
+    case "submitted":
+      return { open: true, messages: [userMessage] };
+    case "analyzing":
+      return {
+        open: true,
+        sending: true,
+        stage: ASK_CLUBHOUSE_GENERIC_STAGE,
+        messages: [
+          userMessage,
+          makeAskFixtureMessage("assistant", ASK_CLUBHOUSE_GENERIC_STAGE, { pending: true }),
+        ],
+      };
+    case "ranking":
+    case "followups":
+      return { open: true, messages: [userMessage, rankingMessage] };
+    case "comparison":
+      return {
+        open: true,
+        messages: [
+          makeAskFixtureMessage("user", "Compare Mylo to his Games stats."),
+          makeAskFixtureMessage("assistant", "Mylo's quality of contact is stronger in Practice, while his Game results remain solid.", {
+            status: "completed",
+            actions: [{
+              ...ASK_CLUBHOUSE_MOCK_ACTION,
+              label: "View Mylo's Hitting",
+            }],
+            followUps: ["Show his last 3 practices", "Compare Jacob next", "Which pitch type is best?"],
+            ui: {
+              kind: "comparison",
+              title: "Mylo White",
+              rows: [
+                { label: "Contact %", practice: "81%", games: "76%", emphasis: "practice" },
+                { label: "Hard Contact %", practice: "46%", games: "39%", emphasis: "practice" },
+                { label: "Avg EV", practice: "84.7", games: "83.1", emphasis: "practice" },
+                { label: "Barrel %", practice: "12%", games: "8%", emphasis: "practice" },
+                { label: "Swings", practice: "38", games: "42" },
+              ],
+              explanation: "His Practice contact quality has separated from Games, but the gap is small enough to keep watching over the next few sessions.",
+              barLabel: "Hard Contact %",
+              practiceValue: 46,
+              gamesValue: 39,
+            },
+          }),
+        ],
+      };
+    case "nodata":
+    case "no-data":
+      return {
+        open: true,
+        messages: [
+          makeAskFixtureMessage("user", "Who has the highest EV this week?"),
+          makeAskFixtureMessage("assistant", "I don't have enough tracked exit velocity data for this week yet.", {
+            status: "no_data",
+            followUps: ["Use this month", "Practice Hitting only", "All Sessions"],
+          }),
+        ],
+      };
+    case "refusal":
+      return {
+        open: true,
+        messages: [
+          makeAskFixtureMessage("user", "Write my English essay."),
+          makeAskFixtureMessage("assistant", "I'm built for Clubhouse 9 and baseball-related questions. Ask me about your team, players, practices, games, development, or baseball strategy.", {
+            status: "refused",
+          }),
+        ],
+      };
+    case "setup":
+      return {
+        open: true,
+        messages: [
+          makeAskFixtureMessage("user", question),
+          makeAskFixtureMessage("assistant", `${ASK_CLUBHOUSE_SETUP_TITLE} ${ASK_CLUBHOUSE_SETUP_BODY}`, {
+            status: "unavailable",
+          }),
+        ],
+      };
+    case "error":
+      return {
+        open: true,
+        messages: [
+          makeAskFixtureMessage("user", question),
+          makeAskFixtureMessage("assistant", `${ASK_CLUBHOUSE_ERROR_TITLE} ${ASK_CLUBHOUSE_ERROR_BODY}`, {
+            status: "failed",
+          }),
+        ],
+      };
+    case "long":
+      return {
+        open: true,
+        messages: [
+          makeAskFixtureMessage("user", "Give me a careful but concise breakdown of our practice hitters and what each player should focus on before the next game."),
+          makeAskFixtureMessage("assistant", "The short version: Mylo White and Jacob Seamon are driving the strongest contact quality right now, while Andrew Peters is showing enough contact consistency to earn more game-speed reps. I would keep Mylo in Machine and Coach BP, give Jacob more pitch-location work away, and use Andrew in shorter competitive rounds so his swing decisions stay sharp. The next useful split is Practice vs Games, because that will show whether the cage work is transferring.", {
+            status: "completed",
+            followUps: ["Compare Practice vs Games", "Show Jacob's pitch map", "Who needs Tee work?"],
+          }),
+        ],
+      };
+    default:
+      return undefined;
+  }
+}
+
+function makeAskFixtureMessage(
+  role: AskClubhouseChatMessage["role"],
+  content: string,
+  overrides: Partial<AskClubhouseChatMessage> = {},
+): AskClubhouseChatMessage {
+  const slug = content
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 42) || "message";
+  return {
+    id: overrides.id ?? `ask-fixture-${role}-${slug}`,
+    role,
+    content,
+    createdAt: ASK_CLUBHOUSE_MOCK_TIME,
+    ...overrides,
+  };
+}
 
 function withStoredThemePreference(appData: AppData): AppData {
   const theme = readStoredTheme(appData.teamContext?.profile?.id);
@@ -402,14 +686,31 @@ type PracticeMetricRow = {
   zone: number;
   avgVelo?: number;
   maxVelo?: number;
+  positionWorked: string;
   reps: number;
+  cleanReps: number;
   clean: number;
   errors: number;
   greatPlays: number;
+  throws: number;
+  accurateThrows: number;
+  throwAcc?: number;
   defenseSessions: number;
   liveBpPitches: number;
   liveBpSwings: number;
   liveBpPas: number;
+};
+
+type DefenseLogDraft = {
+  positionWorked: Position;
+  drillContext: DefenseDrillContext;
+  repType: DefenseRepType;
+  repSubtype?: DefenseRepSubtype;
+  result: DefenseOutcome;
+  throwResult?: DefenseThrowResult;
+  difficulty?: DefenseDifficulty;
+  location?: ZonePoint;
+  coachNote?: string;
 };
 
 interface ScheduleItem {
@@ -668,6 +969,25 @@ const PITCH_TYPE_LABELS: Record<PitchType, string> = {
   Knuckleball: "KN",
   Other: "OT",
 };
+const PITCH_TYPE_COLOR_VARS: Record<PitchType, string> = {
+  "4-Seam": "var(--pitch-type-4s)",
+  "2-Seam": "var(--pitch-type-2s)",
+  Sinker: "var(--pitch-type-si)",
+  Cutter: "var(--pitch-type-ct)",
+  Slider: "var(--pitch-type-sl)",
+  Curveball: "var(--pitch-type-cb)",
+  Changeup: "var(--pitch-type-ch)",
+  Splitter: "var(--pitch-type-sp)",
+  Knuckleball: "var(--pitch-type-kn)",
+  Other: "var(--pitch-type-ot)",
+};
+const TRACKING_VELOCITY_MIN_MPH = 1;
+const TRACKING_VELOCITY_MAX_MPH = 300;
+const DEFAULT_TRACKING_VELOCITY_MPH = 75;
+const TRACKING_VELOCITY_OPTIONS = Array.from(
+  { length: TRACKING_VELOCITY_MAX_MPH - TRACKING_VELOCITY_MIN_MPH + 1 },
+  (_, index) => TRACKING_VELOCITY_MIN_MPH + index,
+);
 const HITTING_STATIONS: HittingSession["type"][] = ["Tee", "Front Toss", "Machine", "Coach BP", "Other"];
 const LIVE_BP_THROWER_SOURCES: LiveBpThrowerSource[] = ["PLAYER", "COACH", "MACHINE"];
 const LIVE_BP_THROWER_LABELS: Record<LiveBpThrowerSource, string> = {
@@ -683,12 +1003,118 @@ const PRACTICE_ACTIVE_SESSION_GRACE_MS = 2 * 60 * 1000;
 const PRACTICE_ACTIVE_SESSION_TICK_MS = 30 * 1000;
 const PRACTICE_SESSION_HEARTBEAT_MS = 45 * 1000;
 const HITTING_RESULT_ACTIONS = PRACTICE_HITTING_RESULT_OPTIONS;
-type HittingSheetStep = "result" | "detail";
+type HittingSheetStep = "setup" | "result" | "detail";
 type LiveBpPitchSheetStep = "result" | "contact" | "spray";
 type HittingContactDraft = PracticeHittingResultOption;
+type PracticeChartMetricMode = "heat" | "dots" | "percent" | "count";
+type PitchingDraft = {
+  pitchType: PitchType;
+  velocity: string;
+  location?: ZonePoint;
+  outcome?: PitchOutcome;
+};
+type PitchLogOptions = {
+  pitchType?: PitchType;
+  velocity?: number;
+  location?: ZonePoint;
+  targetLocation?: ZonePoint;
+};
 const HITTING_CONTACT_CHOICES: HittingContactDraft[] = PRACTICE_HITTING_RESULT_OPTIONS.filter((option) => option.action === "Ball in play");
 const PITCHING_STATIONS: PitchingSession["type"][] = ["Bullpen", "Flat Ground", "Live", "Other"];
+type PitchLocationGridAxis = 1 | 2 | 3 | 4 | 5;
+type PitchLocationBucket = {
+  id: PitchLocationGridZoneId;
+  x: number;
+  y: number;
+  row: PitchLocationGridAxis;
+  column: PitchLocationGridAxis;
+  isZone: boolean;
+  isCorner: boolean;
+};
+const PITCH_LOCATION_BUCKETS: PitchLocationBucket[] = [
+  { id: "pitch_r1c1", x: 0.1, y: 0.1, row: 1, column: 1, isZone: false, isCorner: true },
+  { id: "pitch_r1c2", x: 0.3, y: 0.1, row: 1, column: 2, isZone: false, isCorner: false },
+  { id: "pitch_r1c3", x: 0.5, y: 0.1, row: 1, column: 3, isZone: false, isCorner: false },
+  { id: "pitch_r1c4", x: 0.7, y: 0.1, row: 1, column: 4, isZone: false, isCorner: false },
+  { id: "pitch_r1c5", x: 0.9, y: 0.1, row: 1, column: 5, isZone: false, isCorner: true },
+  { id: "pitch_r2c1", x: 0.1, y: 0.3, row: 2, column: 1, isZone: false, isCorner: false },
+  { id: "pitch_r2c2", x: 0.3, y: 0.3, row: 2, column: 2, isZone: true, isCorner: false },
+  { id: "pitch_r2c3", x: 0.5, y: 0.3, row: 2, column: 3, isZone: true, isCorner: false },
+  { id: "pitch_r2c4", x: 0.7, y: 0.3, row: 2, column: 4, isZone: true, isCorner: false },
+  { id: "pitch_r2c5", x: 0.9, y: 0.3, row: 2, column: 5, isZone: false, isCorner: false },
+  { id: "pitch_r3c1", x: 0.1, y: 0.5, row: 3, column: 1, isZone: false, isCorner: false },
+  { id: "pitch_r3c2", x: 0.3, y: 0.5, row: 3, column: 2, isZone: true, isCorner: false },
+  { id: "pitch_r3c3", x: 0.5, y: 0.5, row: 3, column: 3, isZone: true, isCorner: false },
+  { id: "pitch_r3c4", x: 0.7, y: 0.5, row: 3, column: 4, isZone: true, isCorner: false },
+  { id: "pitch_r3c5", x: 0.9, y: 0.5, row: 3, column: 5, isZone: false, isCorner: false },
+  { id: "pitch_r4c1", x: 0.1, y: 0.7, row: 4, column: 1, isZone: false, isCorner: false },
+  { id: "pitch_r4c2", x: 0.3, y: 0.7, row: 4, column: 2, isZone: true, isCorner: false },
+  { id: "pitch_r4c3", x: 0.5, y: 0.7, row: 4, column: 3, isZone: true, isCorner: false },
+  { id: "pitch_r4c4", x: 0.7, y: 0.7, row: 4, column: 4, isZone: true, isCorner: false },
+  { id: "pitch_r4c5", x: 0.9, y: 0.7, row: 4, column: 5, isZone: false, isCorner: false },
+  { id: "pitch_r5c1", x: 0.1, y: 0.9, row: 5, column: 1, isZone: false, isCorner: true },
+  { id: "pitch_r5c2", x: 0.3, y: 0.9, row: 5, column: 2, isZone: false, isCorner: false },
+  { id: "pitch_r5c3", x: 0.5, y: 0.9, row: 5, column: 3, isZone: false, isCorner: false },
+  { id: "pitch_r5c4", x: 0.7, y: 0.9, row: 5, column: 4, isZone: false, isCorner: false },
+  { id: "pitch_r5c5", x: 0.9, y: 0.9, row: 5, column: 5, isZone: false, isCorner: true },
+];
+const LEGACY_PITCH_LOCATION_ID_MAP: Partial<Record<PitchLocationZoneId, PitchLocationGridZoneId>> = {
+  outside_up_arm: "pitch_r1c2",
+  outside_up_middle: "pitch_r1c3",
+  outside_up_glove: "pitch_r1c4",
+  outside_arm_high: "pitch_r2c1",
+  zone_high_arm: "pitch_r2c2",
+  zone_high_middle: "pitch_r2c3",
+  zone_high_glove: "pitch_r2c4",
+  outside_glove_high: "pitch_r2c5",
+  outside_arm_middle: "pitch_r3c1",
+  zone_middle_arm: "pitch_r3c2",
+  zone_middle_middle: "pitch_r3c3",
+  zone_middle_glove: "pitch_r3c4",
+  outside_glove_middle: "pitch_r3c5",
+  outside_arm_low: "pitch_r4c1",
+  zone_low_arm: "pitch_r4c2",
+  zone_low_middle: "pitch_r4c3",
+  zone_low_glove: "pitch_r4c4",
+  outside_glove_low: "pitch_r4c5",
+  outside_down_arm: "pitch_r5c2",
+  outside_down_middle: "pitch_r5c3",
+  outside_down_glove: "pitch_r5c4",
+};
 const DEFENSE_STATIONS: DefenseStation[] = ["Infield", "Outfield", "Catching", "PFP", "Situational defense", "Team defense"];
+type DefenseDrillOption = {
+  value: DefenseDrillContext;
+  label: string;
+  station: DefenseStation;
+  positions: Position[];
+  defaultPosition: Position;
+  defaultRepType: DefenseRepType;
+  defaultRepSubtype?: DefenseRepSubtype;
+  repTypeLocked?: boolean;
+  subtypeLocked?: boolean;
+  throwRelevant: boolean;
+};
+const DEFENSE_REP_TYPES: DefenseRepType[] = ["Ground Ball", "Fly Ball", "Line Drive", "Double Play", "Throw", "Block", "Pick", "Bunt", "Other"];
+const DEFENSE_RESULTS: DefenseOutcome[] = ["Clean", "Error", "Good Play", "Great Play", "Missed Rep"];
+const DEFENSE_THROW_RESULTS: DefenseThrowResult[] = ["Accurate", "Inaccurate", "No Throw"];
+const DEFENSE_DIFFICULTIES: DefenseDifficulty[] = ["Routine", "Difficult", "Plus"];
+const DEFENSE_DRILLS: DefenseDrillOption[] = [
+  { value: "Infield Ground Balls", label: "Infield Ground Balls", station: "Infield", positions: ["1B", "2B", "3B", "SS", "INF"], defaultPosition: "SS", defaultRepType: "Ground Ball", defaultRepSubtype: "Routine", throwRelevant: true },
+  { value: "Backhands", label: "Backhands", station: "Infield", positions: ["1B", "2B", "3B", "SS", "INF"], defaultPosition: "SS", defaultRepType: "Ground Ball", defaultRepSubtype: "Backhand", repTypeLocked: true, subtypeLocked: true, throwRelevant: true },
+  { value: "Forehands", label: "Forehands", station: "Infield", positions: ["1B", "2B", "3B", "SS", "INF"], defaultPosition: "SS", defaultRepType: "Ground Ball", defaultRepSubtype: "Forehand", repTypeLocked: true, subtypeLocked: true, throwRelevant: true },
+  { value: "Slow Rollers", label: "Slow Rollers", station: "Infield", positions: ["1B", "2B", "3B", "SS", "INF"], defaultPosition: "3B", defaultRepType: "Ground Ball", defaultRepSubtype: "Slow Roller", repTypeLocked: true, subtypeLocked: true, throwRelevant: true },
+  { value: "Double Plays", label: "Double Plays", station: "Infield", positions: ["1B", "2B", "3B", "SS", "INF"], defaultPosition: "SS", defaultRepType: "Double Play", defaultRepSubtype: "Routine", repTypeLocked: true, throwRelevant: true },
+  { value: "First Base Picks", label: "First Base Picks", station: "Infield", positions: ["1B"], defaultPosition: "1B", defaultRepType: "Pick", defaultRepSubtype: "Pick", repTypeLocked: true, subtypeLocked: true, throwRelevant: false },
+  { value: "Outfield Fly Balls", label: "Outfield Fly Balls", station: "Outfield", positions: ["LF", "CF", "RF", "OF"], defaultPosition: "CF", defaultRepType: "Fly Ball", defaultRepSubtype: "Routine", throwRelevant: true },
+  { value: "Outfield Routes", label: "Outfield Routes", station: "Outfield", positions: ["LF", "CF", "RF", "OF"], defaultPosition: "CF", defaultRepType: "Fly Ball", defaultRepSubtype: "Drop Step", throwRelevant: true },
+  { value: "Cutoffs & Relays", label: "Cutoffs & Relays", station: "Outfield", positions: ["LF", "CF", "RF", "OF", "SS", "2B", "3B", "1B"], defaultPosition: "CF", defaultRepType: "Throw", defaultRepSubtype: "Cutoff", throwRelevant: true },
+  { value: "Catcher Blocking", label: "Catcher Blocking", station: "Catching", positions: ["C"], defaultPosition: "C", defaultRepType: "Block", defaultRepSubtype: "Block", repTypeLocked: true, subtypeLocked: true, throwRelevant: false },
+  { value: "Catcher Throwdowns", label: "Catcher Throwdowns", station: "Catching", positions: ["C"], defaultPosition: "C", defaultRepType: "Throw", defaultRepSubtype: "Throwdown", repTypeLocked: true, subtypeLocked: true, throwRelevant: true },
+  { value: "Bunt Defense", label: "Bunt Defense", station: "Situational defense", positions: ["P", "C", "1B", "2B", "3B", "SS", "INF"], defaultPosition: "3B", defaultRepType: "Bunt", defaultRepSubtype: "Bunt", throwRelevant: true },
+  { value: "Pitcher Fielding Practice", label: "Pitcher Fielding Practice", station: "PFP", positions: ["P", "RHP", "LHP"], defaultPosition: "P", defaultRepType: "Ground Ball", defaultRepSubtype: "Routine", throwRelevant: true },
+  { value: "Team Defense", label: "Team Defense", station: "Team defense", positions: ["P", "C", "1B", "2B", "3B", "SS", "INF", "LF", "CF", "RF", "OF"], defaultPosition: "SS", defaultRepType: "Ground Ball", defaultRepSubtype: "Routine", throwRelevant: true },
+  { value: "Other", label: "Other", station: "Team defense", positions: ["P", "C", "1B", "2B", "3B", "SS", "INF", "LF", "CF", "RF", "OF", "UTL", "UTIL"], defaultPosition: "SS", defaultRepType: "Other", defaultRepSubtype: "Other", throwRelevant: false },
+];
 const GAME_TYPES: GameType[] = ["Fall Game", "Scrimmage", "Showcase", "Regular Season", "Tournament", "Other"];
 const SCHEDULE_EVENT_TYPES: ScheduleEventType[] = ["Game", "Practice", "Lift", "Scrimmage", "Tournament", "Other"];
 const SCHEDULE_EVENT_ACCENTS: Record<ScheduleEventType, string> = {
@@ -725,14 +1151,6 @@ const WEIGHT_ROOM_TEMPLATES = [
   { name: "Conditioning", exercises: ["Sprint", "Plank"] },
 ];
 const WEIGHT_ROOM_LEADER_WINDOWS = ["This Week", "This Month", "This Season"] as const;
-const PITCH_MIX_COLORS = [
-  "var(--chart-primary)",
-  "var(--chart-info)",
-  "var(--chart-neutral)",
-  "var(--chart-success)",
-  "var(--chart-plum)",
-  "var(--chart-award)",
-];
 const ROSTER_CSV_TEMPLATE = [
   "First Name,Last Name,Jersey Number,Graduation Year,Primary Position,Secondary Position,Bats,Throws,Team,Roster Status",
   "Jackson,Smith,12,2027,SS,P,R,R,Metrolina Varsity,Varsity",
@@ -863,11 +1281,13 @@ export default function MetrolinaBaseballApp() {
   const [defenseStation, setDefenseStation] = useState<DefenseStation>("Infield");
   const [selectedPitchType, setSelectedPitchType] = useState<PitchType>("4-Seam");
   const [hittingPitchTrackingMode, setHittingPitchTrackingMode] = useState<HittingPitchTrackingMode>("ONE");
-  const [velocity, setVelocity] = useState<string>("84");
+  const [velocity, setVelocity] = useState<string>(String(DEFAULT_TRACKING_VELOCITY_MPH));
   const [trackExitVelocity, setTrackExitVelocity] = useState(false);
   const [exitVelocity, setExitVelocity] = useState("");
   const [exitVelocityError, setExitVelocityError] = useState<string | null>(null);
   const [trackSprayChart, setTrackSprayChart] = useState(false);
+  const [trackHittingPitchVelocity, setTrackHittingPitchVelocity] = useState(false);
+  const [trackHittingPitchLocation, setTrackHittingPitchLocation] = useState(false);
   const [pitchLocation, setPitchLocation] = useState<ZonePoint | undefined>();
   const [targetLocation, setTargetLocation] = useState<ZonePoint | undefined>();
   const [fieldLocation, setFieldLocation] = useState<ZonePoint>({ x: 0.5, y: 0.55 });
@@ -902,6 +1322,8 @@ export default function MetrolinaBaseballApp() {
   const [topAccountMenuOpen, setTopAccountMenuOpen] = useState(false);
   const [sidebarAccountMenuOpen, setSidebarAccountMenuOpen] = useState(false);
   const lastGlobalRefreshRef = useRef(0);
+  const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const persistSequenceRef = useRef(0);
   const searchInTeamContext = TEAM_CONTEXT_VIEWS.has(view);
   const currentTheme = data?.settings.theme;
 
@@ -1300,21 +1722,34 @@ export default function MetrolinaBaseballApp() {
     });
   }
 
-  async function persistChange(previous: AppData, next: AppData) {
+  function persistChange(previous: AppData, next: AppData) {
+    const sequence = ++persistSequenceRef.current;
     setSaveStatus("saving");
     setSaveError(null);
-    try {
-      if (isLocalDevAuthBypass()) {
-        await saveLocalPreviewData(next);
-        setSaveStatus("saved");
-        return;
-      }
-      await supabaseAppRepository.sync(previous, next);
-      setSaveStatus("saved");
-    } catch (error) {
-      setSaveStatus("error");
-      setSaveError(error instanceof Error ? error.message : "Unable to save.");
-    }
+
+    const run = persistQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        try {
+          if (isLocalDevAuthBypass()) {
+            await saveLocalPreviewData(next);
+            if (sequence === persistSequenceRef.current) setSaveStatus("saved");
+            return;
+          }
+          await supabaseAppRepository.sync(previous, next);
+          if (sequence === persistSequenceRef.current) setSaveStatus("saved");
+        } catch (error) {
+          if (sequence === persistSequenceRef.current) {
+            setSaveStatus("error");
+            setSaveError(error instanceof Error ? error.message : "Unable to save.");
+          } else {
+            console.warn("Queued save failed after a newer save was scheduled.", error);
+          }
+        }
+      });
+
+    persistQueueRef.current = run;
+    return run;
   }
 
   function openPlayer(playerId: ID) {
@@ -1999,17 +2434,27 @@ export default function MetrolinaBaseballApp() {
       return undefined;
     }
     const parsed = Number(exitVelocity);
-    if (!Number.isFinite(parsed) || parsed < 20 || parsed > 130) {
-      setExitVelocityError("Use 20-130 mph, or leave EV blank.");
+    if (!Number.isFinite(parsed) || parsed < TRACKING_VELOCITY_MIN_MPH || parsed > TRACKING_VELOCITY_MAX_MPH) {
+      setExitVelocityError(`Use ${TRACKING_VELOCITY_MIN_MPH}-${TRACKING_VELOCITY_MAX_MPH} mph, or leave EV blank.`);
       return null;
     }
     setExitVelocityError(null);
     return parsed;
   }
 
-  function logHitting(action: HittingEvent["action"], contactResult?: BattedBallType, contactQuality?: HittingContactQuality, direction?: Direction, sprayPoint?: ZonePoint | null, pitchType?: PitchType) {
+  function logHitting(
+    action: HittingEvent["action"],
+    contactResult?: BattedBallType,
+    contactQuality?: HittingContactQuality,
+    direction?: Direction,
+    sprayPoint?: ZonePoint | null,
+    pitchType?: PitchType,
+    pitchLocationPoint?: ZonePoint,
+    pitchVelocityMph?: number,
+    exitVelocityOverride?: number,
+  ) {
     if (!practice || !practicePlayer) return;
-    const exitVelocityMph = parsePendingExitVelocity();
+    const exitVelocityMph = action === "Ball in play" ? exitVelocityOverride ?? parsePendingExitVelocity() : undefined;
     if (exitVelocityMph === null) return;
     commit((current) => {
       const profileId = current.teamContext?.profile?.id;
@@ -2040,8 +2485,9 @@ export default function MetrolinaBaseballApp() {
         contactQuality: isBip ? contactQuality : undefined,
         direction: resolvedDirection,
         fieldLocation: resolvedFieldLocation,
+        pitchLocation: trackHittingPitchLocation ? pitchLocationPoint : undefined,
         pitchType: resolvedPitchType,
-        velocity: isMachineHittingStation(hittingStation) && velocity ? Number(velocity) : undefined,
+        velocity: trackHittingPitchVelocity ? pitchVelocityMph : undefined,
         exitVelocityMph,
         isLiveBp: hittingStation === "Live BP",
         createdAt,
@@ -2064,6 +2510,7 @@ export default function MetrolinaBaseballApp() {
       contactQuality?: HittingContactQuality;
       direction?: Direction;
       fieldLocation?: ZonePoint;
+      pitchLocation?: ZonePoint;
       exitVelocityMph?: number;
       pitchType?: PitchType;
       velocity?: number;
@@ -2084,6 +2531,7 @@ export default function MetrolinaBaseballApp() {
           contactQuality: update.action === "Ball in play" ? update.contactQuality : undefined,
           direction: update.action === "Ball in play" ? update.direction : undefined,
           fieldLocation: update.action === "Ball in play" ? update.fieldLocation : undefined,
+          pitchLocation: update.pitchLocation,
           exitVelocityMph: update.exitVelocityMph,
           pitchType: update.pitchType,
           velocity: update.velocity,
@@ -2102,7 +2550,7 @@ export default function MetrolinaBaseballApp() {
     clearPendingHittingContext();
   }
 
-  function logPitch(outcome: PitchOutcome, battedBall?: BattedBallType) {
+  function logPitch(outcome: PitchOutcome, battedBall?: BattedBallType, options: PitchLogOptions = {}) {
     if (!practice || !practicePlayer) return;
     commit((current) => {
       const profileId = current.teamContext?.profile?.id;
@@ -2110,10 +2558,13 @@ export default function MetrolinaBaseballApp() {
       const session = next.session;
       const sessionEvents = next.data.pitchEvents.filter((event) => event.sessionId === session.id);
       const last = sessionEvents[0];
+      const resolvedLocation = options.location ?? pitchLocation;
+      const resolvedTarget = options.targetLocation ?? targetLocation;
+      const resolvedPitchType = options.pitchType ?? selectedPitchType;
       const isBip = outcome === "Ball in play";
       const isSwing = ["Swing", "Whiff", "Foul", "Ball in play"].includes(outcome);
       const isStrike = outcome !== "Ball" && outcome !== "HBP";
-      const isZone = pitchLocation ? pitchLocation.x >= 0.22 && pitchLocation.x <= 0.78 && pitchLocation.y >= 0.18 && pitchLocation.y <= 0.82 : false;
+      const isZone = isPitchLocationInZone(resolvedLocation);
       const countBefore = last?.countAfter ?? { balls: 0, strikes: 0 };
       const countAfter = nextCount(countBefore, outcome);
       const eventId = createId("pe");
@@ -2124,22 +2575,22 @@ export default function MetrolinaBaseballApp() {
         sessionId: session.id,
         pitcherId: practicePlayer.id,
         pitchNumber: sessionEvents.length + 1,
-        pitchType: selectedPitchType,
+        pitchType: resolvedPitchType,
         outcome,
         isStrike,
         isSwing,
         isZone,
-        isChase: pitchLocation ? isSwing && !isZone : undefined,
+        isChase: resolvedLocation ? isSwing && !isZone : undefined,
         isWhiff: outcome === "Whiff",
         isCalledStrike: outcome === "Called Strike",
         isBallInPlay: isBip,
         battedBall: isBip ? battedBall : undefined,
         contactQuality: isBip ? (battedBall === "Line drive" ? "Hard contact" : "Medium contact") : undefined,
-        velocity: velocity ? Number(velocity) : undefined,
+        velocity: options.velocity ?? (velocity ? Number(velocity) : undefined),
         qualityRating: outcome === "Ball" ? 2 : outcome === "Whiff" || outcome === "Called Strike" ? 5 : 4,
-        missedIntendedLocation: pitchLocation && targetLocation ? distanceBetween(pitchLocation, targetLocation) > 0.18 : undefined,
-        intendedTarget: targetLocation,
-        location: pitchLocation,
+        missedIntendedLocation: resolvedLocation && resolvedTarget ? distanceBetween(resolvedLocation, resolvedTarget) > 0.18 : undefined,
+        intendedTarget: resolvedTarget,
+        location: resolvedLocation,
         countBefore,
         countAfter,
         createdAt,
@@ -2150,6 +2601,60 @@ export default function MetrolinaBaseballApp() {
         sessionSequence: nextSessionSequence(next.data.pitchEvents, session.id),
       };
       return touchRecentPlayers({ ...next.data, pitchEvents: [event, ...next.data.pitchEvents] }, practicePlayer.id);
+    });
+  }
+
+  function updatePitchEvent(eventId: ID, update: {
+    pitchType: PitchType;
+    outcome: PitchOutcome;
+    velocity?: number;
+    location?: ZonePoint;
+    intendedTarget?: ZonePoint;
+    battedBall?: BattedBallType;
+  }) {
+    if (!practice) return;
+    commit((current) => {
+      const profileId = current.teamContext?.profile?.id;
+      const updatedAt = new Date().toISOString();
+      let updatedSessionId: ID | undefined;
+      const pitchEvents = current.pitchEvents.map((event) => {
+        if (event.id !== eventId || event.practiceId !== practice.id) return event;
+        updatedSessionId = event.sessionId;
+        const isBip = update.outcome === "Ball in play";
+        const isSwing = ["Swing", "Whiff", "Foul", "Ball in play"].includes(update.outcome);
+        const isStrike = update.outcome !== "Ball" && update.outcome !== "HBP";
+        const isZone = isPitchLocationInZone(update.location);
+        return {
+          ...event,
+          pitchType: update.pitchType,
+          outcome: update.outcome,
+          isStrike,
+          isSwing,
+          isZone,
+          isChase: update.location ? isSwing && !isZone : undefined,
+          isWhiff: update.outcome === "Whiff",
+          isCalledStrike: update.outcome === "Called Strike",
+          isBallInPlay: isBip,
+          battedBall: isBip ? update.battedBall : undefined,
+          contactQuality: isBip ? (update.battedBall === "Line drive" ? "Hard contact" as const : "Medium contact" as const) : undefined,
+          velocity: update.velocity,
+          qualityRating: update.outcome === "Ball" ? 2 : update.outcome === "Whiff" || update.outcome === "Called Strike" ? 5 : 4,
+          missedIntendedLocation: update.location && update.intendedTarget ? distanceBetween(update.location, update.intendedTarget) > 0.18 : undefined,
+          intendedTarget: update.intendedTarget,
+          location: update.location,
+          countAfter: nextCount(event.countBefore ?? { balls: 0, strikes: 0 }, update.outcome),
+          updatedByProfileId: profileId,
+        };
+      });
+      if (!updatedSessionId) return current;
+      return {
+        ...current,
+        pitchEvents,
+        pitchingSessions: current.pitchingSessions.map((session) =>
+          session.id === updatedSessionId ? { ...session, updatedAt, contributorProfileIds: withContributorProfile(session.contributorProfileIds, profileId) } : session,
+        ),
+        practiceSessionContributors: touchSessionContributor(current.practiceSessionContributors ?? [], { sessionId: updatedSessionId, profileId, at: updatedAt }),
+      };
     });
   }
 
@@ -2189,6 +2694,7 @@ export default function MetrolinaBaseballApp() {
           contactQuality: isBip ? (battedBall === "Line drive" ? "Hard" : "Solid") : undefined,
           direction: captureSpray ? hitDirection : undefined,
           fieldLocation: captureSpray ? fieldLocation : undefined,
+          pitchLocation,
           pitchType: selectedPitchType,
           velocity: velocity ? Number(velocity) : undefined,
           exitVelocityMph: outcome === "Ball" || outcome === "Called Strike" ? undefined : exitVelocityMph,
@@ -2255,6 +2761,7 @@ export default function MetrolinaBaseballApp() {
         contactQuality: isBip ? (battedBall === "Line drive" ? "Hard" : "Solid") : undefined,
         direction: captureSpray ? hitDirection : undefined,
         fieldLocation: captureSpray ? fieldLocation : undefined,
+        pitchLocation,
         pitchType: selectedPitchType,
         velocity: velocity ? Number(velocity) : undefined,
         exitVelocityMph: outcome === "Ball" || outcome === "Called Strike" ? undefined : exitVelocityMph,
@@ -2326,11 +2833,14 @@ export default function MetrolinaBaseballApp() {
     setLiveBpHitterId(next.id);
   }
 
-  function logDefense(outcome: DefenseOutcome, errorType?: DefenseEvent["errorType"]) {
+  function logDefense(draft: DefenseLogDraft) {
     if (!practice || !practicePlayer) return;
     commit((current) => {
       const profileId = current.teamContext?.profile?.id;
-      const next = ensureDefenseSession(current, practice, practicePlayer.id, defenseStation, profileId);
+      const next = ensureDefenseSession(current, practice, practicePlayer.id, defenseStationForDrill(draft.drillContext), profileId, {
+        drillContext: draft.drillContext,
+        positionWorked: draft.positionWorked,
+      });
       const session = next.session;
       const eventNumber = next.data.defenseEvents.filter((event) => event.sessionId === session.id).length + 1;
       const eventId = createId("de");
@@ -2340,14 +2850,24 @@ export default function MetrolinaBaseballApp() {
         practiceId: practice.id,
         sessionId: session.id,
         playerId: practicePlayer.id,
-        station: defenseStation,
+        station: session.station,
         eventNumber,
-        outcome,
-        throwQuality: outcome === "Great Play" ? "Plus" : outcome === "Error" ? "Average" : "Good",
-        footwork: outcome === "Error" ? "Needs work" : outcome === "Great Play" ? "Plus" : "Solid",
-        decision: outcome === "Great Play" ? "Advanced" : "Correct",
-        range: outcome === "Great Play" ? "Plus" : outcome === "Good Play" ? "Difficult" : "Routine",
-        errorType: outcome === "Error" ? errorType ?? "Fielding" : undefined,
+        outcome: draft.result,
+        positionWorked: draft.positionWorked,
+        drillContext: draft.drillContext,
+        repType: draft.repType,
+        repSubtype: draft.repSubtype,
+        result: draft.result,
+        throwResult: draft.throwResult,
+        difficulty: draft.difficulty,
+        location: draft.location,
+        deviceSource: "manual",
+        throwQuality: throwQualityForDefenseDraft(draft),
+        footwork: draft.result === "Error" ? "Needs work" : draft.result === "Great Play" ? "Plus" : "Solid",
+        decision: draft.result === "Great Play" ? "Advanced" : "Correct",
+        range: defenseRangeForDraft(draft),
+        errorType: draft.result === "Error" ? defenseErrorTypeForDraft(draft) : undefined,
+        coachNote: draft.coachNote,
         createdAt,
         createdByProfileId: profileId,
         entrySource: "COACH",
@@ -2356,6 +2876,41 @@ export default function MetrolinaBaseballApp() {
         sessionSequence: nextSessionSequence(next.data.defenseEvents, session.id),
       };
       return touchRecentPlayers({ ...next.data, defenseEvents: [event, ...next.data.defenseEvents] }, practicePlayer.id);
+    });
+  }
+
+  function updateDefenseEvent(eventId: ID, draft: DefenseLogDraft) {
+    if (!practice || !practicePlayer) return;
+    commit((current) => {
+      const profileId = current.teamContext?.profile?.id;
+      const next = ensureDefenseSession(current, practice, practicePlayer.id, defenseStationForDrill(draft.drillContext), profileId, {
+        drillContext: draft.drillContext,
+        positionWorked: draft.positionWorked,
+      });
+      return touchRecentPlayers({
+        ...next.data,
+        defenseEvents: next.data.defenseEvents.map((event) => event.id === eventId ? {
+          ...event,
+          sessionId: next.session.id,
+          station: next.session.station,
+          positionWorked: draft.positionWorked,
+          drillContext: draft.drillContext,
+          repType: draft.repType,
+          repSubtype: draft.repSubtype,
+          result: draft.result,
+          outcome: draft.result,
+          throwResult: draft.throwResult,
+          difficulty: draft.difficulty,
+          location: draft.location,
+          deviceSource: "manual",
+          throwQuality: throwQualityForDefenseDraft(draft),
+          footwork: draft.result === "Error" ? "Needs work" : draft.result === "Great Play" ? "Plus" : "Solid",
+          decision: draft.result === "Great Play" ? "Advanced" : "Correct",
+          range: defenseRangeForDraft(draft),
+          errorType: draft.result === "Error" ? defenseErrorTypeForDraft(draft) : undefined,
+          coachNote: draft.coachNote,
+        } : event),
+      }, practicePlayer.id);
     });
   }
 
@@ -3122,6 +3677,8 @@ export default function MetrolinaBaseballApp() {
             exitVelocity={exitVelocity}
             exitVelocityError={exitVelocityError}
             trackSprayChart={trackSprayChart}
+            trackHittingPitchVelocity={trackHittingPitchVelocity}
+            trackHittingPitchLocation={trackHittingPitchLocation}
             pitchLocation={pitchLocation}
             targetLocation={targetLocation}
             fieldLocation={fieldLocation}
@@ -3165,6 +3722,8 @@ export default function MetrolinaBaseballApp() {
               if (exitVelocityError) setExitVelocityError(null);
             }}
             onTrackSprayChart={setTrackSprayChart}
+            onTrackHittingPitchVelocity={setTrackHittingPitchVelocity}
+            onTrackHittingPitchLocation={setTrackHittingPitchLocation}
             onPitchLocation={setPitchLocation}
             onTargetLocation={setTargetLocation}
             onFieldLocation={setFieldLocation}
@@ -3172,6 +3731,7 @@ export default function MetrolinaBaseballApp() {
             onLogHitting={logHitting}
             onUpdateHittingEvent={updateHittingEvent}
             onLogPitch={logPitch}
+            onUpdatePitchEvent={updatePitchEvent}
             onLiveBpPitcher={selectLiveBpPitcher}
             onLiveBpHitter={selectLiveBpHitter}
             onLiveBpThrowerSource={changeLiveBpThrowerSource}
@@ -3179,6 +3739,7 @@ export default function MetrolinaBaseballApp() {
             onCompleteLiveBpPa={completeLiveBpPa}
             onNextLiveBpHitter={advanceLiveBpHitter}
             onLogDefense={logDefense}
+            onUpdateDefenseEvent={updateDefenseEvent}
             onUndo={undoPracticeEvent}
             onOpenSessionNotes={openSessionSummary}
             onSessionHeartbeat={touchActivePracticeSession}
@@ -3761,6 +4322,7 @@ type ChoiceOption = {
   description?: string;
   icon?: React.ReactNode;
 };
+type ChoiceSelectMobilePresentation = "auto" | "popover" | "sheet";
 
 function ChoiceSelect({
   label,
@@ -3773,6 +4335,7 @@ function ChoiceSelect({
   placeholder = "Select",
   open: controlledOpen,
   onOpenChange,
+  mobilePresentation = "auto",
   "aria-label": ariaLabel,
 }: {
   label?: string;
@@ -3785,6 +4348,7 @@ function ChoiceSelect({
   placeholder?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  mobilePresentation?: ChoiceSelectMobilePresentation;
   "aria-label"?: string;
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
@@ -3827,7 +4391,9 @@ function ChoiceSelect({
     const availableBelow = Math.max(0, viewportBottom - rect.bottom - viewportPadding - gap);
     const availableAbove = Math.max(0, rect.top - viewportTop - viewportPadding - gap);
     const bestAvailable = Math.max(availableBelow, availableAbove);
-    const shouldUseSheet = viewportWidth <= 640 || (viewportWidth <= 900 && viewportHeight <= 540) || bestAvailable < 132;
+    const shouldUseSheet = mobilePresentation === "sheet" || (
+      mobilePresentation === "auto" && (viewportWidth <= 640 || (viewportWidth <= 900 && viewportHeight <= 540) || bestAvailable < 132)
+    );
     if (shouldUseSheet) {
       const maxHeight = Math.min(320, Math.max(196, viewportHeight - viewportPadding * 2));
       setMenuPosition({
@@ -3857,7 +4423,7 @@ function ChoiceSelect({
       viewportBottom - menuHeight - viewportPadding,
     );
     setMenuPosition({ top, left, width, maxHeight, placement });
-  }, [options]);
+  }, [mobilePresentation, options]);
 
   const focusOption = useCallback((index?: number) => {
     const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
@@ -7518,7 +8084,7 @@ function PracticeActiveSessionsCard({
       <div className="panel-heading tight">
         <div>
           <h2>Active Sessions · {sessions.length}</h2>
-          <span>Live tracking contexts</span>
+          <span>Live or recently used tracking</span>
         </div>
       </div>
 
@@ -7659,17 +8225,23 @@ function PracticeMetricsTab({
   const [scope, setScope] = useState<PracticeMetricsScope>("Team");
   const [category, setCategory] = useState<PracticeMetricsCategory>("Hitting");
   const [hittingSessionFilterId, setHittingSessionFilterId] = useState<ID | "all">("all");
+  const [pitchingSessionFilterId, setPitchingSessionFilterId] = useState<ID | "all">("all");
   const [sort, setSort] = useState<{ key: PracticeMetricsSortKey; direction: SortDirection }>({ key: "swings", direction: "desc" });
   const columns = practiceMetricColumns(category);
   const hittingSessionOptions = useMemo(() => practiceHittingSessionOptions(data, practiceId), [data, practiceId]);
+  const pitchingSessionOptions = useMemo(() => practicePitchingSessionOptions(data, practiceId), [data, practiceId]);
   const selectedHittingSessionAvailable = hittingSessionFilterId !== "all" && hittingSessionOptions.some((session) => session.id === hittingSessionFilterId);
+  const selectedPitchingSessionAvailable = pitchingSessionFilterId !== "all" && pitchingSessionOptions.some((session) => session.id === pitchingSessionFilterId);
   const effectiveHittingSessionFilterId = category === "Hitting" && selectedHittingSessionAvailable ? hittingSessionFilterId : undefined;
+  const effectivePitchingSessionFilterId = category === "Pitching" && selectedPitchingSessionAvailable ? pitchingSessionFilterId : undefined;
   const activeHittingSessionFilterId = effectiveHittingSessionFilterId ?? "all";
+  const activePitchingSessionFilterId = effectivePitchingSessionFilterId ?? "all";
+  const activeSessionFilterId = category === "Pitching" ? effectivePitchingSessionFilterId : effectiveHittingSessionFilterId;
   const rows = useMemo(() => {
-    const baseRows = buildPracticeMetricRows(data, category, practiceId, effectiveHittingSessionFilterId);
+    const baseRows = buildPracticeMetricRows(data, category, practiceId, effectiveHittingSessionFilterId, effectivePitchingSessionFilterId);
     return sortPracticeMetricRows(baseRows, sort);
-  }, [data, category, sort, practiceId, effectiveHittingSessionFilterId]);
-  const summary = practiceMetricSummary(data, category, practiceId, effectiveHittingSessionFilterId);
+  }, [data, category, sort, practiceId, effectiveHittingSessionFilterId, effectivePitchingSessionFilterId]);
+  const summary = practiceMetricSummary(data, category, practiceId, effectiveHittingSessionFilterId, effectivePitchingSessionFilterId);
 
   function updateSort(key: PracticeMetricsSortKey) {
     setSort((current) => ({
@@ -7700,6 +8272,16 @@ function PracticeMetricsTab({
             ))}
           </div>
         )}
+        {category === "Pitching" && pitchingSessionOptions.length > 1 && (
+          <div className="practice-hitting-session-filter" aria-label="Pitching session filter">
+            <button type="button" className={activePitchingSessionFilterId === "all" ? "active" : ""} onClick={() => setPitchingSessionFilterId("all")}>All Sessions</button>
+            {pitchingSessionOptions.map((session) => (
+              <button key={session.id} type="button" className={activePitchingSessionFilterId === session.id ? "active" : ""} onClick={() => setPitchingSessionFilterId(session.id)}>
+                {pitchingSessionAnalyticsLabel(session)}
+              </button>
+            ))}
+          </div>
+        )}
       </article>
 
       <article className="panel practice-metrics-summary">
@@ -7709,7 +8291,7 @@ function PracticeMetricsTab({
             <span>{scope === "Team" ? "Team box-score view" : "Player table view"}</span>
           </div>
           {onOpenAnalytics && (
-            <button className="text-button" type="button" onClick={() => onOpenAnalytics(category, undefined, effectiveHittingSessionFilterId)}>
+            <button className="text-button" type="button" onClick={() => onOpenAnalytics(category, undefined, activeSessionFilterId)}>
               View Full Analytics
               <ChevronRight size={15} aria-hidden="true" />
             </button>
@@ -7745,7 +8327,7 @@ function PracticeMetricsTab({
               {columns.map((column) => (
                 <span key={`${row.player.id}-${column.key}`} className={column.numeric ? "numeric" : ""} role="cell">
                   {column.key === "player" && onOpenAnalytics ? (
-                    <button className="practice-metrics-player-button" type="button" onClick={() => onOpenAnalytics(category, row.player.id, effectiveHittingSessionFilterId)}>
+                    <button className="practice-metrics-player-button" type="button" onClick={() => onOpenAnalytics(category, row.player.id, activeSessionFilterId)}>
                       {column.render(row)}
                     </button>
                   ) : column.render(row)}
@@ -7817,10 +8399,14 @@ function PracticeReview({
   const [sort, setSort] = useState<{ key: PracticeMetricsSortKey; direction: SortDirection }>({ key: "swings", direction: "desc" });
   const [selectedPlayerId, setSelectedPlayerId] = useState<ID | undefined>();
   const [hittingSessionFilterId, setHittingSessionFilterId] = useState<ID | "all">("all");
+  const [pitchingSessionFilterId, setPitchingSessionFilterId] = useState<ID | "all">("all");
   const selectedPlayer = data.players.find((player) => player.id === selectedPlayerId);
   const reviewHittingSessionOptions = useMemo(() => practice ? practiceHittingSessionOptions(data, practice.id) : [], [data, practice]);
+  const reviewPitchingSessionOptions = useMemo(() => practice ? practicePitchingSessionOptions(data, practice.id) : [], [data, practice]);
   const selectedReviewHittingSessionAvailable = hittingSessionFilterId !== "all" && reviewHittingSessionOptions.some((session) => session.id === hittingSessionFilterId);
+  const selectedReviewPitchingSessionAvailable = pitchingSessionFilterId !== "all" && reviewPitchingSessionOptions.some((session) => session.id === pitchingSessionFilterId);
   const activeReviewHittingSessionFilterId = selectedReviewHittingSessionAvailable ? hittingSessionFilterId : "all";
+  const activeReviewPitchingSessionFilterId = selectedReviewPitchingSessionAvailable ? pitchingSessionFilterId : "all";
 
   if (!practice) {
     return (
@@ -7838,7 +8424,10 @@ function PracticeReview({
   const attendance = data.attendance.filter((row) => row.practiceId === practice.id);
   const activeAttendance = attendance.filter((row) => row.status !== "Absent");
   const hittingSessionOptions = reviewHittingSessionOptions;
+  const pitchingSessionOptions = reviewPitchingSessionOptions;
   const effectiveHittingSessionFilterId = tab === "Hitting" && activeReviewHittingSessionFilterId !== "all" ? activeReviewHittingSessionFilterId : undefined;
+  const effectivePitchingSessionFilterId = tab === "Pitching" && activeReviewPitchingSessionFilterId !== "all" ? activeReviewPitchingSessionFilterId : undefined;
+  const activeReviewAnalyticsSessionId = tab === "Pitching" ? effectivePitchingSessionFilterId : tab === "Hitting" ? effectiveHittingSessionFilterId : undefined;
   const columns = tab === "Summary" ? [] : practiceMetricColumns(tab);
   const effectiveSort = tab !== "Summary" && !columns.some((column) => column.key === sort.key)
     ? { key: defaultPracticeMetricSort(tab), direction: "desc" as SortDirection }
@@ -7846,7 +8435,7 @@ function PracticeReview({
   const rows = tab === "Summary"
     ? []
     : sortPracticeMetricRows(
-      buildPracticeMetricRows(data, tab, practice.id, effectiveHittingSessionFilterId).filter((row) => (
+      buildPracticeMetricRows(data, tab, practice.id, effectiveHittingSessionFilterId, effectivePitchingSessionFilterId).filter((row) => (
         tab !== "Live BP"
           || (liveBpSide === "Hitters" ? row.liveBpSwings > 0 || row.liveBpPas > 0 : row.liveBpPitches > 0)
       )),
@@ -7863,7 +8452,7 @@ function PracticeReview({
   const standouts = buildPracticeStandouts(data, practice.id);
   const selectedPlayerRows = selectedPlayer ? {
     Hitting: buildPracticeMetricRows(data, "Hitting", practice.id, effectiveHittingSessionFilterId).find((row) => row.player.id === selectedPlayer.id),
-    Pitching: buildPracticeMetricRows(data, "Pitching", practice.id).find((row) => row.player.id === selectedPlayer.id),
+    Pitching: buildPracticeMetricRows(data, "Pitching", practice.id, undefined, effectivePitchingSessionFilterId).find((row) => row.player.id === selectedPlayer.id),
     Defense: buildPracticeMetricRows(data, "Defense", practice.id).find((row) => row.player.id === selectedPlayer.id),
     "Live BP": buildPracticeMetricRows(data, "Live BP", practice.id).find((row) => row.player.id === selectedPlayer.id),
   } : undefined;
@@ -7891,7 +8480,7 @@ function PracticeReview({
           <h1>{shortDate(practice.date)} · {data.teamContext?.currentTeam?.teamName ?? "Team Practice"}</h1>
           <p>{[practice.type, practice.location, formatPracticeTimeRange(practice)].filter(Boolean).join(" · ")}</p>
         </div>
-        <button className="primary-button" type="button" onClick={() => onOpenAnalytics(activeCategory, undefined, effectiveHittingSessionFilterId)}>
+        <button className="primary-button" type="button" onClick={() => onOpenAnalytics(activeCategory, undefined, activeReviewAnalyticsSessionId)}>
           <BarChart3 size={16} aria-hidden="true" />
           View Full Practice Analytics
         </button>
@@ -7978,7 +8567,17 @@ function PracticeReview({
                   ))}
                 </div>
               )}
-              <button className="text-button" type="button" onClick={() => onOpenAnalytics(tab, undefined, effectiveHittingSessionFilterId)}>
+              {tab === "Pitching" && pitchingSessionOptions.length > 1 && (
+                <div className="practice-hitting-session-filter" aria-label="Pitching session filter">
+                  <button type="button" className={activeReviewPitchingSessionFilterId === "all" ? "active" : ""} onClick={() => setPitchingSessionFilterId("all")}>All Sessions</button>
+                  {pitchingSessionOptions.map((session) => (
+                    <button key={session.id} type="button" className={activeReviewPitchingSessionFilterId === session.id ? "active" : ""} onClick={() => setPitchingSessionFilterId(session.id)}>
+                      {pitchingSessionAnalyticsLabel(session)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button className="text-button" type="button" onClick={() => onOpenAnalytics(tab, undefined, activeReviewAnalyticsSessionId)}>
                 View Analytics
                 <ChevronRight size={15} aria-hidden="true" />
               </button>
@@ -8043,15 +8642,17 @@ function PracticeReview({
             )}
             {selectedPlayerRows.Defense && (
               <PracticePlayerReviewCard title="Defense" metrics={[
+                ["Pos", selectedPlayerRows.Defense.positionWorked],
                 ["Reps", selectedPlayerRows.Defense.reps],
-                ["Clean", formatPct(selectedPlayerRows.Defense.clean, 0)],
+                ["Clean Reps", selectedPlayerRows.Defense.cleanReps],
+                ["Clean %", formatPct(selectedPlayerRows.Defense.clean, 0)],
                 ["Errors", selectedPlayerRows.Defense.errors],
-                ["Plus", selectedPlayerRows.Defense.greatPlays],
+                ["Throw Acc.", selectedPlayerRows.Defense.throws ? formatPct(selectedPlayerRows.Defense.throwAcc, 0) : "--"],
               ]} />
             )}
           </div>
           <div className="modal-actions">
-            <button className="secondary-button" type="button" onClick={() => onOpenAnalytics(activeCategory, selectedPlayer.id, activeCategory === "Hitting" ? effectiveHittingSessionFilterId : undefined)}>
+            <button className="secondary-button" type="button" onClick={() => onOpenAnalytics(activeCategory, selectedPlayer.id, activeReviewAnalyticsSessionId)}>
               View Full Player Analytics
               <ChevronRight size={15} aria-hidden="true" />
             </button>
@@ -8132,6 +8733,8 @@ function PracticeConsole({
   exitVelocity,
   exitVelocityError,
   trackSprayChart,
+  trackHittingPitchVelocity,
+  trackHittingPitchLocation,
   pitchLocation,
   targetLocation,
   fieldLocation,
@@ -8154,6 +8757,8 @@ function PracticeConsole({
   onTrackExitVelocity,
   onExitVelocity,
   onTrackSprayChart,
+  onTrackHittingPitchVelocity,
+  onTrackHittingPitchLocation,
   onPitchLocation,
   onTargetLocation,
   onFieldLocation,
@@ -8161,6 +8766,7 @@ function PracticeConsole({
   onLogHitting,
   onUpdateHittingEvent,
   onLogPitch,
+  onUpdatePitchEvent,
   onLiveBpPitcher,
   onLiveBpHitter,
   onLiveBpThrowerSource,
@@ -8168,6 +8774,7 @@ function PracticeConsole({
   onCompleteLiveBpPa,
   onNextLiveBpHitter,
   onLogDefense,
+  onUpdateDefenseEvent,
   onUndo,
   onOpenSessionNotes,
   onSessionHeartbeat,
@@ -8190,6 +8797,8 @@ function PracticeConsole({
   exitVelocity: string;
   exitVelocityError: string | null;
   trackSprayChart: boolean;
+  trackHittingPitchVelocity: boolean;
+  trackHittingPitchLocation: boolean;
   pitchLocation?: ZonePoint;
   targetLocation?: ZonePoint;
   fieldLocation: ZonePoint;
@@ -8212,29 +8821,51 @@ function PracticeConsole({
   onTrackExitVelocity: (enabled: boolean) => void;
   onExitVelocity: (value: string) => void;
   onTrackSprayChart: (enabled: boolean) => void;
+  onTrackHittingPitchVelocity: (enabled: boolean) => void;
+  onTrackHittingPitchLocation: (enabled: boolean) => void;
   onPitchLocation: (point: ZonePoint | undefined) => void;
   onTargetLocation: (point: ZonePoint | undefined) => void;
   onFieldLocation: (point: ZonePoint) => void;
   onHitDirection: (direction: Direction) => void;
-  onLogHitting: (action: HittingEvent["action"], contactResult?: BattedBallType, quality?: HittingContactQuality, direction?: Direction, sprayPoint?: ZonePoint | null, pitchType?: PitchType) => void;
+  onLogHitting: (
+    action: HittingEvent["action"],
+    contactResult?: BattedBallType,
+    quality?: HittingContactQuality,
+    direction?: Direction,
+    sprayPoint?: ZonePoint | null,
+    pitchType?: PitchType,
+    pitchLocationPoint?: ZonePoint,
+    pitchVelocityMph?: number,
+    exitVelocityMph?: number,
+  ) => void;
   onUpdateHittingEvent: (eventId: ID, update: {
     action: HittingEvent["action"];
     contactResult?: BattedBallType;
     contactQuality?: HittingContactQuality;
     direction?: Direction;
     fieldLocation?: ZonePoint;
+    pitchLocation?: ZonePoint;
     exitVelocityMph?: number;
     pitchType?: PitchType;
     velocity?: number;
   }) => void;
-  onLogPitch: (outcome: PitchOutcome, battedBall?: BattedBallType) => void;
+  onLogPitch: (outcome: PitchOutcome, battedBall?: BattedBallType, options?: PitchLogOptions) => void;
+  onUpdatePitchEvent: (eventId: ID, update: {
+    pitchType: PitchType;
+    outcome: PitchOutcome;
+    velocity?: number;
+    location?: ZonePoint;
+    intendedTarget?: ZonePoint;
+    battedBall?: BattedBallType;
+  }) => void;
   onLiveBpPitcher: (playerId: ID) => void;
   onLiveBpHitter: (playerId: ID) => void;
   onLiveBpThrowerSource: (source: LiveBpThrowerSource) => void;
   onLogLiveBpPitch: (outcome: PitchOutcome, battedBall?: BattedBallType) => void;
   onCompleteLiveBpPa: (outcome: LiveBpOutcomeLabel) => void;
   onNextLiveBpHitter: () => void;
-  onLogDefense: (outcome: DefenseOutcome, errorType?: DefenseEvent["errorType"]) => void;
+  onLogDefense: (draft: DefenseLogDraft) => void;
+  onUpdateDefenseEvent: (eventId: ID, draft: DefenseLogDraft) => void;
   onUndo: () => void;
   onOpenSessionNotes: () => void;
   onSessionHeartbeat: (mode: PracticeMode, sessionId: ID) => void;
@@ -8244,10 +8875,12 @@ function PracticeConsole({
 }) {
   const [switcherQuery, setSwitcherQuery] = useState("");
   const [switcherFilter, setSwitcherFilter] = useState<PracticeTrackerPlayerFilter>("All");
+  const [practiceModePickerOpen, setPracticeModePickerOpen] = useState(false);
   const [hittingSheetOpen, setHittingSheetOpen] = useState(false);
   const [hittingSheetStep, setHittingSheetStep] = useState<HittingSheetStep>("result");
   const [hittingDraft, setHittingDraft] = useState<HittingContactDraft | null>(null);
   const [hittingSheetFieldLocation, setHittingSheetFieldLocation] = useState<ZonePoint | undefined>();
+  const [hittingSheetPitchLocation, setHittingSheetPitchLocation] = useState<ZonePoint | undefined>();
   const [hittingPlayersOpen, setHittingPlayersOpen] = useState(false);
   const [hittingSessionOpen, setHittingSessionOpen] = useState(false);
   const [hittingStatsOpen, setHittingStatsOpen] = useState(false);
@@ -8257,11 +8890,58 @@ function PracticeConsole({
   const [hittingStatsScopeSessionId, setHittingStatsScopeSessionId] = useState<ID | "all">("all");
   const [editingHittingEventId, setEditingHittingEventId] = useState<ID | undefined>();
   const [hittingSavedNotice, setHittingSavedNotice] = useState("");
+  const [pitchingPitchTrackingMode, setPitchingPitchTrackingMode] = useState<HittingPitchTrackingMode>("MULTI");
+  const [trackPitchVelocity, setTrackPitchVelocity] = useState(true);
+  const [trackPitchLocation, setTrackPitchLocation] = useState(true);
+  const [pitchingSheetOpen, setPitchingSheetOpen] = useState(false);
+  const [pitchingDraft, setPitchingDraft] = useState<PitchingDraft>(() => ({
+    pitchType: selectedPitchType,
+    velocity,
+    outcome: "Called Strike",
+  }));
+  const [editingPitchEventId, setEditingPitchEventId] = useState<ID | undefined>();
+  const [pitchingPlayersOpen, setPitchingPlayersOpen] = useState(false);
+  const [pitchingSessionOpen, setPitchingSessionOpen] = useState(false);
+  const [pitchingStatsOpen, setPitchingStatsOpen] = useState(false);
+  const [pitchingOptionsOpen, setPitchingOptionsOpen] = useState(false);
+  const [pitchingSettingsOpen, setPitchingSettingsOpen] = useState(false);
+  const [pitchingPitchTypeOpen, setPitchingPitchTypeOpen] = useState(false);
+  const [pitchingStatsScopeSessionId, setPitchingStatsScopeSessionId] = useState<ID | "all">("all");
+  const [pitchingLocationFilter, setPitchingLocationFilter] = useState<PitchType | "all">("all");
+  const [pitchingLivePitchFilters, setPitchingLivePitchFilters] = useState<PitchType[]>([]);
+  const [pitchingLivePitchFilterOpen, setPitchingLivePitchFilterOpen] = useState(false);
+  const [showAllPitchingPlayers, setShowAllPitchingPlayers] = useState(false);
+  const [pitchingSavedNotice, setPitchingSavedNotice] = useState("");
+  const [pitchingVelocityError, setPitchingVelocityError] = useState("");
+  const initialDefenseDrill = defaultDefenseDrillForStation(defenseStation);
+  const initialDefensePosition = defaultDefensePositionForPlayer(player, initialDefenseDrill);
+  const [selectedDefenseDrill, setSelectedDefenseDrill] = useState<DefenseDrillContext>(initialDefenseDrill);
+  const [selectedDefensePosition, setSelectedDefensePosition] = useState<Position>(initialDefensePosition);
+  const defenseDrill = defenseStationForDrill(selectedDefenseDrill) === defenseStation ? selectedDefenseDrill : initialDefenseDrill;
+  const defensePosition = defensePositionOptions(defenseDrill).includes(selectedDefensePosition)
+    ? selectedDefensePosition
+    : defaultDefensePositionForPlayer(player, defenseDrill);
+  const setDefenseDrill = setSelectedDefenseDrill;
+  const setDefensePosition = setSelectedDefensePosition;
+  const [trackDefenseLocation, setTrackDefenseLocation] = useState(false);
+  const [trackDefenseDifficulty, setTrackDefenseDifficulty] = useState(false);
+  const [defenseSheetOpen, setDefenseSheetOpen] = useState(false);
+  const [defenseDraft, setDefenseDraft] = useState<DefenseLogDraft>(() => createDefenseLogDraft(player, initialDefenseDrill, initialDefensePosition));
+  const [editingDefenseEventId, setEditingDefenseEventId] = useState<ID | undefined>();
+  const [defensePlayersOpen, setDefensePlayersOpen] = useState(false);
+  const [defenseSessionOpen, setDefenseSessionOpen] = useState(false);
+  const [defenseStatsOpen, setDefenseStatsOpen] = useState(false);
+  const [defenseOptionsOpen, setDefenseOptionsOpen] = useState(false);
+  const [defenseSettingsOpen, setDefenseSettingsOpen] = useState(false);
+  const [defenseStatsScopeSessionId, setDefenseStatsScopeSessionId] = useState<ID | "all">("all");
+  const [defenseStatsDrillFilter, setDefenseStatsDrillFilter] = useState<DefenseDrillContext | "all">("all");
+  const [defenseSavedNotice, setDefenseSavedNotice] = useState("");
   const [liveBpPitchSheetOpen, setLiveBpPitchSheetOpen] = useState(false);
   const [liveBpPitchSheetStep, setLiveBpPitchSheetStep] = useState<LiveBpPitchSheetStep>("result");
   const [liveBpBattedBall, setLiveBpBattedBall] = useState<BattedBallType | undefined>();
   const [activityClock, setActivityClock] = useState(() => Date.now());
   const onSessionHeartbeatRef = useRef(onSessionHeartbeat);
+  const pitchingFilterMenuRef = useRef<HTMLDivElement | null>(null);
   const practiceId = practice?.id;
   const practiceEndedAt = practice?.endedAt;
   const availablePlayers = useMemo(() => availablePracticePlayers(data, practice), [data, practice]);
@@ -8269,7 +8949,7 @@ function PracticeConsole({
     return availablePlayers.length ? availablePlayers : stablePracticeLineupPlayers(data, practice);
   }, [availablePlayers, data, practice]);
   const playerPool = useMemo(() => players
-    .filter((item) => mode !== "Pitching" || item.isPitcher)
+    .filter((item) => mode !== "Pitching" || showAllPitchingPlayers || item.isPitcher)
     .filter((item) => mode !== "Hitting" || item.isHitter)
     .filter((item) => mode !== "Live BP" || (liveBpThrowerSource === "PLAYER" ? item.isPitcher || item.isHitter : item.isHitter))
     .filter((item) => switcherFilter === "All"
@@ -8277,7 +8957,7 @@ function PracticeConsole({
       || (switcherFilter === "Hitters" && item.isHitter)
       || (switcherFilter === "Infield" && ["P", "C", "1B", "2B", "3B", "SS"].includes(item.primaryPosition))
       || (switcherFilter === "Outfield" && ["LF", "CF", "RF", "OF"].includes(item.primaryPosition)))
-    .filter((item) => `${item.name} ${item.jerseyNumber} ${item.primaryPosition} ${item.secondaryPosition ?? ""}`.toLowerCase().includes(switcherQuery.toLowerCase())), [players, mode, switcherFilter, switcherQuery, liveBpThrowerSource]);
+    .filter((item) => `${item.name} ${item.jerseyNumber} ${item.primaryPosition} ${item.secondaryPosition ?? ""}`.toLowerCase().includes(switcherQuery.toLowerCase())), [players, mode, showAllPitchingPlayers, switcherFilter, switcherQuery, liveBpThrowerSource]);
   const matchesHittingStation = (session: HittingSession) => (
     session.type === hittingStation
     || (hittingStation === "Machine" && isMachineHittingStation(session.type))
@@ -8289,7 +8969,14 @@ function PracticeConsole({
     ? data.pitchingSessions.find((session) => session.practiceId === practice.id && session.pitcherId === player.id && session.type === pitchingStation && isPracticeSessionReusable(session))
     : undefined;
   const defenseSession = practice
-    ? data.defenseSessions.find((session) => session.practiceId === practice.id && session.playerId === player.id && session.station === defenseStation && isPracticeSessionReusable(session))
+    ? data.defenseSessions.find((session) => (
+      session.practiceId === practice.id
+      && session.playerId === player.id
+      && session.station === defenseStationForDrill(defenseDrill)
+      && (session.drillContext ?? defaultDefenseDrillForStation(session.station)) === defenseDrill
+      && (session.positionWorked ? session.positionWorked === defensePosition : true)
+      && isPracticeSessionReusable(session)
+    ))
     : undefined;
   const pitchEvents = data.pitchEvents.filter((event) => pitchingSession ? event.sessionId === pitchingSession.id : event.pitcherId === player.id && (!practice || event.practiceId === practice.id));
   const hittingEvents = data.hittingEvents.filter((event) => hittingSession ? event.sessionId === hittingSession.id : event.hitterId === player.id && (!practice || event.practiceId === practice.id));
@@ -8317,10 +9004,14 @@ function PracticeConsole({
     : data.hittingEvents.filter((event) => event.practiceId === practice?.id && event.hitterId === liveBpHitter?.id && event.pitcherId === liveBpPitcher?.id);
   const liveBpPitchStats = calculatePitchingStats(liveBpPitchEvents);
   const liveBpHitStats = calculateHittingStats(liveBpHitEvents);
-  const pitchStats = calculatePitchingStats(pitchEvents);
+  const filteredPitchEvents = pitchingLivePitchFilters.length
+    ? pitchEvents.filter((event) => pitchingLivePitchFilters.includes(event.pitchType))
+    : pitchEvents;
+  const pitchStats = calculatePitchingStats(filteredPitchEvents);
   const hitStats = calculateHittingStats(hittingEvents);
-  const cleanDefenseReps = defenseEvents.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
-  const defenseCleanPct = pct(cleanDefenseReps, defenseEvents.length);
+  const defenseStats = calculateDefenseStats(defenseEvents);
+  const cleanDefenseReps = defenseStats.cleanReps;
+  const defenseCleanPct = defenseStats.cleanPct;
   const activeSessions = practiceId && !practiceEndedAt ? buildActivePracticeSessions(data, practiceId, activityClock) : [];
   const activeModeSessions = activeSessions.filter((session) => session.mode === mode);
   const currentSession = mode === "Hitting"
@@ -8364,10 +9055,16 @@ function PracticeConsole({
       ? `Multi - ${practicePitchTypeLabel(selectedPitchType)}`
       : practicePitchTypeLabel(effectiveHittingPitchType);
   const hittingSessionContext = [hittingStation, hittingPitchTypeLabel].filter(Boolean).join(" - ");
-  const hittingStationLabel = normalizeHittingStation(hittingStation);
+  const practiceModeOptions: ChoiceOption[] = (["Hitting", "Pitching", "Defense", "Live BP"] as PracticeMode[]).map((practiceMode) => ({
+    value: practiceMode,
+    label: practiceMode,
+    icon: practiceModeIcon(practiceMode),
+  }));
   const hittingStationOptions = HITTING_STATIONS.map((station) => ({ value: station, label: station }));
+  const pitchingStationOptions = PITCHING_STATIONS.map((station) => ({ value: station, label: station }));
   const recentHittingEvents = hittingEvents.slice(0, 3);
-  const hittingSprayPoints = hittingEvents.map((event) => event.fieldLocation).filter(isZonePoint);
+  const hittingSprayPoints = hittingEvents.filter((event) => event.action === "Ball in play").map((event) => event.fieldLocation).filter(isZonePoint);
+  const hittingSheetIsBallInPlay = hittingDraft?.action === "Ball in play";
   const practiceHittingSessions = useMemo(() => (
     practice
       ? data.hittingSessions.filter((session) => (
@@ -8396,13 +9093,106 @@ function PracticeConsole({
   const scopedHittingMissCount = scopedHittingEvents.filter((event) => event.action === "Miss").length;
   const scopedHittingContactCount = scopedHittingEvents.filter((event) => event.action === "Ball in play" || event.action === "Foul").length;
   const scopedHittingSprayPoints = scopedHittingEvents.map((event) => event.fieldLocation).filter(isZonePoint);
+  const scopedHittingPitchLocationEvents = scopedHittingEvents.filter((event) => isZonePoint(event.pitchLocation));
   const scopedHittingPitchSplits = buildHittingPitchSplits(scopedHittingEvents);
   const compactHittingMetrics = [
     { label: "Swings", value: String(hitStats.totalSwings) },
-    { label: "Contact", value: formatPct(hitStats.contactPct) },
-    { label: "Hard", value: formatPct(hitStats.hardHitPct) },
-    ...(trackExitVelocity && hitStats.avgExitVelocity !== undefined ? [{ label: "Avg EV", value: `${formatNumber(hitStats.avgExitVelocity, 1)}` }] : []),
+    { label: "Hard Contact", value: formatPct(hitStats.hardHitPct) },
+    { label: "Avg EV", value: hitStats.avgExitVelocity !== undefined ? formatNumber(hitStats.avgExitVelocity, 1) : "--" },
+    { label: "Max EV", value: hitStats.maxExitVelocity !== undefined ? formatNumber(hitStats.maxExitVelocity, 1) : "--" },
+  ];
+  const practicePitchingSessions = useMemo(() => (
+    practice
+      ? data.pitchingSessions.filter((session) => (
+        session.practiceId === practice.id
+        && session.pitcherId === player.id
+        && session.type !== "Live BP"
+        && isPracticeSessionReusable(session)
+      ))
+      : []
+  ), [data, practice, player.id]);
+  const selectedPitchingStatsScopeAvailable = pitchingStatsScopeSessionId !== "all" && practicePitchingSessions.some((session) => session.id === pitchingStatsScopeSessionId);
+  const effectivePitchingStatsScopeSessionId = selectedPitchingStatsScopeAvailable ? pitchingStatsScopeSessionId : "all";
+  const practicePitchingEvents = practice
+    ? data.pitchEvents.filter((event) => (
+      event.practiceId === practice.id
+      && event.pitcherId === player.id
+      && data.pitchingSessions.find((session) => session.id === event.sessionId)?.type !== "Live BP"
+    ))
+    : pitchEvents;
+  const scopedPitchingEvents = effectivePitchingStatsScopeSessionId === "all"
+    ? practicePitchingEvents
+    : practicePitchingEvents.filter((event) => event.sessionId === effectivePitchingStatsScopeSessionId);
+  const scopedPitchStats = calculatePitchingStats(scopedPitchingEvents);
+  const pitchingLocationFilteredEvents = pitchingLocationFilter === "all"
+    ? scopedPitchingEvents
+    : scopedPitchingEvents.filter((event) => event.pitchType === pitchingLocationFilter);
+  const pitchingLocationFilteredStats = calculatePitchingStats(pitchingLocationFilteredEvents);
+  const pitchingAnalyticsStats = pitchingLocationFilter === "all" ? scopedPitchStats : pitchingLocationFilteredStats;
+  const pitchingAnalyticsMix = Object.values(pitchingAnalyticsStats.byPitchType)
+    .sort((left, right) => right.pitches - left.pitches || left.pitchType.localeCompare(right.pitchType));
+  const recentPitchEvents = filteredPitchEvents.slice(0, 5);
+  const selectedPitchModeLabel = pitchingPitchTrackingMode === "OFF"
+    ? "Off"
+    : pitchingPitchTrackingMode === "ONE"
+      ? PITCH_TYPE_LABELS[selectedPitchType]
+      : "Multi";
+  const pitchingSessionLabel = pitchingStation === "Bullpen" ? "Bullpen" : pitchingStation;
+  const pitchingSessionContext = pitchingSessionLabel;
+  const pitchingLivePitchFilterLabel = pitchingLivePitchFilters.length === 0
+    ? "All"
+    : pitchingLivePitchFilters.length === 1
+      ? PITCH_TYPE_LABELS[pitchingLivePitchFilters[0]]
+      : `${pitchingLivePitchFilters.length} pitches`;
+  const pitchingLivePitchFilterOptions = PITCH_TYPES.filter((pitchType) => pitchEvents.some((event) => event.pitchType === pitchType));
+  const filteredPitchLocationCount = filteredPitchEvents.filter((event) => isZonePoint(event.location)).length;
+  const hasFilteredVelocity = pitchStats.avgVelocity !== undefined || pitchStats.maxVelocity !== undefined;
+  const compactPitchingMetrics = [
+    { label: "Pitches", value: String(pitchStats.totalPitches) },
+    { label: "Strike", value: formatPct(pitchStats.strikePct) },
+    ...(trackPitchVelocity ? [{ label: "Avg Velo", value: hasFilteredVelocity ? formatNumber(pitchStats.avgVelocity, 1) : "--" }] : []),
+    ...(trackPitchVelocity ? [{ label: "Max Velo", value: hasFilteredVelocity ? formatNumber(pitchStats.maxVelocity, 1) : "--" }] : []),
+    ...(!trackPitchVelocity && filteredPitchLocationCount ? [{ label: "Zone", value: formatPct(pitchStats.zonePct) }] : []),
   ].slice(0, 4);
+  const pitchingPitchTypeOptions = PITCH_TYPES.map((pitchType) => ({ value: pitchType, label: practicePitchTypeLabel(pitchType) }));
+  const pitchingAnalyticsPitchTypes = PITCH_TYPES.filter((pitchType) => scopedPitchingEvents.some((event) => event.pitchType === pitchType));
+  const pitchingLocationSummary = buildPitchLocationSummary(pitchingLocationFilteredEvents, player);
+  const pitchingSaveDisabled = trackPitchLocation && !pitchingDraft.location;
+  const defenseDrillChoices = DEFENSE_DRILLS.map((drill) => ({ value: drill.value, label: drill.label }));
+  const defensePositionChoices = defensePositionOptions(defenseDrill).map((position) => ({ value: position, label: position }));
+  const defenseDrillConfig = defenseDrillOption(defenseDrill);
+  const defenseDraftConfig = defenseDrillOption(defenseDraft.drillContext);
+  const defenseRepSubtypeChoices = defenseSubtypeOptions(defenseDraft.repType, defenseDraft.positionWorked);
+  const defenseTracksThrow = defenseDrillThrowRelevant(defenseDraft.drillContext, defenseDraft.repType);
+  const recentDefenseEvents = defenseEvents.slice(0, 5);
+  const compactDefenseMetrics = [
+    { label: "Reps", value: String(defenseStats.totalReps) },
+    { label: "Clean", value: formatPct(defenseStats.cleanPct, 0) },
+    { label: "Errors", value: String(defenseStats.errors) },
+    ...(defenseStats.throwAttempts > 0 ? [{ label: "Throw Acc.", value: formatPct(defenseStats.throwAccuracyPct, 0) }] : []),
+  ].slice(0, 4);
+  const practiceDefenseSessions = useMemo(() => (
+    practice
+      ? data.defenseSessions.filter((session) => (
+        session.practiceId === practice.id
+        && session.playerId === player.id
+        && isPracticeSessionReusable(session)
+      ))
+      : []
+  ), [data, practice, player.id]);
+  const selectedDefenseStatsScopeAvailable = defenseStatsScopeSessionId !== "all" && practiceDefenseSessions.some((session) => session.id === defenseStatsScopeSessionId);
+  const effectiveDefenseStatsScopeSessionId = selectedDefenseStatsScopeAvailable ? defenseStatsScopeSessionId : "all";
+  const practiceDefenseEvents = practice
+    ? data.defenseEvents.filter((event) => event.practiceId === practice.id && event.playerId === player.id)
+    : defenseEvents;
+  const scopedDefenseEvents = effectiveDefenseStatsScopeSessionId === "all"
+    ? practiceDefenseEvents
+    : practiceDefenseEvents.filter((event) => event.sessionId === effectiveDefenseStatsScopeSessionId);
+  const filteredDefenseStatsEvents = defenseStatsDrillFilter === "all"
+    ? scopedDefenseEvents
+    : scopedDefenseEvents.filter((event) => defenseEventDrillContext(event) === defenseStatsDrillFilter);
+  const scopedDefenseStats = calculateDefenseStats(filteredDefenseStatsEvents);
+  const defenseSessionContext = `${defensePosition} - ${defenseDrillConfig.label}`;
 
   useEffect(() => {
     if (!playerPool.length || playerPool.some((item) => item.id === player.id)) return;
@@ -8412,6 +9202,24 @@ function PracticeConsole({
   useEffect(() => {
     onSessionHeartbeatRef.current = onSessionHeartbeat;
   }, [onSessionHeartbeat]);
+
+  useEffect(() => {
+    if (!pitchingLivePitchFilterOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && pitchingFilterMenuRef.current?.contains(target)) return;
+      setPitchingLivePitchFilterOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPitchingLivePitchFilterOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [pitchingLivePitchFilterOpen]);
 
   useEffect(() => {
     if (!practiceId || practiceEndedAt || !currentSession?.id) return;
@@ -8424,6 +9232,7 @@ function PracticeConsole({
   }, [currentSession?.id, mode, practiceId, practiceEndedAt]);
 
   function changeMode(nextMode: PracticeMode) {
+    setPracticeModePickerOpen(false);
     onMode(nextMode);
     if (nextMode === "Live BP") {
       onPitchingStation("Live BP");
@@ -8437,7 +9246,17 @@ function PracticeConsole({
     onSelectPlayer(row.primaryPlayerId);
     if (row.mode === "Hitting") onHittingStation(normalizeHittingStation(row.station));
     if (row.mode === "Pitching") onPitchingStation((row.station as PitchingSession["type"]) || "Bullpen");
-    if (row.mode === "Defense") onDefenseStation((row.station as DefenseStation) || "Infield");
+    if (row.mode === "Defense") {
+      const session = data.defenseSessions.find((item) => item.id === row.sessionId);
+      const nextStation = session?.station ?? (row.station as DefenseStation) ?? "Infield";
+      const nextDrill = session?.drillContext ?? defaultDefenseDrillForStation(nextStation);
+      const nextPlayer = data.players.find((item) => item.id === row.primaryPlayerId) ?? player;
+      const nextPosition = session?.positionWorked ?? defaultDefensePositionForPlayer(nextPlayer, nextDrill);
+      onDefenseStation(nextStation);
+      setDefenseDrill(nextDrill);
+      setDefensePosition(nextPosition);
+      setDefenseDraft(createDefenseLogDraft(nextPlayer, nextDrill, nextPosition));
+    }
     if (row.mode === "Live BP") {
       onPitchingStation("Live BP");
       onHittingStation("Live BP");
@@ -8452,15 +9271,16 @@ function PracticeConsole({
   }
 
   function adjustVelocity(delta: number) {
-    const next = Math.max(0, Math.round((Number(velocity) || 0) + delta));
+    const next = Math.max(TRACKING_VELOCITY_MIN_MPH, Math.min(TRACKING_VELOCITY_MAX_MPH, Math.round((Number(velocity) || DEFAULT_TRACKING_VELOCITY_MPH) + delta)));
     onVelocity(String(next));
   }
 
   function openHittingSheet() {
     setEditingHittingEventId(undefined);
     setHittingDraft(null);
-    setHittingSheetStep("result");
+    setHittingSheetStep(hittingHasSetupStep() ? "setup" : "result");
     setHittingSheetFieldLocation(undefined);
+    setHittingSheetPitchLocation(undefined);
     setHittingSavedNotice("");
     setHittingSheetOpen(true);
   }
@@ -8469,8 +9289,13 @@ function PracticeConsole({
     setHittingSheetOpen(false);
     setEditingHittingEventId(undefined);
     setHittingDraft(null);
-    setHittingSheetStep("result");
+    setHittingSheetStep("setup");
     setHittingSheetFieldLocation(undefined);
+    setHittingSheetPitchLocation(undefined);
+  }
+
+  function hittingHasSetupStep() {
+    return effectiveHittingPitchMode === "MULTI" || trackHittingPitchLocation || trackHittingPitchVelocity;
   }
 
   function showHittingSavedNotice(message = "Swing logged") {
@@ -8481,19 +9306,20 @@ function PracticeConsole({
   function parseOptionalSheetExitVelocity() {
     if (!trackExitVelocity || !exitVelocity.trim()) return undefined;
     const parsed = Number(exitVelocity);
-    if (!Number.isFinite(parsed) || parsed < 20 || parsed > 130) return null;
+    if (!Number.isFinite(parsed) || parsed < TRACKING_VELOCITY_MIN_MPH || parsed > TRACKING_VELOCITY_MAX_MPH) return null;
+    return parsed;
+  }
+
+  function parseOptionalSheetPitchVelocity() {
+    if (!trackHittingPitchVelocity || !velocity.trim()) return undefined;
+    const parsed = Number(velocity);
+    if (!Number.isFinite(parsed) || parsed < TRACKING_VELOCITY_MIN_MPH || parsed > TRACKING_VELOCITY_MAX_MPH) return null;
     return parsed;
   }
 
   function sessionPitchType() {
     if (effectiveHittingPitchMode === "OFF") return undefined;
     return effectiveHittingPitchMode === "ONE" ? effectiveHittingPitchType : selectedPitchType;
-  }
-
-  function sessionVelocity() {
-    if (!isMachineHittingStation(hittingStation) || !velocity) return undefined;
-    const parsed = Number(velocity);
-    return Number.isFinite(parsed) ? parsed : undefined;
   }
 
   function finishHittingSave(message?: string) {
@@ -8506,8 +9332,11 @@ function PracticeConsole({
     const isBip = action === "Ball in play";
     const resolvedFieldLocation = isBip && trackSprayChart ? sprayPoint ?? undefined : undefined;
     const resolvedDirection = resolvedFieldLocation ? deriveHitDirectionFromFieldLocation(resolvedFieldLocation, player.bats) : undefined;
-    const exitVelocityMph = parseOptionalSheetExitVelocity();
+    const resolvedPitchLocation = trackHittingPitchLocation ? hittingSheetPitchLocation : undefined;
+    const exitVelocityMph = isBip ? parseOptionalSheetExitVelocity() : undefined;
     if (exitVelocityMph === null) return;
+    const pitchVelocityMph = parseOptionalSheetPitchVelocity();
+    if (pitchVelocityMph === null) return;
     const resolvedPitchType = sessionPitchType();
 
     if (editingHittingEventId) {
@@ -8517,25 +9346,26 @@ function PracticeConsole({
         contactQuality: isBip ? draft?.contactQuality : undefined,
         direction: resolvedDirection,
         fieldLocation: resolvedFieldLocation,
+        pitchLocation: resolvedPitchLocation,
         exitVelocityMph,
         pitchType: resolvedPitchType,
-        velocity: sessionVelocity(),
+        velocity: pitchVelocityMph,
       });
       finishHittingSave("Swing updated");
       return;
     }
 
-    onLogHitting(action, draft?.contactResult, draft?.contactQuality, resolvedDirection, sprayPoint, resolvedPitchType);
+    onLogHitting(action, draft?.contactResult, draft?.contactQuality, resolvedDirection, sprayPoint, resolvedPitchType, resolvedPitchLocation, pitchVelocityMph, exitVelocityMph);
     finishHittingSave("Swing logged");
   }
 
   function chooseHittingResult(draft: HittingContactDraft) {
+    setHittingDraft(draft);
     if (draft.action !== "Ball in play") {
       saveHittingAction(draft.action, draft);
       return;
     }
     if (trackSprayChart || trackExitVelocity) {
-      setHittingDraft(draft);
       setHittingSheetFieldLocation(undefined);
       setHittingSheetStep("detail");
       return;
@@ -8552,7 +9382,9 @@ function PracticeConsole({
     setEditingHittingEventId(event.id);
     setHittingSavedNotice("");
     onExitVelocity(event.exitVelocityMph !== undefined ? String(event.exitVelocityMph) : "");
+    if (event.velocity !== undefined) onVelocity(String(event.velocity));
     setHittingSheetFieldLocation(isZonePoint(event.fieldLocation) ? event.fieldLocation : undefined);
+    setHittingSheetPitchLocation(isZonePoint(event.pitchLocation) ? event.pitchLocation : undefined);
     if (event.pitchType) onPitchType(event.pitchType);
     if (event.action === "Ball in play") {
       const draft = HITTING_RESULT_ACTIONS.find((item) => (
@@ -8561,11 +9393,11 @@ function PracticeConsole({
         && item.contactQuality === event.contactQuality
       )) ?? HITTING_RESULT_ACTIONS.find((item) => item.id === "line-drive") ?? null;
       setHittingDraft(draft);
-      setHittingSheetStep(trackSprayChart || trackExitVelocity ? "detail" : "result");
+      setHittingSheetStep(hittingHasSetupStep() ? "setup" : (trackSprayChart || trackExitVelocity ? "detail" : "result"));
     } else {
       const draft = HITTING_RESULT_ACTIONS.find((item) => item.action === event.action) ?? null;
       setHittingDraft(draft);
-      setHittingSheetStep("result");
+      setHittingSheetStep(hittingHasSetupStep() ? "setup" : "result");
     }
     setHittingSheetOpen(true);
   }
@@ -8573,6 +9405,182 @@ function PracticeConsole({
   function selectHittingPlayer(playerId: ID) {
     onSelectPlayer(playerId);
     setHittingPlayersOpen(false);
+  }
+
+  function pitchingPitchTypeForSave() {
+    return pitchingPitchTrackingMode === "OFF" ? "Other" : pitchingDraft.pitchType;
+  }
+
+  function parseOptionalPitchVelocity() {
+    setPitchingVelocityError("");
+    if (!trackPitchVelocity || !pitchingDraft.velocity.trim()) return undefined;
+    const parsed = Number(pitchingDraft.velocity);
+    if (!Number.isFinite(parsed) || parsed < 25 || parsed > 110) {
+      setPitchingVelocityError("Enter 25-110 mph or leave it blank.");
+      return null;
+    }
+    return parsed;
+  }
+
+  function resetPitchingDraft(event?: PitchEvent) {
+    setPitchingDraft({
+      pitchType: event?.pitchType ?? selectedPitchType,
+      velocity: event?.velocity !== undefined ? String(event.velocity) : velocity,
+      location: isZonePoint(event?.location) ? event.location : undefined,
+      outcome: event?.outcome === "Ball" ? "Ball" : "Called Strike",
+    });
+    setPitchingVelocityError("");
+  }
+
+  function openPitchingSheet(event?: PitchEvent) {
+    setEditingPitchEventId(event?.id);
+    resetPitchingDraft(event);
+    setPitchingSavedNotice("");
+    setPitchingSheetOpen(true);
+  }
+
+  function closePitchingSheet() {
+    setPitchingSheetOpen(false);
+    setEditingPitchEventId(undefined);
+    resetPitchingDraft();
+  }
+
+  function showPitchingSavedNotice(message = "Pitch logged") {
+    setPitchingSavedNotice(message);
+    window.setTimeout(() => setPitchingSavedNotice(""), 1800);
+  }
+
+  function choosePitchingLocation(point: ZonePoint) {
+    setPitchingDraft((current) => ({
+      ...current,
+      location: point,
+      outcome: isPitchLocationInZone(point) ? "Called Strike" : "Ball",
+    }));
+  }
+
+  function savePitchingPitch() {
+    const parsedVelocity = parseOptionalPitchVelocity();
+    if (parsedVelocity === null) return;
+    const pitchLocationForSave = trackPitchLocation ? pitchingDraft.location : undefined;
+    if (trackPitchLocation && !pitchLocationForSave) return;
+    const outcome = trackPitchLocation && pitchLocationForSave
+      ? pitchingOutcomeForLocation(pitchLocationForSave)
+      : pitchingDraft.outcome ?? "Called Strike";
+    const pitchType = pitchingPitchTypeForSave();
+    if (editingPitchEventId) {
+      onUpdatePitchEvent(editingPitchEventId, {
+        pitchType,
+        outcome,
+        velocity: parsedVelocity,
+        location: pitchLocationForSave,
+        intendedTarget: targetLocation,
+      });
+      if (pitchingPitchTrackingMode !== "OFF") onPitchType(pitchType);
+      onVelocity("");
+      closePitchingSheet();
+      showPitchingSavedNotice("Pitch updated");
+      return;
+    }
+    onLogPitch(outcome, undefined, {
+      pitchType,
+      velocity: parsedVelocity,
+      location: pitchLocationForSave,
+      targetLocation,
+    });
+    if (pitchingPitchTrackingMode !== "OFF") onPitchType(pitchType);
+    onVelocity("");
+    if (currentSession?.id) onSessionHeartbeat(mode, currentSession.id);
+    closePitchingSheet();
+    showPitchingSavedNotice("Pitch logged");
+  }
+
+  function selectPitcher(playerId: ID) {
+    onSelectPlayer(playerId);
+    setPitchingPlayersOpen(false);
+  }
+
+  function togglePitchingLivePitchFilter(pitchType: PitchType) {
+    setPitchingLivePitchFilters((current) => (
+      current.includes(pitchType)
+        ? current.filter((item) => item !== pitchType)
+        : [...current, pitchType]
+    ));
+  }
+
+  function changeDefenseDrill(nextDrill: DefenseDrillContext) {
+    const option = defenseDrillOption(nextDrill);
+    const nextPosition = option.positions.includes(defensePosition)
+      ? defensePosition
+      : defaultDefensePositionForPlayer(player, nextDrill);
+    setDefenseDrill(nextDrill);
+    setDefensePosition(nextPosition);
+    onDefenseStation(option.station);
+    setDefenseDraft(createDefenseLogDraft(player, nextDrill, nextPosition, {
+      location: trackDefenseLocation ? defenseDraft.location : undefined,
+    }));
+  }
+
+  function changeDefensePosition(nextPosition: Position) {
+    setDefensePosition(nextPosition);
+    setDefenseDraft((current) => ({
+      ...current,
+      positionWorked: nextPosition,
+      drillContext: defenseDrill,
+    }));
+  }
+
+  function resetDefenseDraft(event?: DefenseEvent) {
+    if (event) {
+      const draft = defenseDraftFromEvent(event, player, defenseDrill, defensePosition);
+      setDefenseDrill(draft.drillContext);
+      setDefensePosition(draft.positionWorked);
+      onDefenseStation(defenseStationForDrill(draft.drillContext));
+      setDefenseDraft(draft);
+      setTrackDefenseLocation(Boolean(draft.location));
+      setTrackDefenseDifficulty(Boolean(draft.difficulty));
+      return;
+    }
+    setDefenseDraft(createDefenseLogDraft(player, defenseDrill, defensePosition));
+  }
+
+  function openDefenseSheet(event?: DefenseEvent) {
+    setEditingDefenseEventId(event?.id);
+    setDefenseSavedNotice("");
+    resetDefenseDraft(event);
+    setDefenseSheetOpen(true);
+  }
+
+  function closeDefenseSheet() {
+    setDefenseSheetOpen(false);
+    setEditingDefenseEventId(undefined);
+    resetDefenseDraft();
+  }
+
+  function showDefenseSavedNotice(message = "Rep logged") {
+    setDefenseSavedNotice(message);
+    window.setTimeout(() => setDefenseSavedNotice(""), 1800);
+  }
+
+  function saveDefenseRep() {
+    const draft = normalizeDefenseDraft(defenseDraft, trackDefenseLocation, trackDefenseDifficulty);
+    setDefenseDrill(draft.drillContext);
+    setDefensePosition(draft.positionWorked);
+    onDefenseStation(defenseStationForDrill(draft.drillContext));
+    if (editingDefenseEventId) {
+      onUpdateDefenseEvent(editingDefenseEventId, draft);
+      closeDefenseSheet();
+      showDefenseSavedNotice("Rep updated");
+      return;
+    }
+    onLogDefense(draft);
+    if (currentSession?.id) onSessionHeartbeat(mode, currentSession.id);
+    closeDefenseSheet();
+    showDefenseSavedNotice("Rep logged");
+  }
+
+  function selectDefender(playerId: ID) {
+    onSelectPlayer(playerId);
+    setDefensePlayersOpen(false);
   }
 
   function openLiveBpPitchSheet() {
@@ -8622,14 +9630,21 @@ function PracticeConsole({
         </div>
         {practice ? (
           <div className="practice-header__buttons">
-            <button className="ghost-button" type="button" onClick={onExitTracking}>Practice Home</button>
-            {mode !== "Hitting" && (
+            <button className="ghost-button" type="button" onClick={onExitTracking}>
+              <span className="practice-action-label-full">Practice Home</span>
+              <span className="practice-action-label-short">Home</span>
+            </button>
+            {mode !== "Hitting" && mode !== "Pitching" && (
               <button className="ghost-button" type="button" onClick={onUndo}>
                 <Undo2 size={16} aria-hidden="true" />
-                Undo Last
+                <span className="practice-action-label-full">Undo Last</span>
+                <span className="practice-action-label-short">Undo</span>
               </button>
             )}
-            <button className="secondary-button" type="button" onClick={onEndPractice}>End Practice</button>
+            <button className="secondary-button" type="button" onClick={onEndPractice}>
+              <span className="practice-action-label-full">End Practice</span>
+              <span className="practice-action-label-short">End</span>
+            </button>
           </div>
         ) : (
           <button className="primary-button" type="button" onClick={onStartPractice}>
@@ -8638,6 +9653,20 @@ function PracticeConsole({
           </button>
         )}
       </section>
+
+      <div className="practice-mode-picker-trigger">
+        <ChoiceSelect
+          value={mode}
+          options={practiceModeOptions}
+          onChange={(value) => changeMode(value as PracticeMode)}
+          className="practice-mode-select"
+          open={practiceModePickerOpen}
+          onOpenChange={setPracticeModePickerOpen}
+          showSelectedDescription={false}
+          mobilePresentation="popover"
+          aria-label="Practice tracking mode"
+        />
+      </div>
 
       <nav className="practice-tracker-tabs panel" aria-label="Practice tracker modes">
         {(["Hitting", "Pitching", "Defense", "Live BP"] as PracticeMode[]).map((tab) => (
@@ -8671,12 +9700,15 @@ function PracticeConsole({
                 </button>
               </div>
 
-              <button className="practice-hitting-session-pill" type="button" onClick={() => setHittingSessionOpen(true)}>
-                <span>
-                  <strong>{hittingStationLabel}</strong>
-                </span>
-                <ChevronDown size={16} aria-hidden="true" />
-              </button>
+              <ChoiceSelect
+                value={hittingStation}
+                options={hittingStationOptions}
+                onChange={(value) => onHittingStation(value as HittingSession["type"])}
+                className="practice-hitting-session-select practice-session-select"
+                showSelectedDescription={false}
+                mobilePresentation="popover"
+                aria-label="Hitting session type"
+              />
 
               <div className="practice-hitting-metric-line" aria-label="Current hitter hitting metrics">
                 {compactHittingMetrics.map((metric) => (
@@ -8685,7 +9717,6 @@ function PracticeConsole({
                     <small>{metric.label}</small>
                   </span>
                 ))}
-                {hitStats.exitVelocityRecorded > 0 && <em>{hitStats.exitVelocityRecorded} EV recorded</em>}
               </div>
 
               <div className="practice-hitting-entry-bar">
@@ -8697,6 +9728,9 @@ function PracticeConsole({
                   <button type="button" className={trackExitVelocity ? "active" : ""} onClick={() => onTrackExitVelocity(!trackExitVelocity)} aria-pressed={trackExitVelocity}>
                     EV <strong>{trackExitVelocity ? "On" : "Off"}</strong>
                   </button>
+                  <button type="button" className={trackHittingPitchVelocity ? "active" : ""} onClick={() => onTrackHittingPitchVelocity(!trackHittingPitchVelocity)} aria-pressed={trackHittingPitchVelocity}>
+                    Velo <strong>{trackHittingPitchVelocity ? "On" : "Off"}</strong>
+                  </button>
                   <button type="button" className={trackSprayChart ? "active" : ""} onClick={() => onTrackSprayChart(!trackSprayChart)} aria-pressed={trackSprayChart}>
                     Spray <strong>{trackSprayChart ? "On" : "Off"}</strong>
                   </button>
@@ -8705,6 +9739,9 @@ function PracticeConsole({
                       Pitch <strong>{effectiveHittingPitchMode === "OFF" ? "Off" : effectiveHittingPitchMode === "MULTI" ? "Multi" : PITCH_TYPE_LABELS[effectiveHittingPitchType]}</strong>
                     </button>
                   )}
+                  <button type="button" className={trackHittingPitchLocation ? "active" : ""} onClick={() => onTrackHittingPitchLocation(!trackHittingPitchLocation)} aria-pressed={trackHittingPitchLocation}>
+                    Loc <strong>{trackHittingPitchLocation ? "On" : "Off"}</strong>
+                  </button>
                 </div>
                 <button className="secondary-button practice-hitting-more-trigger" type="button" onClick={() => setHittingOptionsOpen(true)}>
                   <MoreHorizontal size={18} aria-hidden="true" />
@@ -8713,6 +9750,13 @@ function PracticeConsole({
               </div>
               {exitVelocityError && <small className="exit-velocity-error practice-hitting-ev-error">{exitVelocityError}</small>}
               {hittingSavedNotice && <small className="practice-hitting-saved-notice">{hittingSavedNotice}</small>}
+
+              <PracticeHittingChartCarousel
+                events={hittingEvents}
+                hitter={player}
+                showSpray
+                showPitchLocation
+              />
 
               <section className="practice-hitting-recent" aria-label="Recent hitting events">
                 <div>
@@ -8723,9 +9767,9 @@ function PracticeConsole({
                   </button>
                 </div>
                 <div className="practice-hitting-recent-list">
-                  {recentHittingEvents.map((event) => (
+                  {recentHittingEvents.map((event, index) => (
                     <button key={event.id} type="button" className="practice-hitting-recent-card" onClick={() => openEditHittingEvent(event)}>
-                      <small>{formatTime(event.createdAt)}</small>
+                      <small>#{hittingEvents.length - index}</small>
                       <strong>{formatHittingEventTitle(event)}</strong>
                       <em>{formatHittingEventDetail(event)}</em>
                     </button>
@@ -8757,43 +9801,18 @@ function PracticeConsole({
 
           {hittingSheetOpen && (
             <ModalFrame title={editingHittingEventId ? "Edit Swing" : "Log Swing"} onClose={closeHittingSheet} panelClassName="practice-hitting-sheet">
-              <div className="practice-hitting-sheet__context">
-                <div className="practice-hitting-sheet__context-main">
-                  <PlayerAvatar player={player} size="sm" compact />
-                  <span className="practice-hitting-sheet__context-copy">
-                    <strong>{player.name}</strong>
-                  </span>
-                </div>
-                <div className="practice-hitting-sheet__context-controls">
-                  <ChoiceSelect
-                    value={hittingStation}
-                    options={hittingStationOptions}
-                    onChange={(value) => onHittingStation(value as HittingSession["type"])}
-                    className="practice-hitting-station-select"
-                    showSelectedDescription={false}
-                    aria-label="Hitting station"
-                  />
-                  <button type="button" className={trackExitVelocity ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => onTrackExitVelocity(!trackExitVelocity)} aria-pressed={trackExitVelocity}>
-                    EV <strong>{trackExitVelocity ? "On" : "Off"}</strong>
-                  </button>
-                  {hittingPitchTypeAvailable && (
-                    <button
-                      type="button"
-                      className={effectiveHittingPitchMode !== "OFF" ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"}
-                      onClick={() => onHittingPitchTrackingMode(effectiveHittingPitchMode === "OFF" ? defaultPracticeHittingPitchMode(hittingStation) : "OFF")}
-                      aria-pressed={effectiveHittingPitchMode !== "OFF"}
-                    >
-                      Pitch <strong>{effectiveHittingPitchMode === "OFF" ? "Off" : "On"}</strong>
-                    </button>
-                  )}
-                  <button type="button" className={trackSprayChart ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => onTrackSprayChart(!trackSprayChart)} aria-pressed={trackSprayChart}>
-                    Spray <strong>{trackSprayChart ? "On" : "Off"}</strong>
-                  </button>
-                </div>
+              <div className="practice-hitting-sheet__flow" aria-label="Swing log steps">
+                <span className={hittingSheetStep === "setup" ? "active" : ""}>Pitch</span>
+                <span className={hittingSheetStep === "result" ? "active" : ""}>Result</span>
+                <span className={hittingSheetStep === "detail" ? "active" : ""}>Contact</span>
               </div>
 
-              {hittingSheetStep === "result" && (
+              {hittingSheetStep === "setup" && (
                 <section className="practice-hitting-sheet__step">
+                  <div className="practice-hitting-sheet__step-head">
+                    <span>Pitch Details</span>
+                    <small>Optional for this swing.</small>
+                  </div>
                   {effectiveHittingPitchMode === "MULTI" && (
                     <div className="practice-hitting-inline-pitch" aria-label="Pitch type for this swing">
                       {PITCH_TYPES.map((pitchType) => (
@@ -8803,6 +9822,45 @@ function PracticeConsole({
                       ))}
                     </div>
                   )}
+                  {trackHittingPitchVelocity && (
+                    <div className="practice-hitting-sheet__velocity-grid">
+                      <VelocityPickerField
+                        label="Pitch Velo"
+                        value={velocity}
+                        onChange={onVelocity}
+                        defaultValue={DEFAULT_TRACKING_VELOCITY_MPH}
+                        ariaLabel="Pitch velocity in miles per hour"
+                      />
+                    </div>
+                  )}
+                  {trackHittingPitchLocation && (
+                    <div className="practice-hitting-sheet__pitch-location">
+                      <div>
+                        <span>Pitch Location</span>
+                        <small>Optional</small>
+                      </div>
+                      <PracticeHittingPitchLocationGrid
+                        events={hittingEvents}
+                        hitter={player}
+                        activePoint={hittingSheetPitchLocation}
+                        onSelect={setHittingSheetPitchLocation}
+                        mode="dots"
+                      />
+                    </div>
+                  )}
+                  {!hittingHasSetupStep() && <CompactEmpty title="No pitch details enabled" />}
+                  <div className="practice-hitting-sheet__step-actions">
+                    <button className="primary-button" type="button" onClick={() => setHittingSheetStep("result")}>Next</button>
+                  </div>
+                </section>
+              )}
+
+              {hittingSheetStep === "result" && (
+                <section className="practice-hitting-sheet__step">
+                  <div className="practice-hitting-sheet__step-head">
+                    <span>Pitch Result</span>
+                    <small>Choose the outcome.</small>
+                  </div>
                   <div className="practice-hitting-result-grid">
                     {HITTING_RESULT_ACTIONS.map((result) => (
                       <button key={result.id} type="button" className={hittingDraft?.id === result.id ? "active" : ""} onClick={() => chooseHittingResult(result)}>
@@ -8815,32 +9873,36 @@ function PracticeConsole({
 
               {hittingSheetStep === "detail" && (
                 <section className="practice-hitting-sheet__step practice-hitting-sheet__step--spray">
-                  {effectiveHittingPitchMode === "MULTI" && (
-                    <div className="practice-hitting-inline-pitch" aria-label="Pitch type for this swing">
-                      {PITCH_TYPES.map((pitchType) => (
-                        <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>
-                          {PITCH_TYPE_LABELS[pitchType]}
-                        </button>
-                      ))}
+                  <div className="practice-hitting-sheet__step-head">
+                    <span>Contact Details</span>
+                    <small>Spray and EV are optional.</small>
+                  </div>
+                  {trackSprayChart && hittingSheetIsBallInPlay && (
+                    <PracticeSprayField points={hittingSprayPoints} activePoint={hittingSheetFieldLocation} onSelect={setHittingSheetFieldLocation} batterHandedness={player.bats} />
+                  )}
+                  {trackExitVelocity && hittingSheetIsBallInPlay && (
+                    <div className="practice-hitting-sheet__velocity-grid">
+                      <VelocityPickerField
+                        label="EV"
+                        value={exitVelocity}
+                        onChange={onExitVelocity}
+                        defaultValue={DEFAULT_TRACKING_VELOCITY_MPH}
+                        ariaLabel="Exit velocity in miles per hour"
+                      />
                     </div>
                   )}
-                  {trackSprayChart && <PracticeSprayField points={hittingSprayPoints} activePoint={hittingSheetFieldLocation} onSelect={setHittingSheetFieldLocation} />}
-                  {trackExitVelocity && (
-                    <label className="exit-velocity-input practice-hitting-sheet__ev">
-                      <span>EV</span>
-                      <input inputMode="decimal" value={exitVelocity} onChange={(event) => onExitVelocity(event.target.value.replace(/[^0-9.]/g, ""))} placeholder="87" aria-label="Exit velocity in miles per hour" />
-                      <em>mph</em>
-                    </label>
-                  )}
                   <div className="practice-hitting-sheet__spray-actions">
-                    <button className="primary-button" type="button" onClick={() => saveHittingContact(hittingSheetFieldLocation)}>Save Swing</button>
-                    {hittingSheetFieldLocation && <button className="text-button" type="button" onClick={() => setHittingSheetFieldLocation(undefined)}>Clear location</button>}
+                    <button className="primary-button" type="button" onClick={() => saveHittingContact(hittingSheetIsBallInPlay ? hittingSheetFieldLocation : undefined)}>Save Swing</button>
+                    {hittingSheetIsBallInPlay && hittingSheetFieldLocation && <button className="text-button" type="button" onClick={() => setHittingSheetFieldLocation(undefined)}>Clear location</button>}
                   </div>
                 </section>
               )}
 
               <div className="modal-actions">
-                {hittingSheetStep !== "result" && (
+                {hittingSheetStep === "result" && hittingHasSetupStep() && (
+                  <button className="secondary-button" type="button" onClick={() => setHittingSheetStep("setup")}>Back</button>
+                )}
+                {hittingSheetStep === "detail" && (
                   <button className="secondary-button" type="button" onClick={() => setHittingSheetStep("result")}>Back</button>
                 )}
                 <button className="secondary-button" type="button" onClick={closeHittingSheet}>Cancel</button>
@@ -8855,7 +9917,7 @@ function PracticeConsole({
                   <Gauge size={17} aria-hidden="true" />
                   <span>
                     <strong>Tracking Settings</strong>
-                    <small>EV, spray, pitch type</small>
+                    <small>EV, pitch velo, spray, pitch type, location</small>
                   </span>
                   <ChevronRight size={15} aria-hidden="true" />
                 </button>
@@ -8946,6 +10008,13 @@ function PracticeConsole({
                   </span>
                   <em className={trackSprayChart ? "practice-switch active" : "practice-switch"}>{trackSprayChart ? "On" : "Off"}</em>
                 </button>
+                <button type="button" onClick={() => onTrackHittingPitchLocation(!trackHittingPitchLocation)} aria-pressed={trackHittingPitchLocation}>
+                  <span>
+                    <strong>Track Pitch Location</strong>
+                    <small>Show hitter heat maps by zone</small>
+                  </span>
+                  <em className={trackHittingPitchLocation ? "practice-switch active" : "practice-switch"}>{trackHittingPitchLocation ? "On" : "Off"}</em>
+                </button>
                 <button type="button" onClick={() => { setHittingSettingsOpen(false); setHittingPitchTypeOpen(true); }} aria-pressed={effectiveHittingPitchMode !== "OFF"} disabled={!hittingPitchTypeAvailable}>
                   <span>
                     <strong>Track Pitch Type</strong>
@@ -8953,12 +10022,12 @@ function PracticeConsole({
                   </span>
                   <em className={effectiveHittingPitchMode !== "OFF" ? "practice-switch active" : "practice-switch"}>{effectiveHittingPitchMode === "OFF" ? "Off" : "On"}</em>
                 </button>
-                <button type="button" onClick={() => { setHittingSettingsOpen(false); setHittingSessionOpen(true); }} aria-pressed={isMachineHittingStation(hittingStation)}>
+                <button type="button" onClick={() => onTrackHittingPitchVelocity(!trackHittingPitchVelocity)} aria-pressed={trackHittingPitchVelocity}>
                   <span>
                     <strong>Track Pitch Velocity</strong>
-                    <small>{isMachineHittingStation(hittingStation) ? `${velocity || "--"} mph machine setting` : "Machine sessions only"}</small>
+                    <small>Show pitch speed entry during swing logging</small>
                   </span>
-                  <em className={isMachineHittingStation(hittingStation) ? "practice-switch active" : "practice-switch"}>{isMachineHittingStation(hittingStation) ? "On" : "Off"}</em>
+                  <em className={trackHittingPitchVelocity ? "practice-switch active" : "practice-switch"}>{trackHittingPitchVelocity ? "On" : "Off"}</em>
                 </button>
               </div>
               <div className="modal-actions">
@@ -8980,7 +10049,7 @@ function PracticeConsole({
                     <PlayerAvatar player={item} size="sm" compact />
                     <span>
                       <strong>{item.name}</strong>
-                      <small>#{item.jerseyNumber} - {positionLine(item)}</small>
+                      <small>#{item.jerseyNumber}</small>
                     </span>
                   </button>
                 ))}
@@ -9075,7 +10144,11 @@ function PracticeConsole({
                 </div>
                 <div>
                   <span>Spray</span>
-                  <PracticeSprayField points={scopedHittingSprayPoints} activePoint={undefined} />
+                  <PracticeSprayField points={scopedHittingSprayPoints} activePoint={undefined} mode="heat" batterHandedness={player.bats} />
+                </div>
+                <div>
+                  <span>Pitch Location</span>
+                  <PracticeHittingPitchLocationGrid events={scopedHittingPitchLocationEvents} hitter={player} mode="heat" />
                 </div>
               </section>
               {scopedHittingPitchSplits.length > 0 && (
@@ -9108,6 +10181,1001 @@ function PracticeConsole({
             </ModalFrame>
           )}
         </>
+      ) : mode === "Pitching" ? (
+        <>
+          <section className="practice-pitching-shell">
+            <main className="practice-pitching-stage panel">
+              <div className="practice-pitching-player-row">
+                <button className="practice-hitting-nav-button" type="button" disabled={!previousPlayer} onClick={() => previousPlayer && onSelectPlayer(previousPlayer.id)} aria-label="Previous pitcher">
+                  <ChevronLeft size={20} aria-hidden="true" />
+                </button>
+                <button className="practice-pitching-player-card" type="button" onClick={() => setPitchingPlayersOpen(true)}>
+                  <PlayerAvatar player={player} size="lg" />
+                  <span>
+                    <strong>{player.name}</strong>
+                    <small>#{player.jerseyNumber} · {throwingRoleLabel(player)}</small>
+                  </span>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </button>
+                <button className="practice-hitting-nav-button practice-hitting-nav-button--stats" type="button" onClick={() => setPitchingStatsOpen(true)} aria-label="Open pitcher stats">
+                  <BarChart3 size={18} aria-hidden="true" />
+                </button>
+                <button className="practice-hitting-nav-button" type="button" disabled={!nextPlayer} onClick={() => nextPlayer && onSelectPlayer(nextPlayer.id)} aria-label="Next pitcher">
+                  <ChevronRight size={20} aria-hidden="true" />
+                </button>
+              </div>
+
+              <ChoiceSelect
+                value={pitchingStation}
+                options={pitchingStationOptions}
+                onChange={(value) => onPitchingStation(value as PitchingSession["type"])}
+                className="practice-pitching-session-select practice-session-select"
+                showSelectedDescription={false}
+                mobilePresentation="popover"
+                aria-label="Pitching session type"
+              />
+
+              <div className="practice-hitting-metric-line practice-pitching-metric-line" aria-label="Current pitcher metrics">
+                {compactPitchingMetrics.map((metric) => (
+                  <span key={metric.label}>
+                    <strong>{metric.value}</strong>
+                    <small>{metric.label}</small>
+                  </span>
+                ))}
+              </div>
+
+              <div className="practice-hitting-entry-bar practice-pitching-entry-bar">
+                <button className="primary-button practice-hitting-log-trigger" type="button" onClick={() => openPitchingSheet()}>
+                  <Plus size={18} aria-hidden="true" />
+                  Log Pitch
+                </button>
+                <div className="practice-hitting-quick-controls" aria-label="Pitching tracking options">
+                  <button type="button" className={pitchingPitchTrackingMode !== "OFF" ? "active" : ""} onClick={() => setPitchingPitchTypeOpen(true)} aria-pressed={pitchingPitchTrackingMode !== "OFF"}>
+                    Pitch <strong>{selectedPitchModeLabel}</strong>
+                  </button>
+                  <button type="button" className={trackPitchVelocity ? "active" : ""} onClick={() => setTrackPitchVelocity(!trackPitchVelocity)} aria-pressed={trackPitchVelocity}>
+                    Velo <strong>{trackPitchVelocity ? "On" : "Off"}</strong>
+                  </button>
+                  <button type="button" className={trackPitchLocation ? "active" : ""} onClick={() => setTrackPitchLocation(!trackPitchLocation)} aria-pressed={trackPitchLocation}>
+                    Location <strong>{trackPitchLocation ? "On" : "Off"}</strong>
+                  </button>
+                  <button type="button" className={showAllPitchingPlayers ? "active" : ""} onClick={() => setShowAllPitchingPlayers(!showAllPitchingPlayers)} aria-pressed={showAllPitchingPlayers}>
+                    All <strong>{showAllPitchingPlayers ? "On" : "Off"}</strong>
+                  </button>
+                </div>
+                <button className="secondary-button practice-hitting-more-trigger" type="button" onClick={() => setPitchingOptionsOpen(true)}>
+                  <MoreHorizontal size={18} aria-hidden="true" />
+                  More
+                </button>
+              </div>
+              {pitchingSavedNotice && <small className="practice-hitting-saved-notice">{pitchingSavedNotice}</small>}
+
+              <section className="practice-pitching-live-grid">
+                <div className="practice-pitching-location-card">
+                  <div className="practice-pitching-location-card__head">
+                    <span>Location</span>
+                    <div className="practice-pitching-location-card__tools">
+                      <div className="practice-pitching-filter-menu" ref={pitchingFilterMenuRef}>
+                        <button
+                          className="practice-pitching-filter-pill"
+                          type="button"
+                          onClick={() => setPitchingLivePitchFilterOpen((open) => !open)}
+                          aria-label="Filter pitching metrics by pitch type"
+                          aria-haspopup="menu"
+                          aria-expanded={pitchingLivePitchFilterOpen}
+                        >
+                          <span>Pitch Filter</span>
+                          <strong>{pitchingLivePitchFilterLabel}</strong>
+                          <ChevronDown size={15} aria-hidden="true" />
+                        </button>
+                        {pitchingLivePitchFilterOpen && (
+                          <div className="practice-pitching-filter-popover practice-pitching-filter-sheet" role="menu" aria-label="Pitch filter">
+                            <button type="button" role="menuitemcheckbox" aria-checked={pitchingLivePitchFilters.length === 0} className={pitchingLivePitchFilters.length === 0 ? "active" : ""} onClick={() => setPitchingLivePitchFilters([])}>
+                              <span>
+                                <strong>All Pitches</strong>
+                                <small>{pitchEvents.length} total</small>
+                              </span>
+                              {pitchingLivePitchFilters.length === 0 && <Check size={16} aria-hidden="true" />}
+                            </button>
+                            {pitchingLivePitchFilterOptions.map((pitchType) => {
+                              const active = pitchingLivePitchFilters.includes(pitchType);
+                              const count = pitchEvents.filter((event) => event.pitchType === pitchType).length;
+                              return (
+                                <button key={pitchType} type="button" role="menuitemcheckbox" aria-checked={active} className={active ? "active" : ""} onClick={() => togglePitchingLivePitchFilter(pitchType)}>
+                                  <span>
+                                    <strong><i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />{practicePitchTypeLabel(pitchType)}</strong>
+                                    <small>{count} pitches</small>
+                                  </span>
+                                  <em aria-hidden="true">{active && <Check size={15} />}</em>
+                                </button>
+                              );
+                            })}
+                            {!pitchingLivePitchFilterOptions.length && <CompactEmpty title="No pitch types logged yet" />}
+                          </div>
+                        )}
+                      </div>
+                      <button className="text-button" type="button" onClick={() => setPitchingStatsOpen(true)}>
+                        Details
+                        <ChevronRight size={14} aria-hidden="true" />
+                      </button>
+                    </div>
+                  </div>
+                  {trackPitchLocation ? (
+                    <PracticePitchLocationGrid pitches={filteredPitchEvents} pitcher={player} mode="live" />
+                  ) : (
+                    <CompactEmpty title="Location tracking off" />
+                  )}
+                </div>
+
+                <section className="practice-hitting-recent practice-pitching-recent" aria-label="Recent pitching events">
+                  <div>
+                    <span>Recent</span>
+                    <button className="text-button" type="button" onClick={onUndo} disabled={!recentPitchEvents.length}>
+                      <Undo2 size={14} aria-hidden="true" />
+                      Undo
+                    </button>
+                  </div>
+                  <div className="practice-hitting-recent-list practice-pitching-recent-list">
+                    {recentPitchEvents.map((event) => (
+                      <button key={event.id} type="button" className="practice-pitching-recent-row" onClick={() => openPitchingSheet(event)}>
+                        <small>{event.pitchNumber}</small>
+                        <i className={`pitch-type-dot ${pitchTypeClassName(event.pitchType)}`} aria-hidden="true" />
+                        <strong>{PITCH_TYPE_LABELS[event.pitchType]}</strong>
+                        <em>{formatPitchingVelocityShort(event)}</em>
+                        <span>{formatPitchingOutcomeShort(event)}</span>
+                        <b>{event.location ? pitchLocationLabel(event.location, player) : "--"}</b>
+                      </button>
+                    ))}
+                    {!recentPitchEvents.length && <CompactEmpty title="Ready for the first pitch" />}
+                  </div>
+                </section>
+              </section>
+
+              <section className="practice-hitting-rail practice-pitching-rail" aria-label="Pitcher switcher">
+                <div>
+                  <span>Pitchers</span>
+                  <button className="text-button" type="button" onClick={() => setPitchingPlayersOpen(true)}>
+                    Players
+                    <ChevronRight size={14} aria-hidden="true" />
+                  </button>
+                </div>
+                <ScrollablePanel className="practice-hitting-rail__scroll" bodyClassName="practice-hitting-rail__list" ariaLabel="pitcher rail" direction="horizontal">
+                  {playerPool.map((item) => (
+                    <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => onSelectPlayer(item.id)}>
+                      <PlayerAvatar player={item} size="sm" compact />
+                      <span>{lastName(item.name)}</span>
+                      <small>#{item.jerseyNumber}</small>
+                    </button>
+                  ))}
+                </ScrollablePanel>
+              </section>
+            </main>
+          </section>
+
+          {pitchingSheetOpen && (
+            <ModalFrame title={editingPitchEventId ? "Edit Pitch" : "Log Pitch"} onClose={closePitchingSheet} panelClassName="practice-pitching-sheet">
+              <div className="practice-hitting-sheet__context practice-pitching-sheet__context">
+                <div className="practice-hitting-sheet__context-main">
+                  <PlayerAvatar player={player} size="sm" compact />
+                  <span className="practice-hitting-sheet__context-copy">
+                    <strong>{player.name}</strong>
+                    <small>{pitchingSessionContext}</small>
+                  </span>
+                </div>
+                <div className="practice-hitting-sheet__context-controls practice-pitching-sheet__context-controls">
+                  <ChoiceSelect
+                    value={pitchingStation}
+                    options={pitchingStationOptions}
+                    onChange={(value) => onPitchingStation(value as PitchingSession["type"])}
+                    className="practice-hitting-station-select"
+                    showSelectedDescription={false}
+                    mobilePresentation="popover"
+                    aria-label="Pitching session type"
+                  />
+                  <button type="button" className={pitchingPitchTrackingMode !== "OFF" ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => setPitchingPitchTypeOpen(true)} aria-pressed={pitchingPitchTrackingMode !== "OFF"}>
+                    Pitch <strong>{selectedPitchModeLabel}</strong>
+                  </button>
+                  <button type="button" className={trackPitchVelocity ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => setTrackPitchVelocity(!trackPitchVelocity)} aria-pressed={trackPitchVelocity}>
+                    Velo <strong>{trackPitchVelocity ? "On" : "Off"}</strong>
+                  </button>
+                  <button type="button" className={trackPitchLocation ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => setTrackPitchLocation(!trackPitchLocation)} aria-pressed={trackPitchLocation}>
+                    Location <strong>{trackPitchLocation ? "On" : "Off"}</strong>
+                  </button>
+                  <button type="button" className={showAllPitchingPlayers ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => setShowAllPitchingPlayers(!showAllPitchingPlayers)} aria-pressed={showAllPitchingPlayers}>
+                    All <strong>{showAllPitchingPlayers ? "On" : "Off"}</strong>
+                  </button>
+                </div>
+              </div>
+
+              <section className="practice-pitching-sheet__step">
+                {(pitchingPitchTrackingMode !== "OFF" || trackPitchVelocity) && (
+                  <div className="practice-pitching-sheet__top-grid">
+                    {pitchingPitchTrackingMode === "MULTI" && (
+                      <div className="practice-pitching-field">
+                        <span>Pitch Type</span>
+                        <ChoiceSelect
+                          value={pitchingDraft.pitchType}
+                          options={pitchingPitchTypeOptions}
+                          onChange={(value) => setPitchingDraft((current) => ({ ...current, pitchType: value as PitchType }))}
+                          className="practice-pitch-type-select"
+                          showSelectedDescription={false}
+                          mobilePresentation="popover"
+                          aria-label="Pitch type for this pitch"
+                        />
+                      </div>
+                    )}
+                    {pitchingPitchTrackingMode === "ONE" && (
+                      <div className="practice-pitching-field practice-pitching-session-pitch">
+                        <span>Session Pitch</span>
+                        <strong><i className={`pitch-type-dot ${pitchTypeClassName(selectedPitchType)}`} aria-hidden="true" />{practicePitchTypeLabel(selectedPitchType)}</strong>
+                      </div>
+                    )}
+                    {trackPitchVelocity && (
+                      <label className="exit-velocity-input practice-pitching-velocity-input">
+                        <span>Velo</span>
+                        <input inputMode="numeric" value={pitchingDraft.velocity} onChange={(event) => setPitchingDraft((current) => ({ ...current, velocity: event.target.value.replace(/[^0-9.]/g, "") }))} placeholder="79" aria-label="Pitch velocity in miles per hour" />
+                        <em>mph</em>
+                      </label>
+                    )}
+                  </div>
+                )}
+                {pitchingVelocityError && <small className="exit-velocity-error">{pitchingVelocityError}</small>}
+
+                {trackPitchLocation ? (
+                  <div className="practice-pitching-location-entry">
+                    <div>
+                      <span>Location</span>
+                      <small>{pitchingDraft.location ? pitchLocationLabel(pitchingDraft.location, player) : "Optional"}</small>
+                    </div>
+                    <PracticePitchLocationGrid
+                      pitches={pitchEvents}
+                      activePoint={pitchingDraft.location}
+                      onSelect={choosePitchingLocation}
+                      pitcher={player}
+                      mode="entry"
+                    />
+                    <div className="practice-pitching-result-auto">
+                      <span>Result (Auto)</span>
+                      <strong className={pitchingDraft.location ? (pitchingOutcomeForLocation(pitchingDraft.location) === "Ball" ? "negative" : "positive") : ""}>
+                        {pitchingDraft.location ? (pitchingOutcomeForLocation(pitchingDraft.location) === "Ball" ? "Ball" : "Strike") : "Select location"}
+                      </strong>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="practice-pitching-result-grid" role="group" aria-label="Pitch result">
+                    {(["Called Strike", "Ball"] as PitchOutcome[]).map((outcome) => (
+                      <button key={outcome} type="button" className={pitchingDraft.outcome === outcome ? "active" : ""} onClick={() => setPitchingDraft((current) => ({ ...current, outcome }))}>
+                        {outcome === "Called Strike" ? "Strike" : outcome}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <div className="modal-actions">
+                <button className="secondary-button" type="button" onClick={closePitchingSheet}>Cancel</button>
+                <button className="primary-button" type="button" onClick={savePitchingPitch} disabled={pitchingSaveDisabled}>Save Pitch</button>
+              </div>
+            </ModalFrame>
+          )}
+
+          {pitchingOptionsOpen && (
+            <ModalFrame title="Pitching Options" onClose={() => setPitchingOptionsOpen(false)} panelClassName="practice-hitting-more-sheet">
+              <div className="practice-hitting-more-list">
+                <button type="button" onClick={() => { setPitchingOptionsOpen(false); setPitchingSettingsOpen(true); }}>
+                  <Gauge size={17} aria-hidden="true" />
+                  <span>
+                    <strong>Tracking Settings</strong>
+                    <small>Pitch type, velocity, location</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+                <button type="button" onClick={() => { setPitchingOptionsOpen(false); setPitchingSessionOpen(true); }}>
+                  <ClipboardList size={17} aria-hidden="true" />
+                  <span>
+                    <strong>Session Details</strong>
+                    <small>{pitchingSessionContext}</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+                <button type="button" onClick={() => { setPitchingOptionsOpen(false); onOpenSessionNotes(); }}>
+                  <Edit3 size={17} aria-hidden="true" />
+                  <span>
+                    <strong>Session Notes</strong>
+                    <small>Focus and coach notes</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+                <button type="button" onClick={() => { setPitchingOptionsOpen(false); setPitchingStatsOpen(true); }}>
+                  <BarChart3 size={17} aria-hidden="true" />
+                  <span>
+                    <strong>View Session Analytics</strong>
+                    <small>{pitchStats.totalPitches} filtered pitches</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+                <button type="button" disabled={!recentPitchEvents.length} onClick={() => { setPitchingOptionsOpen(false); onUndo(); showPitchingSavedNotice("Last pitch undone"); }}>
+                  <Undo2 size={17} aria-hidden="true" />
+                  <span>
+                    <strong>Undo Last Pitch</strong>
+                    <small>Remove the most recent pitch</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+              </div>
+            </ModalFrame>
+          )}
+
+          {pitchingPitchTypeOpen && (
+            <ModalFrame title="Pitch Type" onClose={() => setPitchingPitchTypeOpen(false)} panelClassName="practice-hitting-more-sheet">
+              <section className="practice-hitting-pitch-panel">
+                <div>
+                  <span>Tracking Mode</span>
+                  <div className="practice-hitting-pitch-modes">
+                    {(["OFF", "ONE", "MULTI"] as HittingPitchTrackingMode[]).map((modeOption) => (
+                      <button key={modeOption} type="button" className={pitchingPitchTrackingMode === modeOption ? "active" : ""} onClick={() => setPitchingPitchTrackingMode(modeOption)}>
+                        {pitchModeLabel(modeOption)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {pitchingPitchTrackingMode !== "OFF" && (
+                  <div>
+                    <span>{pitchingPitchTrackingMode === "ONE" ? "Session Pitch" : "Current Pitch"}</span>
+                    <div className="practice-hitting-choice-list practice-hitting-choice-list--compact">
+                      {PITCH_TYPES.map((pitchType) => (
+                        <button key={pitchType} type="button" className={pitchType === selectedPitchType ? "active" : ""} onClick={() => { onPitchType(pitchType); setPitchingDraft((current) => ({ ...current, pitchType })); }}>
+                          {practicePitchTypeLabel(pitchType)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+              <div className="modal-actions">
+                <button className="primary-button" type="button" onClick={() => setPitchingPitchTypeOpen(false)}>Done</button>
+              </div>
+            </ModalFrame>
+          )}
+
+          {pitchingSettingsOpen && (
+            <ModalFrame title="Tracking Settings" onClose={() => setPitchingSettingsOpen(false)} panelClassName="practice-hitting-more-sheet">
+              <div className="practice-hitting-settings-list">
+                <button type="button" onClick={() => setPitchingPitchTypeOpen(true)} aria-pressed={pitchingPitchTrackingMode !== "OFF"}>
+                  <span>
+                    <strong>Track Pitch Type</strong>
+                    <small>{pitchingPitchTrackingMode === "OFF" ? "Off" : `${pitchModeLabel(pitchingPitchTrackingMode)} · ${PITCH_TYPE_LABELS[selectedPitchType]}`}</small>
+                  </span>
+                  <em className={pitchingPitchTrackingMode !== "OFF" ? "practice-switch active" : "practice-switch"}>{pitchingPitchTrackingMode === "OFF" ? "Off" : "On"}</em>
+                </button>
+                <button type="button" onClick={() => setTrackPitchVelocity(!trackPitchVelocity)} aria-pressed={trackPitchVelocity}>
+                  <span>
+                    <strong>Track Velocity</strong>
+                    <small>Manual mph entry during pitch logging</small>
+                  </span>
+                  <em className={trackPitchVelocity ? "practice-switch active" : "practice-switch"}>{trackPitchVelocity ? "On" : "Off"}</em>
+                </button>
+                <button type="button" onClick={() => setTrackPitchLocation(!trackPitchLocation)} aria-pressed={trackPitchLocation}>
+                  <span>
+                    <strong>Track Location</strong>
+                    <small>Inside zone saves as strike; outside saves as ball</small>
+                  </span>
+                  <em className={trackPitchLocation ? "practice-switch active" : "practice-switch"}>{trackPitchLocation ? "On" : "Off"}</em>
+                </button>
+              </div>
+              <div className="modal-actions">
+                <button className="primary-button" type="button" onClick={() => setPitchingSettingsOpen(false)}>Done</button>
+              </div>
+            </ModalFrame>
+          )}
+
+          {pitchingPlayersOpen && (
+            <ModalFrame title={showAllPitchingPlayers ? "Players" : "Pitchers"} onClose={() => setPitchingPlayersOpen(false)} panelClassName="practice-hitting-selector-sheet">
+              <label className="switcher-search">
+                <Search size={14} aria-hidden="true" />
+                <input value={switcherQuery} onChange={(event) => setSwitcherQuery(event.target.value)} placeholder={showAllPitchingPlayers ? "Search present players..." : "Search present pitchers..."} />
+              </label>
+              <div className="practice-pitching-player-scope" aria-label="Pitcher picker scope">
+                <button type="button" className={!showAllPitchingPlayers ? "active" : ""} onClick={() => setShowAllPitchingPlayers(false)}>
+                  Pitchers
+                </button>
+                <button type="button" className={showAllPitchingPlayers ? "active" : ""} onClick={() => setShowAllPitchingPlayers(true)}>
+                  All Players
+                </button>
+              </div>
+              <ScrollablePanel className="practice-hitting-player-picker" bodyClassName="practice-hitting-player-picker__list" ariaLabel={showAllPitchingPlayers ? "present players" : "present pitchers"}>
+                {playerPool.map((item) => (
+                  <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => selectPitcher(item.id)}>
+                    <PlayerAvatar player={item} size="sm" compact />
+                    <span>
+                      <strong>{item.name}</strong>
+                      <small>#{item.jerseyNumber}</small>
+                    </span>
+                  </button>
+                ))}
+                {!playerPool.length && <CompactEmpty title={showAllPitchingPlayers ? "No available players" : "No available pitchers"} />}
+              </ScrollablePanel>
+            </ModalFrame>
+          )}
+
+          {pitchingSessionOpen && (
+            <ModalFrame title="Session" onClose={() => setPitchingSessionOpen(false)} panelClassName="practice-hitting-selector-sheet">
+              <section className="practice-hitting-session-sheet">
+                <div>
+                  <span>Session Type</span>
+                  <div className="practice-hitting-choice-list">
+                    {PITCHING_STATIONS.map((station) => (
+                      <button key={station} type="button" className={station === pitchingStation ? "active" : ""} onClick={() => onPitchingStation(station)}>
+                        <strong>{station}</strong>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span>Pitch Type</span>
+                  <div className="practice-hitting-pitch-modes">
+                    {(["OFF", "ONE", "MULTI"] as HittingPitchTrackingMode[]).map((modeOption) => (
+                      <button key={modeOption} type="button" className={pitchingPitchTrackingMode === modeOption ? "active" : ""} onClick={() => setPitchingPitchTrackingMode(modeOption)}>
+                        {pitchModeLabel(modeOption)}
+                      </button>
+                    ))}
+                  </div>
+                  {pitchingPitchTrackingMode !== "OFF" && (
+                    <div className="practice-hitting-choice-list practice-hitting-choice-list--compact">
+                      {PITCH_TYPES.map((pitchType) => (
+                        <button key={pitchType} type="button" className={pitchType === selectedPitchType ? "active" : ""} onClick={() => { onPitchType(pitchType); setPitchingDraft((current) => ({ ...current, pitchType })); }}>
+                          {practicePitchTypeLabel(pitchType)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+              <div className="modal-actions">
+                <button className="primary-button" type="button" onClick={() => setPitchingSessionOpen(false)}>Done</button>
+              </div>
+            </ModalFrame>
+          )}
+
+          {pitchingStatsOpen && (
+            <ModalFrame title={`${player.name} Pitching`} onClose={() => setPitchingStatsOpen(false)} panelClassName="practice-pitching-stats-sheet">
+              <div className="practice-hitting-stats-scope" aria-label="Pitching analytics scope">
+                <button type="button" className={effectivePitchingStatsScopeSessionId === "all" ? "active" : ""} onClick={() => setPitchingStatsScopeSessionId("all")}>
+                  All Sessions
+                  <small>{practicePitchingEvents.length} pitches</small>
+                </button>
+                {practicePitchingSessions.map((session) => {
+                  const sessionEvents = practicePitchingEvents.filter((event) => event.sessionId === session.id);
+                  return (
+                    <button key={session.id} type="button" className={effectivePitchingStatsScopeSessionId === session.id ? "active" : ""} onClick={() => setPitchingStatsScopeSessionId(session.id)}>
+                      {pitchingSessionAnalyticsLabel(session)}
+                      <small>{sessionEvents.length} pitches</small>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="practice-pitching-location-filter practice-pitching-location-filter--analytics" aria-label="Pitching analytics pitch filter">
+                <button type="button" className={pitchingLocationFilter === "all" ? "active" : ""} onClick={() => setPitchingLocationFilter("all")}>All Pitches</button>
+                {pitchingAnalyticsPitchTypes.map((pitchType) => (
+                  <button key={pitchType} type="button" className={pitchingLocationFilter === pitchType ? "active" : ""} onClick={() => setPitchingLocationFilter(pitchType)}>
+                    <i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />
+                    {PITCH_TYPE_LABELS[pitchType]}
+                  </button>
+                ))}
+              </div>
+              <PracticeSummaryStrip
+                items={[
+                  { label: "Pitches", value: pitchingAnalyticsStats.totalPitches },
+                  { label: "Strike %", value: formatPct(pitchingAnalyticsStats.strikePct, 0), detail: `${pitchingAnalyticsStats.strikes}/${pitchingAnalyticsStats.totalPitches}` },
+                  { label: "Zone %", value: formatPct(pitchingAnalyticsStats.zonePct, 0) },
+                  { label: "Avg Velo", value: formatOptionalMph(pitchingAnalyticsStats.avgVelocity) },
+                  { label: "Max Velo", value: formatOptionalMph(pitchingAnalyticsStats.maxVelocity) },
+                ]}
+              />
+              <section className="practice-pitching-stats-breakdown practice-pitching-analytics-grid">
+                <div className="practice-pitching-location-card practice-pitching-location-card--analytics">
+                  <div className="practice-pitching-location-card__head">
+                    <span>Location</span>
+                  </div>
+                  <PracticePitchLocationGrid pitches={pitchingLocationFilteredEvents} pitcher={player} mode="analytics" />
+                  <div className="practice-pitching-location-summary">
+                    {pitchingLocationSummary.map((item) => (
+                      <span key={item.label}>
+                        <strong>{item.value}</strong>
+                        <small>{item.label}</small>
+                        {item.detail && <em>{item.detail}</em>}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="practice-pitching-breakdown-card">
+                  <span>Pitch Breakdown</span>
+                  <div className="practice-pitching-breakdown-table" role="table" aria-label="Pitch breakdown">
+                    <div role="row">
+                      <small>Pitch</small>
+                      <small>Count</small>
+                      <small>Use</small>
+                      <small>Strike</small>
+                      <small>Zone</small>
+                      <small>Avg</small>
+                      <small>Max</small>
+                    </div>
+                    {pitchingAnalyticsMix.map((split) => (
+                      <div key={split.pitchType} role="row">
+                        <strong><i className={`pitch-type-dot ${pitchTypeClassName(split.pitchType)}`} aria-hidden="true" />{PITCH_TYPE_LABELS[split.pitchType]}</strong>
+                        <em>{split.pitches}</em>
+                        <em>{formatPct(split.usagePct, 0)}</em>
+                        <em>{formatPct(split.strikePct, 0)}</em>
+                        <em>{formatPct(split.zonePct, 0)}</em>
+                        <em>{formatOptionalMph(split.avgVelocity)}</em>
+                        <em>{formatOptionalMph(split.maxVelocity)}</em>
+                      </div>
+                    ))}
+                    {!pitchingAnalyticsMix.length && <CompactEmpty title="No pitch mix yet" />}
+                  </div>
+                </div>
+              </section>
+              <PracticeRecentEventTable
+                title={pitchingLocationFilter === "all" ? "Recent Pitches" : `${PITCH_TYPE_LABELS[pitchingLocationFilter]} Pitches`}
+                rows={pitchingLocationFilteredEvents.slice(0, 8).map((event) => ({
+                  id: event.id,
+                  time: formatTime(event.createdAt),
+                  primary: formatPitchingEventTitle(event),
+                  secondary: formatPitchingEventDetail(event, player),
+                  tone: event.isStrike ? "positive" : event.outcome === "Ball" ? "negative" : undefined,
+                }))}
+              />
+              <div className="modal-actions">
+                <button className="secondary-button" type="button" onClick={() => onOpenPracticeAnalytics ? onOpenPracticeAnalytics("Pitching", player.id, effectivePitchingStatsScopeSessionId === "all" ? undefined : effectivePitchingStatsScopeSessionId) : onOpenPlayer(player.id)}>
+                  View Full Analytics
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+              </div>
+            </ModalFrame>
+          )}
+        </>
+      ) : mode === "Defense" ? (
+        <>
+          <section className="practice-defense-shell">
+            <main className="practice-defense-stage panel">
+              <div className="practice-pitching-player-row practice-defense-player-row">
+                <button className="practice-hitting-nav-button" type="button" disabled={!previousPlayer} onClick={() => previousPlayer && onSelectPlayer(previousPlayer.id)} aria-label="Previous defender">
+                  <ChevronLeft size={20} aria-hidden="true" />
+                </button>
+                <button className="practice-pitching-player-card practice-defense-player-card" type="button" onClick={() => setDefensePlayersOpen(true)}>
+                  <PlayerAvatar player={player} size="lg" />
+                  <span>
+                    <strong>{player.name}</strong>
+                    <small>{defenseSessionContext}</small>
+                  </span>
+                  <ChevronDown size={16} aria-hidden="true" />
+                </button>
+                <button className="practice-hitting-nav-button practice-hitting-nav-button--stats" type="button" onClick={() => setDefenseStatsOpen(true)} aria-label="Open defender stats">
+                  <BarChart3 size={18} aria-hidden="true" />
+                </button>
+                <button className="practice-hitting-nav-button" type="button" disabled={!nextPlayer} onClick={() => nextPlayer && onSelectPlayer(nextPlayer.id)} aria-label="Next defender">
+                  <ChevronRight size={20} aria-hidden="true" />
+                </button>
+              </div>
+
+              <div className="practice-defense-context-row">
+                <ChoiceSelect
+                  value={defenseDrill}
+                  options={defenseDrillChoices}
+                  onChange={(value) => changeDefenseDrill(value as DefenseDrillContext)}
+                  className="practice-defense-drill-select practice-session-select"
+                  showSelectedDescription={false}
+                  mobilePresentation="popover"
+                  aria-label="Defense drill"
+                />
+                <ChoiceSelect
+                  value={defensePosition}
+                  options={defensePositionChoices}
+                  onChange={(value) => changeDefensePosition(value as Position)}
+                  className="practice-defense-position-select practice-session-select"
+                  showSelectedDescription={false}
+                  mobilePresentation="popover"
+                  aria-label="Position worked"
+                />
+              </div>
+
+              <div className="practice-hitting-metric-line practice-defense-metric-line" aria-label="Current defender metrics">
+                {compactDefenseMetrics.map((metric) => (
+                  <span key={metric.label}>
+                    <strong>{metric.value}</strong>
+                    <small>{metric.label}</small>
+                  </span>
+                ))}
+              </div>
+
+              <div className="practice-hitting-entry-bar practice-defense-entry-bar">
+                <button className="primary-button practice-hitting-log-trigger" type="button" onClick={() => openDefenseSheet()}>
+                  <Plus size={18} aria-hidden="true" />
+                  Log Rep
+                </button>
+                <div className="practice-hitting-quick-controls practice-defense-quick-controls" aria-label="Defense tracking options">
+                  <button type="button" className={trackDefenseLocation ? "active" : ""} onClick={() => setTrackDefenseLocation(!trackDefenseLocation)} aria-pressed={trackDefenseLocation}>
+                    Loc <strong>{trackDefenseLocation ? "On" : "Off"}</strong>
+                  </button>
+                  <button type="button" className={trackDefenseDifficulty ? "active" : ""} onClick={() => setTrackDefenseDifficulty(!trackDefenseDifficulty)} aria-pressed={trackDefenseDifficulty}>
+                    Diff <strong>{trackDefenseDifficulty ? "On" : "Off"}</strong>
+                  </button>
+                </div>
+                <button className="secondary-button practice-hitting-more-trigger" type="button" onClick={() => setDefenseOptionsOpen(true)}>
+                  <MoreHorizontal size={18} aria-hidden="true" />
+                  More
+                </button>
+              </div>
+              {defenseSavedNotice && <small className="practice-hitting-saved-notice">{defenseSavedNotice}</small>}
+
+              <section className="practice-defense-recent" aria-label="Recent defensive reps">
+                <div>
+                  <span>Recent</span>
+                  <button className="text-button" type="button" onClick={onUndo} disabled={!recentDefenseEvents.length}>
+                    <Undo2 size={14} aria-hidden="true" />
+                    Undo
+                  </button>
+                </div>
+                <div className="practice-defense-recent-list">
+                  {recentDefenseEvents.map((event) => (
+                    <button key={event.id} type="button" className={`practice-defense-recent-row practice-defense-recent-row--${defenseEventTone(event)}`} onClick={() => openDefenseSheet(event)}>
+                      <small>{event.eventNumber}</small>
+                      <strong>{defenseEventRepType(event)}</strong>
+                      <span>{defenseEventRepSubtype(event)}</span>
+                      <em>{defenseEventResult(event)}</em>
+                      <b>{defenseEventThrowResult(event)}</b>
+                    </button>
+                  ))}
+                  {!recentDefenseEvents.length && <CompactEmpty title="Ready for the first rep" />}
+                </div>
+              </section>
+
+              <section className="practice-defense-summary-grid" aria-label="Defense breakdown">
+                <DefenseBreakdownCard title="Rep Types" splits={Object.values(defenseStats.byRepType)} />
+                <DefenseBreakdownCard title="Subtypes" splits={Object.values(defenseStats.bySubtype)} />
+              </section>
+
+              <section className="practice-hitting-rail practice-defense-rail" aria-label="Defender switcher">
+                <div>
+                  <span>Defenders</span>
+                  <button className="text-button" type="button" onClick={() => setDefensePlayersOpen(true)}>
+                    Players
+                    <ChevronRight size={14} aria-hidden="true" />
+                  </button>
+                </div>
+                <ScrollablePanel className="practice-hitting-rail__scroll" bodyClassName="practice-hitting-rail__list" ariaLabel="defender rail" direction="horizontal">
+                  {playerPool.map((item) => (
+                    <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => onSelectPlayer(item.id)}>
+                      <PlayerAvatar player={item} size="sm" compact />
+                      <span>{lastName(item.name)}</span>
+                      <small>#{item.jerseyNumber}</small>
+                    </button>
+                  ))}
+                </ScrollablePanel>
+              </section>
+            </main>
+          </section>
+
+          {defenseSheetOpen && (
+            <ModalFrame title={editingDefenseEventId ? "Edit Rep" : "Log Rep"} onClose={closeDefenseSheet} panelClassName="practice-defense-sheet">
+              <div className="practice-hitting-sheet__context practice-defense-sheet__context">
+                <div className="practice-hitting-sheet__context-main">
+                  <PlayerAvatar player={player} size="sm" compact />
+                  <span className="practice-hitting-sheet__context-copy">
+                    <strong>{player.name}</strong>
+                    <small>{defenseDraft.positionWorked} - {defenseDraft.drillContext}</small>
+                  </span>
+                </div>
+                <div className="practice-hitting-sheet__context-controls practice-defense-sheet__context-controls">
+                  <ChoiceSelect
+                    value={defenseDraft.drillContext}
+                    options={defenseDrillChoices}
+                    onChange={(value) => {
+                      const nextDrill = value as DefenseDrillContext;
+                      const nextPosition = defaultDefensePositionForPlayer(player, nextDrill);
+                      setDefenseDraft(createDefenseLogDraft(player, nextDrill, nextPosition, defenseDraft));
+                    }}
+                    className="practice-defense-drill-select"
+                    showSelectedDescription={false}
+                    mobilePresentation="popover"
+                    aria-label="Rep drill"
+                  />
+                  <ChoiceSelect
+                    value={defenseDraft.positionWorked}
+                    options={defensePositionOptions(defenseDraft.drillContext).map((position) => ({ value: position, label: position }))}
+                    onChange={(value) => setDefenseDraft((current) => ({ ...current, positionWorked: value as Position }))}
+                    className="practice-defense-position-select"
+                    showSelectedDescription={false}
+                    mobilePresentation="popover"
+                    aria-label="Rep position"
+                  />
+                  <button type="button" className={trackDefenseLocation ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => setTrackDefenseLocation(!trackDefenseLocation)} aria-pressed={trackDefenseLocation}>
+                    Loc <strong>{trackDefenseLocation ? "On" : "Off"}</strong>
+                  </button>
+                  <button type="button" className={trackDefenseDifficulty ? "practice-hitting-sheet__toggle active" : "practice-hitting-sheet__toggle"} onClick={() => setTrackDefenseDifficulty(!trackDefenseDifficulty)} aria-pressed={trackDefenseDifficulty}>
+                    Diff <strong>{trackDefenseDifficulty ? "On" : "Off"}</strong>
+                  </button>
+                </div>
+              </div>
+
+              <section className="practice-defense-sheet__step">
+                {!defenseDraftConfig.repTypeLocked && (
+                  <div className="practice-defense-option-section">
+                    <span>Rep Type</span>
+                    <div className="practice-defense-choice-grid">
+                      {DEFENSE_REP_TYPES.map((repType) => (
+                        <button key={repType} type="button" className={defenseDraft.repType === repType ? "active" : ""} onClick={() => setDefenseDraft((current) => {
+                          const nextSubtype = defenseSubtypeOptions(repType, current.positionWorked)[0];
+                          return { ...current, repType, repSubtype: nextSubtype, throwResult: defenseDrillThrowRelevant(current.drillContext, repType) ? current.throwResult ?? "Accurate" : undefined };
+                        })}>
+                          {repType}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {!defenseDraftConfig.subtypeLocked && defenseRepSubtypeChoices.length > 0 && (
+                  <div className="practice-defense-option-section">
+                    <span>{defenseDraft.repType} Type</span>
+                    <div className="practice-defense-choice-grid">
+                      {defenseRepSubtypeChoices.map((subtype) => (
+                        <button key={subtype} type="button" className={defenseDraft.repSubtype === subtype ? "active" : ""} onClick={() => setDefenseDraft((current) => ({ ...current, repSubtype: subtype }))}>
+                          {subtype}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="practice-defense-option-section">
+                  <span>Result</span>
+                  <div className="practice-defense-result-grid">
+                    {DEFENSE_RESULTS.map((result) => (
+                      <button key={result} type="button" className={defenseDraft.result === result ? `active ${defenseResultTone(result)}` : defenseResultTone(result)} onClick={() => setDefenseDraft((current) => ({ ...current, result }))}>
+                        {result}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {defenseTracksThrow && (
+                  <div className="practice-defense-option-section">
+                    <span>Throw</span>
+                    <div className="practice-defense-choice-grid practice-defense-choice-grid--three">
+                      {DEFENSE_THROW_RESULTS.map((throwResult) => (
+                        <button key={throwResult} type="button" className={defenseDraft.throwResult === throwResult ? "active" : ""} onClick={() => setDefenseDraft((current) => ({ ...current, throwResult }))}>
+                          {throwResult}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {trackDefenseDifficulty && (
+                  <div className="practice-defense-option-section">
+                    <span>Difficulty</span>
+                    <div className="practice-defense-choice-grid practice-defense-choice-grid--three">
+                      {DEFENSE_DIFFICULTIES.map((difficulty) => (
+                        <button key={difficulty} type="button" className={defenseDraft.difficulty === difficulty ? "active" : ""} onClick={() => setDefenseDraft((current) => ({ ...current, difficulty }))}>
+                          {difficulty}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {trackDefenseLocation && (
+                  <div className="practice-defense-location-entry">
+                    <div>
+                      <span>Location</span>
+                      <small>Optional</small>
+                    </div>
+                    <PracticeSprayField points={[]} activePoint={defenseDraft.location} onSelect={(location) => setDefenseDraft((current) => ({ ...current, location }))} />
+                  </div>
+                )}
+              </section>
+
+              <div className="modal-actions">
+                <button className="secondary-button" type="button" onClick={closeDefenseSheet}>Cancel</button>
+                <button className="primary-button" type="button" onClick={saveDefenseRep}>Save Rep</button>
+              </div>
+            </ModalFrame>
+          )}
+
+          {defenseOptionsOpen && (
+            <ModalFrame title="Defense Options" onClose={() => setDefenseOptionsOpen(false)} panelClassName="practice-hitting-more-sheet">
+              <div className="practice-hitting-more-list">
+                <button type="button" onClick={() => { setDefenseOptionsOpen(false); setDefenseSettingsOpen(true); }}>
+                  <Gauge size={17} aria-hidden="true" />
+                  <span>
+                    <strong>Tracking Settings</strong>
+                    <small>Location and difficulty</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+                <button type="button" onClick={() => { setDefenseOptionsOpen(false); setDefenseSessionOpen(true); }}>
+                  <ClipboardList size={17} aria-hidden="true" />
+                  <span>
+                    <strong>Session Details</strong>
+                    <small>{defenseSessionContext}</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+                <button type="button" onClick={() => { setDefenseOptionsOpen(false); onOpenSessionNotes(); }}>
+                  <Edit3 size={17} aria-hidden="true" />
+                  <span>
+                    <strong>Session Notes</strong>
+                    <small>Coach context and focus</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+                <button type="button" onClick={() => { setDefenseOptionsOpen(false); setDefenseStatsOpen(true); }}>
+                  <BarChart3 size={17} aria-hidden="true" />
+                  <span>
+                    <strong>View Session Analytics</strong>
+                    <small>{defenseStats.totalReps} reps today</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+                <button type="button" disabled={!recentDefenseEvents.length} onClick={() => { setDefenseOptionsOpen(false); onUndo(); showDefenseSavedNotice("Last rep undone"); }}>
+                  <Undo2 size={17} aria-hidden="true" />
+                  <span>
+                    <strong>Undo Last Rep</strong>
+                    <small>Remove the most recent rep</small>
+                  </span>
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+              </div>
+            </ModalFrame>
+          )}
+
+          {defenseSettingsOpen && (
+            <ModalFrame title="Tracking Settings" onClose={() => setDefenseSettingsOpen(false)} panelClassName="practice-hitting-more-sheet">
+              <div className="practice-hitting-settings-list">
+                <button type="button" onClick={() => setTrackDefenseLocation(!trackDefenseLocation)} aria-pressed={trackDefenseLocation}>
+                  <span>
+                    <strong>Track Location</strong>
+                    <small>Optional fielded-ball location for deeper review</small>
+                  </span>
+                  <em className={trackDefenseLocation ? "practice-switch active" : "practice-switch"}>{trackDefenseLocation ? "On" : "Off"}</em>
+                </button>
+                <button type="button" onClick={() => setTrackDefenseDifficulty(!trackDefenseDifficulty)} aria-pressed={trackDefenseDifficulty}>
+                  <span>
+                    <strong>Track Difficulty</strong>
+                    <small>Routine, difficult, or plus rep context</small>
+                  </span>
+                  <em className={trackDefenseDifficulty ? "practice-switch active" : "practice-switch"}>{trackDefenseDifficulty ? "On" : "Off"}</em>
+                </button>
+              </div>
+              <div className="modal-actions">
+                <button className="primary-button" type="button" onClick={() => setDefenseSettingsOpen(false)}>Done</button>
+              </div>
+            </ModalFrame>
+          )}
+
+          {defensePlayersOpen && (
+            <ModalFrame title="Defenders" onClose={() => setDefensePlayersOpen(false)} panelClassName="practice-hitting-selector-sheet">
+              <label className="switcher-search">
+                <Search size={14} aria-hidden="true" />
+                <input value={switcherQuery} onChange={(event) => setSwitcherQuery(event.target.value)} placeholder="Search present players..." />
+              </label>
+              <SegmentedControl values={["All", "Infield", "Outfield", "Pitchers"] as PracticeTrackerPlayerFilter[]} active={switcherFilter} onChange={setSwitcherFilter} />
+              <ScrollablePanel className="practice-hitting-player-picker" bodyClassName="practice-hitting-player-picker__list" ariaLabel="present defenders">
+                {playerPool.map((item) => (
+                  <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => selectDefender(item.id)}>
+                    <PlayerAvatar player={item} size="sm" compact />
+                    <span>
+                      <strong>{item.name}</strong>
+                      <small>#{item.jerseyNumber} · {positionLine(item)}</small>
+                    </span>
+                  </button>
+                ))}
+                {!playerPool.length && <CompactEmpty title="No available defenders" />}
+              </ScrollablePanel>
+            </ModalFrame>
+          )}
+
+          {defenseSessionOpen && (
+            <ModalFrame title="Defense Session" onClose={() => setDefenseSessionOpen(false)} panelClassName="practice-hitting-selector-sheet">
+              <section className="practice-hitting-session-sheet">
+                <div>
+                  <span>Drill</span>
+                  <div className="practice-hitting-choice-list">
+                    {DEFENSE_DRILLS.map((drill) => (
+                      <button key={drill.value} type="button" className={drill.value === defenseDrill ? "active" : ""} onClick={() => changeDefenseDrill(drill.value)}>
+                        <strong>{drill.label}</strong>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span>Worked Position</span>
+                  <div className="practice-hitting-choice-list practice-hitting-choice-list--compact">
+                    {defensePositionChoices.map((position) => (
+                      <button key={position.value} type="button" className={position.value === defensePosition ? "active" : ""} onClick={() => changeDefensePosition(position.value as Position)}>
+                        {position.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span>Active Sessions</span>
+                  <div className="practice-hitting-choice-list">
+                    {activeModeSessions.slice(0, 5).map((session) => (
+                      <button key={session.id} type="button" className={session.sessionId === currentSession?.id ? "active" : ""} onClick={() => { selectSession(session); setDefenseSessionOpen(false); }}>
+                        <strong>{session.title}</strong>
+                        <small>{session.playerLine} - {session.count}</small>
+                      </button>
+                    ))}
+                    {!activeModeSessions.length && <CompactEmpty title="No active defense sessions" />}
+                  </div>
+                </div>
+              </section>
+              <div className="modal-actions">
+                <button className="primary-button" type="button" onClick={() => setDefenseSessionOpen(false)}>Done</button>
+              </div>
+            </ModalFrame>
+          )}
+
+          {defenseStatsOpen && (
+            <ModalFrame title={`${player.name} Defense`} onClose={() => setDefenseStatsOpen(false)} panelClassName="practice-defense-stats-sheet">
+              <div className="practice-hitting-stats-scope" aria-label="Defense analytics scope">
+                <button type="button" className={effectiveDefenseStatsScopeSessionId === "all" ? "active" : ""} onClick={() => setDefenseStatsScopeSessionId("all")}>
+                  All Sessions
+                  <small>{practiceDefenseEvents.length} reps</small>
+                </button>
+                {practiceDefenseSessions.map((session) => {
+                  const sessionEvents = practiceDefenseEvents.filter((event) => event.sessionId === session.id);
+                  return (
+                    <button key={session.id} type="button" className={effectiveDefenseStatsScopeSessionId === session.id ? "active" : ""} onClick={() => setDefenseStatsScopeSessionId(session.id)}>
+                      {defenseSessionAnalyticsLabel(session)}
+                      <small>{sessionEvents.length} reps</small>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="practice-pitching-location-filter practice-pitching-location-filter--analytics" aria-label="Defense drill filter">
+                <button type="button" className={defenseStatsDrillFilter === "all" ? "active" : ""} onClick={() => setDefenseStatsDrillFilter("all")}>All Drills</button>
+                {DEFENSE_DRILLS.filter((drill) => scopedDefenseEvents.some((event) => defenseEventDrillContext(event) === drill.value)).map((drill) => (
+                  <button key={drill.value} type="button" className={defenseStatsDrillFilter === drill.value ? "active" : ""} onClick={() => setDefenseStatsDrillFilter(drill.value)}>
+                    {drill.label}
+                  </button>
+                ))}
+              </div>
+              <PracticeSummaryStrip
+                items={[
+                  { label: "Reps", value: scopedDefenseStats.totalReps },
+                  { label: "Clean", value: formatPct(scopedDefenseStats.cleanPct, 0), detail: `${scopedDefenseStats.cleanReps}/${scopedDefenseStats.totalReps}` },
+                  { label: "Errors", value: scopedDefenseStats.errors },
+                  { label: "Throw Acc.", value: scopedDefenseStats.throwAttempts ? formatPct(scopedDefenseStats.throwAccuracyPct, 0) : "--", detail: scopedDefenseStats.throwAttempts ? `${scopedDefenseStats.accurateThrows}/${scopedDefenseStats.throwAttempts}` : undefined },
+                ]}
+              />
+              <section className="practice-defense-breakdown-grid">
+                <DefenseBreakdownCard title="Rep Type" splits={Object.values(scopedDefenseStats.byRepType)} />
+                <DefenseBreakdownCard title="Subtype" splits={Object.values(scopedDefenseStats.bySubtype)} />
+                <DefenseBreakdownCard title="Position" splits={Object.values(scopedDefenseStats.byPosition)} />
+                <DefenseBreakdownCard title="Drill" splits={Object.values(scopedDefenseStats.byDrill)} />
+              </section>
+              <PracticeRecentEventTable
+                title="Recent Reps"
+                rows={filteredDefenseStatsEvents.slice(0, 8).map((event) => ({
+                  id: event.id,
+                  time: formatTime(event.createdAt),
+                  primary: defenseEventRepType(event),
+                  secondary: [defenseEventRepSubtype(event), defenseEventPosition(event, player.primaryPosition), defenseEventResult(event), defenseEventThrowResult(event)].filter((value) => value && value !== "Not tracked").join(" - ") || "--",
+                  tone: isDefenseErrorEvent(event) ? "negative" : "positive",
+                }))}
+              />
+              <div className="modal-actions">
+                <button className="secondary-button" type="button" onClick={() => onOpenPracticeAnalytics ? onOpenPracticeAnalytics("Defense", player.id, effectiveDefenseStatsScopeSessionId === "all" ? undefined : effectiveDefenseStatsScopeSessionId) : onOpenPlayer(player.id)}>
+                  View Full Analytics
+                  <ChevronRight size={15} aria-hidden="true" />
+                </button>
+              </div>
+            </ModalFrame>
+          )}
+        </>
       ) : (
         <>
       <section className="practice-tracker-grid">
@@ -9123,7 +11191,7 @@ function PracticeConsole({
             </button>
           </div>
           <div className="practice-session-meta-stack">
-            <span><b>Status</b><em>{currentSession && isPracticeSessionLive(data, currentSession.id, activityClock) ? "Active now" : "Recent context"}</em></span>
+            <span><b>Status</b><em>{currentSession && isPracticeSessionLive(data, currentSession.id, activityClock) ? "Live now" : "Recent context"}</em></span>
             <span><b>Started</b><em>{sessionStarted}</em></span>
             <span><b>Players</b><em>{sessionParticipants || 1}</em></span>
             <span><b>Reps</b><em>{sessionReps}</em></span>
@@ -9179,20 +11247,13 @@ function PracticeConsole({
               </>
             ) : (
               <>
-                <TrackerPlayerCard label={mode === "Pitching" ? "Pitcher" : mode === "Defense" ? "Defender" : "Player"} player={player} stat={`${sessionReps} ${mode === "Pitching" ? "pitches" : "reps"}`} onOpenPlayer={onOpenPlayer} />
+                <TrackerPlayerCard label={mode === "Defense" ? "Defender" : "Player"} player={player} stat={`${sessionReps} reps`} onOpenPlayer={onOpenPlayer} />
                 <div className="tracker-player-statline">
                   {mode === ("LegacyHitting" as PracticeMode) && (
                     <>
                       <span><strong>{hitStats.totalSwings}</strong><small>Swings</small></span>
                       <span><strong>{Math.round((hitStats.hardHitPct / 100) * hitStats.ballsInPlay)}</strong><small>Hard</small></span>
                       <span><strong>{formatPct(hitStats.hardHitPct)}</strong><small>Hard %</small></span>
-                    </>
-                  )}
-                  {mode === "Pitching" && (
-                    <>
-                      <span><strong>{pitchStats.totalPitches}</strong><small>Pitches</small></span>
-                      <span><strong>{pitchStats.strikes}</strong><small>Strikes</small></span>
-                      <span><strong>{formatPct(pitchStats.zonePct)}</strong><small>Zone %</small></span>
                     </>
                   )}
                   {mode === "Defense" && (
@@ -9221,7 +11282,7 @@ function PracticeConsole({
                 <div className="hitting-context-controls">
                   {hittingStationUsesPitchType(hittingStation) && (
                     <div className="pitch-type-row pitch-type-row--compact" aria-label="Pitch type">
-                      {PITCH_TYPES.slice(0, 6).map((pitchType) => (
+                      {PITCH_TYPES.map((pitchType) => (
                         <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>
                           {PITCH_TYPE_LABELS[pitchType]}
                         </button>
@@ -9315,129 +11376,6 @@ function PracticeConsole({
                   <small>Turn on Spray Chart when you want direction or field-location detail.</small>
                 </div>
               )}
-            </div>
-          )}
-
-          {mode === "Pitching" && (
-            <div className="tracking-layout tracking-layout--dense tracking-layout--pitching">
-              <div className="tracking-main">
-                <div className="session-context">
-                  <div>
-                    <span>Pitching Session</span>
-                    <strong>{pitchingStation}</strong>
-                    <small>{pitchEvents.length} pitches logged</small>
-                  </div>
-                  <SegmentedControl values={PITCHING_STATIONS} active={pitchingStation} onChange={onPitchingStation} />
-                </div>
-                <LiveMetrics
-                  items={[
-                    { label: "Pitches", value: pitchStats.totalPitches, detail: `${pitchStats.strikes}/${pitchStats.totalPitches} strikes` },
-                    { label: "Strike %", value: formatPct(pitchStats.strikePct), detail: `${pitchStats.strikes}/${pitchStats.totalPitches}` },
-                    { label: "Zone %", value: formatPct(pitchStats.zonePct), detail: `${Math.round((pitchStats.zonePct / 100) * pitchStats.totalPitches)}/${pitchStats.totalPitches}` },
-                    { label: "CSW %", value: formatPct(pitchStats.cswPct), detail: `${Math.round((pitchStats.cswPct / 100) * pitchStats.totalPitches)}/${pitchStats.totalPitches}` },
-                    ...(pitchStats.avgVelocity ? [{ label: "Avg Velo", value: formatNumber(pitchStats.avgVelocity, 1), detail: pitchStats.maxVelocity ? `Max ${formatNumber(pitchStats.maxVelocity, 1)}` : "Optional" }] : []),
-                  ]}
-                />
-                <div className="pitch-type-row">
-                  {PITCH_TYPES.slice(0, 8).map((pitchType) => (
-                    <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>
-                      {PITCH_TYPE_LABELS[pitchType]}
-                    </button>
-                  ))}
-                </div>
-                <div className="velo-stepper">
-                  <button type="button" onClick={() => adjustVelocity(-1)} aria-label="Decrease velocity">-</button>
-                  <label>
-                    <span>Velo</span>
-                    <input inputMode="numeric" value={velocity} onChange={(event) => onVelocity(event.target.value.replace(/[^0-9.]/g, ""))} />
-                  </label>
-                  <button type="button" onClick={() => adjustVelocity(1)} aria-label="Increase velocity">+</button>
-                </div>
-                <div className="quick-pad quick-pad--pitching">
-                  <button type="button" className="impact" onClick={() => onLogPitch("Called Strike")}>Strike</button>
-                  <button type="button" onClick={() => onLogPitch("Ball")}>Ball</button>
-                  <button type="button" onClick={() => onLogPitch("Ball in play", "Line drive")}>In Play</button>
-                  <button type="button" onClick={() => onLogPitch("Whiff")}>Whiff</button>
-                </div>
-                <PracticeRecentEventTable
-                  title="Recent Pitches"
-                  rows={pitchEvents.slice(0, 6).map((event) => ({
-                    id: event.id,
-                    time: formatTime(event.createdAt),
-                    primary: `${event.pitchNumber}  ${PITCH_TYPE_LABELS[event.pitchType]}`,
-                    secondary: [event.velocity ? `${event.velocity}` : undefined, event.location ? zoneLabel(event.location) : undefined, event.outcome].filter(Boolean).join(" - "),
-                    tone: event.isStrike ? "positive" : event.outcome === "Ball" ? "negative" : undefined,
-                  }))}
-                />
-              </div>
-              <div className="tracking-visual zone-stack">
-                <span>Actual location</span>
-                <StrikeZone points={pitchEvents.map((event) => event.location).filter(isZonePoint)} activePoint={pitchLocation} onSelect={onPitchLocation} />
-                <div className="outside-zone-controls">
-                  <button type="button" onClick={() => onPitchLocation({ x: 0.5, y: 0.08 })}>High</button>
-                  <button type="button" onClick={() => onPitchLocation({ x: 0.5, y: 0.92 })}>Low</button>
-                  <button type="button" onClick={() => onPitchLocation({ x: 0.08, y: 0.5 })}>Arm Side</button>
-                  <button type="button" onClick={() => onPitchLocation({ x: 0.92, y: 0.5 })}>Glove Side</button>
-                </div>
-                <button className="text-button" type="button" onClick={() => onPitchLocation(undefined)}>Clear location</button>
-                <span>Target</span>
-                <StrikeZone compact activePoint={targetLocation} onSelect={onTargetLocation} />
-                <button className="text-button" type="button" onClick={() => onTargetLocation(undefined)}>Clear target</button>
-              </div>
-            </div>
-          )}
-
-          {mode === "Defense" && (
-            <div className="tracking-layout tracking-layout--dense">
-              <div className="tracking-main">
-                <div className="session-context">
-                  <div>
-                    <span>Defense Session</span>
-                    <strong>{defenseStation}</strong>
-                    <small>{defenseEvents.length} reps logged</small>
-                  </div>
-                  <SegmentedControl values={DEFENSE_STATIONS} active={defenseStation} onChange={onDefenseStation} />
-                </div>
-                <LiveMetrics
-                  items={[
-                    { label: "Attempts", value: defenseEvents.length },
-                    { label: "Clean", value: defenseEvents.filter((event) => event.outcome === "Clean" || event.outcome === "Good Play" || event.outcome === "Great Play").length },
-                    { label: "Clean %", value: formatPct(defenseCleanPct), detail: `${defenseEvents.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length}/${defenseEvents.length}` },
-                    { label: "Plus Plays", value: defenseEvents.filter((event) => event.outcome === "Great Play").length },
-                  ]}
-                />
-                <div className="quick-pad quick-pad--defense">
-                  <button type="button" onClick={() => onLogDefense("Clean")}>Clean</button>
-                  <button type="button" onClick={() => onLogDefense("Error")}>Error</button>
-                  <button type="button" className="impact" onClick={() => onLogDefense("Great Play")}>Great Play</button>
-                  <button type="button" onClick={() => onLogDefense("Missed Rep")}>Missed Rep</button>
-                </div>
-                <span className="tracker-subhead">Play type</span>
-                <div className="direction-row">
-                  <button type="button" onClick={() => onLogDefense("Clean")}>Ground Ball</button>
-                  <button type="button" onClick={() => onLogDefense("Clean")}>Fly Ball</button>
-                  <button type="button" onClick={() => onLogDefense("Clean")}>Throw</button>
-                  <button type="button" onClick={() => onLogDefense("Good Play")}>Double Play</button>
-                  <button type="button" onClick={() => onLogDefense("Error", "Fielding")}>Fielding Error</button>
-                  <button type="button" onClick={() => onLogDefense("Error", "Throwing")}>Throwing Error</button>
-                </div>
-                <PracticeRecentEventTable
-                  title="Recent Reps"
-                  rows={defenseEvents.slice(0, 6).map((event) => ({
-                    id: event.id,
-                    time: formatTime(event.createdAt),
-                    primary: event.outcome,
-                    secondary: [event.station, event.errorType].filter(Boolean).join(" - ") || "--",
-                    tone: event.outcome === "Error" || event.outcome === "Missed Rep" ? "negative" : "positive",
-                  }))}
-                />
-              </div>
-              <div className="tracking-visual defense-visual">
-                <Shield size={42} aria-hidden="true" />
-                <h3>{defenseStation}</h3>
-                <MetricBar label="Clean rep rate" value={defenseCleanPct} />
-                <MetricBar label="Difficult plays made" value={pct(defenseEvents.filter((event) => event.outcome === "Great Play").length, defenseEvents.length)} />
-              </div>
             </div>
           )}
 
@@ -9552,7 +11490,7 @@ function PracticeConsole({
 
               <section className="practice-live-bp-sheet__optional">
                 <div className="practice-live-bp-pitch-options">
-                  {PITCH_TYPES.slice(0, 7).map((pitchType) => (
+                  {PITCH_TYPES.map((pitchType) => (
                     <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>
                       {PITCH_TYPE_LABELS[pitchType]}
                     </button>
@@ -9619,7 +11557,7 @@ function PracticeConsole({
                     <span>Spray location</span>
                     <small>Tap the field or skip location.</small>
                   </div>
-                  <PracticeSprayField points={liveBpHitEvents.map((event) => event.fieldLocation).filter(isZonePoint)} activePoint={fieldLocation} onSelect={onFieldLocation} />
+                  <PracticeSprayField points={liveBpHitEvents.map((event) => event.fieldLocation).filter(isZonePoint)} activePoint={fieldLocation} onSelect={onFieldLocation} batterHandedness={liveBpHitter?.bats} />
                   {trackExitVelocity && (
                     <label className="exit-velocity-input practice-live-bp-sheet__ev">
                       <span>EV</span>
@@ -9666,20 +11604,6 @@ function PracticeConsole({
               { label: "Hard Contact", value: Math.round((hitStats.hardHitPct / 100) * hitStats.ballsInPlay), detail: formatPct(hitStats.hardHitPct) },
               { label: "Misses", value: Math.round((hitStats.whiffPct / 100) * hitStats.totalSwings), detail: formatPct(hitStats.whiffPct) },
               ...(hitStats.exitVelocityRecorded && hitStats.maxExitVelocity !== undefined ? [{ label: "Max EV", value: `${formatNumber(hitStats.maxExitVelocity, 1)} mph`, detail: `${hitStats.exitVelocityRecorded} recorded` }] : []),
-            ]} />
-          )}
-          {mode === "Pitching" && (
-            <LiveMetrics items={[
-              { label: "Pitches", value: pitchStats.totalPitches },
-              { label: "Strikes", value: pitchStats.strikes, detail: formatPct(pitchStats.strikePct) },
-              { label: "Zone", value: formatPct(pitchStats.zonePct), detail: "current session" },
-            ]} />
-          )}
-          {mode === "Defense" && (
-            <LiveMetrics items={[
-              { label: "Total Reps", value: defenseEvents.length },
-              { label: "Clean", value: cleanDefenseReps, detail: formatPct(defenseCleanPct) },
-              { label: "Great Plays", value: defenseEvents.filter((event) => event.outcome === "Great Play").length },
             ]} />
           )}
           {mode === "Live BP" && (
@@ -9777,7 +11701,319 @@ function PracticeRecentEventTable({ title, rows }: { title: string; rows: Array<
   );
 }
 
-function PracticeSprayField({ points, activePoint, onSelect }: { points: ZonePoint[]; activePoint?: ZonePoint; onSelect?: (point: ZonePoint) => void }) {
+function DefenseBreakdownCard({
+  title,
+  splits,
+}: {
+  title: string;
+  splits: Array<{ key: string; reps: number; cleanReps: number; cleanPct: number; errors: number; throwAttempts: number; accurateThrows: number; throwAccuracyPct: number }>;
+}) {
+  const rows = splits
+    .filter((split) => split.reps > 0)
+    .sort((left, right) => right.reps - left.reps || left.key.localeCompare(right.key))
+    .slice(0, 5);
+
+  return (
+    <div className="practice-defense-breakdown-card">
+      <div>
+        <span>{title}</span>
+        <small>{rows.length ? "Clean % by reps" : "No reps yet"}</small>
+      </div>
+      {rows.map((split) => (
+        <div key={split.key} className="practice-defense-breakdown-row">
+          <span>
+            <strong>{split.key}</strong>
+            <small>{split.cleanReps}/{split.reps} clean{split.throwAttempts ? ` · ${split.accurateThrows}/${split.throwAttempts} throws` : ""}</small>
+          </span>
+          <MetricBar label={split.key} value={split.cleanPct} />
+          <em>{formatPct(split.cleanPct, 0)}</em>
+        </div>
+      ))}
+      {!rows.length && <CompactEmpty title="Ready for the first rep" />}
+    </div>
+  );
+}
+
+function VelocityPickerField({
+  label,
+  value,
+  onChange,
+  defaultValue,
+  ariaLabel,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  defaultValue: number;
+  ariaLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draftValue, setDraftValue] = useState(() => normalizedVelocityValue(value, defaultValue));
+  const selectedRef = useRef<HTMLButtonElement | null>(null);
+  const pointerStartRef = useRef<number | null>(null);
+  const currentValue = normalizedVelocityValue(value, defaultValue);
+
+  useEffect(() => {
+    if (!open) return;
+    window.setTimeout(() => selectedRef.current?.scrollIntoView({ block: "center" }), 0);
+  }, [open, draftValue]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
+
+  function openPicker() {
+    setDraftValue(normalizedVelocityValue(value, defaultValue));
+    setOpen(true);
+  }
+
+  return (
+    <div className="velocity-picker-field">
+      <button className="velocity-picker-field__trigger" type="button" onClick={openPicker} aria-label={ariaLabel}>
+        <span>{label}</span>
+        <strong>{value.trim() ? currentValue : "--"}</strong>
+        <em>mph</em>
+      </button>
+      {open && (
+        <div className="velocity-picker-field__popover" role="dialog" aria-label={`${label} selector`}>
+          <div className="velocity-picker-field__head">
+            <button type="button" onClick={() => setOpen(false)}>Cancel</button>
+            <strong>{label}</strong>
+            <button type="button" onClick={() => { onChange(String(draftValue)); setOpen(false); }}>Done</button>
+          </div>
+          <div className="velocity-picker-field__wheel" role="listbox" aria-label={`${label} velocity`}>
+            {TRACKING_VELOCITY_OPTIONS.map((option) => (
+              <button
+                key={option}
+                ref={draftValue === option ? selectedRef : undefined}
+                type="button"
+                role="option"
+                aria-selected={draftValue === option}
+                className={draftValue === option ? "active" : ""}
+                onPointerDown={(event) => { pointerStartRef.current = event.clientY; }}
+                onClick={(event) => {
+                  const moved = pointerStartRef.current !== null && Math.abs(event.clientY - pointerStartRef.current) > 8;
+                  pointerStartRef.current = null;
+                  setDraftValue(option);
+                  if (moved) return;
+                  onChange(String(option));
+                  setOpen(false);
+                }}
+              >
+                <span>{option}</span>
+                <em>mph</em>
+              </button>
+            ))}
+          </div>
+          <button className="velocity-picker-field__clear" type="button" onClick={() => { onChange(""); setOpen(false); }}>Clear</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function normalizedVelocityValue(value: string, fallback: number) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(TRACKING_VELOCITY_MIN_MPH, Math.min(TRACKING_VELOCITY_MAX_MPH, Math.round(parsed)));
+}
+
+function PracticeHittingChartCarousel({
+  events,
+  hitter,
+  showSpray,
+  showPitchLocation,
+}: {
+  events: HittingEvent[];
+  hitter: Player;
+  showSpray: boolean;
+  showPitchLocation: boolean;
+}) {
+  const [sprayMode, setSprayMode] = useState<PracticeChartMetricMode>("dots");
+  const [pitchLocationMode, setPitchLocationMode] = useState<PracticeChartMetricMode>("heat");
+  const [pitchFilters, setPitchFilters] = useState<PitchType[]>([]);
+  const [pitchFilterOpen, setPitchFilterOpen] = useState(false);
+  const pitchFilterRef = useRef<HTMLDivElement | null>(null);
+  const chartScrollerRef = useRef<HTMLDivElement | null>(null);
+  const [requestedViewId, setRequestedViewId] = useState<"spray" | "location">("spray");
+  const pitchFilterOptions = PITCH_TYPES.filter((pitchType) => events.some((event) => event.pitchType === pitchType));
+  const filteredEvents = pitchFilters.length
+    ? events.filter((event) => event.pitchType && pitchFilters.includes(event.pitchType))
+    : events;
+  const pitchFilterLabel = pitchFilters.length === 0
+    ? "All"
+    : pitchFilters.length === 1
+      ? PITCH_TYPE_LABELS[pitchFilters[0]]
+      : `${pitchFilters.length} pitches`;
+  const ballsInPlayCount = filteredEvents.filter((event) => event.action === "Ball in play").length;
+  const sprayPoints = filteredEvents.filter((event) => event.action === "Ball in play").map((event) => event.fieldLocation).filter(isZonePoint);
+  const pitchLocationEvents = filteredEvents.filter((event) => isZonePoint(event.pitchLocation));
+  const views = useMemo(() => [
+    showSpray ? { id: "spray", label: "Spray", count: sprayChartCountLabel(ballsInPlayCount, sprayPoints.length) } : undefined,
+    showPitchLocation ? { id: "location", label: "Pitch Map", count: `${pitchLocationEvents.length} tracked` } : undefined,
+  ].filter(Boolean) as Array<{ id: "spray" | "location"; label: string; count: string }>, [ballsInPlayCount, pitchLocationEvents.length, showPitchLocation, showSpray, sprayPoints.length]);
+
+  const activeViewId = views.some((view) => view.id === requestedViewId) ? requestedViewId : views[0]?.id;
+
+  useEffect(() => {
+    if (!pitchFilterOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target instanceof Node ? event.target : null;
+      if (target && pitchFilterRef.current?.contains(target)) return;
+      setPitchFilterOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPitchFilterOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [pitchFilterOpen]);
+
+  if (!views.length) return null;
+
+  function selectChartView(viewId: "spray" | "location") {
+    setRequestedViewId(viewId);
+    window.requestAnimationFrame(() => {
+      const target = chartScrollerRef.current?.querySelector<HTMLElement>(`[data-chart-view="${viewId}"]`);
+      target?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+    });
+  }
+
+  function syncActiveChartView(event: React.UIEvent<HTMLDivElement>) {
+    const container = event.currentTarget;
+    const index = Math.round(container.scrollLeft / Math.max(1, container.clientWidth));
+    const nextView = views[index];
+    if (nextView && nextView.id !== activeViewId) setRequestedViewId(nextView.id);
+  }
+
+  function togglePitchFilter(pitchType: PitchType) {
+    setPitchFilters((current) => (
+      current.includes(pitchType)
+        ? current.filter((item) => item !== pitchType)
+        : [...current, pitchType]
+    ));
+  }
+
+  return (
+    <section className="practice-hitting-live-charts" aria-label="Hitting charts">
+      <div className="practice-hitting-live-charts__head">
+        <div className="practice-hitting-live-charts__tools">
+          {views.length > 1 && (
+            <div className="practice-hitting-live-charts__pills" aria-label="Switch hitting charts">
+              {views.map((view) => (
+                <button key={view.id} type="button" className={activeViewId === view.id ? "active" : ""} onClick={() => selectChartView(view.id)}>
+                  {view.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="practice-hitting-chart-filter practice-pitching-filter-menu" ref={pitchFilterRef}>
+            <button
+              className="practice-pitching-filter-pill"
+              type="button"
+              onClick={() => setPitchFilterOpen((open) => !open)}
+              aria-label="Filter hitting charts by pitch type"
+              aria-haspopup="menu"
+              aria-expanded={pitchFilterOpen}
+            >
+              <span>Pitch Filter</span>
+              <strong>{pitchFilterLabel}</strong>
+              <ChevronDown size={15} aria-hidden="true" />
+            </button>
+            {pitchFilterOpen && (
+              <div className="practice-pitching-filter-popover practice-pitching-filter-sheet" role="menu" aria-label="Hitting chart pitch filter">
+                <button type="button" role="menuitemcheckbox" aria-checked={pitchFilters.length === 0} className={pitchFilters.length === 0 ? "active" : ""} onClick={() => setPitchFilters([])}>
+                  <span>
+                    <strong>All Pitches</strong>
+                    <small>{events.length} swings</small>
+                  </span>
+                  {pitchFilters.length === 0 && <Check size={16} aria-hidden="true" />}
+                </button>
+                {pitchFilterOptions.map((pitchType) => {
+                  const active = pitchFilters.includes(pitchType);
+                  const count = events.filter((event) => event.pitchType === pitchType).length;
+                  return (
+                    <button key={pitchType} type="button" role="menuitemcheckbox" aria-checked={active} className={active ? "active" : ""} onClick={() => togglePitchFilter(pitchType)}>
+                      <span>
+                        <strong><i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />{practicePitchTypeLabel(pitchType)}</strong>
+                        <small>{count} swings</small>
+                      </span>
+                      <em aria-hidden="true">{active && <Check size={15} />}</em>
+                    </button>
+                  );
+                })}
+                {!pitchFilterOptions.length && <CompactEmpty title="No pitch types logged yet" />}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div ref={chartScrollerRef} className="practice-hitting-live-charts__scroller" aria-label="Swipe charts" onScroll={syncActiveChartView}>
+        {showSpray && (
+          <div className="practice-hitting-live-charts__panel" data-chart-view="spray">
+            <PracticeSprayField
+              points={sprayPoints}
+              mode={sprayMode}
+              batterHandedness={hitter.bats}
+              onModeCycle={() => setSprayMode((mode) => nextHittingChartMetricMode(mode))}
+            />
+          </div>
+        )}
+        {showPitchLocation && (
+          <div className="practice-hitting-live-charts__panel" data-chart-view="location">
+            <PracticeHittingPitchLocationGrid
+              events={pitchLocationEvents}
+              hitter={hitter}
+              mode={pitchLocationMode}
+              onModeCycle={() => setPitchLocationMode((mode) => nextHittingChartMetricMode(mode))}
+            />
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function sprayChartCountLabel(ballsInPlayCount: number, trackedLocations: number) {
+  if (!ballsInPlayCount) return "No balls in play";
+  const ballLabel = ballsInPlayCount === 1 ? "ball" : "balls";
+  return `${ballsInPlayCount} ${ballLabel} in play · ${trackedLocations} tracked`;
+}
+
+function PracticeSprayField({
+  points,
+  activePoint,
+  onSelect,
+  mode = onSelect ? "dots" : "heat",
+  onModeCycle,
+  batterHandedness = "R",
+}: {
+  points: ZonePoint[];
+  activePoint?: ZonePoint;
+  onSelect?: (point: ZonePoint) => void;
+  mode?: PracticeChartMetricMode;
+  onModeCycle?: () => void;
+  batterHandedness?: Player["bats"];
+}) {
+  const chartId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const home = SPRAY_FIELD_GEOMETRY.home;
+  const leftFoul = SPRAY_FIELD_GEOMETRY.leftFoulPole;
+  const rightFoul = SPRAY_FIELD_GEOMETRY.rightFoulPole;
+  const heatClusters = getSprayHeatClusters(points);
+  const maxHeatValue = Math.max(1, ...heatClusters.map((cluster) => cluster.value));
+  const sectorDistribution = getSprayDistribution(points, batterHandedness);
+  const showSectorMetrics = !onSelect && (mode === "percent" || mode === "count");
+  const showPointDots = Boolean(onSelect) || mode === "dots";
+
   function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
     if (!onSelect) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -9787,29 +12023,612 @@ function PracticeSprayField({ points, activePoint, onSelect }: { points: ZonePoi
     });
   }
 
+  function handleClick() {
+    if (!onSelect) onModeCycle?.();
+  }
+
   return (
     <button
-      className={onSelect ? "practice-spray-field" : "practice-spray-field practice-spray-field--readonly"}
+      className={[
+        "practice-spray-field",
+        !onSelect ? "practice-spray-field--readonly" : "",
+        `practice-spray-field--${mode}`,
+      ].filter(Boolean).join(" ")}
       type="button"
       onPointerDown={handlePointerDown}
-      disabled={!onSelect}
-      aria-label={onSelect ? "Set spray chart location" : "Spray chart"}
+      onClick={handleClick}
+      aria-label={onSelect ? "Set spray chart location" : `Spray chart ${chartMetricModeLabel(mode)}`}
     >
-      <span className="practice-spray-field__arc" aria-hidden="true" />
-      <span className="practice-spray-field__foul practice-spray-field__foul--left" aria-hidden="true" />
-      <span className="practice-spray-field__foul practice-spray-field__foul--right" aria-hidden="true" />
-      <span className="practice-spray-field__infield" aria-hidden="true" />
-      <span className="practice-spray-field__diamond" aria-hidden="true" />
-      {points.slice(0, 18).map((point, index) => (
-        <i key={`${point.x}-${point.y}-${index}`} style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }} aria-hidden="true" />
-      ))}
-      {activePoint && <b style={{ left: `${activePoint.x * 100}%`, top: `${activePoint.y * 100}%` }} aria-hidden="true" />}
+      {!onSelect && <span className="practice-spray-field__mode" aria-hidden="true">{chartMetricModeLabel(mode)}</span>}
+      <svg className="practice-spray-field__svg" viewBox={`0 0 ${SPRAY_FIELD_VIEWBOX.width} ${SPRAY_FIELD_VIEWBOX.height}`} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <defs>
+          <linearGradient id={`sprayGrass-${chartId}`} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="var(--spray-field-grass-top)" />
+            <stop offset="100%" stopColor="var(--spray-field-grass-bottom)" />
+          </linearGradient>
+          <linearGradient id={`sprayDirt-${chartId}`} x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="var(--spray-field-dirt-top)" />
+            <stop offset="100%" stopColor="var(--spray-field-dirt-bottom)" />
+          </linearGradient>
+          <radialGradient id={`sprayHeat-${chartId}`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="var(--spray-heat-hot)" stopOpacity="0.95" />
+            <stop offset="42%" stopColor="var(--spray-heat-warm)" stopOpacity="0.68" />
+            <stop offset="72%" stopColor="var(--spray-heat-cool)" stopOpacity="0.34" />
+            <stop offset="100%" stopColor="var(--spray-heat-cold)" stopOpacity="0" />
+          </radialGradient>
+          <clipPath id={`sprayFair-${chartId}`}>
+            <path d={SPRAY_FIELD_PATHS.fairTerritory} />
+          </clipPath>
+        </defs>
+        <g clipPath={`url(#sprayFair-${chartId})`}>
+          <path className="practice-spray-field__outfield" d={SPRAY_FIELD_PATHS.fairTerritory} fill={`url(#sprayGrass-${chartId})`} />
+          <path className="practice-spray-field__field-band" d={SPRAY_FIELD_PATHS.outfieldBandDeep} />
+          <path className="practice-spray-field__field-band practice-spray-field__field-band--alt" d={SPRAY_FIELD_PATHS.outfieldBandShallow} />
+          {showSectorMetrics && (
+            <g className="practice-spray-field__sector-layer">
+              {sectorDistribution.lanes.map((lane) => (
+                <path
+                  key={lane.id}
+                  className="practice-spray-field__sector"
+                  d={lane.path}
+                  style={{ "--spray-sector-opacity": lane.intensity } as React.CSSProperties}
+                />
+              ))}
+              {sectorDistribution.lanes.slice(1).map((lane) => {
+                const boundary = getSpraySectorBoundaryPoint(lane.startAngle);
+                return <line key={`${lane.id}-line`} className="practice-spray-field__sector-line" x1={home.x} y1={home.y} x2={boundary.x} y2={boundary.y} />;
+              })}
+            </g>
+          )}
+          {mode === "heat" && (
+            <g className="practice-spray-field__heat">
+              {heatClusters.map((cluster, index) => {
+                const point = projectSprayPoint(cluster);
+                return (
+                  <circle
+                    key={`${cluster.x}-${cluster.y}-${index}`}
+                    cx={point.x}
+                    cy={point.y}
+                    r={sprayHeatRadius(cluster.value, maxHeatValue)}
+                    fill={`url(#sprayHeat-${chartId})`}
+                    opacity={sprayHeatOpacity(cluster.value, maxHeatValue, points.length)}
+                  />
+                );
+              })}
+            </g>
+          )}
+        </g>
+        <g className="practice-spray-field__ground">
+          <path className="practice-spray-field__field-outline" d={SPRAY_FIELD_PATHS.fairTerritory} />
+          <path className="practice-spray-field__warning-line" d={SPRAY_FIELD_PATHS.warningTrack} />
+          <path className="practice-spray-field__dirt" d={SPRAY_FIELD_PATHS.infieldDirt} fill={`url(#sprayDirt-${chartId})`} />
+          <path className="practice-spray-field__infield-grass" d={SPRAY_FIELD_PATHS.infieldGrass} />
+          <path className="practice-spray-field__arc-line practice-spray-field__arc-line--infield" d={SPRAY_FIELD_PATHS.infieldArc} />
+          <line className="practice-spray-field__foul-line" x1={home.x} y1={home.y} x2={leftFoul.x} y2={leftFoul.y} />
+          <line className="practice-spray-field__foul-line" x1={home.x} y1={home.y} x2={rightFoul.x} y2={rightFoul.y} />
+          <path className="practice-spray-field__diamond-line" d={SPRAY_FIELD_PATHS.diamond} />
+          <path className="practice-spray-field__mound" d={SPRAY_FIELD_PATHS.mound} />
+          <line className="practice-spray-field__mound-rubber" x1={SPRAY_FIELD_GEOMETRY.mound.x - 12} y1={SPRAY_FIELD_GEOMETRY.mound.y} x2={SPRAY_FIELD_GEOMETRY.mound.x + 12} y2={SPRAY_FIELD_GEOMETRY.mound.y} />
+          {[
+            SPRAY_FIELD_GEOMETRY.secondBase,
+            SPRAY_FIELD_GEOMETRY.firstBase,
+            SPRAY_FIELD_GEOMETRY.thirdBase,
+          ].map((base) => <rect key={`${base.x}-${base.y}`} className="practice-spray-field__base" x={base.x - 10} y={base.y - 10} width="20" height="20" rx="2" transform={`rotate(45 ${base.x} ${base.y})`} />)}
+          <path className="practice-spray-field__plate" d={SPRAY_FIELD_PATHS.homePlate} />
+        </g>
+        {showPointDots && (
+          <g className="practice-spray-field__dots" clipPath={`url(#sprayFair-${chartId})`}>
+            {points.slice(-120).map((point, index) => {
+              const dot = projectSprayPoint(point);
+              return <circle key={`${point.x}-${point.y}-${index}`} className="practice-spray-field__dot" cx={dot.x} cy={dot.y} r="7.5" />;
+            })}
+          </g>
+        )}
+        {activePoint && (() => {
+          const active = projectSprayPoint(activePoint);
+          return (
+            <g className="practice-spray-field__active-point">
+              <circle cx={active.x} cy={active.y} r="16" />
+              <circle cx={active.x} cy={active.y} r="31" />
+            </g>
+          );
+        })()}
+        {showSectorMetrics && (
+          <g className="practice-spray-field__sector-labels">
+            {sectorDistribution.lanes.filter((lane) => lane.count > 0).map((lane) => (
+              <SpraySectorLabel key={lane.id} lane={lane} mode={mode} />
+            ))}
+          </g>
+        )}
+      </svg>
+      {!onSelect && !points.length && <span className="practice-spray-field__empty">No spray locations tracked</span>}
     </button>
   );
 }
 
+function SpraySectorLabel({ lane, mode }: { lane: SprayLaneDistribution; mode: PracticeChartMetricMode }) {
+  const labelPoint = lane.labelPoint;
+  const value = mode === "count" ? String(lane.count) : formatPct(lane.pct, 0);
+  return (
+    <g className="practice-spray-field__sector-label" transform={`translate(${labelPoint.x.toFixed(2)} ${labelPoint.y.toFixed(2)})`}>
+      <text textAnchor="middle" dominantBaseline="middle">
+        <tspan x="0" dy="-0.2em">{value}</tspan>
+        {mode === "percent" && <tspan x="0" dy="1.15em">{sprayShortLaneLabel(lane.label)}</tspan>}
+      </text>
+    </g>
+  );
+}
+
+function sprayHeatRadius(value: number, maxValue: number) {
+  return 44 + (value / Math.max(1, maxValue)) * 62;
+}
+
+function sprayHeatOpacity(value: number, maxValue: number, total: number) {
+  const sampleWeight = Math.min(1, total / 18);
+  return Math.min(0.82, 0.18 + (value / Math.max(1, maxValue)) * 0.42 + sampleWeight * 0.18);
+}
+
+function sprayShortLaneLabel(label: string) {
+  if (label === "Extreme Pull") return "Ext Pull";
+  if (label === "Extreme Oppo") return "Ext Oppo";
+  return label;
+}
+
+function PracticeHittingPitchLocationGrid({
+  events,
+  hitter,
+  activePoint,
+  onSelect,
+  mode = onSelect ? "dots" : "heat",
+  onModeCycle,
+}: {
+  events: HittingEvent[];
+  hitter?: Player;
+  activePoint?: ZonePoint;
+  onSelect?: (point: ZonePoint) => void;
+  mode?: PracticeChartMetricMode;
+  onModeCycle?: () => void;
+}) {
+  const activeBucket = pitchLocationBucketFromPoint(activePoint);
+  const entries = events.reduce<Array<{ event: HittingEvent; point: ZonePoint }>>((list, event) => {
+    if (isZonePoint(event.pitchLocation)) list.push({ event, point: event.pitchLocation });
+    return list;
+  }, []);
+  const bucketStats = entries.reduce<Partial<Record<PitchLocationGridZoneId, HittingPitchLocationBucketStats>>>((totals, entry) => {
+    const bucket = pitchLocationBucketFromPoint(entry.point);
+    if (!bucket) return totals;
+    const stats = totals[bucket.id] ?? { count: 0, contacts: 0, hard: 0, exitVelocities: [] };
+    stats.count += 1;
+    if (entry.event.action === "Ball in play" || entry.event.action === "Foul") stats.contacts += 1;
+    if (isPracticeHardContactEvent(entry.event)) stats.hard += 1;
+    if (entry.event.exitVelocityMph !== undefined) stats.exitVelocities.push(entry.event.exitVelocityMph);
+    totals[bucket.id] = stats;
+    return totals;
+  }, {});
+  const maxCount = Math.max(1, ...Object.values(bucketStats).map((stats) => stats?.count ?? 0));
+  const markerSeen: Partial<Record<PitchLocationGridZoneId, number>> = {};
+  const markers = entries.slice(-80).map((entry, index) => {
+    const bucket = pitchLocationBucketFromPoint(entry.point);
+    if (!bucket) return undefined;
+    const occurrence = markerSeen[bucket.id] ?? 0;
+    markerSeen[bucket.id] = occurrence + 1;
+    const offset = pitchMarkerOffset(occurrence);
+    return {
+      key: `${bucket.id}-${index}`,
+      x: clampNumber(bucket.x + offset.x, 0.04, 0.96),
+      y: clampNumber(bucket.y + offset.y, 0.04, 0.96),
+      tone: isPracticeHardContactEvent(entry.event)
+        ? "hard"
+        : entry.event.action === "Miss"
+          ? "miss"
+          : "contact",
+    };
+  }).filter(Boolean) as Array<{ key: string; x: number; y: number; tone: "hard" | "contact" | "miss" }>;
+  const labels = hittingPitchLocationOrientationLabels(hitter);
+  const totalLocations = entries.length;
+  const cycleable = !onSelect && Boolean(onModeCycle);
+  const className = [
+    "practice-pitch-location-grid",
+    "practice-pitch-location-grid--hitting",
+    `practice-pitch-location-grid--${onSelect ? "entry" : "live"}`,
+    onSelect ? "practice-pitch-location-grid--interactive" : "",
+    `practice-pitch-location-grid--${mode}`,
+  ].filter(Boolean).join(" ");
+
+  return (
+    <div
+      className={className}
+      role={onSelect || cycleable ? "group" : "img"}
+      tabIndex={cycleable ? 0 : undefined}
+      onClick={(event) => {
+        if (!cycleable) return;
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        if (target?.closest("button")) return;
+        onModeCycle?.();
+      }}
+      onKeyDown={(event) => {
+        if (!cycleable || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        onModeCycle?.();
+      }}
+      aria-label={onSelect ? "Hitter pitch location selector" : "Hitter pitch location chart"}
+    >
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--up">Up</span>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--down">Down</span>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--left">{labels.left}</span>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--right">{labels.right}</span>
+      {cycleable && (
+        <button className="practice-pitch-location-grid__mode" type="button" onClick={(event) => { event.stopPropagation(); onModeCycle?.(); }} aria-label={`Hitting pitch location mode: ${chartMetricModeLabel(mode)}`}>
+          {chartMetricModeLabel(mode)}
+        </button>
+      )}
+      <div className="practice-pitch-location-grid__stage">
+        <span className="practice-pitch-location-grid__zone" aria-hidden="true" />
+        <span className="practice-pitch-location-grid__plate" aria-hidden="true" />
+        {PITCH_LOCATION_BUCKETS.map((bucket) => {
+          const stats = bucketStats[bucket.id];
+          const bucketMetric = hittingPitchLocationBucketMetricLabel(mode, stats);
+          const bucketClassName = [
+            "practice-pitch-location-grid__bucket",
+            bucket.isZone ? "practice-pitch-location-grid__bucket--zone" : "practice-pitch-location-grid__bucket--outside",
+            activeBucket?.id === bucket.id ? "active" : "",
+          ].filter(Boolean).join(" ");
+          return (
+            <button
+              key={bucket.id}
+              type="button"
+              className={bucketClassName}
+              style={{
+                gridColumn: bucket.column,
+                gridRow: bucket.row,
+                "--pitch-heat-opacity": hittingPitchLocationHeatOpacity(stats, totalLocations, maxCount),
+                "--pitch-heat-color": hittingPitchLocationHeatColor(stats),
+              } as React.CSSProperties}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (onSelect) onSelect(makeHittingPitchLocationPoint(bucket, hitter));
+                else if (cycleable) onModeCycle?.();
+              }}
+              disabled={!onSelect && !cycleable}
+              title={hittingPitchLocationBucketDetail(bucket, stats, hitter)}
+              aria-label={hittingPitchLocationBucketDetail(bucket, stats, hitter)}
+            >
+              <span className="practice-pitch-location-grid__heat" aria-hidden="true" />
+              {bucketMetric && <span className="practice-pitch-location-grid__bucket-metric">{bucketMetric}</span>}
+            </button>
+          );
+        })}
+        <span className="practice-pitch-location-grid__marker-layer" aria-hidden="true">
+          {markers.map((marker) => (
+            <i key={marker.key} className={`hitting-location-${marker.tone}`} style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }} />
+          ))}
+          {activeBucket && <b style={{ left: `${activeBucket.x * 100}%`, top: `${activeBucket.y * 100}%` }} />}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function nextHittingChartMetricMode(mode: PracticeChartMetricMode): PracticeChartMetricMode {
+  if (mode === "heat") return "dots";
+  if (mode === "dots") return "percent";
+  if (mode === "percent") return "count";
+  return "heat";
+}
+
+function chartMetricModeLabel(mode: PracticeChartMetricMode) {
+  if (mode === "dots") return "Spray";
+  if (mode === "percent") return "%";
+  if (mode === "count") return "#";
+  return "Heat";
+}
+
+type HittingPitchLocationBucketStats = {
+  count: number;
+  contacts: number;
+  hard: number;
+  exitVelocities: number[];
+};
+
+function hittingPitchLocationHeatOpacity(stats: HittingPitchLocationBucketStats | undefined, totalLocations: number, maxCount: number) {
+  if (!stats?.count || totalLocations === 0) return 0;
+  const relativeDensity = stats.count / Math.max(1, maxCount);
+  const sampleConfidence = Math.min(1, stats.count / 5);
+  return Math.min(0.82, 0.16 + relativeDensity * 0.38 + sampleConfidence * 0.28);
+}
+
+function hittingPitchLocationHeatColor(stats: HittingPitchLocationBucketStats | undefined) {
+  if (!stats?.count) return "var(--pitch-heat-empty)";
+  const contactRate = stats.contacts / stats.count;
+  const hardRate = stats.hard / stats.count;
+  const avgEv = stats.exitVelocities.length
+    ? stats.exitVelocities.reduce((sum, value) => sum + value, 0) / stats.exitVelocities.length
+    : undefined;
+  const evScore = avgEv === undefined ? 0 : clampNumber((avgEv - 72) / 24, 0, 1);
+  const score = hardRate * 0.58 + contactRate * 0.28 + evScore * 0.14;
+  if (score >= 0.72) return "var(--pitch-heat-hot)";
+  if (score >= 0.54) return "var(--pitch-heat-warm)";
+  if (score >= 0.38) return "var(--pitch-heat-mid)";
+  if (score >= 0.2) return "var(--pitch-heat-cool)";
+  return "var(--pitch-heat-cold)";
+}
+
+function hittingPitchLocationBucketMetricLabel(mode: PracticeChartMetricMode, stats?: HittingPitchLocationBucketStats) {
+  if (mode === "heat" || mode === "dots" || !stats?.count) return "";
+  if (mode === "percent") return formatPct(pct(stats.hard, stats.count), 0);
+  return String(stats.count);
+}
+
+function hittingPitchLocationOrientationLabels(hitter?: Player) {
+  const batsLeft = hitter?.bats === "L";
+  return {
+    left: batsLeft ? "Away" : "Inside",
+    right: batsLeft ? "Inside" : "Away",
+  };
+}
+
+function makeHittingPitchLocationPoint(bucket: PitchLocationBucket, hitter?: Player): ZonePoint {
+  return {
+    x: bucket.x,
+    y: bucket.y,
+    zoneId: bucket.id,
+    zoneLabel: hittingPitchLocationLabelFromBucket(bucket, hitter),
+    isZone: bucket.isZone,
+  };
+}
+
+function hittingPitchLocationHorizontalLabel(column: PitchLocationGridAxis, hitter?: Player) {
+  if (column === 3) return "Middle";
+  const labels = hittingPitchLocationOrientationLabels(hitter);
+  return column < 3 ? labels.left : labels.right;
+}
+
+function hittingPitchLocationLabelFromBucket(bucket: PitchLocationBucket, hitter?: Player) {
+  const vertical = pitchLocationVerticalLabel(bucket.row);
+  const horizontal = hittingPitchLocationHorizontalLabel(bucket.column, hitter);
+  if (vertical === "Middle" && horizontal === "Middle") return "Middle";
+  if (vertical === "Middle") return horizontal;
+  if (horizontal === "Middle") return vertical;
+  return `${vertical} ${horizontal}`;
+}
+
+function hittingPitchLocationBucketDetail(bucket: PitchLocationBucket, stats?: HittingPitchLocationBucketStats, hitter?: Player) {
+  if (!stats?.count) return `${hittingPitchLocationLabelFromBucket(bucket, hitter)} - no swings`;
+  const avgEv = stats.exitVelocities.length
+    ? ` - ${formatNumber(stats.exitVelocities.reduce((sum, value) => sum + value, 0) / stats.exitVelocities.length, 1)} avg EV`
+    : "";
+  return `${hittingPitchLocationLabelFromBucket(bucket, hitter)} - ${stats.count} swings - ${formatPct(pct(stats.hard, stats.count), 0)} hard${avgEv}`;
+}
+
+type PitchLocationGridMode = "entry" | "live" | "analytics";
+type PitchLocationMetricMode = PracticeChartMetricMode;
+type PitchLocationGridEntry = {
+  point: ZonePoint;
+  pitch?: PitchEvent;
+};
+type PitchLocationBucketStats = {
+  count: number;
+  strikes: number;
+  balls: number;
+  velocities: number[];
+  pitchTypes: Partial<Record<PitchType, number>>;
+};
+
+function PracticePitchLocationGrid({
+  points = [],
+  pitches,
+  activePoint,
+  onSelect,
+  pitcher,
+  mode = onSelect ? "entry" : "live",
+}: {
+  points?: ZonePoint[];
+  pitches?: PitchEvent[];
+  activePoint?: ZonePoint;
+  onSelect?: (point: ZonePoint) => void;
+  pitcher?: Player;
+  mode?: PitchLocationGridMode;
+}) {
+  const [inspectedBucketId, setInspectedBucketId] = useState<PitchLocationGridZoneId | undefined>();
+  const [metricModeState, setMetricModeState] = useState(() => ({
+    gridMode: mode,
+    metricMode: defaultPitchLocationMetricMode(mode),
+  }));
+  const metricMode = metricModeState.gridMode === mode ? metricModeState.metricMode : defaultPitchLocationMetricMode(mode);
+  const activeBucket = pitchLocationBucketFromPoint(activePoint);
+  const entries: PitchLocationGridEntry[] = pitches
+    ? pitches.reduce<PitchLocationGridEntry[]>((list, pitch) => {
+      if (isZonePoint(pitch.location)) list.push({ pitch, point: pitch.location });
+      return list;
+    }, [])
+    : points.filter(isZonePoint).map((point) => ({ point }));
+  const bucketStats = entries.reduce<Partial<Record<PitchLocationGridZoneId, PitchLocationBucketStats>>>((totals, entry) => {
+    const bucket = pitchLocationBucketFromPoint(entry.point);
+    if (!bucket) return totals;
+    const stats = totals[bucket.id] ?? { count: 0, strikes: 0, balls: 0, velocities: [], pitchTypes: {} };
+    stats.count += 1;
+    if (entry.pitch) {
+      if (entry.pitch.isStrike) stats.strikes += 1;
+      if (entry.pitch.outcome === "Ball") stats.balls += 1;
+      if (entry.pitch.velocity !== undefined) stats.velocities.push(entry.pitch.velocity);
+      stats.pitchTypes[entry.pitch.pitchType] = (stats.pitchTypes[entry.pitch.pitchType] ?? 0) + 1;
+    } else if (bucket.isZone) {
+      stats.strikes += 1;
+    } else {
+      stats.balls += 1;
+    }
+    totals[bucket.id] = stats;
+    return totals;
+  }, {});
+  const maxCount = Math.max(1, ...Object.values(bucketStats).map((stats) => stats?.count ?? 0));
+  const totalLocations = entries.length;
+  const markerSeen: Partial<Record<PitchLocationGridZoneId, number>> = {};
+  const markers = entries.slice(-80).map((entry, index) => {
+    const bucket = pitchLocationBucketFromPoint(entry.point);
+    if (!bucket) return undefined;
+    const occurrence = markerSeen[bucket.id] ?? 0;
+    markerSeen[bucket.id] = occurrence + 1;
+    const offset = pitchMarkerOffset(occurrence);
+    return {
+      key: `${bucket.id}-${index}`,
+      x: clampNumber(bucket.x + offset.x, 0.04, 0.96),
+      y: clampNumber(bucket.y + offset.y, 0.04, 0.96),
+      inZone: bucket.isZone,
+      pitchType: entry.pitch?.pitchType,
+    };
+  }).filter(Boolean) as Array<{ key: string; x: number; y: number; inZone: boolean; pitchType?: PitchType }>;
+  const inspectedBucket = inspectedBucketId ? PITCH_LOCATION_BUCKETS.find((bucket) => bucket.id === inspectedBucketId) : undefined;
+  const inspectedStats = inspectedBucket ? bucketStats[inspectedBucket.id] : undefined;
+  const inspectable = mode === "analytics" && !onSelect;
+  const cycleable = !onSelect;
+  const labels = pitchLocationOrientationLabels(pitcher);
+  function cycleMetricMode() {
+    setMetricModeState((current) => {
+      const currentMetricMode = current.gridMode === mode ? current.metricMode : defaultPitchLocationMetricMode(mode);
+      return { gridMode: mode, metricMode: nextPitchLocationMetricMode(currentMetricMode) };
+    });
+  }
+  const className = [
+    "practice-pitch-location-grid",
+    `practice-pitch-location-grid--${mode}`,
+    onSelect ? "practice-pitch-location-grid--interactive" : "",
+    inspectable ? "practice-pitch-location-grid--inspectable" : "",
+    cycleable ? `practice-pitch-location-grid--${metricMode}` : "",
+  ].filter(Boolean).join(" ");
+
+  return (
+    <div
+      className={className}
+      role={onSelect || cycleable ? "group" : "img"}
+      tabIndex={cycleable ? 0 : undefined}
+      onClick={(event) => {
+        if (!cycleable) return;
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        if (target?.closest("button")) return;
+        cycleMetricMode();
+      }}
+      onKeyDown={(event) => {
+        if (!cycleable || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        cycleMetricMode();
+      }}
+      aria-label={onSelect ? "Pitch location selector" : "Pitch location chart"}
+    >
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--up">Up</span>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--down">Down</span>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--left">{labels.left}</span>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--right">{labels.right}</span>
+      {cycleable && (
+        <button className="practice-pitch-location-grid__mode" type="button" onClick={(event) => { event.stopPropagation(); cycleMetricMode(); }} aria-label={`Pitch location mode: ${pitchLocationMetricModeLabel(metricMode)}`}>
+          {pitchLocationMetricModeLabel(metricMode)}
+        </button>
+      )}
+      <div className="practice-pitch-location-grid__stage">
+        <span className="practice-pitch-location-grid__zone" aria-hidden="true" />
+        <span className="practice-pitch-location-grid__plate" aria-hidden="true" />
+        {PITCH_LOCATION_BUCKETS.map((bucket) => {
+          const stats = bucketStats[bucket.id];
+          const heat = pitchLocationHeatOpacity(stats, totalLocations, maxCount);
+          const heatColor = pitchLocationHeatColor(stats, maxCount);
+          const bucketMetric = pitchLocationBucketMetricLabel(metricMode, stats, totalLocations);
+          const bucketClassName = [
+            "practice-pitch-location-grid__bucket",
+            bucket.isZone ? "practice-pitch-location-grid__bucket--zone" : "practice-pitch-location-grid__bucket--outside",
+            activeBucket?.id === bucket.id || inspectedBucketId === bucket.id ? "active" : "",
+          ].filter(Boolean).join(" ");
+          return (
+            <button
+              key={bucket.id}
+              type="button"
+              className={bucketClassName}
+              style={{
+                gridColumn: bucket.column,
+                gridRow: bucket.row,
+                "--pitch-heat-opacity": heat,
+                "--pitch-heat-color": heatColor,
+              } as React.CSSProperties}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (onSelect) onSelect(makePitchLocationPoint(bucket, pitcher));
+                else if (inspectable) setInspectedBucketId(bucket.id);
+                else if (cycleable) cycleMetricMode();
+              }}
+              disabled={!onSelect && !inspectable && !cycleable}
+              title={pitchLocationBucketDetail(bucket, stats, pitcher)}
+              aria-label={pitchLocationBucketDetail(bucket, stats, pitcher)}
+            >
+              <span className="practice-pitch-location-grid__heat" aria-hidden="true" />
+              {bucketMetric && <span className="practice-pitch-location-grid__bucket-metric">{bucketMetric}</span>}
+            </button>
+          );
+        })}
+        <span className="practice-pitch-location-grid__marker-layer" aria-hidden="true">
+          {markers.map((marker) => (
+            <i key={marker.key} className={`${marker.inZone ? "in-zone " : ""}${pitchTypeClassName(marker.pitchType)}`} style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }} />
+          ))}
+          {activeBucket && <b style={{ left: `${activeBucket.x * 100}%`, top: `${activeBucket.y * 100}%` }} />}
+        </span>
+      </div>
+      {inspectable && inspectedBucket && (
+        <div className="practice-pitch-location-grid__detail">
+          <strong>{pitchLocationLabelFromBucket(inspectedBucket, pitcher)}</strong>
+          <span>{inspectedStats ? pitchLocationStatsSummary(inspectedStats) : "No pitches in this bucket"}</span>
+          {inspectedStats && <em>{pitchLocationPitchMixSummary(inspectedStats)}</em>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function nextPitchLocationMetricMode(mode: PitchLocationMetricMode): PitchLocationMetricMode {
+  if (mode === "heat") return "percent";
+  if (mode === "percent") return "count";
+  return "heat";
+}
+
+function defaultPitchLocationMetricMode(mode: PitchLocationGridMode): PitchLocationMetricMode {
+  void mode;
+  return "heat";
+}
+
+function pitchLocationMetricModeLabel(mode: PitchLocationMetricMode) {
+  if (mode === "dots") return "Dots";
+  if (mode === "percent") return "%";
+  if (mode === "count") return "#";
+  return "Heat";
+}
+
+function pitchLocationHeatOpacity(stats: PitchLocationBucketStats | undefined, totalLocations: number, maxCount: number) {
+  if (!stats?.count || totalLocations === 0) return 0;
+  const relativeDensity = stats.count / Math.max(1, maxCount);
+  const absoluteDensity = Math.min(1, stats.count / 10);
+  const sampleConfidence = Math.min(1, totalLocations / 18);
+  return Math.min(0.7, 0.06 + ((relativeDensity * 0.45) + (absoluteDensity * 0.55)) * (0.22 + sampleConfidence * 0.48));
+}
+
+function pitchLocationHeatColor(stats: PitchLocationBucketStats | undefined, maxCount: number) {
+  if (!stats?.count) return "var(--pitch-heat-empty)";
+  const ratio = stats.count / Math.max(1, maxCount);
+  if (ratio >= 0.78) return "var(--pitch-heat-hot)";
+  if (ratio >= 0.52) return "var(--pitch-heat-warm)";
+  if (ratio >= 0.3) return "var(--pitch-heat-mid)";
+  if (ratio >= 0.14) return "var(--pitch-heat-cool)";
+  return "var(--pitch-heat-cold)";
+}
+
+function pitchLocationBucketMetricLabel(mode: PitchLocationMetricMode, stats: PitchLocationBucketStats | undefined, totalLocations: number) {
+  if ((mode === "heat" || mode === "dots") || !stats?.count || totalLocations === 0) return "";
+  if (mode === "percent") return formatPct(pct(stats.count, totalLocations));
+  return String(stats.count);
+}
+
 function formatHittingEventTitle(event: HittingEvent) {
-  if (event.action === "Ball in play") return practiceHittingResultLabel(event);
+  if (event.action === "Ball in play") {
+    return [
+      hittingContactQualityShortLabel(event.contactQuality),
+      battedBallShortLabel(event.contactResult),
+    ].filter(Boolean).join(" ") || practiceHittingResultLabel(event);
+  }
   if (event.action === "Swing") return "Other";
   if (event.action === "Took pitch") return "Take";
   return event.action;
@@ -9817,11 +12636,214 @@ function formatHittingEventTitle(event: HittingEvent) {
 
 function formatHittingEventDetail(event: HittingEvent) {
   const parts = [
-    event.pitchType ? practicePitchTypeLabel(event.pitchType) : undefined,
-    event.direction,
-    event.exitVelocityMph !== undefined ? `${formatNumber(event.exitVelocityMph, 1)} mph` : undefined,
+    event.velocity !== undefined ? `${formatNumber(event.velocity, 0)} mph` : undefined,
+    event.pitchType ? PITCH_TYPE_LABELS[event.pitchType] : undefined,
+    event.action === "Ball in play" ? event.direction : undefined,
+    event.exitVelocityMph !== undefined ? `${formatNumber(event.exitVelocityMph, 0)} EV` : undefined,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "--";
+}
+
+function battedBallShortLabel(type?: BattedBallType) {
+  if (type === "Ground ball") return "GB";
+  if (type === "Line drive") return "LD";
+  if (type === "Fly ball") return "FB";
+  if (type === "Pop up") return "Popup";
+  return undefined;
+}
+
+function hittingContactQualityShortLabel(quality?: HittingContactQuality) {
+  if (quality === "Hard" || quality === "Barrel") return "Hard";
+  if (quality === "Weak") return "Soft";
+  if (quality === "Solid") return "Solid";
+  return undefined;
+}
+
+function formatPitchingEventTitle(event: PitchEvent) {
+  const result = event.outcome === "Called Strike" ? "Strike" : event.outcome === "Ball in play" ? "In Play" : event.outcome;
+  return `${PITCH_TYPE_LABELS[event.pitchType]} · ${result}`;
+}
+
+function formatPitchingEventDetail(event: PitchEvent, pitcher?: Player) {
+  const parts = [
+    event.velocity !== undefined ? `${formatNumber(event.velocity, 1)} mph` : undefined,
+    event.location ? pitchLocationLabel(event.location, pitcher) : undefined,
+    event.countBefore ? `${event.countBefore.balls}-${event.countBefore.strikes}` : undefined,
   ].filter(Boolean);
   return parts.length ? parts.join(" - ") : "--";
+}
+
+function formatPitchingOutcomeShort(event: PitchEvent) {
+  if (event.outcome === "Called Strike") return "Strike";
+  if (event.outcome === "Ball in play") return "In Play";
+  return event.outcome;
+}
+
+function formatPitchingVelocityShort(event: PitchEvent) {
+  return event.velocity !== undefined ? `${formatNumber(event.velocity, 0)} mph` : "--";
+}
+
+function pitchTypeClassName(pitchType?: PitchType) {
+  if (pitchType === "4-Seam") return "pitch-type-4s";
+  if (pitchType === "2-Seam") return "pitch-type-2s";
+  if (pitchType === "Sinker") return "pitch-type-si";
+  if (pitchType === "Cutter") return "pitch-type-ct";
+  if (pitchType === "Slider") return "pitch-type-sl";
+  if (pitchType === "Curveball") return "pitch-type-cb";
+  if (pitchType === "Changeup") return "pitch-type-ch";
+  if (pitchType === "Splitter") return "pitch-type-sp";
+  if (pitchType === "Knuckleball") return "pitch-type-kn";
+  return "pitch-type-ot";
+}
+
+function pitchingSessionAnalyticsLabel(session: PitchingSession) {
+  return `${session.type} · ${formatTime(session.startedAt)}`;
+}
+
+function pitchLocationLabel(point: ZonePoint, pitcher?: Player) {
+  const bucket = pitchLocationBucketFromPoint(point);
+  if (bucket && pitcher) return pitchLocationLabelFromBucket(bucket, pitcher);
+  return point.zoneLabel ?? (bucket ? pitchLocationLabelFromBucket(bucket, pitcher) : `Zone ${zoneLabel(point)}`);
+}
+
+function pitchingOutcomeForLocation(point: ZonePoint): PitchOutcome {
+  return isPitchLocationInZone(point) ? "Called Strike" : "Ball";
+}
+
+function isPitchLocationInZone(point?: ZonePoint) {
+  if (!point) return false;
+  const bucket = pitchLocationBucketFromPoint(point);
+  if (bucket) return bucket.isZone;
+  if (typeof point.isZone === "boolean") return point.isZone;
+  return point.x >= 0.22 && point.x <= 0.78 && point.y >= 0.18 && point.y <= 0.82;
+}
+
+function normalizePitchLocationZoneId(zoneId?: PitchLocationZoneId): PitchLocationGridZoneId | undefined {
+  if (!zoneId) return undefined;
+  if (PITCH_LOCATION_BUCKETS.some((bucket) => bucket.id === zoneId)) return zoneId as PitchLocationGridZoneId;
+  return LEGACY_PITCH_LOCATION_ID_MAP[zoneId];
+}
+
+function pitchLocationBucketFromPoint(point?: ZonePoint): PitchLocationBucket | undefined {
+  if (!point) return undefined;
+  if (point.zoneId) {
+    const normalizedId = normalizePitchLocationZoneId(point.zoneId);
+    const exact = PITCH_LOCATION_BUCKETS.find((bucket) => bucket.id === normalizedId);
+    if (exact) return exact;
+  }
+  return PITCH_LOCATION_BUCKETS
+    .map((bucket) => ({
+      bucket,
+      distance: Math.hypot(point.x - bucket.x, point.y - bucket.y),
+    }))
+    .sort((left, right) => left.distance - right.distance)[0]?.bucket;
+}
+
+function makePitchLocationPoint(bucket: PitchLocationBucket, pitcher?: Player): ZonePoint {
+  return {
+    x: bucket.x,
+    y: bucket.y,
+    zoneId: bucket.id,
+    zoneLabel: pitchLocationLabelFromBucket(bucket, pitcher),
+    isZone: bucket.isZone,
+  };
+}
+
+function pitchMarkerOffset(index: number) {
+  const offsets = [
+    { x: 0, y: 0 },
+    { x: -0.016, y: -0.012 },
+    { x: 0.016, y: -0.012 },
+    { x: -0.016, y: 0.012 },
+    { x: 0.016, y: 0.012 },
+    { x: 0, y: -0.022 },
+    { x: 0, y: 0.022 },
+  ];
+  return offsets[index % offsets.length];
+}
+
+function pitchLocationOrientationLabels(pitcher?: Player) {
+  const throwsLeft = pitcher?.throws === "L";
+  return {
+    left: throwsLeft ? "Glove Side" : "Arm Side",
+    right: throwsLeft ? "Arm Side" : "Glove Side",
+  };
+}
+
+function pitchLocationVerticalLabel(row: PitchLocationGridAxis) {
+  if (row === 1) return "Up";
+  if (row === 2) return "High";
+  if (row === 4) return "Low";
+  if (row === 5) return "Down";
+  return "Middle";
+}
+
+function pitchLocationHorizontalLabel(column: PitchLocationGridAxis, pitcher?: Player) {
+  if (column === 3) return "Middle";
+  if (!pitcher) return column < 3 ? "Left" : "Right";
+  const labels = pitchLocationOrientationLabels(pitcher);
+  return column < 3 ? labels.left : labels.right;
+}
+
+function pitchLocationLabelFromBucket(bucket: PitchLocationBucket, pitcher?: Player) {
+  const vertical = pitchLocationVerticalLabel(bucket.row);
+  const horizontal = pitchLocationHorizontalLabel(bucket.column, pitcher);
+  if (vertical === "Middle" && horizontal === "Middle") return "Middle";
+  if (vertical === "Middle") return horizontal;
+  if (horizontal === "Middle") return vertical;
+  return `${vertical} ${horizontal}`;
+}
+
+function pitchLocationBucketDetail(bucket: PitchLocationBucket, stats?: PitchLocationBucketStats, pitcher?: Player) {
+  const zone = bucket.isZone ? "strike zone" : bucket.isCorner ? "outside corner" : "ball zone";
+  if (!stats?.count) return `${pitchLocationLabelFromBucket(bucket, pitcher)} - ${zone}`;
+  const avgVelocity = stats.velocities.length
+    ? `${formatNumber(stats.velocities.reduce((sum, value) => sum + value, 0) / stats.velocities.length, 1)} mph avg`
+    : undefined;
+  return [pitchLocationLabelFromBucket(bucket, pitcher), `${stats.count} pitches`, `${stats.strikes} strikes`, avgVelocity].filter(Boolean).join(" - ");
+}
+
+function pitchLocationStatsSummary(stats: PitchLocationBucketStats) {
+  const velocity = stats.velocities.length
+    ? ` · ${formatNumber(stats.velocities.reduce((sum, value) => sum + value, 0) / stats.velocities.length, 1)} mph avg`
+    : "";
+  return `${stats.count} pitches · ${formatPct(pct(stats.strikes, stats.count), 0)} strike${velocity}`;
+}
+
+function pitchLocationPitchMixSummary(stats: PitchLocationBucketStats) {
+  const mix = PITCH_TYPES
+    .map((pitchType) => ({ pitchType, count: stats.pitchTypes[pitchType] ?? 0 }))
+    .filter((item) => item.count > 0)
+    .sort((left, right) => right.count - left.count || left.pitchType.localeCompare(right.pitchType))
+    .slice(0, 4)
+    .map((item) => `${PITCH_TYPE_LABELS[item.pitchType]} ${item.count}`);
+  return mix.length ? `Pitch mix: ${mix.join(", ")}` : "Pitch mix unavailable";
+}
+
+function buildPitchLocationSummary(events: PitchEvent[], pitcher?: Player) {
+  const locatedBuckets = events
+    .map((event) => pitchLocationBucketFromPoint(event.location))
+    .filter((bucket): bucket is PitchLocationBucket => Boolean(bucket));
+  const total = locatedBuckets.length;
+  const countPct = (count: number) => total ? formatPct(pct(count, total), 0) : "--";
+  const countLabel = (count: number) => `${count}/${total || 0}`;
+  const up = locatedBuckets.filter((bucket) => bucket.row <= 2).length;
+  const middle = locatedBuckets.filter((bucket) => bucket.row === 3).length;
+  const down = locatedBuckets.filter((bucket) => bucket.row >= 4).length;
+  const arm = locatedBuckets.filter((bucket) => pitchLocationHorizontalLabel(bucket.column, pitcher) === "Arm Side").length;
+  const center = locatedBuckets.filter((bucket) => bucket.column === 3).length;
+  const glove = locatedBuckets.filter((bucket) => pitchLocationHorizontalLabel(bucket.column, pitcher) === "Glove Side").length;
+  const inZone = locatedBuckets.filter((bucket) => bucket.isZone).length;
+  return [
+    { label: "In Zone", value: countPct(inZone), detail: countLabel(inZone) },
+    { label: "Out", value: countPct(total - inZone), detail: countLabel(total - inZone) },
+    { label: "Up", value: countPct(up), detail: countLabel(up) },
+    { label: "Middle", value: countPct(middle), detail: countLabel(middle) },
+    { label: "Down", value: countPct(down), detail: countLabel(down) },
+    { label: "Arm", value: countPct(arm), detail: countLabel(arm) },
+    { label: "Center", value: countPct(center), detail: countLabel(center) },
+    { label: "Glove", value: countPct(glove), detail: countLabel(glove) },
+  ];
 }
 
 function buildHittingPitchSplits(events: HittingEvent[]) {
@@ -14937,7 +17959,7 @@ function GamesView({
             <div className="game-input-layout">
               <div>
                 <div className="pitch-type-row">
-                  {PITCH_TYPES.slice(0, 7).map((pitchType) => (
+                  {PITCH_TYPES.map((pitchType) => (
                     <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>{pitchType}</button>
                   ))}
                 </div>
@@ -14996,11 +18018,14 @@ function AnalyticsView({
   const [eventSelectorOpen, setEventSelectorOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
-  const [askOpen, setAskOpen] = useState(false);
-  const [askResponse, setAskResponse] = useState<AskClubhouseResponse | undefined>();
-  const [askPendingQuestionId, setAskPendingQuestionId] = useState<string | undefined>();
-  const [askThinking, setAskThinking] = useState(false);
-  const askTimerRef = useRef<number | undefined>(undefined);
+  const initialAskFixture = useMemo(() => readInitialAskClubhouseFixture(), []);
+  const [askOpen, setAskOpen] = useState(Boolean(initialAskFixture?.open));
+  const [askConversationId, setAskConversationId] = useState<ID | undefined>();
+  const [askMessages, setAskMessages] = useState<AskClubhouseChatMessage[]>(() => initialAskFixture?.messages ?? []);
+  const [askInput, setAskInput] = useState("");
+  const [askSending, setAskSending] = useState(Boolean(initialAskFixture?.sending));
+  const [askStage, setAskStage] = useState(initialAskFixture?.stage ?? ASK_CLUBHOUSE_GENERIC_STAGE);
+  const [askError, setAskError] = useState<string | undefined>(initialAskFixture?.error);
   const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>(() => readInitialAnalyticsDetailPlayerId(data));
   const [metricIds, setMetricIds] = useState<string[] | undefined>(initialState.metricIds);
   const context = useMemo(() => ({
@@ -15026,6 +18051,30 @@ function AnalyticsView({
   const result = useMemo(() => executeAnalyticsQuery(data, query), [data, query]);
   const selectedDetailRow = detailPlayerId ? result.rows.find((row) => row.player.id === detailPlayerId) : undefined;
   const activeFilterCount = Object.values(filters).reduce((total, value) => total + (Array.isArray(value) ? value.length : 0), 0);
+  const analyticsDomainOptions: ChoiceOption[] = [
+    { value: "hitting", label: "Hitting" },
+    { value: "pitching", label: "Pitching" },
+    { value: "defense", label: "Defense" },
+    { value: "development", label: "Development" },
+  ];
+  const analyticsSourceOptions: ChoiceOption[] = [
+    { value: "games", label: "Games" },
+    { value: "practice", label: "Practice" },
+    { value: "live-bp", label: "Live BP" },
+    { value: "all", label: "All" },
+  ];
+  const analyticsTimeRangeOptions: ChoiceOption[] = [
+    { value: "7d", label: "7D" },
+    { value: "30d", label: "30D" },
+    { value: "season", label: "Season" },
+    { value: "custom", label: "Custom" },
+  ];
+  const analyticsDevelopmentOptions: ChoiceOption[] = [
+    { value: "overview", label: "Overview" },
+    { value: "weight-room", label: "Weight Room" },
+    { value: "attendance", label: "Attendance" },
+    { value: "trends", label: "Trends" },
+  ];
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -15060,9 +18109,13 @@ function AnalyticsView({
     if (nextUrl !== currentUrl) window.history.replaceState({}, "", nextUrl);
   }, [customRange.end, customRange.start, developmentView, domain, eventIds, filters, metricIds, mode, sort, source, timeRange]);
 
-  useEffect(() => () => {
-    if (askTimerRef.current !== undefined) window.clearTimeout(askTimerRef.current);
-  }, []);
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production" || typeof window === "undefined" || !askOpen) return;
+    const askTheme = new URLSearchParams(window.location.search).get("askTheme");
+    if (askTheme !== "light" && askTheme !== "dark") return;
+    document.documentElement.dataset.theme = askTheme;
+    document.documentElement.style.colorScheme = askTheme;
+  }, [askOpen]);
 
   useEffect(() => {
     const handleAnalyticsPopState = () => {
@@ -15146,39 +18199,114 @@ function AnalyticsView({
     });
   }
 
-  function handleAskQuestion(questionId: string) {
+  async function handleAskQuestion(question: string) {
+    const nextQuestion = question.trim();
+    if (!nextQuestion || askSending) return;
     setAskOpen(true);
-    setAskPendingQuestionId(questionId);
-    setAskResponse(undefined);
-    setAskThinking(true);
-    if (askTimerRef.current !== undefined) window.clearTimeout(askTimerRef.current);
-    askTimerRef.current = window.setTimeout(() => {
-      setAskResponse(runAskClubhouseQuestion(data, questionId, context));
-      setAskThinking(false);
-      askTimerRef.current = undefined;
-    }, 520);
+    setAskError(undefined);
+    setAskInput("");
+    setAskStage(ASK_CLUBHOUSE_GENERIC_STAGE);
+    setAskSending(true);
+    const userMessage: AskClubhouseChatMessage = {
+      id: `ask-user-${Date.now()}`,
+      role: "user",
+      content: nextQuestion,
+      createdAt: new Date().toISOString(),
+    };
+    const pendingMessage: AskClubhouseChatMessage = {
+      id: `ask-pending-${Date.now()}`,
+      role: "assistant",
+      content: ASK_CLUBHOUSE_GENERIC_STAGE,
+      createdAt: new Date().toISOString(),
+      pending: true,
+    };
+    const history = [...askMessages, userMessage].slice(-8);
+    setAskMessages((current) => [...current, userMessage, pendingMessage]);
+    try {
+      const response = await fetch("/api/ai/chat", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: nextQuestion,
+          conversationId: askConversationId,
+          messages: history.map(({ role, content, createdAt }) => ({ role, content, createdAt })),
+          uiContext: {
+            teamId: context.teamId,
+            seasonId: context.seasonId,
+            organizationId: context.organizationId,
+            analytics: {
+              domain: query.domain,
+              source: query.source,
+              mode: query.mode,
+              timeRange: query.timeRange,
+              developmentView: query.developmentView,
+              eventIds: query.eventIds,
+              filters: query.filters,
+              sort: query.sort,
+              groupBy: "player",
+            },
+          },
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as AskClubhouseApiResponse;
+      const assistantMessage: AskClubhouseChatMessage = {
+        id: payload.message?.id ?? `ask-assistant-${Date.now()}`,
+        role: "assistant",
+        content: payload.answer ?? payload.message?.content ?? "Ask Clubhouse could not answer that yet.",
+        createdAt: payload.message?.createdAt ?? new Date().toISOString(),
+        status: payload.status,
+        evidence: payload.evidence,
+        actions: payload.actions,
+        followUps: payload.followUps,
+        usage: payload.usage,
+      };
+      if (payload.conversationId) setAskConversationId(payload.conversationId);
+      if (!response.ok || !payload.ok) setAskError(payload.answer);
+      setAskMessages((current) => current.map((messageItem) => messageItem.pending ? assistantMessage : messageItem));
+    } catch {
+      const failedMessage: AskClubhouseChatMessage = {
+        id: `ask-error-${Date.now()}`,
+        role: "assistant",
+        content: `${ASK_CLUBHOUSE_ERROR_TITLE} ${ASK_CLUBHOUSE_ERROR_BODY}`,
+        createdAt: new Date().toISOString(),
+        status: "failed",
+      };
+      setAskError(failedMessage.content);
+      setAskMessages((current) => current.map((messageItem) => messageItem.pending ? failedMessage : messageItem));
+    } finally {
+      setAskSending(false);
+    }
   }
 
   function closeAskClubhouse() {
-    if (askTimerRef.current !== undefined) {
-      window.clearTimeout(askTimerRef.current);
-      askTimerRef.current = undefined;
-    }
-    setAskThinking(false);
     setAskOpen(false);
   }
 
-  function applyAskResult(response: AskClubhouseResponse) {
-    const next = response.result.query;
+  function startNewAskChat() {
+    setAskConversationId(undefined);
+    setAskMessages([]);
+    setAskInput("");
+    setAskError(undefined);
+  }
+
+  function applyAskAction(action: AskClubhouseAction) {
+    const next = action.query;
+    const nextSource = next.source ?? "all";
+    const nextMode = next.mode ?? "box-score";
     setDomain(next.domain);
-    setSource(next.source);
-    setMode(next.mode);
-    setTimeRange(next.timeRange);
+    setSource(nextSource);
+    setMode(nextMode);
+    setTimeRange(next.timeRange ?? "season");
     setDevelopmentView(next.developmentView ?? "overview");
     setEventIds(next.eventIds ?? []);
     setFilters(next.filters ?? {});
     setMetricIds(next.metrics);
-    setSort(next.sort ?? defaultAnalyticsSort(next.domain, next.source, next.mode));
+    setSort(next.sort ?? defaultAnalyticsSort(next.domain, nextSource, nextMode));
+    if (action.playerId) {
+      setDetailPlayerId(action.playerId);
+      writeAnalyticsDetailRoute(action.playerId);
+    }
     setAskOpen(false);
   }
 
@@ -15208,26 +18336,63 @@ function AnalyticsView({
       <SectionHeader title="Analytics" />
 
       <section className="analytics-controls" aria-label="Analytics controls">
-        <SegmentedControl values={["hitting", "pitching", "defense", "development"] as AnalyticsDomain[]} active={domain} onChange={handleDomain} />
-        <div className="analytics-controls__row">
+        <div className="analytics-domain-tabs">
+          <SegmentedControl values={["hitting", "pitching", "defense", "development"] as AnalyticsDomain[]} active={domain} onChange={handleDomain} />
+        </div>
+        <div className="analytics-domain-select-wrap">
+          <ChoiceSelect
+            value={domain}
+            className="analytics-domain-select"
+            showSelectedDescription={false}
+            options={analyticsDomainOptions}
+            onChange={(value) => handleDomain(value as AnalyticsDomain)}
+            aria-label="Analytics category"
+          />
+        </div>
+        <div className="analytics-controls__row analytics-controls__row--primary">
           {domain !== "development" ? (
             <>
-              <SegmentedControl values={["box-score", "situational"] as AnalyticsMode[]} active={mode} onChange={handleMode} />
-              <SegmentedControl values={["games", "practice", "live-bp", "all"] as AnalyticsSource[]} active={source} onChange={handleSource} />
+              <div className="analytics-mode-tabs">
+                <SegmentedControl values={["box-score", "situational"] as AnalyticsMode[]} active={mode} onChange={handleMode} />
+              </div>
+              <div className="analytics-source-tabs">
+                <SegmentedControl values={["games", "practice", "live-bp", "all"] as AnalyticsSource[]} active={source} onChange={handleSource} />
+              </div>
+              <div className="analytics-source-select-wrap">
+                <ChoiceSelect
+                  value={source}
+                  className="analytics-source-select"
+                  showSelectedDescription={false}
+                  options={analyticsSourceOptions}
+                  onChange={(value) => handleSource(value as AnalyticsSource)}
+                  aria-label="Analytics source"
+                />
+              </div>
             </>
           ) : (
-            <SegmentedControl values={["overview", "weight-room", "attendance", "trends"] as AnalyticsDevelopmentView[]} active={developmentView} onChange={setDevelopmentView} />
+            <>
+              <div className="analytics-development-tabs">
+                <SegmentedControl values={["overview", "weight-room", "attendance", "trends"] as AnalyticsDevelopmentView[]} active={developmentView} onChange={setDevelopmentView} />
+              </div>
+              <div className="analytics-development-select-wrap">
+                <ChoiceSelect
+                  value={developmentView}
+                  className="analytics-development-select"
+                  showSelectedDescription={false}
+                  options={analyticsDevelopmentOptions}
+                  onChange={(value) => setDevelopmentView(value as AnalyticsDevelopmentView)}
+                  aria-label="Development analytics view"
+                />
+              </div>
+            </>
           )}
+        </div>
+        <div className="analytics-controls__row analytics-controls__row--filters">
           <ChoiceSelect
             value={timeRange}
             className="analytics-select"
             showSelectedDescription={false}
-            options={[
-              { value: "7d", label: "7D" },
-              { value: "30d", label: "30D" },
-              { value: "season", label: "Season" },
-              { value: "custom", label: "Custom" },
-            ]}
+            options={analyticsTimeRangeOptions}
             onChange={(value) => setTimeRange(value as AnalyticsTimeRange)}
             aria-label="Analytics time range"
           />
@@ -15319,12 +18484,18 @@ function AnalyticsView({
 
       {askOpen && (
         <AskClubhouseDrawer
-          response={askResponse}
-          pendingQuestionId={askPendingQuestionId}
-          thinking={askThinking}
+          messages={askMessages}
+          input={askInput}
+          sending={askSending}
+          stage={askStage}
+          error={askError}
+          scopeLabel={[data.teamContext?.currentTeam?.teamName, result.scopeLabel].filter(Boolean).join(" · ")}
           onClose={closeAskClubhouse}
+          onNewChat={startNewAskChat}
+          onInput={setAskInput}
           onQuestion={handleAskQuestion}
-          onApply={applyAskResult}
+          onSubmit={() => handleAskQuestion(askInput)}
+          onAction={applyAskAction}
         />
       )}
       {selectedDetailRow && (
@@ -15619,76 +18790,469 @@ function AnalyticsFilterPanel({
 }
 
 function AskClubhouseDrawer({
-  response,
-  pendingQuestionId,
-  thinking,
+  messages,
+  input,
+  sending,
+  stage,
+  error,
+  scopeLabel,
   onClose,
+  onNewChat,
+  onInput,
   onQuestion,
-  onApply,
+  onSubmit,
+  onAction,
 }: {
-  response?: AskClubhouseResponse;
-  pendingQuestionId?: string;
-  thinking: boolean;
+  messages: AskClubhouseChatMessage[];
+  input: string;
+  sending: boolean;
+  stage: string;
+  error?: string;
+  scopeLabel: string;
   onClose: () => void;
-  onQuestion: (questionId: string) => void;
-  onApply: (response: AskClubhouseResponse) => void;
+  onNewChat: () => void;
+  onInput: (value: string) => void;
+  onQuestion: (question: string) => void;
+  onSubmit: () => void;
+  onAction: (action: AskClubhouseAction) => void;
 }) {
-  const pendingQuestion = ASK_CLUBHOUSE_QUESTIONS.find((question) => question.id === pendingQuestionId);
-  const activeQuestionId = response?.question.id ?? pendingQuestionId;
-  const followUps = ASK_CLUBHOUSE_QUESTIONS.filter((question) => question.id !== activeQuestionId).slice(0, 3);
+  const [showAllIdeas, setShowAllIdeas] = useState(() => {
+    if (process.env.NODE_ENV === "production" || typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("askIdeas") === "all";
+  });
+  const visibleMessages = useMemo(() => dedupeAskClubhouseMessages(messages), [messages]);
+  const lastUserQuestion = [...visibleMessages].reverse().find((message) => message.role === "user")?.content;
+  const suggestions = showAllIdeas ? ASK_CLUBHOUSE_UI_SUGGESTIONS : ASK_CLUBHOUSE_UI_SUGGESTIONS.slice(0, 4);
+  const canSend = input.trim().length > 0 && !sending;
+  const shouldShowInlineError = Boolean(
+    error
+    && !sending
+    && !visibleMessages.some((message) => !message.pending && message.role === "assistant" && normalizeAskContent(message.content) === normalizeAskContent(error)),
+  );
+
   return (
-    <div className="analytics-drawer-backdrop" role="presentation">
-      <aside className="analytics-drawer analytics-ask-drawer" aria-label="Ask Clubhouse">
-        <div className="analytics-drawer__head">
-          <div>
-            <h2><Sparkles size={17} aria-hidden="true" /> Ask Clubhouse</h2>
-          </div>
-          <button className="ghost-button" type="button" onClick={onClose} aria-label="Close Ask Clubhouse">
-            <X size={16} aria-hidden="true" />
+    <div
+      className="analytics-drawer-backdrop analytics-ask-backdrop"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <aside className="analytics-drawer analytics-ask-drawer" role="dialog" aria-modal="true" aria-label="Ask Clubhouse">
+        <header className="ask-header">
+          <button className="ask-header__back" type="button" onClick={onClose} aria-label="Back to Analytics">
+            <ChevronLeft size={18} aria-hidden="true" />
+            <span>Analytics</span>
           </button>
-        </div>
-        <section className="ask-chat" aria-label="Ask Clubhouse chat">
-          <div className="ask-message ask-message--assistant">
-            <strong>What do you want to know?</strong>
-            <span>Pick a starter question and I will run it against your current team data.</span>
+          <div className="ask-header__title">
+            <strong>Ask Clubhouse</strong>
+            <small>{scopeLabel || "Team analytics"}</small>
           </div>
-          {(pendingQuestion || response) && (
-            <div className="ask-message ask-message--user">
-              {response?.question.label ?? pendingQuestion?.label}
-            </div>
+          <div className="ask-header__actions">
+            <button className="ghost-button" type="button" onClick={onNewChat} aria-label="Start a new Ask Clubhouse chat" title="New Chat">
+              <RefreshCw size={15} aria-hidden="true" />
+              <span>New</span>
+            </button>
+            <button className="ghost-button" type="button" onClick={onClose} aria-label="Close Ask Clubhouse">
+              <X size={16} aria-hidden="true" />
+            </button>
+          </div>
+        </header>
+        <section className="ask-chat" aria-label="Ask Clubhouse chat">
+          {!visibleMessages.length && (
+            <AskClubhouseLanding
+              scopeLabel={scopeLabel}
+              suggestions={suggestions}
+              showAllIdeas={showAllIdeas}
+              sending={sending}
+              onQuestion={onQuestion}
+              onToggleIdeas={() => setShowAllIdeas((current) => !current)}
+            />
           )}
-          {thinking && (
-            <div className="ask-message ask-message--assistant ask-message--thinking">
-              <span aria-hidden="true" />
-              Thinking...
-            </div>
-          )}
-          {response && (
-            <div className="ask-message ask-message--assistant ask-message--result">
-              <small>{response.question.criteria}</small>
-              <h3>{response.lines.length ? response.question.label : "Not enough qualified data yet"}</h3>
-              {response.lines.length ? response.lines.map((line) => (
-                <div key={line.playerId}>
-                  <strong>{line.label}</strong>
-                  <em>{line.value}</em>
-                  {line.sample && <small>{line.sample}</small>}
-                </div>
-              )) : <p>There is not a qualified sample for that question in this selection yet.</p>}
-              <button type="button" className="primary-button" onClick={() => onApply(response)}>View in Analytics</button>
-            </div>
+          {visibleMessages.map((message) => (
+            <AskClubhouseMessageBubble
+              key={message.id}
+              message={message.pending ? { ...message, content: stage } : message}
+              onAction={onAction}
+              onFollowUp={onQuestion}
+              onRetry={() => {
+                if (lastUserQuestion) onQuestion(lastUserQuestion);
+              }}
+            />
+          ))}
+          {shouldShowInlineError && (
+            <AskClubhouseStatusCard
+              tone="error"
+              title={ASK_CLUBHOUSE_ERROR_TITLE}
+              body={error ?? ASK_CLUBHOUSE_ERROR_BODY}
+              actionLabel={lastUserQuestion ? "Try Again" : undefined}
+              onAction={lastUserQuestion ? () => onQuestion(lastUserQuestion) : undefined}
+            />
           )}
         </section>
-        <div className="ask-question-list">
-          <span>{response ? "Follow ups" : "Suggested questions"}</span>
-          {(response ? followUps : ASK_CLUBHOUSE_QUESTIONS).map((question) => (
-            <button key={question.id} type="button" className={activeQuestionId === question.id ? "active" : ""} onClick={() => onQuestion(question.id)}>
-              {question.label}
-            </button>
-          ))}
-        </div>
+        <form
+          className="ask-composer"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (canSend) onSubmit();
+          }}
+        >
+          <textarea
+            value={input}
+            onChange={(event) => onInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                if (canSend) onSubmit();
+              }
+            }}
+            placeholder={visibleMessages.length ? "Ask a follow-up..." : "Ask about your team..."}
+            rows={2}
+            maxLength={4000}
+            disabled={sending}
+          />
+          <button className="primary-button ask-send-button" type="submit" disabled={!canSend} aria-label="Send Ask Clubhouse message">
+            <Send size={16} aria-hidden="true" />
+          </button>
+        </form>
       </aside>
     </div>
   );
+}
+
+function AskClubhouseLanding({
+  scopeLabel,
+  suggestions,
+  showAllIdeas,
+  sending,
+  onQuestion,
+  onToggleIdeas,
+}: {
+  scopeLabel: string;
+  suggestions: Array<{ label: string; icon: LucideIcon }>;
+  showAllIdeas: boolean;
+  sending: boolean;
+  onQuestion: (question: string) => void;
+  onToggleIdeas: () => void;
+}) {
+  return (
+    <div className="ask-empty-state">
+      <div className="ask-empty-state__intro">
+        <span className="ask-mark" aria-hidden="true">
+          <Sparkles size={19} />
+        </span>
+        <h3>Ask Clubhouse</h3>
+        <em>{scopeLabel || "Team analytics"}</em>
+        <strong>What do you want to know?</strong>
+        <p>Ask anything about your team, players, practices, games, development, or baseball.</p>
+      </div>
+      <div className="ask-suggestion-stack" aria-label="Suggested questions">
+        {suggestions.map(({ label, icon: Icon }) => (
+          <button key={label} type="button" onClick={() => onQuestion(label)} disabled={sending}>
+            <Icon size={16} aria-hidden="true" />
+            <span>{label}</span>
+            <ChevronRight size={14} aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+      <button className="ask-show-more" type="button" onClick={onToggleIdeas}>
+        {showAllIdeas ? "Show fewer ideas" : "Show more ideas"}
+        {showAllIdeas ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+      </button>
+    </div>
+  );
+}
+
+function AskClubhouseMessageBubble({
+  message,
+  onAction,
+  onFollowUp,
+  onRetry,
+}: {
+  message: AskClubhouseChatMessage;
+  onAction: (action: AskClubhouseAction) => void;
+  onFollowUp: (question: string) => void;
+  onRetry: () => void;
+}) {
+  const isAssistant = message.role === "assistant";
+  return (
+    <article className={`ask-message ask-message--${message.role}${message.pending ? " ask-message--thinking" : ""}`}>
+      <header className="ask-message__meta">
+        <span>
+          {isAssistant && <Sparkles size={15} aria-hidden="true" />}
+          {isAssistant ? "Ask Clubhouse" : "You"}
+        </span>
+        {message.createdAt && <time dateTime={message.createdAt}>{formatAskMessageTime(message.createdAt)}</time>}
+      </header>
+      {message.pending ? (
+        <AskClubhouseThinking stage={message.content} />
+      ) : isAssistant ? (
+        <AskClubhouseAssistantAnswer message={message} onAction={onAction} onFollowUp={onFollowUp} onRetry={onRetry} />
+      ) : (
+        <p className="ask-user-question">{message.content}</p>
+      )}
+    </article>
+  );
+}
+
+function AskClubhouseAssistantAnswer({
+  message,
+  onAction,
+  onFollowUp,
+  onRetry,
+}: {
+  message: AskClubhouseChatMessage;
+  onAction: (action: AskClubhouseAction) => void;
+  onFollowUp: (question: string) => void;
+  onRetry: () => void;
+}) {
+  if (isAskSetupMessage(message)) {
+    return (
+      <AskClubhouseStatusCard
+        tone="setup"
+        title={ASK_CLUBHOUSE_SETUP_TITLE}
+        body={ASK_CLUBHOUSE_SETUP_BODY}
+        actionLabel="Try Again"
+        onAction={onRetry}
+      />
+    );
+  }
+
+  if (message.status === "failed" || message.status === "unavailable") {
+    return (
+      <AskClubhouseStatusCard
+        tone="error"
+        title={ASK_CLUBHOUSE_ERROR_TITLE}
+        body={ASK_CLUBHOUSE_ERROR_BODY}
+        actionLabel="Try Again"
+        onAction={onRetry}
+      />
+    );
+  }
+
+  if (message.status === "no_data") {
+    return (
+      <>
+        <AskClubhouseStatusCard
+          tone="notice"
+          title={message.content}
+          body="Try a broader date range, another data source, or all tracked sessions."
+        />
+        <AskClubhouseFollowUps message={message} onFollowUp={onFollowUp} />
+      </>
+    );
+  }
+
+  if (message.status === "refused") {
+    return <p className="ask-answer-copy">{message.content}</p>;
+  }
+
+  return (
+    <>
+      {message.ui?.kind === "ranking" && <AskClubhouseRankingAnswer payload={message.ui} />}
+      {message.ui?.kind === "comparison" && <AskClubhouseComparisonAnswer payload={message.ui} />}
+      {!message.ui && <AskClubhouseTextAnswer content={message.content} />}
+      <AskClubhouseEvidence message={message} />
+      <AskClubhouseActions message={message} onAction={onAction} />
+      <AskClubhouseFollowUps message={message} onFollowUp={onFollowUp} />
+    </>
+  );
+}
+
+function AskClubhouseThinking({ stage }: { stage: string }) {
+  return (
+    <div className="ask-thinking-block" aria-live="polite">
+      <span aria-hidden="true" />
+      <strong>{stage || ASK_CLUBHOUSE_GENERIC_STAGE}</strong>
+    </div>
+  );
+}
+
+function AskClubhouseTextAnswer({ content }: { content: string }) {
+  const paragraphs = content.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
+  return (
+    <div className="ask-answer-copy">
+      {paragraphs.length ? paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>) : <p>{content}</p>}
+    </div>
+  );
+}
+
+function AskClubhouseRankingAnswer({ payload }: { payload: Extract<AskClubhouseUiPayload, { kind: "ranking" }> }) {
+  return (
+    <div className="ask-structured-answer">
+      <h3>{payload.headline}</h3>
+      <div className="ask-metric-strip" aria-label="Key metrics">
+        {payload.metrics.map((metric) => (
+          <div key={metric.label}>
+            <strong>{metric.value}</strong>
+            <span>{metric.label}</span>
+            {metric.sub && <small>{metric.sub}</small>}
+          </div>
+        ))}
+      </div>
+      <p>{payload.explanation}</p>
+      <div className="ask-ranking">
+        <div className="ask-ranking__head">
+          <span>{payload.rankingLabel}</span>
+          <span>{payload.rankingValueLabel}</span>
+        </div>
+        {payload.ranking.map((row) => (
+          <div key={`${row.rank}-${row.name}`} className="ask-ranking__row">
+            <b>{row.rank}</b>
+            <span className="ask-ranking__avatar">{row.initials}</span>
+            <strong>{row.name}</strong>
+            <em>{row.value}</em>
+          </div>
+        ))}
+      </div>
+      <small className="ask-answer-footnote">{payload.footnote}</small>
+    </div>
+  );
+}
+
+function AskClubhouseComparisonAnswer({ payload }: { payload: Extract<AskClubhouseUiPayload, { kind: "comparison" }> }) {
+  const maxValue = Math.max(payload.practiceValue, payload.gamesValue, 1);
+  return (
+    <div className="ask-structured-answer">
+      <h3>{payload.title}</h3>
+      <div className="ask-comparison">
+        <div className="ask-comparison__head">
+          <span />
+          <span>Practice</span>
+          <span>Games</span>
+        </div>
+        {payload.rows.map((row) => (
+          <div key={row.label} className="ask-comparison__row">
+            <strong>{row.label}</strong>
+            <span className={row.emphasis === "practice" ? "active" : ""}>{row.practice}</span>
+            <span className={row.emphasis === "games" ? "active" : ""}>{row.games}</span>
+          </div>
+        ))}
+      </div>
+      <p>{payload.explanation}</p>
+      <div className="ask-bar-compare" aria-label={payload.barLabel}>
+        <span>{payload.barLabel}</span>
+        <div>
+          <i style={{ width: `${Math.max(8, (payload.practiceValue / maxValue) * 100)}%` }} />
+          <b>{payload.practiceValue}%</b>
+        </div>
+        <div>
+          <i style={{ width: `${Math.max(8, (payload.gamesValue / maxValue) * 100)}%` }} />
+          <b>{payload.gamesValue}%</b>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AskClubhouseEvidence({ message }: { message: AskClubhouseChatMessage }) {
+  if (!message.evidence?.length) return null;
+  return (
+    <div className="ask-evidence-list">
+      {message.evidence.map((item) => (
+        <div key={`${message.id}-${item.title}`}>
+          <strong>{item.title}</strong>
+          <small>{item.summary}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AskClubhouseActions({
+  message,
+  onAction,
+}: {
+  message: AskClubhouseChatMessage;
+  onAction: (action: AskClubhouseAction) => void;
+}) {
+  if (!message.actions?.length) return null;
+  return (
+    <div className="ask-action-list">
+      {message.actions.map((action) => (
+        <button key={`${message.id}-${action.label}`} type="button" onClick={() => onAction(action)}>
+          <BarChart3 size={15} aria-hidden="true" />
+          <span>{action.label}</span>
+          <ChevronRight size={14} aria-hidden="true" />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AskClubhouseFollowUps({
+  message,
+  onFollowUp,
+}: {
+  message: AskClubhouseChatMessage;
+  onFollowUp: (question: string) => void;
+}) {
+  if (!message.followUps?.length) return null;
+  return (
+    <div className="ask-followup-list">
+      <span>You might also ask</span>
+      {message.followUps.slice(0, 3).map((question) => (
+        <button key={`${message.id}-${question}`} type="button" onClick={() => onFollowUp(question)}>
+          {question}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AskClubhouseStatusCard({
+  tone,
+  title,
+  body,
+  actionLabel,
+  onAction,
+}: {
+  tone: "setup" | "error" | "notice";
+  title: string;
+  body: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <div className={`ask-status-card ask-status-card--${tone}`}>
+      <strong>{title}</strong>
+      <p>{body}</p>
+      {actionLabel && onAction && (
+        <button type="button" onClick={onAction}>
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function dedupeAskClubhouseMessages(messages: AskClubhouseChatMessage[]): AskClubhouseChatMessage[] {
+  return messages.reduce<AskClubhouseChatMessage[]>((deduped, message) => {
+    const previous = deduped[deduped.length - 1];
+    if (
+      previous
+      && previous.role === message.role
+      && previous.status === message.status
+      && normalizeAskContent(previous.content) === normalizeAskContent(message.content)
+    ) {
+      return deduped;
+    }
+    return [...deduped, message];
+  }, []);
+}
+
+function normalizeAskContent(value: string | undefined): string {
+  return (value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function isAskSetupMessage(message: AskClubhouseChatMessage): boolean {
+  return message.status === "unavailable" && normalizeAskContent(message.content).includes("ask clubhouse is finishing setup");
+}
+
+function formatAskMessageTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 function AnalyticsPlayerDrawer({
@@ -15917,7 +19481,7 @@ function PlayerProfile({
             </div>
             <div className="recent-form-grid">
               <FormSnapshot title="Hitting" primary={hitStats.totalSwings ? formatPct(hitStats.hardHitPct) : "--"} secondary={hitStats.totalSwings ? `${formatPct(hitStats.contactPct)} contact` : "No tracked swings"} />
-              <FormSnapshot title="Pitching" primary={pitchStats.totalPitches ? formatPct(pitchStats.strikePct) : "--"} secondary={pitchStats.totalPitches ? `${formatPct(pitchStats.cswPct)} CSW` : "No tracked pitches"} />
+              <FormSnapshot title="Pitching" primary={pitchStats.totalPitches ? formatPct(pitchStats.strikePct) : "--"} secondary={pitchStats.totalPitches ? `${formatPct(pitchStats.zonePct)} zone` : "No tracked pitches"} />
               <FormSnapshot title="Weight Room" primary={workoutMetrics?.score ? String(workoutMetrics.score) : "--"} secondary={workoutMetrics?.score ? `${workoutMetrics.trend.length} logged entries` : "No workouts yet"} />
             </div>
             {hitStats.totalSwings > 0 && (
@@ -15993,10 +19557,10 @@ function PlayerProfile({
             <div className="mini-stat-grid">
               <StatTile label="Pitches" value={pitchStats.totalPitches} />
               <StatTile label="Strike %" value={formatPct(pitchStats.strikePct)} />
-              <StatTile label="CSW %" value={formatPct(pitchStats.cswPct)} />
+              <StatTile label="Zone %" value={formatPct(pitchStats.zonePct)} />
               <StatTile label="Avg Velo" value={formatNumber(pitchStats.avgVelocity, 1)} accent />
             </div>
-            <DonutChart items={Object.values(pitchStats.byPitchType).slice(0, 6).map((item, index) => ({ label: item.pitchType, value: item.pitches, color: PITCH_MIX_COLORS[index % PITCH_MIX_COLORS.length] }))} />
+            <DonutChart items={Object.values(pitchStats.byPitchType).slice(0, 6).map((item) => ({ label: item.pitchType, value: item.pitches, color: PITCH_TYPE_COLOR_VARS[item.pitchType] }))} />
           </article>
           <article className="panel"><Heatmap points={pitchEvents.map((event) => event.location).filter(isZonePoint)} /></article>
         </section>
@@ -18406,6 +21970,20 @@ function LiveMetrics({ items }: { items: Array<{ label: string; value: string | 
   );
 }
 
+function PracticeSummaryStrip({ items }: { items: Array<{ label: string; value: React.ReactNode; detail?: string }> }) {
+  return (
+    <div className="practice-analytics-summary-strip" aria-label="Practice analytics summary">
+      {items.map((item) => (
+        <span key={item.label}>
+          <strong>{item.value}</strong>
+          <small>{item.label}</small>
+          {item.detail && <em>{item.detail}</em>}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function PlayerGameChip({ label, player, onOpen }: { label: string; player?: Player; onOpen: (playerId: ID) => void }) {
   return (
     <button type="button" className="player-game-chip" onClick={() => player && onOpen(player.id)} disabled={!player}>
@@ -20066,11 +23644,12 @@ function practiceMetricColumns(category: PracticeMetricsCategory): PracticeMetri
   if (category === "Defense") {
     return [
       playerColumn,
+      { key: "positionWorked", label: "Pos", render: (row) => row.positionWorked },
       { key: "reps", label: "Reps", numeric: true, render: (row) => row.reps },
-      { key: "clean", label: "Clean %", numeric: true, render: (row) => formatPct(row.clean, 0) },
+      { key: "cleanReps", label: "Clean", numeric: true, render: (row) => row.cleanReps },
       { key: "errors", label: "Errors", numeric: true, render: (row) => row.errors },
-      { key: "greatPlays", label: "Plus Plays", numeric: true, render: (row) => row.greatPlays },
-      { key: "defenseSessions", label: "Sessions", numeric: true, render: (row) => row.defenseSessions },
+      { key: "clean", label: "Clean %", numeric: true, render: (row) => formatPct(row.clean, 0) },
+      { key: "throwAcc", label: "Throw Acc.", numeric: true, render: (row) => row.throws ? formatPct(row.throwAcc, 0) : "--" },
     ];
   }
 
@@ -20103,6 +23682,14 @@ function practiceHittingSessionOptions(data: AppData, practiceId?: ID) {
     .sort((left, right) => left.startedAt.localeCompare(right.startedAt));
 }
 
+function practicePitchingSessionOptions(data: AppData, practiceId?: ID) {
+  if (!practiceId) return [];
+  return data.pitchingSessions
+    .filter((session) => session.practiceId === practiceId && session.type !== "Live BP")
+    .slice()
+    .sort((left, right) => left.startedAt.localeCompare(right.startedAt));
+}
+
 function hittingSessionAnalyticsLabel(session: HittingSession) {
   const pitchType = resolvePracticeHittingPitchType(session);
   const pitchMode = resolvePracticeHittingPitchMode(session.type, session);
@@ -20110,7 +23697,7 @@ function hittingSessionAnalyticsLabel(session: HittingSession) {
   return `${normalizeHittingStation(session.type)}${pitch} · ${formatTime(session.startedAt)}`;
 }
 
-function buildPracticeMetricRows(data: AppData, category: PracticeMetricsCategory, practiceId?: ID, hittingSessionId?: ID): PracticeMetricRow[] {
+function buildPracticeMetricRows(data: AppData, category: PracticeMetricsCategory, practiceId?: ID, hittingSessionId?: ID, pitchingSessionId?: ID): PracticeMetricRow[] {
   const hittingSessionTypeById = new Map(data.hittingSessions.map((session) => [session.id, session.type]));
   const pitchingSessionTypeById = new Map(data.pitchingSessions.map((session) => [session.id, session.type]));
   return data.players
@@ -20127,11 +23714,12 @@ function buildPracticeMetricRows(data: AppData, category: PracticeMetricsCategor
       const pitchEvents = data.pitchEvents.filter((event) => (
         event.pitcherId === player.id
         && (!practiceId || event.practiceId === practiceId)
+        && (!pitchingSessionId || event.sessionId === pitchingSessionId)
         && pitchingSessionTypeById.get(event.sessionId) !== "Live BP"
       ));
       const pitchingStats = calculatePitchingStats(pitchEvents);
       const defenseEvents = data.defenseEvents.filter((event) => event.playerId === player.id && (!practiceId || event.practiceId === practiceId));
-      const cleanDefense = defenseEvents.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
+      const defenseStats = calculateDefenseStats(defenseEvents);
       const liveBpPitchEvents = data.pitchEvents.filter((event) => event.pitcherId === player.id && (!practiceId || event.practiceId === practiceId) && pitchingSessionTypeById.get(event.sessionId) === "Live BP");
       const liveBpHittingEvents = data.hittingEvents.filter((event) => (
         event.hitterId === player.id
@@ -20159,10 +23747,15 @@ function buildPracticeMetricRows(data: AppData, category: PracticeMetricsCategor
         zone: pitchingStats.zonePct,
         avgVelo: pitchingStats.avgVelocity,
         maxVelo: pitchingStats.maxVelocity,
-        reps: defenseEvents.length,
-        clean: pct(cleanDefense, defenseEvents.length),
-        errors: defenseEvents.filter((event) => event.outcome === "Error" || event.outcome === "Missed Rep").length,
-        greatPlays: defenseEvents.filter((event) => event.outcome === "Great Play").length,
+        positionWorked: mostCommonDefensePosition(defenseEvents, player),
+        reps: defenseStats.totalReps,
+        cleanReps: defenseStats.cleanReps,
+        clean: defenseStats.cleanPct,
+        errors: defenseStats.errors,
+        greatPlays: defenseStats.greatPlays,
+        throws: defenseStats.throwAttempts,
+        accurateThrows: defenseStats.accurateThrows,
+        throwAcc: defenseStats.throwAttempts ? defenseStats.throwAccuracyPct : undefined,
         defenseSessions: defenseSessionCount,
         liveBpPitches: liveBpPitchStats.totalPitches,
         liveBpSwings: liveBpHitStats.totalSwings,
@@ -20196,10 +23789,14 @@ function practiceMetricSortValue(row: PracticeMetricRow, key: PracticeMetricsSor
   return row[key];
 }
 
-function practiceMetricSummary(data: AppData, category: PracticeMetricsCategory, practiceId?: ID, hittingSessionId?: ID) {
+function practiceMetricSummary(data: AppData, category: PracticeMetricsCategory, practiceId?: ID, hittingSessionId?: ID, pitchingSessionId?: ID) {
   if (category === "Pitching") {
     const sessionTypeById = new Map(data.pitchingSessions.map((session) => [session.id, session.type]));
-    const events = data.pitchEvents.filter((event) => (!practiceId || event.practiceId === practiceId) && sessionTypeById.get(event.sessionId) !== "Live BP");
+    const events = data.pitchEvents.filter((event) => (
+      (!practiceId || event.practiceId === practiceId)
+      && (!pitchingSessionId || event.sessionId === pitchingSessionId)
+      && sessionTypeById.get(event.sessionId) !== "Live BP"
+    ));
     const stats = calculatePitchingStats(events);
     return [
       { label: "Pitches", value: stats.totalPitches },
@@ -20210,12 +23807,12 @@ function practiceMetricSummary(data: AppData, category: PracticeMetricsCategory,
   }
   if (category === "Defense") {
     const events = data.defenseEvents.filter((event) => !practiceId || event.practiceId === practiceId);
-    const clean = events.filter((event) => event.outcome !== "Error" && event.outcome !== "Missed Rep").length;
+    const stats = calculateDefenseStats(events);
     return [
-      { label: "Reps", value: events.length },
-      { label: "Clean", value: formatPct(pct(clean, events.length), 0) },
-      { label: "Errors", value: events.filter((event) => event.outcome === "Error" || event.outcome === "Missed Rep").length },
-      { label: "Sessions", value: data.defenseSessions.filter((session) => !practiceId || session.practiceId === practiceId).length },
+      { label: "Reps", value: stats.totalReps },
+      { label: "Clean", value: formatPct(stats.cleanPct, 0) },
+      { label: "Errors", value: stats.errors },
+      { label: "Throw Acc.", value: stats.throwAttempts ? formatPct(stats.throwAccuracyPct, 0) : "--" },
     ];
   }
   if (category === "Live BP") {
@@ -20267,9 +23864,6 @@ function isPracticeSessionLive(data: AppData, sessionId: ID, nowMs = Date.now())
 
 function practiceSessionLastActivityAt(data: AppData, sessionId: ID) {
   const timestamps = [
-    data.hittingSessions.find((session) => session.id === sessionId)?.updatedAt,
-    data.pitchingSessions.find((session) => session.id === sessionId)?.updatedAt,
-    data.defenseSessions.find((session) => session.id === sessionId)?.updatedAt,
     ...data.practiceSessionContributors.filter((row) => row.sessionId === sessionId).map((row) => row.lastActiveAt),
     ...data.hittingEvents.filter((event) => event.sessionId === sessionId).map((event) => event.createdAt),
     ...data.pitchEvents.filter((event) => event.sessionId === sessionId).map((event) => event.createdAt),
@@ -20280,7 +23874,8 @@ function practiceSessionLastActivityAt(data: AppData, sessionId: ID) {
 
 function practiceSessionActivityLabel(lastActiveAt: string, nowMs: number) {
   const ageMs = Math.max(0, nowMs - Date.parse(lastActiveAt));
-  if (ageMs < 60 * 1000) return "Active now";
+  if (ageMs < PRACTICE_SESSION_HEARTBEAT_MS + 15 * 1000) return "Live now";
+  if (ageMs < PRACTICE_ACTIVE_SESSION_GRACE_MS) return "Recently active";
   const minutes = Math.max(1, Math.round(ageMs / 60000));
   return `${minutes}m ago`;
 }
@@ -20371,10 +23966,10 @@ function buildActivePracticeSessions(data: AppData, practiceId: ID, nowMs = Date
           id: `def-${session.id}`,
           mode: "Defense" as const,
           sessionId: session.id,
-          title: session.title ?? `${session.station} Defense`,
+          title: session.drillContext ?? session.title ?? `${session.station} Defense`,
           station: session.station,
           primaryPlayerId: session.playerId,
-          playerLine: player?.name ?? "Defender",
+          playerLine: [player?.name ?? "Defender", session.positionWorked].filter(Boolean).join(" · "),
           count: `${events.length} reps`,
           contributors: contributorLabels(data, session.id, session.createdByProfileId, session.contributorProfileIds),
           isMine: Boolean(currentProfileId && (session.createdByProfileId === currentProfileId || session.contributorProfileIds?.includes(currentProfileId))),
@@ -20439,12 +24034,13 @@ function buildPlayerRecentActivity(data: AppData, player: Player) {
       .map((session) => {
         const practice = practicesById.get(session.practiceId);
         const reps = data.defenseEvents.filter((event) => event.sessionId === session.id);
+        const stats = calculateDefenseStats(reps);
         return {
           key: `def-${session.id}`,
           date: practice?.date ?? session.startedAt,
           type: "Defense",
-          title: session.station,
-          meta: `${shortDate(practice?.date ?? session.startedAt.slice(0, 10))} - ${reps.length} reps - ${formatPct(pct(reps.filter((event) => event.outcome !== "Error").length, reps.length))} clean`,
+          title: session.drillContext ?? session.station,
+          meta: `${shortDate(practice?.date ?? session.startedAt.slice(0, 10))} - ${stats.totalReps} reps - ${formatPct(stats.cleanPct)} clean`,
           summaryType: "Defense" as const,
           sessionId: session.id,
         };
@@ -20556,22 +24152,29 @@ function buildSessionSummary(data: AppData, summary: { type: "Hitting" | "Pitchi
       stats: [
         { label: "Pitches", value: stats.totalPitches },
         { label: "Strike %", value: formatPct(stats.strikePct) },
-        { label: "CSW %", value: formatPct(stats.cswPct) },
-        { label: "Avg Velo", value: formatNumber(stats.avgVelocity, 1) },
-        { label: "Max Velo", value: formatNumber(stats.maxVelocity, 1), sub: mix || `${events.length} tracked` },
+        { label: "Zone %", value: formatPct(stats.zonePct) },
+        { label: "Avg Velo", value: formatOptionalMph(stats.avgVelocity) },
+        { label: "Max Velo", value: formatOptionalMph(stats.maxVelocity), sub: mix || `${events.length} tracked` },
       ],
     };
   }
   const session = data.defenseSessions.find((item) => item.id === summary.sessionId);
   const player = data.players.find((item) => item.id === session?.playerId);
   const events = data.defenseEvents.filter((event) => event.sessionId === summary.sessionId);
+  const stats = calculateDefenseStats(events);
+  const repTypes = Object.values(stats.byRepType)
+    .sort((left, right) => right.reps - left.reps)
+    .slice(0, 3)
+    .map((item) => `${item.label} ${item.reps}`)
+    .join(" / ");
   return {
-    title: `${player?.name ?? "Defender"} - ${session?.station ?? "Defense"}`,
+    title: `${player?.name ?? "Defender"} - ${session?.drillContext ?? session?.station ?? "Defense"}`,
     stats: [
-      { label: "Attempts", value: events.length },
-      { label: "Clean", value: events.filter((event) => event.outcome !== "Error").length },
-      { label: "Clean %", value: formatPct(pct(events.filter((event) => event.outcome !== "Error").length, events.length)) },
-      { label: "Great Plays", value: events.filter((event) => event.outcome === "Great Play").length },
+      { label: "Reps", value: stats.totalReps },
+      { label: "Clean", value: stats.cleanReps },
+      { label: "Clean %", value: formatPct(stats.cleanPct) },
+      { label: "Errors", value: stats.errors },
+      { label: "Throw Acc.", value: stats.throwAttempts ? formatPct(stats.throwAccuracyPct) : "--", sub: repTypes || undefined },
     ],
   };
 }
@@ -20710,12 +24313,167 @@ function ensurePitchingSession(data: AppData, practice: Practice, playerId: ID, 
   };
 }
 
-function ensureDefenseSession(data: AppData, practice: Practice, playerId: ID, station: DefenseStation, profileId?: ID) {
+function defenseDrillOption(value: DefenseDrillContext): DefenseDrillOption {
+  return DEFENSE_DRILLS.find((drill) => drill.value === value) ?? DEFENSE_DRILLS[0];
+}
+
+function defaultDefenseDrillForStation(station: DefenseStation): DefenseDrillContext {
+  return DEFENSE_DRILLS.find((drill) => drill.station === station)?.value ?? "Team Defense";
+}
+
+function defenseStationForDrill(drill: DefenseDrillContext): DefenseStation {
+  return defenseDrillOption(drill).station;
+}
+
+function defensePositionOptions(drill: DefenseDrillContext): Position[] {
+  return defenseDrillOption(drill).positions;
+}
+
+function defaultDefensePositionForPlayer(player: Player, drill: DefenseDrillContext): Position {
+  const options = defensePositionOptions(drill);
+  if (options.includes(player.primaryPosition)) return player.primaryPosition;
+  if (player.secondaryPosition && options.includes(player.secondaryPosition)) return player.secondaryPosition;
+  if ((player.primaryPosition === "RHP" || player.primaryPosition === "LHP") && options.includes("P")) return "P";
+  return defenseDrillOption(drill).defaultPosition;
+}
+
+function defenseSubtypeOptions(repType: DefenseRepType, position?: Position): DefenseRepSubtype[] {
+  if (repType === "Ground Ball") return ["Routine", "Forehand", "Backhand", "Slow Roller", "Charge"];
+  if (repType === "Fly Ball") return ["Routine", "Drop Step", "Over Shoulder"];
+  if (repType === "Line Drive") return ["Routine", "Forehand", "Backhand"];
+  if (repType === "Double Play") return ["Routine", "Forehand", "Backhand"];
+  if (repType === "Throw") return position === "C" ? ["Throwdown", "Other"] : ["Cutoff", "Relay", "Routine"];
+  if (repType === "Block") return ["Block"];
+  if (repType === "Pick") return ["Pick"];
+  if (repType === "Bunt") return ["Bunt"];
+  return ["Other"];
+}
+
+function defenseDrillThrowRelevant(drill: DefenseDrillContext, repType: DefenseRepType) {
+  if (repType === "Block" || repType === "Pick") return false;
+  return defenseDrillOption(drill).throwRelevant || repType === "Throw" || repType === "Double Play" || repType === "Bunt";
+}
+
+function createDefenseLogDraft(player: Player, drill: DefenseDrillContext, position: Position, seed?: Partial<DefenseLogDraft>): DefenseLogDraft {
+  const option = defenseDrillOption(drill);
+  const repType = option.repTypeLocked ? option.defaultRepType : seed?.repType ?? option.defaultRepType;
+  const subtypeOptions = defenseSubtypeOptions(repType, position);
+  const repSubtype = option.subtypeLocked
+    ? option.defaultRepSubtype
+    : seed?.repSubtype && subtypeOptions.includes(seed.repSubtype)
+      ? seed.repSubtype
+      : option.defaultRepSubtype ?? subtypeOptions[0];
+  return {
+    positionWorked: position,
+    drillContext: drill,
+    repType,
+    repSubtype,
+    result: seed?.result ?? "Clean",
+    throwResult: defenseDrillThrowRelevant(drill, repType) ? seed?.throwResult ?? "Accurate" : undefined,
+    difficulty: seed?.difficulty,
+    location: seed?.location,
+    coachNote: seed?.coachNote,
+  };
+}
+
+function defenseDraftFromEvent(event: DefenseEvent, player: Player, fallbackDrill: DefenseDrillContext, fallbackPosition: Position): DefenseLogDraft {
+  const drill = event.drillContext ?? fallbackDrill;
+  const position = event.positionWorked ?? fallbackPosition ?? defaultDefensePositionForPlayer(player, drill);
+  return createDefenseLogDraft(player, drill, position, {
+    repType: defenseEventRepType(event),
+    repSubtype: event.repSubtype,
+    result: defenseEventResult(event),
+    throwResult: defenseEventThrowResult(event),
+    difficulty: event.difficulty,
+    location: event.location,
+    coachNote: event.coachNote,
+  });
+}
+
+function normalizeDefenseDraft(draft: DefenseLogDraft, trackLocation: boolean, trackDifficulty: boolean): DefenseLogDraft {
+  const repType = defenseDrillOption(draft.drillContext).repTypeLocked ? defenseDrillOption(draft.drillContext).defaultRepType : draft.repType;
+  const subtype = defenseDrillOption(draft.drillContext).subtypeLocked
+    ? defenseDrillOption(draft.drillContext).defaultRepSubtype
+    : draft.repSubtype;
+  const throwResult = defenseDrillThrowRelevant(draft.drillContext, repType) ? draft.throwResult ?? "Accurate" : undefined;
+  return {
+    ...draft,
+    repType,
+    repSubtype: subtype,
+    throwResult,
+    difficulty: trackDifficulty ? draft.difficulty : undefined,
+    location: trackLocation ? draft.location : undefined,
+  };
+}
+
+function defenseResultTone(result: DefenseOutcome) {
+  if (result === "Error" || result === "Missed Rep") return "negative";
+  if (result === "Great Play" || result === "Good Play" || result === "Clean") return "positive";
+  return "";
+}
+
+function defenseEventTone(event: DefenseEvent) {
+  return isDefenseErrorEvent(event) ? "negative" : "positive";
+}
+
+function throwQualityForDefenseDraft(draft: DefenseLogDraft) {
+  if (draft.throwResult === "Inaccurate") return "Poor";
+  if (draft.result === "Great Play") return "Plus";
+  if (draft.throwResult === "Accurate" || draft.result === "Clean" || draft.result === "Good Play") return "Good";
+  return "Average";
+}
+
+function defenseRangeForDraft(draft: DefenseLogDraft) {
+  if (draft.difficulty) return draft.difficulty;
+  if (draft.result === "Great Play") return "Plus";
+  if (draft.result === "Good Play") return "Difficult";
+  return "Routine";
+}
+
+function defenseErrorTypeForDraft(draft: DefenseLogDraft): DefenseEvent["errorType"] {
+  if (draft.throwResult === "Inaccurate") return "Throwing";
+  if (draft.repType === "Throw" || draft.repType === "Double Play") return "Throwing";
+  return "Fielding";
+}
+
+function defenseSessionAnalyticsLabel(session: DefenseSession) {
+  const drill = session.drillContext ?? defaultDefenseDrillForStation(session.station);
+  return [session.positionWorked, drill, formatTime(session.startedAt)].filter(Boolean).join(" - ");
+}
+
+function mostCommonDefensePosition(events: DefenseEvent[], player: Player) {
+  const counts = new Map<string, number>();
+  events.forEach((event) => {
+    const position = defenseEventPosition(event, player.primaryPosition);
+    counts.set(position, (counts.get(position) ?? 0) + 1);
+  });
+  return [...counts.entries()].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0]?.[0] ?? player.primaryPosition;
+}
+
+function ensureDefenseSession(
+  data: AppData,
+  practice: Practice,
+  playerId: ID,
+  station: DefenseStation,
+  profileId?: ID,
+  options?: { drillContext?: DefenseDrillContext; positionWorked?: Position },
+) {
   const now = new Date().toISOString();
-  const existing = data.defenseSessions.find((session) => session.practiceId === practice.id && session.playerId === playerId && session.station === station && isPracticeSessionReusable(session));
+  const drillContext = options?.drillContext ?? defaultDefenseDrillForStation(station);
+  const positionWorked = options?.positionWorked;
+  const existing = data.defenseSessions.find((session) => (
+    session.practiceId === practice.id
+    && session.playerId === playerId
+    && session.station === station
+    && (session.drillContext ?? defaultDefenseDrillForStation(session.station)) === drillContext
+    && (positionWorked ? session.positionWorked === positionWorked : true)
+    && isPracticeSessionReusable(session)
+  ));
   if (existing) {
     const session = {
       ...existing,
+      drillContext: existing.drillContext ?? drillContext,
+      positionWorked: existing.positionWorked ?? positionWorked,
       contributorProfileIds: withContributorProfile(existing.contributorProfileIds, profileId),
       updatedAt: now,
     };
@@ -20731,9 +24489,11 @@ function ensureDefenseSession(data: AppData, practice: Practice, playerId: ID, s
     practiceId: practice.id,
     playerId,
     station,
+    drillContext,
+    positionWorked,
     mode: "Quick Practice" as const,
     startedAt: now,
-    title: `${station} - Defense`,
+    title: `${drillContext} - Defense`,
     status: "ACTIVE" as const,
     createdByProfileId: profileId,
     contributorProfileIds: withContributorProfile([], profileId),
@@ -20876,6 +24636,14 @@ function positionLine(player: Player) {
 
 function lastName(name: string) {
   return name.split(" ").filter(Boolean).slice(-1)[0] ?? name;
+}
+
+function throwingRoleLabel(player: Player) {
+  if (player.primaryPosition === "RHP" || player.primaryPosition === "LHP") return player.primaryPosition;
+  if (player.secondaryPosition === "RHP" || player.secondaryPosition === "LHP") return player.secondaryPosition;
+  if (player.throws === "L") return "LHP";
+  if (player.throws === "R") return "RHP";
+  return "P";
 }
 
 function practiceModeClass(mode: PracticeMode) {
