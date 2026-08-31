@@ -291,8 +291,7 @@ export function BaseballField({
     });
   }
 
-  return (
-    <button type="button" className="field-chart" onClick={handleClick} aria-label="Tap batted ball direction">
+  const contents = <>
       <span className="field-chart__image" aria-hidden="true" />
       <svg className="field-chart__overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         {activePoint && <>
@@ -311,8 +310,11 @@ export function BaseballField({
         />
       ))}
       {activePoint && <span className="field-chart__target" style={{ left: `${activePoint.x * 100}%`, top: `${activePoint.y * 100}%` }} />}
-    </button>
-  );
+    </>;
+
+  if (!onSelect) return <div className="field-chart field-chart--readonly" role="img" aria-label={`${points?.length ?? 0} tracked batted ball locations`}>{contents}</div>;
+
+  return <button type="button" className="field-chart" onClick={handleClick} aria-label="Tap batted ball direction">{contents}</button>;
 }
 
 export function Heatmap({ points }: { points: ZonePoint[] }) {

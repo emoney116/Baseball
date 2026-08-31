@@ -18265,7 +18265,9 @@ function GamesView({
   const [pendingPitchOutcome, setPendingPitchOutcome] = useState<GamePitchOutcome>();
   const [lastLogged, setLastLogged] = useState<string>();
   const [selectedRunnerBase, setSelectedRunnerBase] = useState<GameBase | undefined>();
-  const [workspaceMode, setWorkspaceMode] = useState<"score" | "team" | "plays" | "live">("score");
+  const [focusedGamePlayerId, setFocusedGamePlayerId] = useState<ID>();
+  const [workspaceMode, setWorkspaceMode] = useState<"field" | "team" | "opponent" | "plays" | "live">("field");
+  const [scoringPanelOpen, setScoringPanelOpen] = useState(false);
   const [sessionActive, setSessionActive] = useState(() => {
     const initialGame = data.games.find((item) => item.id === selectedGameId) ?? data.games[0];
     return Boolean(initialGame);
@@ -18293,18 +18295,18 @@ function GamesView({
   const latestConfirmedEvent = events.find((event) => (event.recordStatus ?? "confirmed") === "confirmed" && event.stateBefore);
   const metrolinaBatting = game ? (game.homeAway === "Home" ? game.half === "Bottom" : game.half === "Top") : false;
   const possessionLabel = metrolinaBatting ? "Metrolina batting" : "Metrolina pitching";
+  const hasScoringDraft = Boolean(pendingPitchOutcome || pitchChosen || pitchLocation || contactType || selectedBipOutcome || playMovements.length || fieldLocationTracked);
 
   useEffect(() => {
     const flowKey = `${scoringStep}:${playStep}`;
     if (previousFlowKeyRef.current === flowKey) return;
     previousFlowKeyRef.current = flowKey;
     if (!sessionActive || typeof window === "undefined" || !window.matchMedia("(max-width: 760px)").matches) return;
-    const frame = window.requestAnimationFrame(() => decisionSurfaceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    const frame = window.requestAnimationFrame(() => decisionSurfaceRef.current?.closest(".game-context-sheet")?.scrollTo({ top: 0, behavior: "smooth" }));
     return () => window.cancelAnimationFrame(frame);
   }, [playStep, scoringStep, sessionActive]);
 
-  function resetScoringFlow(logged: string) {
-    setLastLogged(logged);
+  function clearScoringDraft() {
     setPitchChosen(false);
     setPendingPitchOutcome(undefined);
     setBallInPlayOpen(false);
@@ -18314,8 +18316,28 @@ function GamesView({
     setFieldLocationTracked(false);
     setPlayStep("contact");
     setScoringStep("result");
+    setScoringPanelOpen(false);
     onPitchLocation(undefined);
     onVelocity("");
+  }
+
+  function resetScoringFlow(logged: string) {
+    setLastLogged(logged);
+    clearScoringDraft();
+  }
+
+  function startOrResumeScoring() {
+    setWorkspaceMode("field");
+    setScoringPanelOpen(true);
+    if (!hasScoringDraft) setScoringStep("result");
+  }
+
+  function beginQuickOutcome(outcome: GamePitchOutcome) {
+    clearScoringDraft();
+    setLastLogged(undefined);
+    setWorkspaceMode("field");
+    setScoringPanelOpen(true);
+    choosePitchOutcome(outcome);
   }
 
   function choosePitchOutcome(outcome: GamePitchOutcome) {
@@ -18408,13 +18430,16 @@ function GamesView({
     setBallInPlayOpen(false);
     setScoringStep("result");
     setLastLogged(`Correction draft · ${PITCH_TYPE_LABELS[latestConfirmedEvent.pitchType]}`);
-    setWorkspaceMode("score");
+    setWorkspaceMode("field");
+    setScoringPanelOpen(true);
     setSessionDrawer(null);
   }
 
   function undoAndResetFeedback() {
     onUndo();
     setLastLogged(undefined);
+    clearScoringDraft();
+    setScoringPanelOpen(false);
   }
 
   const pendingPlay = game && selectedBipOutcome && contactType ? { outcome: selectedBipOutcome, contactType, movements: playMovements, fieldLocation: fieldLocationTracked ? fieldLocation : undefined } satisfies GameScoredPlay : undefined;
@@ -18428,13 +18453,13 @@ function GamesView({
       <SectionHeader
         title="Game Center"
         context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} - ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined}
-        action={workspaceMode === "score" ? <button className="primary-button" type="button" onClick={onStartGame}><Plus size={16} aria-hidden="true" />Start Game</button> : undefined}
+        action={workspaceMode === "field" ? <button className="primary-button" type="button" onClick={onStartGame}><Plus size={16} aria-hidden="true" />Start Game</button> : undefined}
       />
 
       <section className="games-layout">
         <aside className="panel games-list">
           {data.games.map((item) => (
-            <button key={item.id} type="button" className={item.id === game?.id ? "active" : ""} onClick={() => { onGame(item.id); setWorkspaceMode("score"); setSessionActive(true); }}>
+            <button key={item.id} type="button" className={item.id === game?.id ? "active" : ""} onClick={() => { onGame(item.id); setWorkspaceMode("field"); setScoringPanelOpen(false); setSessionActive(true); }}>
               <span>{shortDate(item.date)}</span>
               <strong>{matchupPrefix(item.homeAway).replace(".", "")} {item.opponent}</strong>
               <small>{item.result ? `${item.result} ${item.metrolinaScore}-${item.opponentScore}` : `${item.type} - ${item.location}`}</small>
@@ -18453,7 +18478,7 @@ function GamesView({
                 <button type="button" aria-label="Open game menu" aria-expanded={sessionMenuOpen} onClick={() => setSessionMenuOpen((open) => !open)}><MoreHorizontal size={18} aria-hidden="true" /></button>
               </div>
               {sessionMenuOpen && <div className="game-session-menu" role="menu">
-                <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("score"); setSessionMenuOpen(false); }}>Score game</button>
+                <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("field"); setScoringPanelOpen(hasScoringDraft); setSessionMenuOpen(false); }}>{hasScoringDraft ? "Resume pitch scoring" : "Return to field"}</button>
                 <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("team"); setSessionMenuOpen(false); }}>Lineup & field</button>
                 <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("plays"); setSessionMenuOpen(false); }}>Plays & corrections</button>
                 <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("live"); setSessionMenuOpen(false); }}>Analyze game</button>
@@ -18476,14 +18501,25 @@ function GamesView({
               <div className="game-score-team"><span>{game.opponent}</span><strong>{game.opponentScore}</strong><small>{game.location}</small></div>
             </header>
 
-            <div className="game-workspace-tabs" role="tablist" aria-label="Game Center mode">
-              <button type="button" role="tab" aria-selected={workspaceMode === "score"} className={workspaceMode === "score" ? "active" : ""} onClick={() => setWorkspaceMode("score")}>Score</button>
-              <button type="button" role="tab" aria-selected={workspaceMode === "team"} className={workspaceMode === "team" ? "active" : ""} onClick={() => setWorkspaceMode("team")}>Lineup + Field</button>
-              <button type="button" role="tab" aria-selected={workspaceMode === "plays"} className={workspaceMode === "plays" ? "active" : ""} onClick={() => setWorkspaceMode("plays")}>Plays</button>
-              <button type="button" role="tab" aria-selected={workspaceMode === "live"} className={workspaceMode === "live" ? "active" : ""} onClick={() => setWorkspaceMode("live")}>Analytics</button>
-            </div>
+            {sessionActive && <GameFieldCommand key={`${game.id}-${workspaceMode}`}
+              game={game}
+              players={data.players}
+              active={workspaceMode === "field" && (!scoringPanelOpen || (scoringStep === "play" && playStep === "contact"))}
+              contactMode={scoringPanelOpen && scoringStep === "play" && playStep === "contact"}
+              contactPoint={fieldLocationTracked ? fieldLocation : undefined}
+              onContactLocation={chooseContactLocation}
+              draftActive={hasScoringDraft}
+              onPitch={startOrResumeScoring}
+              onOutcome={beginQuickOutcome}
+              onBases={() => setSessionDrawer("bases")}
+              onLineup={(playerId) => { setFocusedGamePlayerId(playerId); setWorkspaceMode("team"); }}
+              onAnalytics={(playerId) => { setFocusedGamePlayerId(playerId); setWorkspaceMode("live"); }}
+              selectedRunnerBase={selectedRunnerBase}
+              onSelectRunnerBase={setSelectedRunnerBase}
+              onRunnerMove={onRunnerMove}
+            />}
 
-            {workspaceMode === "score" && <>
+            {workspaceMode === "field" && scoringPanelOpen && <div className={`game-context-sheet game-context-sheet--scoring ${scoringStep === "play" && playStep === "contact" ? "game-context-sheet--contact" : ""} ${scoringStep === "play" && playStep === "contact" && contactType ? "is-contact-selected" : ""}`}><div className="game-context-sheet__bar"><div><span>Score this pitch</span><strong>{batter?.name ?? "Batter"} vs {pitcher?.name ?? "Pitcher"}</strong></div><button type="button" aria-label="Close pitch scoring" onClick={() => setScoringPanelOpen(false)}><X size={18} /></button></div>
             <div className="game-scorekeeper-layout">
               <section ref={decisionSurfaceRef} className="panel game-guided-console" aria-label="Guided pitch entry">
                 <div className="game-panel-heading">
@@ -18534,7 +18570,7 @@ function GamesView({
                   <div className="game-stage-heading"><span>Ball in play · {playStep === "contact" ? "1 of 3" : playStep === "outcome" ? "2 of 3" : "3 of 3"}</span><h3>{playStep === "contact" ? "Describe the contact" : playStep === "outcome" ? "Score the batter" : "Resolve every runner"}</h3><small>No play is saved until final confirmation.</small></div>
                   {playStep === "contact" && <>
                     <div className="game-contact-types">{(["Ground Ball", "Line Drive", "Fly Ball", "Pop Up", "Bunt"] as GameContactType[]).map((type) => <button key={type} type="button" className={contactType === type ? "active" : ""} onClick={() => chooseContactType(type)}>{type}</button>)}</div>
-                    <div className="game-guided-field"><BaseballField activePoint={fieldLocationTracked ? fieldLocation : undefined} points={events.map((event) => event.fieldLocation).filter(isZonePoint)} onSelect={chooseContactLocation} /><small>{contactType && fieldLocationTracked ? "Opening batter result…" : contactType ? "Now tap where the ball went" : fieldLocationTracked ? "Now choose the contact type" : "Choose contact type and field location"}</small></div>
+                    <div className="game-field-contact-instruction"><strong>{fieldLocationTracked ? "Contact point placed on the live field" : "Tap the live field to place the ball"}</strong><small>{contactType && fieldLocationTracked ? "Opening batter result…" : contactType ? "Now tap where the ball went" : fieldLocationTracked ? "Now choose the contact type" : "Choose contact type and tap the persistent field."}</small></div>
                     <div className="game-stage-actions"><button className="text-button" type="button" onClick={() => setScoringStep("location")}><ChevronLeft size={15} />Change pitch location</button><small>The batter result opens automatically after both selections.</small></div>
                   </>}
                   {playStep === "outcome" && <>
@@ -18587,18 +18623,28 @@ function GamesView({
                 </details>
               </section>
             </div>
-            </>}
+            </div>}
 
-            {workspaceMode === "team" && <GamePersonnelWorkbench game={game} players={data.players} onSave={onPersonnelChange} />}
+            {workspaceMode === "team" && <div className="game-context-sheet"><div className="game-context-sheet__bar"><div><span>Our team</span><strong>Lineup, field & substitutions</strong></div><button type="button" aria-label="Close our team panel" onClick={() => setWorkspaceMode("field")}><X size={18} /></button></div><GamePersonnelWorkbench key={game.id} game={game} players={data.players} focusedPlayerId={focusedGamePlayerId} onSave={onPersonnelChange} /></div>}
 
-            {workspaceMode === "plays" && <GamePlaysWorkbench events={events} players={data.players} onUndo={undoAndResetFeedback} canUndo={canUndo} />}
+            {workspaceMode === "opponent" && <div className="game-context-sheet"><div className="game-context-sheet__bar"><div><span>Opponent</span><strong>{game.opponent}</strong></div><button type="button" aria-label="Close opponent panel" onClick={() => setWorkspaceMode("field")}><X size={18} /></button></div><GameOpponentWorkbench game={game} onReturnToField={() => setWorkspaceMode("field")} /></div>}
 
-            {workspaceMode === "live" && <GameLiveIntelligence key={game.id} game={game} events={events} allEvents={data.gameEvents} players={data.players} />}
+            {workspaceMode === "plays" && <div className="game-context-sheet"><div className="game-context-sheet__bar"><div><span>Official game record</span><strong>Plays & corrections</strong></div><button type="button" aria-label="Close plays panel" onClick={() => setWorkspaceMode("field")}><X size={18} /></button></div><GamePlaysWorkbench events={events} players={data.players} onUndo={undoAndResetFeedback} canUndo={canUndo} /></div>}
+
+            {workspaceMode === "live" && <div className="game-context-sheet game-context-sheet--analysis"><div className="game-context-sheet__bar"><div><span>Live intelligence</span><strong>Tendencies, locations & spray</strong></div><button type="button" aria-label="Close analytics panel" onClick={() => setWorkspaceMode("field")}><X size={18} /></button></div><GameLiveIntelligence key={`${game.id}-${focusedGamePlayerId ?? "all"}`} game={game} events={events} allEvents={data.gameEvents} players={data.players} focusedPlayerId={focusedGamePlayerId} /></div>}
+
+            {sessionActive && <nav className="game-session-bottom-nav" aria-label="Live game navigation">
+              <button type="button" className={workspaceMode === "field" ? "active" : ""} onClick={() => { setSessionMenuOpen(false); setWorkspaceMode("field"); setScoringPanelOpen(hasScoringDraft); }}><Home size={20} /><span>Score</span></button>
+              <button type="button" className={workspaceMode === "team" ? "active" : ""} onClick={() => { setSessionMenuOpen(false); setFocusedGamePlayerId(undefined); setWorkspaceMode(workspaceMode === "team" ? "field" : "team"); }}><Users size={20} /><span>Our Team</span></button>
+              <button type="button" className={workspaceMode === "opponent" ? "active" : ""} onClick={() => { setSessionMenuOpen(false); setWorkspaceMode(workspaceMode === "opponent" ? "field" : "opponent"); }}><Swords size={20} /><span>Opponent</span></button>
+              <button type="button" className={workspaceMode === "plays" ? "active" : ""} onClick={() => { setSessionMenuOpen(false); setWorkspaceMode(workspaceMode === "plays" ? "field" : "plays"); }}><ClipboardList size={20} /><span>Plays</span></button>
+              <button type="button" className={workspaceMode === "live" ? "active" : ""} onClick={() => { setSessionMenuOpen(false); setFocusedGamePlayerId(undefined); setWorkspaceMode(workspaceMode === "live" ? "field" : "live"); }}><BarChart3 size={20} /><span>Stats</span></button>
+            </nav>}
 
             {!sessionActive && <section className="panel game-event-stream">
               <div className="game-panel-heading compact">
                 <div><span>Official log</span><h2>Recent Events</h2></div>
-                {workspaceMode === "score" && <button className="secondary-button" type="button" onClick={onUndo} disabled={!canUndo}><Undo2 size={15} />Undo Last</button>}
+                {workspaceMode === "field" && <button className="secondary-button" type="button" onClick={onUndo} disabled={!canUndo}><Undo2 size={15} />Undo Last</button>}
               </div>
               <div className="game-event-list">
                 {recentEvents.length ? recentEvents.map((event) => (
@@ -18640,6 +18686,97 @@ function GamesView({
 
 const GAME_DEFENSIVE_POSITIONS: Position[] = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
 
+function GameFieldCommand({
+  game,
+  players,
+  active,
+  draftActive,
+  contactMode,
+  contactPoint,
+  onContactLocation,
+  onPitch,
+  onOutcome,
+  onBases,
+  onLineup,
+  onAnalytics,
+  selectedRunnerBase,
+  onSelectRunnerBase,
+  onRunnerMove,
+}: {
+  game: Game;
+  players: Player[];
+  active: boolean;
+  draftActive: boolean;
+  contactMode: boolean;
+  contactPoint?: ZonePoint;
+  onContactLocation: (point: ZonePoint) => void;
+  onPitch: () => void;
+  onOutcome: (outcome: GamePitchOutcome) => void;
+  onBases: () => void;
+  onLineup: (playerId?: ID) => void;
+  onAnalytics: (playerId?: ID) => void;
+  selectedRunnerBase?: GameBase;
+  onSelectRunnerBase: (base: GameBase | undefined) => void;
+  onRunnerMove: (move: { from: GameBase; to: GameBase | "home"; reason?: GameRunnerMovement["reason"] }) => void;
+}) {
+  const [selectedPlayerId, setSelectedPlayerId] = useState<ID>();
+  const batter = players.find((player) => player.id === game.currentBatterId);
+  const pitcher = players.find((player) => player.id === game.currentPitcherId);
+  const selectedPlayer = active ? players.find((player) => player.id === selectedPlayerId) : undefined;
+  const positionCoordinates: Record<string, [number, number]> = {
+    P: [50, 55], C: [50, 89], "1B": [70, 57], "2B": [61, 44], "3B": [30, 57], SS: [39, 44], LF: [23, 27], CF: [50, 17], RF: [77, 27], DH: [50, 72],
+  };
+  const quickOutcomes: Array<{ outcome: GamePitchOutcome; label: string }> = [
+    { outcome: "Ball", label: "Ball" },
+    { outcome: "Called Strike", label: "Called" },
+    { outcome: "Swinging Strike", label: "Swing" },
+    { outcome: "Foul", label: "Foul" },
+    { outcome: "In Play", label: "In Play" },
+  ];
+
+  return <section className={`game-field-command ${active ? "is-active" : "is-background"} ${contactMode ? "is-contact-mode" : ""}`} aria-label="Interactive live baseball field">
+    <div className="game-field-matchup">
+      <button type="button" onClick={() => batter && setSelectedPlayerId(batter.id)}><span>AB</span><strong>{batter?.name ?? "Batter"}</strong><small>{game.balls}-{game.strikes} count</small></button>
+      <div><span>{game.half} {game.inning}</span><strong>{game.outs} out{game.outs === 1 ? "" : "s"}</strong></div>
+      <button type="button" onClick={() => pitcher && setSelectedPlayerId(pitcher.id)}><span>P</span><strong>{pitcher?.name ?? "Pitcher"}</strong><small>{game.pitchNumberInPlateAppearance ? `Pitch ${game.pitchNumberInPlateAppearance}` : "Current pitcher"}</small></button>
+    </div>
+    <div className="game-field-command__body">
+      <div className="game-field-command__surface">
+        <BaseballField points={[]} activePoint={contactPoint} onSelect={contactMode ? onContactLocation : undefined} />
+        {GAME_DEFENSIVE_POSITIONS.map((position) => {
+          const player = players.find((item) => item.id === game.positions[position]);
+          const [left, top] = positionCoordinates[position];
+          return <button key={position} type="button" className={`game-field-player ${selectedPlayerId === player?.id ? "selected" : ""}`} style={{ left: `${left}%`, top: `${top}%` }} onClick={() => player ? setSelectedPlayerId(player.id) : onLineup()} aria-label={`${position}: ${player?.name ?? "empty. Open lineup"}`}><b>{position}</b><span>{player ? lastName(player.name) : "+"}</span></button>;
+        })}
+        <button type="button" className="game-field-pitch-ball" onClick={onPitch} aria-label={draftActive ? "Resume pitch scoring" : "Record the next pitch"}><i aria-hidden="true" /><strong>{draftActive ? "RESUME" : "PITCH"}</strong></button>
+        <div className="game-field-command__runners">
+          <header><span>Runners</span><button type="button" onClick={onBases}>Open controls</button></header>
+          <GameBaseDiamond game={game} players={players} selectedBase={selectedRunnerBase} onSelectBase={onSelectRunnerBase} onMoveRunner={onRunnerMove} />
+        </div>
+      </div>
+    </div>
+    <div className="game-field-quick-actions" aria-label="Quick pitch outcomes">
+      {quickOutcomes.map(({ outcome, label }) => <button key={outcome} type="button" className={outcome === "In Play" ? "is-impact" : ""} onClick={() => onOutcome(outcome)}><strong>{label}</strong><small>{outcome === "Called Strike" ? "Strike" : outcome === "Swinging Strike" ? "Miss" : outcome}</small></button>)}
+    </div>
+    {selectedPlayer && <div className="game-object-sheet" role="dialog" aria-label={`${selectedPlayer.name} actions`}>
+      <div><span>Field object</span><strong>{selectedPlayer.name}</strong><small>#{selectedPlayer.jerseyNumber ?? "--"} · {selectedPlayer.primaryPosition}</small></div>
+      <button type="button" onClick={() => { setSelectedPlayerId(undefined); onLineup(selectedPlayer.id); }}>Lineup & substitution</button>
+      <button type="button" onClick={() => { setSelectedPlayerId(undefined); onAnalytics(selectedPlayer.id); }}>Tendencies & charts</button>
+      <button type="button" className="text-button" onClick={() => setSelectedPlayerId(undefined)}>Cancel</button>
+    </div>}
+  </section>;
+}
+
+function GameOpponentWorkbench({ game, onReturnToField }: { game: Game; onReturnToField: () => void }) {
+  const [view, setView] = useState<"lineup" | "roster">("lineup");
+  return <section className="panel game-opponent-workbench" aria-label="Opponent game information">
+    <div className="game-opponent-tabs" role="tablist" aria-label="Opponent view"><button type="button" role="tab" aria-selected={view === "lineup"} className={view === "lineup" ? "active" : ""} onClick={() => setView("lineup")}>Lineup</button><button type="button" role="tab" aria-selected={view === "roster"} className={view === "roster" ? "active" : ""} onClick={() => setView("roster")}>Roster</button></div>
+    <div className="game-panel-heading"><div><span>{game.opponent}</span><h2>{view === "lineup" ? "Opponent game actors" : "Opponent roster"}</h2></div><small>Separate from Our Team</small></div>
+    {view === "lineup" ? <div className="game-opponent-actors"><article><span>Batting order</span><strong>Opponent lineup not assigned</strong><small>No local-team player is substituted as opponent data.</small></article><article><span>Defense</span><strong>Opponent pitcher not assigned</strong><small>Assign this after the independent opponent roster is added.</small></article></div> : <div className="game-opponent-empty"><strong>Opponent roster is independent</strong><p>This game does not yet contain a saved opponent roster. Additions here will be enabled with the side-aware opponent data model rather than mixing opponent players into Our Team.</p></div>}
+    <button className="primary-button" type="button" onClick={onReturnToField}>Return to live field</button>
+  </section>;
+}
+
 function buildInitialGamePositions(lineup: ID[], pitcherId?: ID): Partial<Record<Position, ID>> {
   const positions: Partial<Record<Position, ID>> = {};
   if (pitcherId) positions.P = pitcherId;
@@ -18650,11 +18787,11 @@ function buildInitialGamePositions(lineup: ID[], pitcherId?: ID): Partial<Record
   return positions;
 }
 
-function GamePersonnelWorkbench({ game, players, onSave }: { game: Game; players: Player[]; onSave: (lineup: ID[], positions: Partial<Record<Position, ID>>, currentPitcherId?: ID, note?: string) => void }) {
+function GamePersonnelWorkbench({ game, players, focusedPlayerId, onSave }: { game: Game; players: Player[]; focusedPlayerId?: ID; onSave: (lineup: ID[], positions: Partial<Record<Position, ID>>, currentPitcherId?: ID, note?: string) => void }) {
   const eligible = players.filter((player) => !player.archived && player.rosterStatus !== "Cut");
   const [lineup, setLineup] = useState<ID[]>(game.lineup);
   const [positions, setPositions] = useState<Partial<Record<Position, ID>>>({ ...game.positions });
-  const [selectedPlayerId, setSelectedPlayerId] = useState<ID | undefined>(game.currentPitcherId ?? game.lineup[0]);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<ID | undefined>(focusedPlayerId);
   const [saved, setSaved] = useState(false);
   const bench = eligible.filter((player) => !lineup.includes(player.id));
 
@@ -18745,11 +18882,11 @@ function GameStateLights({ label, active, total, tone }: { label: string; active
   );
 }
 
-function GameLiveIntelligence({ game, events, allEvents, players }: { game: Game; events: GameEvent[]; allEvents: GameEvent[]; players: Player[] }) {
+function GameLiveIntelligence({ game, events, allEvents, players, focusedPlayerId }: { game: Game; events: GameEvent[]; allEvents: GameEvent[]; players: Player[]; focusedPlayerId?: ID }) {
   const [view, setView] = useState<"overview" | "advanced" | "locations" | "spray">("overview");
   const [scope, setScope] = useState<"game" | "season">("game");
-  const [pitcherFilter, setPitcherFilter] = useState<ID | "all">(game.currentPitcherId ?? "all");
-  const [batterFilter, setBatterFilter] = useState<ID | "all">("all");
+  const [pitcherFilter, setPitcherFilter] = useState<ID | "all">(focusedPlayerId && focusedPlayerId === game.currentPitcherId ? focusedPlayerId : game.currentPitcherId ?? "all");
+  const [batterFilter, setBatterFilter] = useState<ID | "all">(focusedPlayerId && focusedPlayerId !== game.currentPitcherId ? focusedPlayerId : "all");
   const [sideFilter, setSideFilter] = useState<"all" | "R" | "L" | "S">("all");
   const [bucketFilter, setBucketFilter] = useState("all");
   const [pitchTypeFilter, setPitchTypeFilter] = useState<PitchType | "all">("all");
@@ -18854,7 +18991,7 @@ function GameBaseDiamond({
   onMoveRunner: (move: { from: GameBase; to: GameBase | "home"; reason?: GameRunnerMovement["reason"] }) => void;
 }) {
   const [draggingBase, setDraggingBase] = useState<GameBase>();
-  const [pendingHomeBase, setPendingHomeBase] = useState<GameBase>();
+  const [pendingMove, setPendingMove] = useState<{ from: GameBase; to: GameBase | "home" }>();
   const [pendingHomeReason, setPendingHomeReason] = useState<GameRunnerMovement["reason"]>();
   const bases: Array<{ base: GameBase; label: string }> = [
     { base: "second", label: "2B" },
@@ -18863,15 +19000,9 @@ function GameBaseDiamond({
   ];
   function moveRunner(from: GameBase | undefined, to: GameBase | "home") {
     if (!from || from === to || (to !== "home" && game.runners[to])) return;
-    if (to === "home") {
-      setPendingHomeBase(from);
-      setPendingHomeReason(undefined);
-      setDraggingBase(undefined);
-      return;
-    }
-    onMoveRunner({ from, to });
+    setPendingMove({ from, to });
+    setPendingHomeReason(undefined);
     setDraggingBase(undefined);
-    onSelectBase(undefined);
   }
   return (
     <div className={`game-base-diamond ${draggingBase ? "is-dragging" : ""}`}>
@@ -18914,11 +19045,11 @@ function GameBaseDiamond({
         onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") moveRunner(selectedBase, "home"); }}
       ><i aria-hidden="true" /><span>HOME</span></div>
       <small className="game-base-diamond__hint">Drag a runner to a base or home</small>
-      {pendingHomeBase && <div className="game-runner-reason" role="dialog" aria-label="Why did the runner score?">
-        <strong>Why did the runner score?</strong>
+      {pendingMove && <div className="game-runner-reason" role="dialog" aria-label={pendingMove.to === "home" ? "Why did the runner score?" : "How did the runner advance?"}>
+        <strong>{pendingMove.to === "home" ? "Why did the runner score?" : `How did the runner reach ${baseShortLabel(pendingMove.to)}?`}</strong>
         <small>The reason is attached to the official play.</small>
-        <div>{(["On hit", "On throw", "On error", "Wild pitch", "Passed ball", "Stolen base", "Tag up", "Other"] as GameRunnerMovement["reason"][]).map((reason) => <button key={reason} type="button" className={pendingHomeReason === reason ? "active" : ""} onClick={() => setPendingHomeReason(reason)}>{reason}</button>)}</div>
-        <div className="game-runner-reason__actions"><button type="button" className="text-button" onClick={() => { setPendingHomeBase(undefined); setPendingHomeReason(undefined); }}>Cancel</button><button type="button" className="primary-button" disabled={!pendingHomeReason} onClick={() => { if (!pendingHomeReason) return; onMoveRunner({ from: pendingHomeBase, to: "home", reason: pendingHomeReason }); setPendingHomeBase(undefined); setPendingHomeReason(undefined); onSelectBase(undefined); }}>Confirm run</button></div>
+        <div>{(["On hit", "On throw", "On error", "Wild pitch", "Passed ball", "Stolen base", "Defensive indifference", "Tag up", "Other"] as GameRunnerMovement["reason"][]).map((reason) => <button key={reason} type="button" className={pendingHomeReason === reason ? "active" : ""} onClick={() => setPendingHomeReason(reason)}>{reason}</button>)}</div>
+        <div className="game-runner-reason__actions"><button type="button" className="text-button" onClick={() => { setPendingMove(undefined); setPendingHomeReason(undefined); }}>Cancel</button><button type="button" className="primary-button" disabled={!pendingHomeReason} onClick={() => { if (!pendingHomeReason) return; onMoveRunner({ from: pendingMove.from, to: pendingMove.to, reason: pendingHomeReason }); setPendingMove(undefined); setPendingHomeReason(undefined); onSelectBase(undefined); }}>{pendingMove.to === "home" ? "Confirm run" : "Confirm advance"}</button></div>
       </div>}
     </div>
   );

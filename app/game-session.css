@@ -578,3 +578,65 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Field-first command surface overrides the former page-card scorekeeper shell. */
+.game-session-active,
+.ops-main:has(.game-session-active) {
+  overflow: hidden;
+}
+
+.game-session-active .game-workstation {
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  height: calc(100dvh - 20px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.game-session-active .game-field-command {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.game-session-active .game-context-sheet {
+  overflow-y: auto;
+}
+
+.game-session-active .game-context-sheet .game-flow-stage,
+.game-session-active .game-context-sheet .game-guided-console,
+.game-session-active .game-context-sheet .game-live-shell {
+  height: auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+@media (max-width: 760px) {
+  .game-session-active,
+  .ops-main:has(.game-session-active) {
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+  }
+
+  .game-session-active .game-workstation {
+    height: calc(100dvh - 10px);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .game-session-active .game-score-ribbon {
+    min-height: 68px;
+  }
+
+  .game-session-active .game-score-team,
+  .game-session-active .game-inning-state {
+    padding-block: 4px;
+  }
+
+  .game-session-active .game-score-team strong {
+    font-size: 1.75rem;
+  }
+
+  .game-session-active .game-field-command {
+    min-height: 0;
+  }
+}

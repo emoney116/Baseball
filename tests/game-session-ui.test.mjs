@@ -12,19 +12,25 @@ test("active games render as an immersive session with a deliberate exit", () =>
   assert.match(page, /game-session-active/);
   assert.match(page, />Exit game</);
   assert.match(page, />Score</);
-  assert.match(page, />Analytics</);
-  assert.match(page, />Lineup \+ Field</);
+  assert.match(page, />Our Team</);
+  assert.match(page, />Opponent</);
   assert.match(page, />Plays</);
+  assert.match(page, />Stats</);
+  assert.match(page, /game-session-bottom-nav/);
+  assert.match(page, /GameFieldCommand/);
+  assert.match(page, /Record the next pitch/);
   assert.match(css, /\.ops-shell:has\(\.game-session-active\)/);
   assert.match(css, /height:\s*100dvh/);
   assert.match(layout, /import "\.\/game-session\.css";/);
 });
 
-test("the session allows natural page scrolling while each scoring transition is brought into view", () => {
-  assert.match(css, /\.ops-main:has\(\.game-session-active\)[\s\S]*?overflow:\s*visible/);
-  assert.match(css, /\.game-session-active \.game-live-shell[\s\S]*?overflow:\s*visible/);
-  assert.doesNotMatch(css, /\.ops-main:has\(\.game-session-active\)\s*\{[^}]*overflow:\s*hidden/);
-  assert.match(page, /scrollIntoView\(\{ behavior: "smooth", block: "start" \}\)/);
+test("the field-first score lane stays in one viewport while contextual sheets scroll", () => {
+  assert.match(css, /Field-first command surface overrides/);
+  assert.match(css, /\.game-session-active,\s*\.ops-main:has\(\.game-session-active\)\s*\{\s*overflow:\s*hidden/);
+  assert.match(css, /\.game-session-active \.game-workstation[\s\S]*?height:\s*calc\(100dvh - 20px\)/);
+  assert.match(css, /\.game-session-active \.game-context-sheet\s*\{\s*overflow-y:\s*auto/);
+  assert.match(globalCss, /\.game-field-command\s*\{[^}]*grid-template-rows:\s*auto minmax\(0,1fr\) auto/);
+  assert.match(globalCss, /\.game-context-sheet--scoring/);
 });
 
 test("game session exposes reversible correction and mobile base controls", () => {

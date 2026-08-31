@@ -13056,7 +13056,7 @@ button.analytics-box-score__row:hover {
   background-image: url("/game-tracking/baseball-field-spray-chart-v1.png");
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 100% 100%;
+  background-size: contain;
 }
 
 .field-chart__spray-line-glow,
@@ -20889,6 +20889,109 @@ body,
 .game-runner-reason > div button.active { background: var(--brand-soft); border-color: var(--brand-primary); }
 .game-runner-reason .game-runner-reason__actions { display: flex; justify-content: space-between; }
 
+/* Field-first live game shell. The generated Clubhouse field stays persistent;
+   scoring and secondary lanes arrive as object-launched sheets above it. */
+.game-workstation { min-height: 0; position: relative; }
+.game-field-command { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: grid; gap: 10px; grid-template-rows: auto minmax(0,1fr) auto; min-height: 0; padding: 10px 10px 8px; position: relative; transition: filter 160ms ease, opacity 160ms ease; }
+.game-field-command.is-background { filter: saturate(.7); opacity: .42; pointer-events: none; }
+.game-field-matchup { align-items: stretch; display: grid; gap: 8px; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); }
+.game-field-matchup > button { align-items: center; background: var(--control-bg); border: 1px solid var(--line); border-radius: 10px; color: var(--text); display: grid; gap: 3px 8px; grid-template-columns: auto minmax(0,1fr); min-height: 52px; padding: 7px 9px; text-align: left; }
+.game-field-matchup > button:last-child { text-align: right; }
+.game-field-matchup > button span { align-items: center; background: var(--brand-primary); border-radius: 50%; color: var(--brand-text-on-primary); display: flex; font-size: .59rem; font-weight: 900; grid-row: 1 / span 2; height: 30px; justify-content: center; width: 30px; }
+.game-field-matchup > button:last-child span { grid-column: 2; }
+.game-field-matchup > button strong { font-size: .74rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.game-field-matchup > button small { color: var(--muted); font-size: .59rem; }
+.game-field-matchup > div { align-content: center; display: grid; min-width: 72px; text-align: center; }
+.game-field-matchup > div span { color: var(--brand-primary); font-size: .66rem; font-weight: 900; text-transform: uppercase; }
+.game-field-matchup > div strong { font-size: .68rem; }
+.game-field-command__body { align-items: center; display: flex; height: 100%; justify-content: center; margin: 0 auto; max-width: 100%; min-height: 0; position: relative; width: 100%; }
+.game-field-command__surface { aspect-ratio: 1; flex: 0 1 auto; height: 100%; margin: 0 auto; max-height: 680px; max-width: 100%; position: relative; width: auto; }
+.game-field-command__surface > .field-chart { inset: 0; position: absolute; }
+.game-field-command__surface > .field-chart .field-chart__image { height: 100%; inset: 0; max-width: none; position: absolute; width: 100%; }
+.game-field-player { align-items: center; background: color-mix(in srgb, var(--panel) 90%, transparent); border: 1px solid var(--line-strong); border-radius: 999px; box-shadow: 0 5px 14px rgba(0,0,0,.22); color: var(--text); display: flex; flex-direction: column; min-height: 44px; min-width: 58px; padding: 4px 7px; position: absolute; transform: translate(-50%,-50%); z-index: 8; }
+.game-field-player:hover, .game-field-player.selected { background: var(--brand-soft); border-color: var(--brand-primary); }
+.game-field-player b { color: var(--brand-primary); font-size: .53rem; }
+.game-field-player span { font-size: .59rem; font-weight: 850; max-width: 66px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.game-field-pitch-ball { align-items: center; background: #fff; border: 2px solid #d7d7d7; border-radius: 50%; box-shadow: 0 8px 22px rgba(0,0,0,.32); color: #111; display: grid; height: 74px; justify-items: center; left: 50%; padding: 0; position: absolute; top: 72%; transform: translate(-50%,-50%); width: 74px; z-index: 7; }
+.game-field-pitch-ball i, .game-field-pitch-ball i::after { border: 2px dashed #bd285b; border-bottom-color: transparent; border-top-color: transparent; border-radius: 50%; content: ""; height: 46px; position: absolute; transform: rotate(18deg); width: 27px; }
+.game-field-pitch-ball i::after { left: -2px; top: -2px; transform: rotate(-36deg); }
+.game-field-pitch-ball strong { font-size: .61rem; letter-spacing: .06em; position: relative; z-index: 1; }
+.game-field-command__runners { inset: 0; pointer-events: none; position: absolute; z-index: 6; }
+.game-field-command__runners > header { align-items: center; display: flex; justify-content: flex-end; padding: 8px; }
+.game-field-command__runners > header span { display: none; }
+.game-field-command__runners > header button { background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-size: .56rem; font-weight: 850; min-height: 44px; padding: 5px 9px; pointer-events: auto; }
+.game-field-command__runners .game-base-diamond { height: 34%; left: 50%; margin: 0; max-width: none; pointer-events: none; position: absolute; top: 69%; transform: translate(-50%,-50%); width: 44%; }
+.game-field-command__runners .game-base-diamond__line { display: none; }
+.game-field-command__runners .game-base-diamond > button { background: color-mix(in srgb, var(--panel) 86%, transparent); border-radius: 9px; min-height: 34px; pointer-events: auto; width: 46px; }
+.game-field-command__runners .game-base-diamond > button.occupied { min-height: 48px; width: 78px; }
+.game-field-command__runners .game-base-diamond > button:not(.occupied) { background: transparent; border-color: transparent; }
+.game-field-command__runners .game-base-diamond > button:not(.occupied) { pointer-events: none; }
+.game-field-command__runners .game-base-diamond > button:not(.occupied) span,
+.game-field-command__runners .game-base-diamond > button:not(.occupied) strong { opacity: 0; }
+.game-field-command__runners .game-base-diamond.is-dragging > button:not(.occupied),
+.game-field-command__runners .game-base-diamond:has(> button.selected) > button:not(.occupied) { background: var(--brand-soft); border-color: var(--brand-primary); border-style: dashed; }
+.game-field-command__runners .game-base-diamond.is-dragging > button:not(.occupied),
+.game-field-command__runners .game-base-diamond:has(> button.selected) > button:not(.occupied) { pointer-events: auto; }
+.game-field-command__runners .game-base-diamond.is-dragging > button:not(.occupied) span,
+.game-field-command__runners .game-base-diamond:has(> button.selected) > button:not(.occupied) span { opacity: 1; }
+.game-field-command__runners .game-base-diamond__hint { display: none; }
+.game-field-command__runners .game-home-plate { pointer-events: auto; }
+.game-field-command__runners .game-runner-reason { pointer-events: auto; width: min(350px, 90vw); }
+.game-field-quick-actions { display: grid; gap: 6px; grid-template-columns: repeat(5,minmax(0,1fr)); }
+.game-field-quick-actions button { background: var(--control-bg); border: 1px solid var(--line); border-radius: 10px; color: var(--text); display: grid; gap: 2px; min-height: 58px; padding: 7px 5px; }
+.game-field-quick-actions button:hover { background: var(--control-hover); border-color: var(--line-strong); }
+.game-field-quick-actions button.is-impact { background: var(--brand-primary); border-color: var(--brand-primary); color: var(--brand-text-on-primary); }
+.game-field-quick-actions strong { font-size: .68rem; }
+.game-field-quick-actions small { color: var(--muted); font-size: .52rem; }
+.game-field-quick-actions .is-impact small { color: rgba(255,255,255,.78); }
+.game-field-command.is-contact-mode .game-field-player,
+.game-field-command.is-contact-mode .game-field-pitch-ball,
+.game-field-command.is-contact-mode .game-field-command__runners,
+.game-field-command.is-contact-mode .game-field-quick-actions,
+.game-field-command.is-contact-mode .game-field-matchup { opacity: .26; pointer-events: none; }
+.game-field-command.is-contact-mode .field-chart { cursor: crosshair; outline: 3px solid var(--brand-primary); outline-offset: -3px; }
+.game-field-contact-instruction { background: var(--brand-soft); border: 1px solid var(--brand-primary); border-radius: 10px; display: grid; gap: 3px; padding: 10px; }
+.game-field-contact-instruction strong { font-size: .72rem; }
+.game-field-contact-instruction small { color: var(--muted); font-size: .62rem; }
+.game-object-sheet { background: var(--panel); border: 1px solid var(--line-strong); border-radius: 14px; bottom: 84px; box-shadow: 0 18px 55px rgba(0,0,0,.35); display: grid; gap: 7px; left: 50%; padding: 12px; position: absolute; transform: translateX(-50%); width: min(390px,calc(100% - 20px)); z-index: 20; }
+.game-object-sheet > div { display: grid; gap: 2px; }
+.game-object-sheet > div span { color: var(--brand-primary); font-size: .58rem; font-weight: 900; text-transform: uppercase; }
+.game-object-sheet > div strong { font-size: .82rem; }
+.game-object-sheet > div small { color: var(--muted); font-size: .62rem; }
+.game-object-sheet > button { background: var(--control-bg); border: 1px solid var(--line); border-radius: 9px; color: var(--text); min-height: 44px; }
+.game-context-sheet { background: var(--background); border: 1px solid var(--line); border-radius: 14px 14px 0 0; bottom: 64px; box-shadow: 0 -12px 40px rgba(0,0,0,.24); left: 0; overflow: auto; padding: 10px; position: absolute; right: 0; top: 112px; z-index: 40; }
+.game-context-sheet--scoring { left: auto; top: 58px; width: min(570px,48vw); }
+.game-context-sheet--contact { top: auto; }
+.game-context-sheet--contact.is-contact-selected { bottom: 76px; left: 50%; max-height: none; overflow: visible; padding: 8px; right: auto; top: auto; transform: translateX(-50%); width: min(430px, calc(100% - 20px)); }
+.game-context-sheet--contact.is-contact-selected .game-context-sheet__bar,
+.game-context-sheet--contact.is-contact-selected .game-panel-heading,
+.game-context-sheet--contact.is-contact-selected .game-flow-steps,
+.game-context-sheet--contact.is-contact-selected .game-stage-heading,
+.game-context-sheet--contact.is-contact-selected .game-contact-types,
+.game-context-sheet--contact.is-contact-selected .game-stage-actions,
+.game-context-sheet--contact.is-contact-selected .game-current-pa-strip { display: none; }
+.game-context-sheet--contact.is-contact-selected .game-guided-console { background: transparent; border: 0; padding: 0; }
+.game-context-sheet__bar { align-items: center; background: var(--background); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; margin: -2px -2px 10px; padding: 4px 4px 10px; position: sticky; top: -10px; z-index: 50; }
+.game-context-sheet__bar > div { display: grid; gap: 2px; }
+.game-context-sheet__bar span { color: var(--brand-primary); font-size: .58rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.game-context-sheet__bar strong { font-size: .8rem; }
+.game-context-sheet__bar > button { align-items: center; background: var(--control-bg); border: 1px solid var(--line); border-radius: 9px; color: var(--text); display: flex; height: 42px; justify-content: center; width: 42px; }
+.game-context-sheet .game-scorekeeper-layout { display: block; }
+.game-context-sheet .game-guided-console { min-height: 0; }
+.game-context-sheet .game-scorekeeper-layout > .game-bases-console { display: none; }
+.game-session-bottom-nav { background: color-mix(in srgb, var(--panel) 96%, transparent); border: 1px solid var(--line); border-radius: 12px; bottom: 0; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); min-height: 62px; overflow: hidden; position: sticky; z-index: 60; }
+.game-session-bottom-nav button { align-items: center; background: transparent; border: 0; color: var(--muted); display: flex; flex-direction: column; font-size: .56rem; font-weight: 800; gap: 3px; justify-content: center; min-height: 58px; padding: 5px 2px; }
+.game-session-bottom-nav button.active { background: var(--control-selected); color: var(--brand-primary); }
+.game-opponent-workbench { margin: 0 auto; max-width: 780px; }
+.game-opponent-tabs { background: var(--control-bg); border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 4px; grid-template-columns: repeat(2,minmax(0,1fr)); margin-bottom: 12px; padding: 4px; }
+.game-opponent-tabs button { background: transparent; border: 0; border-radius: 8px; color: var(--muted); min-height: 42px; }
+.game-opponent-tabs button.active { background: var(--brand-primary); color: var(--brand-text-on-primary); }
+.game-opponent-actors { display: grid; gap: 8px; grid-template-columns: repeat(2,minmax(0,1fr)); margin-bottom: 12px; }
+.game-opponent-actors article, .game-opponent-empty { background: var(--control-bg); border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 4px; padding: 12px; }
+.game-opponent-actors span { color: var(--brand-primary); font-size: .59rem; font-weight: 900; text-transform: uppercase; }
+.game-opponent-actors strong { font-size: .78rem; }
+.game-opponent-actors small, .game-opponent-empty p { color: var(--muted); font-size: .62rem; line-height: 1.45; }
+
 /* Guided scorekeeper: one required decision at a time. */
 .game-scorekeeper-layout { align-items: start; display: grid; gap: 12px; grid-template-columns: minmax(520px, 1.45fr) minmax(280px, 0.55fr); }
 .game-guided-console { min-height: 620px; }
@@ -21023,6 +21126,43 @@ body,
 }
 
 @media (max-width: 760px) {
+  .game-session-active { gap: 6px; }
+  .game-session-active .game-session-bar { min-height: 52px; }
+  .game-session-active .game-score-ribbon { position: relative; top: auto; }
+  .game-field-command { border-radius: 10px; gap: 6px; padding: 6px; }
+  .game-field-matchup { gap: 4px; }
+  .game-field-matchup > button { gap: 2px 5px; min-height: 44px; padding: 5px 6px; }
+  .game-field-matchup > button span { height: 25px; width: 25px; }
+  .game-field-matchup > button strong { font-size: .62rem; }
+  .game-field-matchup > button small { font-size: .5rem; }
+  .game-field-matchup > div { min-width: 52px; }
+  .game-field-command__body { max-height: min(47dvh, 430px); }
+  .game-field-command__surface { height: 100%; width: auto; }
+  .game-field-player { min-height: 44px; min-width: 52px; padding: 2px 4px; }
+  .game-field-player b { font-size: .46rem; }
+  .game-field-player span { font-size: .5rem; max-width: 48px; }
+  .game-field-pitch-ball { height: 58px; width: 58px; }
+  .game-field-pitch-ball i, .game-field-pitch-ball i::after { height: 35px; width: 21px; }
+  .game-field-command__runners > header button { min-height: 44px; }
+  .game-field-command__runners .game-base-diamond { height: 42%; width: 52%; }
+  .game-field-command__runners .game-base-diamond > button { border-radius: 8px; min-height: 38px; width: 56px; }
+  .game-field-command__runners .game-base-diamond > button span { font-size: .49rem; }
+  .game-field-command__runners .game-base-diamond > button strong { font-size: .55rem; }
+  .game-field-command__runners .game-home-plate i { height: 18px; width: 25px; }
+  .game-field-quick-actions { gap: 3px; }
+  .game-field-quick-actions button { border-radius: 8px; min-height: 52px; padding: 5px 2px; }
+  .game-field-quick-actions strong { font-size: .58rem; }
+  .game-field-quick-actions small { font-size: .44rem; }
+  .game-session-bottom-nav { border-radius: 10px; min-height: 58px; }
+  .game-session-bottom-nav button { min-height: 56px; }
+  .game-context-sheet { border-radius: 16px 16px 0 0; bottom: 58px; left: 0; padding: 9px; right: 0; top: 34dvh; width: auto; }
+  .game-context-sheet--scoring { left: 0; top: 30dvh; width: auto; }
+  .game-context-sheet--contact { max-height: 38dvh; top: auto; }
+  .game-context-sheet--contact.is-contact-selected { bottom: 66px; max-height: none; top: auto; }
+  .game-context-sheet--analysis { top: 15dvh; }
+  .game-context-sheet .game-flow-steps { margin-bottom: 9px; }
+  .game-context-sheet .game-panel-heading { margin-bottom: 8px; }
+  .game-opponent-actors { grid-template-columns: 1fr; }
   .game-personnel-workbench { grid-template-columns: 1fr; }
   .game-field-editor > button:not(.field-chart) { min-height: 40px; min-width: 52px; padding: 4px 6px; }
   .game-field-editor > button:not(.field-chart) span { font-size: .55rem; max-width: 56px; }
