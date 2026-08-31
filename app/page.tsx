@@ -300,6 +300,23 @@ type AskClubhouseComparisonRow = {
   emphasis?: "practice" | "games";
 };
 
+type AskClubhouseTextRankingRow = {
+  rank: number;
+  initials: string;
+  name: string;
+  value: string;
+};
+
+type AskClubhouseTextAnswerBlocks = {
+  primary: string;
+  scope?: string;
+  ranking: AskClubhouseTextRankingRow[];
+  valueLabel: string;
+  explanation: string[];
+  notes: string[];
+  bullets: string[];
+};
+
 type AskClubhouseUiPayload =
   | {
       kind: "ranking";
@@ -18846,14 +18863,13 @@ function AskClubhouseDrawer({
           </button>
           <div className="ask-header__title">
             <strong>Ask Clubhouse</strong>
-            <small>{scopeLabel || "Team analytics"}</small>
           </div>
           <div className="ask-header__actions">
-            <button className="ghost-button" type="button" onClick={onNewChat} aria-label="Start a new Ask Clubhouse chat" title="New Chat">
+            <button className="ghost-button ask-header__new-button" type="button" onClick={onNewChat} aria-label="Start a new Ask Clubhouse chat" title="New Chat">
               <RefreshCw size={15} aria-hidden="true" />
               <span>New</span>
             </button>
-            <button className="ghost-button" type="button" onClick={onClose} aria-label="Close Ask Clubhouse">
+            <button className="icon-button ask-header__close-button" type="button" onClick={onClose} aria-label="Close Ask Clubhouse">
               <X size={16} aria-hidden="true" />
             </button>
           </div>
@@ -18874,7 +18890,6 @@ function AskClubhouseDrawer({
               key={message.id}
               message={message.pending ? { ...message, content: stage } : message}
               onAction={onAction}
-              onFollowUp={onQuestion}
               onRetry={() => {
                 if (lastUserQuestion) onQuestion(lastUserQuestion);
               }}
@@ -18966,12 +18981,10 @@ function AskClubhouseLanding({
 function AskClubhouseMessageBubble({
   message,
   onAction,
-  onFollowUp,
   onRetry,
 }: {
   message: AskClubhouseChatMessage;
   onAction: (action: AskClubhouseAction) => void;
-  onFollowUp: (question: string) => void;
   onRetry: () => void;
 }) {
   const isAssistant = message.role === "assistant";
@@ -18987,7 +19000,7 @@ function AskClubhouseMessageBubble({
       {message.pending ? (
         <AskClubhouseThinking stage={message.content} />
       ) : isAssistant ? (
-        <AskClubhouseAssistantAnswer message={message} onAction={onAction} onFollowUp={onFollowUp} onRetry={onRetry} />
+        <AskClubhouseAssistantAnswer message={message} onAction={onAction} onRetry={onRetry} />
       ) : (
         <p className="ask-user-question">{message.content}</p>
       )}
@@ -18998,12 +19011,10 @@ function AskClubhouseMessageBubble({
 function AskClubhouseAssistantAnswer({
   message,
   onAction,
-  onFollowUp,
   onRetry,
 }: {
   message: AskClubhouseChatMessage;
   onAction: (action: AskClubhouseAction) => void;
-  onFollowUp: (question: string) => void;
   onRetry: () => void;
 }) {
   if (isAskSetupMessage(message)) {
@@ -19032,19 +19043,16 @@ function AskClubhouseAssistantAnswer({
 
   if (message.status === "no_data") {
     return (
-      <>
-        <AskClubhouseStatusCard
-          tone="notice"
-          title={message.content}
-          body="Try a broader date range, another data source, or all tracked sessions."
-        />
-        <AskClubhouseFollowUps message={message} onFollowUp={onFollowUp} />
-      </>
+      <AskClubhouseStatusCard
+        tone="notice"
+        title={stripAskMarkdownInline(message.content)}
+        body="Try a broader date range, another data source, or all tracked sessions."
+      />
     );
   }
 
   if (message.status === "refused") {
-    return <p className="ask-answer-copy">{message.content}</p>;
+    return <AskClubhouseTextAnswer content={message.content} />;
   }
 
   return (
@@ -19054,7 +19062,6 @@ function AskClubhouseAssistantAnswer({
       {!message.ui && <AskClubhouseTextAnswer content={message.content} />}
       <AskClubhouseEvidence message={message} />
       <AskClubhouseActions message={message} onAction={onAction} />
-      <AskClubhouseFollowUps message={message} onFollowUp={onFollowUp} />
     </>
   );
 }
@@ -19069,10 +19076,49 @@ function AskClubhouseThinking({ stage }: { stage: string }) {
 }
 
 function AskClubhouseTextAnswer({ content }: { content: string }) {
-  const paragraphs = content.split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
+  const blocks = parseAskClubhouseTextAnswer(content);
   return (
     <div className="ask-answer-copy">
-      {paragraphs.length ? paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>) : <p>{content}</p>}
+      {blocks.primary && <p className="ask-answer-primary">{blocks.primary}</p>}
+      {blocks.scope && <p className="ask-answer-scope">{blocks.scope}</p>}
+      {blocks.ranking.length > 0 && <AskClubhouseTextRanking rows={blocks.ranking} valueLabel={blocks.valueLabel} />}
+      {blocks.explanation.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+      {blocks.notes.map((note) => (
+        <div className="ask-data-note" key={note}>
+          <span>Data note</span>
+          <p>{note}</p>
+        </div>
+      ))}
+      {blocks.bullets.length > 0 && (
+        <ul className="ask-answer-list">
+          {blocks.bullets.map((item) => <li key={item}>{item}</li>)}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function AskClubhouseTextRanking({
+  rows,
+  valueLabel,
+}: {
+  rows: AskClubhouseTextRankingRow[];
+  valueLabel: string;
+}) {
+  return (
+    <div className="ask-ranking ask-ranking--text">
+      <div className="ask-ranking__head">
+        <span>Data</span>
+        <span>{valueLabel}</span>
+      </div>
+      {rows.map((row) => (
+        <div key={`${row.rank}-${row.name}-${row.value}`} className="ask-ranking__row">
+          <b>{row.rank}</b>
+          <span className="ask-ranking__avatar">{row.initials}</span>
+          <strong>{row.name}</strong>
+          <em>{row.value}</em>
+        </div>
+      ))}
     </div>
   );
 }
@@ -19172,28 +19218,8 @@ function AskClubhouseActions({
       {message.actions.map((action) => (
         <button key={`${message.id}-${action.label}`} type="button" onClick={() => onAction(action)}>
           <BarChart3 size={15} aria-hidden="true" />
-          <span>{action.label}</span>
+          <span>{formatAskActionLabel(action.label)}</span>
           <ChevronRight size={14} aria-hidden="true" />
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function AskClubhouseFollowUps({
-  message,
-  onFollowUp,
-}: {
-  message: AskClubhouseChatMessage;
-  onFollowUp: (question: string) => void;
-}) {
-  if (!message.followUps?.length) return null;
-  return (
-    <div className="ask-followup-list">
-      <span>You might also ask</span>
-      {message.followUps.slice(0, 3).map((question) => (
-        <button key={`${message.id}-${question}`} type="button" onClick={() => onFollowUp(question)}>
-          {question}
         </button>
       ))}
     </div>
@@ -19243,6 +19269,139 @@ function dedupeAskClubhouseMessages(messages: AskClubhouseChatMessage[]): AskClu
 
 function normalizeAskContent(value: string | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function stripAskMarkdownInline(value: string | undefined): string {
+  return (value ?? "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\s+([,.!?;:])/g, "$1")
+    .trim();
+}
+
+function parseAskClubhouseTextAnswer(content: string): AskClubhouseTextAnswerBlocks {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const paragraphs: string[] = [];
+  const bullets: string[] = [];
+  const ranking: AskClubhouseTextRankingRow[] = [];
+  let primary = "";
+  let currentParagraph: string[] = [];
+
+  function flushParagraph() {
+    if (!currentParagraph.length) return;
+    const paragraph = stripAskMarkdownInline(currentParagraph.join(" ")).replace(/\s+/g, " ").trim();
+    if (paragraph) paragraphs.push(paragraph);
+    currentParagraph = [];
+  }
+
+  for (const rawLine of lines) {
+    const trimmed = rawLine.trim();
+    if (!trimmed) {
+      flushParagraph();
+      continue;
+    }
+    const bulletMatch = trimmed.match(/^[-*]\s+(.+)$/);
+    if (bulletMatch) {
+      flushParagraph();
+      const cleanBullet = stripAskMarkdownInline(bulletMatch[1]);
+      const rankingRow = parseAskRankingLine(cleanBullet, ranking.length + 1);
+      if (rankingRow) {
+        ranking.push(rankingRow);
+      } else if (cleanBullet) {
+        bullets.push(cleanBullet);
+      }
+      continue;
+    }
+    if (!primary) {
+      primary = stripAskMarkdownInline(trimmed);
+      continue;
+    }
+    currentParagraph.push(trimmed);
+  }
+  flushParagraph();
+
+  const primaryRanking = parseAskPrimaryRanking(primary);
+  if (primaryRanking && !ranking.some((row) => normalizeAskContent(row.name) === normalizeAskContent(primaryRanking.name))) {
+    ranking.unshift(primaryRanking);
+    ranking.forEach((row, index) => {
+      row.rank = index + 1;
+    });
+  }
+
+  const scopeIndex = paragraphs.findIndex(isAskScopeSentence);
+  const scope = scopeIndex >= 0 ? paragraphs.splice(scopeIndex, 1)[0] : undefined;
+  const notes = paragraphs.filter(isAskDataNoteSentence);
+  const explanation = paragraphs.filter((paragraph) => !isAskDataNoteSentence(paragraph));
+
+  return {
+    primary,
+    scope,
+    ranking,
+    valueLabel: inferAskRankingValueLabel(content),
+    explanation,
+    notes,
+    bullets,
+  };
+}
+
+function parseAskRankingLine(value: string, rank: number): AskClubhouseTextRankingRow | undefined {
+  const match = value.match(/^(.+?)\s*:\s*([0-9][\d.,%]*(?:\s*[A-Za-z%]+)?)$/);
+  if (!match) return undefined;
+  return {
+    rank,
+    initials: getAskInitials(match[1]),
+    name: match[1].trim(),
+    value: match[2].trim(),
+  };
+}
+
+function parseAskPrimaryRanking(primary: string): AskClubhouseTextRankingRow | undefined {
+  const match = primary.match(/^([A-Z][A-Za-z.' -]+?)\s+(?:had|has|took|leads|led|recorded|finished)\b.+?:\s*([0-9][^.]+?)(?:\.|$)/);
+  if (!match) return undefined;
+  return {
+    rank: 1,
+    initials: getAskInitials(match[1]),
+    name: match[1].trim(),
+    value: match[2].trim(),
+  };
+}
+
+function inferAskRankingValueLabel(content: string): string {
+  const normalized = content.toLowerCase();
+  if (normalized.includes("contact")) return "Contact";
+  if (normalized.includes("exit velocity") || normalized.includes("avg ev") || normalized.includes(" ev")) return "EV";
+  if (normalized.includes("hard")) return "Hard %";
+  if (normalized.includes("rep")) return "Reps";
+  if (normalized.includes("swing")) return "Swings";
+  if (normalized.includes("strike")) return "Strike %";
+  return "Value";
+}
+
+function getAskInitials(name: string): string {
+  const parts = name
+    .replace(/[^A-Za-z0-9\s'-]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return "C9";
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("");
+}
+
+function isAskScopeSentence(value: string): boolean {
+  return /\b(based on|available data covers|tracked swings|tracked events|players|practices|fall 20\d{2}|season)\b/i.test(value);
+}
+
+function isAskDataNoteSentence(value: string): boolean {
+  return /\b(not enough|does not|doesn't|cannot|can't|limitation|sample|confidently|reliably)\b/i.test(value);
+}
+
+function formatAskActionLabel(label: string): string {
+  const cleanLabel = stripAskMarkdownInline(label);
+  if (/^open hitting analytics$/i.test(cleanLabel)) return "View Hitting Analytics";
+  if (/^open analytics$/i.test(cleanLabel)) return "View Analytics";
+  return cleanLabel.replace(/^Open\s+/i, "View ");
 }
 
 function isAskSetupMessage(message: AskClubhouseChatMessage): boolean {
