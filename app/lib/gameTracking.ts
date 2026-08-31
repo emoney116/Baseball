@@ -322,9 +322,10 @@ function finalizeOuts(game: Game): Game {
 
 function addRuns(game: Game, runs: number): Game {
   if (runs <= 0) return game;
+  const updatedAt = new Date().toISOString();
   return isMetrolinaBatting(game)
-    ? { ...game, metrolinaScore: game.metrolinaScore + runs }
-    : { ...game, opponentScore: game.opponentScore + runs };
+    ? { ...game, metrolinaScore: game.metrolinaScore + runs, updatedAt }
+    : { ...game, opponentScore: game.opponentScore + runs, updatedAt };
 }
 
 function occupiedBaseCount(game: Game) {

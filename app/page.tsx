@@ -18277,13 +18277,7 @@ function GamesView({
     onPitchType(pitchType);
     setPitchChosen(true);
     if (pendingPitchOutcome === "In Play") {
-      if (!pendingPlay || pendingPlayErrors.length > 0) return;
-      const play: GameScoredPlay = {
-        ...pendingPlay,
-        rbi: pendingPlay.movements.filter((movement) => movement.to === "home" && movement.reason !== "On error").length,
-      };
-      onScorePlay(play, details);
-      resetScoringFlow(`${PITCH_TYPE_LABELS[pitchType]} · In Play · ${play.contactType} · ${play.outcome}`);
+      setScoringStep("location");
       return;
     }
     onLogPitch(pendingPitchOutcome, undefined, details);
@@ -18292,7 +18286,7 @@ function GamesView({
 
   function chooseLocation(point: ZonePoint) {
     onPitchLocation(point);
-    setScoringStep("pitch");
+    setScoringStep(pendingPitchOutcome === "In Play" ? "play" : "pitch");
   }
 
   function openBallInPlay() {
@@ -18304,7 +18298,18 @@ function GamesView({
     setBallInPlayOpen(true);
     setPendingPitchOutcome("In Play");
     setPlayStep("contact");
-    setScoringStep("play");
+    setScoringStep("pitch");
+  }
+
+  function chooseContactType(type: GameContactType) {
+    setContactType(type);
+    if (fieldLocationTracked) setPlayStep("outcome");
+  }
+
+  function chooseContactLocation(point: ZonePoint) {
+    setFieldLocationTracked(true);
+    onFieldLocation(point);
+    if (contactType) setPlayStep("outcome");
   }
 
   function chooseBallInPlayOutcome(outcome: GameBallInPlayOutcome) {
@@ -18323,8 +18328,14 @@ function GamesView({
   }
 
   function confirmBallInPlay() {
-    if (!pendingPlay || pendingPlayErrors.length > 0) return;
-    setScoringStep("location");
+    if (!pendingPlay || pendingPlayErrors.length > 0 || !pitchChosen) return;
+    const play: GameScoredPlay = {
+      ...pendingPlay,
+      rbi: pendingPlay.movements.filter((movement) => movement.to === "home" && movement.reason !== "On error").length,
+    };
+    const details = { pitchType: selectedPitchType, velocity: velocity || undefined, location: pitchLocation } satisfies GamePitchEntryDetails;
+    onScorePlay(play, details);
+    resetScoringFlow(`${PITCH_TYPE_LABELS[selectedPitchType]} · In Play · ${play.contactType} · ${play.outcome}`);
   }
 
   function correctLatestPitch() {
@@ -18344,6 +18355,9 @@ function GamesView({
 
   const pendingPlay = game && selectedBipOutcome && contactType ? { outcome: selectedBipOutcome, contactType, movements: playMovements, fieldLocation: fieldLocationTracked ? fieldLocation : undefined } satisfies GameScoredPlay : undefined;
   const pendingPlayErrors = game && pendingPlay ? validateScoredPlay(game, pendingPlay) : [];
+  const scoringFlowSteps: Array<"result" | "play" | "location" | "pitch"> = pendingPitchOutcome === "In Play"
+    ? ["result", "pitch", "location", "play"]
+    : ["result", "location", "pitch"];
 
   return (
     <div className={`page-stack games-page game-workstation-page ${sessionActive ? "game-session-active" : "game-session-library"}`}>
@@ -18409,27 +18423,12 @@ function GamesView({
                   <strong className="game-count-number">{game.balls}-{game.strikes}</strong>
                 </div>
                 <div className="game-flow-steps" aria-label="Scoring progress">
-                  {(["result", "play", "location", "pitch"] as const).map((step, index) => {
-                    const playReady = pendingPitchOutcome !== "In Play" || Boolean(pendingPlay && pendingPlayErrors.length === 0);
-                    const complete = step === "result"
-                      ? scoringStep !== "result"
-                      : step === "play"
-                        ? pendingPitchOutcome === "In Play" && scoringStep !== "play" && playReady
-                        : step === "location"
-                          ? scoringStep === "pitch"
-                          : false;
-                    const disabled = step === "play"
-                      ? pendingPitchOutcome !== "In Play"
-                      : step === "location"
-                        ? !pendingPitchOutcome || !playReady
-                        : step === "pitch"
-                          ? scoringStep !== "pitch"
-                          : false;
+                  {scoringFlowSteps.map((step, index) => {
+                    const currentIndex = scoringFlowSteps.indexOf(scoringStep);
+                    const complete = index < currentIndex;
+                    const disabled = index > currentIndex;
                     return <button key={step} type="button" className={`${scoringStep === step ? "active" : ""} ${complete ? "complete" : ""}`} disabled={disabled} onClick={() => {
-                      if (step === "result") setScoringStep("result");
-                      if (step === "play" && pendingPitchOutcome === "In Play") setScoringStep("play");
-                      if (step === "location" && pendingPitchOutcome && playReady) setScoringStep("location");
-                      if (step === "pitch" && scoringStep === "pitch") setScoringStep("pitch");
+                      if (!disabled) setScoringStep(step);
                     }}><i>{index + 1}</i><span>{step === "result" ? "Result" : step === "play" ? "Play" : step === "location" ? "Location" : "Pitch"}</span></button>;
                   })}
                 </div>
@@ -18451,24 +18450,24 @@ function GamesView({
                 {scoringStep === "location" && <div className="game-flow-stage game-flow-stage--zone">
                   <div className="game-stage-heading"><span>{pendingPitchOutcome === "In Play" ? "Step 3" : "Step 2"} · {pendingPitchOutcome}</span><h3>Where did it cross?</h3><small>Pitcher view. Tap the exact location, or continue without it.</small></div>
                   <StrikeZone activePoint={pitchLocation} points={events.map((event) => event.location).filter(isZonePoint)} onSelect={chooseLocation} />
-                  <div className="game-stage-actions"><button className="text-button" type="button" onClick={() => setScoringStep(pendingPitchOutcome === "In Play" ? "play" : "result")}><ChevronLeft size={15} />Change outcome</button><button className="secondary-button" type="button" onClick={() => { onPitchLocation(undefined); setScoringStep("pitch"); }}>Location not tracked <ChevronRight size={15} /></button></div>
+                  <div className="game-stage-actions"><button className="text-button" type="button" onClick={() => setScoringStep(pendingPitchOutcome === "In Play" ? "pitch" : "result")}><ChevronLeft size={15} />{pendingPitchOutcome === "In Play" ? "Change pitch" : "Change outcome"}</button><button className="secondary-button" type="button" onClick={() => { onPitchLocation(undefined); setScoringStep(pendingPitchOutcome === "In Play" ? "play" : "pitch"); }}>Location not tracked <ChevronRight size={15} /></button></div>
                 </div>}
 
                 {scoringStep === "pitch" && <div className="game-flow-stage">
-                  <div className="game-stage-heading"><span>Final step · {pendingPitchOutcome}</span><h3>What was thrown?</h3><small>{pitchLocation ? `Zone ${zoneLabel(pitchLocation)}` : "Location not tracked"} · choose the pitch to record.</small></div>
+                  <div className="game-stage-heading"><span>{pendingPitchOutcome === "In Play" ? "Step 2 · In Play" : `Final step · ${pendingPitchOutcome}`}</span><h3>What was thrown?</h3><small>{pendingPitchOutcome === "In Play" ? "Choose the pitch to continue to location." : `${pitchLocation ? `Zone ${zoneLabel(pitchLocation)}` : "Location not tracked"} · choose the pitch to record.`}</small></div>
                   <label className="game-velocity-input"><span>Velocity</span><input inputMode="decimal" value={velocity} placeholder="Not tracked" onChange={(event) => onVelocity(event.target.value.replace(/[^0-9.]/g, ""))} aria-label="Pitch velocity" /><em>MPH</em></label>
                   <div className="game-pitch-type-grid game-pitch-type-grid--guided">
                     {PITCH_TYPES.map((pitchType) => <button key={pitchType} type="button" className={pitchChosen && selectedPitchType === pitchType ? "active" : ""} onClick={() => choosePitch(pitchType)}><strong>{PITCH_TYPE_LABELS[pitchType]}</strong><small>{pitchType}</small><ChevronRight size={14} aria-hidden="true" /></button>)}
                   </div>
-                  <button className="text-button game-flow-back" type="button" onClick={() => setScoringStep("location")}><ChevronLeft size={15} />Change location</button>
+                  <button className="text-button game-flow-back" type="button" onClick={() => setScoringStep(pendingPitchOutcome === "In Play" ? "result" : "location")}><ChevronLeft size={15} />{pendingPitchOutcome === "In Play" ? "Change outcome" : "Change location"}</button>
                 </div>}
 
                 {scoringStep === "play" && ballInPlayOpen && <div className="game-flow-stage game-flow-stage--play">
                   <div className="game-stage-heading"><span>Ball in play · {playStep === "contact" ? "1 of 3" : playStep === "outcome" ? "2 of 3" : "3 of 3"}</span><h3>{playStep === "contact" ? "Describe the contact" : playStep === "outcome" ? "Score the batter" : "Resolve every runner"}</h3><small>No play is saved until final confirmation.</small></div>
                   {playStep === "contact" && <>
-                    <div className="game-contact-types">{(["Ground Ball", "Line Drive", "Fly Ball", "Pop Up", "Bunt"] as GameContactType[]).map((type) => <button key={type} type="button" className={contactType === type ? "active" : ""} onClick={() => setContactType(type)}>{type}</button>)}</div>
-                    <div className="game-guided-field"><BaseballField activePoint={fieldLocationTracked ? fieldLocation : undefined} points={events.map((event) => event.fieldLocation).filter(isZonePoint)} onSelect={(point) => { setFieldLocationTracked(true); onFieldLocation(point); }} /><small>{fieldLocationTracked ? "Contact location selected" : "Optional contact location"}</small></div>
-                    <div className="game-stage-actions"><button className="text-button" type="button" onClick={() => { setBallInPlayOpen(false); setPendingPitchOutcome(undefined); setScoringStep("result"); }}><ChevronLeft size={15} />Back to result</button><button className="primary-button" type="button" disabled={!contactType} onClick={() => setPlayStep("outcome")}>Continue to batter result <ChevronRight size={15} /></button></div>
+                    <div className="game-contact-types">{(["Ground Ball", "Line Drive", "Fly Ball", "Pop Up", "Bunt"] as GameContactType[]).map((type) => <button key={type} type="button" className={contactType === type ? "active" : ""} onClick={() => chooseContactType(type)}>{type}</button>)}</div>
+                    <div className="game-guided-field"><BaseballField activePoint={fieldLocationTracked ? fieldLocation : undefined} points={events.map((event) => event.fieldLocation).filter(isZonePoint)} onSelect={chooseContactLocation} /><small>{contactType && fieldLocationTracked ? "Opening batter result…" : contactType ? "Now tap where the ball went" : fieldLocationTracked ? "Now choose the contact type" : "Choose contact type and field location"}</small></div>
+                    <div className="game-stage-actions"><button className="text-button" type="button" onClick={() => setScoringStep("location")}><ChevronLeft size={15} />Change pitch location</button><small>The batter result opens automatically after both selections.</small></div>
                   </>}
                   {playStep === "outcome" && <>
                     <div className="game-bip-outcomes game-bip-outcomes--guided">{BIP_OUTCOMES.map((outcome) => <button key={outcome} className={selectedBipOutcome === outcome ? "active" : ""} type="button" onClick={() => chooseBallInPlayOutcome(outcome)}>{outcome}<ChevronRight size={13} /></button>)}</div>
@@ -18481,7 +18480,7 @@ function GamesView({
                       return <label key={`${movement.from}-${movement.runnerId}`}><span><strong>{movement.from === "batter" ? "Batter" : `From ${baseShortLabel(movement.from)}`}</strong><small>{runner?.name ?? "Runner"}</small></span><select value={movement.to} onChange={(event) => updatePlayMovement(movement.from, event.target.value as GameRunnerDestination)} aria-label={`${runner?.name ?? "Runner"} destination`}>{movement.from !== "batter" && <option value="hold">Hold</option>}<option value="first">Safe at 1B</option><option value="second">Safe at 2B</option><option value="third">Safe at 3B</option><option value="home">Scores</option><option value="out">Out</option></select></label>;
                     })}</div>
                     {pendingPlayErrors.length > 0 && <div className="game-play-errors">{pendingPlayErrors.map((error) => <span key={error}>{error}</span>)}</div>}
-                    <div className="game-play-confirm"><button className="text-button" type="button" onClick={() => setPlayStep("outcome")}><ChevronLeft size={15} />Change result</button><div><strong>{playMovements.filter((movement) => movement.to === "home").length} runs · {playMovements.filter((movement) => movement.to === "out").length} outs</strong><small>Review every runner before continuing.</small></div><button className="primary-button" type="button" disabled={pendingPlayErrors.length > 0} onClick={confirmBallInPlay}>Continue to location <ChevronRight size={15} /></button></div>
+                    <div className="game-play-confirm"><button className="text-button" type="button" onClick={() => setPlayStep("outcome")}><ChevronLeft size={15} />Change result</button><div><strong>{playMovements.filter((movement) => movement.to === "home").length} runs · {playMovements.filter((movement) => movement.to === "out").length} outs</strong><small>Review every runner before recording the play.</small></div><button className="primary-button" type="button" disabled={pendingPlayErrors.length > 0 || !pitchChosen} onClick={confirmBallInPlay}>Confirm play <Check size={15} /></button></div>
                   </>}
                 </div>}
 

@@ -33,11 +33,14 @@ test("game session exposes reversible correction and mobile base controls", () =
   assert.match(css, /\.game-session-drawer-layer/);
 });
 
-test("scorekeeper starts with outcome and records pitch detail last", () => {
+test("scorekeeper branches into pitch-first detail for balls in play", () => {
   assert.match(page, /useState<"result" \| "play" \| "location" \| "pitch">\("result"\)/);
-  assert.match(page, /\["result", "play", "location", "pitch"\]/);
+  assert.match(page, /\["result", "pitch", "location", "play"\]/);
+  assert.match(page, /\["result", "location", "pitch"\]/);
   assert.match(page, /Record the call first, then add location and pitch detail/);
-  assert.match(page, /Final step · \{pendingPitchOutcome\}/);
+  assert.match(page, /Choose the pitch to continue to location/);
+  assert.match(page, /The batter result opens automatically after both selections/);
+  assert.match(page, /Confirm play/);
 });
 
 test("field tracking renders the generated field asset, spray line, and draggable runners", () => {

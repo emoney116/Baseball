@@ -66,6 +66,15 @@ test("drag-style runner moves support direct bases and home without overwriting 
   assert.equal(scored.metrolinaScore, 1);
 });
 
+test("dragging an opponent runner home updates the opponent score", () => {
+  const game = makeGame({ homeAway: "Home", half: "Top", opponentScore: 2, runners: { second: "r2" } });
+  const scored = moveRunnerToDestination(game, "second", "home");
+  assert.deepEqual(scored.runners, {});
+  assert.equal(scored.metrolinaScore, 0);
+  assert.equal(scored.opponentScore, 3);
+  assert.notEqual(scored.updatedAt, game.updatedAt);
+});
+
 test("manual third-out corrections use the same inning transition", () => {
   const game = makeGame({ outs: 2, runners: { first: "r1" } });
   const next = applyGameAdjustment(game, "outs", 1);
