@@ -249,8 +249,7 @@ export function StrikeZone({
     });
   }
 
-  return (
-    <button type="button" className={`strike-zone ${compact ? "strike-zone--compact" : ""}`} onClick={handleClick} aria-label="Tap pitch location">
+  const contents = <>
       <span className="strike-zone__plate" />
       <span className="strike-zone__box" />
       <span className="strike-zone__grid strike-zone__grid--v1" />
@@ -265,8 +264,13 @@ export function StrikeZone({
         />
       ))}
       {activePoint && <span className="strike-zone__target" style={{ left: `${activePoint.x * 100}%`, top: `${activePoint.y * 100}%` }} />}
-    </button>
-  );
+    </>;
+
+  if (!onSelect) {
+    return <div className={`strike-zone strike-zone--readonly ${compact ? "strike-zone--compact" : ""}`} role="img" aria-label={`${points?.length ?? 0} tracked pitch locations, shown from the pitcher's view`}>{contents}</div>;
+  }
+
+  return <button type="button" className={`strike-zone ${compact ? "strike-zone--compact" : ""}`} onClick={handleClick} aria-label="Select pitch location from the pitcher's view">{contents}</button>;
 }
 
 export function BaseballField({
@@ -289,12 +293,31 @@ export function BaseballField({
 
   return (
     <button type="button" className="field-chart" onClick={handleClick} aria-label="Tap batted ball direction">
-      <span className="field-chart__grass" />
-      <span className="field-chart__dirt" />
-      <span className="field-chart__diamond" />
-      <span className="field-chart__line field-chart__line--left" />
-      <span className="field-chart__line field-chart__line--right" />
-      <span className="field-chart__home" />
+      <svg className="field-chart__field" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="field-grass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#347b55" /><stop offset="1" stopColor="#174f38" /></linearGradient>
+          <radialGradient id="field-dirt" cx="50%" cy="55%" r="60%"><stop offset="0" stopColor="#b9874f" /><stop offset="1" stopColor="#946435" /></radialGradient>
+        </defs>
+        <path className="field-chart__outfield" d="M3 91 L7 22 Q50 -9 93 22 L97 91 Z" fill="url(#field-grass)" />
+        <path className="field-chart__mow" d="M12 30 Q50 3 88 30" />
+        <path className="field-chart__mow" d="M18 43 Q50 20 82 43" />
+        <path className="field-chart__mow" d="M24 56 Q50 37 76 56" />
+        <path className="field-chart__infield-dirt" d="M50 57 L69 76 L50 95 L31 76 Z" fill="url(#field-dirt)" />
+        <path className="field-chart__infield-grass" d="M50 63 L63 76 L50 89 L37 76 Z" />
+        <path className="field-chart__foul-line" d="M50 92 L7 22" />
+        <path className="field-chart__foul-line" d="M50 92 L93 22" />
+        <path className="field-chart__fence" d="M7 22 Q50 -9 93 22" />
+        <circle className="field-chart__mound" cx="50" cy="73" r="2.2" />
+        <rect className="field-chart__rubber" x="48.8" y="72.4" width="2.4" height="0.7" rx="0.25" />
+        <rect className="field-chart__base" x="62.2" y="74.2" width="3.2" height="3.2" transform="rotate(45 63.8 75.8)" />
+        <rect className="field-chart__base" x="48.4" y="60" width="3.2" height="3.2" transform="rotate(45 50 61.6)" />
+        <rect className="field-chart__base" x="34.6" y="74.2" width="3.2" height="3.2" transform="rotate(45 36.2 75.8)" />
+        <path className="field-chart__home-plate" d="M48.2 89.7 H51.8 V91.3 L50 93 L48.2 91.3 Z" />
+        {activePoint && <>
+          <line className="field-chart__spray-line-glow" x1="50" y1="91.5" x2={activePoint.x * 100} y2={activePoint.y * 100} />
+          <line className="field-chart__spray-line" x1="50" y1="91.5" x2={activePoint.x * 100} y2={activePoint.y * 100} />
+        </>}
+      </svg>
       <span className="field-chart__label field-chart__label--lf">LF</span>
       <span className="field-chart__label field-chart__label--cf">CF</span>
       <span className="field-chart__label field-chart__label--rf">RF</span>

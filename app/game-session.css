@@ -1,0 +1,580 @@
+/* Immersive game session: the game becomes the application until the scorer exits. */
+.ops-shell:has(.game-session-active) {
+  display: block;
+  min-height: 100dvh;
+}
+
+.ops-shell:has(.game-session-active) > .ops-sidebar,
+.ops-main:has(.game-session-active) > .team-workspace-header,
+.ops-shell:has(.game-session-active) .bottom-nav {
+  display: none;
+}
+
+.ops-main:has(.game-session-active) {
+  min-height: 100dvh;
+  overflow: visible;
+  padding: 0;
+}
+
+.game-session-active {
+  background: var(--canvas);
+  gap: 0;
+  min-height: 100dvh;
+  overflow: visible;
+  padding: 10px;
+}
+
+.game-session-active > .section-header,
+.game-session-active > .games-layout > .games-list {
+  display: none;
+}
+
+.game-session-active > .games-layout {
+  display: block;
+  min-height: calc(100dvh - 20px);
+}
+
+.game-session-active .game-workstation {
+  display: grid;
+  gap: 9px;
+  grid-template-rows: auto auto auto auto;
+  min-height: calc(100dvh - 20px);
+}
+
+.game-session-bar {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-height: 54px;
+  padding: 7px 9px;
+  position: relative;
+  z-index: 52;
+}
+
+.game-session-bar button {
+  align-items: center;
+  background: var(--control-bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 760;
+  gap: 6px;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 11px;
+}
+
+.game-session-bar button:hover {
+  background: var(--control-hover);
+  border-color: var(--line-strong);
+}
+
+.game-session-exit {
+  background: transparent !important;
+}
+
+.game-session-identity {
+  display: grid;
+  gap: 1px;
+  text-align: center;
+}
+
+.game-session-identity > span,
+.game-session-identity small {
+  color: var(--muted);
+  font-size: 0.6rem;
+}
+
+.game-session-identity > span {
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.game-session-identity strong {
+  font-size: 0.82rem;
+}
+
+.game-session-identity em {
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-style: normal;
+  font-weight: 600;
+  margin: 0 3px;
+}
+
+.game-session-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.game-session-bases-trigger {
+  display: none !important;
+}
+
+.game-session-menu {
+  background: var(--panel-strong);
+  border: 1px solid var(--line-strong);
+  border-radius: 11px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 3px;
+  padding: 5px;
+  position: absolute;
+  right: 8px;
+  top: calc(100% + 6px);
+  width: 205px;
+  z-index: 80;
+}
+
+.game-session-menu button {
+  background: transparent;
+  border: 0;
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
+}
+
+.game-session-active .game-score-ribbon {
+  box-shadow: none;
+  min-height: 92px;
+}
+
+.game-session-active .game-score-team,
+.game-session-active .game-inning-state {
+  padding-block: 10px;
+}
+
+.game-session-active .game-score-team strong {
+  font-size: clamp(2.1rem, 4vw, 3.4rem);
+}
+
+.game-session-active .game-workspace-tabs {
+  align-self: start;
+  background: var(--control-bg);
+  border-radius: 9px;
+  min-height: 38px;
+}
+
+.game-session-active .game-workspace-tabs button {
+  min-width: 92px;
+  padding-block: 7px;
+}
+
+.game-session-active .game-scorekeeper-layout,
+.game-session-active .game-live-shell {
+  height: auto;
+  overflow: visible;
+}
+
+.game-session-active .game-guided-console,
+.game-session-active .game-bases-console {
+  height: auto;
+  overflow: visible;
+}
+
+.game-session-active .game-guided-console {
+  display: block;
+}
+
+.game-session-active .game-bases-console {
+  position: sticky;
+  top: 10px;
+}
+
+.game-session-active .game-flow-steps {
+  margin-bottom: 10px;
+}
+
+.game-session-active .game-flow-stage {
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  min-height: 360px;
+  overflow: visible;
+  padding: 15px;
+}
+
+.game-session-active .game-pitch-type-grid--guided button,
+.game-session-active .game-result-pad--guided button {
+  min-height: 58px;
+}
+
+.game-session-active .game-current-pa-strip {
+  margin-top: 10px;
+}
+
+.game-session-active .game-live-shell {
+  overflow: visible;
+  padding-bottom: 10px;
+}
+
+.game-session-active .game-live-status {
+  grid-template-columns: minmax(180px, 0.8fr) minmax(260px, auto);
+}
+
+.game-session-active .game-live-status > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+}
+
+.game-session-active .game-live-status > div:first-child small {
+  grid-column: auto;
+}
+
+.game-session-active .game-live-last-play {
+  grid-column: 1 / -1;
+}
+
+.game-session-drawer-layer {
+  align-items: stretch;
+  background: rgba(0, 0, 0, 0.46);
+  display: flex;
+  inset: 0;
+  justify-content: flex-end;
+  position: fixed;
+  z-index: 200;
+}
+
+.game-session-drawer {
+  background: var(--panel);
+  border-left: 1px solid var(--line-strong);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 100%;
+  overflow-y: auto;
+  padding: 15px;
+  width: min(430px, 92vw);
+}
+
+.game-session-drawer > header {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 12px;
+}
+
+.game-session-drawer > header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.game-session-drawer > header span,
+.game-drawer-adjustments > span {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.game-session-drawer h2 {
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.game-session-drawer > header button {
+  align-items: center;
+  background: var(--control-bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  display: flex;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.game-correction-actions {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.game-correction-note {
+  background: var(--control-bg);
+  border-left: 3px solid var(--brand-primary);
+  border-radius: 8px;
+  color: var(--muted-strong);
+  font-size: 0.68rem;
+  line-height: 1.45;
+  margin: 0;
+  padding: 10px 11px;
+}
+
+.game-session-history-list {
+  border-bottom: 1px solid var(--line);
+  overflow: visible;
+  padding-bottom: 8px;
+}
+
+.game-drawer-adjustments {
+  display: grid;
+  gap: 8px;
+}
+
+.game-drawer-adjustments > div {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.game-drawer-adjustments button {
+  background: var(--control-bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  min-height: 40px;
+}
+
+@media (max-width: 1180px) {
+  .game-session-active {
+    padding: 7px;
+  }
+
+  .game-session-active .game-scorekeeper-layout {
+    align-items: start;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .game-session-active .game-scorekeeper-layout .game-bases-console {
+    display: none;
+  }
+
+  .game-session-bases-trigger {
+    display: inline-flex !important;
+  }
+
+  .game-session-active .game-guided-console,
+  .game-session-active .game-bases-console {
+    min-height: 0;
+    padding: 12px;
+  }
+
+  .game-session-active .game-flow-stage {
+    min-height: 300px;
+  }
+
+  .game-session-active .game-score-ribbon {
+    min-height: 88px;
+  }
+
+  .game-session-active .game-score-team,
+  .game-session-active .game-inning-state {
+    padding-block: 7px;
+  }
+
+  .game-session-active .game-pitch-type-grid--guided {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .game-session-active .game-current-pa-strip:has(> div > small:only-child) {
+    display: none;
+  }
+}
+
+@media (min-width: 761px) and (max-height: 720px) {
+  .game-session-active {
+    padding: 6px;
+  }
+
+  .game-session-active .game-workstation {
+    gap: 6px;
+    min-height: calc(100dvh - 12px);
+  }
+
+  .game-session-bar {
+    min-height: 40px;
+    padding-block: 2px;
+  }
+
+  .game-session-bar button {
+    min-height: 32px;
+  }
+
+  .game-session-active .game-score-ribbon {
+    min-height: 72px;
+  }
+
+  .game-session-active .game-score-team,
+  .game-session-active .game-inning-state {
+    padding-block: 4px;
+  }
+
+  .game-session-active .game-inning-state {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .game-session-active .game-score-team strong {
+    font-size: 2.15rem;
+  }
+
+  .game-session-active .game-workspace-tabs {
+    min-height: 32px;
+  }
+
+  .game-session-active .game-workspace-tabs button {
+    min-height: 30px;
+    padding-block: 3px;
+  }
+
+  .game-session-active .game-guided-console {
+    padding: 10px;
+  }
+
+  .game-session-active .game-panel-heading {
+    margin-bottom: 8px;
+  }
+
+  .game-session-active .game-flow-steps {
+    margin-bottom: 8px;
+  }
+
+  .game-session-active .game-flow-stage {
+    min-height: 250px;
+    padding: 12px;
+  }
+
+  .game-session-active .game-pitch-type-grid--guided button,
+  .game-session-active .game-result-pad--guided button {
+    min-height: 50px;
+  }
+}
+
+@media (max-width: 760px) {
+  .game-session-active {
+    min-height: 100dvh;
+    overflow: visible;
+    padding: 5px;
+  }
+
+  .ops-main:has(.game-session-active) {
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .game-session-active .game-workstation {
+    grid-template-rows: auto auto auto auto;
+    min-height: calc(100dvh - 10px);
+  }
+
+  .game-session-bar {
+    gap: 6px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    min-height: 50px;
+    padding: 5px;
+    position: sticky;
+    top: 0;
+  }
+
+  .game-session-exit span,
+  .game-session-actions button span,
+  .game-session-identity small,
+  .game-session-identity > span {
+    display: none;
+  }
+
+  .game-session-exit,
+  .game-session-actions > button {
+    min-width: 38px;
+    padding: 0 8px !important;
+  }
+
+  .game-session-identity strong {
+    font-size: 0.72rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .game-session-actions {
+    gap: 4px;
+  }
+
+  .game-session-bases-trigger {
+    display: inline-flex !important;
+    font-size: 0.64rem !important;
+  }
+
+  .game-session-active .game-score-ribbon {
+    min-height: 82px;
+    position: static;
+  }
+
+  .game-session-active .game-score-team,
+  .game-session-active .game-inning-state {
+    padding-block: 7px;
+  }
+
+  .game-session-active .game-workspace-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .game-session-active .game-scorekeeper-layout,
+  .game-session-active .game-live-shell {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+
+  .game-session-active .game-guided-console {
+    height: auto;
+    overflow: visible;
+    padding: 10px;
+    scroll-margin-top: 58px;
+  }
+
+  .game-session-active .game-bases-console {
+    display: none;
+  }
+
+  .game-session-active .game-flow-stage {
+    min-height: 0;
+    overflow: visible;
+    padding: 12px;
+  }
+
+  .game-session-active .game-pitch-type-grid--guided {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .game-session-active .game-live-status {
+    grid-template-columns: 1fr;
+  }
+
+  .game-session-active .game-live-status > div:first-child {
+    text-align: left;
+  }
+
+  .game-session-drawer {
+    border-left: 0;
+    border-radius: 18px 18px 0 0;
+    max-height: 88dvh;
+    padding: 13px;
+    width: 100%;
+  }
+
+  .game-session-drawer-layer {
+    align-items: flex-end;
+  }
+
+  .game-correction-actions {
+    grid-template-columns: 1fr;
+  }
+}

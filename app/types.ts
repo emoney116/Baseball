@@ -172,7 +172,8 @@ export type GamePitchOutcome =
   | "Called Strike"
   | "Swinging Strike"
   | "Foul"
-  | "In Play";
+  | "In Play"
+  | "HBP";
 
 export type GameBallInPlayOutcome =
   | "Single"
@@ -186,7 +187,53 @@ export type GameBallInPlayOutcome =
   | "Error"
   | "Fielder's Choice"
   | "Sac Fly"
-  | "Sac Bunt";
+  | "Sac Bunt"
+  | "Double Play";
+
+export type GameBase = "first" | "second" | "third";
+export type GameRunnerAction = "Advance" | "Stolen Base" | "Caught Stealing" | "Pickoff" | "Run Scored" | "Wild Pitch" | "Passed Ball";
+export type GameRunnerOrigin = GameBase | "batter";
+export type GameRunnerDestination = GameBase | "home" | "out" | "hold";
+export type GameContactType = "Ground Ball" | "Line Drive" | "Fly Ball" | "Pop Up" | "Bunt";
+export type GameScoringReason =
+  | "Batter result"
+  | "Forced"
+  | "On hit"
+  | "On throw"
+  | "On error"
+  | "Tag up"
+  | "Fielder's choice"
+  | "Other";
+
+export interface GameRunnerMovement {
+  runnerId: ID;
+  from: GameRunnerOrigin;
+  to: GameRunnerDestination;
+  result: "safe" | "out" | "held";
+  reason: GameScoringReason;
+  rbi?: boolean;
+}
+
+export interface GameScoredPlay {
+  outcome: GameBallInPlayOutcome;
+  contactType: GameContactType;
+  movements: GameRunnerMovement[];
+  fieldLocation?: ZonePoint;
+  rbi?: number;
+  note?: string;
+}
+
+export interface GameStateSnapshot {
+  inning: number;
+  half: "Top" | "Bottom";
+  outs: number;
+  balls: number;
+  strikes: number;
+  runners: Game["runners"];
+  metrolinaScore: number;
+  opponentScore: number;
+  currentBatterId?: ID;
+}
 
 export interface Player {
   id: ID;
@@ -819,6 +866,9 @@ export interface Game {
   startingPitcherId?: ID;
   currentPitcherId?: ID;
   currentBatterId?: ID;
+  activePlateAppearanceId?: ID;
+  plateAppearanceNumber?: number;
+  pitchNumberInPlateAppearance?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -833,6 +883,28 @@ export interface GameEvent {
   pitchType?: PitchType;
   pitchOutcome?: GamePitchOutcome;
   ballInPlayOutcome?: GameBallInPlayOutcome;
+  eventKind?: "pitch" | "play" | "runner" | "adjustment" | "correction" | "substitution";
+  sequenceNumber?: number;
+  plateAppearanceId?: ID;
+  plateAppearanceNumber?: number;
+  pitchNumber?: number;
+  pitchNumberInPlateAppearance?: number;
+  contactType?: GameContactType;
+  runnerMovements?: GameRunnerMovement[];
+  rbi?: number;
+  scoringNote?: string;
+  supersedesEventId?: ID;
+  recordStatus?: "confirmed" | "corrected" | "voided";
+  runnerAction?: GameRunnerAction;
+  runnerId?: ID;
+  runnerBase?: GameBase;
+  countBefore?: CountState;
+  countAfter?: CountState;
+  runnersBefore?: Game["runners"];
+  runnersAfter?: Game["runners"];
+  stateBefore?: GameStateSnapshot;
+  stateAfter?: GameStateSnapshot;
+  fieldLocation?: ZonePoint;
   velocity?: number;
   location?: ZonePoint;
   outsBefore: number;
@@ -847,7 +919,8 @@ export interface GameEvent {
 
 export interface PlateAppearance {
   id: ID;
-  practiceId: ID;
+  practiceId?: ID;
+  gameId?: ID;
   pitchingSessionId?: ID;
   hittingSessionId?: ID;
   pitcherId: ID;

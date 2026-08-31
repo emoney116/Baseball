@@ -859,6 +859,7 @@ function filterGameEvents(data: AppData, query: AnalyticsQuery, today?: string):
   const dateRange = resolveDateRange(data, query, today);
   const games = new Map(data.games.map((game) => [game.id, game]));
   return data.gameEvents.filter((event) => {
+    if ((event.recordStatus ?? "confirmed") !== "confirmed" || event.eventKind === "correction") return false;
     const game = games.get(event.gameId);
     if (!game || !dateInRange(game.date, dateRange)) return false;
     if (query.eventIds?.length && !query.eventIds.includes(game.id)) return false;

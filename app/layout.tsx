@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
+import Script from "next/script";
 import type React from "react";
 import { APP_DESCRIPTION, APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
 import { absoluteUrl, productionSiteUrl } from "./lib/siteUrl";
 import { THEME_BOOTSTRAP_SCRIPT } from "./lib/themePreference";
 import "./globals.css";
+import "./theme.css";
+import "./game-session.css";
 
 const geist = Geist({
   subsets: ["latin"],
@@ -53,10 +56,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" data-theme="dark" className={geist.variable} suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
-      </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Script id="theme-bootstrap" strategy="beforeInteractive">
+          {THEME_BOOTSTRAP_SCRIPT}
+        </Script>
+      </body>
     </html>
   );
 }
