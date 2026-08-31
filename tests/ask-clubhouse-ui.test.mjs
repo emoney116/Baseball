@@ -10,12 +10,24 @@ test("Ask Clubhouse mobile UI uses a full-screen assistant with stacked suggesti
   assert.match(page, /className="ask-suggestion-stack"/);
   assert.match(page, /Show more ideas/);
   assert.doesNotMatch(page, /className="ask-question-list"/);
+  assert.match(page, /document\.body\.dataset\.askClubhouseOpen = "true"/);
+  assert.match(page, /delete document\.body\.dataset\.askClubhouseOpen/);
 
   assert.match(css, /\.analytics-ask-backdrop/);
   assert.match(css, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-ask-drawer\s*\{[\s\S]*height:\s*100dvh/);
   assert.match(css, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-ask-drawer\s*\{[\s\S]*border-radius:\s*0/);
+  assert.match(css, /body\[data-ask-clubhouse-open="true"\] \.bottom-nav/);
+  assert.match(css, /body\[data-ask-clubhouse-open="true"\] \.analytics-ask-fab\s*\{[\s\S]*display:\s*none !important/);
+  assert.match(css, /body\[data-ask-clubhouse-open="true"\]\s*\{[\s\S]*overflow:\s*hidden/);
+  assert.match(css, /body\[data-ask-clubhouse-open="true"\] \.mobile-brand/);
+  assert.match(css, /body\[data-ask-clubhouse-open="true"\] \.profile-menu--icon/);
+  assert.match(css, /body\[data-ask-clubhouse-open="true"\] \.analytics-ask-fab/);
+  assert.match(css, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-ask-drawer\s*\{[\s\S]*grid-template-rows:\s*auto minmax\(0, 1fr\) auto/);
+  assert.match(css, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-ask-drawer\s*\{[\s\S]*position:\s*fixed/);
+  assert.match(css, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-ask-drawer\s*\{[\s\S]*inset:\s*0/);
   assert.match(css, /\.ask-suggestion-stack button,[\s\S]*\.ask-show-more\s*\{[\s\S]*grid-template-columns:\s*22px minmax\(0, 1fr\) 16px/);
   assert.match(css, /\.analytics-ask-drawer \.ask-composer\s*\{[\s\S]*border-top:\s*1px solid var\(--line\)/);
+  assert.match(css, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-ask-drawer \.ask-composer\s*\{[\s\S]*min-height:\s*calc\(62px \+ env\(safe-area-inset-bottom\)\)/);
 });
 
 test("Ask Clubhouse UI supports structured answers and deduped setup/error states", () => {
@@ -49,6 +61,7 @@ test("Ask Clubhouse answer styles include hierarchy and flat text rankings", () 
   assert.match(css, /\.ask-data-note\s*\{/);
   assert.match(css, /\.ask-ranking--text\s*\{/);
   assert.match(css, /\.ask-header__close-button\s*\{/);
+  assert.match(css, /\.ask-header__title small\s*\{[\s\S]*text-overflow:\s*ellipsis/);
 });
 
 test("Ask Clubhouse mock states are local development only", () => {
