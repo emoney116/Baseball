@@ -2080,6 +2080,10 @@ async function syncGames(supabase: SupabaseClient, foundation: Foundation, data:
       is_starting_pitcher: game.startingPitcherId === playerId,
     })),
   );
+  if (data.games.length > 0) {
+    const { error } = await supabase.from("game_lineups").delete().in("game_id", data.games.map((game) => game.id));
+    if (error) throw new PersistenceError("save-failed", error.message);
+  }
   if (lineups.length > 0) {
     const { error } = await supabase.from("game_lineups").upsert(lineups, { onConflict: "game_id,player_id" });
     if (error) throw new PersistenceError("save-failed", error.message);
@@ -3183,6 +3187,8 @@ function mapGameEvent(row: any): GameEvent {
     runnerMovements: row.runner_movements ?? undefined,
     rbi: row.rbi ?? undefined,
     scoringNote: row.scoring_note ?? undefined,
+    scoringReason: row.scoring_reason ?? undefined,
+    substitution: row.substitution ?? undefined,
     supersedesEventId: row.supersedes_event_id ?? undefined,
     recordStatus: row.record_status ?? "confirmed",
     runnerAction: row.runner_action ?? undefined,
@@ -3454,6 +3460,8 @@ function mapGameEventToRow(event: GameEvent) {
     runner_movements: event.runnerMovements ?? [],
     rbi: event.rbi ?? null,
     scoring_note: event.scoringNote ?? null,
+    scoring_reason: event.scoringReason ?? null,
+    substitution: event.substitution ?? null,
     supersedes_event_id: event.supersedesEventId ?? null,
     record_status: event.recordStatus ?? "confirmed",
     runner_action: event.runnerAction ?? null,

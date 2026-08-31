@@ -456,6 +456,8 @@ export const gamePitchEvents = pgTable("game_pitch_events", {
   runnerMovements: jsonb("runner_movements").default([]).notNull(),
   rbi: integer("rbi"),
   scoringNote: text("scoring_note"),
+  scoringReason: text("scoring_reason"),
+  substitution: jsonb("substitution"),
   supersedesEventId: uuid("supersedes_event_id"),
   recordStatus: text("record_status").default("confirmed").notNull(),
   runnerAction: text("runner_action"),

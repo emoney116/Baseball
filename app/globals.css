@@ -20647,7 +20647,7 @@ body,
   transform: translate(-50%, -50%) rotate(45deg);
 }
 
-.game-base-diamond button {
+.game-base-diamond > button {
   position: absolute;
   z-index: 1;
   width: 92px;
@@ -20663,15 +20663,15 @@ body,
   text-align: center;
 }
 
-.game-base-diamond button.occupied { cursor: grab; border-color: color-mix(in srgb, var(--brand-primary) 58%, var(--line)); touch-action: manipulation; }
-.game-base-diamond button.occupied:active { cursor: grabbing; }
-.game-base-diamond.is-dragging button:not(.occupied) { border-color: var(--brand-primary); border-style: dashed; background: var(--brand-soft); }
-.game-base-diamond button.selected { background: var(--brand-soft); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-primary) 38%, transparent); }
-.game-base-diamond button span { color: var(--muted); font-size: 0.61rem; font-weight: 850; }
-.game-base-diamond button strong { font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; }
-.game-base-diamond button[data-base="second"] { left: 50%; top: 3px; transform: translateX(-50%); }
-.game-base-diamond button[data-base="third"] { left: 2px; top: 48%; transform: translateY(-50%); }
-.game-base-diamond button[data-base="first"] { right: 2px; top: 48%; transform: translateY(-50%); }
+.game-base-diamond > button.occupied { cursor: grab; border-color: color-mix(in srgb, var(--brand-primary) 58%, var(--line)); touch-action: manipulation; }
+.game-base-diamond > button.occupied:active { cursor: grabbing; }
+.game-base-diamond.is-dragging > button:not(.occupied) { border-color: var(--brand-primary); border-style: dashed; background: var(--brand-soft); }
+.game-base-diamond > button.selected { background: var(--brand-soft); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-primary) 38%, transparent); }
+.game-base-diamond > button span { color: var(--muted); font-size: 0.61rem; font-weight: 850; }
+.game-base-diamond > button strong { font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; }
+.game-base-diamond > button[data-base="second"] { left: 50%; top: 3px; transform: translateX(-50%); }
+.game-base-diamond > button[data-base="third"] { left: 2px; top: 48%; transform: translateY(-50%); }
+.game-base-diamond > button[data-base="first"] { right: 2px; top: 48%; transform: translateY(-50%); }
 .game-home-plate {
   align-items: center;
   bottom: 5px;
@@ -20847,6 +20847,48 @@ body,
 .game-sample-note { margin: 9px 0 0; }
 .strike-zone--readonly { cursor: default; }
 
+/* Original Clubhouse game operations shell. */
+.game-personnel-workbench { display: grid; gap: 12px; grid-template-columns: minmax(360px, .9fr) minmax(420px, 1.1fr); }
+.game-personnel-field, .game-lineup-editor, .game-plays-workbench { min-width: 0; }
+.game-field-editor { margin: 0 auto; max-width: 620px; position: relative; }
+.game-field-editor > .field-chart { cursor: default; width: 100%; }
+.game-field-editor > button:not(.field-chart) { align-items: center; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 2px solid var(--line); border-radius: 999px; box-shadow: 0 7px 18px rgba(0,0,0,.18); color: var(--text); display: flex; flex-direction: column; min-height: 48px; min-width: 68px; padding: 6px 9px; position: absolute; transform: translate(-50%, -50%); z-index: 2; }
+.game-field-editor > button:not(.field-chart):hover, .game-field-editor > button.selected { border-color: var(--brand-primary); background: var(--brand-soft); }
+.game-field-editor > button:not(.field-chart) b { color: var(--brand-primary); font-size: .58rem; }
+.game-field-editor > button:not(.field-chart) span { font-size: .66rem; font-weight: 850; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.game-field-selection { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; display: flex; gap: 8px; margin-top: 10px; padding: 9px 11px; }
+.game-field-selection span { color: var(--muted); font-size: .62rem; font-weight: 800; text-transform: uppercase; }
+.game-field-selection strong { font-size: .72rem; }
+.game-field-selection button { margin-left: auto; }
+.game-lineup-rows { display: grid; gap: 6px; }
+.game-lineup-rows article { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; display: grid; gap: 8px; grid-template-columns: 28px minmax(130px, 1fr) 84px auto; padding: 8px; }
+.game-lineup-rows article.selected { background: var(--brand-soft); border-color: var(--brand-primary); }
+.game-lineup-rows article > b { align-items: center; background: var(--panel); border-radius: 50%; display: flex; font-size: .66rem; height: 25px; justify-content: center; }
+.game-lineup-player-select { background: transparent; border: 0; color: var(--text); display: grid; gap: 2px; padding: 0; text-align: left; }
+.game-lineup-player-select strong { font-size: .72rem; }
+.game-lineup-player-select small { color: var(--muted); font-size: .6rem; }
+.game-lineup-rows article select { min-height: 35px; min-width: 0; }
+.game-lineup-rows article > div { display: flex; gap: 3px; }
+.game-lineup-rows article > div button { align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; display: flex; height: 34px; justify-content: center; width: 34px; }
+.game-lineup-rows .game-sub-select { grid-column: 2 / -1; }
+.game-lineup-save { align-items: center; border-top: 1px solid var(--line); display: flex; gap: 12px; justify-content: space-between; margin-top: 12px; padding-top: 12px; }
+.game-lineup-save span { color: var(--muted); font-size: .64rem; }
+.game-play-ledger { display: grid; gap: 6px; }
+.game-play-ledger article { align-items: start; border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 10px; grid-template-columns: 38px minmax(0,1fr) auto; padding: 10px; }
+.game-play-ledger article.voided { opacity: .55; text-decoration: line-through; }
+.game-play-ledger article > b { color: var(--brand-primary); font-size: .68rem; }
+.game-play-ledger article > span { display: grid; gap: 3px; }
+.game-play-ledger article strong { font-size: .74rem; }
+.game-play-ledger article small, .game-play-ledger article em { color: var(--muted); font-size: .62rem; font-style: normal; }
+.game-play-ledger article > i { color: var(--muted); font-size: .56rem; font-style: normal; text-transform: uppercase; }
+.game-runner-reason { background: var(--panel); border: 1px solid var(--brand-primary); border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,.24); display: grid; gap: 8px; left: 50%; padding: 12px; position: absolute; top: 50%; transform: translate(-50%, -50%); width: min(310px, calc(100% - 12px)); z-index: 8; }
+.game-runner-reason > strong { font-size: .8rem; }
+.game-runner-reason > small { color: var(--muted); font-size: .62rem; }
+.game-runner-reason > div { display: grid; gap: 5px; grid-template-columns: repeat(2, minmax(0,1fr)); }
+.game-runner-reason > div button { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; color: var(--text); font-size: .64rem; font-weight: 800; min-height: 38px; }
+.game-runner-reason > div button.active { background: var(--brand-soft); border-color: var(--brand-primary); }
+.game-runner-reason .game-runner-reason__actions { display: flex; justify-content: space-between; }
+
 /* Guided scorekeeper: one required decision at a time. */
 .game-scorekeeper-layout { align-items: start; display: grid; gap: 12px; grid-template-columns: minmax(520px, 1.45fr) minmax(280px, 0.55fr); }
 .game-guided-console { min-height: 620px; }
@@ -20961,6 +21003,7 @@ body,
 .game-tendex-location-layout { display: grid; gap: 12px; grid-template-columns: minmax(300px, .75fr) minmax(0, 1.25fr); }
 
 @media (max-width: 1180px) {
+  .game-personnel-workbench { grid-template-columns: 1fr; }
   .game-workstation-page .games-layout { grid-template-columns: 1fr; }
   .game-workstation-page .games-list { display: flex; overflow-x: auto; padding-bottom: 4px; }
   .game-workstation-page .games-list button { flex: 0 0 220px; }
@@ -20980,6 +21023,12 @@ body,
 }
 
 @media (max-width: 760px) {
+  .game-personnel-workbench { grid-template-columns: 1fr; }
+  .game-field-editor > button:not(.field-chart) { min-height: 40px; min-width: 52px; padding: 4px 6px; }
+  .game-field-editor > button:not(.field-chart) span { font-size: .55rem; max-width: 56px; }
+  .game-lineup-rows article { grid-template-columns: 26px minmax(100px,1fr) 70px auto; }
+  .game-lineup-save { align-items: stretch; flex-direction: column; }
+  .game-lineup-save button { width: 100%; }
   html:has(.game-workstation-page),
   body:has(.game-workstation-page),
   .ops-shell:has(.game-workstation-page) { overflow-x: clip; }

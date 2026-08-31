@@ -12,7 +12,9 @@ test("active games render as an immersive session with a deliberate exit", () =>
   assert.match(page, /game-session-active/);
   assert.match(page, />Exit game</);
   assert.match(page, />Score</);
-  assert.match(page, />Analyze</);
+  assert.match(page, />Analytics</);
+  assert.match(page, />Lineup \+ Field</);
+  assert.match(page, />Plays</);
   assert.match(css, /\.ops-shell:has\(\.game-session-active\)/);
   assert.match(css, /height:\s*100dvh/);
   assert.match(layout, /import "\.\/game-session\.css";/);
@@ -63,4 +65,18 @@ test("compact desktop uses the full scorer width and moves bases into the drawer
 test("analysis view has no branded live model banner", () => {
   assert.doesNotMatch(page, /Tendex Live Model/);
   assert.doesNotMatch(page, /Live Tendex/);
+});
+
+test("game operations support auditable personnel changes and scored-run reasons", () => {
+  assert.match(page, /GamePersonnelWorkbench/);
+  assert.match(page, /Save lineup & field/);
+  assert.match(page, /eventKind: "substitution"/);
+  assert.match(page, /Why did the runner score\?/);
+  assert.match(page, /scoringReason: reason/);
+  assert.match(page, /Confirm run/);
+  assert.match(globalCss, /\.game-base-diamond > button/);
+  assert.doesNotMatch(globalCss, /\.game-base-diamond button\s*\{/);
+  assert.match(page, /Zone Heatmap/);
+  assert.match(page, /Spray Chart/);
+  assert.doesNotMatch(page, /Next Pitch Read/);
 });

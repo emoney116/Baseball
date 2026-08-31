@@ -55,6 +55,19 @@ test("runner events support steals, caught stealing, and snapshot undo", () => {
   assert.deepEqual(snapshotGame(restoreGameSnapshot(caught, before)), before);
 });
 
+test("game snapshots restore personnel and plate-appearance counters after a substitution or correction", () => {
+  const game = makeGame({ positions: { P: "p1", SS: "p2" }, currentPitcherId: "p1", activePlateAppearanceId: "pa-1", plateAppearanceNumber: 3, pitchNumberInPlateAppearance: 1 });
+  const before = snapshotGame(game);
+  const changed = { ...game, lineup: ["p3", "p2", "p1"], positions: { P: "p3", SS: "p2" }, currentPitcherId: "p3", activePlateAppearanceId: "pa-2", plateAppearanceNumber: 4, pitchNumberInPlateAppearance: 2 };
+  const restored = restoreGameSnapshot(changed, before);
+  assert.deepEqual(restored.lineup, ["p1", "p2", "p3"]);
+  assert.deepEqual(restored.positions, { P: "p1", SS: "p2" });
+  assert.equal(restored.currentPitcherId, "p1");
+  assert.equal(restored.activePlateAppearanceId, "pa-1");
+  assert.equal(restored.plateAppearanceNumber, 3);
+  assert.equal(restored.pitchNumberInPlateAppearance, 1);
+});
+
 test("drag-style runner moves support direct bases and home without overwriting another runner", () => {
   const game = makeGame({ runners: { first: "r1", third: "r3" } });
   const moved = moveRunnerToDestination(game, "first", "second");

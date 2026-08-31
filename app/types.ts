@@ -237,6 +237,10 @@ export type GameScoringReason =
   | "On hit"
   | "On throw"
   | "On error"
+  | "Wild pitch"
+  | "Passed ball"
+  | "Stolen base"
+  | "Defensive indifference"
   | "Tag up"
   | "Fielder's choice"
   | "Other";
@@ -269,6 +273,13 @@ export interface GameStateSnapshot {
   metrolinaScore: number;
   opponentScore: number;
   currentBatterId?: ID;
+  lineup?: ID[];
+  positions?: Partial<Record<Position, ID>>;
+  startingPitcherId?: ID;
+  currentPitcherId?: ID;
+  activePlateAppearanceId?: ID;
+  plateAppearanceNumber?: number;
+  pitchNumberInPlateAppearance?: number;
 }
 
 export interface Player {
@@ -944,6 +955,13 @@ export interface GameEvent {
   runnerMovements?: GameRunnerMovement[];
   rbi?: number;
   scoringNote?: string;
+  scoringReason?: GameScoringReason;
+  substitution?: {
+    outgoingPlayerId?: ID;
+    incomingPlayerId?: ID;
+    position?: Position;
+    lineupIndex?: number;
+  };
   supersedesEventId?: ID;
   recordStatus?: "confirmed" | "corrected" | "voided";
   runnerAction?: GameRunnerAction;

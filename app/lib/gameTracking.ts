@@ -37,11 +37,18 @@ export function snapshotGame(game: Game): GameStateSnapshot {
     metrolinaScore: game.metrolinaScore,
     opponentScore: game.opponentScore,
     currentBatterId: game.currentBatterId,
+    lineup: [...game.lineup],
+    positions: { ...game.positions },
+    startingPitcherId: game.startingPitcherId,
+    currentPitcherId: game.currentPitcherId,
+    activePlateAppearanceId: game.activePlateAppearanceId,
+    plateAppearanceNumber: game.plateAppearanceNumber,
+    pitchNumberInPlateAppearance: game.pitchNumberInPlateAppearance,
   };
 }
 
 export function restoreGameSnapshot(game: Game, snapshot: GameStateSnapshot): Game {
-  return { ...game, ...snapshot, runners: { ...snapshot.runners }, updatedAt: new Date().toISOString() };
+  return { ...game, ...snapshot, runners: { ...snapshot.runners }, lineup: snapshot.lineup ? [...snapshot.lineup] : game.lineup, positions: snapshot.positions ? { ...snapshot.positions } : game.positions, updatedAt: new Date().toISOString() };
 }
 
 export function isMetrolinaBatting(game: Game) {
