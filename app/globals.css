@@ -21146,9 +21146,11 @@ body,
   .game-field-pitch-ball { height: 52px; top: 73%; width: 52px; }
   .game-field-pitch-ball i, .game-field-pitch-ball i::after { height: 31px; width: 18px; }
   .game-field-command__runners > header button { min-height: 44px; }
-  .game-field-command__runners .game-base-diamond { height: 34%; top: 74%; width: 52%; }
+  .game-field-command__runners .game-base-diamond { height: 34%; top: 74%; width: 60%; }
   .game-field-command__runners .game-base-diamond > button { border-radius: 8px; min-height: 36px; width: 48px; }
-  .game-field-command__runners .game-base-diamond > button.occupied { min-height: 44px; width: 62px; }
+  .game-field-command__runners .game-base-diamond > button.occupied { border-radius: 999px; min-height: 44px; width: 44px; }
+  .game-field-command__runners .game-base-diamond > button.occupied strong { font-size: .47rem; max-width: 34px; }
+  .game-field-command__runners .game-base-diamond:not(.is-dragging):not(:has(> button.selected)) .game-home-plate { opacity: .35; pointer-events: none; }
   .game-field-command__runners .game-base-diamond > button span { font-size: .49rem; }
   .game-field-command__runners .game-base-diamond > button strong { font-size: .55rem; }
   .game-field-command__runners .game-home-plate i { height: 18px; width: 25px; }

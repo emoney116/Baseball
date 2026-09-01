@@ -24,11 +24,13 @@ test("active games render as an immersive session with a deliberate exit", () =>
   assert.match(layout, /import "\.\/game-session\.css";/);
 });
 
-test("the field-first score lane stays in one viewport while contextual sheets scroll", () => {
+test("the field-first score lane and scoring decisions stay in one viewport", () => {
   assert.match(css, /Field-first command surface overrides/);
   assert.match(css, /\.game-session-active,\s*\.ops-main:has\(\.game-session-active\)\s*\{\s*overflow:\s*hidden/);
   assert.match(css, /\.game-session-active \.game-workstation[\s\S]*?height:\s*calc\(100dvh - 20px\)/);
   assert.match(css, /\.game-session-active \.game-context-sheet\s*\{\s*overflow-y:\s*auto/);
+  assert.match(css, /\.game-session-active \.game-context-sheet--scoring\s*\{[\s\S]*?overflow:\s*hidden/);
+  assert.match(css, /Every live scoring decision fits as a single app screen/);
   assert.match(globalCss, /\.game-field-command\s*\{[^}]*grid-template-rows:\s*auto minmax\(0,1fr\) auto/);
   assert.match(globalCss, /\.game-context-sheet--scoring/);
 });
@@ -58,6 +60,8 @@ test("field tracking renders the generated field asset, spray line, and draggabl
   assert.match(visuals, /field-chart__spray-line/);
   assert.match(page, /draggable=\{Boolean\(runner\)\}/);
   assert.match(page, /onMoveRunner/);
+  assert.match(page, /if \(!player\) return null/);
+  assert.match(css, /game-base-diamond > button\.occupied[\s\S]*?width:\s*44px/);
   assert.match(globalCss, /clip-path:\s*polygon\(0 0, 100% 0, 100% 45%, 50% 100%, 0 45%\)/);
 });
 

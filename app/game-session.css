@@ -727,4 +727,189 @@
     height: 8px;
     width: 8px;
   }
+
+  /* Every live scoring decision fits as a single app screen—no form scrolling. */
+  .game-session-active .game-context-sheet--scoring {
+    height: auto;
+    max-height: calc(100dvh - 150px);
+    overflow: hidden;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-context-sheet__bar {
+    min-height: 42px;
+    padding-block: 2px 6px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-context-sheet__bar span,
+  .game-session-active .game-context-sheet--scoring .game-panel-heading,
+  .game-session-active .game-context-sheet--scoring .game-current-pa-strip {
+    display: none;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-context-sheet__bar strong {
+    display: block;
+    font-size: 0.7rem;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-scorekeeper-layout,
+  .game-session-active .game-context-sheet--scoring .game-guided-console {
+    background: transparent;
+    border: 0;
+    height: auto;
+    min-height: 0;
+    padding: 0;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-flow-steps {
+    gap: 4px;
+    margin-bottom: 6px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-flow-steps button {
+    border-radius: 8px;
+    min-height: 38px;
+    padding: 4px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-flow-steps button i {
+    flex-basis: 22px;
+    height: 22px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-flow-stage {
+    border-radius: 11px;
+    gap: 7px;
+    min-height: 0;
+    overflow: hidden;
+    padding: 9px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-stage-heading {
+    gap: 1px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-stage-heading > span {
+    font-size: 0.52rem;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-stage-heading h3 {
+    font-size: 1rem;
+    line-height: 1.1;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-stage-heading small,
+  .game-session-active .game-context-sheet--scoring .game-stage-actions > small {
+    display: none;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-velocity-input {
+    min-height: 40px;
+    margin: 0;
+    padding-block: 4px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-velocity-input input {
+    font-size: 0.9rem;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-pitch-type-grid--guided,
+  .game-session-active .game-context-sheet--scoring .game-result-pad--guided,
+  .game-session-active .game-context-sheet--scoring .game-bip-outcomes--guided,
+  .game-session-active .game-context-sheet--scoring .game-contact-types {
+    gap: 5px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-pitch-type-grid--guided button,
+  .game-session-active .game-context-sheet--scoring .game-result-pad--guided button,
+  .game-session-active .game-context-sheet--scoring .game-bip-outcomes--guided button,
+  .game-session-active .game-context-sheet--scoring .game-contact-types button {
+    border-radius: 8px;
+    min-height: 44px;
+    padding: 5px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-pitch-type-grid--guided button {
+    display: flex;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-pitch-type-grid--guided button small,
+  .game-session-active .game-context-sheet--scoring .game-pitch-type-grid--guided button svg,
+  .game-session-active .game-context-sheet--scoring .game-result-pad--guided button small {
+    display: none;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-result-pad--guided button strong {
+    font-size: 0.65rem;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-flow-stage--zone .strike-zone {
+    min-height: 170px;
+    width: 140px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-stage-actions {
+    align-items: center;
+    flex-direction: row;
+    min-height: 38px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-stage-actions button {
+    min-height: 38px;
+    width: auto;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-flow-back {
+    margin-top: 0;
+    min-height: 36px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-contact-types {
+    margin-bottom: 0;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-runner-resolution-list {
+    gap: 5px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-runner-resolution-list label {
+    gap: 5px;
+    grid-template-columns: minmax(0, 0.8fr) minmax(120px, 1.2fr);
+    min-height: 44px;
+    padding: 4px 6px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-runner-resolution-list select {
+    min-height: 36px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-play-confirm {
+    display: grid;
+    gap: 5px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    margin-top: 6px;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-play-confirm button {
+    min-height: 40px;
+    width: auto;
+  }
+
+  .game-session-active .game-context-sheet--scoring .game-play-confirm small {
+    display: none;
+  }
+
+  .game-session-active .game-field-command__runners .game-base-diamond > button.occupied {
+    border-radius: 999px;
+    max-width: 44px;
+    min-height: 44px;
+    min-width: 44px;
+    width: 44px;
+  }
 }
