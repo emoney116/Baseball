@@ -45,6 +45,7 @@ import type {
   WorkoutEntry,
   WorkoutSession,
 } from "../../types";
+import type { AskClubhouseTeamScope } from "./types.ts";
 
 const SEASON_NAME = "Fall 2026";
 
@@ -57,6 +58,14 @@ export interface AskClubhouseDataScope {
   organizationId?: ID;
   teamId?: ID;
   seasonId?: ID;
+  selectedTeams: TeamOption[];
+}
+
+export class AskClubhouseScopeError extends Error {
+  constructor(message = "One or more selected teams are not available to this account.") {
+    super(message);
+    this.name = "AskClubhouseScopeError";
+  }
 }
 
 export async function loadAskClubhouseData(
@@ -64,26 +73,82 @@ export async function loadAskClubhouseData(
   user: { id: string; email?: string; user_metadata?: Record<string, unknown> },
   requestedTeamId?: string,
   requestedSeasonId?: string,
+  requestedTeamScopes?: AskClubhouseTeamScope[],
 ): Promise<{ data: AppData; scope: AskClubhouseDataScope }> {
   const profile = await ensureOwnProfile(supabase, user);
   const teamContext = await loadTeamContext(supabase, profile, requestedTeamId, requestedSeasonId);
-  const current = teamContext.currentTeam;
+  const explicitScopes = requestedTeamScopes?.length
+    ? requestedTeamScopes
+    : requestedTeamId ? [{ teamId: requestedTeamId, seasonId: requestedSeasonId }] : undefined;
+  const selectedTeams = explicitScopes
+    ? resolveAuthorizedTeamScopes(teamContext.availableTeams, explicitScopes)
+    : teamContext.currentTeam ? [teamContext.currentTeam] : [];
 
-  if (!current?.teamId || !current.seasonId) {
+  if (!selectedTeams.length) {
     return {
       data: emptyData(teamContext, profile, undefined),
-      scope: { profileId: profile.id },
+      scope: { profileId: profile.id, selectedTeams: [] },
     };
   }
 
-  const data = await loadTeamData(supabase, teamContext, current);
+  const datasets = await Promise.all(selectedTeams.map((team) => loadTeamData(supabase, {
+    ...teamContext,
+    currentTeam: team,
+  }, team)));
+  const data = datasets.length === 1 ? datasets[0] : mergeTeamData(datasets, teamContext, profile);
+  const current = selectedTeams.length === 1 ? selectedTeams[0] : undefined;
   return {
     data,
     scope: {
       profileId: profile.id,
-      organizationId: current.organizationId,
-      teamId: current.teamId,
-      seasonId: current.seasonId,
+      organizationId: current?.organizationId,
+      teamId: current?.teamId,
+      seasonId: current?.seasonId,
+      selectedTeams,
+    },
+  };
+}
+
+function resolveAuthorizedTeamScopes(availableTeams: TeamOption[], requestedScopes: AskClubhouseTeamScope[]): TeamOption[] {
+  const requested = [...new Map(requestedScopes.map((scope) => [`${scope.teamId}:${scope.seasonId ?? ""}`, scope])).values()];
+  const selected = requested.map((scope) => availableTeams.find((team) => (
+    team.teamId === scope.teamId
+    && (!scope.seasonId || team.seasonId === scope.seasonId)
+  )));
+  if (selected.some((team) => !team)) throw new AskClubhouseScopeError();
+  return selected.filter((team): team is TeamOption => Boolean(team));
+}
+
+function mergeTeamData(datasets: AppData[], teamContext: TeamContext, profile: AppProfile): AppData {
+  const first = datasets[0];
+  const uniqueRows = <T extends { id: ID }>(rows: T[]) => [...new Map(rows.map((row) => [row.id, row])).values()];
+  return {
+    ...first,
+    teamContext: { ...teamContext, profile, currentTeam: undefined },
+    players: uniqueRows(datasets.flatMap((data) => data.players)),
+    playerTeamMemberships: uniqueRows(datasets.flatMap((data) => data.playerTeamMemberships ?? [])),
+    practices: uniqueRows(datasets.flatMap((data) => data.practices)),
+    attendance: uniqueRows(datasets.flatMap((data) => data.attendance)),
+    practiceSessionContributors: uniqueRows(datasets.flatMap((data) => data.practiceSessionContributors)),
+    pitchingSessions: uniqueRows(datasets.flatMap((data) => data.pitchingSessions)),
+    pitchEvents: uniqueRows(datasets.flatMap((data) => data.pitchEvents)),
+    hittingSessions: uniqueRows(datasets.flatMap((data) => data.hittingSessions)),
+    hittingEvents: uniqueRows(datasets.flatMap((data) => data.hittingEvents)),
+    defenseSessions: uniqueRows(datasets.flatMap((data) => data.defenseSessions)),
+    defenseEvents: uniqueRows(datasets.flatMap((data) => data.defenseEvents)),
+    workoutSessions: uniqueRows(datasets.flatMap((data) => data.workoutSessions)),
+    workoutEntries: uniqueRows(datasets.flatMap((data) => data.workoutEntries)),
+    games: uniqueRows(datasets.flatMap((data) => data.games)),
+    gameEvents: uniqueRows(datasets.flatMap((data) => data.gameEvents)),
+    scheduleEvents: [],
+    plateAppearances: uniqueRows(datasets.flatMap((data) => data.plateAppearances)),
+    coachNotes: uniqueRows(datasets.flatMap((data) => data.coachNotes)),
+    developmentGoals: uniqueRows(datasets.flatMap((data) => data.developmentGoals)),
+    settings: {
+      ...first.settings,
+      rosterSeason: "Selected teams",
+      selectedTeamId: undefined,
+      selectedSeasonId: undefined,
     },
   };
 }

@@ -2,15 +2,18 @@ import type {
   AnalyticsQuery,
   AnalyticsQueryContext,
   AnalyticsSource,
-} from "../analyticsQuery";
-import type { ID } from "../../types";
+} from "../analyticsQuery.ts";
+import type { ID } from "../../types.ts";
 
 export type AskClubhouseMessageRole = "user" | "assistant";
+export type AskClubhouseRoute = "clubhouse_data" | "baseball_knowledge" | "mixed" | "external_research_required" | "out_of_scope";
+export type AskClubhouseLaunchSurface = "clubhouse_home" | "team_home" | "practice" | "analytics" | "weight_room" | "games";
 export type AskClubhouseStatus =
   | "completed"
   | "refused"
   | "needs_clarification"
   | "no_data"
+  | "low_sample"
   | "rate_limited"
   | "duplicate"
   | "unavailable"
@@ -27,7 +30,14 @@ export interface AskClubhouseUiContext {
   teamId?: ID;
   seasonId?: ID;
   organizationId?: ID;
+  teamScopes?: AskClubhouseTeamScope[];
+  launchSurface?: AskClubhouseLaunchSurface;
   analytics?: Partial<AnalyticsQuery>;
+}
+
+export interface AskClubhouseTeamScope {
+  teamId: ID;
+  seasonId?: ID;
 }
 
 export interface AskClubhouseApiRequest {
@@ -48,13 +58,23 @@ export interface AskClubhouseAction {
 }
 
 export interface AskClubhouseEvidenceItem {
+  id?: ID;
+  documentId?: ID;
+  chunkId?: ID;
   title: string;
   summary: string;
+  url?: string;
+  source?: string;
+  version?: string;
+  status?: string;
 }
 
 export interface AskClubhouseUsageSnapshot {
   inputTokens?: number;
+  cachedInputTokens?: number;
+  cacheWriteTokens?: number;
   outputTokens?: number;
+  reasoningTokens?: number;
   totalTokens?: number;
   model?: string;
   toolCallCount: number;
@@ -65,6 +85,7 @@ export interface AskClubhouseUsageSnapshot {
 export interface AskClubhouseApiResponse {
   ok: boolean;
   status: AskClubhouseStatus;
+  route?: AskClubhouseRoute;
   conversationId?: ID;
   message?: AskClubhouseClientMessage;
   answer?: string;
@@ -102,11 +123,22 @@ export interface AskClubhouseToolResult {
   totals?: AskClubhouseToolRow;
   warnings?: string[];
   parameters?: Record<string, unknown>;
+  coverage?: {
+    label: string;
+    tracked: number;
+    minimumSample: number;
+    playerCount: number;
+    sessionCount: number;
+    byLabel?: Array<{ label: string; count: number }>;
+  };
 }
 
 export interface AIProviderUsage {
   inputTokens?: number;
+  cachedInputTokens?: number;
+  cacheWriteTokens?: number;
   outputTokens?: number;
+  reasoningTokens?: number;
   totalTokens?: number;
   model?: string;
 }
@@ -115,6 +147,8 @@ export interface AIProviderResult {
   text: string;
   usage?: AIProviderUsage;
   model?: string;
+  webSearchCount?: number;
+  sources?: AskClubhouseEvidenceItem[];
 }
 
 export interface AIProvider {
@@ -123,5 +157,9 @@ export interface AIProvider {
     system: string;
     prompt: string;
     maxOutputTokens: number;
+    webSearch?: {
+      enabled: boolean;
+      maxSearches: number;
+    };
   }): Promise<AIProviderResult>;
 }

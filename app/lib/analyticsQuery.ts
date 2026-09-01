@@ -1,6 +1,7 @@
 import type {
   AppData,
   BattedBallType,
+  Direction,
   DefenseDrillContext,
   DefenseEvent,
   DefenseOutcome,
@@ -16,7 +17,7 @@ import type {
   PitchType,
   Player,
   Practice,
-} from "../types";
+} from "../types.ts";
 import { isPracticeHardContactEvent } from "./hittingTaxonomy.ts";
 import {
   calculateDefenseStats,
@@ -39,6 +40,7 @@ export type AnalyticsMetricFormat = "integer" | "percentage" | "decimal" | "ev" 
 export type AnalyticsSortDirection = "asc" | "desc";
 export type AnalyticsGroupBy = "player";
 export type AnalyticsFilterAvailability = "supported" | "partial" | "unsupported" | "not-applicable";
+export type AnalyticsPitchLocationRegion = "up" | "middle" | "down" | "in" | "away" | "up_and_in" | "up_and_away" | "down_and_in" | "down_and_away";
 
 export interface AnalyticsQueryContext {
   teamId?: ID;
@@ -67,6 +69,10 @@ export interface AnalyticsFilters {
   defenseRepSubtypes?: DefenseRepSubtype[];
   defenseResults?: DefenseOutcome[];
   defenseThrowResults?: DefenseThrowResult[];
+  pitchVelocityMin?: number;
+  pitchVelocityMax?: number;
+  pitchLocationRegions?: AnalyticsPitchLocationRegion[];
+  directions?: Direction[];
 }
 
 export interface AnalyticsQuery {
@@ -989,6 +995,8 @@ function filterGameEvents(data: AppData, query: AnalyticsQuery, today?: string):
       const batter = data.players.find((player) => player.id === event.batterId);
       if (!batter || !query.filters.batterHands.includes(batter.bats)) return false;
     }
+    if (!velocityMatches(event.velocity, query.filters?.pitchVelocityMin, query.filters?.pitchVelocityMax)) return false;
+    if (query.filters?.pitchLocationRegions?.length && !query.filters.pitchLocationRegions.some((region) => pitchLocationMatches(event.location, region, data.players.find((player) => player.id === event.batterId)?.bats))) return false;
     return true;
   });
 }
@@ -1005,6 +1013,9 @@ function hittingEventMatchesFilters(data: AppData, event: HittingEvent, filters?
     const pitcher = data.players.find((player) => player.id === event.pitcherId);
     if (!pitcher || !filters.pitcherHands.includes(pitcher.throws)) return false;
   }
+  if (!velocityMatches(event.velocity, filters.pitchVelocityMin, filters.pitchVelocityMax)) return false;
+  if (filters.pitchLocationRegions?.length && !filters.pitchLocationRegions.some((region) => pitchLocationMatches(event.pitchLocation, region, data.players.find((player) => player.id === event.hitterId)?.bats))) return false;
+  if (filters.directions?.length && (!event.direction || !filters.directions.includes(event.direction))) return false;
   return true;
 }
 
@@ -1021,7 +1032,27 @@ function pitchEventMatchesFilters(data: AppData, event: PitchEvent, filters?: An
     if (!batter || !filters.batterHands.includes(batter.bats)) return false;
   }
   if (filters.countGroups?.length && !filters.countGroups.includes(countGroup(event.countBefore))) return false;
+  if (!velocityMatches(event.velocity, filters.pitchVelocityMin, filters.pitchVelocityMax)) return false;
+  if (filters.pitchLocationRegions?.length && !filters.pitchLocationRegions.some((region) => pitchLocationMatches(event.location, region, data.players.find((player) => player.id === event.hitterId)?.bats))) return false;
   return true;
+}
+
+function velocityMatches(value: number | undefined, minimum?: number, maximum?: number): boolean {
+  if (minimum === undefined && maximum === undefined) return true;
+  if (value === undefined) return false;
+  return (minimum === undefined || value >= minimum) && (maximum === undefined || value <= maximum);
+}
+
+function pitchLocationMatches(location: { x: number; y: number } | undefined, region: AnalyticsPitchLocationRegion, batterHand?: "R" | "L" | "S"): boolean {
+  if (!location) return false;
+  const vertical = location.y < 0.34 ? "up" : location.y > 0.66 ? "down" : "middle";
+  const horizontal = batterHand === "L"
+    ? location.x > 0.66 ? "in" : location.x < 0.34 ? "away" : "middle"
+    : location.x < 0.34 ? "in" : location.x > 0.66 ? "away" : "middle";
+  if (region === "up" || region === "middle" || region === "down") return vertical === region;
+  if (region === "in" || region === "away") return horizontal === region;
+  const [expectedVertical, expectedHorizontal] = region.split("_and_") as ["up" | "down", "in" | "away"];
+  return vertical === expectedVertical && horizontal === expectedHorizontal;
 }
 
 function resolveDateRange(_data: AppData, query: AnalyticsQuery, today?: string): AnalyticsDateRange {

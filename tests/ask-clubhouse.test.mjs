@@ -1,9 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getAskClubhouseConfig } from "../app/lib/askClubhouse/config.ts";
+import { getAskClubhouseConfig, resolveAiUsageRole } from "../app/lib/askClubhouse/config.ts";
+import { canUseExternalResearch } from "../app/lib/askClubhouse/entitlements.ts";
 import { generateAskClubhouseReply } from "../app/lib/askClubhouse/engine.ts";
-import { buildAskClubhouseToolPlan, runAskClubhouseTools } from "../app/lib/askClubhouse/tools.ts";
-import { createAiRequestHash, enforceAiUsageLimits } from "../app/lib/askClubhouse/usage.ts";
+import { executeAnalyticsQuery } from "../app/lib/analyticsQuery.ts";
+import { calculateAIRequestCost } from "../app/lib/askClubhouse/pricing.ts";
+import { OpenAIProvider } from "../app/lib/askClubhouse/provider.ts";
+import { buildAskClubhouseToolPlan, classifyAskClubhouseIntent, runAskClubhouseTools } from "../app/lib/askClubhouse/tools.ts";
+import { createAiRequestHash, enforceAiUsageLimits, evaluateAiUsageLimits } from "../app/lib/askClubhouse/usage.ts";
+import { findTrustedKnowledge, InMemoryBaseballKnowledgeProvider } from "../app/lib/askClubhouse/knowledge.ts";
+import { composeAskClubhouseQueryPlan, sampleState } from "../app/lib/askClubhouse/queryPlan.ts";
+import { diagnosePlayerDevelopment } from "../app/lib/askClubhouse/diagnosis.ts";
+import { CLUBHOUSE_DIMENSION_SUPPORT } from "../app/lib/askClubhouse/support.ts";
+import { BASEBALL_KNOWLEDGE_QA } from "./fixtures/baseball-knowledge-qa.mjs";
+import { ASK_CLUBHOUSE_INTELLIGENCE_QA } from "./fixtures/ask-clubhouse-intelligence-qa.mjs";
 
 const now = "2026-08-20T12:00:00.000Z";
 const players = [
@@ -128,7 +138,15 @@ test("Ask Clubhouse config applies beta cost defaults", () => {
   const config = getAskClubhouseConfig({});
 
   assert.equal(config.dailyUserRequestLimit, 50);
-  assert.equal(config.dailyTeamRequestLimit, 300);
+  assert.equal(config.dailyRoleRequestLimits.coach, 30);
+  assert.equal(config.dailyRoleRequestLimits.player, 10);
+  assert.equal(config.dailyTeamRequestLimit, 150);
+  assert.equal(config.monthlyTeamRequestLimit, 3000);
+  assert.equal(config.monthlyTeamCostLimitUsd, 25);
+  assert.equal(config.monthlyGlobalCostLimitUsd, 100);
+  assert.equal(config.dailyRoleWebSearchLimits.coach, 10);
+  assert.equal(config.dailyTeamWebSearchLimit, 30);
+  assert.equal(config.webSearchEnabled, false);
   assert.equal(config.maxToolCallsPerRequest, 6);
   assert.equal(config.maxWebSearchesPerRequest, 1);
   assert.equal(config.maxInputCharacters, 4000);
@@ -154,6 +172,355 @@ test("Ask Clubhouse answers baseball definitions without model tools", () => {
   assert.match(plan.answer, /on-base percentage plus slugging/);
 });
 
+test("intelligence QA fixture contains 100+ categorized deterministic cases", () => {
+  assert.ok(ASK_CLUBHOUSE_INTELLIGENCE_QA.length >= 100);
+  const categories = new Set(ASK_CLUBHOUSE_INTELLIGENCE_QA.map((item) => item.category));
+  for (const category of ["basic", "filtered", "situational", "comparison", "ranking", "trend", "low_sample", "unsupported", "ambiguous", "follow_up", "development", "knowledge", "mixed", "security"]) {
+    assert.ok(categories.has(category), `missing QA category: ${category}`);
+  }
+  assert.equal(new Set(ASK_CLUBHOUSE_INTELLIGENCE_QA.map((item) => item.id)).size, ASK_CLUBHOUSE_INTELLIGENCE_QA.length);
+});
+
+test("composed query plans preserve metric, source, and filters", () => {
+  const plan = composeAskClubhouseQueryPlan("What is my batting average pulling fastballs over 85 mph in Games?");
+  assert.deepEqual({ domain: plan.domain, metric: plan.metric, source: plan.scope.source }, { domain: "hitting", metric: "avg", source: "games" });
+  assert.deepEqual(plan.filters.pitchTypes, ["4-Seam"]);
+  assert.equal(plan.filters.pitchVelocityMin, 85);
+  assert.deepEqual(plan.filters.directions, ["Pull", "Pull-center"]);
+  assert.ok(plan.unsupportedFilters.includes("game spray direction"));
+
+  const locationPlan = composeAskClubhouseQueryPlan("What is my Contact % on sliders down and away during Practice?");
+  assert.deepEqual(locationPlan.filters, { pitchTypes: ["Slider"], pitchLocationRegions: ["down_and_away"] });
+  assert.equal(locationPlan.minimumSample, 12);
+});
+
+test("dimension support matrix identifies partial and unavailable fields", () => {
+  const byDimension = new Map(CLUBHOUSE_DIMENSION_SUPPORT.map((item) => [item.dimension, item]));
+  assert.equal(byDimension.get("pitch type").status, "partial");
+  assert.equal(byDimension.get("pitch velocity").status, "partial");
+  assert.equal(byDimension.get("count").status, "partial");
+  assert.equal(byDimension.get("medical diagnosis").status, "not_tracked");
+  assert.equal(byDimension.get("defensive rep type").status, "supported");
+});
+
+test("minimum sample states keep tiny results from becoming strong rankings", () => {
+  assert.equal(sampleState(0, 12), "insufficient");
+  assert.equal(sampleState(5, 12), "insufficient");
+  assert.equal(sampleState(15, 12), "limited");
+  assert.equal(sampleState(24, 12), "qualified");
+});
+
+test("analytics execution composes velocity, location, and spray filters", () => {
+  const events = [
+    hittingEvent("composed-1", "practice-1", "hit-1", "p-jacob", "Ball in play", { pitchType: "Slider", velocity: 82, pitchLocation: { x: 0.8, y: 0.8 }, direction: "Pull", contactResult: "Ground ball", contactQuality: "Hard" }),
+    hittingEvent("composed-2", "practice-1", "hit-1", "p-jacob", "Ball in play", { pitchType: "Slider", velocity: 78, pitchLocation: { x: 0.5, y: 0.5 }, direction: "Opposite", contactResult: "Line drive", contactQuality: "Hard" }),
+  ];
+  const result = executeAnalyticsQuery({ ...data, hittingEvents: events }, {
+    domain: "hitting",
+    source: "practice",
+    mode: "situational",
+    timeRange: "season",
+    groupBy: "player",
+    filters: { pitchTypes: ["Slider"], pitchVelocityMin: 80, pitchLocationRegions: ["down_and_away"], directions: ["Pull"] },
+    metrics: ["contactPct"],
+    sort: { metricId: "contactPct", direction: "desc" },
+    limit: 8,
+  });
+  const jacob = result.rows.find((row) => row.player.id === "p-jacob");
+  assert.equal(jacob.sampleCount, 1);
+  assert.equal(jacob.cells.contactPct.value, 100);
+});
+
+test("trend plans create two bounded Clubhouse periods", () => {
+  const plan = buildAskClubhouseToolPlan(data, "What changed in Jacob's hitting this month?", undefined, getAskClubhouseConfig({}));
+  assert.equal(plan.status, "data");
+  assert.equal(plan.queryPlan.comparison.dimension, "period");
+  assert.equal(plan.toolRequests.length, 2);
+  assert.deepEqual(plan.toolRequests.map((request) => request.name), ["compareAnalyticsPeriods", "compareAnalyticsPeriods"]);
+  assert.ok(plan.toolRequests.every((request) => request.query.timeRange === "custom"));
+});
+
+test("development diagnosis distinguishes slider chase from weak contact", () => {
+  const knowledgeProvider = new InMemoryBaseballKnowledgeProvider([{
+    id: "slider-recognition",
+    title: "Breaking-ball recognition",
+    content: "Recognize spin early and take breaking balls below the zone.",
+    category: "Hitting",
+    status: "reviewed",
+  }]);
+  const chaseEvents = Array.from({ length: 24 }, (_, index) => hittingEvent(`slider-chase-${index}`, "practice-1", "hit-1", "p-jacob", index < 16 ? "Ball in play" : "Miss", {
+    pitchType: "Slider",
+    pitchLocation: index < 16 ? { x: 0.5, y: 0.5 } : { x: 0.5, y: 0.9 },
+    contactResult: index < 16 ? "Line drive" : undefined,
+    contactQuality: index < 16 ? "Hard" : undefined,
+  }));
+  const chaseDiagnosis = diagnosePlayerDevelopment({ ...data, hittingEvents: chaseEvents }, { domain: "hitting", playerId: "p-jacob", source: "practice", pitchType: "Slider" }, knowledgeProvider);
+  assert.equal(chaseDiagnosis.signal, "recognition_decision");
+  assert.equal(chaseDiagnosis.confidence, "high");
+  assert.match(chaseDiagnosis.focus, /Recognition/);
+  assert.equal(chaseDiagnosis.knowledgeItems[0].id, "slider-recognition");
+
+  const weakEvents = Array.from({ length: 16 }, (_, index) => hittingEvent(`slider-weak-${index}`, "practice-1", "hit-1", "p-jacob", "Ball in play", {
+    pitchType: "Slider",
+    pitchLocation: { x: 0.5, y: 0.5 },
+    contactResult: "Ground ball",
+    contactQuality: "Weak",
+    direction: "Pull",
+  }));
+  const weakDiagnosis = diagnosePlayerDevelopment({ ...data, hittingEvents: weakEvents }, { domain: "hitting", playerId: "p-jacob", source: "practice", pitchType: "Slider" }, knowledgeProvider);
+  assert.equal(weakDiagnosis.signal, "contact_quality");
+  assert.match(weakDiagnosis.focus, /Contact quality/);
+});
+
+test("development diagnosis refuses strong conclusions on small samples", () => {
+  const events = Array.from({ length: 5 }, (_, index) => hittingEvent(`slider-small-${index}`, "practice-1", "hit-1", "p-jacob", "Miss", { pitchType: "Slider" }));
+  const result = diagnosePlayerDevelopment({ ...data, hittingEvents: events }, { domain: "hitting", playerId: "p-jacob", source: "practice", pitchType: "Slider" });
+  assert.equal(result.status, "insufficient");
+  assert.equal(result.confidence, "low");
+  assert.match(result.whatISee, /would not call this a real weakness/);
+});
+
+test("development diagnosis supports pitching command signals", () => {
+  const events = Array.from({ length: 18 }, (_, index) => pitchEvent(`slider-command-${index}`, "practice-1", "pitching-1", "p-mylo", index < 10 ? "Ball" : "Called Strike", {
+    pitchType: "Slider",
+    isStrike: index >= 10,
+    isZone: index >= 10,
+    velocity: 75 + (index % 3),
+  }));
+  const result = diagnosePlayerDevelopment({ ...data, pitchEvents: events }, { domain: "pitching", playerId: "p-mylo", source: "practice", pitchType: "Slider" });
+  assert.equal(result.signal, "strike_command");
+  assert.equal(result.status, "limited");
+  assert.match(result.whatISee, /strike command/);
+});
+
+test("Ask Clubhouse returns a structured data-first development diagnosis", () => {
+  const events = Array.from({ length: 12 }, (_, index) => hittingEvent(`slider-plan-${index}`, "practice-1", "hit-1", "p-jacob", index % 3 === 0 ? "Miss" : "Ball in play", {
+    pitchType: "Slider",
+    pitchLocation: { x: 0.5, y: index % 3 === 0 ? 0.9 : 0.5 },
+    contactResult: index % 3 === 0 ? undefined : "Line drive",
+    contactQuality: index % 3 === 0 ? undefined : "Hard",
+  }));
+  const plan = buildAskClubhouseToolPlan({ ...data, hittingEvents: events }, "How can Jacob hit sliders better?", undefined, getAskClubhouseConfig({}));
+  assert.equal(plan.status, "completed");
+  assert.equal(plan.diagnosis.signal, "recognition_decision");
+  assert.match(plan.answer, /WHAT I SEE/);
+  assert.match(plan.answer, /WATCH NEXT/);
+  assert.equal(plan.toolRequests.length, 0);
+});
+
+test("Ask Clubhouse routes each question by intent and bounds web use", () => {
+  const internal = classifyAskClubhouseIntent("Who has the highest Practice Contact %?", players);
+  const currentRule = classifyAskClubhouseIntent("What is the NFHS balk rule?", players);
+  const mixed = classifyAskClubhouseIntent("Mylo topped out at 84 mph. Is that good for his age?", players);
+  const general = classifyAskClubhouseIntent("When should a team bunt?", players);
+  const refusal = classifyAskClubhouseIntent("Write me a history essay", players);
+
+  assert.deepEqual([internal.route, internal.requiresWebSearch], ["clubhouse_data", false]);
+  assert.deepEqual([currentRule.route, currentRule.requiresWebSearch], ["external_research_required", false]);
+  assert.deepEqual([mixed.route, mixed.requiresWebSearch], ["mixed", false]);
+  assert.deepEqual([general.route, general.requiresWebSearch], ["baseball_knowledge", false]);
+  assert.deepEqual([refusal.route, refusal.requiresWebSearch], ["out_of_scope", false]);
+});
+
+test("Ask Clubhouse distinguishes team strategy from team analytics", () => {
+  const strategy = classifyAskClubhouseIntent("When should my team bunt?", players);
+  const analytics = classifyAskClubhouseIntent("How is my team?", players);
+
+  assert.deepEqual([strategy.route, strategy.requiresWebSearch], ["baseball_knowledge", false]);
+  assert.deepEqual([analytics.route, analytics.requiresWebSearch], ["clubhouse_data", false]);
+});
+
+test("Ask Clubhouse keeps general baseball questions out of private team routing", () => {
+  const classification = classifyAskClubhouseIntent("Who won the World Series this year?", players);
+
+  assert.equal(classification.route, "external_research_required");
+  assert.equal(classification.route, "external_research_required");
+  assert.equal(classification.requiresWebSearch, false);
+  assert.equal(classification.knowledgeStatus, "knowledge_miss");
+});
+
+test("Ask Clubhouse beta keeps external research disabled while retaining entitlement architecture", () => {
+  const disabled = getAskClubhouseConfig({});
+  const enabled = getAskClubhouseConfig({ AI_WEB_SEARCH_ENABLED: "true" });
+
+  assert.equal(canUseExternalResearch({ role: "coach", teamId: "team-1" }, disabled), false);
+  assert.equal(canUseExternalResearch({ role: "coach", teamId: "team-1" }, enabled), true);
+  assert.equal(classifyAskClubhouseIntent("What is the 2026 NFHS balk rule?", players, [], { webSearchEnabled: false }).route, "external_research_required");
+  assert.equal(classifyAskClubhouseIntent("What is the 2026 NFHS balk rule?", players, [], { webSearchEnabled: true }).requiresWebSearch, true);
+});
+
+test("Ask Clubhouse uses trusted knowledge before external research", () => {
+  const item = {
+    id: "nfhs-balk-2026",
+    title: "2026 NFHS Balk Rule",
+    content: "Verified NFHS balk guidance for the 2026 season.",
+    category: "rules",
+    level: "high_school",
+    governingBody: "NFHS",
+    version: "2026",
+    source: "NFHS rulebook",
+    verifiedAt: "2026-08-01",
+    status: "verified",
+  };
+  const knowledgeProvider = {
+    searchKnowledge(query) {
+      assert.equal(query.governingBody, "NFHS");
+      assert.equal(query.version, "2026");
+      return [item];
+    },
+    getKnowledgeItem(id) {
+      return id === item.id ? item : undefined;
+    },
+  };
+  const classification = classifyAskClubhouseIntent("What is the 2026 NFHS balk rule?", players, [], {
+    webSearchEnabled: false,
+    knowledgeProvider,
+  });
+  const plan = buildAskClubhouseToolPlan(data, "What is the 2026 NFHS balk rule?", undefined, getAskClubhouseConfig({}), [], knowledgeProvider);
+
+  assert.equal(classification.route, "baseball_knowledge");
+  assert.equal(classification.knowledgeStatus, "trusted_match");
+  assert.equal(plan.status, "completed");
+  assert.match(plan.answer, /Verified NFHS/);
+});
+
+test("Baseball Knowledge Bank retrieval respects trusted status and scope filters", () => {
+  const provider = new InMemoryBaseballKnowledgeProvider([
+    {
+      id: "general-balk",
+      documentId: "doc-general-balk",
+      title: "Balk",
+      content: "A balk is an illegal pitching action with runners on base.",
+      category: "Rules",
+      level: "General",
+      status: "reviewed",
+    },
+    {
+      id: "nfhs-balk-2026",
+      documentId: "doc-nfhs-balk",
+      title: "NFHS 2026 Balk Basics",
+      content: "NFHS 2026 balk context is governed by the high school rules code.",
+      category: "Rules",
+      level: "High School",
+      governingBody: "NFHS",
+      version: "2026",
+      status: "verified",
+    },
+    {
+      id: "mlb-balk-2026",
+      documentId: "doc-mlb-balk",
+      title: "MLB Balk Basics",
+      content: "MLB balk context is governed by the professional rules code.",
+      category: "Rules",
+      level: "Professional",
+      governingBody: "MLB",
+      version: "2026",
+      status: "verified",
+    },
+    {
+      id: "draft-balk",
+      title: "Draft Balk Note",
+      content: "This draft must not be trusted.",
+      category: "Rules",
+      status: "draft",
+    },
+  ]);
+
+  const general = findTrustedKnowledge(provider, { query: "What is a balk?", category: "Rules", limit: 3 });
+  const nfhs = findTrustedKnowledge(provider, {
+    query: "What is the 2026 NFHS balk rule?",
+    category: "Rules",
+    level: "High School",
+    governingBody: "NFHS",
+    version: "2026",
+    limit: 3,
+  });
+
+  assert.equal(general[0].title, "Balk");
+  assert.equal(nfhs.length, 1);
+  assert.equal(nfhs[0].title, "NFHS 2026 Balk Basics");
+  assert.equal(nfhs[0].id, "nfhs-balk-2026");
+  assert.equal(findTrustedKnowledge(provider, { query: "draft balk", category: "Rules", limit: 3 }).some((item) => item.status === "draft"), false);
+});
+
+test("Baseball Knowledge Bank preserves source evidence in a stable answer", async () => {
+  const knowledgeProvider = new InMemoryBaseballKnowledgeProvider([{
+    id: "ops-chunk",
+    documentId: "ops-document",
+    chunkId: "ops-chunk",
+    title: "OPS",
+    content: "OPS is on-base percentage plus slugging percentage.",
+    category: "Statistics",
+    level: "General",
+    source: "Clubhouse Baseball Knowledge Bank",
+    sourceReference: "Curated V1 summary",
+    version: "V1",
+    status: "reviewed",
+  }]);
+  const response = await generateAskClubhouseReply({
+    data,
+    message: "What is OPS?",
+    config: getAskClubhouseConfig({}),
+    knowledgeProvider,
+  });
+
+  assert.equal(response.route, "baseball_knowledge");
+  assert.match(response.answer, /on-base percentage plus slugging/);
+  assert.equal(response.evidence[0].documentId, "ops-document");
+  assert.equal(response.evidence[0].chunkId, "ops-chunk");
+  assert.equal(response.evidence[0].status, "reviewed");
+});
+
+test("Baseball Knowledge QA fixture covers the V1 route contract", () => {
+  assert.ok(BASEBALL_KNOWLEDGE_QA.length >= 50);
+  for (const item of BASEBALL_KNOWLEDGE_QA) {
+    assert.equal(typeof item.question, "string");
+    assert.ok(["clubhouse_data", "baseball_knowledge", "mixed", "external_research_required", "out_of_scope"].includes(item.route));
+  }
+});
+
+test("Ask Clubhouse independently reroutes a current question after a Clubhouse question", () => {
+  const history = [{ role: "user", content: "Who hits curveballs best?" }];
+  const currentRule = classifyAskClubhouseIntent("What is the NFHS balk rule?", players, history, { webSearchEnabled: false });
+
+  assert.equal(classifyAskClubhouseIntent("Who hits curveballs best?", players).route, "clubhouse_data");
+  assert.equal(currentRule.route, "external_research_required");
+  assert.equal(currentRule.requiresWebSearch, false);
+});
+
+test("Ask Clubhouse never calls the provider for a current question while web is disabled", async () => {
+  const config = getAskClubhouseConfig({ OPENAI_API_KEY: "test-key" });
+  let providerCalled = false;
+  const response = await generateAskClubhouseReply({
+    data,
+    message: "What is the 2026 NFHS balk rule?",
+    config,
+    provider: {
+      model: config.model,
+      async generate() {
+        providerCalled = true;
+        throw new Error("should not be called");
+      },
+    },
+  });
+
+  assert.equal(response.route, "external_research_required");
+  assert.equal(response.webSearchCount, 0);
+  assert.equal(providerCalled, false);
+  assert.match(response.answer, /research isn't enabled/i);
+});
+
+test("Ask Clubhouse preserves mixed routing when current baseball context is unavailable", () => {
+  const classification = classifyAskClubhouseIntent("Jackson topped out at 84 mph. Is that good for his age?", players, [], { webSearchEnabled: false });
+  const plan = buildAskClubhouseToolPlan(data, "Jackson topped out at 84 mph. Is that good for his age?", undefined, getAskClubhouseConfig({}), []);
+
+  assert.equal(classification.route, "mixed");
+  assert.equal(classification.externalResearchRequired, true);
+  assert.equal(classification.requiresWebSearch, false);
+  assert.equal(plan.route, "mixed");
+  assert.equal(plan.status, "data");
+});
+
 test("Ask Clubhouse builds bounded hitting leaderboard tools", () => {
   const config = { ...getAskClubhouseConfig({}), toolResultLimit: 3 };
   const plan = buildAskClubhouseToolPlan(data, "Who has the highest practice contact rate?", undefined, config);
@@ -164,6 +531,16 @@ test("Ask Clubhouse builds bounded hitting leaderboard tools", () => {
   assert.equal(results[0].rows[0].playerName, "Mylo White");
   assert.equal(results[0].rows.length <= 3, true);
   assert.equal(results[0].rows[0].metrics.some((metric) => metric.metricId === "contactPct"), true);
+});
+
+test("Ask Clubhouse adds data coverage for pitch-type questions", () => {
+  const config = getAskClubhouseConfig({});
+  const plan = buildAskClubhouseToolPlan(data, "Who has the best contact rate against sliders?", undefined, config);
+  const results = runAskClubhouseTools(data, plan.toolRequests, config);
+
+  assert.equal(plan.route, "clubhouse_data");
+  assert.equal(plan.toolRequests.some((request) => request.name === "getDataCoverage"), true);
+  assert.equal(results.some((result) => result.name === "getDataCoverage"), true);
 });
 
 test("Ask Clubhouse compares practice and games with separate bounded tools", () => {
@@ -209,9 +586,79 @@ test("Ask Clubhouse engine uses mocked provider and tracks usage shape", async (
     provider,
   });
 
-  assert.equal(response.status, "completed");
+  assert.equal(response.status, "low_sample");
   assert.equal(response.usage.totalTokens, 144);
   assert.equal(response.usage.toolCallCount, 1);
+  assert.equal(response.webSearchCount, 0);
+});
+
+test("OpenAI provider bounds web search and extracts compact sources", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody;
+  globalThis.fetch = async (_url, init) => {
+    requestBody = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify({
+      model: "gpt-test",
+      output_text: "NFHS balk guidance.",
+      usage: {
+        input_tokens: 30,
+        input_tokens_details: { cached_tokens: 10, cache_write_tokens: 5 },
+        output_tokens: 8,
+        output_tokens_details: { reasoning_tokens: 3 },
+        total_tokens: 38,
+      },
+      output: [{
+        type: "web_search_call",
+        action: { sources: [{ title: "NFHS Baseball", url: "https://www.nfhs.org/activities-sports/baseball" }] },
+      }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+
+  try {
+    const provider = new OpenAIProvider({ apiKey: "test-key", model: "gpt-test" });
+    const result = await provider.generate({
+      system: "Baseball only.",
+      prompt: "What is the current NFHS balk rule?",
+      maxOutputTokens: 300,
+      webSearch: { enabled: true, maxSearches: 1 },
+    });
+
+    assert.deepEqual(requestBody.tools, [{ type: "web_search" }]);
+    assert.equal(requestBody.tool_choice, "required");
+    assert.equal(requestBody.max_tool_calls, 1);
+    assert.deepEqual(requestBody.include, ["web_search_call.action.sources"]);
+    assert.equal(result.webSearchCount, 1);
+    assert.equal(result.usage.cachedInputTokens, 10);
+    assert.equal(result.usage.cacheWriteTokens, 5);
+    assert.equal(result.usage.reasoningTokens, 3);
+    assert.deepEqual(result.sources, [{
+      title: "NFHS Baseball",
+      summary: "External baseball context",
+      url: "https://www.nfhs.org/activities-sports/baseball",
+    }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Ask Clubhouse does not invent current guidance when web verification fails", async () => {
+  const config = getAskClubhouseConfig({ OPENAI_API_KEY: "test-key", AI_WEB_SEARCH_ENABLED: "true" });
+  const provider = {
+    model: config.model,
+    async generate() {
+      throw new Error("network unavailable");
+    },
+  };
+
+  const response = await generateAskClubhouseReply({
+    data,
+    message: "What is the current NFHS balk rule?",
+    config,
+    provider,
+  });
+
+  assert.equal(response.status, "failed");
+  assert.match(response.answer, /couldn't verify the current baseball guidance/i);
   assert.equal(response.webSearchCount, 0);
 });
 
@@ -235,28 +682,95 @@ test("AI request hash normalizes duplicate whitespace and case", () => {
   assert.equal(first, second);
 });
 
-test("AI usage limits stop duplicates and daily overages before provider work", async () => {
-  const config = getAskClubhouseConfig({ AI_DAILY_USER_REQUEST_LIMIT: "2", AI_DAILY_TEAM_REQUEST_LIMIT: "8" });
+test("AI cost calculator separates cached, output, and web-search costs", () => {
+  const cost = calculateAIRequestCost({
+    model: "gpt-5-mini-2025-08-07",
+    inputTokens: 1_000_000,
+    cachedInputTokens: 200_000,
+    cacheWriteTokens: 100_000,
+    outputTokens: 100_000,
+    webSearchCount: 1,
+  });
 
-  const duplicate = await enforceAiUsageLimits(mockUsageSupabase({ duplicate: true }), {
+  assert.equal(cost.pricingFound, true);
+  assert.equal(cost.inputCost, 0.175);
+  assert.equal(cost.cachedInputCost, 0.005);
+  assert.equal(cost.cacheWriteCost, 0.025);
+  assert.equal(cost.outputCost, 0.2);
+  assert.equal(cost.modelTokenCost, 0.405);
+  assert.equal(cost.webSearchCost, 0.01);
+  assert.equal(cost.estimatedTotalCost, 0.415);
+});
+
+test("AI cost calculator matches an observed Luna request without double-counting reasoning", () => {
+  const cost = calculateAIRequestCost({
+    model: "gpt-5.6-luna",
+    inputTokens: 1625,
+    outputTokens: 148,
+  });
+
+  assert.equal(cost.modelTokenCost, 0.0005026);
+  assert.equal(cost.estimatedTotalCost, 0.0005026);
+});
+
+test("Ask Clubhouse resolves role-aware defaults and legacy overrides", () => {
+  const defaults = getAskClubhouseConfig({});
+  assert.deepEqual(defaults.dailyRoleRequestLimits, {
+    coach: 30,
+    player: 10,
+    parent: 5,
+    fan: 5,
+    unknown: 5,
+  });
+  assert.equal(defaults.dailyTeamRequestLimit, 150);
+  assert.equal(defaults.monthlyTeamRequestLimit, 3000);
+  assert.equal(defaults.monthlyTeamCostLimitUsd, 25);
+  assert.equal(defaults.monthlyGlobalCostLimitUsd, 100);
+  assert.equal(resolveAiUsageRole("HEAD_COACH"), "coach");
+  assert.equal(resolveAiUsageRole("PLAYER"), "player");
+  assert.equal(resolveAiUsageRole(undefined, "ADMIN"), "coach");
+  assert.equal(resolveAiUsageRole("LEGACY"), "unknown");
+
+  const legacy = getAskClubhouseConfig({ AI_DAILY_USER_REQUEST_LIMIT: "12" });
+  assert.equal(legacy.dailyRoleRequestLimits.coach, 12);
+  assert.equal(legacy.dailyRoleRequestLimits.player, 12);
+});
+
+test("AI usage limits stop duplicate submissions before provider work", async () => {
+  const config = getAskClubhouseConfig({});
+
+  const duplicate = await enforceAiUsageLimits(duplicateOnlyUsageSupabase(), {
     profileId: "profile-1",
     teamId: "team-1",
+    role: "coach",
+    requiresWebSearch: false,
     requestHash: "same-question",
     config,
     now: new Date(now),
   });
   assert.equal(duplicate.allowed, false);
   assert.equal(duplicate.code, "AI_DUPLICATE_COOLDOWN");
+});
 
-  const overDailyLimit = await enforceAiUsageLimits(mockUsageSupabase({ userCount: 2 }), {
-    profileId: "profile-1",
-    teamId: "team-1",
-    requestHash: "new-question",
-    config,
-    now: new Date(now),
-  });
-  assert.equal(overDailyLimit.allowed, false);
-  assert.equal(overDailyLimit.code, "AI_DAILY_USER_LIMIT");
+test("AI usage limits enforce coach, player, team, and monthly ceilings", () => {
+  const config = getAskClubhouseConfig({});
+  const baseInput = { teamId: "team-1", role: "coach", requiresWebSearch: false, config };
+
+  assert.equal(evaluateAiUsageLimits(baseInput, usageStats({ userDailyRequests: 30 })).code, "AI_DAILY_USER_LIMIT");
+  assert.equal(evaluateAiUsageLimits({ ...baseInput, role: "player" }, usageStats({ userDailyRequests: 10 })).code, "AI_DAILY_USER_LIMIT");
+  assert.equal(evaluateAiUsageLimits(baseInput, usageStats({ teamDailyRequests: 150 })).code, "AI_DAILY_TEAM_LIMIT");
+  assert.equal(evaluateAiUsageLimits(baseInput, usageStats({ teamMonthlyRequests: 3000 })).code, "AI_MONTHLY_TEAM_REQUEST_LIMIT");
+  assert.equal(evaluateAiUsageLimits(baseInput, usageStats({ teamMonthlyCostUsd: 25 })).code, "AI_MONTHLY_TEAM_COST_LIMIT");
+  assert.equal(evaluateAiUsageLimits(baseInput, usageStats({ globalMonthlyCostUsd: 100 })).code, "AI_MONTHLY_GLOBAL_COST_LIMIT");
+});
+
+test("AI usage limits enforce separate user and team web-search ceilings", () => {
+  const config = getAskClubhouseConfig({});
+  const input = { teamId: "team-1", role: "player", requiresWebSearch: true, config };
+
+  assert.equal(evaluateAiUsageLimits(input, usageStats({ userDailyWebSearches: 3 })).code, "AI_DAILY_USER_WEB_SEARCH_LIMIT");
+  assert.equal(evaluateAiUsageLimits(input, usageStats({ teamDailyWebSearches: 30 })).code, "AI_DAILY_TEAM_WEB_SEARCH_LIMIT");
+  assert.equal(evaluateAiUsageLimits({ ...input, requiresWebSearch: false }, usageStats({ userDailyWebSearches: 99 })).allowed, true);
 });
 
 function player(id, name, jerseyNumber, primaryPosition, overrides = {}) {
@@ -403,7 +917,7 @@ function gameEvent(id, gameId, batterId, pitcherId, pitchOutcome, ballInPlayOutc
   };
 }
 
-function mockUsageSupabase({ duplicate = false, userCount = 0, teamCount = 0 } = {}) {
+function duplicateOnlyUsageSupabase() {
   return {
     from(table) {
       assert.equal(table, "ai_usage_events");
@@ -425,16 +939,25 @@ function mockUsageSupabase({ duplicate = false, userCount = 0, teamCount = 0 } =
         },
         maybeSingle() {
           return Promise.resolve({
-            data: duplicate ? { id: "usage-1", status: "started", created_at: now } : null,
+            data: { id: "usage-1", status: "started", created_at: now },
             error: null,
           });
-        },
-        then(resolve, reject) {
-          const count = state.filters.profile_id ? userCount : teamCount;
-          return Promise.resolve({ count, error: null }).then(resolve, reject);
         },
       };
       return builder;
     },
+  };
+}
+
+function usageStats(overrides = {}) {
+  return {
+    userDailyRequests: 0,
+    teamDailyRequests: 0,
+    teamMonthlyRequests: 0,
+    userDailyWebSearches: 0,
+    teamDailyWebSearches: 0,
+    teamMonthlyCostUsd: 0,
+    globalMonthlyCostUsd: 0,
+    ...overrides,
   };
 }

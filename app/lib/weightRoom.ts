@@ -1,4 +1,4 @@
-import type { Player, WorkoutEntry, WorkoutSession } from "../types";
+import type { Player, WorkoutEntry, WorkoutSession } from "../types.ts";
 
 export type WeightRoomWindow = "This Week" | "This Month" | "This Season";
 

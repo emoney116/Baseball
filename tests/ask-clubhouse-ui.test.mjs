@@ -22,7 +22,7 @@ test("Ask Clubhouse mobile UI uses a full-screen assistant with stacked suggesti
   assert.match(css, /body\[data-ask-clubhouse-open="true"\] \.mobile-brand/);
   assert.match(css, /body\[data-ask-clubhouse-open="true"\] \.profile-menu--icon/);
   assert.match(css, /body\[data-ask-clubhouse-open="true"\] \.analytics-ask-fab/);
-  assert.match(css, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-ask-drawer\s*\{[\s\S]*grid-template-rows:\s*auto minmax\(0, 1fr\) auto/);
+  assert.match(css, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-ask-drawer\s*\{[\s\S]*grid-template-rows:\s*auto auto minmax\(0, 1fr\) auto/);
   assert.match(css, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-ask-drawer\s*\{[\s\S]*position:\s*fixed/);
   assert.match(css, /@media \(max-width: 560px\) \{[\s\S]*\.analytics-ask-drawer\s*\{[\s\S]*inset:\s*0/);
   assert.match(css, /\.ask-suggestion-stack button,[\s\S]*\.ask-show-more\s*\{[\s\S]*grid-template-columns:\s*22px minmax\(0, 1fr\) 16px/);
@@ -45,12 +45,29 @@ test("Ask Clubhouse UI supports structured answers and deduped setup/error state
   assert.match(page, /ASK_CLUBHOUSE_GENERIC_STAGE = "Analyzing your Clubhouse data\.\.\."/);
 });
 
-test("Ask Clubhouse suggestions stay on the landing state instead of repeating after answers", () => {
+test("Ask Clubhouse keeps launch suggestions on landing and follow-ups on only the latest answer", () => {
   const page = readFileSync("app/page.tsx", "utf8");
 
   assert.match(page, /ASK_CLUBHOUSE_UI_SUGGESTIONS/);
-  assert.doesNotMatch(page, /function AskClubhouseFollowUps/);
-  assert.doesNotMatch(page, /<AskClubhouseFollowUps/);
+  assert.match(page, /function AskClubhouseFollowUps/);
+  assert.match(page, /showFollowUps=\{message\.id === lastAssistantId\}/);
+  assert.match(page, /showFollowUps && <AskClubhouseFollowUps/);
+});
+
+test("Ask Clubhouse exposes shared launch surfaces and authorized team scope controls", () => {
+  const page = readFileSync("app/page.tsx", "utf8");
+
+  assert.match(page, /function AskClubhouseLauncher/);
+  assert.match(page, /function AskClubhouseScopeSelector/);
+  assert.match(page, /<span>Data from<\/span>/);
+  assert.match(page, /role="menuitemcheckbox"/);
+  assert.match(page, /openAskClubhouse\("clubhouse_home"\)/);
+  assert.match(page, /openAskClubhouse\("team_home"\)/);
+  assert.match(page, /openAskClubhouse\("practice"\)/);
+  assert.match(page, /openAskClubhouse\("weight_room"\)/);
+  assert.match(page, /openAskClubhouse\("games"\)/);
+  assert.match(page, /openAskClubhouse\("analytics"/);
+  assert.doesNotMatch(page, /className="ask-header__back"/);
 });
 
 test("Ask Clubhouse answer styles include hierarchy and flat text rankings", () => {
@@ -61,7 +78,8 @@ test("Ask Clubhouse answer styles include hierarchy and flat text rankings", () 
   assert.match(css, /\.ask-data-note\s*\{/);
   assert.match(css, /\.ask-ranking--text\s*\{/);
   assert.match(css, /\.ask-header__close-button\s*\{/);
-  assert.match(css, /\.ask-header__title small\s*\{[\s\S]*text-overflow:\s*ellipsis/);
+  assert.match(css, /\.ask-header\s*\{[\s\S]*grid-template-columns:\s*minmax\(96px, 1fr\) minmax\(0, auto\) minmax\(96px, 1fr\)/);
+  assert.match(css, /\.ask-scope-menu\s*\{[\s\S]*top:\s*calc\(100% \+ 6px\)/);
 });
 
 test("Ask Clubhouse mock states are local development only", () => {
@@ -72,6 +90,9 @@ test("Ask Clubhouse mock states are local development only", () => {
   assert.match(page, /params\.get\("askMock"\) \?\? params\.get\("askState"\)/);
   assert.match(page, /case "ranking":/);
   assert.match(page, /case "comparison":/);
+  assert.match(page, /case "web-loading":/);
+  assert.match(page, /case "low-sample":/);
+  assert.match(page, /case "rule":/);
   assert.match(page, /case "setup":/);
   assert.match(page, /case "error":/);
 });

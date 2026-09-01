@@ -84,7 +84,10 @@ import type {
   AskClubhouseApiResponse,
   AskClubhouseClientMessage,
   AskClubhouseEvidenceItem,
+  AskClubhouseLaunchSurface,
+  AskClubhouseRoute,
   AskClubhouseStatus,
+  AskClubhouseTeamScope,
   AskClubhouseUsageSnapshot,
 } from "./lib/askClubhouse/types";
 import {
@@ -286,7 +289,14 @@ type AskClubhouseChatMessage = AskClubhouseClientMessage & {
   followUps?: string[];
   usage?: AskClubhouseUsageSnapshot;
   pending?: boolean;
+  pendingStartedAt?: number;
+  route?: AskClubhouseRoute;
   ui?: AskClubhouseUiPayload;
+};
+
+type AskClubhouseLaunchContext = {
+  surface: AskClubhouseLaunchSurface;
+  analytics?: Partial<AnalyticsQuery>;
 };
 
 type AskClubhouseUiMetric = {
@@ -371,6 +381,48 @@ const ASK_CLUBHOUSE_UI_SUGGESTIONS: Array<{ label: string; icon: LucideIcon }> =
   { label: "Who is leading the Weight Room?", icon: Dumbbell },
 ];
 
+const ASK_CLUBHOUSE_CONTEXT_SUGGESTIONS: Record<AskClubhouseLaunchSurface, Array<{ label: string; icon: LucideIcon }>> = {
+  clubhouse_home: [
+    { label: "Which teams need my attention?", icon: TrendingUp },
+    { label: "Who has improved most?", icon: Gauge },
+    { label: "Compare my teams", icon: BarChart3 },
+    { label: "What should I review today?", icon: ClipboardList },
+  ],
+  team_home: ASK_CLUBHOUSE_UI_SUGGESTIONS,
+  practice: [
+    { label: "Who has the highest Practice Contact %?", icon: TrendingUp },
+    { label: "Who has taken the most reps?", icon: BarChart3 },
+    { label: "Which pitchers throw the most strikes?", icon: Trophy },
+    { label: "Where is our Practice data thin?", icon: Gauge },
+  ],
+  analytics: ASK_CLUBHOUSE_UI_SUGGESTIONS,
+  weight_room: [
+    { label: "Who is leading the Weight Room?", icon: Dumbbell },
+    { label: "Who has improved most this month?", icon: TrendingUp },
+    { label: "Who has missed recent workouts?", icon: ClipboardList },
+    { label: "Compare strength progress across teams", icon: BarChart3 },
+  ],
+  games: [
+    { label: "Who leads our game hitting?", icon: Trophy },
+    { label: "Compare Practice vs Games", icon: BarChart3 },
+    { label: "Who has the most extra-base hits?", icon: TrendingUp },
+    { label: "What should we watch next game?", icon: Sparkles },
+  ],
+};
+
+function askTeamScopeKey(team: Pick<TeamOption, "teamId" | "seasonId">) {
+  return `${team.teamId}:${team.seasonId ?? ""}`;
+}
+
+const ASK_ALL_TEAMS_SCOPE_KEY = "__all_teams__";
+
+function askStageForQuestion(question: string) {
+  if (/\b(nfhs|ncaa|mlb|rule|rulebook|balk|pitch count limit)\b/i.test(question)) return "Checking current baseball guidance...";
+  if (/\b(is that good|benchmark|for (?:his|her|their|my) age|how does that compare)\b/i.test(question)) return "Comparing Clubhouse data with baseball context...";
+  if (/\b(ops|babip|csw|what is|what does)\b/i.test(question) && !/\b(our|my|team|player|who)\b/i.test(question)) return "Checking baseball knowledge...";
+  return ASK_CLUBHOUSE_GENERIC_STAGE;
+}
+
 const ASK_CLUBHOUSE_MOCK_TIME = "2026-08-30T13:41:00.000Z";
 
 const ASK_CLUBHOUSE_MOCK_ACTION: AskClubhouseAction = {
@@ -438,9 +490,32 @@ function readInitialAskClubhouseFixture(): AskClubhouseInitialState | undefined 
           makeAskFixtureMessage("assistant", ASK_CLUBHOUSE_GENERIC_STAGE, { pending: true }),
         ],
       };
+    case "web-loading":
+      return {
+        open: true,
+        sending: true,
+        stage: "Checking current baseball guidance...",
+        messages: [
+          makeAskFixtureMessage("user", "What is the balk rule in NFHS?"),
+          makeAskFixtureMessage("assistant", "Checking current baseball guidance...", { pending: true }),
+        ],
+      };
     case "ranking":
-    case "followups":
       return { open: true, messages: [userMessage, rankingMessage] };
+    case "followups":
+      return {
+        open: true,
+        messages: [
+          userMessage,
+          rankingMessage,
+          makeAskFixtureMessage("user", "Why is Mylo first?"),
+          makeAskFixtureMessage("assistant", "Mylo has the strongest reliable blend of Hard Contact and average exit velocity in the current Practice sample. His 46% Hard Contact leads the qualified hitters, and the 38 tracked swings keep the comparison meaningful.", {
+            status: "completed",
+            followUps: ["Compare him to Games", "Show his last 3 practices", "Who is next closest?"],
+            evidence: [{ title: "Practice hitting", summary: "Based on 6 practices and 38 tracked swings." }],
+          }),
+        ],
+      };
     case "comparison":
       return {
         open: true,
@@ -480,6 +555,51 @@ function readInitialAskClubhouseFixture(): AskClubhouseInitialState | undefined 
           makeAskFixtureMessage("assistant", "I don't have enough tracked exit velocity data for this week yet.", {
             status: "no_data",
             followUps: ["Use this month", "Practice Hitting only", "All Sessions"],
+          }),
+        ],
+      };
+    case "low-sample":
+      return {
+        open: true,
+        messages: [
+          makeAskFixtureMessage("user", "Who hits curveballs the best on the team?"),
+          makeAskFixtureMessage("assistant", "We only have 4 tracked curveball swings across 3 hitters, so I wouldn't rank the team confidently yet.", {
+            status: "low_sample",
+            followUps: ["Show all pitch types", "How much pitch-type data do we have?", "Compare fastballs instead"],
+            ui: {
+              kind: "ranking",
+              headline: "There is not enough curveball data for a reliable team ranking yet.",
+              metrics: [
+                { label: "Tracked swings", value: "4" },
+                { label: "Hitters", value: "3" },
+                { label: "Practices", value: "2" },
+              ],
+              explanation: "Jacob has two tracked curveball swings; Mylo and Andrew have one each. Keep tagging pitch type before treating the rates as meaningful.",
+              rankingLabel: "Hitter",
+              rankingValueLabel: "Tracked",
+              ranking: [
+                { rank: 1, initials: "JS", name: "Jacob Seamon", value: "2" },
+                { rank: 2, initials: "MW", name: "Mylo White", value: "1" },
+                { rank: 3, initials: "AP", name: "Andrew Peters", value: "1" },
+              ],
+              footnote: "4 tracked swings · 3 hitters · 2 Practices",
+            },
+          }),
+        ],
+      };
+    case "rule":
+      return {
+        open: true,
+        messages: [
+          makeAskFixtureMessage("user", "What is the balk rule in NFHS?"),
+          makeAskFixtureMessage("assistant", "In NFHS baseball, a balk is an illegal pitching action with runners on base. Common examples include failing to come set, starting and stopping the delivery, making an illegal feint, or stepping improperly. NFHS treats a balk as an immediate dead ball with no pitch, and runners are generally awarded one base.", {
+            status: "completed",
+            route: "baseball_knowledge",
+            followUps: ["What counts as coming set?", "How is the MLB penalty different?", "Can a pitcher fake to third?"],
+            evidence: [
+              { title: "NFHS Baseball Rules", summary: "Current high-school baseball rule context.", url: "https://www.nfhs.org/activities-sports/baseball" },
+              { title: "NFHS Baseball Interpretations", summary: "Official rules guidance and interpretations.", url: "https://www.nfhs.org/resources/sports/baseball-rules-interpretations-2026" },
+            ],
           }),
         ],
       };
@@ -1370,6 +1490,24 @@ export default function MetrolinaBaseballApp() {
   const [sessionSummary, setSessionSummary] = useState<{ type: "Hitting" | "Pitching" | "Defense"; sessionId: ID } | null>(null);
   const [practiceSummaryOpen, setPracticeSummaryOpen] = useState(false);
   const [summaryNote, setSummaryNote] = useState("");
+  const initialAskFixture = useMemo(() => readInitialAskClubhouseFixture(), []);
+  const [askOpen, setAskOpen] = useState(Boolean(initialAskFixture?.open));
+  const [askConversationId, setAskConversationId] = useState<ID | undefined>();
+  const [askMessages, setAskMessages] = useState<AskClubhouseChatMessage[]>(() => initialAskFixture?.messages ?? []);
+  const [askInput, setAskInput] = useState("");
+  const [askSending, setAskSending] = useState(Boolean(initialAskFixture?.sending));
+  const [askStage, setAskStage] = useState(initialAskFixture?.stage ?? ASK_CLUBHOUSE_GENERIC_STAGE);
+  const [askError, setAskError] = useState<string | undefined>(initialAskFixture?.error);
+  const [askLaunchContext, setAskLaunchContext] = useState<AskClubhouseLaunchContext>({ surface: "analytics" });
+  const [askSelectedScopeKeys, setAskSelectedScopeKeys] = useState<string[]>([]);
+  const askDefaultScopeKeys = askLaunchContext.surface === "clubhouse_home"
+    ? [ASK_ALL_TEAMS_SCOPE_KEY]
+    : data?.teamContext?.currentTeam
+      ? [askTeamScopeKey(data.teamContext.currentTeam)]
+      : [ASK_ALL_TEAMS_SCOPE_KEY];
+  const resolvedAskSelectedScopeKeys = askSelectedScopeKeys.length
+    ? askSelectedScopeKeys
+    : askDefaultScopeKeys;
 
   function navigateToView(
     nextView: ViewKey,
@@ -1416,6 +1554,23 @@ export default function MetrolinaBaseballApp() {
     if (!hydrated || !currentTheme) return;
     applyDocumentTheme(currentTheme);
   }, [currentTheme, hydrated]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (askOpen) document.body.dataset.askClubhouseOpen = "true";
+    else delete document.body.dataset.askClubhouseOpen;
+    return () => {
+      delete document.body.dataset.askClubhouseOpen;
+    };
+  }, [askOpen]);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production" || typeof window === "undefined" || !askOpen) return;
+    const askTheme = new URLSearchParams(window.location.search).get("askTheme");
+    if (askTheme !== "light" && askTheme !== "dark") return;
+    document.documentElement.dataset.theme = askTheme;
+    document.documentElement.style.colorScheme = askTheme;
+  }, [askOpen]);
 
   useEffect(() => {
     if (!hydrated || !data) return;
@@ -3717,6 +3872,136 @@ export default function MetrolinaBaseballApp() {
     });
   }
 
+  function startNewAskChat() {
+    setAskConversationId(undefined);
+    setAskMessages([]);
+    setAskInput("");
+    setAskError(undefined);
+  }
+
+  function openAskClubhouse(surface: AskClubhouseLaunchSurface, analytics?: Partial<AnalyticsQuery>) {
+    if (!data) return;
+    const current = data.teamContext?.currentTeam;
+    const nextKeys = surface === "clubhouse_home"
+      ? [ASK_ALL_TEAMS_SCOPE_KEY]
+      : current ? [askTeamScopeKey(current)] : [ASK_ALL_TEAMS_SCOPE_KEY];
+    if (nextKeys.join("|") !== resolvedAskSelectedScopeKeys.join("|")) startNewAskChat();
+    setAskSelectedScopeKeys(nextKeys);
+    setAskLaunchContext({ surface, analytics });
+    setAskOpen(true);
+  }
+
+  function changeAskScopes(nextKeys: string[]) {
+    if (!nextKeys.length || nextKeys.join("|") === resolvedAskSelectedScopeKeys.join("|")) return;
+    setAskSelectedScopeKeys(nextKeys);
+    startNewAskChat();
+  }
+
+  async function handleAskQuestion(question: string) {
+    if (!data) return;
+    const nextQuestion = question.trim();
+    if (!nextQuestion || askSending) return;
+    setAskOpen(true);
+    setAskError(undefined);
+    setAskInput("");
+    const nextStage = askStageForQuestion(nextQuestion);
+    setAskStage(nextStage);
+    setAskSending(true);
+    const now = Date.now();
+    const userMessage: AskClubhouseChatMessage = {
+      id: `ask-user-${now}`,
+      role: "user",
+      content: nextQuestion,
+      createdAt: new Date(now).toISOString(),
+    };
+    const pendingMessage: AskClubhouseChatMessage = {
+      id: `ask-pending-${now}`,
+      role: "assistant",
+      content: nextStage,
+      createdAt: new Date(now).toISOString(),
+      pending: true,
+      pendingStartedAt: now,
+    };
+    const history = [...askMessages, userMessage].slice(-8);
+    const availableTeams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
+    const selectedTeams = resolvedAskSelectedScopeKeys.includes(ASK_ALL_TEAMS_SCOPE_KEY)
+      ? availableTeams
+      : availableTeams.filter((team) => resolvedAskSelectedScopeKeys.includes(askTeamScopeKey(team)));
+    const teamScopes: AskClubhouseTeamScope[] = selectedTeams.map((team) => ({ teamId: team.teamId, seasonId: team.seasonId }));
+    const primaryTeam = selectedTeams.length === 1 ? selectedTeams[0] : undefined;
+    setAskMessages((current) => [...current, userMessage, pendingMessage]);
+    try {
+      const response = await fetch("/api/ai/chat", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: nextQuestion,
+          conversationId: askConversationId,
+          messages: history.map(({ role, content, createdAt }) => ({ role, content, createdAt })),
+          uiContext: {
+            teamId: primaryTeam?.teamId,
+            seasonId: primaryTeam?.seasonId,
+            organizationId: primaryTeam?.organizationId,
+            teamScopes,
+            launchSurface: askLaunchContext.surface,
+            analytics: askLaunchContext.analytics,
+          },
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as AskClubhouseApiResponse;
+      const assistantMessage: AskClubhouseChatMessage = {
+        id: payload.message?.id ?? `ask-assistant-${Date.now()}`,
+        role: "assistant",
+        content: payload.answer ?? payload.message?.content ?? "Ask Clubhouse could not answer that yet.",
+        createdAt: payload.message?.createdAt ?? new Date().toISOString(),
+        status: payload.status,
+        route: payload.route,
+        evidence: payload.evidence,
+        actions: payload.actions,
+        followUps: payload.followUps,
+        usage: payload.usage,
+      };
+      if (payload.conversationId) setAskConversationId(payload.conversationId);
+      if (!response.ok || !payload.ok) setAskError(payload.answer);
+      setAskMessages((current) => current.map((messageItem) => messageItem.pending ? assistantMessage : messageItem));
+    } catch {
+      const failedMessage: AskClubhouseChatMessage = {
+        id: `ask-error-${Date.now()}`,
+        role: "assistant",
+        content: `${ASK_CLUBHOUSE_ERROR_TITLE} ${ASK_CLUBHOUSE_ERROR_BODY}`,
+        createdAt: new Date().toISOString(),
+        status: "failed",
+      };
+      setAskError(failedMessage.content);
+      setAskMessages((current) => current.map((messageItem) => messageItem.pending ? failedMessage : messageItem));
+    } finally {
+      setAskSending(false);
+    }
+  }
+
+  function applyAskAction(action: AskClubhouseAction) {
+    const next = action.query;
+    navigateToView("analytics", {
+      playerId: action.playerId,
+      mutate: (url) => {
+        url.searchParams.set("domain", next.domain);
+        url.searchParams.set("source", next.source ?? "all");
+        url.searchParams.set("mode", next.mode ?? "box-score");
+        url.searchParams.set("period", next.timeRange ?? "season");
+        if (next.developmentView && next.developmentView !== "overview") url.searchParams.set("dev", next.developmentView);
+        if (next.eventIds?.length) url.searchParams.set("events", next.eventIds.join(","));
+        if (next.sort?.metricId) {
+          url.searchParams.set("sort", next.sort.metricId);
+          url.searchParams.set("dir", next.sort.direction);
+        }
+        if (action.playerId) url.searchParams.set("detailPlayer", action.playerId);
+      },
+    });
+    setAskOpen(false);
+    window.setTimeout(() => window.dispatchEvent(new PopStateEvent("popstate")), 0);
+  }
+
   if (!hydrated) {
     return (
       <main className="loading-screen">
@@ -3851,6 +4136,7 @@ export default function MetrolinaBaseballApp() {
               onToggleTeamPin={toggleTeamPin}
               onView={goToView}
               onCreateTeam={() => openTeamCreator(undefined, "existing")}
+              onAsk={() => openAskClubhouse("clubhouse_home")}
             />
         )}
 
@@ -3902,6 +4188,7 @@ export default function MetrolinaBaseballApp() {
             onOpenPlayer={openPlayer}
             onStartPractice={openOrStartPractice}
             onStartGame={() => setStartGameOpen(true)}
+            onAsk={() => openAskClubhouse("team_home")}
           />
         )}
 
@@ -3977,6 +4264,7 @@ export default function MetrolinaBaseballApp() {
             onOpenAttendance={() => (practice ? writePracticeAttendanceRoute() : openOrStartPractice())}
             onEndPractice={endPractice}
             onStatus={updatePracticeAttendance}
+            onAsk={() => openAskClubhouse("practice")}
           />
         )}
 
@@ -4133,6 +4421,7 @@ export default function MetrolinaBaseballApp() {
             onSaveExercisePreset={saveWeightRoomExercisePreset}
             onWeighInOpen={setWeightRoomWeighInOpen}
             onSaveWeighIns={logWeightRoomWeighIns}
+            onAsk={() => openAskClubhouse("weight_room")}
           />
         )}
 
@@ -4158,6 +4447,7 @@ export default function MetrolinaBaseballApp() {
             onUndo={undoLastGameEvent}
             onAdjust={adjustGame}
             onStartGame={() => setStartGameOpen(true)}
+            onAsk={() => openAskClubhouse("games")}
           />
         )}
 
@@ -4165,6 +4455,7 @@ export default function MetrolinaBaseballApp() {
           <AnalyticsView
             data={data}
             onOpenPlayer={openPlayer}
+            onAsk={(analytics) => openAskClubhouse("analytics", analytics)}
           />
         )}
 
@@ -4197,6 +4488,26 @@ export default function MetrolinaBaseballApp() {
           />
         )}
       </section>
+
+      {askOpen && (
+        <AskClubhouseDrawer
+          messages={askMessages}
+          input={askInput}
+          sending={askSending}
+          stage={askStage}
+          error={askError}
+          teams={displayWorkspaceTeams(data.teamContext?.availableTeams ?? [])}
+          selectedScopeKeys={resolvedAskSelectedScopeKeys}
+          suggestions={ASK_CLUBHOUSE_CONTEXT_SUGGESTIONS[askLaunchContext.surface]}
+          onScopeChange={changeAskScopes}
+          onClose={() => setAskOpen(false)}
+          onNewChat={startNewAskChat}
+          onInput={setAskInput}
+          onQuestion={handleAskQuestion}
+          onSubmit={() => handleAskQuestion(askInput)}
+          onAction={applyAskAction}
+        />
+      )}
 
       <nav className="bottom-nav" aria-label="Mobile navigation" style={{ "--bottom-nav-count": mobileNavCount } as React.CSSProperties}>
         {mobilePrimaryItems.map(({ key, label, shortLabel, icon: Icon }) => (
@@ -5839,6 +6150,7 @@ function ClubhouseHome({
   onToggleTeamPin,
   onView,
   onCreateTeam,
+  onAsk,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
@@ -5848,6 +6160,7 @@ function ClubhouseHome({
   onToggleTeamPin: (team: TeamOption) => void | Promise<void>;
   onView: (view: ViewKey) => void;
   onCreateTeam: () => void;
+  onAsk: () => void;
 }) {
   const teams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
   const organizations = organizationSummariesFromContext(data.teamContext);
@@ -5859,10 +6172,13 @@ function ClubhouseHome({
         <div>
           <h1>Home</h1>
         </div>
-        <button className="primary-button" type="button" onClick={onCreateTeam}>
-          <Plus size={16} aria-hidden="true" />
-          New Team/Org
-        </button>
+        <div className="global-title-actions">
+          <AskClubhouseLauncher onClick={onAsk} />
+          <button className="primary-button" type="button" onClick={onCreateTeam}>
+            <Plus size={16} aria-hidden="true" />
+            New Team/Org
+          </button>
+        </div>
       </section>
 
       <section className="global-section">
@@ -7012,6 +7328,7 @@ function HomeDashboard({
   onOpenPlayer,
   onStartPractice,
   onStartGame,
+  onAsk,
 }: {
   data: AppData;
   weeklyMvp?: AwardResult;
@@ -7020,6 +7337,7 @@ function HomeDashboard({
   onOpenPlayer: (playerId: ID) => void;
   onStartPractice: () => void;
   onStartGame: () => void;
+  onAsk: () => void;
 }) {
   const scheduleItems = buildScheduleItems(data);
   const today = todayKey();
@@ -7041,6 +7359,9 @@ function HomeDashboard({
 
   return (
     <div className="page-stack home-dashboard">
+      <div className="ask-overview-launch-row">
+        <AskClubhouseLauncher onClick={onAsk} />
+      </div>
       <section className="home-ops-grid">
         <HomeInfoCard
           icon={ClipboardList}
@@ -8185,6 +8506,7 @@ function PracticeHome({
   onOpenAttendance,
   onEndPractice,
   onStatus,
+  onAsk,
 }: {
   data: AppData;
   practice?: Practice;
@@ -8199,6 +8521,7 @@ function PracticeHome({
   onOpenAttendance: () => void;
   onEndPractice: () => void;
   onStatus: (playerId: ID, status: PracticeAttendanceStatus) => void;
+  onAsk: () => void;
 }) {
   const [attendancePage, setAttendancePage] = useState(0);
   const [attendanceKeyOpen, setAttendanceKeyOpen] = useState(false);
@@ -8244,6 +8567,7 @@ function PracticeHome({
         action={
           <div className="practice-title-actions">
             <time>{practice ? fullDate(practice.date) : fullDate(todayKey())}</time>
+            <AskClubhouseLauncher onClick={onAsk} compact />
             {!practice && (
               <button className="primary-button" type="button" onClick={onStartPractice}>
                 <Plus size={16} aria-hidden="true" />
@@ -13248,6 +13572,7 @@ function WeightRoomView({
   onSaveExercisePreset,
   onWeighInOpen,
   onSaveWeighIns,
+  onAsk,
 }: {
   data: AppData;
   selectedPlayerId: ID;
@@ -13277,6 +13602,7 @@ function WeightRoomView({
   onSaveExercisePreset: (preset: WeightRoomExercisePreset) => void;
   onWeighInOpen: (open: boolean) => void;
   onSaveWeighIns: (rows: Array<{ playerId: ID; weight?: number }>, date: string) => void;
+  onAsk: () => void;
 }) {
   const players = sortPlayersByRecent(data.players.filter((player) => !player.archived), data.settings.recentPlayerIds);
   const selected = players.find((player) => player.id === selectedPlayerId) ?? players[0];
@@ -13389,6 +13715,7 @@ function WeightRoomView({
         </div>
         <SegmentedControl values={WEIGHT_ROOM_TABS} active={tab} onChange={onTab} />
         <div className="weight-room-shell-header__actions">
+          {tab === "Overview" && <AskClubhouseLauncher onClick={onAsk} compact />}
           <button className="secondary-button" type="button" onClick={() => onWeighInOpen(true)}>
             <Gauge size={16} aria-hidden="true" />
             Log Weigh-Ins
@@ -18244,6 +18571,7 @@ function GamesView({
   onUndo,
   onAdjust,
   onStartGame,
+  onAsk,
 }: {
   data: AppData;
   selectedGameId: ID;
@@ -18264,6 +18592,7 @@ function GamesView({
   onUndo: () => void;
   onAdjust: (field: "metrolinaScore" | "opponentScore" | "outs", delta: number) => void;
   onStartGame: () => void;
+  onAsk: () => void;
 }) {
   const [ballInPlayOpen, setBallInPlayOpen] = useState(false);
   const [scoringStep, setScoringStep] = useState<"result" | "play" | "location" | "pitch">("result");
@@ -18460,7 +18789,7 @@ function GamesView({
       <SectionHeader
         title="Game Center"
         context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} - ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined}
-        action={workspaceMode === "field" ? <button className="primary-button" type="button" onClick={onStartGame}><Plus size={16} aria-hidden="true" />Start Game</button> : undefined}
+        action={workspaceMode === "field" ? <div className="section-header-actions"><AskClubhouseLauncher onClick={onAsk} compact /><button className="primary-button" type="button" onClick={onStartGame}><Plus size={16} aria-hidden="true" />Start Game</button></div> : undefined}
       />
 
       <section className="games-layout">
@@ -19120,9 +19449,11 @@ function gameEventMeta(event: GameEvent) {
 function AnalyticsView({
   data,
   onOpenPlayer,
+  onAsk,
 }: {
   data: AppData;
   onOpenPlayer: (playerId: ID) => void;
+  onAsk: (analytics: Partial<AnalyticsQuery>) => void;
 }) {
   const initialState = useMemo(() => readInitialAnalyticsState(), []);
   const [domain, setDomain] = useState<AnalyticsDomain>(initialState.domain);
@@ -19137,14 +19468,6 @@ function AnalyticsView({
   const [eventSelectorOpen, setEventSelectorOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
-  const initialAskFixture = useMemo(() => readInitialAskClubhouseFixture(), []);
-  const [askOpen, setAskOpen] = useState(Boolean(initialAskFixture?.open));
-  const [askConversationId, setAskConversationId] = useState<ID | undefined>();
-  const [askMessages, setAskMessages] = useState<AskClubhouseChatMessage[]>(() => initialAskFixture?.messages ?? []);
-  const [askInput, setAskInput] = useState("");
-  const [askSending, setAskSending] = useState(Boolean(initialAskFixture?.sending));
-  const [askStage, setAskStage] = useState(initialAskFixture?.stage ?? ASK_CLUBHOUSE_GENERIC_STAGE);
-  const [askError, setAskError] = useState<string | undefined>(initialAskFixture?.error);
   const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>(() => readInitialAnalyticsDetailPlayerId(data));
   const [metricIds, setMetricIds] = useState<string[] | undefined>(initialState.metricIds);
   const context = useMemo(() => ({
@@ -19229,23 +19552,6 @@ function AnalyticsView({
   }, [customRange.end, customRange.start, developmentView, domain, eventIds, filters, metricIds, mode, sort, source, timeRange]);
 
   useEffect(() => {
-    if (process.env.NODE_ENV === "production" || typeof window === "undefined" || !askOpen) return;
-    const askTheme = new URLSearchParams(window.location.search).get("askTheme");
-    if (askTheme !== "light" && askTheme !== "dark") return;
-    document.documentElement.dataset.theme = askTheme;
-    document.documentElement.style.colorScheme = askTheme;
-  }, [askOpen]);
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    if (askOpen) document.body.dataset.askClubhouseOpen = "true";
-    else delete document.body.dataset.askClubhouseOpen;
-    return () => {
-      delete document.body.dataset.askClubhouseOpen;
-    };
-  }, [askOpen]);
-
-  useEffect(() => {
     const handleAnalyticsPopState = () => {
       const next = readInitialAnalyticsState();
       setDomain(next.domain);
@@ -19327,117 +19633,6 @@ function AnalyticsView({
     });
   }
 
-  async function handleAskQuestion(question: string) {
-    const nextQuestion = question.trim();
-    if (!nextQuestion || askSending) return;
-    setAskOpen(true);
-    setAskError(undefined);
-    setAskInput("");
-    setAskStage(ASK_CLUBHOUSE_GENERIC_STAGE);
-    setAskSending(true);
-    const userMessage: AskClubhouseChatMessage = {
-      id: `ask-user-${Date.now()}`,
-      role: "user",
-      content: nextQuestion,
-      createdAt: new Date().toISOString(),
-    };
-    const pendingMessage: AskClubhouseChatMessage = {
-      id: `ask-pending-${Date.now()}`,
-      role: "assistant",
-      content: ASK_CLUBHOUSE_GENERIC_STAGE,
-      createdAt: new Date().toISOString(),
-      pending: true,
-    };
-    const history = [...askMessages, userMessage].slice(-8);
-    setAskMessages((current) => [...current, userMessage, pendingMessage]);
-    try {
-      const response = await fetch("/api/ai/chat", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: nextQuestion,
-          conversationId: askConversationId,
-          messages: history.map(({ role, content, createdAt }) => ({ role, content, createdAt })),
-          uiContext: {
-            teamId: context.teamId,
-            seasonId: context.seasonId,
-            organizationId: context.organizationId,
-            analytics: {
-              domain: query.domain,
-              source: query.source,
-              mode: query.mode,
-              timeRange: query.timeRange,
-              developmentView: query.developmentView,
-              eventIds: query.eventIds,
-              filters: query.filters,
-              sort: query.sort,
-              groupBy: "player",
-            },
-          },
-        }),
-      });
-      const payload = (await response.json().catch(() => ({}))) as AskClubhouseApiResponse;
-      const assistantMessage: AskClubhouseChatMessage = {
-        id: payload.message?.id ?? `ask-assistant-${Date.now()}`,
-        role: "assistant",
-        content: payload.answer ?? payload.message?.content ?? "Ask Clubhouse could not answer that yet.",
-        createdAt: payload.message?.createdAt ?? new Date().toISOString(),
-        status: payload.status,
-        evidence: payload.evidence,
-        actions: payload.actions,
-        followUps: payload.followUps,
-        usage: payload.usage,
-      };
-      if (payload.conversationId) setAskConversationId(payload.conversationId);
-      if (!response.ok || !payload.ok) setAskError(payload.answer);
-      setAskMessages((current) => current.map((messageItem) => messageItem.pending ? assistantMessage : messageItem));
-    } catch {
-      const failedMessage: AskClubhouseChatMessage = {
-        id: `ask-error-${Date.now()}`,
-        role: "assistant",
-        content: `${ASK_CLUBHOUSE_ERROR_TITLE} ${ASK_CLUBHOUSE_ERROR_BODY}`,
-        createdAt: new Date().toISOString(),
-        status: "failed",
-      };
-      setAskError(failedMessage.content);
-      setAskMessages((current) => current.map((messageItem) => messageItem.pending ? failedMessage : messageItem));
-    } finally {
-      setAskSending(false);
-    }
-  }
-
-  function closeAskClubhouse() {
-    setAskOpen(false);
-  }
-
-  function startNewAskChat() {
-    setAskConversationId(undefined);
-    setAskMessages([]);
-    setAskInput("");
-    setAskError(undefined);
-  }
-
-  function applyAskAction(action: AskClubhouseAction) {
-    const next = action.query;
-    const nextSource = next.source ?? "all";
-    const nextMode = next.mode ?? "box-score";
-    setDomain(next.domain);
-    setSource(nextSource);
-    setMode(nextMode);
-    setTimeRange(next.timeRange ?? "season");
-    setDevelopmentView(next.developmentView ?? "overview");
-    setEventIds(next.eventIds ?? []);
-    setFilters(next.filters ?? {});
-    setMetricIds(next.metrics);
-    setSort(next.sort ?? defaultAnalyticsSort(next.domain, nextSource, nextMode));
-    if (action.playerId) {
-      setDetailPlayerId(action.playerId);
-      writeAnalyticsDetailRoute(action.playerId);
-    }
-    setAskOpen(false);
-  }
-
   function writeAnalyticsDetailRoute(playerId: ID | undefined, options: { replace?: boolean } = {}) {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
@@ -19461,7 +19656,7 @@ function AnalyticsView({
 
   return (
     <div className="page-stack analytics-page">
-      <SectionHeader title="Analytics" />
+      <SectionHeader title="Analytics" action={<AskClubhouseLauncher onClick={() => onAsk(query)} />} />
 
       <section className="analytics-controls" aria-label="Analytics controls">
         <div className="analytics-domain-tabs">
@@ -19600,32 +19795,6 @@ function AnalyticsView({
 
       <AnalyticsInsights result={result} onOpenPlayer={onOpenPlayer} />
 
-      <button
-        className="analytics-ask-fab"
-        type="button"
-        onClick={() => setAskOpen(true)}
-        aria-label="Ask Clubhouse"
-        title="Ask Clubhouse"
-      >
-        <Sparkles size={20} aria-hidden="true" />
-      </button>
-
-      {askOpen && (
-        <AskClubhouseDrawer
-          messages={askMessages}
-          input={askInput}
-          sending={askSending}
-          stage={askStage}
-          error={askError}
-          scopeLabel={[data.teamContext?.currentTeam?.teamName, result.scopeLabel].filter(Boolean).join(" · ")}
-          onClose={closeAskClubhouse}
-          onNewChat={startNewAskChat}
-          onInput={setAskInput}
-          onQuestion={handleAskQuestion}
-          onSubmit={() => handleAskQuestion(askInput)}
-          onAction={applyAskAction}
-        />
-      )}
       {selectedDetailRow && (
         <AnalyticsPlayerDrawer
           row={selectedDetailRow}
@@ -19917,13 +20086,93 @@ function AnalyticsFilterPanel({
   );
 }
 
+function AskClubhouseLauncher({ onClick, compact = false }: { onClick: () => void; compact?: boolean }) {
+  return (
+    <button className={`secondary-button ask-clubhouse-launcher${compact ? " ask-clubhouse-launcher--compact" : ""}`} type="button" onClick={onClick}>
+      <Sparkles size={15} aria-hidden="true" />
+      <span>Ask Clubhouse</span>
+    </button>
+  );
+}
+
+function AskClubhouseScopeSelector({
+  teams,
+  selectedScopeKeys,
+  onChange,
+}: {
+  teams: TeamOption[];
+  selectedScopeKeys: string[];
+  onChange: (scopeKeys: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const allSelected = selectedScopeKeys.includes(ASK_ALL_TEAMS_SCOPE_KEY);
+  const selectedTeams = teams.filter((team) => selectedScopeKeys.includes(askTeamScopeKey(team)));
+  const label = allSelected
+    ? "All teams"
+    : selectedTeams.length === 1 ? selectedTeams[0].teamName : `${selectedTeams.length} teams`;
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  function toggleTeam(team: TeamOption) {
+    const key = askTeamScopeKey(team);
+    if (allSelected) {
+      onChange([key]);
+      return;
+    }
+    const next = selectedScopeKeys.includes(key)
+      ? selectedScopeKeys.filter((item) => item !== key)
+      : [...selectedScopeKeys, key];
+    if (next.length) onChange(next);
+  }
+
+  return (
+    <div className="ask-scope-control" ref={rootRef}>
+      <span>Data from</span>
+      <button className="ask-scope-trigger" type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="menu">
+        <Users size={15} aria-hidden="true" />
+        <strong>{label}</strong>
+        <ChevronDown size={14} aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="ask-scope-menu" role="menu" aria-label="Ask Clubhouse team scope">
+          <button type="button" role="menuitemcheckbox" aria-checked={allSelected} className={allSelected ? "active" : ""} onClick={() => onChange([ASK_ALL_TEAMS_SCOPE_KEY])}>
+            <span className="ask-scope-check">{allSelected && <Check size={13} aria-hidden="true" />}</span>
+            <span><strong>All teams</strong><small>Ask across every team you can access</small></span>
+          </button>
+          {teams.map((team) => {
+            const selected = allSelected || selectedScopeKeys.includes(askTeamScopeKey(team));
+            return (
+              <button key={askTeamScopeKey(team)} type="button" role="menuitemcheckbox" aria-checked={selected} className={selected ? "active" : ""} onClick={() => toggleTeam(team)}>
+                <span className="ask-scope-check">{selected && <Check size={13} aria-hidden="true" />}</span>
+                <OrganizationLogo name={team.organizationName} imageUrl={team.logoUrl} />
+                <span><strong>{team.teamName}</strong><small>{team.seasonName ?? "Current season"}</small></span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AskClubhouseDrawer({
   messages,
   input,
   sending,
   stage,
   error,
-  scopeLabel,
+  teams,
+  selectedScopeKeys,
+  suggestions: contextualSuggestions,
+  onScopeChange,
   onClose,
   onNewChat,
   onInput,
@@ -19936,7 +20185,10 @@ function AskClubhouseDrawer({
   sending: boolean;
   stage: string;
   error?: string;
-  scopeLabel: string;
+  teams: TeamOption[];
+  selectedScopeKeys: string[];
+  suggestions: Array<{ label: string; icon: LucideIcon }>;
+  onScopeChange: (scopeKeys: string[]) => void;
   onClose: () => void;
   onNewChat: () => void;
   onInput: (value: string) => void;
@@ -19950,7 +20202,9 @@ function AskClubhouseDrawer({
   });
   const visibleMessages = useMemo(() => dedupeAskClubhouseMessages(messages), [messages]);
   const lastUserQuestion = [...visibleMessages].reverse().find((message) => message.role === "user")?.content;
-  const suggestions = showAllIdeas ? ASK_CLUBHOUSE_UI_SUGGESTIONS : ASK_CLUBHOUSE_UI_SUGGESTIONS.slice(0, 4);
+  const combinedSuggestions = [...contextualSuggestions, ...ASK_CLUBHOUSE_UI_SUGGESTIONS.filter((item) => !contextualSuggestions.some((suggestion) => suggestion.label === item.label))];
+  const suggestions = showAllIdeas ? combinedSuggestions : combinedSuggestions.slice(0, 4);
+  const lastAssistantId = [...visibleMessages].reverse().find((message) => message.role === "assistant" && !message.pending)?.id;
   const canSend = input.trim().length > 0 && !sending;
   const shouldShowInlineError = Boolean(
     error
@@ -19968,13 +20222,9 @@ function AskClubhouseDrawer({
     >
       <aside className="analytics-drawer analytics-ask-drawer" role="dialog" aria-modal="true" aria-label="Ask Clubhouse">
         <header className="ask-header">
-          <button className="ask-header__back" type="button" onClick={onClose} aria-label="Back to Analytics">
-            <ChevronLeft size={18} aria-hidden="true" />
-            <span>Analytics</span>
-          </button>
+          <span className="ask-header__spacer" aria-hidden="true" />
           <div className="ask-header__title">
             <strong>Ask Clubhouse</strong>
-            <small>{scopeLabel || "Team analytics"}</small>
           </div>
           <div className="ask-header__actions">
             <button className="ghost-button ask-header__new-button" type="button" onClick={onNewChat} aria-label="Start a new Ask Clubhouse chat" title="New Chat">
@@ -19986,10 +20236,14 @@ function AskClubhouseDrawer({
             </button>
           </div>
         </header>
+        <AskClubhouseScopeSelector
+          teams={teams}
+          selectedScopeKeys={selectedScopeKeys}
+          onChange={onScopeChange}
+        />
         <section className="ask-chat" aria-label="Ask Clubhouse chat">
           {!visibleMessages.length && (
             <AskClubhouseLanding
-              scopeLabel={scopeLabel}
               suggestions={suggestions}
               showAllIdeas={showAllIdeas}
               sending={sending}
@@ -20002,6 +20256,8 @@ function AskClubhouseDrawer({
               key={message.id}
               message={message.pending ? { ...message, content: stage } : message}
               onAction={onAction}
+              onQuestion={onQuestion}
+              showFollowUps={message.id === lastAssistantId}
               onRetry={() => {
                 if (lastUserQuestion) onQuestion(lastUserQuestion);
               }}
@@ -20048,14 +20304,12 @@ function AskClubhouseDrawer({
 }
 
 function AskClubhouseLanding({
-  scopeLabel,
   suggestions,
   showAllIdeas,
   sending,
   onQuestion,
   onToggleIdeas,
 }: {
-  scopeLabel: string;
   suggestions: Array<{ label: string; icon: LucideIcon }>;
   showAllIdeas: boolean;
   sending: boolean;
@@ -20069,7 +20323,6 @@ function AskClubhouseLanding({
           <Sparkles size={19} />
         </span>
         <h3>Ask Clubhouse</h3>
-        <em>{scopeLabel || "Team analytics"}</em>
         <strong>What do you want to know?</strong>
         <p>Ask anything about your team, players, practices, games, development, or baseball.</p>
       </div>
@@ -20093,10 +20346,14 @@ function AskClubhouseLanding({
 function AskClubhouseMessageBubble({
   message,
   onAction,
+  onQuestion,
+  showFollowUps,
   onRetry,
 }: {
   message: AskClubhouseChatMessage;
   onAction: (action: AskClubhouseAction) => void;
+  onQuestion: (question: string) => void;
+  showFollowUps: boolean;
   onRetry: () => void;
 }) {
   const isAssistant = message.role === "assistant";
@@ -20110,9 +20367,9 @@ function AskClubhouseMessageBubble({
         {message.createdAt && <time dateTime={message.createdAt}>{formatAskMessageTime(message.createdAt)}</time>}
       </header>
       {message.pending ? (
-        <AskClubhouseThinking stage={message.content} />
+        <AskClubhouseThinking stage={message.content} startedAt={message.pendingStartedAt} />
       ) : isAssistant ? (
-        <AskClubhouseAssistantAnswer message={message} onAction={onAction} onRetry={onRetry} />
+        <AskClubhouseAssistantAnswer message={message} onAction={onAction} onQuestion={onQuestion} showFollowUps={showFollowUps} onRetry={onRetry} />
       ) : (
         <p className="ask-user-question">{message.content}</p>
       )}
@@ -20123,10 +20380,14 @@ function AskClubhouseMessageBubble({
 function AskClubhouseAssistantAnswer({
   message,
   onAction,
+  onQuestion,
+  showFollowUps,
   onRetry,
 }: {
   message: AskClubhouseChatMessage;
   onAction: (action: AskClubhouseAction) => void;
+  onQuestion: (question: string) => void;
+  showFollowUps: boolean;
   onRetry: () => void;
 }) {
   if (isAskSetupMessage(message)) {
@@ -20174,15 +20435,23 @@ function AskClubhouseAssistantAnswer({
       {!message.ui && <AskClubhouseTextAnswer content={message.content} />}
       <AskClubhouseEvidence message={message} />
       <AskClubhouseActions message={message} onAction={onAction} />
+      {showFollowUps && <AskClubhouseFollowUps message={message} onQuestion={onQuestion} />}
     </>
   );
 }
 
-function AskClubhouseThinking({ stage }: { stage: string }) {
+function AskClubhouseThinking({ stage, startedAt }: { stage: string; startedAt?: number }) {
+  const [elapsedSeconds, setElapsedSeconds] = useState(() => startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0);
+  useEffect(() => {
+    if (!startedAt) return;
+    const timer = window.setInterval(() => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000))), 1000);
+    return () => window.clearInterval(timer);
+  }, [startedAt]);
   return (
     <div className="ask-thinking-block" aria-live="polite">
       <span aria-hidden="true" />
       <strong>{stage || ASK_CLUBHOUSE_GENERIC_STAGE}</strong>
+      <time>{Math.floor(elapsedSeconds / 60)}:{String(elapsedSeconds % 60).padStart(2, "0")}</time>
     </div>
   );
 }
@@ -20309,9 +20578,33 @@ function AskClubhouseEvidence({ message }: { message: AskClubhouseChatMessage })
     <div className="ask-evidence-list">
       {message.evidence.map((item) => (
         <div key={`${message.id}-${item.title}`}>
-          <strong>{item.title}</strong>
+          {item.url ? (
+            <a href={item.url} target="_blank" rel="noreferrer">{item.title}</a>
+          ) : <strong>{item.title}</strong>}
           <small>{item.summary}</small>
         </div>
+      ))}
+    </div>
+  );
+}
+
+function AskClubhouseFollowUps({
+  message,
+  onQuestion,
+}: {
+  message: AskClubhouseChatMessage;
+  onQuestion: (question: string) => void;
+}) {
+  const followUps = (message.followUps ?? []).slice(0, 3);
+  if (!followUps.length) return null;
+  return (
+    <div className="ask-followup-list">
+      <span>You might also ask</span>
+      {followUps.map((question) => (
+        <button key={`${message.id}-${question}`} type="button" onClick={() => onQuestion(question)}>
+          <span>{question}</span>
+          <ChevronRight size={13} aria-hidden="true" />
+        </button>
       ))}
     </div>
   );
