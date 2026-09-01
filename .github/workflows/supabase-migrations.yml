@@ -51,6 +51,10 @@ jobs:
         shell: bash
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
 
+      - name: Review pending migrations
+        shell: bash
+        run: supabase db push --linked --include-all --dry-run --password "$SUPABASE_DB_PASSWORD"
+
       - name: Apply pending migrations
         shell: bash
-        run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD"
+        run: supabase db push --linked --include-all --password "$SUPABASE_DB_PASSWORD"
