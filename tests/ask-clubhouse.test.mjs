@@ -3,12 +3,17 @@ import test from "node:test";
 import { getAskClubhouseConfig, resolveAiUsageRole } from "../app/lib/askClubhouse/config.ts";
 import { canUseExternalResearch } from "../app/lib/askClubhouse/entitlements.ts";
 import { generateAskClubhouseReply } from "../app/lib/askClubhouse/engine.ts";
+import { executeAnalyticsQuery } from "../app/lib/analyticsQuery.ts";
 import { calculateAIRequestCost } from "../app/lib/askClubhouse/pricing.ts";
 import { OpenAIProvider } from "../app/lib/askClubhouse/provider.ts";
 import { buildAskClubhouseToolPlan, classifyAskClubhouseIntent, runAskClubhouseTools } from "../app/lib/askClubhouse/tools.ts";
 import { createAiRequestHash, enforceAiUsageLimits, evaluateAiUsageLimits } from "../app/lib/askClubhouse/usage.ts";
 import { findTrustedKnowledge, InMemoryBaseballKnowledgeProvider } from "../app/lib/askClubhouse/knowledge.ts";
+import { composeAskClubhouseQueryPlan, sampleState } from "../app/lib/askClubhouse/queryPlan.ts";
+import { diagnosePlayerDevelopment } from "../app/lib/askClubhouse/diagnosis.ts";
+import { CLUBHOUSE_DIMENSION_SUPPORT } from "../app/lib/askClubhouse/support.ts";
 import { BASEBALL_KNOWLEDGE_QA } from "./fixtures/baseball-knowledge-qa.mjs";
+import { ASK_CLUBHOUSE_INTELLIGENCE_QA } from "./fixtures/ask-clubhouse-intelligence-qa.mjs";
 
 const now = "2026-08-20T12:00:00.000Z";
 const players = [
@@ -165,6 +170,142 @@ test("Ask Clubhouse answers baseball definitions without model tools", () => {
   assert.equal(plan.status, "completed");
   assert.equal(plan.toolRequests.length, 0);
   assert.match(plan.answer, /on-base percentage plus slugging/);
+});
+
+test("intelligence QA fixture contains 100+ categorized deterministic cases", () => {
+  assert.ok(ASK_CLUBHOUSE_INTELLIGENCE_QA.length >= 100);
+  const categories = new Set(ASK_CLUBHOUSE_INTELLIGENCE_QA.map((item) => item.category));
+  for (const category of ["basic", "filtered", "situational", "comparison", "ranking", "trend", "low_sample", "unsupported", "ambiguous", "follow_up", "development", "knowledge", "mixed", "security"]) {
+    assert.ok(categories.has(category), `missing QA category: ${category}`);
+  }
+  assert.equal(new Set(ASK_CLUBHOUSE_INTELLIGENCE_QA.map((item) => item.id)).size, ASK_CLUBHOUSE_INTELLIGENCE_QA.length);
+});
+
+test("composed query plans preserve metric, source, and filters", () => {
+  const plan = composeAskClubhouseQueryPlan("What is my batting average pulling fastballs over 85 mph in Games?");
+  assert.deepEqual({ domain: plan.domain, metric: plan.metric, source: plan.scope.source }, { domain: "hitting", metric: "avg", source: "games" });
+  assert.deepEqual(plan.filters.pitchTypes, ["4-Seam"]);
+  assert.equal(plan.filters.pitchVelocityMin, 85);
+  assert.deepEqual(plan.filters.directions, ["Pull", "Pull-center"]);
+  assert.ok(plan.unsupportedFilters.includes("game spray direction"));
+
+  const locationPlan = composeAskClubhouseQueryPlan("What is my Contact % on sliders down and away during Practice?");
+  assert.deepEqual(locationPlan.filters, { pitchTypes: ["Slider"], pitchLocationRegions: ["down_and_away"] });
+  assert.equal(locationPlan.minimumSample, 12);
+});
+
+test("dimension support matrix identifies partial and unavailable fields", () => {
+  const byDimension = new Map(CLUBHOUSE_DIMENSION_SUPPORT.map((item) => [item.dimension, item]));
+  assert.equal(byDimension.get("pitch type").status, "partial");
+  assert.equal(byDimension.get("pitch velocity").status, "partial");
+  assert.equal(byDimension.get("count").status, "partial");
+  assert.equal(byDimension.get("medical diagnosis").status, "not_tracked");
+  assert.equal(byDimension.get("defensive rep type").status, "supported");
+});
+
+test("minimum sample states keep tiny results from becoming strong rankings", () => {
+  assert.equal(sampleState(0, 12), "insufficient");
+  assert.equal(sampleState(5, 12), "insufficient");
+  assert.equal(sampleState(15, 12), "limited");
+  assert.equal(sampleState(24, 12), "qualified");
+});
+
+test("analytics execution composes velocity, location, and spray filters", () => {
+  const events = [
+    hittingEvent("composed-1", "practice-1", "hit-1", "p-jacob", "Ball in play", { pitchType: "Slider", velocity: 82, pitchLocation: { x: 0.8, y: 0.8 }, direction: "Pull", contactResult: "Ground ball", contactQuality: "Hard" }),
+    hittingEvent("composed-2", "practice-1", "hit-1", "p-jacob", "Ball in play", { pitchType: "Slider", velocity: 78, pitchLocation: { x: 0.5, y: 0.5 }, direction: "Opposite", contactResult: "Line drive", contactQuality: "Hard" }),
+  ];
+  const result = executeAnalyticsQuery({ ...data, hittingEvents: events }, {
+    domain: "hitting",
+    source: "practice",
+    mode: "situational",
+    timeRange: "season",
+    groupBy: "player",
+    filters: { pitchTypes: ["Slider"], pitchVelocityMin: 80, pitchLocationRegions: ["down_and_away"], directions: ["Pull"] },
+    metrics: ["contactPct"],
+    sort: { metricId: "contactPct", direction: "desc" },
+    limit: 8,
+  });
+  const jacob = result.rows.find((row) => row.player.id === "p-jacob");
+  assert.equal(jacob.sampleCount, 1);
+  assert.equal(jacob.cells.contactPct.value, 100);
+});
+
+test("trend plans create two bounded Clubhouse periods", () => {
+  const plan = buildAskClubhouseToolPlan(data, "What changed in Jacob's hitting this month?", undefined, getAskClubhouseConfig({}));
+  assert.equal(plan.status, "data");
+  assert.equal(plan.queryPlan.comparison.dimension, "period");
+  assert.equal(plan.toolRequests.length, 2);
+  assert.deepEqual(plan.toolRequests.map((request) => request.name), ["compareAnalyticsPeriods", "compareAnalyticsPeriods"]);
+  assert.ok(plan.toolRequests.every((request) => request.query.timeRange === "custom"));
+});
+
+test("development diagnosis distinguishes slider chase from weak contact", () => {
+  const knowledgeProvider = new InMemoryBaseballKnowledgeProvider([{
+    id: "slider-recognition",
+    title: "Breaking-ball recognition",
+    content: "Recognize spin early and take breaking balls below the zone.",
+    category: "Hitting",
+    status: "reviewed",
+  }]);
+  const chaseEvents = Array.from({ length: 24 }, (_, index) => hittingEvent(`slider-chase-${index}`, "practice-1", "hit-1", "p-jacob", index < 16 ? "Ball in play" : "Miss", {
+    pitchType: "Slider",
+    pitchLocation: index < 16 ? { x: 0.5, y: 0.5 } : { x: 0.5, y: 0.9 },
+    contactResult: index < 16 ? "Line drive" : undefined,
+    contactQuality: index < 16 ? "Hard" : undefined,
+  }));
+  const chaseDiagnosis = diagnosePlayerDevelopment({ ...data, hittingEvents: chaseEvents }, { domain: "hitting", playerId: "p-jacob", source: "practice", pitchType: "Slider" }, knowledgeProvider);
+  assert.equal(chaseDiagnosis.signal, "recognition_decision");
+  assert.equal(chaseDiagnosis.confidence, "high");
+  assert.match(chaseDiagnosis.focus, /Recognition/);
+  assert.equal(chaseDiagnosis.knowledgeItems[0].id, "slider-recognition");
+
+  const weakEvents = Array.from({ length: 16 }, (_, index) => hittingEvent(`slider-weak-${index}`, "practice-1", "hit-1", "p-jacob", "Ball in play", {
+    pitchType: "Slider",
+    pitchLocation: { x: 0.5, y: 0.5 },
+    contactResult: "Ground ball",
+    contactQuality: "Weak",
+    direction: "Pull",
+  }));
+  const weakDiagnosis = diagnosePlayerDevelopment({ ...data, hittingEvents: weakEvents }, { domain: "hitting", playerId: "p-jacob", source: "practice", pitchType: "Slider" }, knowledgeProvider);
+  assert.equal(weakDiagnosis.signal, "contact_quality");
+  assert.match(weakDiagnosis.focus, /Contact quality/);
+});
+
+test("development diagnosis refuses strong conclusions on small samples", () => {
+  const events = Array.from({ length: 5 }, (_, index) => hittingEvent(`slider-small-${index}`, "practice-1", "hit-1", "p-jacob", "Miss", { pitchType: "Slider" }));
+  const result = diagnosePlayerDevelopment({ ...data, hittingEvents: events }, { domain: "hitting", playerId: "p-jacob", source: "practice", pitchType: "Slider" });
+  assert.equal(result.status, "insufficient");
+  assert.equal(result.confidence, "low");
+  assert.match(result.whatISee, /would not call this a real weakness/);
+});
+
+test("development diagnosis supports pitching command signals", () => {
+  const events = Array.from({ length: 18 }, (_, index) => pitchEvent(`slider-command-${index}`, "practice-1", "pitching-1", "p-mylo", index < 10 ? "Ball" : "Called Strike", {
+    pitchType: "Slider",
+    isStrike: index >= 10,
+    isZone: index >= 10,
+    velocity: 75 + (index % 3),
+  }));
+  const result = diagnosePlayerDevelopment({ ...data, pitchEvents: events }, { domain: "pitching", playerId: "p-mylo", source: "practice", pitchType: "Slider" });
+  assert.equal(result.signal, "strike_command");
+  assert.equal(result.status, "limited");
+  assert.match(result.whatISee, /strike command/);
+});
+
+test("Ask Clubhouse returns a structured data-first development diagnosis", () => {
+  const events = Array.from({ length: 12 }, (_, index) => hittingEvent(`slider-plan-${index}`, "practice-1", "hit-1", "p-jacob", index % 3 === 0 ? "Miss" : "Ball in play", {
+    pitchType: "Slider",
+    pitchLocation: { x: 0.5, y: index % 3 === 0 ? 0.9 : 0.5 },
+    contactResult: index % 3 === 0 ? undefined : "Line drive",
+    contactQuality: index % 3 === 0 ? undefined : "Hard",
+  }));
+  const plan = buildAskClubhouseToolPlan({ ...data, hittingEvents: events }, "How can Jacob hit sliders better?", undefined, getAskClubhouseConfig({}));
+  assert.equal(plan.status, "completed");
+  assert.equal(plan.diagnosis.signal, "recognition_decision");
+  assert.match(plan.answer, /WHAT I SEE/);
+  assert.match(plan.answer, /WATCH NEXT/);
+  assert.equal(plan.toolRequests.length, 0);
 });
 
 test("Ask Clubhouse routes each question by intent and bounds web use", () => {

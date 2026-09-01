@@ -1,4 +1,4 @@
-import type { AppData, ID, PitchType, Player } from "../../types.ts";
+import type { AppData, ID, Player } from "../../types.ts";
 import {
   defaultAnalyticsSort,
   executeAnalyticsQuery,
@@ -11,6 +11,7 @@ import {
 } from "../analyticsQuery.ts";
 import type { AskClubhouseConfig } from "./config.ts";
 import { canUseExternalResearch } from "./entitlements.ts";
+import { diagnosePlayerDevelopment, type DevelopmentDiagnosisRequest, type DevelopmentDiagnosisResult } from "./diagnosis.ts";
 import {
   EMPTY_BASEBALL_KNOWLEDGE_PROVIDER,
   findTrustedKnowledge,
@@ -28,6 +29,7 @@ import type {
   AskClubhouseToolRow,
   AskClubhouseUiContext,
 } from "./types.ts";
+import { composeAskClubhouseQueryPlan, type AskClubhouseQueryPlan } from "./queryPlan.ts";
 
 export interface AskToolPlan {
   status: AskClubhouseStatus | "data" | "provider";
@@ -42,6 +44,8 @@ export interface AskToolPlan {
   knowledgeStatus: BaseballKnowledgeMatchStatus;
   knowledgeItems: BaseballKnowledgeItem[];
   externalResearchRequired: boolean;
+  queryPlan?: AskClubhouseQueryPlan;
+  diagnosis?: DevelopmentDiagnosisResult;
 }
 
 export interface AskToolRequest {
@@ -56,12 +60,14 @@ export type AskToolName =
   | "getHittingLeaderboard"
   | "getPlayerHittingStats"
   | "compareHittingSources"
+  | "comparePitchTypes"
   | "getPitchingLeaderboard"
   | "getPlayerPitchingStats"
   | "getDefenseLeaderboard"
   | "getPlayerDefenseStats"
   | "getWeightRoomLeaderboard"
   | "getPracticeSummary"
+  | "compareAnalyticsPeriods"
   | "getDataCoverage";
 
 export interface AskIntentClassification {
@@ -105,8 +111,8 @@ const OUT_OF_SCOPE_PATTERN =
   /\b(essay|homework|recipe|vacation|travel|weather|stock|crypto|bitcoin|election|politics|movie|song|lyrics|dating|medical|lawyer|legal)\b/i;
 
 const CURRENT_BASEBALL_CONTEXT_PATTERN = /\b(nfhs|ncaa|mlb|official rule|rulebook|pitch count limit|current rule|latest rule|this season'?s? rule|this year|current season|world series|age benchmark|age average|good for (?:his|her|their|my) age)\b/i;
-const BASEBALL_KNOWLEDGE_PATTERN = /\b(baseball|softball|balk|ops|obp|slg|era|whip|k%|bb%|babip|csw|contact %|contact rate|hard contact|strike %|zone rate|chase rate|infield fly|dropped third|force play|tag.?up|appeal|obstruction|interference|designated hitter|substitution|set position|pitch count|plate appearance|at-bat|hard-hit|extra-base|curveball|slider|fastball|changeup|bunt|cutoff|relay|approach|mechanics|launch angle|exit velocity|batting|pitching|fielding|command|control|whiff|pitch recognition|two-strike|breaking ball|plate discipline|barrel|glove.?side|arm.?side|pitch sequencing|count leverage|routine play|forehand|backhand|double-play|catcher|baserunner|first step|practice.?to.?game|training load|strikeout|walk rate|contact|strike|world series|major league|minor league|mph)(?=\W|$)/i;
-const TEAM_DATA_PATTERN = /\b(player|players|leader|leaders|highest|lowest|best|hottest|improved|practice|game|season|clubhouse|analytics|weight room|bullpen|roster|compare|tracked|reps|contact|hard %|avg ev|velocity|velo|strike %|zone %)\b/i;
+const BASEBALL_KNOWLEDGE_PATTERN = /\b(baseball|softball|balk|ops|obp|slg|era|whip|k%|bb%|babip|csw|contact %|contact rate|hard contact|strike %|zone rate|chase rate|infield fly|dropped third|force play|tag.?up|appeal|obstruction|interference|designated hitter|substitution|set position|pitch count|plate appearance|at-bat|hard-hit|extra-base|curveballs?|sliders?|fastballs?|changeups?|bunts?|cutoff|relay|approach|mechanics|launch angle|exit velocity|batting|pitching|fielding|command|control|whiff|pitch recognition|two-strike|breaking balls?|plate discipline|barrel|glove.?side|arm.?side|pitch sequencing|count leverage|routine play|forehand|backhand|double-play|catcher|baserunner|behind the runner|first step|practice.?to.?game|training load|strikeout|walk rate|contact|strike|timing|spin|recognize|opposite field|sacrifice fly|world series|major league|minor league|mph)(?=\W|$)/i;
+const TEAM_DATA_PATTERN = /\b(player|players|leader|leaders|highest|lowest|best|hottest|improved|practice|games?|season|clubhouse|analytics|weight room|bullpen|roster|compare|tracked|reps|metrics|contact|hard %|avg ev|velocity|velo|strike %|zone %)\b/i;
 
 export function classifyAskClubhouseIntent(
   message: string,
@@ -120,7 +126,9 @@ export function classifyAskClubhouseIntent(
   const baseballContext = BASEBALL_KNOWLEDGE_PATTERN.test(trimmed);
   const definitionQuestion = /^(what is|what are|what does|define|explain|what(?:'s| is) the difference between)\b/i.test(trimmed)
     && !/\b(my|our|this|team|player|practice|game|clubhouse)\b/i.test(trimmed);
-  const contextualTeamReference = /\b(?:our|my|this) team\b/i.test(trimmed);
+  const contextualTeamReference = /\b(?:our|my|this) team'?s?\b/i.test(trimmed);
+  const personalDataReference = /\b(?:my|our|this)\s+(?:hitting|pitching|defense|performance|data|results|stats|breaking balls?|fastballs?|sliders?|contact|velocity)\b/i.test(trimmed)
+    || /\b(?:am|do|have) i\b.*\b(?:improv|perform|hit|pitch|contact|breaking balls?|fastballs?|sliders?)\b/i.test(trimmed);
   const explicitTeamData = (!definitionQuestion && TEAM_DATA_PATTERN.test(trimmed)) || players.some((player) => (
     lower.includes(player.name.toLowerCase())
     || player.name.toLowerCase().split(/[^a-z0-9]+/).some((token) => token.length >= 3 && messageTokens.has(token))
@@ -137,9 +145,10 @@ export function classifyAskClubhouseIntent(
   const compactFollowUp = /^(how|what) about\b|^why\??$|^and\b/i.test(trimmed);
   const priorTeamContext = history.slice(-4).some((item) => TEAM_DATA_PATTERN.test(item.content));
   const usesTeamData = explicitTeamData
-    || (contextualTeamReference && !baseballContext)
+    || personalDataReference
+    || (contextualTeamReference && (!baseballContext || /\b(?:data|stats|analytics|metrics|launch|contact|velocity|performance|results)\b/i.test(trimmed)))
     || (compactFollowUp && priorTeamContext && baseballContext);
-  const asksForExternalInterpretation = /\b(is that good|how does that compare|benchmark|for (?:his|her|their|my) age|rule|legal|allowed)\b/i.test(trimmed);
+  const asksForExternalInterpretation = /\b(is that good|how does that compare|benchmark|for (?:his|her|their|my) age|for (?:a|this) high[- ]school hitter|for this level|development context|about (?:his|her|their|my|our) development|rule|legal|allowed)\b/i.test(trimmed);
 
   if (OUT_OF_SCOPE_PATTERN.test(trimmed) && !baseballContext) {
     return {
@@ -322,14 +331,69 @@ export function buildAskClubhouseToolPlan(
     };
   }
 
+  const queryPlan = composeAskClubhouseQueryPlan(trimmed, uiContext, playerMatch.status === "single" ? playerMatch.player : undefined);
+  if (queryPlan.unsupportedFilters.length) {
+    return {
+      status: "needs_clarification",
+      route: classification.route,
+      requiresWebSearch: false,
+      answer: unsupportedFilterAnswer(queryPlan.unsupportedFilters),
+      toolRequests: [],
+      actions: [],
+      followUps: followUpsFor(queryPlan.domain, queryPlan.scope.source),
+      clarification: unsupportedFilterAnswer(queryPlan.unsupportedFilters),
+      knowledgeStatus: classification.knowledgeStatus,
+      knowledgeItems: classification.knowledgeItems,
+      externalResearchRequired: false,
+      queryPlan,
+    };
+  }
+
+  const diagnosisRequest = buildDevelopmentDiagnosisRequest(lower, queryPlan, playerMatch);
+  if (diagnosisRequest === "clarify") {
+    const answer = "Do you want me to look at a specific player's tracked data, or give general baseball advice?";
+    return {
+      status: "needs_clarification",
+      route: classification.route,
+      requiresWebSearch: false,
+      answer,
+      toolRequests: [],
+      actions: [],
+      followUps: ["How can Jacob Seamon hit sliders better?", "What is slider recognition?"],
+      clarification: answer,
+      knowledgeStatus: classification.knowledgeStatus,
+      knowledgeItems: classification.knowledgeItems,
+      externalResearchRequired: false,
+      queryPlan,
+    };
+  }
+  if (diagnosisRequest) {
+    const diagnosis = diagnosePlayerDevelopment(data, diagnosisRequest, knowledgeProvider);
+    const actionQuery = queryFromPlan(queryPlan);
+    return {
+      status: "completed",
+      route: "clubhouse_data",
+      requiresWebSearch: false,
+      answer: formatDiagnosisAnswer(diagnosis),
+      toolRequests: [],
+      actions: currentTeam ? [analyticsAction(`Open ${diagnosis.playerName}'s analytics`, actionQuery, diagnosis.playerId)] : [],
+      followUps: [`Show ${diagnosis.playerName}'s last 3 practices`, `Compare ${diagnosis.playerName} in games and practice`, "What should I track next?"],
+      interpretation: "Diagnose the player's tracked signal before offering a development recommendation.",
+      knowledgeStatus: diagnosis.knowledgeItems.length ? "trusted_match" : "knowledge_miss",
+      knowledgeItems: diagnosis.knowledgeItems,
+      externalResearchRequired: false,
+      queryPlan,
+      diagnosis,
+    };
+  }
+
   const requests: AskToolRequest[] = [];
   const actions: AskClubhouseAction[] = [];
-  const domain = inferDomain(lower, uiContext);
-  const source = inferSource(lower, uiContext, domain);
-  const metricId = inferMetric(lower, domain, source);
-  const mode = needsSituationalMode(lower) ? "situational" as const : "box-score" as const;
-  const pitchTypes = inferPitchTypes(lower);
-  const filters = pitchTypes.length ? { pitchTypes } : {};
+  const domain = queryPlan.domain;
+  const source = queryPlan.scope.source;
+  const metricId = queryPlan.metric;
+  const mode = needsSituationalMode(lower) || Object.keys(queryPlan.filters).length ? "situational" as const : "box-score" as const;
+  const filters = queryPlan.filters;
 
   if (lower.includes("practice summary") || lower.includes("current practice") || lower.includes("today's practice") || lower.includes("today practice")) {
     const request = analyticsRequest("getPracticeSummary", {
@@ -372,6 +436,71 @@ export function buildAskClubhouseToolPlan(
     requests.push(practiceRequest, gamesRequest);
     actions.push(analyticsAction("Open practice hitting", practiceRequest.query));
     actions.push(analyticsAction("Open game hitting", gamesRequest.query));
+  } else if (queryPlan.comparison?.dimension === "period") {
+    const periods = periodRanges(data, queryPlan.scope.timeRange);
+    const playerId = playerMatch.status === "single" ? playerMatch.player.id : undefined;
+    const recentRequest = analyticsRequest("compareAnalyticsPeriods", {
+      domain,
+      source,
+      mode,
+      timeRange: "custom",
+      customDateRange: periods.recent,
+      groupBy: "player",
+      filters,
+      sort: { metricId, direction: "desc" },
+      limit: config.toolResultLimit,
+      context,
+    }, primaryMetricsFor(domain, source, metricId), playerId);
+    const priorRequest = analyticsRequest("compareAnalyticsPeriods", {
+      domain,
+      source,
+      mode,
+      timeRange: "custom",
+      customDateRange: periods.prior,
+      groupBy: "player",
+      filters,
+      sort: { metricId, direction: "desc" },
+      limit: config.toolResultLimit,
+      context,
+    }, primaryMetricsFor(domain, source, metricId), playerId);
+    requests.push(recentRequest, priorRequest);
+    actions.push(analyticsAction("Open recent analytics", recentRequest.query, playerId));
+  } else if (queryPlan.comparison?.dimension === "pitcherHand" && queryPlan.filters.pitcherHands?.length) {
+    const playerId = playerMatch.status === "single" ? playerMatch.player.id : undefined;
+    for (const hand of queryPlan.filters.pitcherHands) {
+      const handFilters = { ...filters, pitcherHands: [hand] as Array<"R" | "L" | "S"> };
+      requests.push(analyticsRequest("compareHittingSources", {
+        domain: "hitting",
+        source,
+        mode: "situational",
+        timeRange: queryPlan.scope.timeRange,
+        groupBy: "player",
+        filters: handFilters,
+        sort: { metricId, direction: "desc" },
+        limit: config.toolResultLimit,
+        context,
+      }, primaryMetricsFor("hitting", source, metricId), playerId));
+    }
+    if (requests.length) actions.push(analyticsAction("Open handedness comparison", requests[0].query, playerId));
+  } else if (queryPlan.comparison?.dimension === "pitchType") {
+    const playerId = playerMatch.status === "single" ? playerMatch.player.id : undefined;
+    const pitchGroups = queryPlan.filters.pitchTypes?.length && queryPlan.filters.pitchTypes.length > 1
+      ? queryPlan.filters.pitchTypes.map((pitchType) => [pitchType])
+      : [["4-Seam" as const], ["Slider", "Curveball", "Changeup", "Splitter"] as const];
+    for (const pitchGroup of pitchGroups) {
+      requests.push(analyticsRequest("comparePitchTypes", {
+        domain,
+        source,
+        mode: "situational",
+        timeRange: queryPlan.scope.timeRange,
+        groupBy: "player",
+        filters: { ...filters, pitchTypes: [...pitchGroup] },
+        sort: { metricId, direction: "desc" },
+        limit: config.toolResultLimit,
+        context,
+      }, primaryMetricsFor(domain, source, metricId), playerId));
+    }
+    if (requests.length) actions.push(analyticsAction("Open pitch-type comparison", requests[0].query, playerId));
   } else if (playerMatch.status === "single") {
     const request = analyticsRequest(playerToolName(domain), {
       domain,
@@ -418,6 +547,13 @@ export function buildAskClubhouseToolPlan(
   }
 
   const boundedRequests = requests.slice(0, config.maxToolCallsPerRequest);
+  for (const request of boundedRequests) {
+    request.parameters = {
+      ...request.parameters,
+      minimumSample: queryPlan.minimumSample,
+      partialDimensions: queryPlan.partialDimensions,
+    };
+  }
   return {
     status: "data",
     route: classification.route,
@@ -431,6 +567,7 @@ export function buildAskClubhouseToolPlan(
     knowledgeStatus: classification.knowledgeStatus,
     knowledgeItems: classification.knowledgeItems,
     externalResearchRequired: classification.externalResearchRequired,
+    queryPlan,
   };
 }
 
@@ -452,6 +589,15 @@ export function runAskClubhouseTools(
     const summary = compactRows.length
       ? `${result.title} · ${result.scopeLabel} · ${result.sampleLabel}`
       : `No qualified rows in ${result.title} for ${result.scopeLabel}. ${result.sampleLabel}`;
+    const minimumSample = typeof request.parameters?.minimumSample === "number" ? request.parameters.minimumSample : undefined;
+    const partialDimensions = Array.isArray(request.parameters?.partialDimensions)
+      ? request.parameters.partialDimensions.filter((item): item is string => typeof item === "string")
+      : [];
+    const warnings = [...result.warnings];
+    if (minimumSample !== undefined && rows.some((row) => row.cells[request.query.sort?.metricId ?? ""]?.kind === "insufficient-sample")) {
+      warnings.push(`Some rows are below the ${minimumSample}-sample minimum for this metric.`);
+    }
+    if (partialDimensions.length) warnings.push(`Coverage is partial for ${partialDimensions.join(", ")}; untracked values were not inferred.`);
     return {
       name: request.name,
       title: readableToolName(request.name),
@@ -459,7 +605,7 @@ export function runAskClubhouseTools(
       query: result.query,
       rows: compactRows,
       totals: result.teamTotals ? compactRow(result.teamTotals, request.metricIds) : undefined,
-      warnings: result.warnings.slice(0, 3),
+      warnings: [...new Set(warnings)].slice(0, 3),
       parameters: request.parameters,
     };
   });
@@ -494,6 +640,81 @@ export function summarizeKnowledgeEvidence(knowledgeItems: BaseballKnowledgeItem
     status: item.status,
     url: item.sourceReference?.startsWith("http") ? item.sourceReference : undefined,
   }));
+}
+
+function buildDevelopmentDiagnosisRequest(
+  lower: string,
+  queryPlan: AskClubhouseQueryPlan,
+  playerMatch: ReturnType<typeof findRequestedPlayer>,
+): DevelopmentDiagnosisRequest | "clarify" | undefined {
+  const asksForDevelopment = /\b(how (?:can|do) (?:i|we|he|she|they)|what should .*work on|improve .*slider|hit .*better|handle .*better)\b/.test(lower)
+    && /\b(sliders?|curveballs?|breaking balls?|fastballs?|pitching|command)\b/.test(lower);
+  if (!asksForDevelopment) return undefined;
+  if (playerMatch.status !== "single") return "clarify";
+  const domain = /\b(improve|throw|locate|command|pitching)\b/.test(lower) && !/\bhit|hitting|hitter\b/.test(lower) ? "pitching" : queryPlan.domain === "pitching" ? "pitching" : "hitting";
+  return {
+    domain,
+    playerId: playerMatch.player.id,
+    source: queryPlan.scope.source,
+    pitchType: queryPlan.filters.pitchTypes?.[0],
+  };
+}
+
+function formatDiagnosisAnswer(diagnosis: DevelopmentDiagnosisResult): string {
+  return [
+    "WHAT I SEE",
+    diagnosis.whatISee,
+    "",
+    "YOUR DATA",
+    ...diagnosis.dataPoints.map((point) => `- ${point}`),
+    "",
+    "WHAT TO WORK ON",
+    diagnosis.focus,
+    "",
+    "PRACTICE IDEA",
+    diagnosis.practiceIdea,
+    "",
+    "WATCH NEXT",
+    diagnosis.watchNext,
+  ].join("\n");
+}
+
+function unsupportedFilterAnswer(filters: string[]): string {
+  return `I can answer the supported parts of this question, but ${filters.join(" and ")} ${filters.length === 1 ? "is" : "are"} not tracked well enough for a reliable split. I won't guess or silently ignore that filter.`;
+}
+
+function queryFromPlan(plan: AskClubhouseQueryPlan): AnalyticsQuery {
+  return {
+    domain: plan.domain,
+    source: plan.scope.source,
+    mode: Object.keys(plan.filters).length ? "situational" : "box-score",
+    timeRange: plan.scope.timeRange,
+    groupBy: "player",
+    filters: plan.filters,
+    sort: { metricId: plan.metric, direction: plan.ranking?.direction ?? "desc" },
+    limit: plan.ranking?.limit ?? 8,
+  };
+}
+
+function periodRanges(data: AppData, timeRange: AnalyticsQuery["timeRange"]) {
+  const anchor = [
+    ...data.practices.map((item) => item.date),
+    ...data.games.map((item) => item.date),
+    ...(data.workoutSessions ?? []).map((item) => item.date),
+  ].sort().at(-1) ?? new Date().toISOString().slice(0, 10);
+  const days = timeRange === "7d" ? 7 : 30;
+  const recentStart = shiftDate(anchor, -(days - 1));
+  const priorEnd = shiftDate(recentStart, -1);
+  return {
+    recent: { start: recentStart, end: anchor },
+    prior: { start: shiftDate(priorEnd, -(days - 1)), end: priorEnd },
+  };
+}
+
+function shiftDate(value: string, offset: number): string {
+  const date = new Date(`${value}T12:00:00`);
+  date.setDate(date.getDate() + offset);
+  return date.toISOString().slice(0, 10);
 }
 
 function analyticsRequest(
@@ -558,50 +779,6 @@ function sampleText(sample: AnalyticsRow["cells"][string]["sample"]): string | u
   return undefined;
 }
 
-function inferDomain(lower: string, uiContext: AskClubhouseUiContext | undefined): AnalyticsQuery["domain"] {
-  if (/\b(weight|lift|lifting|strength|workout|development)\b/.test(lower)) return "development";
-  if (/\b(pitcher|pitching|bullpen|strike|zone|whiff|csw|velo|velocity|command)\b/.test(lower)) return "pitching";
-  if (/\b(defense|defensive|fielding|clean|error|throw acc|rep)\b/.test(lower)) return "defense";
-  if (/\b(hit|hitting|hitter|contact|hard|ev|exit|batting|avg|slug|ops|babip|swing)\b/.test(lower)) return "hitting";
-  return uiContext?.analytics?.domain ?? "hitting";
-}
-
-function inferSource(lower: string, uiContext: AskClubhouseUiContext | undefined, domain: AnalyticsQuery["domain"]): AnalyticsSource {
-  if (domain === "development") return "all";
-  if (/\b(live bp|live-bp|livebp)\b/.test(lower)) return "live-bp";
-  if (/\b(practice|cage|machine|tee|front toss|coach bp|bullpen)\b/.test(lower)) return "practice";
-  if (/\b(game|games|batting average|avg|slg|slug|babip)\b/.test(lower)) return "games";
-  return uiContext?.analytics?.source && uiContext.analytics.source !== "all" ? uiContext.analytics.source : "all";
-}
-
-function inferMetric(lower: string, domain: AnalyticsQuery["domain"], source: AnalyticsSource): string {
-  if (domain === "development") return "weightScore";
-  if (domain === "defense") {
-    if (/\b(error|errors)\b/.test(lower)) return "errors";
-    if (/\b(throw|arm)\b/.test(lower)) return "throwAcc";
-    return "cleanPct";
-  }
-  if (domain === "pitching") {
-    if (/\b(max velo|max velocity|hardest|fastest)\b/.test(lower)) return "maxPitchVelo";
-    if (/\b(velo|velocity|speed)\b/.test(lower)) return "avgPitchVelo";
-    if (/\b(zone|command)\b/.test(lower)) return "zonePct";
-    if (/\b(whiff|swing.?miss)\b/.test(lower)) return "whiffPct";
-    if (/\b(csw)\b/.test(lower)) return "cswPct";
-    return "strikePct";
-  }
-  if (source === "games") {
-    if (/\b(slg|slug)\b/.test(lower)) return "slg";
-    if (/\b(extra|xbh)\b/.test(lower)) return "xbh";
-    if (/\b(hit|hits)\b/.test(lower)) return "hits";
-    return "avg";
-  }
-  if (/\b(max ev|max exit|hardest)\b/.test(lower)) return "maxEv";
-  if (/\b(ev|exit)\b/.test(lower)) return "avgEv";
-  if (/\b(hard|barrel|impact)\b/.test(lower)) return "hardPct";
-  if (/\b(whiff|miss)\b/.test(lower)) return "swingMissPct";
-  return "contactPct";
-}
-
 function primaryMetricsFor(domain: AnalyticsQuery["domain"], source: AnalyticsSource, metricId: string): string[] {
   if (domain === "development") return unique(["weightScore", "workouts", "practiceReps", metricId]);
   if (domain === "defense") return unique(["reps", "cleanPct", "errors", "throwAcc", metricId]);
@@ -624,21 +801,6 @@ function findRequestedPlayer(players: Player[], lower: string): { status: "none"
   if (unique.length === 1) return { status: "single", player: unique[0] };
   if (unique.length > 1) return { status: "ambiguous", players: unique };
   return { status: "none" };
-}
-
-function inferPitchTypes(lower: string): PitchType[] {
-  const candidates: Array<{ type: PitchType; pattern: RegExp }> = [
-    { type: "4-Seam", pattern: /\b(4[- ]?seam|four[- ]?seam|fastball|fb)\b/ },
-    { type: "2-Seam", pattern: /\b(2[- ]?seam|two[- ]?seam)\b/ },
-    { type: "Sinker", pattern: /\bsinker(s)?\b/ },
-    { type: "Cutter", pattern: /\bcutter(s)?\b/ },
-    { type: "Slider", pattern: /\bslider(s)?\b/ },
-    { type: "Curveball", pattern: /\b(curve|curveball)(s)?\b/ },
-    { type: "Changeup", pattern: /\b(change|changeup)(s)?\b/ },
-    { type: "Splitter", pattern: /\b(split|splitter)(s)?\b/ },
-    { type: "Knuckleball", pattern: /\b(knuckleball)(s)?\b/ },
-  ];
-  return candidates.filter((candidate) => candidate.pattern.test(lower)).map((candidate) => candidate.type);
 }
 
 function needsPitchTypeCoverage(lower: string): boolean {

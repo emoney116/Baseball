@@ -49,12 +49,13 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
 
   if (plan.status !== "data" && plan.status !== "provider") {
     const latencyMs = elapsedMs(startedAt);
+    const diagnosisEvidence = plan.diagnosis?.evidence.map((item) => ({ id: item.id, title: item.title, summary: item.summary })) ?? [];
     return {
       ok: plan.status === "completed",
       status: plan.status,
       route: plan.route,
       answer: plan.answer,
-      evidence: knowledgeEvidence,
+      evidence: [...diagnosisEvidence, ...knowledgeEvidence].slice(0, 6),
       actions: plan.actions,
       followUps: plan.followUps,
       usage: {
