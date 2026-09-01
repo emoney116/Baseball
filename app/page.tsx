@@ -18697,7 +18697,7 @@ const GAME_FIELD_POSITION_COORDINATES: Record<string, [number, number]> = {
 };
 const GAME_LIVE_FIELD_POSITION_COORDINATES: Record<string, [number, number]> = {
   ...GAME_FIELD_POSITION_COORDINATES,
-  P: [82, 80], C: [14, 80], "1B": [86, 55], "3B": [14, 55],
+  P: [76, 80], C: [24, 80], "1B": [86, 55], "3B": [14, 55],
 };
 
 function GameFieldCommand({
