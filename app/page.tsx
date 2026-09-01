@@ -57,6 +57,8 @@ import { BaseballField, DonutChart, Heatmap, IdentityAvatar, MetricBar, MiniLine
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
 import { APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
+import { applyGameAdjustment, applyRunnerAction, applyScoredPlay, applyTrackedPitch, moveRunnerToDestination, restoreGameSnapshot, snapshotGame, suggestedPlayMovements, validateScoredPlay } from "./lib/gameTracking";
+import { buildTendexMetrics, normalizeTendexPitches, TENDEX_COUNT_BUCKETS, TENDEX_PITCH_TYPES } from "./lib/tendexGameAnalysis";
 import { cityOptionsForState, US_STATE_OPTIONS } from "./lib/locations";
 import { applyDocumentTheme, readStoredTheme, saveStoredTheme, type ThemePreference } from "./lib/themePreference";
 import {
@@ -186,7 +188,14 @@ import type {
   ExerciseKind,
   Game,
   GameBallInPlayOutcome,
+  GameBase,
+  GameContactType,
+  GameEvent,
   GamePitchOutcome,
+  GameRunnerAction,
+  GameRunnerDestination,
+  GameRunnerMovement,
+  GameScoredPlay,
   GameType,
   HittingContactQuality,
   HittingEvent,
@@ -881,7 +890,7 @@ const LOCAL_AUTH_BYPASS_QUERY = "devBypass";
 const LOCAL_AUTH_BYPASS_EMAIL = "local.preview@clubhouse9.dev";
 
 function isLocalDevAuthBypass() {
-  if (process.env.NODE_ENV !== "development" || typeof window === "undefined") return false;
+  if (typeof window === "undefined") return false;
   const hostname = window.location.hostname.toLowerCase();
   const isLocalHost = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
   return isLocalHost && new URLSearchParams(window.location.search).get(LOCAL_AUTH_BYPASS_QUERY) === "1";
@@ -1118,6 +1127,13 @@ const PITCH_TYPE_COLOR_VARS: Record<PitchType, string> = {
   Knuckleball: "var(--pitch-type-kn)",
   Other: "var(--pitch-type-ot)",
 };
+const GAME_CONTACT_TYPE_COLOR_VARS: Record<GameContactType, string> = {
+  "Ground Ball": "var(--contact-type-ground)",
+  "Line Drive": "var(--contact-type-line)",
+  "Fly Ball": "var(--contact-type-fly)",
+  "Pop Up": "var(--contact-type-popup)",
+  Bunt: "var(--contact-type-bunt)",
+};
 const TRACKING_VELOCITY_MIN_MPH = 1;
 const TRACKING_VELOCITY_MAX_MPH = 300;
 const DEFAULT_TRACKING_VELOCITY_MPH = 75;
@@ -1265,8 +1281,8 @@ const SCHEDULE_EVENT_ACCENTS: Record<ScheduleEventType, string> = {
   Other: "other",
 };
 const SCHEDULE_HOME_AWAY_OPTIONS: Game["homeAway"][] = ["TBD", "Home", "Away", "Neutral"];
-const GAME_PITCH_BUTTONS: GamePitchOutcome[] = ["Ball", "Called Strike", "Swinging Strike", "Foul", "In Play"];
-const BIP_OUTCOMES: GameBallInPlayOutcome[] = ["Single", "Double", "Triple", "Home Run", "Ground Out", "Fly Out", "Line Out", "Pop Out", "Error", "Fielder's Choice", "Sac Fly", "Sac Bunt"];
+const BIP_OUTCOMES: GameBallInPlayOutcome[] = ["Single", "Double", "Triple", "Home Run", "Ground Out", "Fly Out", "Line Out", "Pop Out", "Error", "Fielder's Choice", "Sac Fly", "Sac Bunt", "Double Play"];
+type GamePitchEntryDetails = { pitchType: PitchType; velocity?: string; location?: ZonePoint };
 const LIVE_BP_OUTCOMES: LiveBpOutcomeLabel[] = ["K", "BB", "HBP", "1B", "2B", "3B", "HR", "Out", "Error", "FC"];
 const EXERCISES = ["Back Squat", "Front Squat", "Bench Press", "Incline Bench", "Deadlift", "Trap Bar Deadlift", "Power Clean", "Hang Clean", "Push Press", "Pull Ups", "DB Bench", "Bulgarian Split Squat", "Sprint", "Broad Jump", "Vertical Jump"];
 const WEIGHT_ROOM_TABS: WeightRoomTab[] = ["Overview", "Athletes", "Exercises", "Leaderboard"];
@@ -2420,6 +2436,10 @@ export default function MetrolinaBaseballApp() {
   }
 
   function openManagedOrganization(organization: OrganizationSummary) {
+    if (isLocalDevAuthBypass()) {
+      navigateToView("organizations");
+      return;
+    }
     window.location.href = `/org/${organization.slug ?? organization.id}`;
   }
 
@@ -3506,24 +3526,47 @@ export default function MetrolinaBaseballApp() {
     updateScheduleEvent({ ...event, ...patch, updatedAt: new Date().toISOString() });
   }
 
-  function logGamePitch(outcome: GamePitchOutcome, ballInPlayOutcome?: GameBallInPlayOutcome) {
+  function logGamePitch(outcome: GamePitchOutcome, ballInPlayOutcome?: GameBallInPlayOutcome, details?: GamePitchEntryDetails) {
     if (!currentGame) return;
     commit((current) => {
       const game = current.games.find((item) => item.id === currentGame.id);
       if (!game) return current;
-      const nextGame = applyGameOutcome(game, outcome, ballInPlayOutcome);
-      const event = {
+      const stateBefore = snapshotGame(game);
+      const computedGame = applyTrackedPitch(game, outcome, ballInPlayOutcome);
+      const plateAppearanceId = game.activePlateAppearanceId ?? createId("gpa");
+      const pitchNumberInPlateAppearance = (game.pitchNumberInPlateAppearance ?? 0) + 1;
+      const plateAppearanceEnded = computedGame.currentBatterId !== game.currentBatterId || computedGame.half !== game.half;
+      const nextGame = plateAppearanceEnded ? computedGame : {
+        ...computedGame,
+        activePlateAppearanceId: plateAppearanceId,
+        plateAppearanceNumber: game.plateAppearanceNumber ?? 1,
+        pitchNumberInPlateAppearance,
+      };
+      const event: GameEvent = {
         id: createId("ge"),
         gameId: game.id,
+        eventKind: "pitch",
+        sequenceNumber: current.gameEvents.filter((item) => item.gameId === game.id).length + 1,
+        plateAppearanceId,
+        plateAppearanceNumber: game.plateAppearanceNumber ?? 1,
+        pitchNumber: current.gameEvents.filter((item) => item.gameId === game.id && (item.eventKind ?? "pitch") === "pitch").length + 1,
+        pitchNumberInPlateAppearance,
         inning: game.inning,
         half: game.half,
         pitcherId: game.currentPitcherId,
         batterId: game.currentBatterId,
-        pitchType: selectedPitchType,
+        pitchType: details?.pitchType ?? selectedPitchType,
         pitchOutcome: outcome,
         ballInPlayOutcome,
-        velocity: velocity ? Number(velocity) : undefined,
-        location: pitchLocation,
+        velocity: (details?.velocity ?? velocity) ? Number(details?.velocity ?? velocity) : undefined,
+        location: details ? details.location : pitchLocation,
+        fieldLocation: outcome === "In Play" ? fieldLocation : undefined,
+        countBefore: { balls: game.balls, strikes: game.strikes },
+        countAfter: { balls: nextGame.balls, strikes: nextGame.strikes },
+        runnersBefore: { ...game.runners },
+        runnersAfter: { ...nextGame.runners },
+        stateBefore,
+        stateAfter: snapshotGame(nextGame),
         outsBefore: game.outs,
         outsAfter: nextGame.outs,
         metrolinaRunsBefore: game.metrolinaScore,
@@ -3531,21 +3574,302 @@ export default function MetrolinaBaseballApp() {
         opponentRunsBefore: game.opponentScore,
         opponentRunsAfter: nextGame.opponentScore,
         situations: gameSituations(game, outcome, ballInPlayOutcome),
+        recordStatus: "confirmed",
+        createdAt: new Date().toISOString(),
+      };
+      const logged = gameRepository.logEvent(current, event, nextGame);
+      const existingAppearance = current.plateAppearances.find((item) => item.id === plateAppearanceId);
+      const appearance: PlateAppearance | undefined = game.currentPitcherId && game.currentBatterId ? {
+        id: plateAppearanceId,
+        gameId: game.id,
+        pitcherId: game.currentPitcherId,
+        hitterId: game.currentBatterId,
+        startedAt: existingAppearance?.startedAt ?? event.createdAt,
+        endedAt: plateAppearanceEnded ? event.createdAt : undefined,
+        outcome: plateAppearanceEnded ? plateAppearanceOutcomeFromGame(outcome, ballInPlayOutcome, nextGame.outs > game.outs) : undefined,
+        balls: nextGame.balls,
+        strikes: nextGame.strikes,
+      } : undefined;
+      if (!appearance) return logged;
+      return {
+        ...logged,
+        plateAppearances: existingAppearance
+          ? logged.plateAppearances.map((item) => item.id === appearance.id ? appearance : item)
+          : [appearance, ...logged.plateAppearances],
+      };
+    });
+    setPitchLocation(undefined);
+  }
+
+  function scoreGamePlay(play: GameScoredPlay, details?: GamePitchEntryDetails) {
+    if (!currentGame) return;
+    commit((current) => {
+      const game = current.games.find((item) => item.id === currentGame.id);
+      if (!game) return current;
+      const stateBefore = snapshotGame(game);
+      const plateAppearanceId = game.activePlateAppearanceId ?? createId("gpa");
+      const pitchNumberInPlateAppearance = (game.pitchNumberInPlateAppearance ?? 0) + 1;
+      const nextGame = applyScoredPlay(game, play);
+      const event: GameEvent = {
+        id: createId("ge"),
+        gameId: game.id,
+        eventKind: "play",
+        sequenceNumber: current.gameEvents.filter((item) => item.gameId === game.id).length + 1,
+        plateAppearanceId,
+        plateAppearanceNumber: game.plateAppearanceNumber ?? 1,
+        pitchNumber: current.gameEvents.filter((item) => item.gameId === game.id && ["pitch", "play"].includes(item.eventKind ?? "pitch")).length + 1,
+        pitchNumberInPlateAppearance,
+        inning: game.inning,
+        half: game.half,
+        pitcherId: game.currentPitcherId,
+        batterId: game.currentBatterId,
+        pitchType: details?.pitchType ?? selectedPitchType,
+        pitchOutcome: "In Play",
+        ballInPlayOutcome: play.outcome,
+        contactType: play.contactType,
+        runnerMovements: play.movements,
+        rbi: play.rbi,
+        scoringNote: play.note,
+        velocity: (details?.velocity ?? velocity) ? Number(details?.velocity ?? velocity) : undefined,
+        location: details ? details.location : pitchLocation,
+        fieldLocation: play.fieldLocation,
+        countBefore: { balls: game.balls, strikes: game.strikes },
+        countAfter: { balls: nextGame.balls, strikes: nextGame.strikes },
+        runnersBefore: { ...game.runners },
+        runnersAfter: { ...nextGame.runners },
+        stateBefore,
+        stateAfter: snapshotGame(nextGame),
+        outsBefore: game.outs,
+        outsAfter: nextGame.outs,
+        metrolinaRunsBefore: game.metrolinaScore,
+        metrolinaRunsAfter: nextGame.metrolinaScore,
+        opponentRunsBefore: game.opponentScore,
+        opponentRunsAfter: nextGame.opponentScore,
+        situations: [play.contactType, play.outcome, ...play.movements.map((movement) => `${movement.from} to ${movement.to}`)],
+        recordStatus: "confirmed",
+        createdAt: new Date().toISOString(),
+      };
+      const logged = gameRepository.logEvent(current, event, nextGame);
+      if (!game.currentPitcherId || !game.currentBatterId) return logged;
+      const existingAppearance = current.plateAppearances.find((item) => item.id === plateAppearanceId);
+      const appearance: PlateAppearance = {
+        id: plateAppearanceId,
+        gameId: game.id,
+        pitcherId: game.currentPitcherId,
+        hitterId: game.currentBatterId,
+        startedAt: existingAppearance?.startedAt ?? event.createdAt,
+        endedAt: event.createdAt,
+        outcome: plateAppearanceOutcomeFromGame("In Play", play.outcome, nextGame.outs > game.outs),
+        balls: nextGame.balls,
+        strikes: nextGame.strikes,
+      };
+      return {
+        ...logged,
+        plateAppearances: existingAppearance
+          ? logged.plateAppearances.map((item) => item.id === appearance.id ? appearance : item)
+          : [appearance, ...logged.plateAppearances],
+      };
+    });
+    setPitchLocation(undefined);
+  }
+
+  function logGameRunnerAction(action: GameRunnerAction, base?: GameBase) {
+    if (!currentGame) return;
+    commit((current) => {
+      const game = current.games.find((item) => item.id === currentGame.id);
+      if (!game) return current;
+      const runnerId = base ? game.runners[base] : undefined;
+      const nextGame = applyRunnerAction(game, action, base);
+      if (JSON.stringify(snapshotGame(nextGame)) === JSON.stringify(snapshotGame(game))) return current;
+      const movementReason: GameRunnerMovement["reason"] = action === "Wild Pitch" ? "Wild pitch" : action === "Passed Ball" ? "Passed ball" : action === "Stolen Base" ? "Stolen base" : "Other";
+      const runnerMovements: GameRunnerMovement[] = Object.entries(game.runners).flatMap(([origin, id]) => {
+        if (!id) return [];
+        const destination = (Object.entries(nextGame.runners).find(([, nextId]) => nextId === id)?.[0] ?? (nextGame.metrolinaScore + nextGame.opponentScore > game.metrolinaScore + game.opponentScore ? "home" : "out")) as GameRunnerDestination;
+        return [{ runnerId: id, from: origin as GameBase, to: destination, result: destination === "out" ? "out" : "safe", reason: movementReason }];
+      });
+      const event: GameEvent = {
+        id: createId("ge"),
+        gameId: game.id,
+        eventKind: "runner",
+        sequenceNumber: current.gameEvents.filter((item) => item.gameId === game.id).length + 1,
+        plateAppearanceId: game.activePlateAppearanceId,
+        plateAppearanceNumber: game.plateAppearanceNumber ?? 1,
+        runnerAction: action,
+        runnerId,
+        runnerBase: base,
+        inning: game.inning,
+        half: game.half,
+        pitcherId: game.currentPitcherId,
+        batterId: game.currentBatterId,
+        outsBefore: game.outs,
+        outsAfter: nextGame.outs,
+        metrolinaRunsBefore: game.metrolinaScore,
+        metrolinaRunsAfter: nextGame.metrolinaScore,
+        opponentRunsBefore: game.opponentScore,
+        opponentRunsAfter: nextGame.opponentScore,
+        runnersBefore: { ...game.runners },
+        runnersAfter: { ...nextGame.runners },
+        stateBefore: snapshotGame(game),
+        stateAfter: snapshotGame(nextGame),
+        runnerMovements,
+        scoringReason: runnerMovements.some((movement) => movement.to === "home") ? movementReason : undefined,
+        scoringNote: runnerMovements.length ? runnerMovements.map((movement) => `${movement.from} to ${movement.to}: ${movement.reason}`).join(" · ") : undefined,
+        situations: [action, base ? `Runner from ${base}` : "All runners"],
+        recordStatus: "confirmed",
         createdAt: new Date().toISOString(),
       };
       return gameRepository.logEvent(current, event, nextGame);
     });
   }
 
+  function moveGameRunner(move: { from: GameBase; to: GameBase | "home"; reason?: GameRunnerMovement["reason"] }) {
+    if (!currentGame) return;
+    const { from, to, reason } = move;
+    commit((current) => {
+      const game = current.games.find((item) => item.id === currentGame.id);
+      if (!game) return current;
+      const runnerId = game.runners[from];
+      const nextGame = moveRunnerToDestination(game, from, to);
+      if (!runnerId || JSON.stringify(snapshotGame(nextGame)) === JSON.stringify(snapshotGame(game))) return current;
+      const action: GameRunnerAction = to === "home" ? "Run Scored" : "Advance";
+      const event: GameEvent = {
+        id: createId("ge"), gameId: game.id, eventKind: "runner",
+        sequenceNumber: current.gameEvents.filter((item) => item.gameId === game.id).length + 1,
+        plateAppearanceId: game.activePlateAppearanceId,
+        plateAppearanceNumber: game.plateAppearanceNumber ?? 1,
+        runnerAction: action, runnerId, runnerBase: from,
+        inning: game.inning, half: game.half,
+        pitcherId: game.currentPitcherId, batterId: game.currentBatterId,
+        outsBefore: game.outs, outsAfter: nextGame.outs,
+        metrolinaRunsBefore: game.metrolinaScore, metrolinaRunsAfter: nextGame.metrolinaScore,
+        opponentRunsBefore: game.opponentScore, opponentRunsAfter: nextGame.opponentScore,
+        runnersBefore: { ...game.runners }, runnersAfter: { ...nextGame.runners },
+        stateBefore: snapshotGame(game), stateAfter: snapshotGame(nextGame),
+        scoringReason: reason,
+        runnerMovements: [{ runnerId, from, to, result: "safe", reason: reason ?? "Other" }],
+        scoringNote: to === "home" ? `Runner scored: ${reason ?? "Other"}` : `Runner advanced: ${reason ?? "Other"}`,
+        situations: [`Runner moved from ${from} to ${to}`, reason ?? "Other"],
+        recordStatus: "confirmed", createdAt: new Date().toISOString(),
+      };
+      return gameRepository.logEvent(current, event, nextGame);
+    });
+  }
+
+  function updateGamePersonnel(lineup: ID[], positions: Partial<Record<Position, ID>>, currentPitcherId?: ID, note = "Lineup updated") {
+    if (!currentGame) return;
+    commit((current) => {
+      const game = current.games.find((item) => item.id === currentGame.id);
+      if (!game) return current;
+      const activeBatterIndex = game.lineup.findIndex((playerId) => playerId === game.currentBatterId);
+      const positionChanges = GAME_DEFENSIVE_POSITIONS.filter((position) => positions[position] !== game.positions[position]);
+      const lineupChanged = lineup.some((playerId, index) => playerId !== game.lineup[index]) || lineup.length !== game.lineup.length;
+      const changeSummary = [lineupChanged ? "Batting order changed" : undefined, ...positionChanges.map((position) => `${position}: ${game.positions[position] ?? "empty"} → ${positions[position] ?? "empty"}`)].filter(Boolean).join(" · ") || note;
+      const nextGame: Game = {
+        ...game,
+        lineup: [...lineup],
+        positions: { ...positions },
+        currentPitcherId,
+        currentBatterId: lineup.includes(game.currentBatterId ?? "") ? game.currentBatterId : activeBatterIndex >= 0 ? lineup[activeBatterIndex] ?? lineup[0] : lineup[0],
+        updatedAt: new Date().toISOString(),
+      };
+      const changedPosition = positionChanges[0];
+      const event: GameEvent = {
+        id: createId("ge"), gameId: game.id, eventKind: "substitution",
+        sequenceNumber: current.gameEvents.filter((item) => item.gameId === game.id).length + 1,
+        inning: game.inning, half: game.half, pitcherId: game.currentPitcherId, batterId: game.currentBatterId,
+        substitution: changedPosition ? { outgoingPlayerId: game.positions[changedPosition], incomingPlayerId: positions[changedPosition], position: changedPosition, lineupIndex: positions[changedPosition] ? lineup.indexOf(positions[changedPosition]!) : undefined } : undefined,
+        outsBefore: game.outs, outsAfter: game.outs,
+        metrolinaRunsBefore: game.metrolinaScore, metrolinaRunsAfter: game.metrolinaScore,
+        opponentRunsBefore: game.opponentScore, opponentRunsAfter: game.opponentScore,
+        runnersBefore: { ...game.runners }, runnersAfter: { ...game.runners },
+        stateBefore: snapshotGame(game), stateAfter: snapshotGame(nextGame),
+        situations: [changeSummary], scoringNote: changeSummary, recordStatus: "confirmed", createdAt: new Date().toISOString(),
+      };
+      return gameRepository.logEvent(current, event, nextGame);
+    });
+  }
+
+  function undoLastGameEvent() {
+    if (!currentGame) return;
+    commit((current) => {
+      const event = current.gameEvents.find((item) => item.gameId === currentGame.id && item.stateBefore && (item.recordStatus ?? "confirmed") === "confirmed" && item.eventKind !== "correction");
+      if (!event?.stateBefore) return current;
+      const game = current.games.find((item) => item.id === currentGame.id);
+      if (!game) return current;
+      const restoredGame = restoreGameSnapshot(game, event.stateBefore);
+      const correction: GameEvent = {
+        id: createId("ge"),
+        gameId: game.id,
+        eventKind: "correction",
+        sequenceNumber: current.gameEvents.filter((item) => item.gameId === game.id).length + 1,
+        supersedesEventId: event.id,
+        recordStatus: "confirmed",
+        inning: game.inning,
+        half: game.half,
+        pitcherId: game.currentPitcherId,
+        batterId: game.currentBatterId,
+        outsBefore: game.outs,
+        outsAfter: restoredGame.outs,
+        metrolinaRunsBefore: game.metrolinaScore,
+        metrolinaRunsAfter: restoredGame.metrolinaScore,
+        opponentRunsBefore: game.opponentScore,
+        opponentRunsAfter: restoredGame.opponentScore,
+        stateBefore: snapshotGame(game),
+        stateAfter: snapshotGame(restoredGame),
+        runnersBefore: { ...game.runners },
+        runnersAfter: { ...restoredGame.runners },
+        situations: [`Voided ${gameEventLabel(event, current.players)}`],
+        scoringNote: "Undo recorded as an auditable correction.",
+        createdAt: new Date().toISOString(),
+      };
+      const previousPlateAppearanceEvent = event.plateAppearanceId
+        ? current.gameEvents.find((item) => item.id !== event.id && item.plateAppearanceId === event.plateAppearanceId && (item.recordStatus ?? "confirmed") === "confirmed")
+        : undefined;
+      const restoredAppearances = event.plateAppearanceId
+        ? previousPlateAppearanceEvent
+          ? current.plateAppearances.map((appearance) => appearance.id === event.plateAppearanceId ? { ...appearance, endedAt: undefined, outcome: undefined, balls: previousPlateAppearanceEvent.countAfter?.balls ?? 0, strikes: previousPlateAppearanceEvent.countAfter?.strikes ?? 0 } : appearance)
+          : current.plateAppearances.filter((appearance) => appearance.id !== event.plateAppearanceId)
+        : current.plateAppearances;
+      return {
+        ...current,
+        games: current.games.map((item) => item.id === currentGame.id ? restoredGame : item),
+        gameEvents: [correction, ...current.gameEvents.map((item) => item.id === event.id ? { ...item, recordStatus: "voided" as const } : item)],
+        plateAppearances: restoredAppearances,
+      };
+    });
+  }
+
   function adjustGame(field: "metrolinaScore" | "opponentScore" | "outs", delta: number) {
     if (!currentGame) return;
-    commit((current) =>
-      gameRepository.upsert(current, {
-        ...currentGame,
-        [field]: Math.max(0, Number(currentGame[field]) + delta),
-        updatedAt: new Date().toISOString(),
-      }),
-    );
+    commit((current) => {
+      const game = current.games.find((item) => item.id === currentGame.id);
+      if (!game) return current;
+      const nextGame = applyGameAdjustment(game, field, delta);
+      const event: GameEvent = {
+        id: createId("ge"),
+        gameId: game.id,
+        eventKind: "adjustment",
+        sequenceNumber: current.gameEvents.filter((item) => item.gameId === game.id).length + 1,
+        inning: game.inning,
+        half: game.half,
+        pitcherId: game.currentPitcherId,
+        batterId: game.currentBatterId,
+        outsBefore: game.outs,
+        outsAfter: nextGame.outs,
+        metrolinaRunsBefore: game.metrolinaScore,
+        metrolinaRunsAfter: nextGame.metrolinaScore,
+        opponentRunsBefore: game.opponentScore,
+        opponentRunsAfter: nextGame.opponentScore,
+        runnersBefore: { ...game.runners },
+        runnersAfter: { ...nextGame.runners },
+        stateBefore: snapshotGame(game),
+        stateAfter: snapshotGame(nextGame),
+        situations: [`Manual ${field} ${delta >= 0 ? "+" : ""}${delta}`],
+        recordStatus: "confirmed",
+        createdAt: new Date().toISOString(),
+      };
+      return gameRepository.logEvent(current, event, nextGame);
+    });
   }
 
   function startNewAskChat() {
@@ -4103,18 +4427,25 @@ export default function MetrolinaBaseballApp() {
 
         {view === "games" && (
           <GamesView
+            key={selectedGameId}
             data={data}
             selectedGameId={selectedGameId}
             selectedPitchType={selectedPitchType}
             velocity={velocity}
             pitchLocation={pitchLocation}
+            fieldLocation={fieldLocation}
             onGame={setSelectedGameId}
             onPitchType={setSelectedPitchType}
             onVelocity={setVelocity}
             onPitchLocation={setPitchLocation}
+            onFieldLocation={setFieldLocation}
             onLogPitch={logGamePitch}
+            onScorePlay={scoreGamePlay}
+            onRunnerAction={logGameRunnerAction}
+            onRunnerMove={moveGameRunner}
+            onPersonnelChange={updateGamePersonnel}
+            onUndo={undoLastGameEvent}
             onAdjust={adjustGame}
-            onOpenPlayer={openPlayer}
             onStartGame={() => setStartGameOpen(true)}
             onAsk={() => openAskClubhouse("games")}
           />
@@ -18226,13 +18557,19 @@ function GamesView({
   selectedPitchType,
   velocity,
   pitchLocation,
+  fieldLocation,
   onGame,
   onPitchType,
   onVelocity,
   onPitchLocation,
+  onFieldLocation,
   onLogPitch,
+  onScorePlay,
+  onRunnerAction,
+  onRunnerMove,
+  onPersonnelChange,
+  onUndo,
   onAdjust,
-  onOpenPlayer,
   onStartGame,
   onAsk,
 }: {
@@ -18241,38 +18578,224 @@ function GamesView({
   selectedPitchType: PitchType;
   velocity: string;
   pitchLocation?: ZonePoint;
+  fieldLocation: ZonePoint;
   onGame: (gameId: ID) => void;
   onPitchType: (pitchType: PitchType) => void;
   onVelocity: (value: string) => void;
   onPitchLocation: (point: ZonePoint | undefined) => void;
-  onLogPitch: (outcome: GamePitchOutcome, ballInPlayOutcome?: GameBallInPlayOutcome) => void;
+  onFieldLocation: (point: ZonePoint) => void;
+  onLogPitch: (outcome: GamePitchOutcome, ballInPlayOutcome?: GameBallInPlayOutcome, details?: GamePitchEntryDetails) => void;
+  onScorePlay: (play: GameScoredPlay, details?: GamePitchEntryDetails) => void;
+  onRunnerAction: (action: GameRunnerAction, base?: GameBase) => void;
+  onRunnerMove: (move: { from: GameBase; to: GameBase | "home"; reason?: GameRunnerMovement["reason"] }) => void;
+  onPersonnelChange: (lineup: ID[], positions: Partial<Record<Position, ID>>, currentPitcherId?: ID, note?: string) => void;
+  onUndo: () => void;
   onAdjust: (field: "metrolinaScore" | "opponentScore" | "outs", delta: number) => void;
-  onOpenPlayer: (playerId: ID) => void;
   onStartGame: () => void;
   onAsk: () => void;
 }) {
+  const [ballInPlayOpen, setBallInPlayOpen] = useState(false);
+  const [scoringStep, setScoringStep] = useState<"result" | "play" | "location" | "pitch">("result");
+  const [playStep, setPlayStep] = useState<"contact" | "outcome" | "runners">("contact");
+  const [pitchChosen, setPitchChosen] = useState(false);
+  const [pendingPitchOutcome, setPendingPitchOutcome] = useState<GamePitchOutcome>();
+  const [lastLogged, setLastLogged] = useState<string>();
+  const [selectedRunnerBase, setSelectedRunnerBase] = useState<GameBase | undefined>();
+  const [focusedGamePlayerId, setFocusedGamePlayerId] = useState<ID>();
+  const [workspaceMode, setWorkspaceMode] = useState<"field" | "team" | "opponent" | "plays" | "live">("field");
+  const [scoringPanelOpen, setScoringPanelOpen] = useState(false);
+  const [sessionActive, setSessionActive] = useState(() => {
+    const initialGame = data.games.find((item) => item.id === selectedGameId) ?? data.games[0];
+    return Boolean(initialGame);
+  });
+  const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
+  const [sessionDrawer, setSessionDrawer] = useState<"history" | "bases" | null>(null);
+  const [selectedBipOutcome, setSelectedBipOutcome] = useState<GameBallInPlayOutcome>();
+  const [contactType, setContactType] = useState<GameContactType>();
+  const [playMovements, setPlayMovements] = useState<GameRunnerMovement[]>([]);
+  const [fieldLocationTracked, setFieldLocationTracked] = useState(false);
+  const decisionSurfaceRef = useRef<HTMLElement | null>(null);
+  const previousFlowKeyRef = useRef(`${scoringStep}:${playStep}`);
   const game = data.games.find((item) => item.id === selectedGameId) ?? data.games[0];
   const pitcher = data.players.find((player) => player.id === game?.currentPitcherId);
   const batter = data.players.find((player) => player.id === game?.currentBatterId);
   const events = game ? data.gameEvents.filter((event) => event.gameId === game.id) : [];
+  const recentEvents = events.slice(0, 8);
+  const selectedRunnerId = game && selectedRunnerBase ? game.runners[selectedRunnerBase] : undefined;
+  const selectedRunner = data.players.find((player) => player.id === selectedRunnerId);
+  const canUndo = Boolean(events.find((event) => event.stateBefore && (event.recordStatus ?? "confirmed") === "confirmed" && event.eventKind !== "correction"));
+  const currentPlateAppearanceId = events.find((event) => (event.recordStatus ?? "confirmed") === "confirmed" && event.pitcherId === game?.currentPitcherId && event.batterId === game?.currentBatterId)?.plateAppearanceId;
+  const currentPlateAppearancePitches = currentPlateAppearanceId
+    ? events.filter((event) => event.plateAppearanceId === currentPlateAppearanceId && (event.recordStatus ?? "confirmed") === "confirmed" && event.pitchOutcome).slice().reverse()
+    : [];
+  const latestConfirmedEvent = events.find((event) => (event.recordStatus ?? "confirmed") === "confirmed" && event.stateBefore);
+  const metrolinaBatting = game ? (game.homeAway === "Home" ? game.half === "Bottom" : game.half === "Top") : false;
+  const possessionLabel = metrolinaBatting ? "Metrolina batting" : "Metrolina pitching";
+  const hasScoringDraft = Boolean(pendingPitchOutcome || pitchChosen || pitchLocation || contactType || selectedBipOutcome || playMovements.length || fieldLocationTracked);
+
+  useEffect(() => {
+    const flowKey = `${scoringStep}:${playStep}`;
+    if (previousFlowKeyRef.current === flowKey) return;
+    previousFlowKeyRef.current = flowKey;
+    if (!sessionActive || typeof window === "undefined" || !window.matchMedia("(max-width: 760px)").matches) return;
+    const frame = window.requestAnimationFrame(() => decisionSurfaceRef.current?.closest(".game-context-sheet")?.scrollTo({ top: 0, behavior: "smooth" }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [playStep, scoringStep, sessionActive]);
+
+  function clearScoringDraft() {
+    setPitchChosen(false);
+    setPendingPitchOutcome(undefined);
+    setBallInPlayOpen(false);
+    setSelectedBipOutcome(undefined);
+    setContactType(undefined);
+    setPlayMovements([]);
+    setFieldLocationTracked(false);
+    setPlayStep("contact");
+    setScoringStep("result");
+    setScoringPanelOpen(false);
+    onPitchLocation(undefined);
+    onVelocity("");
+  }
+
+  function resetScoringFlow(logged: string) {
+    setLastLogged(logged);
+    clearScoringDraft();
+  }
+
+  function startOrResumeScoring() {
+    setWorkspaceMode("field");
+    setScoringPanelOpen(true);
+    if (!hasScoringDraft) setScoringStep("result");
+  }
+
+  function beginQuickOutcome(outcome: GamePitchOutcome) {
+    clearScoringDraft();
+    setLastLogged(undefined);
+    setWorkspaceMode("field");
+    setScoringPanelOpen(true);
+    choosePitchOutcome(outcome);
+  }
+
+  function choosePitchOutcome(outcome: GamePitchOutcome) {
+    setPendingPitchOutcome(outcome);
+    setPitchChosen(false);
+    onPitchLocation(undefined);
+    if (outcome === "In Play") {
+      openBallInPlay();
+      return;
+    }
+    setBallInPlayOpen(false);
+    setScoringStep("location");
+  }
+
+  function choosePitch(pitchType: PitchType) {
+    if (!pendingPitchOutcome) return;
+    const details = { pitchType, velocity: velocity || undefined, location: pitchLocation } satisfies GamePitchEntryDetails;
+    onPitchType(pitchType);
+    setPitchChosen(true);
+    if (pendingPitchOutcome === "In Play") {
+      setScoringStep("location");
+      return;
+    }
+    onLogPitch(pendingPitchOutcome, undefined, details);
+    resetScoringFlow(`${PITCH_TYPE_LABELS[pitchType]} · ${pendingPitchOutcome}${velocity ? ` · ${velocity} mph` : ""}`);
+  }
+
+  function chooseLocation(point: ZonePoint) {
+    onPitchLocation(point);
+    setScoringStep(pendingPitchOutcome === "In Play" ? "play" : "pitch");
+  }
+
+  function openBallInPlay() {
+    if (!game) return;
+    setSelectedBipOutcome(undefined);
+    setContactType(undefined);
+    setPlayMovements([]);
+    setFieldLocationTracked(false);
+    setBallInPlayOpen(true);
+    setPendingPitchOutcome("In Play");
+    setPlayStep("contact");
+    setScoringStep("pitch");
+  }
+
+  function chooseContactType(type: GameContactType) {
+    setContactType(type);
+    if (fieldLocationTracked) setPlayStep("outcome");
+  }
+
+  function chooseContactLocation(point: ZonePoint) {
+    setFieldLocationTracked(true);
+    onFieldLocation(point);
+    if (contactType) setPlayStep("outcome");
+  }
+
+  function chooseBallInPlayOutcome(outcome: GameBallInPlayOutcome) {
+    if (!game) return;
+    setSelectedBipOutcome(outcome);
+    setPlayMovements(suggestedPlayMovements(game, outcome));
+    setPlayStep("runners");
+  }
+
+  function updatePlayMovement(origin: GameRunnerMovement["from"], destination: GameRunnerDestination) {
+    setPlayMovements((current) => current.map((movement) => movement.from === origin ? {
+      ...movement,
+      to: destination,
+      result: destination === "out" ? "out" : destination === "hold" ? "held" : "safe",
+    } : movement));
+  }
+
+  function confirmBallInPlay() {
+    if (!pendingPlay || pendingPlayErrors.length > 0 || !pitchChosen) return;
+    const play: GameScoredPlay = {
+      ...pendingPlay,
+      rbi: pendingPlay.movements.filter((movement) => movement.to === "home" && movement.reason !== "On error").length,
+    };
+    const details = { pitchType: selectedPitchType, velocity: velocity || undefined, location: pitchLocation } satisfies GamePitchEntryDetails;
+    onScorePlay(play, details);
+    resetScoringFlow(`${PITCH_TYPE_LABELS[selectedPitchType]} · In Play · ${play.contactType} · ${play.outcome}`);
+  }
+
+  function correctLatestPitch() {
+    if (!latestConfirmedEvent?.pitchType || !latestConfirmedEvent.pitchOutcome) return;
+    onPitchType(latestConfirmedEvent.pitchType);
+    onVelocity(latestConfirmedEvent.velocity ? String(latestConfirmedEvent.velocity) : "");
+    onPitchLocation(latestConfirmedEvent.location);
+    onUndo();
+    setPitchChosen(true);
+    setPendingPitchOutcome(undefined);
+    setBallInPlayOpen(false);
+    setScoringStep("result");
+    setLastLogged(`Correction draft · ${PITCH_TYPE_LABELS[latestConfirmedEvent.pitchType]}`);
+    setWorkspaceMode("field");
+    setScoringPanelOpen(true);
+    setSessionDrawer(null);
+  }
+
+  function undoAndResetFeedback() {
+    onUndo();
+    setLastLogged(undefined);
+    clearScoringDraft();
+    setScoringPanelOpen(false);
+  }
+
+  const pendingPlay = game && selectedBipOutcome && contactType ? { outcome: selectedBipOutcome, contactType, movements: playMovements, fieldLocation: fieldLocationTracked ? fieldLocation : undefined } satisfies GameScoredPlay : undefined;
+  const pendingPlayErrors = game && pendingPlay ? validateScoredPlay(game, pendingPlay) : [];
+  const scoringFlowSteps: Array<"result" | "play" | "location" | "pitch"> = pendingPitchOutcome === "In Play"
+    ? ["result", "pitch", "location", "play"]
+    : ["result", "location", "pitch"];
 
   return (
-    <div className="page-stack games-page">
+    <div className={`page-stack games-page game-workstation-page ${sessionActive ? "game-session-active" : "game-session-library"}`}>
       <SectionHeader
-        title="Games"
+        title="Game Center"
         context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} - ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined}
-        action={
-          <div className="section-header-actions">
-            <AskClubhouseLauncher onClick={onAsk} compact />
-            <button className="primary-button" type="button" onClick={onStartGame}><Plus size={16} aria-hidden="true" />Start Game</button>
-          </div>
-        }
+        action={workspaceMode === "field" ? <div className="section-header-actions"><AskClubhouseLauncher onClick={onAsk} compact /><button className="primary-button" type="button" onClick={onStartGame}><Plus size={16} aria-hidden="true" />Start Game</button></div> : undefined}
       />
 
       <section className="games-layout">
         <aside className="panel games-list">
           {data.games.map((item) => (
-            <button key={item.id} type="button" className={item.id === game?.id ? "active" : ""} onClick={() => onGame(item.id)}>
+            <button key={item.id} type="button" className={item.id === game?.id ? "active" : ""} onClick={() => { onGame(item.id); setWorkspaceMode("field"); setScoringPanelOpen(false); setSessionActive(true); }}>
               <span>{shortDate(item.date)}</span>
               <strong>{matchupPrefix(item.homeAway).replace(".", "")} {item.opponent}</strong>
               <small>{item.result ? `${item.result} ${item.metrolinaScore}-${item.opponentScore}` : `${item.type} - ${item.location}`}</small>
@@ -18281,72 +18804,646 @@ function GamesView({
         </aside>
 
         {game && (
-          <section className="panel game-console">
-            <div className="scoreboard">
-              <div>
-                <span>Metrolina</span>
-                <strong>{game.metrolinaScore}</strong>
+          <section className="game-console game-workstation">
+            {sessionActive && <header className="game-session-bar">
+              <button type="button" className="game-session-exit" aria-label="Exit game" onClick={() => { setSessionActive(false); setSessionMenuOpen(false); setSessionDrawer(null); }}><ChevronLeft size={17} aria-hidden="true" /><span>Exit game</span></button>
+              <div className="game-session-identity"><span>{possessionLabel}</span><strong>Metrolina <em>vs</em> {game.opponent}</strong><small>{game.location} · {shortDate(game.date)}</small></div>
+              <div className="game-session-actions">
+                <button type="button" className="game-session-bases-trigger" onClick={() => setSessionDrawer("bases")}>Bases</button>
+                <button type="button" aria-label="History and corrections" onClick={() => setSessionDrawer("history")}><Undo2 size={15} aria-hidden="true" /><span>History</span></button>
+                <button type="button" aria-label="Open game menu" aria-expanded={sessionMenuOpen} onClick={() => setSessionMenuOpen((open) => !open)}><MoreHorizontal size={18} aria-hidden="true" /></button>
               </div>
-              <div>
-                <span>{game.opponent}</span>
-                <strong>{game.opponentScore}</strong>
+              {sessionMenuOpen && <div className="game-session-menu" role="menu">
+                <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("field"); setScoringPanelOpen(hasScoringDraft); setSessionMenuOpen(false); }}>{hasScoringDraft ? "Resume pitch scoring" : "Return to field"}</button>
+                <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("team"); setSessionMenuOpen(false); }}>Lineup & field</button>
+                <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("plays"); setSessionMenuOpen(false); }}>Plays & corrections</button>
+                <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("live"); setSessionMenuOpen(false); }}>Analyze game</button>
+                <button type="button" role="menuitem" onClick={() => { setSessionDrawer("history"); setSessionMenuOpen(false); }}>History & corrections</button>
+                <button type="button" role="menuitem" onClick={() => { setSessionActive(false); setSessionMenuOpen(false); }}>Exit to Game Center</button>
+              </div>}
+            </header>}
+            <header className="game-score-ribbon panel">
+              <div className="game-score-team is-primary"><span>Metrolina</span><strong>{game.metrolinaScore}</strong><small>{game.homeAway}</small></div>
+              <div className="game-inning-state">
+                <span className="game-live-badge">Live</span>
+                <strong>{game.half} {game.inning}</strong>
+                <div className="game-count-lights" aria-label={`${game.balls} balls, ${game.strikes} strikes, ${game.outs} outs`}>
+                  <GameStateLights label="B" active={game.balls} total={3} tone="ball" />
+                  <GameStateLights label="S" active={game.strikes} total={2} tone="strike" />
+                  <GameStateLights label="O" active={game.outs} total={2} tone="out" />
+                </div>
+                <div className="game-ribbon-bases" aria-label={baseLine(game)}>{(["third", "second", "first"] as GameBase[]).map((base) => <i key={base} className={game.runners[base] ? "occupied" : ""} title={`${baseShortLabel(base)} ${game.runners[base] ? "occupied" : "empty"}`} />)}</div>
               </div>
-              <div>
-                <span>{game.half} {game.inning}</span>
-                <strong>{game.outs} Out{game.outs === 1 ? "" : "s"}</strong>
-              </div>
-            </div>
+              <div className="game-score-team"><span>{game.opponent}</span><strong>{game.opponentScore}</strong><small>{game.location}</small></div>
+            </header>
 
-            <div className="game-state-grid">
-              <PlayerGameChip label="Pitcher" player={pitcher} onOpen={onOpenPlayer} />
-              <PlayerGameChip label="Batter" player={batter} onOpen={onOpenPlayer} />
-              <div className="count-card">
-                <span>Count</span>
-                <strong>{game.balls}-{game.strikes}</strong>
-                <small>{baseLine(game)}</small>
-              </div>
-            </div>
+            {sessionActive && <GameFieldCommand key={`${game.id}-${workspaceMode}`}
+              game={game}
+              players={data.players}
+              active={workspaceMode === "field" && (!scoringPanelOpen || (scoringStep === "play" && playStep === "contact"))}
+              contactMode={scoringPanelOpen && scoringStep === "play" && playStep === "contact"}
+              contactPoint={fieldLocationTracked ? fieldLocation : undefined}
+              onContactLocation={chooseContactLocation}
+              draftActive={hasScoringDraft}
+              onPitch={startOrResumeScoring}
+              onOutcome={beginQuickOutcome}
+              onBases={() => setSessionDrawer("bases")}
+              onLineup={(playerId) => { setFocusedGamePlayerId(playerId); setWorkspaceMode("team"); }}
+              onAnalytics={(playerId) => { setFocusedGamePlayerId(playerId); setWorkspaceMode("live"); }}
+              selectedRunnerBase={selectedRunnerBase}
+              onSelectRunnerBase={setSelectedRunnerBase}
+              onRunnerMove={onRunnerMove}
+            />}
 
-            <div className="game-input-layout">
-              <div>
-                <div className="pitch-type-row">
-                  {PITCH_TYPES.map((pitchType) => (
-                    <button key={pitchType} type="button" className={selectedPitchType === pitchType ? "active" : ""} onClick={() => onPitchType(pitchType)}>{pitchType}</button>
-                  ))}
+            {workspaceMode === "field" && scoringPanelOpen && <div className={`game-context-sheet game-context-sheet--scoring ${scoringStep === "play" && playStep === "contact" ? "game-context-sheet--contact" : ""} ${scoringStep === "play" && playStep === "contact" && contactType ? "is-contact-selected" : ""}`}><div className="game-context-sheet__bar"><div><span>Score this pitch</span><strong>{batter?.name ?? "Batter"} vs {pitcher?.name ?? "Pitcher"}</strong></div><button type="button" aria-label="Close pitch scoring" onClick={() => setScoringPanelOpen(false)}><X size={18} /></button></div>
+            <div className="game-scorekeeper-layout">
+              <section ref={decisionSurfaceRef} className="panel game-guided-console" aria-label="Guided pitch entry">
+                <div className="game-panel-heading">
+                  <div><span>Current plate appearance</span><h2>{batter?.name ?? "Batter"} vs {pitcher?.name ?? "Pitcher"}</h2></div>
+                  <strong className="game-count-number">{game.balls}-{game.strikes}</strong>
                 </div>
-                <label className="velo-input">
-                  <span>Velocity</span>
-                  <input inputMode="numeric" value={velocity} onChange={(event) => onVelocity(event.target.value.replace(/[^0-9.]/g, ""))} />
-                </label>
-                <div className="quick-pad quick-pad--game">
-                  {GAME_PITCH_BUTTONS.map((outcome) => (
-                    <button key={outcome} type="button" className={outcome === "In Play" ? "impact" : ""} onClick={() => outcome === "In Play" ? undefined : onLogPitch(outcome)}>
-                      {outcome}
-                    </button>
-                  ))}
+                <div className="game-flow-steps" aria-label="Scoring progress">
+                  {scoringFlowSteps.map((step, index) => {
+                    const currentIndex = scoringFlowSteps.indexOf(scoringStep);
+                    const complete = index < currentIndex;
+                    const disabled = index > currentIndex;
+                    return <button key={step} type="button" className={`${scoringStep === step ? "active" : ""} ${complete ? "complete" : ""}`} disabled={disabled} onClick={() => {
+                      if (!disabled) setScoringStep(step);
+                    }}><i>{index + 1}</i><span>{step === "result" ? "Result" : step === "play" ? "Play" : step === "location" ? "Location" : "Pitch"}</span></button>;
+                  })}
                 </div>
-                <div className="bip-grid">
-                  {BIP_OUTCOMES.map((outcome) => (
-                    <button key={outcome} type="button" onClick={() => onLogPitch("In Play", outcome)}>
-                      {outcome}
-                    </button>
-                  ))}
+
+                {lastLogged && scoringStep === "result" && <div className="game-recorded-toast"><Check size={16} aria-hidden="true" /><span><strong>Recorded</strong><small>{lastLogged}</small></span></div>}
+
+                {scoringStep === "result" && <div className="game-flow-stage">
+                  <div className="game-stage-heading"><span>Step 1 · Outcome</span><h3>Pitch outcome?</h3><small>Record the call first, then add location and pitch detail.</small></div>
+                  <div className="game-result-pad game-result-pad--guided">
+                    <button type="button" className="is-ball" onClick={() => choosePitchOutcome("Ball")}><strong>Ball</strong><small>Count advances</small></button>
+                    <button type="button" className="is-strike" onClick={() => choosePitchOutcome("Called Strike")}><strong>Called Strike</strong><small>Taken strike</small></button>
+                    <button type="button" className="is-strike" onClick={() => choosePitchOutcome("Swinging Strike")}><strong>Swing & Miss</strong><small>Whiff / CSW</small></button>
+                    <button type="button" onClick={() => choosePitchOutcome("Foul")}><strong>Foul</strong><small>Strike unless two</small></button>
+                    <button type="button" onClick={() => choosePitchOutcome("HBP")}><strong>Hit by Pitch</strong><small>Ends plate appearance</small></button>
+                    <button type="button" className="is-impact" onClick={() => choosePitchOutcome("In Play")}><strong>In Play</strong><small>Resolve contact and runners</small></button>
+                  </div>
+                </div>}
+
+                {scoringStep === "location" && <div className="game-flow-stage game-flow-stage--zone">
+                  <div className="game-stage-heading"><span>{pendingPitchOutcome === "In Play" ? "Step 3" : "Step 2"} · {pendingPitchOutcome}</span><h3>Where did it cross?</h3><small>Pitcher view. Tap the exact location, or continue without it.</small></div>
+                  <StrikeZone activePoint={pitchLocation} points={events.map((event) => event.location).filter(isZonePoint)} onSelect={chooseLocation} />
+                  <div className="game-stage-actions"><button className="text-button" type="button" onClick={() => setScoringStep(pendingPitchOutcome === "In Play" ? "pitch" : "result")}><ChevronLeft size={15} />{pendingPitchOutcome === "In Play" ? "Change pitch" : "Change outcome"}</button><button className="secondary-button" type="button" onClick={() => { onPitchLocation(undefined); setScoringStep(pendingPitchOutcome === "In Play" ? "play" : "pitch"); }}>Location not tracked <ChevronRight size={15} /></button></div>
+                </div>}
+
+                {scoringStep === "pitch" && <div className="game-flow-stage">
+                  <div className="game-stage-heading"><span>{pendingPitchOutcome === "In Play" ? "Step 2 · In Play" : `Final step · ${pendingPitchOutcome}`}</span><h3>What was thrown?</h3><small>{pendingPitchOutcome === "In Play" ? "Choose the pitch to continue to location." : `${pitchLocation ? `Zone ${zoneLabel(pitchLocation)}` : "Location not tracked"} · choose the pitch to record.`}</small></div>
+                  <label className="game-velocity-input"><span>Velocity</span><input inputMode="decimal" value={velocity} placeholder="Not tracked" onChange={(event) => onVelocity(event.target.value.replace(/[^0-9.]/g, ""))} aria-label="Pitch velocity" /><em>MPH</em></label>
+                  <div className="game-pitch-type-grid game-pitch-type-grid--guided">
+                    {PITCH_TYPES.map((pitchType) => <button key={pitchType} type="button" className={pitchChosen && selectedPitchType === pitchType ? "active" : ""} onClick={() => choosePitch(pitchType)}><strong>{PITCH_TYPE_LABELS[pitchType]}</strong><small>{pitchType}</small><ChevronRight size={14} aria-hidden="true" /></button>)}
+                  </div>
+                  <button className="text-button game-flow-back" type="button" onClick={() => setScoringStep(pendingPitchOutcome === "In Play" ? "result" : "location")}><ChevronLeft size={15} />{pendingPitchOutcome === "In Play" ? "Change outcome" : "Change location"}</button>
+                </div>}
+
+                {scoringStep === "play" && ballInPlayOpen && <div className="game-flow-stage game-flow-stage--play">
+                  <div className="game-stage-heading"><span>Ball in play · {playStep === "contact" ? "1 of 3" : playStep === "outcome" ? "2 of 3" : "3 of 3"}</span><h3>{playStep === "contact" ? "Describe the contact" : playStep === "outcome" ? "Score the batter" : "Resolve every runner"}</h3><small>No play is saved until final confirmation.</small></div>
+                  {playStep === "contact" && <>
+                    <div className="game-contact-types">{(["Ground Ball", "Line Drive", "Fly Ball", "Pop Up", "Bunt"] as GameContactType[]).map((type) => <button key={type} type="button" className={contactType === type ? "active" : ""} onClick={() => chooseContactType(type)}>{type}</button>)}</div>
+                    <div className="game-field-contact-instruction"><strong>{fieldLocationTracked ? "Contact point placed on the live field" : "Tap the live field to place the ball"}</strong><small>{contactType && fieldLocationTracked ? "Opening batter result…" : contactType ? "Now tap where the ball went" : fieldLocationTracked ? "Now choose the contact type" : "Choose contact type and tap the persistent field."}</small></div>
+                    <div className="game-stage-actions"><button className="text-button" type="button" onClick={() => setScoringStep("location")}><ChevronLeft size={15} />Change pitch location</button><small>The batter result opens automatically after both selections.</small></div>
+                  </>}
+                  {playStep === "outcome" && <>
+                    <div className="game-bip-outcomes game-bip-outcomes--guided">{BIP_OUTCOMES.map((outcome) => <button key={outcome} className={selectedBipOutcome === outcome ? "active" : ""} type="button" onClick={() => chooseBallInPlayOutcome(outcome)}>{outcome}<ChevronRight size={13} /></button>)}</div>
+                    <button className="text-button game-flow-back" type="button" onClick={() => setPlayStep("contact")}><ChevronLeft size={15} />Change contact</button>
+                  </>}
+                  {playStep === "runners" && selectedBipOutcome && <>
+                    <div className="game-play-summary"><strong>{contactType} · {selectedBipOutcome}</strong><small>{fieldLocationTracked ? "Contact location tracked" : "No contact location"}</small></div>
+                    <div className="game-runner-resolution-list">{playMovements.map((movement) => {
+                      const runner = data.players.find((player) => player.id === movement.runnerId);
+                      return <label key={`${movement.from}-${movement.runnerId}`}><span><strong>{movement.from === "batter" ? "Batter" : `From ${baseShortLabel(movement.from)}`}</strong><small>{runner?.name ?? "Runner"}</small></span><select value={movement.to} onChange={(event) => updatePlayMovement(movement.from, event.target.value as GameRunnerDestination)} aria-label={`${runner?.name ?? "Runner"} destination`}>{movement.from !== "batter" && <option value="hold">Hold</option>}<option value="first">Safe at 1B</option><option value="second">Safe at 2B</option><option value="third">Safe at 3B</option><option value="home">Scores</option><option value="out">Out</option></select></label>;
+                    })}</div>
+                    {pendingPlayErrors.length > 0 && <div className="game-play-errors">{pendingPlayErrors.map((error) => <span key={error}>{error}</span>)}</div>}
+                    <div className="game-play-confirm"><button className="text-button" type="button" onClick={() => setPlayStep("outcome")}><ChevronLeft size={15} />Change result</button><div><strong>{playMovements.filter((movement) => movement.to === "home").length} runs · {playMovements.filter((movement) => movement.to === "out").length} outs</strong><small>Review every runner before recording the play.</small></div><button className="primary-button" type="button" disabled={pendingPlayErrors.length > 0 || !pitchChosen} onClick={confirmBallInPlay}>Confirm play <Check size={15} /></button></div>
+                  </>}
+                </div>}
+
+                <div className="game-current-pa-strip"><span>Current PA</span><div>{currentPlateAppearancePitches.length ? currentPlateAppearancePitches.map((event, index) => <i key={event.id}><b>#{index + 1}</b><strong>{event.pitchType ? PITCH_TYPE_LABELS[event.pitchType] : "--"}</strong><small>{event.pitchOutcome}</small></i>) : <small>No pitches yet.</small>}</div></div>
+              </section>
+
+              <section className="panel game-bases-console" aria-label="Base runner console">
+                <div className="game-panel-heading compact">
+                  <div><span>Always visible · Situation</span><h2>Base Runners</h2></div>
+                  <small>{baseLine(game)}</small>
                 </div>
-              </div>
-              <div className="zone-stack">
-                <StrikeZone activePoint={pitchLocation} points={events.map((event) => event.location).filter(isZonePoint)} onSelect={onPitchLocation} />
-                <div className="manual-row">
-                  <button type="button" onClick={() => onAdjust("metrolinaScore", 1)}>+ Metro</button>
-                  <button type="button" onClick={() => onAdjust("opponentScore", 1)}>+ Opp</button>
-                  <button type="button" onClick={() => onAdjust("outs", 1)}>+ Out</button>
+                <GameBaseDiamond game={game} players={data.players} selectedBase={selectedRunnerBase} onSelectBase={setSelectedRunnerBase} onMoveRunner={onRunnerMove} />
+                {selectedRunner ? (
+                  <div className="game-runner-actions">
+                    <strong>{selectedRunner.name}<small>{selectedRunnerBase?.toUpperCase()}</small></strong>
+                    <div>
+                      <button type="button" onClick={() => onRunnerAction("Advance", selectedRunnerBase)}>Advance</button>
+                      <button type="button" onClick={() => onRunnerAction("Stolen Base", selectedRunnerBase)}>Stolen Base</button>
+                      <button type="button" onClick={() => onRunnerAction("Caught Stealing", selectedRunnerBase)}>Caught</button>
+                      <button type="button" onClick={() => onRunnerAction("Pickoff", selectedRunnerBase)}>Pickoff</button>
+                    </div>
+                  </div>
+                ) : <p className="game-runner-hint">Select an occupied base to move or score that runner.</p>}
+                <div className="game-all-runner-actions">
+                  <button type="button" onClick={() => onRunnerAction("Wild Pitch")}>Wild Pitch</button>
+                  <button type="button" onClick={() => onRunnerAction("Passed Ball")}>Passed Ball</button>
                 </div>
-              </div>
+                <details className="game-correction-tools">
+                  <summary>Correction tools</summary>
+                  <small>Use only to repair the official game state.</small>
+                  <div className="game-manual-controls">
+                    <button type="button" onClick={() => onAdjust("metrolinaScore", 1)}>+ Metro Run</button>
+                    <button type="button" onClick={() => onAdjust("opponentScore", 1)}>+ Opp Run</button>
+                    <button type="button" onClick={() => onAdjust("outs", 1)}>+ Out</button>
+                  </div>
+                </details>
+              </section>
             </div>
+            </div>}
+
+            {workspaceMode === "team" && <div className="game-context-sheet"><div className="game-context-sheet__bar"><div><span>Our team</span><strong>Lineup, field & substitutions</strong></div><button type="button" aria-label="Close our team panel" onClick={() => setWorkspaceMode("field")}><X size={18} /></button></div><GamePersonnelWorkbench key={game.id} game={game} players={data.players} focusedPlayerId={focusedGamePlayerId} onSave={onPersonnelChange} /></div>}
+
+            {workspaceMode === "opponent" && <div className="game-context-sheet"><div className="game-context-sheet__bar"><div><span>Opponent</span><strong>{game.opponent}</strong></div><button type="button" aria-label="Close opponent panel" onClick={() => setWorkspaceMode("field")}><X size={18} /></button></div><GameOpponentWorkbench game={game} onReturnToField={() => setWorkspaceMode("field")} /></div>}
+
+            {workspaceMode === "plays" && <div className="game-context-sheet"><div className="game-context-sheet__bar"><div><span>Official game record</span><strong>Plays & corrections</strong></div><button type="button" aria-label="Close plays panel" onClick={() => setWorkspaceMode("field")}><X size={18} /></button></div><GamePlaysWorkbench events={events} players={data.players} onUndo={undoAndResetFeedback} canUndo={canUndo} /></div>}
+
+            {workspaceMode === "live" && <div className="game-context-sheet game-context-sheet--analysis"><div className="game-context-sheet__bar"><div><span>Live intelligence</span><strong>Tendencies, locations & spray</strong></div><button type="button" aria-label="Close analytics panel" onClick={() => setWorkspaceMode("field")}><X size={18} /></button></div><GameLiveIntelligence key={`${game.id}-${focusedGamePlayerId ?? "all"}`} game={game} events={events} allEvents={data.gameEvents} players={data.players} focusedPlayerId={focusedGamePlayerId} /></div>}
+
+            {sessionActive && <nav className="game-session-bottom-nav" aria-label="Live game navigation">
+              <button type="button" className={workspaceMode === "field" ? "active" : ""} onClick={() => { setSessionMenuOpen(false); setWorkspaceMode("field"); setScoringPanelOpen(hasScoringDraft); }}><Home size={20} /><span>Score</span></button>
+              <button type="button" className={workspaceMode === "team" ? "active" : ""} onClick={() => { setSessionMenuOpen(false); setFocusedGamePlayerId(undefined); setWorkspaceMode(workspaceMode === "team" ? "field" : "team"); }}><Users size={20} /><span>Our Team</span></button>
+              <button type="button" className={workspaceMode === "opponent" ? "active" : ""} onClick={() => { setSessionMenuOpen(false); setWorkspaceMode(workspaceMode === "opponent" ? "field" : "opponent"); }}><Swords size={20} /><span>Opponent</span></button>
+              <button type="button" className={workspaceMode === "plays" ? "active" : ""} onClick={() => { setSessionMenuOpen(false); setWorkspaceMode(workspaceMode === "plays" ? "field" : "plays"); }}><ClipboardList size={20} /><span>Plays</span></button>
+              <button type="button" className={workspaceMode === "live" ? "active" : ""} onClick={() => { setSessionMenuOpen(false); setFocusedGamePlayerId(undefined); setWorkspaceMode(workspaceMode === "live" ? "field" : "live"); }}><BarChart3 size={20} /><span>Stats</span></button>
+            </nav>}
+
+            {!sessionActive && <section className="panel game-event-stream">
+              <div className="game-panel-heading compact">
+                <div><span>Official log</span><h2>Recent Events</h2></div>
+                {workspaceMode === "field" && <button className="secondary-button" type="button" onClick={onUndo} disabled={!canUndo}><Undo2 size={15} />Undo Last</button>}
+              </div>
+              <div className="game-event-list">
+                {recentEvents.length ? recentEvents.map((event) => (
+                  <div key={event.id}>
+                    <span>{event.half.slice(0, 1)}{event.inning}</span>
+                    <strong>{gameEventLabel(event, data.players)}</strong>
+                    <small>{gameEventMeta(event)}</small>
+                  </div>
+                )) : <CompactEmpty title="Record the first pitch to start the event log" />}
+              </div>
+            </section>}
+
+            {sessionActive && sessionDrawer && <div className="game-session-drawer-layer" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSessionDrawer(null); }}>
+              <aside className="game-session-drawer" aria-label={sessionDrawer === "history" ? "Game history and corrections" : "Base runner controls"}>
+                <header><div><span>{sessionDrawer === "history" ? "Official game record" : "Current situation"}</span><h2>{sessionDrawer === "history" ? "History & Corrections" : "Base Runners"}</h2></div><button type="button" aria-label="Close game drawer" onClick={() => setSessionDrawer(null)}><X size={18} aria-hidden="true" /></button></header>
+                {sessionDrawer === "history" ? <>
+                  <div className="game-correction-actions">
+                    <button className="primary-button" type="button" onClick={correctLatestPitch} disabled={!latestConfirmedEvent?.pitchType || !latestConfirmedEvent.pitchOutcome}><Edit3 size={15} aria-hidden="true" />Correct latest pitch</button>
+                    <button className="secondary-button" type="button" onClick={() => { undoAndResetFeedback(); setSessionDrawer(null); }} disabled={!canUndo}><Undo2 size={15} aria-hidden="true" />Undo latest event</button>
+                  </div>
+                  <p className="game-correction-note">Correct latest pitch reverses its official state and returns the pitch, velocity, and location to the result step. Choose the corrected outcome to save it again.</p>
+                  <div className="game-event-list game-session-history-list">
+                    {recentEvents.length ? recentEvents.map((event) => <div key={event.id}><span>{event.half.slice(0, 1)}{event.inning}</span><strong>{gameEventLabel(event, data.players)}</strong><small>{gameEventMeta(event)}</small></div>) : <CompactEmpty title="Record the first pitch to start the event log" />}
+                  </div>
+                  <div className="game-drawer-adjustments"><span>Manual state repair</span><div><button type="button" onClick={() => onAdjust("metrolinaScore", -1)}>− Metro</button><button type="button" onClick={() => onAdjust("metrolinaScore", 1)}>+ Metro</button><button type="button" onClick={() => onAdjust("opponentScore", -1)}>− Opp</button><button type="button" onClick={() => onAdjust("opponentScore", 1)}>+ Opp</button><button type="button" onClick={() => onAdjust("outs", -1)}>− Out</button><button type="button" onClick={() => onAdjust("outs", 1)}>+ Out</button></div></div>
+                </> : <>
+                  <GameBaseDiamond game={game} players={data.players} selectedBase={selectedRunnerBase} onSelectBase={setSelectedRunnerBase} onMoveRunner={onRunnerMove} />
+                  {selectedRunner ? <div className="game-runner-actions"><strong>{selectedRunner.name}<small>{selectedRunnerBase?.toUpperCase()}</small></strong><div><button type="button" onClick={() => onRunnerAction("Advance", selectedRunnerBase)}>Advance</button><button type="button" onClick={() => onRunnerAction("Stolen Base", selectedRunnerBase)}>Stolen Base</button><button type="button" onClick={() => onRunnerAction("Caught Stealing", selectedRunnerBase)}>Caught</button><button type="button" onClick={() => onRunnerAction("Pickoff", selectedRunnerBase)}>Pickoff</button></div></div> : <p className="game-runner-hint">Select an occupied base to move or score that runner.</p>}
+                  <div className="game-all-runner-actions"><button type="button" onClick={() => onRunnerAction("Wild Pitch")}>Wild Pitch</button><button type="button" onClick={() => onRunnerAction("Passed Ball")}>Passed Ball</button></div>
+                </>}
+              </aside>
+            </div>}
           </section>
         )}
       </section>
     </div>
   );
+}
+
+const GAME_DEFENSIVE_POSITIONS: Position[] = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
+const GAME_FIELD_POSITION_COORDINATES: Record<string, [number, number]> = {
+  P: [50, 61], C: [50, 92], "1B": [85, 58], "2B": [68, 40], "3B": [15, 58], SS: [32, 40], LF: [23, 25], CF: [50, 15], RF: [77, 25],
+};
+const GAME_LIVE_FIELD_POSITION_COORDINATES: Record<string, [number, number]> = {
+  ...GAME_FIELD_POSITION_COORDINATES,
+  P: [76, 80], C: [24, 80], "1B": [86, 55], "3B": [14, 55],
+};
+
+function GameFieldCommand({
+  game,
+  players,
+  active,
+  draftActive,
+  contactMode,
+  contactPoint,
+  onContactLocation,
+  onPitch,
+  onOutcome,
+  onBases,
+  onLineup,
+  onAnalytics,
+  selectedRunnerBase,
+  onSelectRunnerBase,
+  onRunnerMove,
+}: {
+  game: Game;
+  players: Player[];
+  active: boolean;
+  draftActive: boolean;
+  contactMode: boolean;
+  contactPoint?: ZonePoint;
+  onContactLocation: (point: ZonePoint) => void;
+  onPitch: () => void;
+  onOutcome: (outcome: GamePitchOutcome) => void;
+  onBases: () => void;
+  onLineup: (playerId?: ID) => void;
+  onAnalytics: (playerId?: ID) => void;
+  selectedRunnerBase?: GameBase;
+  onSelectRunnerBase: (base: GameBase | undefined) => void;
+  onRunnerMove: (move: { from: GameBase; to: GameBase | "home"; reason?: GameRunnerMovement["reason"] }) => void;
+}) {
+  const [selectedPlayerId, setSelectedPlayerId] = useState<ID>();
+  const batter = players.find((player) => player.id === game.currentBatterId);
+  const pitcher = players.find((player) => player.id === game.currentPitcherId);
+  const selectedPlayer = active ? players.find((player) => player.id === selectedPlayerId) : undefined;
+  const quickOutcomes: Array<{ outcome: GamePitchOutcome; label: string }> = [
+    { outcome: "Ball", label: "Ball" },
+    { outcome: "Called Strike", label: "Called" },
+    { outcome: "Swinging Strike", label: "Swing" },
+    { outcome: "Foul", label: "Foul" },
+    { outcome: "In Play", label: "In Play" },
+  ];
+
+  return <section className={`game-field-command ${active ? "is-active" : "is-background"} ${contactMode ? "is-contact-mode" : ""}`} aria-label="Interactive live baseball field">
+    <div className="game-field-matchup">
+      <button type="button" onClick={() => batter && setSelectedPlayerId(batter.id)}><span>AB</span><strong>{batter?.name ?? "Batter"}</strong><small>{game.balls}-{game.strikes} count</small></button>
+      <div><span>{game.half} {game.inning}</span><strong>{game.outs} out{game.outs === 1 ? "" : "s"}</strong></div>
+      <button type="button" onClick={() => pitcher && setSelectedPlayerId(pitcher.id)}><span>P</span><strong>{pitcher?.name ?? "Pitcher"}</strong><small>{game.pitchNumberInPlateAppearance ? `Pitch ${game.pitchNumberInPlateAppearance}` : "Current pitcher"}</small></button>
+    </div>
+    <div className="game-field-command__body">
+      <div className="game-field-command__surface">
+        <BaseballField points={[]} activePoint={contactPoint} onSelect={contactMode ? onContactLocation : undefined} />
+        {GAME_DEFENSIVE_POSITIONS.map((position) => {
+          const player = players.find((item) => item.id === game.positions[position]);
+          if (!player) return null;
+          const [left, top] = GAME_LIVE_FIELD_POSITION_COORDINATES[position];
+          return <button key={position} type="button" data-position={position} className={`game-field-player ${selectedPlayerId === player.id ? "selected" : ""}`} style={{ left: `${left}%`, top: `${top}%` }} onClick={() => setSelectedPlayerId(player.id)} aria-label={`${position}: ${player.name}`}><b>{position}</b><span>{lastName(player.name)}</span></button>;
+        })}
+        <button type="button" className="game-field-pitch-ball" onClick={onPitch} aria-label={draftActive ? "Resume pitch scoring" : "Record the next pitch"}><img src="/game-tracking/baseball-center-control-v1.png" alt="" aria-hidden="true" /><strong>{draftActive ? "Resume" : "Pitch"}</strong></button>
+        <div className="game-field-command__runners">
+          <header><span>Runners</span><button type="button" onClick={onBases}>Bases</button></header>
+          <GameBaseDiamond game={game} players={players} selectedBase={selectedRunnerBase} onSelectBase={onSelectRunnerBase} onMoveRunner={onRunnerMove} />
+        </div>
+      </div>
+    </div>
+    <div className="game-field-quick-actions" aria-label="Quick pitch outcomes">
+      {quickOutcomes.map(({ outcome, label }) => <button key={outcome} type="button" className={outcome === "In Play" ? "is-impact" : ""} onClick={() => onOutcome(outcome)}><strong>{label}</strong><small>{outcome === "Called Strike" ? "Strike" : outcome === "Swinging Strike" ? "Miss" : outcome}</small></button>)}
+    </div>
+    {selectedPlayer && <div className="game-object-sheet" role="dialog" aria-label={`${selectedPlayer.name} actions`}>
+      <div><span>Field object</span><strong>{selectedPlayer.name}</strong><small>#{selectedPlayer.jerseyNumber ?? "--"} · {selectedPlayer.primaryPosition}</small></div>
+      <button type="button" onClick={() => { setSelectedPlayerId(undefined); onLineup(selectedPlayer.id); }}>Lineup & substitution</button>
+      <button type="button" onClick={() => { setSelectedPlayerId(undefined); onAnalytics(selectedPlayer.id); }}>Tendencies & charts</button>
+      <button type="button" className="text-button" onClick={() => setSelectedPlayerId(undefined)}>Cancel</button>
+    </div>}
+  </section>;
+}
+
+function GameOpponentWorkbench({ game, onReturnToField }: { game: Game; onReturnToField: () => void }) {
+  const [view, setView] = useState<"lineup" | "roster">("lineup");
+  return <section className="panel game-opponent-workbench" aria-label="Opponent game information">
+    <div className="game-opponent-tabs" role="tablist" aria-label="Opponent view"><button type="button" role="tab" aria-selected={view === "lineup"} className={view === "lineup" ? "active" : ""} onClick={() => setView("lineup")}>Lineup</button><button type="button" role="tab" aria-selected={view === "roster"} className={view === "roster" ? "active" : ""} onClick={() => setView("roster")}>Roster</button></div>
+    <div className="game-panel-heading"><div><span>{game.opponent}</span><h2>{view === "lineup" ? "Opponent game actors" : "Opponent roster"}</h2></div><small>Separate from Our Team</small></div>
+    {view === "lineup" ? <div className="game-opponent-actors"><article><span>Batting order</span><strong>Opponent lineup not assigned</strong><small>No local-team player is substituted as opponent data.</small></article><article><span>Defense</span><strong>Opponent pitcher not assigned</strong><small>Assign this after the independent opponent roster is added.</small></article></div> : <div className="game-opponent-empty"><strong>Opponent roster is independent</strong><p>This game does not yet contain a saved opponent roster. Additions here will be enabled with the side-aware opponent data model rather than mixing opponent players into Our Team.</p></div>}
+    <button className="primary-button" type="button" onClick={onReturnToField}>Return to live field</button>
+  </section>;
+}
+
+function buildInitialGamePositions(lineup: ID[], pitcherId?: ID): Partial<Record<Position, ID>> {
+  const positions: Partial<Record<Position, ID>> = {};
+  if (pitcherId) positions.P = pitcherId;
+  const fielders = lineup.filter((playerId) => playerId !== pitcherId).slice(0, 8);
+  GAME_DEFENSIVE_POSITIONS.filter((position) => position !== "P").forEach((position, index) => {
+    if (fielders[index]) positions[position] = fielders[index];
+  });
+  return positions;
+}
+
+function GamePersonnelWorkbench({ game, players, focusedPlayerId, onSave }: { game: Game; players: Player[]; focusedPlayerId?: ID; onSave: (lineup: ID[], positions: Partial<Record<Position, ID>>, currentPitcherId?: ID, note?: string) => void }) {
+  const eligible = players.filter((player) => !player.archived && player.rosterStatus !== "Cut");
+  const [lineup, setLineup] = useState<ID[]>(game.lineup);
+  const [positions, setPositions] = useState<Partial<Record<Position, ID>>>({ ...game.positions });
+  const [selectedPlayerId, setSelectedPlayerId] = useState<ID | undefined>(focusedPlayerId);
+  const [saved, setSaved] = useState(false);
+  const bench = eligible.filter((player) => !lineup.includes(player.id));
+
+  function moveLineup(index: number, delta: number) {
+    const target = index + delta;
+    if (target < 0 || target >= lineup.length) return;
+    setLineup((current) => {
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+    setSaved(false);
+  }
+
+  function assignPosition(position: Position, playerId?: ID) {
+    setPositions((current) => {
+      const next = { ...current };
+      for (const key of GAME_DEFENSIVE_POSITIONS) if (playerId && next[key] === playerId) delete next[key];
+      if (playerId) next[position] = playerId;
+      else delete next[position];
+      return next;
+    });
+    setSaved(false);
+  }
+
+  function clearPlayerPosition(playerId: ID) {
+    setPositions((current) => Object.fromEntries(Object.entries(current).filter(([, id]) => id !== playerId)) as Partial<Record<Position, ID>>);
+    setSaved(false);
+  }
+
+  function replaceLineup(index: number, playerId: ID) {
+    const outgoing = lineup[index];
+    setLineup((current) => current.map((id, row) => row === index ? playerId : id));
+    setPositions((current) => Object.fromEntries(Object.entries(current).map(([position, id]) => [position, id === outgoing ? playerId : id])) as Partial<Record<Position, ID>>);
+    setSelectedPlayerId(playerId);
+    setSaved(false);
+  }
+
+  return <section className="game-personnel-workbench" aria-label="Lineup and defensive field editor">
+    <section className="panel game-personnel-field">
+      <div className="game-panel-heading"><div><span>Live defensive alignment</span><h2>Tap a player, then a position</h2></div><small>Changes stay in draft until saved</small></div>
+      <div className="game-field-editor">
+        <BaseballField points={[]} />
+        {GAME_DEFENSIVE_POSITIONS.map((position) => {
+          const player = eligible.find((item) => item.id === positions[position]);
+          const [left, top] = GAME_FIELD_POSITION_COORDINATES[position];
+          return <button key={position} type="button" className={selectedPlayerId && player?.id === selectedPlayerId ? "selected" : ""} style={{ left: `${left}%`, top: `${top}%` }} onClick={() => selectedPlayerId ? assignPosition(position, selectedPlayerId) : setSelectedPlayerId(player?.id)} aria-label={`${position}: ${player?.name ?? "empty"}`}><b>{position}</b><span>{player ? lastName(player.name) : "Empty"}</span></button>;
+        })}
+      </div>
+      <div className="game-field-selection"><span>Assigning</span><strong>{eligible.find((player) => player.id === selectedPlayerId)?.name ?? "Select a lineup player"}</strong><button type="button" className="text-button" onClick={() => setSelectedPlayerId(undefined)}>Clear selection</button></div>
+    </section>
+    <section className="panel game-lineup-editor">
+      <div className="game-panel-heading"><div><span>Our team</span><h2>Batting Order</h2></div><small>{lineup.length} active · {bench.length} bench</small></div>
+      <div className="game-lineup-rows">
+        {lineup.map((playerId, index) => {
+          const player = eligible.find((item) => item.id === playerId);
+          const position = GAME_DEFENSIVE_POSITIONS.find((item) => positions[item] === playerId);
+          return <article key={`${playerId}-${index}`} className={selectedPlayerId === playerId ? "selected" : ""}>
+            <b>{index + 1}</b><button type="button" className="game-lineup-player-select" onClick={() => setSelectedPlayerId(playerId)}><strong>{player?.name ?? "Unknown player"}</strong><small>#{player?.jerseyNumber ?? "--"} · {position ?? "Bench / DH"}</small></button>
+            <select value={position ?? ""} onClick={(event) => event.stopPropagation()} onChange={(event) => event.target.value ? assignPosition(event.target.value as Position, playerId) : clearPlayerPosition(playerId)} aria-label={`${player?.name ?? "Player"} field position`}><option value="">DH / none</option>{GAME_DEFENSIVE_POSITIONS.map((item) => <option key={item} value={item}>{item}</option>)}</select>
+            <div><button type="button" disabled={index === 0} onClick={(event) => { event.stopPropagation(); moveLineup(index, -1); }} aria-label={`Move ${player?.name ?? "player"} up`}><ChevronUp size={14} /></button><button type="button" disabled={index === lineup.length - 1} onClick={(event) => { event.stopPropagation(); moveLineup(index, 1); }} aria-label={`Move ${player?.name ?? "player"} down`}><ChevronDown size={14} /></button></div>
+            {bench.length > 0 && <select className="game-sub-select" value="" onClick={(event) => event.stopPropagation()} onChange={(event) => event.target.value && replaceLineup(index, event.target.value)} aria-label={`Substitute for ${player?.name ?? "player"}`}><option value="">Substitute…</option>{bench.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>}
+          </article>;
+        })}
+      </div>
+      <div className="game-lineup-save"><span>{saved ? "Saved to the official game ledger." : "Review the order and all nine field positions."}</span><button className="primary-button" type="button" onClick={() => { onSave(lineup, positions, positions.P, "Lineup and defensive alignment updated"); setSaved(true); }}><Save size={15} />Save lineup & field</button></div>
+    </section>
+  </section>;
+}
+
+function GamePlaysWorkbench({ events, players, onUndo, canUndo }: { events: GameEvent[]; players: Player[]; onUndo: () => void; canUndo: boolean }) {
+  return <section className="panel game-plays-workbench">
+    <div className="game-panel-heading"><div><span>Official event ledger</span><h2>Plays & Corrections</h2></div><button className="secondary-button" type="button" onClick={onUndo} disabled={!canUndo}><Undo2 size={15} />Undo latest</button></div>
+    <div className="game-play-ledger">{events.length ? events.map((event) => <article key={event.id} className={event.recordStatus === "voided" ? "voided" : ""}><b>{event.half[0]}{event.inning}</b><span><strong>{gameEventLabel(event, players)}</strong><small>{gameEventMeta(event)}</small>{event.runnerMovements?.map((movement) => <em key={`${movement.runnerId}-${movement.from}-${movement.to}`}>{players.find((player) => player.id === movement.runnerId)?.name ?? "Runner"}: {movement.from} → {movement.to} · {movement.reason}</em>)}</span><i>{event.recordStatus ?? "confirmed"}</i></article>) : <CompactEmpty title="Record the first pitch to start the play ledger" />}</div>
+  </section>;
+}
+
+function GameStateLights({ label, active, total, tone }: { label: string; active: number; total: number; tone: "ball" | "strike" | "out" }) {
+  return (
+    <span className={`game-state-lights game-state-lights--${tone}`}>
+      <strong>{label}</strong>
+      {Array.from({ length: total }, (_, index) => <i key={index} className={index < active ? "active" : ""} />)}
+    </span>
+  );
+}
+
+function GameLiveIntelligence({ game, events, allEvents, players, focusedPlayerId }: { game: Game; events: GameEvent[]; allEvents: GameEvent[]; players: Player[]; focusedPlayerId?: ID }) {
+  const [view, setView] = useState<"overview" | "advanced" | "locations" | "spray">("overview");
+  const [scope, setScope] = useState<"game" | "season">("game");
+  const [pitcherFilter, setPitcherFilter] = useState<ID | "all">(focusedPlayerId && focusedPlayerId === game.currentPitcherId ? focusedPlayerId : game.currentPitcherId ?? "all");
+  const [batterFilter, setBatterFilter] = useState<ID | "all">(focusedPlayerId && focusedPlayerId !== game.currentPitcherId ? focusedPlayerId : "all");
+  const [sideFilter, setSideFilter] = useState<"all" | "R" | "L" | "S">("all");
+  const [bucketFilter, setBucketFilter] = useState("all");
+  const [pitchTypeFilter, setPitchTypeFilter] = useState<PitchType | "all">("all");
+  const [outsFilter, setOutsFilter] = useState("all");
+  const normalizedAll = useMemo(() => normalizeTendexPitches(allEvents, players), [allEvents, players]);
+  const normalizedGame = useMemo(() => normalizeTendexPitches(events, players), [events, players]);
+  const scoped = scope === "game" ? normalizedGame : normalizedAll;
+  const pitches = scoped.filter((pitch) => {
+    if (pitcherFilter !== "all" && pitch.pitcherId !== pitcherFilter) return false;
+    if (batterFilter !== "all" && pitch.batterId !== batterFilter) return false;
+    if (sideFilter !== "all" && pitch.batterSide !== sideFilter) return false;
+    if (bucketFilter !== "all" && pitch.countBucket !== bucketFilter) return false;
+    if (pitchTypeFilter !== "all" && pitch.type !== pitchTypeFilter) return false;
+    if (outsFilter !== "all" && pitch.outs !== Number(outsFilter)) return false;
+    return true;
+  });
+  const metrics = buildTendexMetrics(pitches);
+  const pitcher = players.find((player) => player.id === game.currentPitcherId);
+  const batter = players.find((player) => player.id === game.currentBatterId);
+  const currentMatchup = normalizedGame.filter((pitch) => pitch.pitcherId === game.currentPitcherId && pitch.batterId === game.currentBatterId);
+  const currentPlateAppearanceId = currentMatchup.at(-1)?.event.plateAppearanceId;
+  const currentSequence = currentPlateAppearanceId ? currentMatchup.filter((pitch) => pitch.event.plateAppearanceId === currentPlateAppearanceId) : [];
+  const pitcherOptions = [...new Set(normalizedAll.map((pitch) => pitch.pitcherId).filter((id): id is ID => Boolean(id)))];
+  const batterOptions = [...new Set(normalizedAll.map((pitch) => pitch.batterId).filter((id): id is ID => Boolean(id)))];
+  const latestEvent = events.find((event) => (event.recordStatus ?? "confirmed") === "confirmed");
+  const baseRunners = (["first", "second", "third"] as GameBase[]).map((base) => ({ base, player: players.find((player) => player.id === game.runners[base]) }));
+  const confidence = pitches.length < 10 ? "Exploratory" : pitches.length < 25 ? "Limited" : "Directional";
+  const maxMix = Math.max(1, ...metrics.mix.map((row) => row.count));
+  const contactTypes: GameContactType[] = ["Ground Ball", "Line Drive", "Fly Ball", "Pop Up", "Bunt"];
+  const locatedPitchPoints = pitches.flatMap((pitch) => {
+    const point = pitch.event.location;
+    if (!isZonePoint(point)) return [];
+    const type = pitch.type ?? "Other";
+    return [{ ...point, category: PITCH_TYPE_LABELS[type], color: PITCH_TYPE_COLOR_VARS[type] }];
+  });
+  const pitchTypeLegend = PITCH_TYPES
+    .filter((type) => pitches.some((pitch) => (pitch.type ?? "Other") === type && isZonePoint(pitch.event.location)))
+    .map((type) => ({ label: PITCH_TYPE_LABELS[type], color: PITCH_TYPE_COLOR_VARS[type] }));
+  const sprayChartPoints = pitches.flatMap((pitch) => {
+    const point = pitch.event.fieldLocation;
+    if (!isZonePoint(point) || !pitch.event.contactType) return [];
+    const contact = pitch.event.contactType;
+    return [{ ...point, category: contact, color: GAME_CONTACT_TYPE_COLOR_VARS[contact] }];
+  });
+  const contactLegend = contactTypes
+    .filter((contact) => pitches.some((pitch) => pitch.event.contactType === contact && isZonePoint(pitch.event.fieldLocation)))
+    .map((contact) => ({ label: contact, color: GAME_CONTACT_TYPE_COLOR_VARS[contact] }));
+  const contactResults = contactTypes.map((contact) => {
+    const rows = pitches.filter((pitch) => pitch.event.contactType === contact);
+    const hits = rows.filter((pitch) => ["Single", "Double", "Triple", "Home Run"].includes(pitch.event.ballInPlayOutcome ?? "")).length;
+    return { contact, total: rows.length, hits, hitRate: rows.length ? Math.round((hits / rows.length) * 100) : 0 };
+  });
+  const trackedContacts = contactResults.reduce((sum, row) => sum + row.total, 0);
+
+  const metricCards = [
+    { label: "Strike", metric: metrics.quality.strike, detail: "All strikes / pitches" },
+    { label: "CSW", metric: metrics.quality.csw, detail: "Called + swinging strikes" },
+    { label: "Whiff", metric: metrics.quality.whiff, detail: "Whiffs / swings" },
+    { label: "Zone", metric: metrics.quality.zone, detail: "In-zone / located" },
+    { label: "Chase", metric: metrics.quality.chase, detail: "Swings / out-of-zone" },
+    { label: "Put Away", metric: metrics.quality.putAway, detail: "2-strike K / 2-strike pitches" },
+    { label: "First-pitch strike", metric: metrics.quality.firstPitchStrike, detail: "0-0 strikes / 0-0 pitches" },
+    { label: "In Play", metric: metrics.quality.inPlay, detail: "Balls in play / pitches" },
+  ];
+
+  return <section className="game-live-shell game-tendex-shell" aria-label="Tendex live intelligence">
+    <div className="game-live-status panel" aria-live="polite">
+      <div className="game-live-situation"><strong>{game.half} {game.inning} · {game.outs} out{game.outs === 1 ? "" : "s"}</strong><small>{game.balls}-{game.strikes} count · {batter?.name ?? "Batter"} vs {pitcher?.name ?? "Pitcher"}</small></div>
+      <div className="game-live-bases" aria-label={baseLine(game)}>{baseRunners.map(({ base, player }) => <span key={base} className={player ? "occupied" : ""}><b>{baseShortLabel(base)}</b><small>{player ? lastName(player.name) : "Empty"}</small></span>)}</div>
+      <div className="game-live-last-play"><span>Latest official event</span><strong>{latestEvent ? gameEventLabel(latestEvent, players) : "Waiting for the first pitch"}</strong><small>{latestEvent ? gameEventMeta(latestEvent) : "The feed updates after every confirmed event."}</small></div>
+    </div>
+
+    <div className="panel game-tendex-command">
+      <div className="game-tendex-tabs" role="tablist" aria-label="Tendex analysis view">{(["overview", "advanced", "locations", "spray"] as const).map((item) => <button key={item} type="button" role="tab" aria-selected={view === item} className={view === item ? "active" : ""} onClick={() => setView(item)}>{item === "advanced" ? "Tendencies" : item[0].toUpperCase() + item.slice(1)}</button>)}</div>
+      <div className="game-tendex-scope"><button type="button" className={scope === "game" ? "active" : ""} onClick={() => setScope("game")}>This Game</button><button type="button" className={scope === "season" ? "active" : ""} onClick={() => setScope("season")}>Season</button></div>
+      <div className="game-live-filters game-live-filters--tendex">
+        <label><span>Pitcher</span><select value={pitcherFilter} onChange={(event) => setPitcherFilter(event.target.value)}><option value="all">All pitchers</option>{pitcherOptions.map((id) => <option key={id} value={id}>{players.find((player) => player.id === id)?.name ?? id}</option>)}</select></label>
+        <label><span>Batter</span><select value={batterFilter} onChange={(event) => setBatterFilter(event.target.value)}><option value="all">All batters</option>{batterOptions.map((id) => <option key={id} value={id}>{players.find((player) => player.id === id)?.name ?? id}</option>)}</select></label>
+        <label><span>Bats</span><select value={sideFilter} onChange={(event) => setSideFilter(event.target.value as typeof sideFilter)}><option value="all">Both sides</option><option value="R">Right</option><option value="L">Left</option><option value="S">Switch</option></select></label>
+        <label><span>Count state</span><select value={bucketFilter} onChange={(event) => setBucketFilter(event.target.value)}><option value="all">All counts</option>{TENDEX_COUNT_BUCKETS.map((bucket) => <option key={bucket.key} value={bucket.key}>{bucket.label}</option>)}</select></label>
+        <label><span>Pitch</span><select value={pitchTypeFilter} onChange={(event) => setPitchTypeFilter(event.target.value as PitchType | "all")}><option value="all">All pitches</option>{TENDEX_PITCH_TYPES.map((type) => <option key={type} value={type}>{PITCH_TYPE_LABELS[type]}</option>)}</select></label>
+        <label><span>Outs</span><select value={outsFilter} onChange={(event) => setOutsFilter(event.target.value)}><option value="all">All outs</option><option value="0">0 outs</option><option value="1">1 out</option><option value="2">2 outs</option></select></label>
+      </div>
+      <div className="game-tendex-filter-summary"><strong>{scope === "game" ? "This game" : "Season"} · n={pitches.length}</strong><span>{confidence} sample</span><button type="button" className="text-button" onClick={() => { setPitcherFilter(game.currentPitcherId ?? "all"); setBatterFilter("all"); setSideFilter("all"); setBucketFilter("all"); setPitchTypeFilter("all"); setOutsFilter("all"); }}>Reset filters</button></div>
+    </div>
+
+    {view === "overview" && <div className="game-tendex-overview">
+      <section className="panel game-live-matchup"><div className="game-panel-heading"><div><span>Current matchup · batter vs pitcher</span><h2>{batter?.name ?? "Batter"} vs {pitcher?.name ?? "Pitcher"}</h2></div><strong className="game-count-number">{game.balls}-{game.strikes}</strong></div><div className="game-live-sequence"><span>Current PA · oldest to newest</span><div>{currentSequence.length ? currentSequence.map((pitch, index) => <i key={pitch.event.id} className={index === currentSequence.length - 1 ? "latest" : ""}><span>#{index + 1} · {pitch.count}</span><strong>{pitch.type ? PITCH_TYPE_LABELS[pitch.type] : "--"}</strong><small>{pitch.event.velocity ? `${pitch.event.velocity} mph · ` : ""}{pitch.result}</small></i>) : <small>No pitch recorded in this matchup yet.</small>}</div></div></section>
+      <section className="panel game-tendex-quality"><div className="game-panel-heading compact"><div><span>Pitch result quality</span><h2>Decision Metrics</h2></div><small>Every rate shows n</small></div><div className="game-tendex-metric-grid">{metricCards.map((item) => <div key={item.label}><span>{item.label}</span><strong>{item.metric.denominator ? `${item.metric.percent}%` : "--"}</strong><small>{item.metric.numerator}/{item.metric.denominator} · {item.detail}</small></div>)}</div></section>
+      <section className="panel game-live-tendencies"><div className="game-panel-heading compact"><div><span>Usage</span><h2>Overall Pitch Mix</h2></div><small>{metrics.typed}/{metrics.total} typed</small></div><div className="game-pitch-mix-list">{metrics.mix.length ? metrics.mix.map((row) => <div key={row.type}><span>{PITCH_TYPE_LABELS[row.type]}</span><i><b style={{ width: `${(row.count / maxMix) * 100}%` }} /></i><strong>{row.percent}% ({row.count})</strong></div>) : <CompactEmpty title="No typed pitches in this scope" />}</div></section>
+    </div>}
+
+    {view === "advanced" && <div className="game-tendex-analysis-grid">
+      <TendexSplitPanel title="Count Buckets" eyebrow="Pitch mix by situation" groups={metrics.countBuckets.map((group) => ({ label: group.label, meta: group.counts.join(", "), sample: group.pitches.length, rows: group.rows }))} />
+      <TendexSplitPanel title="Batter Handedness" eyebrow="Usage by side" groups={metrics.byBatterSide.map((group) => ({ label: `Bats ${group.side}`, meta: "", sample: group.pitches.length, rows: group.rows }))} />
+      <TendexSplitPanel title="Out State" eyebrow="Usage by outs" groups={metrics.byOuts.map((group) => ({ label: `${group.outs} out${group.outs === 1 ? "" : "s"}`, meta: "", sample: group.pitches.length, rows: group.rows }))} />
+      <TendexSplitPanel title="Sequence Tendencies" eyebrow="What follows what" groups={metrics.sequences.map((group) => ({ label: group.previousType ? `After ${PITCH_TYPE_LABELS[group.previousType]}` : "First pitch of PA", meta: "", sample: group.pitches.length, rows: group.rows }))} />
+      <section className="panel game-tendex-outcomes"><div className="game-panel-heading compact"><div><span>Results</span><h2>Outcome by Pitch Type</h2></div><small>Raw counts, no hidden denominator</small></div><div className="game-tendex-outcome-table"><div><span>Pitch</span><span>N</span><span>Strike</span><span>Whiff</span><span>In play</span><span>Hits</span><span>K</span></div>{metrics.outcomeByType.map((row) => <div key={row.type}><strong>{PITCH_TYPE_LABELS[row.type]}</strong><span>{row.total}</span><span>{row.strikes}</span><span>{row.whiffs}</span><span>{row.inPlay}</span><span>{row.hits}</span><span>{row.strikeouts}</span></div>)}</div></section>
+    </div>}
+
+    {view === "locations" && <div className="game-tendex-location-layout"><section className="panel game-live-zone"><div className="game-panel-heading compact"><div><span>Actual locations · pitcher view</span><h2>Location Map</h2></div><small>{metrics.located}/{metrics.total} tracked</small></div><StrikeZone points={locatedPitchPoints} activePoint={currentSequence.at(-1)?.event.location} /><GameChartLegend label="Pitch type colors" items={pitchTypeLegend} /></section><section className="panel game-live-zone"><div className="game-panel-heading compact"><div><span>Density by pitch type</span><h2>Zone Heatmap</h2></div><small>Filtered evidence</small></div><Heatmap points={locatedPitchPoints} /><GameChartLegend label="Pitch type heat colors" items={pitchTypeLegend} /><p className="game-sample-note">Every colored mark comes from a recorded pitch in the selected scope and filters.</p></section></div>}
+
+    {view === "spray" && <div className="game-tendex-location-layout"><section className="panel game-live-zone"><div className="game-panel-heading compact"><div><span>Tracked balls in play · colored by contact</span><h2>Spray Chart</h2></div><small>{sprayChartPoints.length} locations</small></div><BaseballField points={sprayChartPoints} /><GameChartLegend label="Contact type colors" items={contactLegend} /></section><section className="panel game-tendex-quality game-contact-results"><div className="game-panel-heading compact"><div><span>Contact evidence</span><h2>Batted Ball Results</h2></div><small>n={trackedContacts} tracked</small></div><div className="game-contact-result-table" role="table" aria-label="Batted ball results by contact type"><div className="game-contact-result-table__header" role="row"><span role="columnheader">Contact</span><span role="columnheader">BIP</span><span role="columnheader">Hits</span><span role="columnheader">H%</span></div>{contactResults.map((row) => <div className="game-contact-result-row" role="row" key={row.contact} style={{ "--category-color": GAME_CONTACT_TYPE_COLOR_VARS[row.contact] } as React.CSSProperties}><span className="game-contact-result-row__type" role="cell"><i aria-hidden="true" /><strong>{row.contact}</strong><small aria-hidden="true"><b style={{ width: `${trackedContacts ? (row.total / trackedContacts) * 100 : 0}%` }} /></small></span><strong role="cell">{row.total}</strong><span role="cell">{row.hits}</span><span role="cell">{row.total ? `${row.hitRate}%` : "—"}</span></div>)}</div><p className="game-sample-note">Filtered contact distribution and hit conversion. Colors match the spray chart above.</p></section></div>}
+  </section>;
+}
+
+function GameChartLegend({ label, items }: { label: string; items: Array<{ label: string; color: string }> }) {
+  if (!items.length) return null;
+  return <div className="game-chart-legend" aria-label={label}>{items.map((item) => <span key={item.label}><i style={{ background: item.color }} aria-hidden="true" />{item.label}</span>)}</div>;
+}
+
+function TendexSplitPanel({ title, eyebrow, groups }: { title: string; eyebrow: string; groups: Array<{ label: string; meta: string; sample: number; rows: Array<{ type: PitchType; count: number; percent: number }> }> }) {
+  const populated = groups.filter((group) => group.sample > 0);
+  return <section className="panel game-tendex-split-panel"><div className="game-panel-heading compact"><div><span>{eyebrow}</span><h2>{title}</h2></div><small>{populated.length} populated splits</small></div><div>{populated.length ? populated.map((group) => <article key={group.label}><header><strong>{group.label}</strong><small>{group.meta}{group.meta ? " · " : ""}n={group.sample}</small></header><div>{group.rows.slice(0, 4).map((row) => <span key={row.type}><b>{PITCH_TYPE_LABELS[row.type]}</b><small>{row.percent}% ({row.count})</small></span>)}</div></article>) : <CompactEmpty title="No pitches for this split" />}</div></section>;
+}
+
+function baseShortLabel(base: GameBase) {
+  return base === "first" ? "1B" : base === "second" ? "2B" : "3B";
+}
+
+function GameBaseDiamond({
+  game,
+  players,
+  selectedBase,
+  onSelectBase,
+  onMoveRunner,
+}: {
+  game: Game;
+  players: Player[];
+  selectedBase?: GameBase;
+  onSelectBase: (base: GameBase | undefined) => void;
+  onMoveRunner: (move: { from: GameBase; to: GameBase | "home"; reason?: GameRunnerMovement["reason"] }) => void;
+}) {
+  const [draggingBase, setDraggingBase] = useState<GameBase>();
+  const [pendingMove, setPendingMove] = useState<{ from: GameBase; to: GameBase | "home" }>();
+  const [pendingHomeReason, setPendingHomeReason] = useState<GameRunnerMovement["reason"]>();
+  const bases: Array<{ base: GameBase; label: string }> = [
+    { base: "second", label: "2B" },
+    { base: "third", label: "3B" },
+    { base: "first", label: "1B" },
+  ];
+  function moveRunner(from: GameBase | undefined, to: GameBase | "home") {
+    if (!from || from === to || (to !== "home" && game.runners[to])) return;
+    setPendingMove({ from, to });
+    setPendingHomeReason(undefined);
+    setDraggingBase(undefined);
+  }
+  return (
+    <div className={`game-base-diamond ${draggingBase ? "is-dragging" : ""}`}>
+      <span className="game-base-diamond__line" aria-hidden="true" />
+      {bases.map(({ base, label }) => {
+        const runner = players.find((player) => player.id === game.runners[base]);
+        return (
+          <button
+            key={base}
+            type="button"
+            className={`${runner ? "occupied" : ""} ${selectedBase === base ? "selected" : ""}`}
+            data-base={base}
+            draggable={Boolean(runner)}
+            onDragStart={(event) => {
+              if (!runner) return;
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", base);
+              setDraggingBase(base);
+              onSelectBase(base);
+            }}
+            onDragEnd={() => setDraggingBase(undefined)}
+            onDragOver={(event) => { if (draggingBase && !runner) event.preventDefault(); }}
+            onDrop={(event) => { event.preventDefault(); moveRunner(draggingBase ?? event.dataTransfer.getData("text/plain") as GameBase, base); }}
+            onClick={() => runner ? onSelectBase(selectedBase === base ? undefined : base) : moveRunner(selectedBase, base)}
+            aria-label={runner ? `${label}, ${runner.name}. Drag to another base or tap to select.` : `${label}, empty${selectedBase ? ". Tap to move selected runner here." : ""}`}
+          >
+            <span>{label}</span>
+            <strong>{runner ? lastName(runner.name) : "Empty"}</strong>
+          </button>
+        );
+      })}
+      <div
+        className="game-home-plate"
+        role="button"
+        tabIndex={selectedBase ? 0 : -1}
+        aria-label={selectedBase ? "Move selected runner home" : "Home plate drop zone"}
+        onDragOver={(event) => { if (draggingBase) event.preventDefault(); }}
+        onDrop={(event) => { event.preventDefault(); moveRunner(draggingBase ?? event.dataTransfer.getData("text/plain") as GameBase, "home"); }}
+        onClick={() => moveRunner(selectedBase, "home")}
+        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") moveRunner(selectedBase, "home"); }}
+      ><i aria-hidden="true" /><span>HOME</span></div>
+      <small className="game-base-diamond__hint">Drag a runner to a base or home</small>
+      {pendingMove && <div className="game-runner-reason" role="dialog" aria-label={pendingMove.to === "home" ? "Why did the runner score?" : "How did the runner advance?"}>
+        <strong>{pendingMove.to === "home" ? "Why did the runner score?" : `How did the runner reach ${baseShortLabel(pendingMove.to)}?`}</strong>
+        <small>The reason is attached to the official play.</small>
+        <div>{(["On hit", "On throw", "On error", "Wild pitch", "Passed ball", "Stolen base", "Defensive indifference", "Tag up", "Other"] as GameRunnerMovement["reason"][]).map((reason) => <button key={reason} type="button" className={pendingHomeReason === reason ? "active" : ""} onClick={() => setPendingHomeReason(reason)}>{reason}</button>)}</div>
+        <div className="game-runner-reason__actions"><button type="button" className="text-button" onClick={() => { setPendingMove(undefined); setPendingHomeReason(undefined); }}>Cancel</button><button type="button" className="primary-button" disabled={!pendingHomeReason} onClick={() => { if (!pendingHomeReason) return; onMoveRunner({ from: pendingMove.from, to: pendingMove.to, reason: pendingHomeReason }); setPendingMove(undefined); setPendingHomeReason(undefined); onSelectBase(undefined); }}>{pendingMove.to === "home" ? "Confirm run" : "Confirm advance"}</button></div>
+      </div>}
+    </div>
+  );
+}
+
+function gameEventLabel(event: GameEvent, players: Player[]) {
+  const batter = players.find((player) => player.id === event.batterId);
+  const runner = players.find((player) => player.id === event.runnerId);
+  if (event.eventKind === "correction") return `Correction: ${event.situations[0] ?? "prior event voided"}`;
+  if (event.eventKind === "runner") return `${runner?.name ?? "Runner"}: ${event.runnerAction ?? "Runner update"}`;
+  if (event.eventKind === "substitution") {
+    const incoming = players.find((player) => player.id === event.substitution?.incomingPlayerId);
+    return event.substitution?.position ? `${incoming?.name ?? "Personnel"} to ${event.substitution.position}` : "Lineup updated";
+  }
+  if (event.ballInPlayOutcome) return `${batter?.name ?? "Batter"}: ${event.ballInPlayOutcome}`;
+  return `${event.pitchType ? `${PITCH_TYPE_LABELS[event.pitchType]} · ` : ""}${event.pitchOutcome ?? "Game update"}`;
+}
+
+function gameEventMeta(event: GameEvent) {
+  const parts = [
+    event.countBefore ? `${event.countBefore.balls}-${event.countBefore.strikes}` : undefined,
+    event.velocity ? `${event.velocity} mph` : undefined,
+    event.location ? `zone ${zoneLabel(event.location)}` : undefined,
+    event.outsAfter !== event.outsBefore ? `${event.outsAfter} out${event.outsAfter === 1 ? "" : "s"}` : undefined,
+  ].filter(Boolean);
+  if (event.recordStatus === "voided") parts.unshift("Voided");
+  return parts.join(" · ") || event.scoringNote || event.situations[0] || "Recorded";
 }
 
 function AnalyticsView({
@@ -20240,21 +21337,22 @@ function StartGameModal({ data, onClose, onCreate }: { data: AppData; onClose: (
         metrolinaScore: 0,
         opponentScore: 0,
         inning: 1,
-        half: form.homeAway === "Home" ? "Top" : "Bottom",
+        half: "Top",
         outs: 0,
         balls: 0,
         strikes: 0,
         runners: {},
         lineup,
-        positions: {},
+        positions: buildInitialGamePositions(lineup, form.startingPitcherId),
         startingPitcherId: form.startingPitcherId,
         currentPitcherId: form.startingPitcherId,
         currentBatterId: lineup[0],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      })}>
+      })} disabled={lineup.length !== 9 || !form.opponent.trim()}>
         Open Scoring Console
       </button>
+      {lineup.length !== 9 && <p className="form-help">Choose exactly nine batters before opening the scoring console.</p>}
     </ModalFrame>
   );
 }
@@ -20526,6 +21624,8 @@ function ScheduleEventModal({
     }
     if (eventType === "Game") {
       const opponent = form.opponent.trim() || "TBD";
+      const startingPitcherId = data.players.find((player) => player.isPitcher)?.id ?? starters[0];
+      const openingBatterId = starters.find((playerId) => playerId !== startingPitcherId) ?? starters[0];
       onCreateGame({
         id: createId("game"),
         date: form.date,
@@ -20537,16 +21637,16 @@ function ScheduleEventModal({
         metrolinaScore: 0,
         opponentScore: 0,
         inning: 1,
-        half: form.homeAway === "Home" ? "Top" : "Bottom",
+        half: "Top",
         outs: 0,
         balls: 0,
         strikes: 0,
         runners: {},
         lineup: starters,
-        positions: {},
-        startingPitcherId: data.players.find((player) => player.isPitcher)?.id ?? starters[0],
-        currentPitcherId: data.players.find((player) => player.isPitcher)?.id ?? starters[0],
-        currentBatterId: starters[0],
+        positions: buildInitialGamePositions(starters, startingPitcherId),
+        startingPitcherId,
+        currentPitcherId: startingPitcherId,
+        currentBatterId: openingBatterId,
         createdAt: now,
         updatedAt: now,
       });
@@ -22448,16 +23548,6 @@ function PracticeSummaryStrip({ items }: { items: Array<{ label: string; value: 
         </span>
       ))}
     </div>
-  );
-}
-
-function PlayerGameChip({ label, player, onOpen }: { label: string; player?: Player; onOpen: (playerId: ID) => void }) {
-  return (
-    <button type="button" className="player-game-chip" onClick={() => player && onOpen(player.id)} disabled={!player}>
-      <span>{label}</span>
-      <strong>{player ? `#${player.jerseyNumber} ${player.name}` : "Not set"}</strong>
-      {player && <small>{positionLine(player)}</small>}
-    </button>
   );
 }
 
@@ -24983,67 +26073,6 @@ function withContributorProfile(ids: ID[] | undefined, profileId?: ID) {
   return [...new Set([...(ids ?? []), profileId])];
 }
 
-function applyGameOutcome(game: Game, outcome: GamePitchOutcome, ballInPlayOutcome?: GameBallInPlayOutcome): Game {
-  let balls = game.balls;
-  let strikes = game.strikes;
-  let outs = game.outs;
-  let metrolinaScore = game.metrolinaScore;
-  let opponentScore = game.opponentScore;
-  let runners = { ...game.runners };
-
-  if (outcome === "Ball") balls += 1;
-  if (outcome === "Called Strike" || outcome === "Swinging Strike") strikes += 1;
-  if (outcome === "Foul" && strikes < 2) strikes += 1;
-
-  const isStrikeout = strikes >= 3;
-  const isWalk = balls >= 4;
-  const isOut = ballInPlayOutcome && ["Ground Out", "Fly Out", "Line Out", "Pop Out", "Sac Fly", "Sac Bunt"].includes(ballInPlayOutcome);
-  const isHit = ballInPlayOutcome && ["Single", "Double", "Triple", "Home Run", "Error"].includes(ballInPlayOutcome);
-
-  if (isStrikeout || isOut) outs += 1;
-  if (isWalk) runners.first = game.currentBatterId;
-  if (isHit) {
-    const runnerCount = Object.values(runners).filter(Boolean).length;
-    const runs = ballInPlayOutcome === "Home Run" ? runnerCount + 1 : ballInPlayOutcome === "Triple" ? Math.min(3, runnerCount + 1) : ballInPlayOutcome === "Double" ? Math.min(2, runnerCount + 1) : runnerCount >= 2 ? 1 : 0;
-    if (game.half === "Bottom") metrolinaScore += runs;
-    else opponentScore += runs;
-    runners = ballInPlayOutcome === "Home Run" ? {} : { first: game.currentBatterId };
-  }
-
-  if (outs >= 3) {
-    const nextHalf = game.half === "Top" ? "Bottom" : "Top";
-    return {
-      ...game,
-      half: nextHalf,
-      inning: game.half === "Bottom" ? game.inning + 1 : game.inning,
-      outs: 0,
-      balls: 0,
-      strikes: 0,
-      runners: {},
-      metrolinaScore,
-      opponentScore,
-      currentBatterId: nextBatter(game),
-    };
-  }
-
-  return {
-    ...game,
-    outs,
-    balls: isStrikeout || isWalk || ballInPlayOutcome ? 0 : balls,
-    strikes: isStrikeout || isWalk || ballInPlayOutcome ? 0 : strikes,
-    runners,
-    metrolinaScore,
-    opponentScore,
-    currentBatterId: isStrikeout || isWalk || ballInPlayOutcome ? nextBatter(game) : game.currentBatterId,
-  };
-}
-
-function nextBatter(game: Game): ID | undefined {
-  if (!game.lineup.length) return game.currentBatterId;
-  const index = game.lineup.findIndex((playerId) => playerId === game.currentBatterId);
-  return game.lineup[(index + 1) % game.lineup.length] ?? game.lineup[0];
-}
-
 function gameSituations(game: Game, outcome: GamePitchOutcome, bip?: GameBallInPlayOutcome): string[] {
   const situations: string[] = [];
   if (game.balls === 0 && game.strikes === 0) situations.push("First-pitch");
@@ -25054,6 +26083,26 @@ function gameSituations(game: Game, outcome: GamePitchOutcome, bip?: GameBallInP
   if (outcome === "In Play" && bip && ["Sac Fly", "Sac Bunt", "Ground Out"].includes(bip)) situations.push("Productive out check");
   if (outcome === "Swinging Strike") situations.push("Whiff");
   return situations;
+}
+
+function plateAppearanceOutcomeFromGame(outcome: GamePitchOutcome, bip: GameBallInPlayOutcome | undefined, recordedOut: boolean): PlateAppearance["outcome"] {
+  if (outcome === "HBP") return "HBP";
+  if (outcome === "Ball") return "Walk";
+  if (outcome === "Called Strike") return "Strikeout looking";
+  if (outcome === "Swinging Strike") return "Strikeout swinging";
+  const mapped: Partial<Record<GameBallInPlayOutcome, PlateAppearance["outcome"]>> = {
+    Single: "Single",
+    Double: "Double",
+    Triple: "Triple",
+    "Home Run": "Home run",
+    "Ground Out": "Groundout",
+    "Fly Out": "Flyout",
+    "Line Out": "Lineout",
+    "Pop Out": "Popout",
+    Error: "Reached on error",
+    "Fielder's Choice": "Fielder's choice",
+  };
+  return bip ? mapped[bip] ?? (recordedOut ? "Groundout" : undefined) : undefined;
 }
 
 function mapLiveBpOutcome(label: LiveBpOutcomeLabel): NonNullable<PlateAppearance["outcome"]> {

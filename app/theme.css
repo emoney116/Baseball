@@ -1,0 +1,244 @@
+/* Authoritative color layer. Keep this import after globals.css. */
+:root {
+  color-scheme: dark;
+  --canvas: #111111;
+  --canvas-elevated: #151515;
+  --surface: #171717;
+  --surface-raised: #1c1c1c;
+  --surface-interactive: #202020;
+  --surface-hover: #292929;
+  --surface-overlay: #1c1c1c;
+  --input: #151515;
+  --border: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --text-primary: #ffffff;
+  --text-secondary: #d6d6d6;
+  --text-muted: #9a9a9a;
+  --sidebar: #111111;
+  --panel: var(--surface);
+  --panel-strong: var(--surface-raised);
+  --panel-soft: var(--surface-interactive);
+  --bg: var(--canvas);
+  --bg-elevated: var(--canvas-elevated);
+  --line: var(--border);
+  --line-strong: var(--border-strong);
+  --text: var(--text-primary);
+  --muted: var(--text-muted);
+  --muted-strong: var(--text-secondary);
+  --control-bg: var(--surface-interactive);
+  --control-hover: var(--surface-hover);
+  --control-selected: var(--brand-soft);
+  --shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
+  --shadow-subtle: 0 10px 28px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --canvas: #ffffff;
+  --canvas-elevated: #f7f7f7;
+  --surface: #ffffff;
+  --surface-raised: #f7f7f7;
+  --surface-interactive: #f4f4f4;
+  --surface-hover: #eaeaea;
+  --surface-overlay: #ffffff;
+  --input: #ffffff;
+  --border: rgba(17, 17, 17, 0.12);
+  --border-strong: rgba(17, 17, 17, 0.2);
+  --text-primary: #111111;
+  --text-secondary: #3f3f3f;
+  --text-muted: #6b6b6b;
+  --sidebar: #ffffff;
+  --panel: var(--surface);
+  --panel-strong: var(--surface-raised);
+  --panel-soft: var(--surface-interactive);
+  --bg: var(--canvas);
+  --bg-elevated: var(--canvas-elevated);
+  --line: var(--border);
+  --line-strong: var(--border-strong);
+  --text: var(--text-primary);
+  --muted: var(--text-muted);
+  --muted-strong: var(--text-secondary);
+  --control-bg: var(--surface-interactive);
+  --control-hover: var(--surface-hover);
+  --control-selected: var(--brand-soft);
+  --shadow: 0 16px 38px rgba(17, 17, 17, 0.07);
+  --shadow-subtle: 0 8px 22px rgba(17, 17, 17, 0.06);
+}
+
+html,
+body,
+.ops-shell,
+[data-theme="light"] body {
+  background: var(--canvas);
+  color: var(--text);
+}
+
+.ops-sidebar {
+  background: var(--sidebar);
+  border-color: var(--line);
+}
+
+.panel,
+[data-theme="light"] .panel {
+  background: var(--panel);
+  border-color: var(--line);
+  box-shadow: var(--shadow-subtle);
+}
+
+input,
+select,
+textarea,
+.global-search,
+.choice-select__button {
+  background-color: var(--input);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+}
+
+.secondary-button,
+.ghost-button,
+.theme-toggle,
+.context-back-button {
+  background: var(--control-bg);
+  border-color: var(--line-strong);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.secondary-button:hover,
+.ghost-button:hover,
+.theme-toggle:hover,
+.context-back-button:hover {
+  background: var(--control-hover);
+  border-color: var(--line-strong);
+}
+
+.primary-button {
+  border-color: color-mix(in srgb, var(--brand-primary) 74%, var(--line-strong));
+  color: var(--brand-text-on-primary);
+}
+
+button:disabled,
+button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.game-live-badge {
+  align-items: center;
+  background: var(--control-bg);
+  border: 1px solid var(--line-strong);
+  color: var(--muted-strong);
+  display: inline-flex;
+  gap: 5px;
+  letter-spacing: 0.08em;
+  box-shadow: none;
+}
+
+.game-live-badge::before,
+.game-live-pulse {
+  background: var(--muted);
+  border: 0;
+  border-radius: 50%;
+  box-shadow: none;
+  content: "";
+  height: 6px;
+  width: 6px;
+}
+
+.game-workstation-page .games-list button,
+.game-workstation-page .game-workspace-tabs,
+.game-workstation-page .game-tendex-tabs,
+.game-workstation-page .game-live-focus,
+.game-workstation-page .game-flow-steps button,
+.game-workstation-page .game-pitch-type-grid button,
+.game-workstation-page .game-result-pad button,
+.game-workstation-page .game-contact-types button,
+.game-workstation-page .game-bip-outcomes button,
+.game-workstation-page .game-runner-actions button,
+.game-workstation-page .game-all-runner-actions button,
+.game-workstation-page .game-manual-controls button,
+.game-workstation-page .game-live-player-row button,
+.game-workstation-page .game-live-bases span,
+.game-workstation-page .game-tendex-metric-grid > div,
+.game-workstation-page .game-prediction-list > div,
+.game-workstation-page .game-count-patterns > div,
+.game-workstation-page .game-insight-cards > div,
+.game-workstation-page .game-live-kpis div,
+.game-workstation-page .game-current-pa-strip i,
+.game-workstation-page .game-play-summary,
+.game-workstation-page .game-runner-resolution-list label {
+  background: var(--control-bg);
+  border-color: var(--line);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.game-workstation-page .games-list button:hover,
+.game-workstation-page .game-flow-steps button:hover:not(:disabled),
+.game-workstation-page .game-pitch-type-grid button:hover,
+.game-workstation-page .game-result-pad button:hover,
+.game-workstation-page .game-contact-types button:hover,
+.game-workstation-page .game-bip-outcomes button:hover,
+.game-workstation-page .game-live-player-row button:hover {
+  background: var(--control-hover);
+  border-color: var(--line-strong);
+}
+
+.game-workstation-page .games-list button.active,
+.game-workstation-page .game-flow-steps button.active,
+.game-workstation-page .game-pitch-type-grid button.active,
+.game-workstation-page .game-contact-types button.active,
+.game-workstation-page .game-bip-outcomes button.active,
+.game-workstation-page .game-live-bases span.occupied,
+.game-workstation-page .game-prediction-list > div.leader {
+  background: var(--control-selected);
+  border-color: var(--brand-border);
+  color: var(--text);
+}
+
+.game-workstation-page .game-workspace-tabs button.active,
+.game-workstation-page .game-tendex-tabs button.active,
+.game-workstation-page .game-tendex-scope button.active,
+.game-workstation-page .game-live-focus button.active,
+.game-workstation-page .game-result-pad .is-impact {
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+  color: var(--brand-text-on-primary);
+  box-shadow: none;
+}
+
+.game-workstation-page .game-tendex-prediction-card {
+  background: var(--panel);
+}
+
+.game-workstation-page .game-tendex-split-panel article > div span,
+.game-workstation-page .game-prediction-bars i,
+.game-workstation-page .game-prediction-list i,
+.game-workstation-page .game-pitch-mix-list i,
+.game-workstation-page .game-live-sequence i {
+  background: var(--control-bg);
+}
+
+.game-workstation-page .game-live-status,
+.game-workstation-page .game-tendex-command,
+.game-workstation-page .game-live-matchup,
+.game-workstation-page .game-live-zone,
+.game-workstation-page .game-live-tendencies,
+.game-workstation-page .game-live-insights,
+.game-workstation-page .game-tendex-quality,
+.game-workstation-page .game-tendex-split-panel,
+.game-workstation-page .game-tendex-outcomes,
+.game-workstation-page .game-tendex-prediction-full,
+.game-workstation-page .game-prediction-model-note {
+  border-color: var(--line);
+}
+
+.game-workstation-page .game-result-pad--guided button.is-impact small {
+  color: rgba(255, 255, 255, 0.82);
+}
