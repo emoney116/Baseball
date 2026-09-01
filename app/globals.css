@@ -20927,8 +20927,8 @@ body,
 .game-field-player:hover, .game-field-player.selected { background: var(--brand-soft); border-color: var(--brand-primary); }
 .game-field-player b { color: var(--brand-primary); font-size: .53rem; }
 .game-field-player span { font-size: .59rem; font-weight: 850; max-width: 66px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.game-field-pitch-ball { align-items: center; background: transparent; border: 0; border-radius: 50%; box-shadow: none; color: #111; display: grid; height: 54px; justify-items: center; left: 50%; padding: 0; position: absolute; top: 72%; transform: translate(-50%,-50%); width: 54px; z-index: 7; }
-.game-field-pitch-ball img { display: block; height: 42px; object-fit: contain; width: 42px; }
+.game-field-pitch-ball { align-items: center; background: transparent; border: 0; border-radius: 50%; box-shadow: none; color: #111; display: grid; height: 64px; justify-items: center; left: 50%; padding: 0; position: absolute; top: 67%; transform: translate(-50%,-50%); width: 64px; z-index: 7; }
+.game-field-pitch-ball img { display: block; height: 52px; object-fit: contain; width: 52px; }
 .game-field-pitch-ball i, .game-field-pitch-ball i::after { border: 2px dashed #bd285b; border-bottom-color: transparent; border-top-color: transparent; border-radius: 50%; content: ""; height: 46px; position: absolute; transform: rotate(18deg); width: 27px; }
 .game-field-pitch-ball i::after { left: -2px; top: -2px; transform: rotate(-36deg); }
 .game-field-pitch-ball strong { background: rgba(255,255,255,.86); border-radius: 999px; bottom: 6px; font-size: .48rem; letter-spacing: .02em; line-height: 1; padding: 2px 4px; position: absolute; text-transform: uppercase; z-index: 1; }
@@ -20936,7 +20936,7 @@ body,
 .game-field-command__runners > header { align-items: center; display: flex; justify-content: flex-end; padding: 8px; }
 .game-field-command__runners > header span { display: none; }
 .game-field-command__runners > header button { background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-size: .56rem; font-weight: 850; min-height: 44px; padding: 5px 9px; pointer-events: auto; }
-.game-field-command__runners .game-base-diamond { height: 40%; left: 50%; margin: 0; max-width: none; pointer-events: none; position: absolute; top: 70%; transform: translate(-50%,-50%); width: 44%; }
+.game-field-command__runners .game-base-diamond { height: 40%; left: 50%; margin: 0; max-width: none; pointer-events: none; position: absolute; top: 68%; transform: translate(-50%,-50%); width: 44%; }
 .game-field-command__runners .game-base-diamond__line { display: none; }
 .game-field-command__runners .game-base-diamond > button { background: color-mix(in srgb, var(--panel) 86%, transparent); border-radius: 9px; min-height: 34px; pointer-events: auto; width: 46px; }
 .game-field-command__runners .game-base-diamond > button[data-base="second"] { left: 50%; top: 0; transform: translate(-50%,-50%); }
@@ -20944,6 +20944,10 @@ body,
 .game-field-command__runners .game-base-diamond > button[data-base="first"] { right: 0; top: 50%; transform: translate(50%,-50%); }
 .game-field-command__runners .game-home-plate { bottom: 0; transform: translate(-50%,50%); }
 .game-field-command__runners .game-base-diamond > button.occupied { min-height: 48px; width: 78px; }
+.game-field-command__runners .game-base-diamond > button.occupied,
+.game-field-command__runners .game-base-diamond > button.occupied.selected { background: var(--brand-primary); border-color: color-mix(in srgb, var(--brand-primary) 72%, white); color: var(--brand-text-on-primary); }
+.game-field-command__runners .game-base-diamond > button.occupied span,
+.game-field-command__runners .game-base-diamond > button.occupied strong { color: var(--brand-text-on-primary); }
 .game-field-command__runners .game-base-diamond > button:not(.occupied) { background: transparent; border-color: transparent; }
 .game-field-command__runners .game-base-diamond > button:not(.occupied) { pointer-events: none; }
 .game-field-command__runners .game-base-diamond > button:not(.occupied) span,
@@ -21182,11 +21186,11 @@ body,
   .game-field-player:hover::before, .game-field-player.selected::before { background: var(--brand-soft); border-color: var(--brand-primary); }
   .game-field-player b { display: block; font-size: .4rem; line-height: 1; position: relative; text-align: center; width: 100%; z-index: 1; }
   .game-field-player span { display: block; font-size: .45rem; line-height: 1; max-width: 46px; position: relative; text-align: center; width: 100%; z-index: 1; }
-  .game-field-pitch-ball { height: 48px; top: 73%; width: 48px; }
-  .game-field-pitch-ball img { height: 34px; width: 34px; }
-  .game-field-pitch-ball strong { bottom: 5px; font-size: .39rem; padding: 1px 3px; }
+  .game-field-pitch-ball { height: 60px; top: 67%; width: 60px; }
+  .game-field-pitch-ball img { height: 50px; width: 50px; }
+  .game-field-pitch-ball strong { bottom: 4px; font-size: .39rem; padding: 1px 3px; }
   .game-field-command__runners > header button { min-height: 44px; }
-  .game-field-command__runners .game-base-diamond { height: 40%; top: 70%; width: 44%; }
+  .game-field-command__runners .game-base-diamond { height: 40%; top: 68%; width: 44%; }
   .game-field-command__runners .game-base-diamond > button { border-radius: 8px; min-height: 36px; width: 48px; }
   .game-field-command__runners .game-base-diamond > button.occupied { border-radius: 999px; min-height: 44px; width: 44px; }
   .game-field-command__runners .game-base-diamond > button.occupied strong { font-size: .47rem; max-width: 34px; }

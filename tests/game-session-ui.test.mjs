@@ -67,7 +67,10 @@ test("field tracking renders the generated field asset, spray line, and draggabl
   assert.match(page, /baseball-center-control-v1\.png/);
   assert.ok(fs.statSync(centerBaseball).size > 0);
   assert.match(css, /game-base-diamond > button\.occupied[\s\S]*?width:\s*44px/);
-  assert.match(globalCss, /game-field-command__runners \.game-base-diamond\s*\{[^}]*height:\s*40%;[^}]*top:\s*70%;[^}]*width:\s*44%/);
+  assert.match(globalCss, /game-field-command__runners \.game-base-diamond\s*\{[^}]*height:\s*40%;[^}]*top:\s*68%;[^}]*width:\s*44%/);
+  assert.match(page, /GAME_LIVE_FIELD_POSITION_COORDINATES[\s\S]*?P:\s*\[82,\s*80\][\s\S]*?C:\s*\[14,\s*80\][\s\S]*?"1B":\s*\[88,\s*54\][\s\S]*?"3B":\s*\[12,\s*54\]/);
+  assert.match(globalCss, /game-base-diamond > button\.occupied,[\s\S]*?background:\s*var\(--brand-primary\)/);
+  assert.match(globalCss, /game-field-pitch-ball\s*\{[^}]*height:\s*60px;[^}]*top:\s*67%;[^}]*width:\s*60px/);
   assert.match(globalCss, /button\[data-base="second"\][^}]*top:\s*0;[^}]*translate\(-50%,-50%\)/);
   assert.match(globalCss, /button\[data-base="first"\][^}]*right:\s*0;[^}]*translate\(50%,-50%\)/);
   assert.match(page, /GAME_FIELD_POSITION_COORDINATES/);
