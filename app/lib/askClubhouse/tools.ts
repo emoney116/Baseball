@@ -114,6 +114,11 @@ const CURRENT_BASEBALL_CONTEXT_PATTERN = /\b(nfhs|ncaa|mlb|official rule|ruleboo
 const BASEBALL_KNOWLEDGE_PATTERN = /\b(baseball|softball|balk|ops|obp|slg|era|whip|k%|bb%|babip|csw|contact %|contact rate|hard contact|strike %|zone rate|chase rate|infield fly|dropped third|force play|tag.?up|appeal|obstruction|interference|designated hitter|substitution|set position|pitch count|plate appearance|at-bat|hard-hit|extra-base|curveballs?|sliders?|fastballs?|changeups?|bunts?|cutoff|relay|approach|mechanics|launch angle|exit velocity|batting|pitching|fielding|command|control|whiff|pitch recognition|two-strike|breaking balls?|plate discipline|barrel|glove.?side|arm.?side|pitch sequencing|count leverage|routine play|forehand|backhand|double-play|catcher|baserunner|behind the runner|first step|practice.?to.?game|training load|strikeout|walk rate|contact|strike|timing|spin|recognize|opposite field|sacrifice fly|world series|major league|minor league|mph)(?=\W|$)/i;
 const TEAM_DATA_PATTERN = /\b(player|players|leader|leaders|highest|lowest|best|hottest|improved|practice|games?|season|clubhouse|analytics|weight room|bullpen|roster|compare|tracked|reps|metrics|contact|hard %|avg ev|velocity|velo|strike %|zone %)\b/i;
 
+function isDevelopmentQuestion(lower: string) {
+  return /\b(how (?:can|do) (?:i|we|he|she|they)|what should .*work on|improve .*slider|hit .*better|handle .*better)\b/.test(lower)
+    && /\b(sliders?|curveballs?|breaking balls?|fastballs?|pitching|command)\b/.test(lower);
+}
+
 export function classifyAskClubhouseIntent(
   message: string,
   players: Player[] = [],
@@ -134,6 +139,7 @@ export function classifyAskClubhouseIntent(
     || player.name.toLowerCase().split(/[^a-z0-9]+/).some((token) => token.length >= 3 && messageTokens.has(token))
   ));
   const currentBaseballContext = CURRENT_BASEBALL_CONTEXT_PATTERN.test(trimmed);
+  const developmentQuestion = isDevelopmentQuestion(lower);
   const knowledgeItems = baseballContext
     ? findTrustedKnowledge(options.knowledgeProvider ?? EMPTY_BASEBALL_KNOWLEDGE_PROVIDER, knowledgeQuery(trimmed))
     : [];
@@ -146,6 +152,7 @@ export function classifyAskClubhouseIntent(
   const priorTeamContext = history.slice(-4).some((item) => TEAM_DATA_PATTERN.test(item.content));
   const usesTeamData = explicitTeamData
     || personalDataReference
+    || developmentQuestion
     || (contextualTeamReference && (!baseballContext || /\b(?:data|stats|analytics|metrics|launch|contact|velocity|performance|results)\b/i.test(trimmed)))
     || (compactFollowUp && priorTeamContext && baseballContext);
   const asksForExternalInterpretation = /\b(is that good|how does that compare|benchmark|for (?:his|her|their|my) age|for (?:a|this) high[- ]school hitter|for this level|development context|about (?:his|her|their|my|our) development|rule|legal|allowed)\b/i.test(trimmed);
@@ -647,9 +654,7 @@ function buildDevelopmentDiagnosisRequest(
   queryPlan: AskClubhouseQueryPlan,
   playerMatch: ReturnType<typeof findRequestedPlayer>,
 ): DevelopmentDiagnosisRequest | "clarify" | undefined {
-  const asksForDevelopment = /\b(how (?:can|do) (?:i|we|he|she|they)|what should .*work on|improve .*slider|hit .*better|handle .*better)\b/.test(lower)
-    && /\b(sliders?|curveballs?|breaking balls?|fastballs?|pitching|command)\b/.test(lower);
-  if (!asksForDevelopment) return undefined;
+  if (!isDevelopmentQuestion(lower)) return undefined;
   if (playerMatch.status !== "single") return "clarify";
   const domain = /\b(improve|throw|locate|command|pitching)\b/.test(lower) && !/\bhit|hitting|hitter\b/.test(lower) ? "pitching" : queryPlan.domain === "pitching" ? "pitching" : "hitting";
   return {

@@ -313,13 +313,23 @@ test("Ask Clubhouse routes each question by intent and bounds web use", () => {
   const currentRule = classifyAskClubhouseIntent("What is the NFHS balk rule?", players);
   const mixed = classifyAskClubhouseIntent("Mylo topped out at 84 mph. Is that good for his age?", players);
   const general = classifyAskClubhouseIntent("When should a team bunt?", players);
+  const development = classifyAskClubhouseIntent("How can I hit sliders better?", players);
   const refusal = classifyAskClubhouseIntent("Write me a history essay", players);
 
   assert.deepEqual([internal.route, internal.requiresWebSearch], ["clubhouse_data", false]);
   assert.deepEqual([currentRule.route, currentRule.requiresWebSearch], ["external_research_required", false]);
   assert.deepEqual([mixed.route, mixed.requiresWebSearch], ["mixed", false]);
   assert.deepEqual([general.route, general.requiresWebSearch], ["baseball_knowledge", false]);
+  assert.deepEqual([development.route, development.requiresWebSearch], ["clubhouse_data", false]);
   assert.deepEqual([refusal.route, refusal.requiresWebSearch], ["out_of_scope", false]);
+});
+
+test("generic development questions ask for tracked-player context before advice", () => {
+  const plan = buildAskClubhouseToolPlan(data, "How can I hit sliders better?", undefined, getAskClubhouseConfig({}));
+
+  assert.equal(plan.route, "clubhouse_data");
+  assert.equal(plan.status, "needs_clarification");
+  assert.match(plan.answer, /specific player's tracked data/i);
 });
 
 test("Ask Clubhouse distinguishes team strategy from team analytics", () => {
