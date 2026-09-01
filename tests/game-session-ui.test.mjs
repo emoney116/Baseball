@@ -96,7 +96,9 @@ test("location, heatmap, and spray evidence share category colors and legends", 
   assert.match(page, /category: contact/);
   assert.match(page, /GameChartLegend label="Pitch type colors"/);
   assert.match(page, /GameChartLegend label="Contact type colors"/);
-  assert.match(page, /game-tendex-result-card/);
+  assert.match(page, /game-contact-result-table/);
+  assert.match(page, /game-contact-result-row/);
+  assert.match(globalCss, /game-context-sheet--analysis \.game-context-sheet__bar\s*\{[^}]*position:\s*relative/);
   assert.match(visuals, /type CategorizedZonePoint/);
   assert.match(visuals, /data-category=\{point\.category\}/);
   assert.match(globalCss, /--contact-type-ground:/);

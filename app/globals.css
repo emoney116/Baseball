@@ -20992,6 +20992,7 @@ body,
 .game-context-sheet--contact.is-contact-selected .game-current-pa-strip { display: none; }
 .game-context-sheet--contact.is-contact-selected .game-guided-console { background: transparent; border: 0; padding: 0; }
 .game-context-sheet__bar { align-items: center; background: var(--background); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; margin: -2px -2px 10px; padding: 4px 4px 10px; position: sticky; top: -10px; z-index: 50; }
+.game-context-sheet--analysis .game-context-sheet__bar { position: relative; top: auto; z-index: 1; }
 .game-context-sheet__bar > div { display: grid; gap: 2px; }
 .game-context-sheet__bar span { color: var(--brand-primary); font-size: .58rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 .game-context-sheet__bar strong { font-size: .8rem; }
@@ -21093,10 +21094,6 @@ body,
 .game-prediction-evidence strong { color: var(--text); }
 .game-tendex-metric-grid { display: grid; gap: 7px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .game-tendex-metric-grid > div { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 3px; padding: 10px; }
-.game-tendex-metric-grid > .game-tendex-result-card,
-.game-workstation-page .game-tendex-metric-grid > .game-tendex-result-card { background: color-mix(in srgb, var(--category-color) 9%, var(--surface)); border-top: 4px solid var(--category-color); }
-.game-tendex-result-card > span { align-items: center; display: flex; gap: 6px; }
-.game-tendex-result-card > span::before { background: var(--category-color); border-radius: 999px; content: ""; height: 8px; width: 8px; }
 .game-tendex-metric-grid span { color: var(--muted); font-size: .58rem; font-weight: 850; text-transform: uppercase; }
 .game-tendex-metric-grid strong { font-size: 1.15rem; }
 .game-tendex-metric-grid small { color: var(--muted); font-size: .56rem; line-height: 1.35; }
@@ -21128,6 +21125,21 @@ body,
 .game-prediction-model-note > strong { font-size: .72rem; }
 .game-prediction-model-note p { color: var(--muted); font-size: .66rem; line-height: 1.5; margin: 5px 0 0; }
 .game-tendex-location-layout { display: grid; gap: 12px; grid-template-columns: minmax(300px, .75fr) minmax(0, 1.25fr); }
+.game-contact-results { align-content: start; }
+.game-contact-result-table { border-bottom: 1px solid var(--line); border-top: 1px solid var(--line); }
+.game-contact-result-table__header,
+.game-contact-result-row { align-items: center; display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) 32px 32px 38px; }
+.game-contact-result-table__header { color: var(--muted); font-size: .52rem; font-weight: 850; letter-spacing: .06em; padding: 7px 2px; text-transform: uppercase; }
+.game-contact-result-table__header span:not(:first-child) { text-align: right; }
+.game-contact-result-row { border-top: 1px solid var(--line); min-height: 48px; padding: 7px 2px; }
+.game-contact-result-row > strong,
+.game-contact-result-row > span:not(:first-child) { font-size: .68rem; font-variant-numeric: tabular-nums; text-align: right; }
+.game-contact-result-row > span:not(:first-child) { color: var(--muted); }
+.game-contact-result-row__type { align-items: center; display: grid; gap: 3px 7px; grid-template-columns: 9px minmax(0, 1fr); }
+.game-contact-result-row__type > i { background: var(--category-color); border: 1px solid color-mix(in srgb, var(--text) 34%, transparent); border-radius: 999px; grid-row: 1; height: 8px; width: 8px; }
+.game-contact-result-row__type > strong { font-size: .67rem; grid-column: 2; line-height: 1.15; }
+.game-contact-result-row__type > small { background: var(--line); border-radius: 999px; grid-column: 2; height: 3px; overflow: hidden; }
+.game-contact-result-row__type > small b { background: var(--category-color); border-radius: inherit; display: block; height: 100%; min-width: 0; }
 .game-chart-legend { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 9px; }
 .game-chart-legend span { align-items: center; color: var(--muted); display: inline-flex; font-size: .56rem; font-weight: 800; gap: 4px; }
 .game-chart-legend i { border: 1px solid color-mix(in srgb, var(--text) 36%, transparent); border-radius: 999px; height: 9px; width: 9px; }
