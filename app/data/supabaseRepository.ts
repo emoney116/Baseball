@@ -2062,6 +2062,9 @@ async function syncGames(supabase: SupabaseClient, foundation: Foundation, data:
         result: game.result ?? null,
         current_pitcher_id: game.currentPitcherId ?? game.startingPitcherId ?? null,
         current_batter_id: game.currentBatterId ?? null,
+        active_plate_appearance_id: game.activePlateAppearanceId ?? null,
+        plate_appearance_number: game.plateAppearanceNumber ?? 1,
+        pitch_number_in_plate_appearance: game.pitchNumberInPlateAppearance ?? 0,
         created_at: game.createdAt,
         updated_at: game.updatedAt,
       })),
@@ -2077,13 +2080,17 @@ async function syncGames(supabase: SupabaseClient, foundation: Foundation, data:
       is_starting_pitcher: game.startingPitcherId === playerId,
     })),
   );
+  if (data.games.length > 0) {
+    const { error } = await supabase.from("game_lineups").delete().in("game_id", data.games.map((game) => game.id));
+    if (error) throw new PersistenceError("save-failed", error.message);
+  }
   if (lineups.length > 0) {
     const { error } = await supabase.from("game_lineups").upsert(lineups, { onConflict: "game_id,player_id" });
     if (error) throw new PersistenceError("save-failed", error.message);
   }
 
-  await upsertRows(supabase, "game_pitch_events", data.gameEvents.map(mapGameEventToRow));
   await upsertRows(supabase, "plate_appearances", data.plateAppearances.map(mapPlateAppearanceToRow));
+  await upsertRows(supabase, "game_pitch_events", data.gameEvents.map(mapGameEventToRow));
 }
 
 async function syncScheduleEvents(supabase: SupabaseClient, foundation: Foundation, data: AppData) {
@@ -3151,6 +3158,9 @@ function mapGame(row: any, lineupRows: any[]): Game {
     startingPitcherId: gameLineups.find((lineup) => lineup.is_starting_pitcher)?.player_id ?? row.current_pitcher_id ?? undefined,
     currentPitcherId: row.current_pitcher_id ?? undefined,
     currentBatterId: row.current_batter_id ?? undefined,
+    activePlateAppearanceId: row.active_plate_appearance_id ?? undefined,
+    plateAppearanceNumber: row.plate_appearance_number ?? 1,
+    pitchNumberInPlateAppearance: row.pitch_number_in_plate_appearance ?? 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -3167,6 +3177,30 @@ function mapGameEvent(row: any): GameEvent {
     pitchType: row.pitch_type ?? undefined,
     pitchOutcome: row.pitch_outcome ?? undefined,
     ballInPlayOutcome: row.ball_in_play_outcome ?? undefined,
+    eventKind: row.event_kind ?? "pitch",
+    sequenceNumber: row.sequence_number ?? undefined,
+    plateAppearanceId: row.plate_appearance_id ?? undefined,
+    plateAppearanceNumber: row.plate_appearance_number ?? undefined,
+    pitchNumber: row.pitch_number ?? undefined,
+    pitchNumberInPlateAppearance: row.pitch_number_in_plate_appearance ?? undefined,
+    contactType: row.contact_type ?? undefined,
+    runnerMovements: row.runner_movements ?? undefined,
+    rbi: row.rbi ?? undefined,
+    scoringNote: row.scoring_note ?? undefined,
+    scoringReason: row.scoring_reason ?? undefined,
+    substitution: row.substitution ?? undefined,
+    supersedesEventId: row.supersedes_event_id ?? undefined,
+    recordStatus: row.record_status ?? "confirmed",
+    runnerAction: row.runner_action ?? undefined,
+    runnerId: row.runner_id ?? undefined,
+    runnerBase: row.runner_base ?? undefined,
+    countBefore: row.count_before ?? undefined,
+    countAfter: row.count_after ?? undefined,
+    runnersBefore: row.runners_before ?? undefined,
+    runnersAfter: row.runners_after ?? undefined,
+    stateBefore: row.state_before ?? undefined,
+    stateAfter: row.state_after ?? undefined,
+    fieldLocation: row.field_location ?? undefined,
     velocity: toNumber(row.velocity),
     location: row.location ?? undefined,
     outsBefore: row.outs_before,
@@ -3183,7 +3217,8 @@ function mapGameEvent(row: any): GameEvent {
 function mapPlateAppearance(row: any): PlateAppearance {
   return {
     id: row.id,
-    practiceId: row.practice_id,
+    practiceId: row.practice_id ?? undefined,
+    gameId: row.game_id ?? undefined,
     pitcherId: row.pitcher_id,
     hitterId: row.hitter_id,
     startedAt: row.started_at,
@@ -3415,6 +3450,30 @@ function mapGameEventToRow(event: GameEvent) {
     pitch_type: event.pitchType ?? null,
     pitch_outcome: event.pitchOutcome ?? null,
     ball_in_play_outcome: event.ballInPlayOutcome ?? null,
+    event_kind: event.eventKind ?? "pitch",
+    sequence_number: event.sequenceNumber ?? null,
+    plate_appearance_id: event.plateAppearanceId ?? null,
+    plate_appearance_number: event.plateAppearanceNumber ?? null,
+    pitch_number: event.pitchNumber ?? null,
+    pitch_number_in_plate_appearance: event.pitchNumberInPlateAppearance ?? null,
+    contact_type: event.contactType ?? null,
+    runner_movements: event.runnerMovements ?? [],
+    rbi: event.rbi ?? null,
+    scoring_note: event.scoringNote ?? null,
+    scoring_reason: event.scoringReason ?? null,
+    substitution: event.substitution ?? null,
+    supersedes_event_id: event.supersedesEventId ?? null,
+    record_status: event.recordStatus ?? "confirmed",
+    runner_action: event.runnerAction ?? null,
+    runner_id: event.runnerId ?? null,
+    runner_base: event.runnerBase ?? null,
+    count_before: event.countBefore ?? null,
+    count_after: event.countAfter ?? null,
+    runners_before: event.runnersBefore ?? null,
+    runners_after: event.runnersAfter ?? null,
+    state_before: event.stateBefore ?? null,
+    state_after: event.stateAfter ?? null,
+    field_location: event.fieldLocation ?? null,
     velocity: event.velocity ?? null,
     location: event.location ?? null,
     outs_before: event.outsBefore,
@@ -3431,7 +3490,8 @@ function mapGameEventToRow(event: GameEvent) {
 function mapPlateAppearanceToRow(plateAppearance: PlateAppearance) {
   return {
     id: plateAppearance.id,
-    practice_id: plateAppearance.practiceId,
+    practice_id: plateAppearance.practiceId ?? null,
+    game_id: plateAppearance.gameId ?? null,
     pitcher_id: plateAppearance.pitcherId,
     hitter_id: plateAppearance.hitterId,
     started_at: plateAppearance.startedAt,
@@ -3439,7 +3499,7 @@ function mapPlateAppearanceToRow(plateAppearance: PlateAppearance) {
     outcome: plateAppearance.outcome ?? null,
     balls: plateAppearance.balls,
     strikes: plateAppearance.strikes,
-    context: "live_bp",
+    context: plateAppearance.gameId ? "game" : "live_bp",
   };
 }
 

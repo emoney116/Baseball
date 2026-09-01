@@ -245,13 +245,21 @@ function migrate(data: Partial<AppData>): AppData {
     workoutSessions: merged.workoutSessions ?? sampleData.workoutSessions,
     workoutEntries: merged.workoutEntries ?? sampleData.workoutEntries,
     scheduleEvents: merged.scheduleEvents ?? sampleData.scheduleEvents ?? [],
-    games: merged.games ?? sampleData.games,
+    games: normalizeGames(merged.games ?? sampleData.games),
     gameEvents: merged.gameEvents ?? sampleData.gameEvents,
     plateAppearances: merged.plateAppearances ?? sampleData.plateAppearances,
     coachNotes: merged.coachNotes ?? sampleData.coachNotes,
     developmentGoals: merged.developmentGoals ?? sampleData.developmentGoals,
     settings: merged.settings,
   };
+}
+
+function normalizeGames(games: Game[]): Game[] {
+  return games.map((game) => {
+    if (!game.currentPitcherId || game.currentBatterId !== game.currentPitcherId) return game;
+    const nextBatterId = game.lineup.find((playerId) => playerId !== game.currentPitcherId);
+    return nextBatterId ? { ...game, currentBatterId: nextBatterId } : game;
+  });
 }
 
 function enrichPlayers(players: Player[]): Player[] {
