@@ -58,9 +58,15 @@ export interface AskClubhouseAction {
 }
 
 export interface AskClubhouseEvidenceItem {
+  id?: ID;
+  documentId?: ID;
+  chunkId?: ID;
   title: string;
   summary: string;
   url?: string;
+  source?: string;
+  version?: string;
+  status?: string;
 }
 
 export interface AskClubhouseUsageSnapshot {

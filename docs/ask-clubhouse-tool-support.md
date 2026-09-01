@@ -37,7 +37,17 @@ Conversation history can resolve short references such as “why?”, but it can
 
 ## Baseball Knowledge Foundation
 
-`app/lib/askClubhouse/knowledge.ts` defines the `BaseballKnowledgeProvider` interface with bounded `searchKnowledge` and `getKnowledgeItem` operations. Knowledge items carry category, level, governing body, version, source, verification time, and trust status. Only `verified` and `reviewed` items are trusted; `draft`, `candidate`, `expired`, and `stale` items are ignored. V1 ships with an empty provider so the bank can be added without changing the routing contract.
+`app/lib/askClubhouse/knowledge.ts` defines the `BaseballKnowledgeProvider` interface with bounded `searchKnowledge` and `getKnowledgeItem` operations. Knowledge items carry category, level, governing body, version, source, verification time, and trust status. Only `verified` and `reviewed` items are trusted; `draft`, `candidate`, `expired`, and `stale` items are ignored. `app/lib/askClubhouse/knowledgeRepository.ts` hydrates the provider from Supabase for each authenticated request and degrades to the empty provider while the additive migration is unavailable.
+
+## Baseball Knowledge Bank V1
+
+Migration `supabase/migrations/20260901130102_baseball_knowledge_bank.sql` adds the global `baseball_knowledge_documents` and `baseball_knowledge_chunks` tables. Documents hold title, taxonomy, level, governing body, version, source reference, trust status, verification date, expiry, and metadata. Chunks hold bounded content, ordinal, metadata, and a generated `tsvector` with a GIN index.
+
+V1 seeds 97 concise, reviewed/verified concepts across Statistics (18), Terminology (6), Rules (15), Hitting (14), Pitching (14), Defense (9), Catching (4), Baserunning (4), Strategy (4), Development (4), Strength (2), and Practice (3). Seed text is original, concise guidance and source references; it does not reproduce copyrighted rulebooks. The NFHS 2026 balk entry is versioned and governed separately from the general balk entry.
+
+Retrieval uses strict metadata filters for category, level, governing body, and version, then bounded title/body token ranking in the provider. Current/version-specific questions cannot fall through to a mismatched level or governing body. V1 does not require pgvector or an embedding API: the connected project exposes vector as an available extension but it is not installed, and the curated corpus is small enough for indexed keyword retrieval. A future hybrid/embedding provider can implement the same interface if corpus size or retrieval-miss data justifies its cost.
+
+The repository exposes server-side functions for creating documents/chunks, updating content, changing status, and setting verification metadata. RLS allows authenticated users to read only non-expired `reviewed`/`verified` rows; writes remain server-admin operations. Knowledge IDs, source, status, and version travel in Ask Clubhouse evidence and bounded model context for debugging.
 
 `app/lib/askClubhouse/entitlements.ts` defines `canUseExternalResearch({ userId, role, teamId, organizationId }, config)`. V1 honors the server-side feature flag only; the context fields leave room for Coach Pro, Team, and Organization entitlements later.
 

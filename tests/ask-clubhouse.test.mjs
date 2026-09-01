@@ -7,6 +7,8 @@ import { calculateAIRequestCost } from "../app/lib/askClubhouse/pricing.ts";
 import { OpenAIProvider } from "../app/lib/askClubhouse/provider.ts";
 import { buildAskClubhouseToolPlan, classifyAskClubhouseIntent, runAskClubhouseTools } from "../app/lib/askClubhouse/tools.ts";
 import { createAiRequestHash, enforceAiUsageLimits, evaluateAiUsageLimits } from "../app/lib/askClubhouse/usage.ts";
+import { findTrustedKnowledge, InMemoryBaseballKnowledgeProvider } from "../app/lib/askClubhouse/knowledge.ts";
+import { BASEBALL_KNOWLEDGE_QA } from "./fixtures/baseball-knowledge-qa.mjs";
 
 const now = "2026-08-20T12:00:00.000Z";
 const players = [
@@ -239,6 +241,101 @@ test("Ask Clubhouse uses trusted knowledge before external research", () => {
   assert.equal(classification.knowledgeStatus, "trusted_match");
   assert.equal(plan.status, "completed");
   assert.match(plan.answer, /Verified NFHS/);
+});
+
+test("Baseball Knowledge Bank retrieval respects trusted status and scope filters", () => {
+  const provider = new InMemoryBaseballKnowledgeProvider([
+    {
+      id: "general-balk",
+      documentId: "doc-general-balk",
+      title: "Balk",
+      content: "A balk is an illegal pitching action with runners on base.",
+      category: "Rules",
+      level: "General",
+      status: "reviewed",
+    },
+    {
+      id: "nfhs-balk-2026",
+      documentId: "doc-nfhs-balk",
+      title: "NFHS 2026 Balk Basics",
+      content: "NFHS 2026 balk context is governed by the high school rules code.",
+      category: "Rules",
+      level: "High School",
+      governingBody: "NFHS",
+      version: "2026",
+      status: "verified",
+    },
+    {
+      id: "mlb-balk-2026",
+      documentId: "doc-mlb-balk",
+      title: "MLB Balk Basics",
+      content: "MLB balk context is governed by the professional rules code.",
+      category: "Rules",
+      level: "Professional",
+      governingBody: "MLB",
+      version: "2026",
+      status: "verified",
+    },
+    {
+      id: "draft-balk",
+      title: "Draft Balk Note",
+      content: "This draft must not be trusted.",
+      category: "Rules",
+      status: "draft",
+    },
+  ]);
+
+  const general = findTrustedKnowledge(provider, { query: "What is a balk?", category: "Rules", limit: 3 });
+  const nfhs = findTrustedKnowledge(provider, {
+    query: "What is the 2026 NFHS balk rule?",
+    category: "Rules",
+    level: "High School",
+    governingBody: "NFHS",
+    version: "2026",
+    limit: 3,
+  });
+
+  assert.equal(general[0].title, "Balk");
+  assert.equal(nfhs.length, 1);
+  assert.equal(nfhs[0].title, "NFHS 2026 Balk Basics");
+  assert.equal(nfhs[0].id, "nfhs-balk-2026");
+  assert.equal(findTrustedKnowledge(provider, { query: "draft balk", category: "Rules", limit: 3 }).some((item) => item.status === "draft"), false);
+});
+
+test("Baseball Knowledge Bank preserves source evidence in a stable answer", async () => {
+  const knowledgeProvider = new InMemoryBaseballKnowledgeProvider([{
+    id: "ops-chunk",
+    documentId: "ops-document",
+    chunkId: "ops-chunk",
+    title: "OPS",
+    content: "OPS is on-base percentage plus slugging percentage.",
+    category: "Statistics",
+    level: "General",
+    source: "Clubhouse Baseball Knowledge Bank",
+    sourceReference: "Curated V1 summary",
+    version: "V1",
+    status: "reviewed",
+  }]);
+  const response = await generateAskClubhouseReply({
+    data,
+    message: "What is OPS?",
+    config: getAskClubhouseConfig({}),
+    knowledgeProvider,
+  });
+
+  assert.equal(response.route, "baseball_knowledge");
+  assert.match(response.answer, /on-base percentage plus slugging/);
+  assert.equal(response.evidence[0].documentId, "ops-document");
+  assert.equal(response.evidence[0].chunkId, "ops-chunk");
+  assert.equal(response.evidence[0].status, "reviewed");
+});
+
+test("Baseball Knowledge QA fixture covers the V1 route contract", () => {
+  assert.ok(BASEBALL_KNOWLEDGE_QA.length >= 50);
+  for (const item of BASEBALL_KNOWLEDGE_QA) {
+    assert.equal(typeof item.question, "string");
+    assert.ok(["clubhouse_data", "baseball_knowledge", "mixed", "external_research_required", "out_of_scope"].includes(item.route));
+  }
 });
 
 test("Ask Clubhouse independently reroutes a current question after a Clubhouse question", () => {

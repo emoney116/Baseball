@@ -4,6 +4,7 @@ import { boundConversationHistory, generateAskClubhouseReply } from "../../../li
 import { OpenAIProvider } from "../../../lib/askClubhouse/provider";
 import { AskClubhouseScopeError, loadAskClubhouseData } from "../../../lib/askClubhouse/serverData";
 import { classifyAskClubhouseIntent } from "../../../lib/askClubhouse/tools";
+import { loadBaseballKnowledgeProvider } from "../../../lib/askClubhouse/knowledgeRepository";
 import type { AskClubhouseApiRequest, AskClubhouseApiResponse } from "../../../lib/askClubhouse/types";
 import {
   AiUsageStoreError,
@@ -74,8 +75,10 @@ export async function POST(request: NextRequest) {
     const usageRole = resolveAiUsageRole(billingTeam?.role, data.teamContext?.profile?.role);
     const usageSupabase = createAdminClient();
     const history = boundConversationHistory(body.messages, config.contextMessageLimit);
+    const knowledgeProvider = await loadBaseballKnowledgeProvider(supabase, message);
     const intent = classifyAskClubhouseIntent(message, data.players, history, {
       webSearchEnabled: config.webSearchEnabled,
+      knowledgeProvider,
     });
     const requestHash = createAiRequestHash({
       profileId: scope.profileId,
@@ -161,6 +164,7 @@ export async function POST(request: NextRequest) {
       uiContext: body.uiContext,
       config,
       provider,
+      knowledgeProvider,
     });
 
     const assistantContent = reply.answer ?? "Ask Clubhouse could not produce an answer for that question.";

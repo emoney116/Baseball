@@ -6,6 +6,7 @@ import {
   buildAskClubhouseToolPlan,
   fallbackAnswerFromTools,
   runAskClubhouseTools,
+  summarizeKnowledgeEvidence,
   summarizeToolEvidence,
 } from "./tools.ts";
 import type {
@@ -44,6 +45,7 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
   const history = boundConversationHistory(input.history, input.config.contextMessageLimit);
   const plan = buildAskClubhouseToolPlan(input.data, input.message, input.uiContext, input.config, history, input.knowledgeProvider);
   let webSearchCount = 0;
+  const knowledgeEvidence = summarizeKnowledgeEvidence(plan.knowledgeItems);
 
   if (plan.status !== "data" && plan.status !== "provider") {
     const latencyMs = elapsedMs(startedAt);
@@ -52,6 +54,7 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
       status: plan.status,
       route: plan.route,
       answer: plan.answer,
+      evidence: knowledgeEvidence,
       actions: plan.actions,
       followUps: plan.followUps,
       usage: {
@@ -81,7 +84,7 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
       status: "completed",
       route: plan.route,
       answer: "I found the Clubhouse data, but verified current baseball context isn't available in this beta yet. I won't guess at the comparison.",
-      evidence: summarizeToolEvidence(toolResults),
+      evidence: [...knowledgeEvidence, ...summarizeToolEvidence(toolResults)].slice(0, 6),
       actions: plan.actions,
       followUps: plan.followUps,
       usage: {
@@ -105,7 +108,7 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
       status: "no_data",
       route: plan.route,
       answer,
-      evidence: summarizeToolEvidence(toolResults),
+      evidence: [...knowledgeEvidence, ...summarizeToolEvidence(toolResults)].slice(0, 6),
       actions: plan.actions,
       followUps: plan.followUps,
       usage: {
@@ -128,7 +131,7 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
       status: "unavailable",
       route: plan.route,
       answer: "Ask Clubhouse AI is not configured yet. Add the server OpenAI key to enable live answers.",
-      evidence: summarizeToolEvidence(toolResults),
+      evidence: [...knowledgeEvidence, ...summarizeToolEvidence(toolResults)].slice(0, 6),
       actions: plan.actions,
       followUps: plan.followUps,
       usage: {
@@ -162,7 +165,7 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
       status: lowSample ? "low_sample" : "completed",
       route: plan.route,
       answer: providerResult.text,
-      evidence: [...summarizeToolEvidence(toolResults), ...(providerResult.sources ?? [])].slice(0, 6),
+      evidence: [...knowledgeEvidence, ...summarizeToolEvidence(toolResults), ...(providerResult.sources ?? [])].slice(0, 6),
       actions: plan.actions,
       followUps: plan.followUps,
       usage: {
@@ -192,7 +195,7 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
       status,
       route: plan.route,
       answer,
-      evidence: summarizeToolEvidence(toolResults),
+      evidence: [...knowledgeEvidence, ...summarizeToolEvidence(toolResults)].slice(0, 6),
       actions: plan.actions,
       followUps: plan.followUps,
       usage: {
@@ -273,7 +276,11 @@ function buildUserPrompt(
       governingBody: item.governingBody,
       version: item.version,
       source: item.source,
+      sourceReference: item.sourceReference,
       verifiedAt: item.verifiedAt,
+      expiresAt: item.expiresAt,
+      documentId: item.documentId,
+      chunkId: item.chunkId,
       status: item.status,
     })),
     availableActions: actions,

@@ -105,7 +105,7 @@ const OUT_OF_SCOPE_PATTERN =
   /\b(essay|homework|recipe|vacation|travel|weather|stock|crypto|bitcoin|election|politics|movie|song|lyrics|dating|medical|lawyer|legal)\b/i;
 
 const CURRENT_BASEBALL_CONTEXT_PATTERN = /\b(nfhs|ncaa|mlb|official rule|rulebook|pitch count limit|current rule|latest rule|this season'?s? rule|this year|current season|world series|age benchmark|age average|good for (?:his|her|their|my) age)\b/i;
-const BASEBALL_KNOWLEDGE_PATTERN = /\b(baseball|softball|balk|ops|babip|csw|zone rate|infield fly|obstruction|interference|pitch count|curveball|slider|fastball|changeup|bunt|cutoff|relay|approach|mechanics|launch angle|exit velocity|batting|pitching|fielding|world series|major league|minor league|mph)\b/i;
+const BASEBALL_KNOWLEDGE_PATTERN = /\b(baseball|softball|balk|ops|obp|slg|era|whip|k%|bb%|babip|csw|contact %|contact rate|hard contact|strike %|zone rate|chase rate|infield fly|dropped third|force play|tag.?up|appeal|obstruction|interference|designated hitter|substitution|set position|pitch count|plate appearance|at-bat|hard-hit|extra-base|curveball|slider|fastball|changeup|bunt|cutoff|relay|approach|mechanics|launch angle|exit velocity|batting|pitching|fielding|command|control|whiff|pitch recognition|two-strike|breaking ball|plate discipline|barrel|glove.?side|arm.?side|pitch sequencing|count leverage|routine play|forehand|backhand|double-play|catcher|baserunner|first step|practice.?to.?game|training load|strikeout|walk rate|contact|strike|world series|major league|minor league|mph)(?=\W|$)/i;
 const TEAM_DATA_PATTERN = /\b(player|players|leader|leaders|highest|lowest|best|hottest|improved|practice|game|season|clubhouse|analytics|weight room|bullpen|roster|compare|tracked|reps|contact|hard %|avg ev|velocity|velo|strike %|zone %)\b/i;
 
 export function classifyAskClubhouseIntent(
@@ -118,8 +118,10 @@ export function classifyAskClubhouseIntent(
   const lower = trimmed.toLowerCase();
   const messageTokens = new Set(lower.split(/[^a-z0-9]+/).filter((token) => token.length >= 3));
   const baseballContext = BASEBALL_KNOWLEDGE_PATTERN.test(trimmed);
+  const definitionQuestion = /^(what is|what are|what does|define|explain|what(?:'s| is) the difference between)\b/i.test(trimmed)
+    && !/\b(my|our|this|team|player|practice|game|clubhouse)\b/i.test(trimmed);
   const contextualTeamReference = /\b(?:our|my|this) team\b/i.test(trimmed);
-  const explicitTeamData = TEAM_DATA_PATTERN.test(trimmed) || players.some((player) => (
+  const explicitTeamData = (!definitionQuestion && TEAM_DATA_PATTERN.test(trimmed)) || players.some((player) => (
     lower.includes(player.name.toLowerCase())
     || player.name.toLowerCase().split(/[^a-z0-9]+/).some((token) => token.length >= 3 && messageTokens.has(token))
   ));
@@ -237,7 +239,7 @@ export function buildAskClubhouseToolPlan(
       status: "completed",
       route: classification.route,
       requiresWebSearch: false,
-      answer: definition.answer,
+      answer: classification.knowledgeItems[0]?.content ?? definition.answer,
       toolRequests: [],
       actions: [],
       followUps: definition.followUps,
@@ -477,6 +479,20 @@ export function summarizeToolEvidence(toolResults: AskClubhouseToolResult[]) {
   return toolResults.slice(0, 4).map((tool) => ({
     title: tool.title,
     summary: tool.summary,
+  }));
+}
+
+export function summarizeKnowledgeEvidence(knowledgeItems: BaseballKnowledgeItem[]) {
+  return knowledgeItems.slice(0, 3).map((item) => ({
+    id: item.id,
+    documentId: item.documentId,
+    chunkId: item.chunkId,
+    title: `Baseball Knowledge · ${item.title}`,
+    summary: [item.source, item.version, item.status].filter(Boolean).join(" · "),
+    source: item.source,
+    version: item.version,
+    status: item.status,
+    url: item.sourceReference?.startsWith("http") ? item.sourceReference : undefined,
   }));
 }
 
@@ -731,10 +747,15 @@ function unique(values: string[]): string[] {
 function knowledgeQuery(query: string) {
   const version = query.match(/\b20\d{2}\b/)?.[0];
   const governingBody = /\bnfhs\b/i.test(query) ? "NFHS" : /\bncaa\b/i.test(query) ? "NCAA" : undefined;
+  const category = /\b(rule|rulebook|balk|legal|allowed|infield fly|dropped third|obstruction|interference|force play|tag.?up|appeal|designated hitter|substitution|set position)\b/i.test(query)
+    ? "Rules"
+    : /\b(is that good|benchmark|for (?:his|her|their|my) age|age average)\b/i.test(query)
+      ? "Development"
+      : undefined;
   return {
     query,
-    category: /\b(rule|rulebook|legal|allowed)\b/i.test(query) ? "rules" : "baseball",
-    level: governingBody === "NFHS" ? "high_school" : governingBody === "NCAA" ? "college" : undefined,
+    category,
+    level: governingBody === "NFHS" ? "High School" : governingBody === "NCAA" ? "College" : undefined,
     governingBody,
     version,
     limit: 3,
