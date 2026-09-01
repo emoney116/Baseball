@@ -20936,7 +20936,7 @@ body,
 .game-field-command__runners > header { align-items: center; display: flex; justify-content: flex-end; padding: 8px; }
 .game-field-command__runners > header span { display: none; }
 .game-field-command__runners > header button { background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px solid var(--line); border-radius: 999px; color: var(--text); font-size: .56rem; font-weight: 850; min-height: 44px; padding: 5px 9px; pointer-events: auto; }
-.game-field-command__runners .game-base-diamond { height: 40%; left: 50%; margin: 0; max-width: none; pointer-events: none; position: absolute; top: 68%; transform: translate(-50%,-50%); width: 44%; }
+.game-field-command__runners .game-base-diamond { height: 40%; left: 50%; margin: 0; max-width: none; pointer-events: none; position: absolute; top: 68%; transform: translate(-50%,-50%); width: 42%; }
 .game-field-command__runners .game-base-diamond__line { display: none; }
 .game-field-command__runners .game-base-diamond > button { background: color-mix(in srgb, var(--panel) 86%, transparent); border-radius: 9px; min-height: 34px; pointer-events: auto; width: 46px; }
 .game-field-command__runners .game-base-diamond > button[data-base="second"] { left: 50%; top: 0; transform: translate(-50%,-50%); }
@@ -21190,7 +21190,7 @@ body,
   .game-field-pitch-ball img { height: 50px; width: 50px; }
   .game-field-pitch-ball strong { bottom: 4px; font-size: .39rem; padding: 1px 3px; }
   .game-field-command__runners > header button { min-height: 44px; }
-  .game-field-command__runners .game-base-diamond { height: 40%; top: 68%; width: 44%; }
+  .game-field-command__runners .game-base-diamond { height: 40%; top: 68%; width: 42%; }
   .game-field-command__runners .game-base-diamond > button { border-radius: 8px; min-height: 36px; width: 48px; }
   .game-field-command__runners .game-base-diamond > button.occupied { border-radius: 999px; min-height: 44px; width: 44px; }
   .game-field-command__runners .game-base-diamond > button.occupied strong { font-size: .47rem; max-width: 34px; }
