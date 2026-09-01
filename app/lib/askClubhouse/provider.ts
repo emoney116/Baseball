@@ -23,7 +23,13 @@ export class OpenAIProvider implements AIProvider {
     this.model = input.model;
   }
 
-  async generate(input: { system: string; prompt: string; maxOutputTokens: number }): Promise<AIProviderResult> {
+  async generate(input: {
+    system: string;
+    prompt: string;
+    maxOutputTokens: number;
+    webSearch?: { enabled: boolean; maxSearches: number };
+  }): Promise<AIProviderResult> {
+    const webSearchEnabled = Boolean(input.webSearch?.enabled && input.webSearch.maxSearches > 0);
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -36,6 +42,12 @@ export class OpenAIProvider implements AIProvider {
         input: input.prompt,
         max_output_tokens: input.maxOutputTokens,
         store: false,
+        ...(webSearchEnabled ? {
+          tools: [{ type: "web_search" }],
+          tool_choice: "required",
+          max_tool_calls: input.webSearch?.maxSearches ?? 1,
+          include: ["web_search_call.action.sources"],
+        } : {}),
       }),
     });
 
@@ -51,6 +63,8 @@ export class OpenAIProvider implements AIProvider {
       text: text || "I found the data, but could not format a useful answer. Try asking again more specifically.",
       usage: extractUsage(payload, this.model),
       model: payload.model ?? this.model,
+      webSearchCount: countWebSearches(payload),
+      sources: extractSources(payload),
     };
   }
 }
@@ -66,9 +80,21 @@ interface OpenAIResponsesPayload {
     completion_tokens?: number;
   };
   output?: Array<{
+    type?: string;
+    action?: {
+      sources?: Array<{
+        title?: string;
+        url?: string;
+      }>;
+    };
     content?: Array<{
       type?: string;
       text?: string;
+      annotations?: Array<{
+        type?: string;
+        title?: string;
+        url?: string;
+      }>;
     }>;
   }>;
   error?: {
@@ -76,6 +102,24 @@ interface OpenAIResponsesPayload {
     type?: string;
     code?: string;
   };
+}
+
+function countWebSearches(payload: OpenAIResponsesPayload): number {
+  return (payload.output ?? []).filter((item) => item.type === "web_search_call").length;
+}
+
+function extractSources(payload: OpenAIResponsesPayload) {
+  const sources = (payload.output ?? []).flatMap((item) => [
+    ...(item.action?.sources ?? []),
+    ...(item.content ?? []).flatMap((part) => part.annotations ?? []),
+  ]);
+  return [...new Map(sources
+    .filter((source) => source.url)
+    .map((source) => [source.url, {
+      title: source.title?.trim() || "Baseball source",
+      summary: "External baseball context",
+      url: source.url,
+    }])).values()].slice(0, 5);
 }
 
 function extractResponseText(payload: OpenAIResponsesPayload): string {

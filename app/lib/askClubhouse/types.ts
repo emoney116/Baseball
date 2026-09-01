@@ -6,11 +6,14 @@ import type {
 import type { ID } from "../../types";
 
 export type AskClubhouseMessageRole = "user" | "assistant";
+export type AskClubhouseRoute = "clubhouse_data" | "baseball_knowledge" | "mixed" | "refuse";
+export type AskClubhouseLaunchSurface = "clubhouse_home" | "team_home" | "practice" | "analytics" | "weight_room" | "games";
 export type AskClubhouseStatus =
   | "completed"
   | "refused"
   | "needs_clarification"
   | "no_data"
+  | "low_sample"
   | "rate_limited"
   | "duplicate"
   | "unavailable"
@@ -27,7 +30,14 @@ export interface AskClubhouseUiContext {
   teamId?: ID;
   seasonId?: ID;
   organizationId?: ID;
+  teamScopes?: AskClubhouseTeamScope[];
+  launchSurface?: AskClubhouseLaunchSurface;
   analytics?: Partial<AnalyticsQuery>;
+}
+
+export interface AskClubhouseTeamScope {
+  teamId: ID;
+  seasonId?: ID;
 }
 
 export interface AskClubhouseApiRequest {
@@ -50,6 +60,7 @@ export interface AskClubhouseAction {
 export interface AskClubhouseEvidenceItem {
   title: string;
   summary: string;
+  url?: string;
 }
 
 export interface AskClubhouseUsageSnapshot {
@@ -65,6 +76,7 @@ export interface AskClubhouseUsageSnapshot {
 export interface AskClubhouseApiResponse {
   ok: boolean;
   status: AskClubhouseStatus;
+  route?: AskClubhouseRoute;
   conversationId?: ID;
   message?: AskClubhouseClientMessage;
   answer?: string;
@@ -102,6 +114,14 @@ export interface AskClubhouseToolResult {
   totals?: AskClubhouseToolRow;
   warnings?: string[];
   parameters?: Record<string, unknown>;
+  coverage?: {
+    label: string;
+    tracked: number;
+    minimumSample: number;
+    playerCount: number;
+    sessionCount: number;
+    byLabel?: Array<{ label: string; count: number }>;
+  };
 }
 
 export interface AIProviderUsage {
@@ -115,6 +135,8 @@ export interface AIProviderResult {
   text: string;
   usage?: AIProviderUsage;
   model?: string;
+  webSearchCount?: number;
+  sources?: AskClubhouseEvidenceItem[];
 }
 
 export interface AIProvider {
@@ -123,5 +145,9 @@ export interface AIProvider {
     system: string;
     prompt: string;
     maxOutputTokens: number;
+    webSearch?: {
+      enabled: boolean;
+      maxSearches: number;
+    };
   }): Promise<AIProviderResult>;
 }

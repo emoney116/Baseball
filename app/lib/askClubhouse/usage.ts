@@ -185,7 +185,7 @@ function usageError(error: { code?: string; message?: string }): AiUsageStoreErr
 }
 
 function usageStatus(status: AskClubhouseStatus): "completed" | "failed" | "rate_limited" | "duplicate" | "unavailable" | "refused" {
-  if (status === "completed" || status === "no_data" || status === "needs_clarification") return "completed";
+  if (status === "completed" || status === "no_data" || status === "low_sample" || status === "needs_clarification") return "completed";
   if (status === "rate_limited" || status === "duplicate" || status === "unavailable" || status === "refused") return status;
   return "failed";
 }

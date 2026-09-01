@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getAskClubhouseConfig } from "../app/lib/askClubhouse/config.ts";
 import { generateAskClubhouseReply } from "../app/lib/askClubhouse/engine.ts";
-import { buildAskClubhouseToolPlan, runAskClubhouseTools } from "../app/lib/askClubhouse/tools.ts";
+import { OpenAIProvider } from "../app/lib/askClubhouse/provider.ts";
+import { buildAskClubhouseToolPlan, classifyAskClubhouseIntent, runAskClubhouseTools } from "../app/lib/askClubhouse/tools.ts";
 import { createAiRequestHash, enforceAiUsageLimits } from "../app/lib/askClubhouse/usage.ts";
 
 const now = "2026-08-20T12:00:00.000Z";
@@ -154,6 +155,35 @@ test("Ask Clubhouse answers baseball definitions without model tools", () => {
   assert.match(plan.answer, /on-base percentage plus slugging/);
 });
 
+test("Ask Clubhouse routes each question by intent and bounds web use", () => {
+  const internal = classifyAskClubhouseIntent("Who has the highest Practice Contact %?", players);
+  const currentRule = classifyAskClubhouseIntent("What is the NFHS balk rule?", players);
+  const mixed = classifyAskClubhouseIntent("Mylo topped out at 84 mph. Is that good for his age?", players);
+  const general = classifyAskClubhouseIntent("When should a team bunt?", players);
+  const refusal = classifyAskClubhouseIntent("Write me a history essay", players);
+
+  assert.deepEqual([internal.route, internal.requiresWebSearch], ["clubhouse_data", false]);
+  assert.deepEqual([currentRule.route, currentRule.requiresWebSearch], ["baseball_knowledge", true]);
+  assert.deepEqual([mixed.route, mixed.requiresWebSearch], ["mixed", true]);
+  assert.deepEqual([general.route, general.requiresWebSearch], ["baseball_knowledge", false]);
+  assert.deepEqual([refusal.route, refusal.requiresWebSearch], ["refuse", false]);
+});
+
+test("Ask Clubhouse distinguishes team strategy from team analytics", () => {
+  const strategy = classifyAskClubhouseIntent("When should my team bunt?", players);
+  const analytics = classifyAskClubhouseIntent("How is my team?", players);
+
+  assert.deepEqual([strategy.route, strategy.requiresWebSearch], ["baseball_knowledge", false]);
+  assert.deepEqual([analytics.route, analytics.requiresWebSearch], ["clubhouse_data", false]);
+});
+
+test("Ask Clubhouse keeps general baseball questions out of private team routing", () => {
+  const classification = classifyAskClubhouseIntent("Who won the World Series this year?", players);
+
+  assert.equal(classification.route, "baseball_knowledge");
+  assert.equal(classification.requiresWebSearch, true);
+});
+
 test("Ask Clubhouse builds bounded hitting leaderboard tools", () => {
   const config = { ...getAskClubhouseConfig({}), toolResultLimit: 3 };
   const plan = buildAskClubhouseToolPlan(data, "Who has the highest practice contact rate?", undefined, config);
@@ -164,6 +194,16 @@ test("Ask Clubhouse builds bounded hitting leaderboard tools", () => {
   assert.equal(results[0].rows[0].playerName, "Mylo White");
   assert.equal(results[0].rows.length <= 3, true);
   assert.equal(results[0].rows[0].metrics.some((metric) => metric.metricId === "contactPct"), true);
+});
+
+test("Ask Clubhouse adds data coverage for pitch-type questions", () => {
+  const config = getAskClubhouseConfig({});
+  const plan = buildAskClubhouseToolPlan(data, "Who has the best contact rate against sliders?", undefined, config);
+  const results = runAskClubhouseTools(data, plan.toolRequests, config);
+
+  assert.equal(plan.route, "clubhouse_data");
+  assert.equal(plan.toolRequests.some((request) => request.name === "getDataCoverage"), true);
+  assert.equal(results.some((result) => result.name === "getDataCoverage"), true);
 });
 
 test("Ask Clubhouse compares practice and games with separate bounded tools", () => {
@@ -209,9 +249,70 @@ test("Ask Clubhouse engine uses mocked provider and tracks usage shape", async (
     provider,
   });
 
-  assert.equal(response.status, "completed");
+  assert.equal(response.status, "low_sample");
   assert.equal(response.usage.totalTokens, 144);
   assert.equal(response.usage.toolCallCount, 1);
+  assert.equal(response.webSearchCount, 0);
+});
+
+test("OpenAI provider bounds web search and extracts compact sources", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestBody;
+  globalThis.fetch = async (_url, init) => {
+    requestBody = JSON.parse(String(init?.body));
+    return new Response(JSON.stringify({
+      model: "gpt-test",
+      output_text: "NFHS balk guidance.",
+      usage: { input_tokens: 30, output_tokens: 8, total_tokens: 38 },
+      output: [{
+        type: "web_search_call",
+        action: { sources: [{ title: "NFHS Baseball", url: "https://www.nfhs.org/activities-sports/baseball" }] },
+      }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+
+  try {
+    const provider = new OpenAIProvider({ apiKey: "test-key", model: "gpt-test" });
+    const result = await provider.generate({
+      system: "Baseball only.",
+      prompt: "What is the current NFHS balk rule?",
+      maxOutputTokens: 300,
+      webSearch: { enabled: true, maxSearches: 1 },
+    });
+
+    assert.deepEqual(requestBody.tools, [{ type: "web_search" }]);
+    assert.equal(requestBody.tool_choice, "required");
+    assert.equal(requestBody.max_tool_calls, 1);
+    assert.deepEqual(requestBody.include, ["web_search_call.action.sources"]);
+    assert.equal(result.webSearchCount, 1);
+    assert.deepEqual(result.sources, [{
+      title: "NFHS Baseball",
+      summary: "External baseball context",
+      url: "https://www.nfhs.org/activities-sports/baseball",
+    }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Ask Clubhouse does not invent current guidance when web verification fails", async () => {
+  const config = getAskClubhouseConfig({ OPENAI_API_KEY: "test-key" });
+  const provider = {
+    model: config.model,
+    async generate() {
+      throw new Error("network unavailable");
+    },
+  };
+
+  const response = await generateAskClubhouseReply({
+    data,
+    message: "What is the current NFHS balk rule?",
+    config,
+    provider,
+  });
+
+  assert.equal(response.status, "failed");
+  assert.match(response.answer, /couldn't verify the current baseball guidance/i);
   assert.equal(response.webSearchCount, 0);
 });
 

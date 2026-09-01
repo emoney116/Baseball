@@ -1,4 +1,4 @@
-import type { AppData, ID, Player } from "../../types";
+import type { AppData, ID, PitchType, Player } from "../../types";
 import {
   defaultAnalyticsSort,
   executeAnalyticsQuery,
@@ -12,6 +12,8 @@ import {
 import type { AskClubhouseConfig } from "./config";
 import type {
   AskClubhouseAction,
+  AskClubhouseClientMessage,
+  AskClubhouseRoute,
   AskClubhouseStatus,
   AskClubhouseToolCell,
   AskClubhouseToolResult,
@@ -20,12 +22,15 @@ import type {
 } from "./types";
 
 export interface AskToolPlan {
-  status: AskClubhouseStatus | "data";
+  status: AskClubhouseStatus | "data" | "provider";
+  route: AskClubhouseRoute;
+  requiresWebSearch: boolean;
   answer?: string;
   toolRequests: AskToolRequest[];
   actions: AskClubhouseAction[];
   followUps: string[];
   clarification?: string;
+  interpretation?: string;
 }
 
 export interface AskToolRequest {
@@ -45,7 +50,14 @@ export type AskToolName =
   | "getDefenseLeaderboard"
   | "getPlayerDefenseStats"
   | "getWeightRoomLeaderboard"
-  | "getPracticeSummary";
+  | "getPracticeSummary"
+  | "getDataCoverage";
+
+export interface AskIntentClassification {
+  route: AskClubhouseRoute;
+  requiresWebSearch: boolean;
+  reason: string;
+}
 
 const BASEBALL_DEFINITIONS: Array<{ pattern: RegExp; answer: string; followUps: string[] }> = [
   {
@@ -73,14 +85,57 @@ const BASEBALL_DEFINITIONS: Array<{ pattern: RegExp; answer: string; followUps: 
 const OUT_OF_SCOPE_PATTERN =
   /\b(essay|homework|recipe|vacation|travel|weather|stock|crypto|bitcoin|election|politics|movie|song|lyrics|dating|medical|lawyer|legal)\b/i;
 
+const CURRENT_BASEBALL_CONTEXT_PATTERN = /\b(nfhs|ncaa|mlb|official rule|rulebook|pitch count limit|current rule|latest rule|this season'?s? rule|this year|current season|world series|age benchmark|age average|good for (?:his|her|their|my) age)\b/i;
+const BASEBALL_KNOWLEDGE_PATTERN = /\b(baseball|softball|balk|ops|babip|csw|zone rate|infield fly|obstruction|interference|pitch count|curveball|slider|fastball|changeup|bunt|cutoff|relay|approach|mechanics|launch angle|exit velocity|batting|pitching|fielding|world series|major league|minor league)\b/i;
+const TEAM_DATA_PATTERN = /\b(player|players|leader|leaders|highest|lowest|best|hottest|improved|practice|game|season|clubhouse|analytics|weight room|bullpen|roster|compare|tracked|reps|contact|hard %|avg ev|velocity|velo|strike %|zone %)\b/i;
+
+export function classifyAskClubhouseIntent(
+  message: string,
+  players: Player[] = [],
+  history: AskClubhouseClientMessage[] = [],
+): AskIntentClassification {
+  const trimmed = message.trim();
+  const lower = trimmed.toLowerCase();
+  const messageTokens = new Set(lower.split(/[^a-z0-9]+/).filter((token) => token.length >= 3));
+  const baseballContext = BASEBALL_KNOWLEDGE_PATTERN.test(trimmed);
+  const contextualTeamReference = /\b(?:our|my|this) team\b/i.test(trimmed);
+  const explicitTeamData = TEAM_DATA_PATTERN.test(trimmed) || players.some((player) => (
+    lower.includes(player.name.toLowerCase())
+    || player.name.toLowerCase().split(/[^a-z0-9]+/).some((token) => token.length >= 3 && messageTokens.has(token))
+  ));
+  const currentBaseballContext = CURRENT_BASEBALL_CONTEXT_PATTERN.test(trimmed);
+  const compactFollowUp = /^(how|what) about\b|^why\??$|^and\b/i.test(trimmed);
+  const priorTeamContext = history.slice(-4).some((item) => TEAM_DATA_PATTERN.test(item.content));
+  const usesTeamData = explicitTeamData
+    || (contextualTeamReference && !baseballContext)
+    || (compactFollowUp && priorTeamContext && baseballContext);
+  const asksForExternalInterpretation = /\b(is that good|how does that compare|benchmark|for (?:his|her|their|my) age|rule|legal|allowed)\b/i.test(trimmed);
+
+  if (OUT_OF_SCOPE_PATTERN.test(trimmed) && !baseballContext) {
+    return { route: "refuse", requiresWebSearch: false, reason: "The request is outside baseball and Clubhouse data." };
+  }
+  if (usesTeamData && (asksForExternalInterpretation || currentBaseballContext)) {
+    return { route: "mixed", requiresWebSearch: currentBaseballContext, reason: "The answer combines authorized Clubhouse data with baseball context." };
+  }
+  if (usesTeamData) {
+    return { route: "clubhouse_data", requiresWebSearch: false, reason: "The request asks about the user's authorized Clubhouse data." };
+  }
+  if (baseballContext) {
+    return { route: "baseball_knowledge", requiresWebSearch: currentBaseballContext, reason: currentBaseballContext ? "The baseball answer may have changed and needs a current source." : "The request is stable baseball knowledge." };
+  }
+  return { route: "refuse", requiresWebSearch: false, reason: "The request does not match Clubhouse data or baseball knowledge." };
+}
+
 export function buildAskClubhouseToolPlan(
   data: AppData,
   message: string,
   uiContext: AskClubhouseUiContext | undefined,
   config: AskClubhouseConfig,
+  history: AskClubhouseClientMessage[] = [],
 ): AskToolPlan {
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
+  const classification = classifyAskClubhouseIntent(trimmed, data.players, history);
   const currentTeam = data.teamContext?.currentTeam;
   const context = {
     teamId: currentTeam?.teamId,
@@ -89,9 +144,11 @@ export function buildAskClubhouseToolPlan(
     role: currentTeam?.role,
   };
 
-  if (OUT_OF_SCOPE_PATTERN.test(trimmed) && !/\b(baseball|hitting|pitch|practice|game|player|team|clubhouse|weight room)\b/i.test(trimmed)) {
+  if (classification.route === "refuse") {
     return {
       status: "refused",
+      route: classification.route,
+      requiresWebSearch: false,
       answer: "I can help with Clubhouse 9 team data, player development, baseball, and weight room context. I cannot help with that topic here.",
       toolRequests: [],
       actions: [],
@@ -100,9 +157,11 @@ export function buildAskClubhouseToolPlan(
   }
 
   const definition = BASEBALL_DEFINITIONS.find((item) => item.pattern.test(trimmed));
-  if (definition && !looksLikeTeamDataQuestion(lower)) {
+  if (definition && classification.route === "baseball_knowledge" && !classification.requiresWebSearch) {
     return {
       status: "completed",
+      route: classification.route,
+      requiresWebSearch: false,
       answer: definition.answer,
       toolRequests: [],
       actions: [],
@@ -110,10 +169,23 @@ export function buildAskClubhouseToolPlan(
     };
   }
 
+  if (classification.route === "baseball_knowledge") {
+    return {
+      status: "provider",
+      route: classification.route,
+      requiresWebSearch: classification.requiresWebSearch,
+      toolRequests: [],
+      actions: [],
+      followUps: ["How does that apply in a game?", "What should a coach watch for?", "Give me a simple example"],
+    };
+  }
+
   const playerMatch = findRequestedPlayer(data.players, lower);
   if (playerMatch.status === "ambiguous") {
     return {
       status: "needs_clarification",
+      route: classification.route,
+      requiresWebSearch: classification.requiresWebSearch,
       answer: `I found more than one possible player: ${playerMatch.players.map((player) => player.name).join(", ")}. Which one do you mean?`,
       toolRequests: [],
       actions: [],
@@ -127,6 +199,8 @@ export function buildAskClubhouseToolPlan(
   const source = inferSource(lower, uiContext, domain);
   const metricId = inferMetric(lower, domain, source);
   const mode = needsSituationalMode(lower) ? "situational" as const : "box-score" as const;
+  const pitchTypes = inferPitchTypes(lower);
+  const filters = pitchTypes.length ? { pitchTypes } : {};
 
   if (lower.includes("practice summary") || lower.includes("current practice") || lower.includes("today's practice") || lower.includes("today practice")) {
     const request = analyticsRequest("getPracticeSummary", {
@@ -136,6 +210,7 @@ export function buildAskClubhouseToolPlan(
       timeRange: "season",
       developmentView: "overview",
       groupBy: "player",
+      filters,
       sort: { metricId: "practiceReps", direction: "desc" },
       limit: config.toolResultLimit,
       context,
@@ -149,6 +224,7 @@ export function buildAskClubhouseToolPlan(
       mode: "box-score",
       timeRange: "season",
       groupBy: "player",
+      filters,
       sort: { metricId: "contactPct", direction: "desc" },
       limit: config.toolResultLimit,
       context,
@@ -159,6 +235,7 @@ export function buildAskClubhouseToolPlan(
       mode: "box-score",
       timeRange: "season",
       groupBy: "player",
+      filters,
       sort: { metricId: "avg", direction: "desc" },
       limit: config.toolResultLimit,
       context,
@@ -173,6 +250,7 @@ export function buildAskClubhouseToolPlan(
       mode,
       timeRange: "season",
       groupBy: "player",
+      filters,
       sort: defaultAnalyticsSort(domain, source, mode),
       limit: config.toolResultLimit,
       context,
@@ -186,6 +264,7 @@ export function buildAskClubhouseToolPlan(
       mode,
       timeRange: "season",
       groupBy: "player",
+      filters,
       sort: { metricId, direction: "desc" },
       limit: config.toolResultLimit,
       context,
@@ -194,12 +273,32 @@ export function buildAskClubhouseToolPlan(
     actions.push(analyticsAction(`Open ${domainLabel(domain)} analytics`, request.query));
   }
 
+  if (needsPitchTypeCoverage(lower)) {
+    const coverageQuery = requests[0]?.query ?? {
+      domain,
+      source,
+      mode: "situational" as const,
+      timeRange: "season" as const,
+      groupBy: "player" as const,
+      filters,
+      sort: { metricId, direction: "desc" as const },
+      limit: config.toolResultLimit,
+      context,
+    };
+    requests.push(analyticsRequest("getDataCoverage", coverageQuery, [metricId]));
+  }
+
   const boundedRequests = requests.slice(0, config.maxToolCallsPerRequest);
   return {
     status: "data",
+    route: classification.route,
+    requiresWebSearch: classification.requiresWebSearch,
     toolRequests: boundedRequests,
-    actions: actions.slice(0, 3),
+    actions: currentTeam ? actions.slice(0, 3) : [],
     followUps: followUpsFor(domain, source, playerMatch.status === "single" ? playerMatch.player : undefined),
+    interpretation: /\bhottest\b/.test(lower)
+      ? "Interpret hottest as current performance using qualified rate metrics and supporting contact quality, not raw rep volume. State that interpretation."
+      : undefined,
   };
 }
 
@@ -209,6 +308,7 @@ export function runAskClubhouseTools(
   config: AskClubhouseConfig,
 ): AskClubhouseToolResult[] {
   return requests.slice(0, config.maxToolCallsPerRequest).map((request) => {
+    if (request.name === "getDataCoverage") return buildDataCoverageResult(data, request);
     const result = executeAnalyticsQuery(data, {
       ...request.query,
       limit: Math.min(request.query.limit ?? config.toolResultLimit, config.toolResultLimit),
@@ -271,6 +371,7 @@ function analyticsRequest(
       metricIds,
       playerId,
       limit: query.limit,
+      filters: query.filters,
     },
   };
 }
@@ -367,10 +468,6 @@ function needsSituationalMode(lower: string): boolean {
   return /\b(pitch type|slider|fastball|curve|changeup|count|lefty|righty|handed|live bp thrower|machine|coach throwing|player throwing)\b/.test(lower);
 }
 
-function looksLikeTeamDataQuestion(lower: string): boolean {
-  return /\b(our|my|team|player|who|which|leader|leaders|highest|lowest|best|practice|game|season|clubhouse|metrolina)\b/.test(lower);
-}
-
 function findRequestedPlayer(players: Player[], lower: string): { status: "none" } | { status: "single"; player: Player } | { status: "ambiguous"; players: Player[] } {
   const candidates = players.filter((player) => {
     const name = player.name.toLowerCase();
@@ -381,6 +478,60 @@ function findRequestedPlayer(players: Player[], lower: string): { status: "none"
   if (unique.length === 1) return { status: "single", player: unique[0] };
   if (unique.length > 1) return { status: "ambiguous", players: unique };
   return { status: "none" };
+}
+
+function inferPitchTypes(lower: string): PitchType[] {
+  const candidates: Array<{ type: PitchType; pattern: RegExp }> = [
+    { type: "4-Seam", pattern: /\b(4[- ]?seam|four[- ]?seam|fastball|fb)\b/ },
+    { type: "2-Seam", pattern: /\b(2[- ]?seam|two[- ]?seam)\b/ },
+    { type: "Sinker", pattern: /\bsinker(s)?\b/ },
+    { type: "Cutter", pattern: /\bcutter(s)?\b/ },
+    { type: "Slider", pattern: /\bslider(s)?\b/ },
+    { type: "Curveball", pattern: /\b(curve|curveball)(s)?\b/ },
+    { type: "Changeup", pattern: /\b(change|changeup)(s)?\b/ },
+    { type: "Splitter", pattern: /\b(split|splitter)(s)?\b/ },
+    { type: "Knuckleball", pattern: /\b(knuckleball)(s)?\b/ },
+  ];
+  return candidates.filter((candidate) => candidate.pattern.test(lower)).map((candidate) => candidate.type);
+}
+
+function needsPitchTypeCoverage(lower: string): boolean {
+  return /\b(pitch types?|fastballs?|sliders?|curves?|curveballs?|changeups?|sinkers?|cutters?|splitters?|knuckleballs?|two[- ]?seam|four[- ]?seam)\b/.test(lower);
+}
+
+function buildDataCoverageResult(data: AppData, request: AskToolRequest): AskClubhouseToolResult {
+  const pitchTypes = request.query.filters?.pitchTypes ?? [];
+  const rankingMetric = request.query.sort?.metricId ?? request.metricIds[0];
+  const minimumSample = metricById(rankingMetric)?.minimumSample ?? 1;
+  const isPitching = request.query.domain === "pitching";
+  const rawEvents = isPitching ? data.pitchEvents : data.hittingEvents;
+  const events = rawEvents.filter((event) => !pitchTypes.length || (event.pitchType && pitchTypes.includes(event.pitchType)));
+  const byLabel = [...events.reduce((counts, event) => {
+    const label = event.pitchType ?? "Untracked pitch type";
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>())]
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
+    .slice(0, 10);
+  const playerIds = new Set(events.map((event) => isPitching && "pitcherId" in event ? event.pitcherId : "hitterId" in event ? event.hitterId : undefined).filter(Boolean));
+  const sessionIds = new Set(events.map((event) => event.sessionId).filter(Boolean));
+  const pitchLabel = pitchTypes.length ? pitchTypes.join(", ") : "all pitch types";
+  return {
+    name: request.name,
+    title: "Data Coverage",
+    summary: `${events.length} tracked ${isPitching ? "pitches" : "hitting events"} for ${pitchLabel} across ${playerIds.size} players and ${sessionIds.size} sessions.`,
+    query: request.query,
+    parameters: request.parameters,
+    coverage: {
+      label: pitchLabel,
+      tracked: events.length,
+      minimumSample,
+      playerCount: playerIds.size,
+      sessionCount: sessionIds.size,
+      byLabel,
+    },
+  };
 }
 
 function leaderboardToolName(domain: AnalyticsQuery["domain"]): AskToolName {

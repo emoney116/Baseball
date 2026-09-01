@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAskClubhouseConfig } from "../../../lib/askClubhouse/config";
 import { boundConversationHistory, generateAskClubhouseReply } from "../../../lib/askClubhouse/engine";
 import { OpenAIProvider } from "../../../lib/askClubhouse/provider";
-import { loadAskClubhouseData } from "../../../lib/askClubhouse/serverData";
+import { AskClubhouseScopeError, loadAskClubhouseData } from "../../../lib/askClubhouse/serverData";
+import { classifyAskClubhouseIntent } from "../../../lib/askClubhouse/tools";
 import type { AskClubhouseApiRequest, AskClubhouseApiResponse } from "../../../lib/askClubhouse/types";
 import {
   AiUsageStoreError,
@@ -65,8 +66,11 @@ export async function POST(request: NextRequest) {
       userData.user,
       body.uiContext?.teamId,
       body.uiContext?.seasonId,
+      body.uiContext?.teamScopes,
     );
     const currentTeam = data.teamContext?.currentTeam;
+    const history = boundConversationHistory(body.messages, config.contextMessageLimit);
+    const intent = classifyAskClubhouseIntent(message, data.players, history);
     const requestHash = createAiRequestHash({
       profileId: scope.profileId,
       teamId: currentTeam?.teamId,
@@ -102,9 +106,8 @@ export async function POST(request: NextRequest) {
       seasonId: currentTeam?.seasonId,
       title: message,
       scope: {
-        source: "analytics",
-        teamName: currentTeam?.teamName,
-        seasonName: currentTeam?.seasonName,
+        source: body.uiContext?.launchSurface ?? "analytics",
+        teams: scope.selectedTeams.map((team) => ({ teamId: team.teamId, seasonId: team.seasonId, teamName: team.teamName })),
       },
     });
     const userMessageId = await insertMessage(supabase, {
@@ -130,6 +133,8 @@ export async function POST(request: NextRequest) {
         inputCharacters: message.length,
         contextMessageLimit: config.contextMessageLimit,
         maxOutputTokens: config.maxOutputTokens,
+        route: intent.route,
+        selectedTeamIds: scope.selectedTeams.map((team) => team.teamId),
       },
     });
 
@@ -140,7 +145,7 @@ export async function POST(request: NextRequest) {
       data,
       message,
       conversationId,
-      history: boundConversationHistory(body.messages, config.contextMessageLimit),
+      history,
       uiContext: body.uiContext,
       config,
       provider,
@@ -154,6 +159,7 @@ export async function POST(request: NextRequest) {
       content: assistantContent,
       metadata: {
         status: reply.status,
+        route: reply.route,
         actions: reply.actions ?? [],
         evidence: reply.evidence ?? [],
         followUps: reply.followUps ?? [],
@@ -178,6 +184,7 @@ export async function POST(request: NextRequest) {
     return json({
       ok: reply.ok,
       status: reply.status,
+      route: reply.route,
       conversationId,
       message: {
         id: assistantMessageId,
@@ -193,6 +200,14 @@ export async function POST(request: NextRequest) {
       code: reply.code,
     });
   } catch (error) {
+    if (error instanceof AskClubhouseScopeError) {
+      return json({
+        ok: false,
+        status: "failed",
+        answer: "That team scope is not available to this account.",
+        code: "AI_SCOPE_FORBIDDEN",
+      }, 403);
+    }
     if (error instanceof AiUsageStoreError && error.code === "missing_storage") {
       return json({
         ok: false,
