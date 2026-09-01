@@ -1,4 +1,4 @@
-import type { AppData, ID, PitchType, Player } from "../../types";
+import type { AppData, ID, PitchType, Player } from "../../types.ts";
 import {
   defaultAnalyticsSort,
   executeAnalyticsQuery,
@@ -9,7 +9,7 @@ import {
   type AnalyticsRow,
   type AnalyticsSource,
 } from "../analyticsQuery.ts";
-import type { AskClubhouseConfig } from "./config";
+import type { AskClubhouseConfig } from "./config.ts";
 import type {
   AskClubhouseAction,
   AskClubhouseClientMessage,
@@ -19,7 +19,7 @@ import type {
   AskClubhouseToolResult,
   AskClubhouseToolRow,
   AskClubhouseUiContext,
-} from "./types";
+} from "./types.ts";
 
 export interface AskToolPlan {
   status: AskClubhouseStatus | "data" | "provider";

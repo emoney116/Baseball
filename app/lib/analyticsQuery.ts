@@ -16,7 +16,7 @@ import type {
   PitchType,
   Player,
   Practice,
-} from "../types";
+} from "../types.ts";
 import { isPracticeHardContactEvent } from "./hittingTaxonomy.ts";
 import {
   calculateDefenseStats,

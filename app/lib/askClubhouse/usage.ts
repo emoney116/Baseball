@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { AskClubhouseConfig } from "./config";
-import type { AIProviderUsage, AskClubhouseStatus } from "./types";
+import type { AiUsageRole, AskClubhouseConfig } from "./config.ts";
+import { calculateAIRequestCost } from "./pricing.ts";
+import type { AIProviderUsage, AskClubhouseStatus } from "./types.ts";
 
 export class AiUsageStoreError extends Error {
   code: "missing_storage" | "storage_error";
@@ -15,7 +16,10 @@ export class AiUsageStoreError extends Error {
 
 export interface AiUsageLimitInput {
   profileId: string;
+  organizationId?: string;
   teamId?: string;
+  role: AiUsageRole;
+  requiresWebSearch: boolean;
   requestHash: string;
   config: AskClubhouseConfig;
   now?: Date;
@@ -26,6 +30,16 @@ export interface AiUsageLimitResult {
   status?: "rate_limited" | "duplicate";
   message?: string;
   code?: string;
+}
+
+export interface AiUsageWindowStats {
+  userDailyRequests: number;
+  teamDailyRequests: number;
+  teamMonthlyRequests: number;
+  userDailyWebSearches: number;
+  teamDailyWebSearches: number;
+  teamMonthlyCostUsd: number;
+  globalMonthlyCostUsd: number;
 }
 
 export interface StartUsageInput {
@@ -52,6 +66,20 @@ export interface FinishUsageInput {
   toolNames?: string[];
   toolParams?: Record<string, unknown>[];
   errorCode?: string;
+  metadata?: Record<string, unknown>;
+}
+
+interface AiUsageEventRow {
+  profile_id: string;
+  organization_id?: string | null;
+  team_id?: string | null;
+  model?: string | null;
+  status: string;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  web_search_count?: number | null;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
 }
 
 export function createAiRequestHash(input: { profileId: string; teamId?: string; message: string }): string {
@@ -64,9 +92,9 @@ export async function enforceAiUsageLimits(
   supabase: SupabaseClient,
   input: AiUsageLimitInput,
 ): Promise<AiUsageLimitResult> {
-  const dayStart = startOfUtcDay(input.now ?? new Date()).toISOString();
+  const now = input.now ?? new Date();
   if (input.config.requestCooldownSeconds > 0) {
-    const cooldownStart = new Date((input.now ?? new Date()).getTime() - input.config.requestCooldownSeconds * 1000).toISOString();
+    const cooldownStart = new Date(now.getTime() - input.config.requestCooldownSeconds * 1000).toISOString();
     const { data, error } = await supabase
       .from("ai_usage_events")
       .select("id,status,created_at")
@@ -86,11 +114,17 @@ export async function enforceAiUsageLimits(
     }
   }
 
-  const userCount = await countUsage(supabase, {
-    profileId: input.profileId,
-    since: dayStart,
-  });
-  if (userCount >= input.config.dailyUserRequestLimit) {
+  const monthStart = startOfUtcMonth(now).toISOString();
+  const rows = await fetchUsageRows(supabase, monthStart);
+  const stats = summarizeAiUsageWindows(rows, input, now);
+  return evaluateAiUsageLimits(input, stats);
+}
+
+export function evaluateAiUsageLimits(
+  input: Pick<AiUsageLimitInput, "teamId" | "role" | "requiresWebSearch" | "config">,
+  stats: AiUsageWindowStats,
+): AiUsageLimitResult {
+  if (stats.userDailyRequests >= input.config.dailyRoleRequestLimits[input.role]) {
     return {
       allowed: false,
       status: "rate_limited",
@@ -100,21 +134,82 @@ export async function enforceAiUsageLimits(
   }
 
   if (input.teamId) {
-    const teamCount = await countUsage(supabase, {
-      teamId: input.teamId,
-      since: dayStart,
-    });
-    if (teamCount >= input.config.dailyTeamRequestLimit) {
+    if (stats.teamDailyRequests >= input.config.dailyTeamRequestLimit) {
       return {
         allowed: false,
         status: "rate_limited",
         code: "AI_DAILY_TEAM_LIMIT",
-        message: "This team's Ask Clubhouse limit has been reached for today. Try again tomorrow.",
+        message: "Ask Clubhouse has reached this team's current usage limit.",
+      };
+    }
+    if (stats.teamMonthlyRequests >= input.config.monthlyTeamRequestLimit) {
+      return {
+        allowed: false,
+        status: "rate_limited",
+        code: "AI_MONTHLY_TEAM_REQUEST_LIMIT",
+        message: "Ask Clubhouse has reached this team's current usage limit.",
+      };
+    }
+    if (stats.teamMonthlyCostUsd >= input.config.monthlyTeamCostLimitUsd) {
+      return {
+        allowed: false,
+        status: "rate_limited",
+        code: "AI_MONTHLY_TEAM_COST_LIMIT",
+        message: "Ask Clubhouse has reached this team's current usage limit.",
+      };
+    }
+  }
+
+  if (stats.globalMonthlyCostUsd >= input.config.monthlyGlobalCostLimitUsd) {
+    return {
+      allowed: false,
+      status: "rate_limited",
+      code: "AI_MONTHLY_GLOBAL_COST_LIMIT",
+      message: "Ask Clubhouse has reached its current usage limit. Try again later.",
+    };
+  }
+
+  if (input.requiresWebSearch) {
+    if (stats.userDailyWebSearches >= input.config.dailyRoleWebSearchLimits[input.role]) {
+      return {
+        allowed: false,
+        status: "rate_limited",
+        code: "AI_DAILY_USER_WEB_SEARCH_LIMIT",
+        message: "Ask Clubhouse has reached today's web research limit. Try an internal team-data question or try again tomorrow.",
+      };
+    }
+    if (input.teamId && stats.teamDailyWebSearches >= input.config.dailyTeamWebSearchLimit) {
+      return {
+        allowed: false,
+        status: "rate_limited",
+        code: "AI_DAILY_TEAM_WEB_SEARCH_LIMIT",
+        message: "Ask Clubhouse has reached this team's current web research limit.",
       };
     }
   }
 
   return { allowed: true };
+}
+
+export function summarizeAiUsageWindows(
+  rows: AiUsageEventRow[],
+  input: Pick<AiUsageLimitInput, "profileId" | "organizationId" | "teamId">,
+  now: Date,
+): AiUsageWindowStats {
+  const dayStartMs = startOfUtcDay(now).getTime();
+  const countedRows = rows.filter((row) => !["duplicate", "rate_limited"].includes(row.status));
+  const dailyRows = countedRows.filter((row) => Date.parse(row.created_at) >= dayStartMs);
+  const teamMonthlyRows = input.teamId ? countedRows.filter((row) => row.team_id === input.teamId) : [];
+
+  return {
+    userDailyRequests: dailyRows.filter((row) => row.profile_id === input.profileId).length,
+    teamDailyRequests: input.teamId ? dailyRows.filter((row) => row.team_id === input.teamId).length : 0,
+    teamMonthlyRequests: teamMonthlyRows.length,
+    userDailyWebSearches: sumWebSearches(dailyRows.filter((row) => row.profile_id === input.profileId)),
+    teamDailyWebSearches: input.teamId ? sumWebSearches(dailyRows.filter((row) => row.team_id === input.teamId)) : 0,
+    teamMonthlyCostUsd: sumEstimatedCost(teamMonthlyRows),
+    globalMonthlyCostUsd: sumEstimatedCost(countedRows),
+  };
 }
 
 export async function startAiUsageEvent(supabase: SupabaseClient, input: StartUsageInput): Promise<string | undefined> {
@@ -141,6 +236,14 @@ export async function startAiUsageEvent(supabase: SupabaseClient, input: StartUs
 
 export async function finishAiUsageEvent(supabase: SupabaseClient, input: FinishUsageInput): Promise<void> {
   if (!input.usageEventId) return;
+  const cost = calculateAIRequestCost({
+    model: input.providerUsage?.model ?? "unknown",
+    inputTokens: input.providerUsage?.inputTokens,
+    cachedInputTokens: input.providerUsage?.cachedInputTokens,
+    cacheWriteTokens: input.providerUsage?.cacheWriteTokens,
+    outputTokens: input.providerUsage?.outputTokens,
+    webSearchCount: input.webSearchCount,
+  });
   const { error } = await supabase
     .from("ai_usage_events")
     .update({
@@ -156,25 +259,70 @@ export async function finishAiUsageEvent(supabase: SupabaseClient, input: Finish
       safe_tool_params: input.toolParams ?? undefined,
       latency_ms: input.latencyMs,
       error_code: input.errorCode ?? null,
+      metadata: {
+        ...(input.metadata ?? {}),
+        usageAccounting: {
+          cachedInputTokens: input.providerUsage?.cachedInputTokens ?? null,
+          cacheWriteTokens: input.providerUsage?.cacheWriteTokens ?? null,
+          reasoningTokens: input.providerUsage?.reasoningTokens ?? null,
+          estimatedModelCostUsd: cost.modelTokenCost,
+          estimatedWebCostUsd: cost.webSearchCost,
+          estimatedTotalCostUsd: cost.estimatedTotalCost,
+          pricingVersion: cost.pricingVersion,
+          pricedModel: cost.pricedModel,
+          pricingFound: cost.pricingFound,
+        },
+      },
       updated_at: new Date().toISOString(),
     })
     .eq("id", input.usageEventId);
   if (error) throw usageError(error);
 }
 
-async function countUsage(
-  supabase: SupabaseClient,
-  input: { profileId?: string; teamId?: string; since: string },
-): Promise<number> {
-  let query = supabase
-    .from("ai_usage_events")
-    .select("id", { count: "exact", head: true })
-    .gte("created_at", input.since);
-  if (input.profileId) query = query.eq("profile_id", input.profileId);
-  if (input.teamId) query = query.eq("team_id", input.teamId);
-  const { count, error } = await query;
-  if (error) throw usageError(error);
-  return count ?? 0;
+async function fetchUsageRows(supabase: SupabaseClient, since: string): Promise<AiUsageEventRow[]> {
+  const pageSize = 1000;
+  const rows: AiUsageEventRow[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from("ai_usage_events")
+      .select("profile_id,organization_id,team_id,model,status,input_tokens,output_tokens,web_search_count,metadata,created_at")
+      .gte("created_at", since)
+      .order("created_at", { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw usageError(error);
+    const page = (data ?? []) as AiUsageEventRow[];
+    rows.push(...page);
+    if (page.length < pageSize) return rows;
+  }
+}
+
+function sumWebSearches(rows: AiUsageEventRow[]): number {
+  return rows.reduce((sum, row) => sum + Math.max(0, row.web_search_count ?? 0), 0);
+}
+
+function sumEstimatedCost(rows: AiUsageEventRow[]): number {
+  return rows.reduce((sum, row) => {
+    const accounting = asRecord(row.metadata?.usageAccounting);
+    const stored = Number(accounting?.estimatedTotalCostUsd);
+    if (Number.isFinite(stored) && stored >= 0) return sum + stored;
+    return sum + calculateAIRequestCost({
+      model: row.model ?? "unknown",
+      inputTokens: row.input_tokens ?? undefined,
+      cachedInputTokens: numberValue(accounting?.cachedInputTokens),
+      cacheWriteTokens: numberValue(accounting?.cacheWriteTokens),
+      outputTokens: row.output_tokens ?? undefined,
+      webSearchCount: row.web_search_count ?? undefined,
+    }).estimatedTotalCost;
+  }, 0);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function usageError(error: { code?: string; message?: string }): AiUsageStoreError {
@@ -196,4 +344,8 @@ function normalizeQuestion(value: string): string {
 
 function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+function startOfUtcMonth(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }

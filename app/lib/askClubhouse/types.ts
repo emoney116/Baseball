@@ -2,8 +2,8 @@ import type {
   AnalyticsQuery,
   AnalyticsQueryContext,
   AnalyticsSource,
-} from "../analyticsQuery";
-import type { ID } from "../../types";
+} from "../analyticsQuery.ts";
+import type { ID } from "../../types.ts";
 
 export type AskClubhouseMessageRole = "user" | "assistant";
 export type AskClubhouseRoute = "clubhouse_data" | "baseball_knowledge" | "mixed" | "refuse";
@@ -65,7 +65,10 @@ export interface AskClubhouseEvidenceItem {
 
 export interface AskClubhouseUsageSnapshot {
   inputTokens?: number;
+  cachedInputTokens?: number;
+  cacheWriteTokens?: number;
   outputTokens?: number;
+  reasoningTokens?: number;
   totalTokens?: number;
   model?: string;
   toolCallCount: number;
@@ -126,7 +129,10 @@ export interface AskClubhouseToolResult {
 
 export interface AIProviderUsage {
   inputTokens?: number;
+  cachedInputTokens?: number;
+  cacheWriteTokens?: number;
   outputTokens?: number;
+  reasoningTokens?: number;
   totalTokens?: number;
   model?: string;
 }

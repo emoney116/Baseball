@@ -1,4 +1,4 @@
-import type { AIProvider, AIProviderResult } from "./types";
+import type { AIProvider, AIProviderResult } from "./types.ts";
 
 export class AskClubhouseProviderError extends Error {
   code: "rate_limited" | "quota" | "unavailable" | "provider_error";
@@ -74,7 +74,14 @@ interface OpenAIResponsesPayload {
   model?: string;
   usage?: {
     input_tokens?: number;
+    input_tokens_details?: {
+      cache_write_tokens?: number;
+      cached_tokens?: number;
+    };
     output_tokens?: number;
+    output_tokens_details?: {
+      reasoning_tokens?: number;
+    };
     total_tokens?: number;
     prompt_tokens?: number;
     completion_tokens?: number;
@@ -138,7 +145,10 @@ function extractUsage(payload: OpenAIResponsesPayload, fallbackModel: string) {
   const outputTokens = usage.output_tokens ?? usage.completion_tokens;
   return {
     inputTokens,
+    cachedInputTokens: usage.input_tokens_details?.cached_tokens,
+    cacheWriteTokens: usage.input_tokens_details?.cache_write_tokens,
     outputTokens,
+    reasoningTokens: usage.output_tokens_details?.reasoning_tokens,
     totalTokens: usage.total_tokens ?? (typeof inputTokens === "number" && typeof outputTokens === "number" ? inputTokens + outputTokens : undefined),
     model: payload.model ?? fallbackModel,
   };

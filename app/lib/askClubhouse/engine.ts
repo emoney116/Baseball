@@ -1,5 +1,5 @@
-import type { AppData } from "../../types";
-import type { AskClubhouseConfig } from "./config";
+import type { AppData } from "../../types.ts";
+import type { AskClubhouseConfig } from "./config.ts";
 import { AskClubhouseProviderError } from "./provider.ts";
 import {
   buildAskClubhouseToolPlan,
@@ -16,7 +16,7 @@ import type {
   AskClubhouseStatus,
   AskClubhouseToolResult,
   AskClubhouseUiContext,
-} from "./types";
+} from "./types.ts";
 
 export interface GenerateAskReplyInput {
   data: AppData;

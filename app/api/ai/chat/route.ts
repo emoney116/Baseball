@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAskClubhouseConfig } from "../../../lib/askClubhouse/config";
+import { getAskClubhouseConfig, resolveAiUsageRole } from "../../../lib/askClubhouse/config";
 import { boundConversationHistory, generateAskClubhouseReply } from "../../../lib/askClubhouse/engine";
 import { OpenAIProvider } from "../../../lib/askClubhouse/provider";
 import { AskClubhouseScopeError, loadAskClubhouseData } from "../../../lib/askClubhouse/serverData";
@@ -12,6 +12,7 @@ import {
   finishAiUsageEvent,
   startAiUsageEvent,
 } from "../../../lib/askClubhouse/usage";
+import { createAdminClient } from "../../../lib/supabase/admin";
 import { createClient } from "../../../lib/supabase/server";
 
 export async function POST(request: NextRequest) {
@@ -69,17 +70,23 @@ export async function POST(request: NextRequest) {
       body.uiContext?.teamScopes,
     );
     const currentTeam = data.teamContext?.currentTeam;
+    const billingTeam = currentTeam ?? scope.selectedTeams[0];
+    const usageRole = resolveAiUsageRole(billingTeam?.role, data.teamContext?.profile?.role);
+    const usageSupabase = createAdminClient();
     const history = boundConversationHistory(body.messages, config.contextMessageLimit);
     const intent = classifyAskClubhouseIntent(message, data.players, history);
     const requestHash = createAiRequestHash({
       profileId: scope.profileId,
-      teamId: currentTeam?.teamId,
+      teamId: billingTeam?.teamId,
       message,
     });
 
-    const limits = await enforceAiUsageLimits(supabase, {
+    const limits = await enforceAiUsageLimits(usageSupabase, {
       profileId: scope.profileId,
-      teamId: currentTeam?.teamId,
+      organizationId: billingTeam?.organizationId,
+      teamId: billingTeam?.teamId,
+      role: usageRole,
+      requiresWebSearch: intent.requiresWebSearch,
       requestHash,
       config,
     });
@@ -120,22 +127,25 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const usageEventId = await startAiUsageEvent(supabase, {
+    const usageMetadata = {
+      userMessageId,
+      inputCharacters: message.length,
+      contextMessageLimit: config.contextMessageLimit,
+      maxOutputTokens: config.maxOutputTokens,
+      route: intent.route,
+      usageRole,
+      selectedTeamIds: scope.selectedTeams.map((team) => team.teamId),
+      billingTeamId: billingTeam?.teamId,
+    };
+    const usageEventId = await startAiUsageEvent(usageSupabase, {
       profileId: scope.profileId,
-      organizationId: currentTeam?.organizationId,
-      teamId: currentTeam?.teamId,
-      seasonId: currentTeam?.seasonId,
+      organizationId: billingTeam?.organizationId,
+      teamId: billingTeam?.teamId,
+      seasonId: billingTeam?.seasonId,
       conversationId,
       requestHash,
       model: config.model,
-      metadata: {
-        userMessageId,
-        inputCharacters: message.length,
-        contextMessageLimit: config.contextMessageLimit,
-        maxOutputTokens: config.maxOutputTokens,
-        route: intent.route,
-        selectedTeamIds: scope.selectedTeams.map((team) => team.teamId),
-      },
+      metadata: usageMetadata,
     });
 
     const provider = config.hasProviderKey
@@ -167,7 +177,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    await finishAiUsageEvent(supabase, {
+    await finishAiUsageEvent(usageSupabase, {
       usageEventId,
       messageId: assistantMessageId,
       status: reply.status,
@@ -178,6 +188,7 @@ export async function POST(request: NextRequest) {
       webSearchCount: reply.webSearchCount,
       latencyMs: Date.now() - requestStartedAt,
       errorCode: reply.code,
+      metadata: usageMetadata,
     });
     await touchConversation(supabase, conversationId);
 

@@ -45,7 +45,7 @@ import type {
   WorkoutEntry,
   WorkoutSession,
 } from "../../types";
-import type { AskClubhouseTeamScope } from "./types";
+import type { AskClubhouseTeamScope } from "./types.ts";
 
 const SEASON_NAME = "Fall 2026";
 

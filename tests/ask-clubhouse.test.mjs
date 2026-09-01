@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getAskClubhouseConfig } from "../app/lib/askClubhouse/config.ts";
+import { getAskClubhouseConfig, resolveAiUsageRole } from "../app/lib/askClubhouse/config.ts";
 import { generateAskClubhouseReply } from "../app/lib/askClubhouse/engine.ts";
+import { calculateAIRequestCost } from "../app/lib/askClubhouse/pricing.ts";
 import { OpenAIProvider } from "../app/lib/askClubhouse/provider.ts";
 import { buildAskClubhouseToolPlan, classifyAskClubhouseIntent, runAskClubhouseTools } from "../app/lib/askClubhouse/tools.ts";
-import { createAiRequestHash, enforceAiUsageLimits } from "../app/lib/askClubhouse/usage.ts";
+import { createAiRequestHash, enforceAiUsageLimits, evaluateAiUsageLimits } from "../app/lib/askClubhouse/usage.ts";
 
 const now = "2026-08-20T12:00:00.000Z";
 const players = [
@@ -129,7 +130,14 @@ test("Ask Clubhouse config applies beta cost defaults", () => {
   const config = getAskClubhouseConfig({});
 
   assert.equal(config.dailyUserRequestLimit, 50);
-  assert.equal(config.dailyTeamRequestLimit, 300);
+  assert.equal(config.dailyRoleRequestLimits.coach, 30);
+  assert.equal(config.dailyRoleRequestLimits.player, 10);
+  assert.equal(config.dailyTeamRequestLimit, 150);
+  assert.equal(config.monthlyTeamRequestLimit, 3000);
+  assert.equal(config.monthlyTeamCostLimitUsd, 25);
+  assert.equal(config.monthlyGlobalCostLimitUsd, 100);
+  assert.equal(config.dailyRoleWebSearchLimits.coach, 10);
+  assert.equal(config.dailyTeamWebSearchLimit, 30);
   assert.equal(config.maxToolCallsPerRequest, 6);
   assert.equal(config.maxWebSearchesPerRequest, 1);
   assert.equal(config.maxInputCharacters, 4000);
@@ -263,7 +271,13 @@ test("OpenAI provider bounds web search and extracts compact sources", async () 
     return new Response(JSON.stringify({
       model: "gpt-test",
       output_text: "NFHS balk guidance.",
-      usage: { input_tokens: 30, output_tokens: 8, total_tokens: 38 },
+      usage: {
+        input_tokens: 30,
+        input_tokens_details: { cached_tokens: 10, cache_write_tokens: 5 },
+        output_tokens: 8,
+        output_tokens_details: { reasoning_tokens: 3 },
+        total_tokens: 38,
+      },
       output: [{
         type: "web_search_call",
         action: { sources: [{ title: "NFHS Baseball", url: "https://www.nfhs.org/activities-sports/baseball" }] },
@@ -285,6 +299,9 @@ test("OpenAI provider bounds web search and extracts compact sources", async () 
     assert.equal(requestBody.max_tool_calls, 1);
     assert.deepEqual(requestBody.include, ["web_search_call.action.sources"]);
     assert.equal(result.webSearchCount, 1);
+    assert.equal(result.usage.cachedInputTokens, 10);
+    assert.equal(result.usage.cacheWriteTokens, 5);
+    assert.equal(result.usage.reasoningTokens, 3);
     assert.deepEqual(result.sources, [{
       title: "NFHS Baseball",
       summary: "External baseball context",
@@ -336,28 +353,95 @@ test("AI request hash normalizes duplicate whitespace and case", () => {
   assert.equal(first, second);
 });
 
-test("AI usage limits stop duplicates and daily overages before provider work", async () => {
-  const config = getAskClubhouseConfig({ AI_DAILY_USER_REQUEST_LIMIT: "2", AI_DAILY_TEAM_REQUEST_LIMIT: "8" });
+test("AI cost calculator separates cached, output, and web-search costs", () => {
+  const cost = calculateAIRequestCost({
+    model: "gpt-5-mini-2025-08-07",
+    inputTokens: 1_000_000,
+    cachedInputTokens: 200_000,
+    cacheWriteTokens: 100_000,
+    outputTokens: 100_000,
+    webSearchCount: 1,
+  });
 
-  const duplicate = await enforceAiUsageLimits(mockUsageSupabase({ duplicate: true }), {
+  assert.equal(cost.pricingFound, true);
+  assert.equal(cost.inputCost, 0.175);
+  assert.equal(cost.cachedInputCost, 0.005);
+  assert.equal(cost.cacheWriteCost, 0.025);
+  assert.equal(cost.outputCost, 0.2);
+  assert.equal(cost.modelTokenCost, 0.405);
+  assert.equal(cost.webSearchCost, 0.01);
+  assert.equal(cost.estimatedTotalCost, 0.415);
+});
+
+test("AI cost calculator matches an observed Luna request without double-counting reasoning", () => {
+  const cost = calculateAIRequestCost({
+    model: "gpt-5.6-luna",
+    inputTokens: 1625,
+    outputTokens: 148,
+  });
+
+  assert.equal(cost.modelTokenCost, 0.0005026);
+  assert.equal(cost.estimatedTotalCost, 0.0005026);
+});
+
+test("Ask Clubhouse resolves role-aware defaults and legacy overrides", () => {
+  const defaults = getAskClubhouseConfig({});
+  assert.deepEqual(defaults.dailyRoleRequestLimits, {
+    coach: 30,
+    player: 10,
+    parent: 5,
+    fan: 5,
+    unknown: 5,
+  });
+  assert.equal(defaults.dailyTeamRequestLimit, 150);
+  assert.equal(defaults.monthlyTeamRequestLimit, 3000);
+  assert.equal(defaults.monthlyTeamCostLimitUsd, 25);
+  assert.equal(defaults.monthlyGlobalCostLimitUsd, 100);
+  assert.equal(resolveAiUsageRole("HEAD_COACH"), "coach");
+  assert.equal(resolveAiUsageRole("PLAYER"), "player");
+  assert.equal(resolveAiUsageRole(undefined, "ADMIN"), "coach");
+  assert.equal(resolveAiUsageRole("LEGACY"), "unknown");
+
+  const legacy = getAskClubhouseConfig({ AI_DAILY_USER_REQUEST_LIMIT: "12" });
+  assert.equal(legacy.dailyRoleRequestLimits.coach, 12);
+  assert.equal(legacy.dailyRoleRequestLimits.player, 12);
+});
+
+test("AI usage limits stop duplicate submissions before provider work", async () => {
+  const config = getAskClubhouseConfig({});
+
+  const duplicate = await enforceAiUsageLimits(duplicateOnlyUsageSupabase(), {
     profileId: "profile-1",
     teamId: "team-1",
+    role: "coach",
+    requiresWebSearch: false,
     requestHash: "same-question",
     config,
     now: new Date(now),
   });
   assert.equal(duplicate.allowed, false);
   assert.equal(duplicate.code, "AI_DUPLICATE_COOLDOWN");
+});
 
-  const overDailyLimit = await enforceAiUsageLimits(mockUsageSupabase({ userCount: 2 }), {
-    profileId: "profile-1",
-    teamId: "team-1",
-    requestHash: "new-question",
-    config,
-    now: new Date(now),
-  });
-  assert.equal(overDailyLimit.allowed, false);
-  assert.equal(overDailyLimit.code, "AI_DAILY_USER_LIMIT");
+test("AI usage limits enforce coach, player, team, and monthly ceilings", () => {
+  const config = getAskClubhouseConfig({});
+  const baseInput = { teamId: "team-1", role: "coach", requiresWebSearch: false, config };
+
+  assert.equal(evaluateAiUsageLimits(baseInput, usageStats({ userDailyRequests: 30 })).code, "AI_DAILY_USER_LIMIT");
+  assert.equal(evaluateAiUsageLimits({ ...baseInput, role: "player" }, usageStats({ userDailyRequests: 10 })).code, "AI_DAILY_USER_LIMIT");
+  assert.equal(evaluateAiUsageLimits(baseInput, usageStats({ teamDailyRequests: 150 })).code, "AI_DAILY_TEAM_LIMIT");
+  assert.equal(evaluateAiUsageLimits(baseInput, usageStats({ teamMonthlyRequests: 3000 })).code, "AI_MONTHLY_TEAM_REQUEST_LIMIT");
+  assert.equal(evaluateAiUsageLimits(baseInput, usageStats({ teamMonthlyCostUsd: 25 })).code, "AI_MONTHLY_TEAM_COST_LIMIT");
+  assert.equal(evaluateAiUsageLimits(baseInput, usageStats({ globalMonthlyCostUsd: 100 })).code, "AI_MONTHLY_GLOBAL_COST_LIMIT");
+});
+
+test("AI usage limits enforce separate user and team web-search ceilings", () => {
+  const config = getAskClubhouseConfig({});
+  const input = { teamId: "team-1", role: "player", requiresWebSearch: true, config };
+
+  assert.equal(evaluateAiUsageLimits(input, usageStats({ userDailyWebSearches: 3 })).code, "AI_DAILY_USER_WEB_SEARCH_LIMIT");
+  assert.equal(evaluateAiUsageLimits(input, usageStats({ teamDailyWebSearches: 30 })).code, "AI_DAILY_TEAM_WEB_SEARCH_LIMIT");
+  assert.equal(evaluateAiUsageLimits({ ...input, requiresWebSearch: false }, usageStats({ userDailyWebSearches: 99 })).allowed, true);
 });
 
 function player(id, name, jerseyNumber, primaryPosition, overrides = {}) {
@@ -504,7 +588,7 @@ function gameEvent(id, gameId, batterId, pitcherId, pitchOutcome, ballInPlayOutc
   };
 }
 
-function mockUsageSupabase({ duplicate = false, userCount = 0, teamCount = 0 } = {}) {
+function duplicateOnlyUsageSupabase() {
   return {
     from(table) {
       assert.equal(table, "ai_usage_events");
@@ -526,16 +610,25 @@ function mockUsageSupabase({ duplicate = false, userCount = 0, teamCount = 0 } =
         },
         maybeSingle() {
           return Promise.resolve({
-            data: duplicate ? { id: "usage-1", status: "started", created_at: now } : null,
+            data: { id: "usage-1", status: "started", created_at: now },
             error: null,
           });
-        },
-        then(resolve, reject) {
-          const count = state.filters.profile_id ? userCount : teamCount;
-          return Promise.resolve({ count, error: null }).then(resolve, reject);
         },
       };
       return builder;
     },
+  };
+}
+
+function usageStats(overrides = {}) {
+  return {
+    userDailyRequests: 0,
+    teamDailyRequests: 0,
+    teamMonthlyRequests: 0,
+    userDailyWebSearches: 0,
+    teamDailyWebSearches: 0,
+    teamMonthlyCostUsd: 0,
+    globalMonthlyCostUsd: 0,
+    ...overrides,
   };
 }

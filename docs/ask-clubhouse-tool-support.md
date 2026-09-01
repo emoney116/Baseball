@@ -19,7 +19,7 @@ Ask Clubhouse V1 is a read-only baseball analytics assistant. Clubhouse 9 comput
 - Tool results are capped by `AI_TOOL_RESULT_LIMIT` and tool calls by `AI_MAX_TOOL_CALLS_PER_REQUEST`.
 - Every tool result includes compact rows, metric displays, and sample/denominator context where available.
 - Unsupported or missing data returns a no-data answer instead of invented analysis.
-- Web search is disabled for internal Clubhouse questions in V1. The configured maximum is still bounded by `AI_MAX_WEB_SEARCHES_PER_REQUEST` for future provider/tool support.
+- Internal Clubhouse and stable baseball-knowledge questions do not use web search. Current rules and time-sensitive benchmarks may use web search, bounded per request, user, and team.
 
 ## Usage And Cost Guardrails
 
@@ -27,8 +27,22 @@ Server-side configuration:
 
 - `OPENAI_API_KEY`: required for live AI answers.
 - `OPENAI_AI_MODEL`: defaults to `gpt-5-mini`.
-- `AI_DAILY_USER_REQUEST_LIMIT`: defaults to `50`.
-- `AI_DAILY_TEAM_REQUEST_LIMIT`: defaults to `300`.
+- `AI_DAILY_COACH_REQUEST_LIMIT`: defaults to `30`.
+- `AI_DAILY_PLAYER_REQUEST_LIMIT`: defaults to `10`.
+- `AI_DAILY_PARENT_REQUEST_LIMIT`: defaults to `5`.
+- `AI_DAILY_FAN_REQUEST_LIMIT`: defaults to `5`.
+- `AI_DAILY_UNKNOWN_REQUEST_LIMIT`: defaults to `5`.
+- `AI_DAILY_USER_REQUEST_LIMIT`: legacy compatibility override; defaults to `50` but does not replace role defaults unless explicitly configured.
+- `AI_DAILY_TEAM_REQUEST_LIMIT`: defaults to `150`.
+- `AI_MONTHLY_TEAM_REQUEST_LIMIT`: defaults to `3000`.
+- `AI_MONTHLY_TEAM_COST_LIMIT_USD`: defaults to `25`.
+- `AI_MONTHLY_GLOBAL_COST_LIMIT_USD`: defaults to `100`.
+- `AI_DAILY_COACH_WEB_SEARCH_LIMIT`: defaults to `10`.
+- `AI_DAILY_PLAYER_WEB_SEARCH_LIMIT`: defaults to `3`.
+- `AI_DAILY_PARENT_WEB_SEARCH_LIMIT`: defaults to `2`.
+- `AI_DAILY_FAN_WEB_SEARCH_LIMIT`: defaults to `1`.
+- `AI_DAILY_UNKNOWN_WEB_SEARCH_LIMIT`: defaults to `1`.
+- `AI_DAILY_TEAM_WEB_SEARCH_LIMIT`: defaults to `30`.
 - `AI_MAX_TOOL_CALLS_PER_REQUEST`: defaults to `6`.
 - `AI_MAX_WEB_SEARCHES_PER_REQUEST`: defaults to `1`.
 - `AI_MAX_INPUT_CHARACTERS`: defaults to `4000`.
@@ -47,19 +61,23 @@ The Ask Clubhouse migration adds:
 - `ai_messages`: user and assistant messages.
 - `ai_usage_events`: request hash, model, tokens, tool count, web-search count, latency, status, and safe tool/audit metadata.
 
-Usage rows do not store prompt text. Users can read their own usage rows, and team members can read safe usage rows for their team so the server can enforce the team daily request limit.
+Usage rows do not store prompt text. Conversation persistence continues through the authenticated client and RLS. Server-only usage aggregation uses the Supabase admin client after team scope and role have been validated so team and global ceilings cannot be bypassed by row visibility.
 
 Provider usage is stored when the provider response exposes it:
 
 - input tokens
+- cached input tokens, when exposed by the provider
+- cache-write tokens, when exposed by the provider
 - output tokens
+- reasoning tokens, when exposed by the provider (informational only; already included in billed output tokens)
 - total tokens
 - model
 - latency
 - tool call count
 - web-search count
+- estimated model, web-search, and total cost using the versioned centralized pricing registry
 
-This foundation supports future admin reporting for daily/monthly requests, token usage, average latency, team/user usage, model usage, and estimated cost.
+Cost accounting is stored in `ai_usage_events.metadata.usageAccounting`. The immutable token/model/search fields remain the source data, so historical usage can be recalculated under a later pricing registry. This foundation supports future founder reporting for daily/monthly requests, token usage, average latency, team/user usage, model usage, and estimated cost.
 
 ## Out Of Scope
 
@@ -67,4 +85,4 @@ Ask Clubhouse refuses non-baseball and non-Clubhouse topics. It should not answe
 
 ## Recommended OpenAI Project Setup
 
-Use application-level limits as the first guardrail and also configure an OpenAI project spend limit as a second line of defense. Keep the default model inexpensive for beta usage, then raise per-user/team limits only after observing real token and request volume in `ai_usage_events`.
+Use application-level limits as the first guardrail and configure an OpenAI project budget as a second line of defense. For the free beta, start with a `$100/month` project budget and alerts at `$25`, `$50`, and `$75`. Keep the default model inexpensive, then raise per-user/team limits only after observing real token, web-search, and cost volume in `ai_usage_events`.
