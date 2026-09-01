@@ -6,6 +6,7 @@ import {
   parseMaxPrepsPdfText,
   parseRosterCsv,
 } from "../app/lib/rosterImport.ts";
+import { isUsablePlayerIdentityName, strongRosterIdentityKey } from "../app/lib/playerIdentity.ts";
 
 const varsity = {
   organizationId: "00000000-0000-4000-8000-000000000001",
@@ -165,6 +166,35 @@ test("uses one player identity with separate team-specific jersey memberships ac
       [varsity.teamId, 12, "Varsity"],
     ].sort(),
   );
+});
+
+test("server identity fingerprints prevent exact roster re-creation without using name as global uniqueness", () => {
+  const existing = strongRosterIdentityKey({
+    name: "Jacob Seamon",
+    graduationYear: 2027,
+    jerseyNumber: 1,
+    teamId: varsity.teamId,
+    seasonId: varsity.seasonId,
+  });
+  const repeatedImport = strongRosterIdentityKey({
+    name: "  JACOB   SEAMON ",
+    graduationYear: 2027,
+    jerseyNumber: 1,
+    teamId: varsity.teamId,
+    seasonId: varsity.seasonId,
+  });
+  const legitimateOtherRosterIdentity = strongRosterIdentityKey({
+    name: "Jacob Seamon",
+    graduationYear: 2027,
+    jerseyNumber: 18,
+    teamId: jv.teamId,
+    seasonId: jv.seasonId,
+  });
+
+  assert.equal(existing, repeatedImport);
+  assert.notEqual(existing, legitimateOtherRosterIdentity);
+  assert.equal(isUsablePlayerIdentityName("a b"), false);
+  assert.equal(isUsablePlayerIdentityName("Bo Li"), true);
 });
 
 test("replace mode archives missing team memberships without deleting player identities", () => {

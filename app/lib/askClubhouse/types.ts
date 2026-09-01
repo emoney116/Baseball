@@ -30,6 +30,8 @@ export interface AskClubhouseUiContext {
   teamId?: ID;
   seasonId?: ID;
   organizationId?: ID;
+  playerId?: ID;
+  viewerPlayerId?: ID;
   teamScopes?: AskClubhouseTeamScope[];
   launchSurface?: AskClubhouseLaunchSurface;
   analytics?: Partial<AnalyticsQuery>;

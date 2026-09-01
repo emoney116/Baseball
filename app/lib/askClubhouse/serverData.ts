@@ -46,6 +46,7 @@ import type {
   WorkoutSession,
 } from "../../types";
 import type { AskClubhouseTeamScope } from "./types.ts";
+import { canonicalizeAppDataPlayerIdentities } from "../playerIdentity.ts";
 
 const SEASON_NAME = "Fall 2026";
 
@@ -96,9 +97,10 @@ export async function loadAskClubhouseData(
     currentTeam: team,
   }, team)));
   const data = datasets.length === 1 ? datasets[0] : mergeTeamData(datasets, teamContext, profile);
+  const canonicalData = canonicalizeAppDataPlayerIdentities(data).data;
   const current = selectedTeams.length === 1 ? selectedTeams[0] : undefined;
   return {
-    data,
+    data: canonicalData,
     scope: {
       profileId: profile.id,
       organizationId: current?.organizationId,

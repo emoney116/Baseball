@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "../../../lib/supabase/admin";
 import { createClient } from "../../../lib/supabase/server";
+import { isUsablePlayerIdentityName, strongRosterIdentityKey } from "../../../lib/playerIdentity.ts";
 
 export const runtime = "nodejs";
 
@@ -125,6 +126,61 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, message: seasonError.message }, { status: 500 });
     }
     const seasonsById = new Map((seasons ?? []).map((season) => [season.id, season]));
+
+    const [{ data: existingPlayers, error: existingPlayersError }, { data: existingMemberships, error: existingMembershipsError }] = await Promise.all([
+      admin
+        .from("players")
+        .select("id,first_name,last_name,graduation_year")
+        .eq("organization_id", orgIds[0]),
+      admin
+        .from("player_team_memberships")
+        .select("player_id,team_id,season_id,jersey_number")
+        .in("team_id", teamIds),
+    ]);
+    if (existingPlayersError || existingMembershipsError) {
+      return NextResponse.json({ ok: false, message: existingPlayersError?.message ?? existingMembershipsError?.message }, { status: 500 });
+    }
+
+    const existingPlayerIds = new Set((existingPlayers ?? []).map((player) => player.id));
+    const invalidNewName = players.find((player) => !existingPlayerIds.has(player.id ?? "") && !isUsablePlayerIdentityName(player.name ?? ""));
+    if (invalidNewName) {
+      return NextResponse.json({ ok: false, message: "Enter a complete player name before saving the roster." }, { status: 400 });
+    }
+    const existingPlayerById = new Map((existingPlayers ?? []).map((player) => [player.id, player]));
+    const existingIdentityKeys = new Map<string, string>();
+    for (const membership of existingMemberships ?? []) {
+      const player = existingPlayerById.get(membership.player_id);
+      if (!player) continue;
+      const key = strongRosterIdentityKey({
+        name: `${player.first_name ?? ""} ${player.last_name ?? ""}`,
+        graduationYear: player.graduation_year,
+        jerseyNumber: membership.jersey_number,
+        teamId: membership.team_id,
+        seasonId: membership.season_id,
+      });
+      if (key) existingIdentityKeys.set(key, player.id);
+    }
+
+    const possibleDuplicate = players.find((player) => {
+      if (!player.id || existingPlayerIds.has(player.id)) return false;
+      return membershipInputs.some((membership) => {
+        if (membership.playerId !== player.id) return false;
+        const key = strongRosterIdentityKey({
+          name: player.name ?? "",
+          graduationYear: player.graduationYear,
+          jerseyNumber: membership.jerseyNumber ?? player.jerseyNumber,
+          teamId: membership.teamId,
+          seasonId: membership.seasonId,
+        });
+        return Boolean(key && existingIdentityKeys.has(key));
+      });
+    });
+    if (possibleDuplicate) {
+      return NextResponse.json({
+        ok: false,
+        message: `A matching roster identity already exists for ${possibleDuplicate.name}. Return to roster review and choose Use Existing.`,
+      }, { status: 409 });
+    }
 
     const now = new Date().toISOString();
     const playerRows = players.map((player) => {

@@ -11,6 +11,11 @@ import {
 } from "../analyticsQuery.ts";
 import type { AskClubhouseConfig } from "./config.ts";
 import { canUseExternalResearch } from "./entitlements.ts";
+import {
+  messageHasExplicitPlayerReference,
+  resolveAskClubhousePlayer,
+  type AskClubhousePlayerResolution,
+} from "./entityResolution.ts";
 import { diagnosePlayerDevelopment, type DevelopmentDiagnosisRequest, type DevelopmentDiagnosisResult } from "./diagnosis.ts";
 import {
   EMPTY_BASEBALL_KNOWLEDGE_PROVIDER,
@@ -127,22 +132,17 @@ export function classifyAskClubhouseIntent(
 ): AskIntentClassification {
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
-  const messageTokens = new Set(lower.split(/[^a-z0-9]+/).filter((token) => token.length >= 3));
-  const baseballContext = BASEBALL_KNOWLEDGE_PATTERN.test(trimmed);
+  const knowledgeItems = findTrustedKnowledge(options.knowledgeProvider ?? EMPTY_BASEBALL_KNOWLEDGE_PROVIDER, knowledgeQuery(trimmed));
+  const baseballContext = BASEBALL_KNOWLEDGE_PATTERN.test(trimmed) || knowledgeItems.length > 0;
   const definitionQuestion = /^(what is|what are|what does|define|explain|what(?:'s| is) the difference between)\b/i.test(trimmed)
     && !/\b(my|our|this|team|player|practice|game|clubhouse)\b/i.test(trimmed);
   const contextualTeamReference = /\b(?:our|my|this) team'?s?\b/i.test(trimmed);
   const personalDataReference = /\b(?:my|our|this)\s+(?:hitting|pitching|defense|performance|data|results|stats|breaking balls?|fastballs?|sliders?|contact|velocity)\b/i.test(trimmed)
     || /\b(?:am|do|have) i\b.*\b(?:improv|perform|hit|pitch|contact|breaking balls?|fastballs?|sliders?)\b/i.test(trimmed);
-  const explicitTeamData = (!definitionQuestion && TEAM_DATA_PATTERN.test(trimmed)) || players.some((player) => (
-    lower.includes(player.name.toLowerCase())
-    || player.name.toLowerCase().split(/[^a-z0-9]+/).some((token) => token.length >= 3 && messageTokens.has(token))
-  ));
+  const explicitTeamData = (!definitionQuestion && TEAM_DATA_PATTERN.test(trimmed))
+    || messageHasExplicitPlayerReference(trimmed, players);
   const currentBaseballContext = CURRENT_BASEBALL_CONTEXT_PATTERN.test(trimmed);
   const developmentQuestion = isDevelopmentQuestion(lower);
-  const knowledgeItems = baseballContext
-    ? findTrustedKnowledge(options.knowledgeProvider ?? EMPTY_BASEBALL_KNOWLEDGE_PROVIDER, knowledgeQuery(trimmed))
-    : [];
   const knowledgeStatus: BaseballKnowledgeMatchStatus = !baseballContext
     ? "not_needed"
     : knowledgeItems.length ? "trusted_match" : "knowledge_miss";
@@ -322,16 +322,23 @@ export function buildAskClubhouseToolPlan(
     };
   }
 
-  const playerMatch = findRequestedPlayer(data, lower);
+  const playerMatch = resolveAskClubhousePlayer({
+    data,
+    message: trimmed,
+    route: classification.route,
+    uiContext,
+    knowledgeItems: classification.knowledgeItems,
+  });
   if (playerMatch.status === "ambiguous") {
+    const playerLabels = playerMatch.players.map(playerClarificationLabel);
     return {
       status: "needs_clarification",
       route: classification.route,
       requiresWebSearch: classification.requiresWebSearch,
-      answer: `I found more than one possible player: ${playerMatch.players.map((player) => player.name).join(", ")}. Which one do you mean?`,
+      answer: `I found more than one possible player: ${playerLabels.join(", ")}. Which one do you mean?`,
       toolRequests: [],
       actions: [],
-      followUps: playerMatch.players.slice(0, 3).map((player) => `Show ${player.name}'s analytics`),
+      followUps: playerMatch.players.slice(0, 3).map((player) => `Show ${playerClarificationLabel(player)} analytics`),
       knowledgeStatus: classification.knowledgeStatus,
       knowledgeItems: classification.knowledgeItems,
       externalResearchRequired: classification.externalResearchRequired,
@@ -652,7 +659,7 @@ export function summarizeKnowledgeEvidence(knowledgeItems: BaseballKnowledgeItem
 function buildDevelopmentDiagnosisRequest(
   lower: string,
   queryPlan: AskClubhouseQueryPlan,
-  playerMatch: ReturnType<typeof findRequestedPlayer>,
+  playerMatch: AskClubhousePlayerResolution,
 ): DevelopmentDiagnosisRequest | "clarify" | undefined {
   if (!isDevelopmentQuestion(lower)) return undefined;
   if (playerMatch.status !== "single") return "clarify";
@@ -796,35 +803,9 @@ function needsSituationalMode(lower: string): boolean {
   return /\b(pitch type|slider|fastball|curve|changeup|count|lefty|righty|handed|live bp thrower|machine|coach throwing|player throwing)\b/.test(lower);
 }
 
-function findRequestedPlayer(data: AppData, lower: string): { status: "none" } | { status: "single"; player: Player } | { status: "ambiguous"; players: Player[] } {
-  const players = [...new Map(data.players.map((player) => [player.id, player])).values()];
-  const exactMatches = players.filter((player) => hasWordBoundedName(lower, player.name));
-  if (exactMatches.length === 1) return { status: "single", player: exactMatches[0] };
-  if (exactMatches.length > 1) {
-    const activeIds = new Set([
-      ...data.hittingEvents.map((event) => event.hitterId),
-      ...data.pitchEvents.map((event) => event.pitcherId),
-      ...data.defenseEvents.map((event) => event.playerId),
-      ...data.workoutEntries.map((entry) => entry.playerId),
-    ]);
-    const activeMatches = exactMatches.filter((player) => activeIds.has(player.id));
-    if (activeMatches.length === 1) return { status: "single", player: activeMatches[0] };
-    return { status: "ambiguous", players: exactMatches };
-  }
-
-  const partialMatches = players.filter((player) => player.name
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((part) => part.length >= 4)
-    .some((part) => hasWordBoundedName(lower, part)));
-  if (partialMatches.length === 1) return { status: "single", player: partialMatches[0] };
-  if (partialMatches.length > 1) return { status: "ambiguous", players: partialMatches };
-  return { status: "none" };
-}
-
-function hasWordBoundedName(message: string, name: string): boolean {
-  const escaped = name.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return escaped.length > 0 && new RegExp(`\\b${escaped}\\b`).test(message);
+function playerClarificationLabel(player: Player): string {
+  const jersey = player.jerseyNumber ? `#${player.jerseyNumber}` : undefined;
+  return [player.name, jersey, player.primaryPosition].filter(Boolean).join(" · ");
 }
 
 function needsPitchTypeCoverage(lower: string): boolean {

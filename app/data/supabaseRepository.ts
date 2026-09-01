@@ -61,6 +61,7 @@ import type {
 import { APP_NAME } from "../lib/branding";
 import { absoluteUrl, browserSiteUrl } from "../lib/siteUrl";
 import { createClient } from "../lib/supabase/client";
+import { canonicalizeAppDataPlayerIdentities } from "../lib/playerIdentity.ts";
 
 const SEASON_NAME = "Fall 2026";
 const SELECTED_TEAM_STORAGE_KEY = "clubhouse9-current-team-v2";
@@ -1074,10 +1075,10 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
   if (failed?.error) throw new PersistenceError("load-failed", failed.error.message);
 
   const membershipByPlayer = new Map<string, any>(memberships.map((membership: any) => [membership.player_id, membership]));
-  const players = collapseDuplicateRosterPlayers((playersResult.data ?? [])
+  const players = (playersResult.data ?? [])
     .map((row: any) => mapPlayer(row, membershipByPlayer.get(row.id)))
-    .sort((a, b) => a.jerseyNumber - b.jerseyNumber || a.name.localeCompare(b.name)));
-  const visiblePlayerIdsSet = new Set(players.map((player) => player.id));
+    .sort((a, b) => a.jerseyNumber - b.jerseyNumber || a.name.localeCompare(b.name));
+  const visiblePlayerIdsSet = playerIdsSet;
   const attendanceRows = (attendanceResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && playerIdsSet.has(row.player_id));
   const practices = practiceRows.map((row: any) => mapPractice(row, attendanceRows));
   const sessionRows = (sessionsResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && playerIdsSet.has(row.player_id));
@@ -1103,7 +1104,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     loadPublicDirectory(),
   ]);
 
-  return {
+  return canonicalizeAppDataPlayerIdentities({
     teamContext: foundation.teamContext,
     players,
     playerTeamMemberships: memberships.filter((membership: any) => visiblePlayerIdsSet.has(membership.player_id)).map(mapPlayerTeamMembership),
@@ -1167,34 +1168,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
       selectedTeamId: foundation.teamId,
       selectedSeasonId: foundation.seasonId,
     },
-  };
-}
-
-function collapseDuplicateRosterPlayers(players: Player[]) {
-  const byIdentity = new Map<string, Player>();
-  for (const player of players) {
-    const key = `${normalizePlayerIdentity(player.name)}:${player.graduationYear}:${player.jerseyNumber || "no-number"}`;
-    const existing = byIdentity.get(key);
-    if (!existing || playerCompletenessScore(player) > playerCompletenessScore(existing)) {
-      byIdentity.set(key, player);
-    }
-  }
-  return [...byIdentity.values()];
-}
-
-function normalizePlayerIdentity(name: string) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
-function playerCompletenessScore(player: Player) {
-  return [
-    player.archived ? 0 : 20,
-    player.imageUrl ? 8 : 0,
-    player.height ? 4 : 0,
-    player.weight ? 4 : 0,
-    player.secondaryPosition ? 2 : 0,
-    player.updatedAt ? Date.parse(player.updatedAt) / 100000000000 : 0,
-  ].reduce((sum, value) => sum + value, 0);
+  }).data;
 }
 
 async function loadProfileFollows(supabase: SupabaseClient, profileId?: string): Promise<ProfileFollow[]> {

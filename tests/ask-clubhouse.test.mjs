@@ -14,6 +14,7 @@ import { diagnosePlayerDevelopment } from "../app/lib/askClubhouse/diagnosis.ts"
 import { CLUBHOUSE_DIMENSION_SUPPORT } from "../app/lib/askClubhouse/support.ts";
 import { BASEBALL_KNOWLEDGE_QA } from "./fixtures/baseball-knowledge-qa.mjs";
 import { ASK_CLUBHOUSE_INTELLIGENCE_QA } from "./fixtures/ask-clubhouse-intelligence-qa.mjs";
+import { canonicalizeAppDataPlayerIdentities } from "../app/lib/playerIdentity.ts";
 
 const now = "2026-08-20T12:00:00.000Z";
 const players = [
@@ -573,10 +574,50 @@ test("Ask Clubhouse spots ambiguous player names", () => {
 
 test("Ask Clubhouse does not treat short name substrings as player matches", () => {
   const config = getAskClubhouseConfig({});
-  const plan = buildAskClubhouseToolPlan(data, "What is a balk?", undefined, config);
+  const malformedRosterData = {
+    ...data,
+    players: [...data.players, player("p-ab", "a b", 4, "P")],
+  };
+  const plan = buildAskClubhouseToolPlan(malformedRosterData, "What is a balk?", undefined, config);
 
   assert.equal(plan.route, "baseball_knowledge");
   assert.equal(plan.status, "provider");
+});
+
+test("Ask Clubhouse classifies chase rate before resolving roster player Chase", () => {
+  const config = getAskClubhouseConfig({});
+  const chase = player("p-chase", "Chase Kiker", 5, "OF");
+  const knowledgeProvider = new InMemoryBaseballKnowledgeProvider([{
+    id: "chase-rate",
+    title: "Chase Rate",
+    content: "Chase rate is the share of swings at pitches outside the strike zone.",
+    category: "Statistics",
+    subcategory: "Plate discipline",
+    status: "verified",
+  }]);
+  const chaseData = { ...data, players: [...data.players, chase] };
+
+  const knowledgePlan = buildAskClubhouseToolPlan(chaseData, "What is chase rate?", undefined, config, [], knowledgeProvider);
+  const playerPlan = buildAskClubhouseToolPlan(chaseData, "How is Chase hitting?", undefined, config, [], knowledgeProvider);
+
+  assert.equal(knowledgePlan.route, "baseball_knowledge");
+  assert.match(knowledgePlan.answer, /share of swings/i);
+  assert.equal(playerPlan.route, "clubhouse_data");
+  assert.equal(playerPlan.queryPlan.playerId, "p-chase");
+});
+
+test("Ask Clubhouse resolves self-development questions from player context", () => {
+  const plan = buildAskClubhouseToolPlan(
+    data,
+    "How can I hit sliders better?",
+    { playerId: "p-jacob" },
+    getAskClubhouseConfig({}),
+  );
+
+  assert.equal(plan.route, "clubhouse_data");
+  assert.equal(plan.status, "completed");
+  assert.equal(plan.queryPlan.playerId, "p-jacob");
+  assert.equal(plan.diagnosis.playerId, "p-jacob");
 });
 
 test("Ask Clubhouse resolves duplicate exact names to the player with tracked activity", () => {
@@ -592,6 +633,47 @@ test("Ask Clubhouse resolves duplicate exact names to the player with tracked ac
 
   assert.equal(plan.status, "data");
   assert.equal(plan.queryPlan.playerId, "p-jacob");
+});
+
+test("Ask Clubhouse clarifies two same-name players when both have tracked activity", () => {
+  const duplicate = player("p-jacob-duplicate", "Jacob Seamon", 99, "1B");
+  const duplicateData = {
+    ...data,
+    players: [...data.players, duplicate],
+    hittingEvents: [
+      ...data.hittingEvents,
+      hittingEvent("he-jacob-duplicate", "practice-1", "hit-1", duplicate.id, "Ball in play"),
+    ],
+  };
+  const plan = buildAskClubhouseToolPlan(duplicateData, "Show Jacob Seamon analytics", undefined, getAskClubhouseConfig({}));
+
+  assert.equal(plan.status, "needs_clarification");
+  assert.match(plan.answer, /#1/);
+  assert.match(plan.answer, /#99/);
+});
+
+test("player identity view preserves events while collapsing strong duplicate roster rows", () => {
+  const duplicate = player("p-jacob-import", "Jacob Seamon", 1, "CF");
+  const duplicateEvents = Array.from({ length: 20 }, (_, index) => (
+    hittingEvent(`he-import-${index}`, "practice-1", "hit-1", duplicate.id, "Ball in play")
+  ));
+  const duplicateData = {
+    ...data,
+    players: [...data.players, duplicate],
+    playerTeamMemberships: [
+      ...data.playerTeamMemberships,
+      { ...data.playerTeamMemberships[0], id: "membership-import", playerId: duplicate.id },
+    ],
+    hittingEvents: [...data.hittingEvents, ...duplicateEvents],
+  };
+
+  const view = canonicalizeAppDataPlayerIdentities(duplicateData);
+  const canonicalId = view.canonicalIdByPlayerId.get("p-jacob");
+
+  assert.equal(canonicalId, "p-jacob-import");
+  assert.equal(view.data.players.filter((item) => item.name === "Jacob Seamon").length, 1);
+  assert.equal(view.data.hittingEvents.filter((event) => event.hitterId === canonicalId).length, 24);
+  assert.equal(view.data.playerTeamMemberships.filter((membership) => membership.playerId === canonicalId).length, 1);
 });
 
 test("Ask Clubhouse engine uses mocked provider and tracks usage shape", async () => {

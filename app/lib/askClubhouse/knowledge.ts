@@ -90,6 +90,17 @@ export function findTrustedKnowledge(
     .slice(0, Math.max(0, query.limit));
 }
 
+export function baseballKnowledgeVocabulary(items: BaseballKnowledgeItem[]): Set<string> {
+  const values = items.flatMap((item) => [
+    item.title,
+    item.category,
+    item.subcategory,
+    ...metadataTerms(item.metadata?.aliases),
+    ...metadataTerms(item.metadata?.keywords),
+  ]);
+  return new Set(values.flatMap((value) => tokenize(value)));
+}
+
 function isTrustedKnowledgeItem(item: BaseballKnowledgeItem): boolean {
   return TRUSTED_BASEBALL_KNOWLEDGE_STATUSES.has(item.status)
     && (!item.expiresAt || Number.isNaN(Date.parse(item.expiresAt)) || Date.parse(item.expiresAt) > Date.now());
@@ -120,4 +131,10 @@ function tokenize(value: string | undefined): string[] {
 
 function normalize(value: string | undefined): string {
   return (value ?? "").trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+}
+
+function metadataTerms(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
+  return [];
 }
