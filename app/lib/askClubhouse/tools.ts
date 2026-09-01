@@ -315,7 +315,7 @@ export function buildAskClubhouseToolPlan(
     };
   }
 
-  const playerMatch = findRequestedPlayer(data.players, lower);
+  const playerMatch = findRequestedPlayer(data, lower);
   if (playerMatch.status === "ambiguous") {
     return {
       status: "needs_clarification",
@@ -791,16 +791,35 @@ function needsSituationalMode(lower: string): boolean {
   return /\b(pitch type|slider|fastball|curve|changeup|count|lefty|righty|handed|live bp thrower|machine|coach throwing|player throwing)\b/.test(lower);
 }
 
-function findRequestedPlayer(players: Player[], lower: string): { status: "none" } | { status: "single"; player: Player } | { status: "ambiguous"; players: Player[] } {
-  const candidates = players.filter((player) => {
-    const name = player.name.toLowerCase();
-    const parts = name.split(/\s+/).filter(Boolean);
-    return lower.includes(name) || parts.some((part) => part.length >= 4 && lower.includes(part));
-  });
-  const unique = [...new Map(candidates.map((player) => [player.id, player])).values()];
-  if (unique.length === 1) return { status: "single", player: unique[0] };
-  if (unique.length > 1) return { status: "ambiguous", players: unique };
+function findRequestedPlayer(data: AppData, lower: string): { status: "none" } | { status: "single"; player: Player } | { status: "ambiguous"; players: Player[] } {
+  const players = [...new Map(data.players.map((player) => [player.id, player])).values()];
+  const exactMatches = players.filter((player) => hasWordBoundedName(lower, player.name));
+  if (exactMatches.length === 1) return { status: "single", player: exactMatches[0] };
+  if (exactMatches.length > 1) {
+    const activeIds = new Set([
+      ...data.hittingEvents.map((event) => event.hitterId),
+      ...data.pitchEvents.map((event) => event.pitcherId),
+      ...data.defenseEvents.map((event) => event.playerId),
+      ...data.workoutEntries.map((entry) => entry.playerId),
+    ]);
+    const activeMatches = exactMatches.filter((player) => activeIds.has(player.id));
+    if (activeMatches.length === 1) return { status: "single", player: activeMatches[0] };
+    return { status: "ambiguous", players: exactMatches };
+  }
+
+  const partialMatches = players.filter((player) => player.name
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((part) => part.length >= 4)
+    .some((part) => hasWordBoundedName(lower, part)));
+  if (partialMatches.length === 1) return { status: "single", player: partialMatches[0] };
+  if (partialMatches.length > 1) return { status: "ambiguous", players: partialMatches };
   return { status: "none" };
+}
+
+function hasWordBoundedName(message: string, name: string): boolean {
+  const escaped = name.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return escaped.length > 0 && new RegExp(`\\b${escaped}\\b`).test(message);
 }
 
 function needsPitchTypeCoverage(lower: string): boolean {

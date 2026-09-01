@@ -561,6 +561,29 @@ test("Ask Clubhouse spots ambiguous player names", () => {
   assert.match(plan.answer, /Jake Seamon/);
 });
 
+test("Ask Clubhouse does not treat short name substrings as player matches", () => {
+  const config = getAskClubhouseConfig({});
+  const plan = buildAskClubhouseToolPlan(data, "What is a balk?", undefined, config);
+
+  assert.equal(plan.route, "baseball_knowledge");
+  assert.equal(plan.status, "provider");
+});
+
+test("Ask Clubhouse resolves duplicate exact names to the player with tracked activity", () => {
+  const config = getAskClubhouseConfig({});
+  const duplicateData = {
+    ...data,
+    players: [
+      ...data.players,
+      player("p-jacob-duplicate", "Jacob Seamon", 99, "1B"),
+    ],
+  };
+  const plan = buildAskClubhouseToolPlan(duplicateData, "Show Jacob Seamon analytics", undefined, config);
+
+  assert.equal(plan.status, "data");
+  assert.equal(plan.queryPlan.playerId, "p-jacob");
+});
+
 test("Ask Clubhouse engine uses mocked provider and tracks usage shape", async () => {
   const config = getAskClubhouseConfig({ OPENAI_API_KEY: "test-key" });
   const provider = {
