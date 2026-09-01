@@ -18686,7 +18686,7 @@ function GamesView({
 
 const GAME_DEFENSIVE_POSITIONS: Position[] = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
 const GAME_FIELD_POSITION_COORDINATES: Record<string, [number, number]> = {
-  P: [50, 62], C: [50, 85], "1B": [68, 63], "2B": [61, 48], "3B": [32, 63], SS: [39, 48], LF: [25, 28], CF: [50, 18], RF: [75, 28],
+  P: [50, 61], C: [50, 92], "1B": [85, 58], "2B": [68, 40], "3B": [15, 58], SS: [32, 40], LF: [23, 25], CF: [50, 15], RF: [77, 25],
 };
 
 function GameFieldCommand({
