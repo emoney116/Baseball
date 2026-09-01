@@ -643,8 +643,8 @@
   /* Compact game HUD: preserve the field as the primary mobile surface. */
   .game-session-active .game-score-ribbon {
     grid-template-columns: minmax(0, 1fr) 92px minmax(0, 1fr);
-    height: 56px;
-    min-height: 56px;
+    height: 50px;
+    min-height: 50px;
   }
 
   .game-session-active .game-score-team,
@@ -665,7 +665,7 @@
   }
 
   .game-session-active .game-score-team span {
-    font-size: 0.5rem;
+    font-size: 0.46rem;
     grid-column: 1;
     grid-row: 1;
     letter-spacing: 0.05em;
@@ -676,7 +676,7 @@
 
   .game-session-active .game-score-team strong,
   .game-session-active .game-score-team:last-child strong {
-    font-size: 1.35rem;
+    font-size: 1.2rem;
     grid-column: 2;
     grid-row: 1;
     line-height: 1;
@@ -698,7 +698,12 @@
   }
 
   .game-session-active .game-inning-state > strong {
-    font-size: 0.72rem;
+    font-size: 0.68rem;
+  }
+
+  .game-session-active .game-live-badge,
+  .game-session-active .game-ribbon-bases {
+    display: none;
   }
 
   .game-session-active .game-count-lights {
@@ -717,15 +722,6 @@
   .game-session-active .game-state-lights i {
     height: 5px;
     width: 5px;
-  }
-
-  .game-session-active .game-ribbon-bases {
-    gap: 3px;
-  }
-
-  .game-session-active .game-ribbon-bases i {
-    height: 8px;
-    width: 8px;
   }
 
   /* Every live scoring decision fits as a single app screen—no form scrolling. */

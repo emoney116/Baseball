@@ -18724,7 +18724,7 @@ function GameFieldCommand({
   const pitcher = players.find((player) => player.id === game.currentPitcherId);
   const selectedPlayer = active ? players.find((player) => player.id === selectedPlayerId) : undefined;
   const positionCoordinates: Record<string, [number, number]> = {
-    P: [50, 40], C: [50, 92], "1B": [85, 58], "2B": [68, 40], "3B": [15, 58], SS: [32, 40], LF: [23, 25], CF: [50, 15], RF: [77, 25], DH: [50, 70],
+    P: [50, 61], C: [50, 92], "1B": [85, 58], "2B": [68, 40], "3B": [15, 58], SS: [32, 40], LF: [23, 25], CF: [50, 15], RF: [77, 25], DH: [50, 70],
   };
   const quickOutcomes: Array<{ outcome: GamePitchOutcome; label: string }> = [
     { outcome: "Ball", label: "Ball" },
@@ -18747,7 +18747,7 @@ function GameFieldCommand({
           const player = players.find((item) => item.id === game.positions[position]);
           if (!player) return null;
           const [left, top] = positionCoordinates[position];
-          return <button key={position} type="button" className={`game-field-player ${selectedPlayerId === player.id ? "selected" : ""}`} style={{ left: `${left}%`, top: `${top}%` }} onClick={() => setSelectedPlayerId(player.id)} aria-label={`${position}: ${player.name}`}><b>{position}</b><span>{lastName(player.name)}</span></button>;
+          return <button key={position} type="button" data-position={position} className={`game-field-player ${selectedPlayerId === player.id ? "selected" : ""}`} style={{ left: `${left}%`, top: `${top}%` }} onClick={() => setSelectedPlayerId(player.id)} aria-label={`${position}: ${player.name}`}><b>{position}</b><span>{lastName(player.name)}</span></button>;
         })}
         <button type="button" className="game-field-pitch-ball" onClick={onPitch} aria-label={draftActive ? "Resume pitch scoring" : "Record the next pitch"}><img src="/game-tracking/baseball-center-control-v1.png" alt="" aria-hidden="true" /><strong>{draftActive ? "Resume" : "Pitch"}</strong></button>
         <div className="game-field-command__runners">
