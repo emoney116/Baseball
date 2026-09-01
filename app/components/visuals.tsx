@@ -3,6 +3,11 @@ import type React from "react";
 import { BRAND_ASSETS } from "../lib/branding";
 import type { Player, ZonePoint } from "../types";
 
+type CategorizedZonePoint = ZonePoint & {
+  category?: string;
+  color?: string;
+};
+
 const AVATAR_VARIANTS = ["neutral", "maroon", "steel", "forest", "plum", "navy"] as const;
 
 type AvatarVariant = typeof AVATAR_VARIANTS[number];
@@ -235,7 +240,7 @@ export function StrikeZone({
   onSelect,
   compact = false,
 }: {
-  points?: ZonePoint[];
+  points?: CategorizedZonePoint[];
   activePoint?: ZonePoint;
   onSelect?: (point: ZonePoint) => void;
   compact?: boolean;
@@ -259,8 +264,9 @@ export function StrikeZone({
       {points?.slice(-42).map((point, index) => (
         <span
           className="strike-zone__dot"
+          data-category={point.category}
           key={`${point.x}-${point.y}-${index}`}
-          style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%`, opacity: 0.3 + index / 90 }}
+          style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%`, opacity: Math.min(0.96, 0.74 + index / 180), "--point-color": point.color } as React.CSSProperties}
         />
       ))}
       {activePoint && <span className="strike-zone__target" style={{ left: `${activePoint.x * 100}%`, top: `${activePoint.y * 100}%` }} />}
@@ -278,7 +284,7 @@ export function BaseballField({
   onSelect,
   activePoint,
 }: {
-  points?: ZonePoint[];
+  points?: CategorizedZonePoint[];
   onSelect?: (point: ZonePoint) => void;
   activePoint?: ZonePoint;
 }) {
@@ -305,8 +311,9 @@ export function BaseballField({
       {points?.slice(-48).map((point, index) => (
         <span
           className="field-chart__dot"
+          data-category={point.category}
           key={`${point.x}-${point.y}-${index}`}
-          style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%`, opacity: 0.35 + index / 100 }}
+          style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%`, opacity: Math.min(0.98, 0.8 + index / 240), "--point-color": point.color } as React.CSSProperties}
         />
       ))}
       {activePoint && <span className="field-chart__target" style={{ left: `${activePoint.x * 100}%`, top: `${activePoint.y * 100}%` }} />}
@@ -317,18 +324,20 @@ export function BaseballField({
   return <button type="button" className="field-chart" onClick={handleClick} aria-label="Tap batted ball direction">{contents}</button>;
 }
 
-export function Heatmap({ points }: { points: ZonePoint[] }) {
+export function Heatmap({ points }: { points: CategorizedZonePoint[] }) {
   return (
     <div className="heatmap">
       <StrikeZone compact />
       {points.slice(-90).map((point, index) => (
         <span
+          data-category={point.category}
           key={`${point.x}-${point.y}-${index}`}
           style={{
             left: `${point.x * 100}%`,
             top: `${point.y * 100}%`,
-            opacity: 0.1 + index / 120,
-          }}
+            opacity: Math.min(0.92, 0.46 + index / 180),
+            "--point-color": point.color,
+          } as React.CSSProperties}
         />
       ))}
     </div>

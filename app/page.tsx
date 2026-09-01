@@ -1007,6 +1007,13 @@ const PITCH_TYPE_COLOR_VARS: Record<PitchType, string> = {
   Knuckleball: "var(--pitch-type-kn)",
   Other: "var(--pitch-type-ot)",
 };
+const GAME_CONTACT_TYPE_COLOR_VARS: Record<GameContactType, string> = {
+  "Ground Ball": "var(--contact-type-ground)",
+  "Line Drive": "var(--contact-type-line)",
+  "Fly Ball": "var(--contact-type-fly)",
+  "Pop Up": "var(--contact-type-popup)",
+  Bunt: "var(--contact-type-bunt)",
+};
 const TRACKING_VELOCITY_MIN_MPH = 1;
 const TRACKING_VELOCITY_MAX_MPH = 300;
 const DEFAULT_TRACKING_VELOCITY_MPH = 75;
@@ -18912,6 +18919,25 @@ function GameLiveIntelligence({ game, events, allEvents, players, focusedPlayerI
   const baseRunners = (["first", "second", "third"] as GameBase[]).map((base) => ({ base, player: players.find((player) => player.id === game.runners[base]) }));
   const confidence = pitches.length < 10 ? "Exploratory" : pitches.length < 25 ? "Limited" : "Directional";
   const maxMix = Math.max(1, ...metrics.mix.map((row) => row.count));
+  const contactTypes: GameContactType[] = ["Ground Ball", "Line Drive", "Fly Ball", "Pop Up", "Bunt"];
+  const locatedPitchPoints = pitches.flatMap((pitch) => {
+    const point = pitch.event.location;
+    if (!isZonePoint(point)) return [];
+    const type = pitch.type ?? "Other";
+    return [{ ...point, category: PITCH_TYPE_LABELS[type], color: PITCH_TYPE_COLOR_VARS[type] }];
+  });
+  const pitchTypeLegend = PITCH_TYPES
+    .filter((type) => pitches.some((pitch) => (pitch.type ?? "Other") === type && isZonePoint(pitch.event.location)))
+    .map((type) => ({ label: PITCH_TYPE_LABELS[type], color: PITCH_TYPE_COLOR_VARS[type] }));
+  const sprayChartPoints = pitches.flatMap((pitch) => {
+    const point = pitch.event.fieldLocation;
+    if (!isZonePoint(point) || !pitch.event.contactType) return [];
+    const contact = pitch.event.contactType;
+    return [{ ...point, category: contact, color: GAME_CONTACT_TYPE_COLOR_VARS[contact] }];
+  });
+  const contactLegend = contactTypes
+    .filter((contact) => pitches.some((pitch) => pitch.event.contactType === contact && isZonePoint(pitch.event.fieldLocation)))
+    .map((contact) => ({ label: contact, color: GAME_CONTACT_TYPE_COLOR_VARS[contact] }));
 
   const metricCards = [
     { label: "Strike", metric: metrics.quality.strike, detail: "All strikes / pitches" },
@@ -18959,10 +18985,15 @@ function GameLiveIntelligence({ game, events, allEvents, players, focusedPlayerI
       <section className="panel game-tendex-outcomes"><div className="game-panel-heading compact"><div><span>Results</span><h2>Outcome by Pitch Type</h2></div><small>Raw counts, no hidden denominator</small></div><div className="game-tendex-outcome-table"><div><span>Pitch</span><span>N</span><span>Strike</span><span>Whiff</span><span>In play</span><span>Hits</span><span>K</span></div>{metrics.outcomeByType.map((row) => <div key={row.type}><strong>{PITCH_TYPE_LABELS[row.type]}</strong><span>{row.total}</span><span>{row.strikes}</span><span>{row.whiffs}</span><span>{row.inPlay}</span><span>{row.hits}</span><span>{row.strikeouts}</span></div>)}</div></section>
     </div>}
 
-    {view === "locations" && <div className="game-tendex-location-layout"><section className="panel game-live-zone"><div className="game-panel-heading compact"><div><span>Actual locations · pitcher view</span><h2>Location Map</h2></div><small>{metrics.located}/{metrics.total} tracked</small></div><StrikeZone points={pitches.map((pitch) => pitch.event.location).filter(isZonePoint)} activePoint={currentSequence.at(-1)?.event.location} /></section><section className="panel game-live-zone"><div className="game-panel-heading compact"><div><span>Density, not prediction</span><h2>Zone Heatmap</h2></div><small>Filtered evidence</small></div><Heatmap points={pitches.map((pitch) => pitch.event.location).filter(isZonePoint)} /><p className="game-sample-note">Every mark comes from a recorded pitch in the selected scope and filters.</p></section></div>}
+    {view === "locations" && <div className="game-tendex-location-layout"><section className="panel game-live-zone"><div className="game-panel-heading compact"><div><span>Actual locations · pitcher view</span><h2>Location Map</h2></div><small>{metrics.located}/{metrics.total} tracked</small></div><StrikeZone points={locatedPitchPoints} activePoint={currentSequence.at(-1)?.event.location} /><GameChartLegend label="Pitch type colors" items={pitchTypeLegend} /></section><section className="panel game-live-zone"><div className="game-panel-heading compact"><div><span>Density by pitch type</span><h2>Zone Heatmap</h2></div><small>Filtered evidence</small></div><Heatmap points={locatedPitchPoints} /><GameChartLegend label="Pitch type heat colors" items={pitchTypeLegend} /><p className="game-sample-note">Every colored mark comes from a recorded pitch in the selected scope and filters.</p></section></div>}
 
-    {view === "spray" && <div className="game-tendex-location-layout"><section className="panel game-live-zone"><div className="game-panel-heading compact"><div><span>Tracked balls in play</span><h2>Spray Chart</h2></div><small>{pitches.filter((pitch) => pitch.event.fieldLocation).length} locations</small></div><BaseballField points={pitches.map((pitch) => pitch.event.fieldLocation).filter(isZonePoint)} /></section><section className="panel game-tendex-quality"><div className="game-panel-heading compact"><div><span>Contact evidence</span><h2>Batted Ball Results</h2></div><small>Current filters</small></div><div className="game-tendex-metric-grid">{(["Ground Ball", "Line Drive", "Fly Ball", "Pop Up"] as GameContactType[]).map((contact) => { const rows = pitches.filter((pitch) => pitch.event.contactType === contact); return <div key={contact}><span>{contact}</span><strong>{rows.length}</strong><small>{rows.filter((pitch) => ["Single", "Double", "Triple", "Home Run"].includes(pitch.event.ballInPlayOutcome ?? "")).length} hits</small></div>; })}</div><p className="game-sample-note">Filter by pitcher, batter, count, pitch type, side, or outs to isolate an approach pattern.</p></section></div>}
+    {view === "spray" && <div className="game-tendex-location-layout"><section className="panel game-live-zone"><div className="game-panel-heading compact"><div><span>Tracked balls in play · colored by contact</span><h2>Spray Chart</h2></div><small>{sprayChartPoints.length} locations</small></div><BaseballField points={sprayChartPoints} /><GameChartLegend label="Contact type colors" items={contactLegend} /></section><section className="panel game-tendex-quality"><div className="game-panel-heading compact"><div><span>Contact evidence</span><h2>Batted Ball Results</h2></div><small>Current filters</small></div><div className="game-tendex-metric-grid">{contactTypes.map((contact) => { const rows = pitches.filter((pitch) => pitch.event.contactType === contact); return <div className="game-tendex-result-card" key={contact} style={{ "--category-color": GAME_CONTACT_TYPE_COLOR_VARS[contact] } as React.CSSProperties}><span>{contact}</span><strong>{rows.length}</strong><small>{rows.filter((pitch) => ["Single", "Double", "Triple", "Home Run"].includes(pitch.event.ballInPlayOutcome ?? "")).length} hits</small></div>; })}</div><p className="game-sample-note">Filter by pitcher, batter, count, pitch type, side, or outs to isolate an approach pattern.</p></section></div>}
   </section>;
+}
+
+function GameChartLegend({ label, items }: { label: string; items: Array<{ label: string; color: string }> }) {
+  if (!items.length) return null;
+  return <div className="game-chart-legend" aria-label={label}>{items.map((item) => <span key={item.label}><i style={{ background: item.color }} aria-hidden="true" />{item.label}</span>)}</div>;
 }
 
 function TendexSplitPanel({ title, eyebrow, groups }: { title: string; eyebrow: string; groups: Array<{ label: string; meta: string; sample: number; rows: Array<{ type: PitchType; count: number; percent: number }> }> }) {

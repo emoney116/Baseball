@@ -89,6 +89,24 @@ test("analysis view has no branded live model banner", () => {
   assert.doesNotMatch(page, /Live Tendex/);
 });
 
+test("location, heatmap, and spray evidence share category colors and legends", () => {
+  assert.match(page, /GAME_CONTACT_TYPE_COLOR_VARS/);
+  assert.match(page, /PITCH_TYPE_COLOR_VARS\[type\]/);
+  assert.match(page, /category: PITCH_TYPE_LABELS\[type\]/);
+  assert.match(page, /category: contact/);
+  assert.match(page, /GameChartLegend label="Pitch type colors"/);
+  assert.match(page, /GameChartLegend label="Contact type colors"/);
+  assert.match(page, /game-tendex-result-card/);
+  assert.match(visuals, /type CategorizedZonePoint/);
+  assert.match(visuals, /data-category=\{point\.category\}/);
+  assert.match(globalCss, /--contact-type-ground:/);
+  assert.match(globalCss, /--contact-type-line:/);
+  assert.match(globalCss, /--contact-type-fly:/);
+  assert.match(globalCss, /--contact-type-popup:/);
+  assert.match(globalCss, /--contact-type-bunt:/);
+  assert.match(globalCss, /var\(--point-color/);
+});
+
 test("game operations support auditable personnel changes and scored-run reasons", () => {
   assert.match(page, /GamePersonnelWorkbench/);
   assert.match(page, /Save lineup & field/);
