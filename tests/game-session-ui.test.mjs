@@ -70,7 +70,8 @@ test("field tracking renders the generated field asset, spray line, and draggabl
   assert.match(globalCss, /game-field-command__runners \.game-base-diamond\s*\{[^}]*height:\s*40%;[^}]*top:\s*70%;[^}]*width:\s*44%/);
   assert.match(globalCss, /button\[data-base="second"\][^}]*top:\s*0;[^}]*translate\(-50%,-50%\)/);
   assert.match(globalCss, /button\[data-base="first"\][^}]*right:\s*0;[^}]*translate\(50%,-50%\)/);
-  assert.match(page, /P:\s*\[50,\s*61\]/);
+  assert.match(page, /GAME_FIELD_POSITION_COORDINATES/);
+  assert.match(page, /P:\s*\[50,\s*62\], C:\s*\[50,\s*85\], "1B":\s*\[68,\s*63\], "2B":\s*\[61,\s*48\], "3B":\s*\[32,\s*63\]/);
   assert.match(page, /data-position=\{position\}/);
   assert.match(globalCss, /clip-path:\s*polygon\(0 0, 100% 0, 100% 45%, 50% 100%, 0 45%\)/);
 });

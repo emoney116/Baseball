@@ -642,9 +642,9 @@
 
   /* Compact game HUD: preserve the field as the primary mobile surface. */
   .game-session-active .game-score-ribbon {
-    grid-template-columns: minmax(0, 1fr) 92px minmax(0, 1fr);
-    height: 50px;
-    min-height: 50px;
+    grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr);
+    height: 52px;
+    min-height: 52px;
   }
 
   .game-session-active .game-score-team,
@@ -654,14 +654,16 @@
   }
 
   .game-session-active .game-score-team {
-    align-items: center;
+    align-content: center;
     display: grid;
-    gap: 3px;
-    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    justify-items: center;
   }
 
   .game-session-active .game-score-team:last-child {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .game-session-active .game-score-team span {
@@ -669,23 +671,25 @@
     grid-column: 1;
     grid-row: 1;
     letter-spacing: 0.05em;
+    max-width: 100%;
     overflow: hidden;
+    text-align: center;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .game-session-active .game-score-team strong,
   .game-session-active .game-score-team:last-child strong {
-    font-size: 1.2rem;
-    grid-column: 2;
-    grid-row: 1;
+    font-size: 1.05rem;
+    grid-column: 1;
+    grid-row: 2;
     line-height: 1;
     order: initial;
   }
 
   .game-session-active .game-score-team:last-child span {
-    grid-column: 2;
-    text-align: right;
+    grid-column: 1;
+    text-align: center;
   }
 
   .game-session-active .game-score-team:last-child strong {
@@ -695,6 +699,7 @@
   .game-session-active .game-inning-state {
     align-content: center;
     gap: 2px;
+    min-width: 0;
   }
 
   .game-session-active .game-inning-state > strong {

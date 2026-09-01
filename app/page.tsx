@@ -18685,6 +18685,9 @@ function GamesView({
 }
 
 const GAME_DEFENSIVE_POSITIONS: Position[] = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
+const GAME_FIELD_POSITION_COORDINATES: Record<string, [number, number]> = {
+  P: [50, 62], C: [50, 85], "1B": [68, 63], "2B": [61, 48], "3B": [32, 63], SS: [39, 48], LF: [25, 28], CF: [50, 18], RF: [75, 28],
+};
 
 function GameFieldCommand({
   game,
@@ -18723,9 +18726,6 @@ function GameFieldCommand({
   const batter = players.find((player) => player.id === game.currentBatterId);
   const pitcher = players.find((player) => player.id === game.currentPitcherId);
   const selectedPlayer = active ? players.find((player) => player.id === selectedPlayerId) : undefined;
-  const positionCoordinates: Record<string, [number, number]> = {
-    P: [50, 61], C: [50, 92], "1B": [85, 58], "2B": [68, 40], "3B": [15, 58], SS: [32, 40], LF: [23, 25], CF: [50, 15], RF: [77, 25], DH: [50, 70],
-  };
   const quickOutcomes: Array<{ outcome: GamePitchOutcome; label: string }> = [
     { outcome: "Ball", label: "Ball" },
     { outcome: "Called Strike", label: "Called" },
@@ -18746,7 +18746,7 @@ function GameFieldCommand({
         {GAME_DEFENSIVE_POSITIONS.map((position) => {
           const player = players.find((item) => item.id === game.positions[position]);
           if (!player) return null;
-          const [left, top] = positionCoordinates[position];
+          const [left, top] = GAME_FIELD_POSITION_COORDINATES[position];
           return <button key={position} type="button" data-position={position} className={`game-field-player ${selectedPlayerId === player.id ? "selected" : ""}`} style={{ left: `${left}%`, top: `${top}%` }} onClick={() => setSelectedPlayerId(player.id)} aria-label={`${position}: ${player.name}`}><b>{position}</b><span>{lastName(player.name)}</span></button>;
         })}
         <button type="button" className="game-field-pitch-ball" onClick={onPitch} aria-label={draftActive ? "Resume pitch scoring" : "Record the next pitch"}><img src="/game-tracking/baseball-center-control-v1.png" alt="" aria-hidden="true" /><strong>{draftActive ? "Resume" : "Pitch"}</strong></button>
@@ -18831,10 +18831,6 @@ function GamePersonnelWorkbench({ game, players, focusedPlayerId, onSave }: { ga
     setSaved(false);
   }
 
-  const positionCoordinates: Record<string, [number, number]> = {
-    P: [50, 62], C: [50, 85], "1B": [68, 61], "2B": [61, 48], "3B": [32, 61], SS: [40, 48], LF: [25, 28], CF: [50, 18], RF: [75, 28],
-  };
-
   return <section className="game-personnel-workbench" aria-label="Lineup and defensive field editor">
     <section className="panel game-personnel-field">
       <div className="game-panel-heading"><div><span>Live defensive alignment</span><h2>Tap a player, then a position</h2></div><small>Changes stay in draft until saved</small></div>
@@ -18842,7 +18838,7 @@ function GamePersonnelWorkbench({ game, players, focusedPlayerId, onSave }: { ga
         <BaseballField points={[]} />
         {GAME_DEFENSIVE_POSITIONS.map((position) => {
           const player = eligible.find((item) => item.id === positions[position]);
-          const [left, top] = positionCoordinates[position];
+          const [left, top] = GAME_FIELD_POSITION_COORDINATES[position];
           return <button key={position} type="button" className={selectedPlayerId && player?.id === selectedPlayerId ? "selected" : ""} style={{ left: `${left}%`, top: `${top}%` }} onClick={() => selectedPlayerId ? assignPosition(position, selectedPlayerId) : setSelectedPlayerId(player?.id)} aria-label={`${position}: ${player?.name ?? "empty"}`}><b>{position}</b><span>{player ? lastName(player.name) : "Empty"}</span></button>;
         })}
       </div>
