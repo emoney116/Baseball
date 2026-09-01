@@ -6,7 +6,7 @@ import type {
 import type { ID } from "../../types.ts";
 
 export type AskClubhouseMessageRole = "user" | "assistant";
-export type AskClubhouseRoute = "clubhouse_data" | "baseball_knowledge" | "mixed" | "refuse";
+export type AskClubhouseRoute = "clubhouse_data" | "baseball_knowledge" | "mixed" | "external_research_required" | "out_of_scope";
 export type AskClubhouseLaunchSurface = "clubhouse_home" | "team_home" | "practice" | "analytics" | "weight_room" | "games";
 export type AskClubhouseStatus =
   | "completed"

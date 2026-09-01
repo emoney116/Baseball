@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getAskClubhouseConfig, resolveAiUsageRole } from "../app/lib/askClubhouse/config.ts";
+import { canUseExternalResearch } from "../app/lib/askClubhouse/entitlements.ts";
 import { generateAskClubhouseReply } from "../app/lib/askClubhouse/engine.ts";
 import { calculateAIRequestCost } from "../app/lib/askClubhouse/pricing.ts";
 import { OpenAIProvider } from "../app/lib/askClubhouse/provider.ts";
@@ -138,6 +139,7 @@ test("Ask Clubhouse config applies beta cost defaults", () => {
   assert.equal(config.monthlyGlobalCostLimitUsd, 100);
   assert.equal(config.dailyRoleWebSearchLimits.coach, 10);
   assert.equal(config.dailyTeamWebSearchLimit, 30);
+  assert.equal(config.webSearchEnabled, false);
   assert.equal(config.maxToolCallsPerRequest, 6);
   assert.equal(config.maxWebSearchesPerRequest, 1);
   assert.equal(config.maxInputCharacters, 4000);
@@ -171,10 +173,10 @@ test("Ask Clubhouse routes each question by intent and bounds web use", () => {
   const refusal = classifyAskClubhouseIntent("Write me a history essay", players);
 
   assert.deepEqual([internal.route, internal.requiresWebSearch], ["clubhouse_data", false]);
-  assert.deepEqual([currentRule.route, currentRule.requiresWebSearch], ["baseball_knowledge", true]);
-  assert.deepEqual([mixed.route, mixed.requiresWebSearch], ["mixed", true]);
+  assert.deepEqual([currentRule.route, currentRule.requiresWebSearch], ["external_research_required", false]);
+  assert.deepEqual([mixed.route, mixed.requiresWebSearch], ["mixed", false]);
   assert.deepEqual([general.route, general.requiresWebSearch], ["baseball_knowledge", false]);
-  assert.deepEqual([refusal.route, refusal.requiresWebSearch], ["refuse", false]);
+  assert.deepEqual([refusal.route, refusal.requiresWebSearch], ["out_of_scope", false]);
 });
 
 test("Ask Clubhouse distinguishes team strategy from team analytics", () => {
@@ -188,8 +190,97 @@ test("Ask Clubhouse distinguishes team strategy from team analytics", () => {
 test("Ask Clubhouse keeps general baseball questions out of private team routing", () => {
   const classification = classifyAskClubhouseIntent("Who won the World Series this year?", players);
 
+  assert.equal(classification.route, "external_research_required");
+  assert.equal(classification.route, "external_research_required");
+  assert.equal(classification.requiresWebSearch, false);
+  assert.equal(classification.knowledgeStatus, "knowledge_miss");
+});
+
+test("Ask Clubhouse beta keeps external research disabled while retaining entitlement architecture", () => {
+  const disabled = getAskClubhouseConfig({});
+  const enabled = getAskClubhouseConfig({ AI_WEB_SEARCH_ENABLED: "true" });
+
+  assert.equal(canUseExternalResearch({ role: "coach", teamId: "team-1" }, disabled), false);
+  assert.equal(canUseExternalResearch({ role: "coach", teamId: "team-1" }, enabled), true);
+  assert.equal(classifyAskClubhouseIntent("What is the 2026 NFHS balk rule?", players, [], { webSearchEnabled: false }).route, "external_research_required");
+  assert.equal(classifyAskClubhouseIntent("What is the 2026 NFHS balk rule?", players, [], { webSearchEnabled: true }).requiresWebSearch, true);
+});
+
+test("Ask Clubhouse uses trusted knowledge before external research", () => {
+  const item = {
+    id: "nfhs-balk-2026",
+    title: "2026 NFHS Balk Rule",
+    content: "Verified NFHS balk guidance for the 2026 season.",
+    category: "rules",
+    level: "high_school",
+    governingBody: "NFHS",
+    version: "2026",
+    source: "NFHS rulebook",
+    verifiedAt: "2026-08-01",
+    status: "verified",
+  };
+  const knowledgeProvider = {
+    searchKnowledge(query) {
+      assert.equal(query.governingBody, "NFHS");
+      assert.equal(query.version, "2026");
+      return [item];
+    },
+    getKnowledgeItem(id) {
+      return id === item.id ? item : undefined;
+    },
+  };
+  const classification = classifyAskClubhouseIntent("What is the 2026 NFHS balk rule?", players, [], {
+    webSearchEnabled: false,
+    knowledgeProvider,
+  });
+  const plan = buildAskClubhouseToolPlan(data, "What is the 2026 NFHS balk rule?", undefined, getAskClubhouseConfig({}), [], knowledgeProvider);
+
   assert.equal(classification.route, "baseball_knowledge");
-  assert.equal(classification.requiresWebSearch, true);
+  assert.equal(classification.knowledgeStatus, "trusted_match");
+  assert.equal(plan.status, "completed");
+  assert.match(plan.answer, /Verified NFHS/);
+});
+
+test("Ask Clubhouse independently reroutes a current question after a Clubhouse question", () => {
+  const history = [{ role: "user", content: "Who hits curveballs best?" }];
+  const currentRule = classifyAskClubhouseIntent("What is the NFHS balk rule?", players, history, { webSearchEnabled: false });
+
+  assert.equal(classifyAskClubhouseIntent("Who hits curveballs best?", players).route, "clubhouse_data");
+  assert.equal(currentRule.route, "external_research_required");
+  assert.equal(currentRule.requiresWebSearch, false);
+});
+
+test("Ask Clubhouse never calls the provider for a current question while web is disabled", async () => {
+  const config = getAskClubhouseConfig({ OPENAI_API_KEY: "test-key" });
+  let providerCalled = false;
+  const response = await generateAskClubhouseReply({
+    data,
+    message: "What is the 2026 NFHS balk rule?",
+    config,
+    provider: {
+      model: config.model,
+      async generate() {
+        providerCalled = true;
+        throw new Error("should not be called");
+      },
+    },
+  });
+
+  assert.equal(response.route, "external_research_required");
+  assert.equal(response.webSearchCount, 0);
+  assert.equal(providerCalled, false);
+  assert.match(response.answer, /research isn't enabled/i);
+});
+
+test("Ask Clubhouse preserves mixed routing when current baseball context is unavailable", () => {
+  const classification = classifyAskClubhouseIntent("Jackson topped out at 84 mph. Is that good for his age?", players, [], { webSearchEnabled: false });
+  const plan = buildAskClubhouseToolPlan(data, "Jackson topped out at 84 mph. Is that good for his age?", undefined, getAskClubhouseConfig({}), []);
+
+  assert.equal(classification.route, "mixed");
+  assert.equal(classification.externalResearchRequired, true);
+  assert.equal(classification.requiresWebSearch, false);
+  assert.equal(plan.route, "mixed");
+  assert.equal(plan.status, "data");
 });
 
 test("Ask Clubhouse builds bounded hitting leaderboard tools", () => {
@@ -313,7 +404,7 @@ test("OpenAI provider bounds web search and extracts compact sources", async () 
 });
 
 test("Ask Clubhouse does not invent current guidance when web verification fails", async () => {
-  const config = getAskClubhouseConfig({ OPENAI_API_KEY: "test-key" });
+  const config = getAskClubhouseConfig({ OPENAI_API_KEY: "test-key", AI_WEB_SEARCH_ENABLED: "true" });
   const provider = {
     model: config.model,
     async generate() {

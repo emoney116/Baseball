@@ -12,6 +12,18 @@ Ask Clubhouse V1 is a read-only baseball analytics assistant. Clubhouse 9 comput
 - Practice summary questions using existing practice, attendance, and development data.
 - Contextual Analytics actions that open the shared Analytics screen with validated query state.
 
+## Beta Routing Model
+
+Every incoming message is routed independently to one of five paths:
+
+- `clubhouse_data`: authorized team, player, practice, game, development, or weight room data.
+- `baseball_knowledge`: stable baseball definitions or trusted/reviewed Knowledge Bank context.
+- `mixed`: Clubhouse data plus baseball context.
+- `external_research_required`: current/versioned baseball context with no trusted Knowledge Bank match.
+- `out_of_scope`: unrelated requests that Ask Clubhouse cannot answer.
+
+Conversation history can resolve short references such as “why?”, but it cannot force a new message to reuse the previous route.
+
 ## V1 Tool Boundaries
 
 - No arbitrary SQL.
@@ -19,7 +31,15 @@ Ask Clubhouse V1 is a read-only baseball analytics assistant. Clubhouse 9 comput
 - Tool results are capped by `AI_TOOL_RESULT_LIMIT` and tool calls by `AI_MAX_TOOL_CALLS_PER_REQUEST`.
 - Every tool result includes compact rows, metric displays, and sample/denominator context where available.
 - Unsupported or missing data returns a no-data answer instead of invented analysis.
-- Internal Clubhouse and stable baseball-knowledge questions do not use web search. Current rules and time-sensitive benchmarks may use web search, bounded per request, user, and team.
+- Internal Clubhouse and stable baseball-knowledge questions do not use web search.
+- External research is disabled by default for the Metrolina beta through `AI_WEB_SEARCH_ENABLED=false`. The existing bounded provider path remains available for a future entitlement or premium rollout.
+- When external research is disabled, current/versioned questions return a baseball-aware availability response and make zero web-search calls.
+
+## Baseball Knowledge Foundation
+
+`app/lib/askClubhouse/knowledge.ts` defines the `BaseballKnowledgeProvider` interface with bounded `searchKnowledge` and `getKnowledgeItem` operations. Knowledge items carry category, level, governing body, version, source, verification time, and trust status. Only `verified` and `reviewed` items are trusted; `draft`, `candidate`, `expired`, and `stale` items are ignored. V1 ships with an empty provider so the bank can be added without changing the routing contract.
+
+`app/lib/askClubhouse/entitlements.ts` defines `canUseExternalResearch({ userId, role, teamId, organizationId }, config)`. V1 honors the server-side feature flag only; the context fields leave room for Coach Pro, Team, and Organization entitlements later.
 
 ## Usage And Cost Guardrails
 
@@ -27,6 +47,7 @@ Server-side configuration:
 
 - `OPENAI_API_KEY`: required for live AI answers.
 - `OPENAI_AI_MODEL`: defaults to `gpt-5-mini`.
+- `AI_WEB_SEARCH_ENABLED`: defaults to `false`; server-side beta flag for future external research entitlement.
 - `AI_DAILY_COACH_REQUEST_LIMIT`: defaults to `30`.
 - `AI_DAILY_PLAYER_REQUEST_LIMIT`: defaults to `10`.
 - `AI_DAILY_PARENT_REQUEST_LIMIT`: defaults to `5`.

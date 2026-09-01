@@ -1,6 +1,7 @@
 export interface AskClubhouseConfig {
   model: string;
   hasProviderKey: boolean;
+  webSearchEnabled: boolean;
   dailyUserRequestLimit: number;
   dailyRoleRequestLimits: Record<AiUsageRole, number>;
   dailyTeamRequestLimit: number;
@@ -28,6 +29,7 @@ export function getAskClubhouseConfig(env: NodeJS.ProcessEnv = process.env): Ask
   return {
     model: readString(env.OPENAI_AI_MODEL, DEFAULT_MODEL),
     hasProviderKey: Boolean(readString(env.OPENAI_API_KEY, "")),
+    webSearchEnabled: readBoolean(env.AI_WEB_SEARCH_ENABLED, false),
     dailyUserRequestLimit: legacyUserLimit,
     dailyRoleRequestLimits: {
       coach: readNumber(env.AI_DAILY_COACH_REQUEST_LIMIT, hasLegacyUserLimit ? legacyUserLimit : 30, 1, 10000),
@@ -82,4 +84,9 @@ function readMoney(value: string | undefined, fallback: number, min: number, max
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(max, Math.max(min, Math.round(parsed * 100) / 100));
+}
+
+function readBoolean(value: string | undefined, fallback: boolean): boolean {
+  if (!value?.trim()) return fallback;
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }

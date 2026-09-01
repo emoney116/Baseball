@@ -10,6 +10,14 @@ import {
   type AnalyticsSource,
 } from "../analyticsQuery.ts";
 import type { AskClubhouseConfig } from "./config.ts";
+import { canUseExternalResearch } from "./entitlements.ts";
+import {
+  EMPTY_BASEBALL_KNOWLEDGE_PROVIDER,
+  findTrustedKnowledge,
+  type BaseballKnowledgeItem,
+  type BaseballKnowledgeMatchStatus,
+  type BaseballKnowledgeProvider,
+} from "./knowledge.ts";
 import type {
   AskClubhouseAction,
   AskClubhouseClientMessage,
@@ -31,6 +39,9 @@ export interface AskToolPlan {
   followUps: string[];
   clarification?: string;
   interpretation?: string;
+  knowledgeStatus: BaseballKnowledgeMatchStatus;
+  knowledgeItems: BaseballKnowledgeItem[];
+  externalResearchRequired: boolean;
 }
 
 export interface AskToolRequest {
@@ -57,6 +68,14 @@ export interface AskIntentClassification {
   route: AskClubhouseRoute;
   requiresWebSearch: boolean;
   reason: string;
+  knowledgeStatus: BaseballKnowledgeMatchStatus;
+  knowledgeItems: BaseballKnowledgeItem[];
+  externalResearchRequired: boolean;
+}
+
+export interface AskIntentOptions {
+  webSearchEnabled?: boolean;
+  knowledgeProvider?: BaseballKnowledgeProvider;
 }
 
 const BASEBALL_DEFINITIONS: Array<{ pattern: RegExp; answer: string; followUps: string[] }> = [
@@ -86,13 +105,14 @@ const OUT_OF_SCOPE_PATTERN =
   /\b(essay|homework|recipe|vacation|travel|weather|stock|crypto|bitcoin|election|politics|movie|song|lyrics|dating|medical|lawyer|legal)\b/i;
 
 const CURRENT_BASEBALL_CONTEXT_PATTERN = /\b(nfhs|ncaa|mlb|official rule|rulebook|pitch count limit|current rule|latest rule|this season'?s? rule|this year|current season|world series|age benchmark|age average|good for (?:his|her|their|my) age)\b/i;
-const BASEBALL_KNOWLEDGE_PATTERN = /\b(baseball|softball|balk|ops|babip|csw|zone rate|infield fly|obstruction|interference|pitch count|curveball|slider|fastball|changeup|bunt|cutoff|relay|approach|mechanics|launch angle|exit velocity|batting|pitching|fielding|world series|major league|minor league)\b/i;
+const BASEBALL_KNOWLEDGE_PATTERN = /\b(baseball|softball|balk|ops|babip|csw|zone rate|infield fly|obstruction|interference|pitch count|curveball|slider|fastball|changeup|bunt|cutoff|relay|approach|mechanics|launch angle|exit velocity|batting|pitching|fielding|world series|major league|minor league|mph)\b/i;
 const TEAM_DATA_PATTERN = /\b(player|players|leader|leaders|highest|lowest|best|hottest|improved|practice|game|season|clubhouse|analytics|weight room|bullpen|roster|compare|tracked|reps|contact|hard %|avg ev|velocity|velo|strike %|zone %)\b/i;
 
 export function classifyAskClubhouseIntent(
   message: string,
   players: Player[] = [],
   history: AskClubhouseClientMessage[] = [],
+  options: AskIntentOptions = {},
 ): AskIntentClassification {
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
@@ -104,6 +124,14 @@ export function classifyAskClubhouseIntent(
     || player.name.toLowerCase().split(/[^a-z0-9]+/).some((token) => token.length >= 3 && messageTokens.has(token))
   ));
   const currentBaseballContext = CURRENT_BASEBALL_CONTEXT_PATTERN.test(trimmed);
+  const knowledgeItems = baseballContext
+    ? findTrustedKnowledge(options.knowledgeProvider ?? EMPTY_BASEBALL_KNOWLEDGE_PROVIDER, knowledgeQuery(trimmed))
+    : [];
+  const knowledgeStatus: BaseballKnowledgeMatchStatus = !baseballContext
+    ? "not_needed"
+    : knowledgeItems.length ? "trusted_match" : "knowledge_miss";
+  const externalResearchRequired = currentBaseballContext && knowledgeStatus === "knowledge_miss";
+  const requiresWebSearch = externalResearchRequired && Boolean(options.webSearchEnabled);
   const compactFollowUp = /^(how|what) about\b|^why\??$|^and\b/i.test(trimmed);
   const priorTeamContext = history.slice(-4).some((item) => TEAM_DATA_PATTERN.test(item.content));
   const usesTeamData = explicitTeamData
@@ -112,18 +140,53 @@ export function classifyAskClubhouseIntent(
   const asksForExternalInterpretation = /\b(is that good|how does that compare|benchmark|for (?:his|her|their|my) age|rule|legal|allowed)\b/i.test(trimmed);
 
   if (OUT_OF_SCOPE_PATTERN.test(trimmed) && !baseballContext) {
-    return { route: "refuse", requiresWebSearch: false, reason: "The request is outside baseball and Clubhouse data." };
+    return {
+      route: "out_of_scope",
+      requiresWebSearch: false,
+      reason: "The request is outside baseball and Clubhouse data.",
+      knowledgeStatus,
+      knowledgeItems,
+      externalResearchRequired: false,
+    };
   }
   if (usesTeamData && (asksForExternalInterpretation || currentBaseballContext)) {
-    return { route: "mixed", requiresWebSearch: currentBaseballContext, reason: "The answer combines authorized Clubhouse data with baseball context." };
+    return {
+      route: "mixed",
+      requiresWebSearch,
+      reason: "The answer combines authorized Clubhouse data with baseball context.",
+      knowledgeStatus,
+      knowledgeItems,
+      externalResearchRequired,
+    };
   }
   if (usesTeamData) {
-    return { route: "clubhouse_data", requiresWebSearch: false, reason: "The request asks about the user's authorized Clubhouse data." };
+    return {
+      route: "clubhouse_data",
+      requiresWebSearch: false,
+      reason: "The request asks about the user's authorized Clubhouse data.",
+      knowledgeStatus,
+      knowledgeItems,
+      externalResearchRequired: false,
+    };
   }
   if (baseballContext) {
-    return { route: "baseball_knowledge", requiresWebSearch: currentBaseballContext, reason: currentBaseballContext ? "The baseball answer may have changed and needs a current source." : "The request is stable baseball knowledge." };
+    return {
+      route: externalResearchRequired ? "external_research_required" : "baseball_knowledge",
+      requiresWebSearch,
+      reason: externalResearchRequired ? "No trusted current baseball knowledge item matched this question." : "The request is stable or trusted baseball knowledge.",
+      knowledgeStatus,
+      knowledgeItems,
+      externalResearchRequired,
+    };
   }
-  return { route: "refuse", requiresWebSearch: false, reason: "The request does not match Clubhouse data or baseball knowledge." };
+  return {
+    route: "out_of_scope",
+    requiresWebSearch: false,
+    reason: "The request does not match Clubhouse data or baseball knowledge.",
+    knowledgeStatus,
+    knowledgeItems,
+    externalResearchRequired: false,
+  };
 }
 
 export function buildAskClubhouseToolPlan(
@@ -132,11 +195,20 @@ export function buildAskClubhouseToolPlan(
   uiContext: AskClubhouseUiContext | undefined,
   config: AskClubhouseConfig,
   history: AskClubhouseClientMessage[] = [],
+  knowledgeProvider: BaseballKnowledgeProvider = EMPTY_BASEBALL_KNOWLEDGE_PROVIDER,
 ): AskToolPlan {
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
-  const classification = classifyAskClubhouseIntent(trimmed, data.players, history);
   const currentTeam = data.teamContext?.currentTeam;
+  const researchEnabled = canUseExternalResearch({
+    role: currentTeam?.role === "PLAYER" ? "player" : "coach",
+    teamId: currentTeam?.teamId,
+    organizationId: currentTeam?.organizationId,
+  }, config);
+  const classification = classifyAskClubhouseIntent(trimmed, data.players, history, {
+    webSearchEnabled: researchEnabled,
+    knowledgeProvider,
+  });
   const context = {
     teamId: currentTeam?.teamId,
     seasonId: currentTeam?.seasonId,
@@ -144,7 +216,7 @@ export function buildAskClubhouseToolPlan(
     role: currentTeam?.role,
   };
 
-  if (classification.route === "refuse") {
+  if (classification.route === "out_of_scope") {
     return {
       status: "refused",
       route: classification.route,
@@ -153,6 +225,9 @@ export function buildAskClubhouseToolPlan(
       toolRequests: [],
       actions: [],
       followUps: ["Who has the highest practice Contact %?", "Which pitchers throw the most strikes?", "Who leads Weight Room Development?"],
+      knowledgeStatus: classification.knowledgeStatus,
+      knowledgeItems: classification.knowledgeItems,
+      externalResearchRequired: false,
     };
   }
 
@@ -166,6 +241,52 @@ export function buildAskClubhouseToolPlan(
       toolRequests: [],
       actions: [],
       followUps: definition.followUps,
+      knowledgeStatus: classification.knowledgeStatus,
+      knowledgeItems: classification.knowledgeItems,
+      externalResearchRequired: false,
+    };
+  }
+
+  if (classification.route === "baseball_knowledge" && classification.knowledgeItems.length) {
+    return {
+      status: "completed",
+      route: classification.route,
+      requiresWebSearch: false,
+      answer: classification.knowledgeItems[0].content,
+      toolRequests: [],
+      actions: [],
+      followUps: ["How does that apply in a game?", "What should a coach watch for?", "Give me a simple example"],
+      knowledgeStatus: classification.knowledgeStatus,
+      knowledgeItems: classification.knowledgeItems,
+      externalResearchRequired: false,
+    };
+  }
+
+  if (classification.route === "external_research_required") {
+    if (!classification.requiresWebSearch) {
+      return {
+        status: "completed",
+        route: classification.route,
+        requiresWebSearch: false,
+        answer: "That's a baseball rules or current-context question. I can answer from Clubhouse's verified baseball knowledge when available, but current-source research isn't enabled in this beta yet.",
+        toolRequests: [],
+        actions: [],
+        followUps: ["What is OPS?", "What is a balk generally?", "Ask about your Clubhouse data"],
+        knowledgeStatus: classification.knowledgeStatus,
+        knowledgeItems: classification.knowledgeItems,
+        externalResearchRequired: true,
+      };
+    }
+    return {
+      status: "provider",
+      route: classification.route,
+      requiresWebSearch: true,
+      toolRequests: [],
+      actions: [],
+      followUps: ["How does that apply in a game?", "What should a coach watch for?", "Give me a simple example"],
+      knowledgeStatus: classification.knowledgeStatus,
+      knowledgeItems: classification.knowledgeItems,
+      externalResearchRequired: true,
     };
   }
 
@@ -177,6 +298,9 @@ export function buildAskClubhouseToolPlan(
       toolRequests: [],
       actions: [],
       followUps: ["How does that apply in a game?", "What should a coach watch for?", "Give me a simple example"],
+      knowledgeStatus: classification.knowledgeStatus,
+      knowledgeItems: classification.knowledgeItems,
+      externalResearchRequired: false,
     };
   }
 
@@ -190,6 +314,9 @@ export function buildAskClubhouseToolPlan(
       toolRequests: [],
       actions: [],
       followUps: playerMatch.players.slice(0, 3).map((player) => `Show ${player.name}'s analytics`),
+      knowledgeStatus: classification.knowledgeStatus,
+      knowledgeItems: classification.knowledgeItems,
+      externalResearchRequired: classification.externalResearchRequired,
     };
   }
 
@@ -299,6 +426,9 @@ export function buildAskClubhouseToolPlan(
     interpretation: /\bhottest\b/.test(lower)
       ? "Interpret hottest as current performance using qualified rate metrics and supporting contact quality, not raw rep volume. State that interpretation."
       : undefined,
+    knowledgeStatus: classification.knowledgeStatus,
+    knowledgeItems: classification.knowledgeItems,
+    externalResearchRequired: classification.externalResearchRequired,
   };
 }
 
@@ -596,6 +726,19 @@ function followUpsFor(domain: AnalyticsQuery["domain"], source: AnalyticsSource,
 
 function unique(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+function knowledgeQuery(query: string) {
+  const version = query.match(/\b20\d{2}\b/)?.[0];
+  const governingBody = /\bnfhs\b/i.test(query) ? "NFHS" : /\bncaa\b/i.test(query) ? "NCAA" : undefined;
+  return {
+    query,
+    category: /\b(rule|rulebook|legal|allowed)\b/i.test(query) ? "rules" : "baseball",
+    level: governingBody === "NFHS" ? "high_school" : governingBody === "NCAA" ? "college" : undefined,
+    governingBody,
+    version,
+    limit: 3,
+  };
 }
 
 export function formatMetricForPrompt(value: number | string | undefined, format: AnalyticsMetricFormat): string {

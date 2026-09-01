@@ -74,7 +74,9 @@ export async function POST(request: NextRequest) {
     const usageRole = resolveAiUsageRole(billingTeam?.role, data.teamContext?.profile?.role);
     const usageSupabase = createAdminClient();
     const history = boundConversationHistory(body.messages, config.contextMessageLimit);
-    const intent = classifyAskClubhouseIntent(message, data.players, history);
+    const intent = classifyAskClubhouseIntent(message, data.players, history, {
+      webSearchEnabled: config.webSearchEnabled,
+    });
     const requestHash = createAiRequestHash({
       profileId: scope.profileId,
       teamId: billingTeam?.teamId,

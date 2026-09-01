@@ -1,6 +1,7 @@
 import type { AppData } from "../../types.ts";
 import type { AskClubhouseConfig } from "./config.ts";
 import { AskClubhouseProviderError } from "./provider.ts";
+import type { BaseballKnowledgeItem, BaseballKnowledgeProvider } from "./knowledge.ts";
 import {
   buildAskClubhouseToolPlan,
   fallbackAnswerFromTools,
@@ -26,6 +27,7 @@ export interface GenerateAskReplyInput {
   uiContext?: AskClubhouseUiContext;
   config: AskClubhouseConfig;
   provider?: AIProvider;
+  knowledgeProvider?: BaseballKnowledgeProvider;
   now?: Date;
 }
 
@@ -40,7 +42,7 @@ export interface GenerateAskReplyResult extends AskClubhouseApiResponse {
 export async function generateAskClubhouseReply(input: GenerateAskReplyInput): Promise<GenerateAskReplyResult> {
   const startedAt = input.now?.getTime() ?? Date.now();
   const history = boundConversationHistory(input.history, input.config.contextMessageLimit);
-  const plan = buildAskClubhouseToolPlan(input.data, input.message, input.uiContext, input.config, history);
+  const plan = buildAskClubhouseToolPlan(input.data, input.message, input.uiContext, input.config, history, input.knowledgeProvider);
   let webSearchCount = 0;
 
   if (plan.status !== "data" && plan.status !== "provider") {
@@ -71,6 +73,29 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
   const analyticToolResults = toolResults.filter((tool) => tool.name !== "getDataCoverage");
   const noData = plan.status === "data" && analyticToolResults.every((tool) => !tool.rows?.length);
   const lowSample = hasLowSample(toolResults);
+
+  if (plan.externalResearchRequired && !input.config.webSearchEnabled) {
+    const latencyMs = elapsedMs(startedAt);
+    return {
+      ok: true,
+      status: "completed",
+      route: plan.route,
+      answer: "I found the Clubhouse data, but verified current baseball context isn't available in this beta yet. I won't guess at the comparison.",
+      evidence: summarizeToolEvidence(toolResults),
+      actions: plan.actions,
+      followUps: plan.followUps,
+      usage: {
+        model: input.provider?.model ?? input.config.model,
+        toolCallCount: toolResults.length,
+        webSearchCount,
+        latencyMs,
+      },
+      toolResults,
+      toolNames,
+      toolParams,
+      webSearchCount,
+    };
+  }
 
   if (noData && plan.route === "clubhouse_data") {
     const answer = fallbackAnswerFromTools(plan, toolResults);
@@ -122,8 +147,8 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
 
   try {
     const providerResult = await input.provider.generate({
-      system: buildSystemPrompt(input.config, plan.route, plan.requiresWebSearch),
-      prompt: buildUserPrompt(input, toolResults, plan.actions, plan.followUps, plan.route, plan.interpretation),
+      system: buildSystemPrompt(input.config, plan.route, plan.requiresWebSearch, plan.knowledgeItems.length > 0),
+      prompt: buildUserPrompt(input, toolResults, plan.actions, plan.followUps, plan.route, plan.interpretation, plan.knowledgeItems),
       maxOutputTokens: input.config.maxOutputTokens,
       webSearch: {
         enabled: plan.requiresWebSearch,
@@ -196,7 +221,7 @@ export function boundConversationHistory(messages: AskClubhouseClientMessage[] |
     }));
 }
 
-function buildSystemPrompt(config: AskClubhouseConfig, route: GenerateAskReplyResult["route"], usesWebSearch: boolean): string {
+function buildSystemPrompt(config: AskClubhouseConfig, route: GenerateAskReplyResult["route"], usesWebSearch: boolean, hasTrustedKnowledge: boolean): string {
   return [
     "You are Ask Clubhouse, a baseball analytics assistant inside Clubhouse 9.",
     "Answer only about Clubhouse team data, player development, baseball, or weight room context.",
@@ -205,6 +230,9 @@ function buildSystemPrompt(config: AskClubhouseConfig, route: GenerateAskReplyRe
     usesWebSearch
       ? "Use the bounded web search only for current baseball rules or external benchmarks. Prefer authoritative governing-body and established baseball sources, and distinguish external context from Clubhouse data."
       : "No web search is available for this message. Do not imply that current rules or benchmarks were verified externally.",
+    hasTrustedKnowledge
+      ? "Use the supplied verified or reviewed Baseball Knowledge Bank context as trusted baseball guidance."
+      : "Treat any unsourced current-rule or benchmark claim as unverified.",
     "Be concise and coach-friendly. Start with the answer, then explain the sample/denominator when it matters.",
     "Call out small samples, missing data, and unsupported metrics plainly.",
     "Do not ask the user to run queries. Offer the provided analytics actions when useful.",
@@ -219,6 +247,7 @@ function buildUserPrompt(
   followUps: string[],
   route: GenerateAskReplyResult["route"],
   interpretation?: string,
+  knowledgeItems: BaseballKnowledgeItem[] = [],
 ): string {
   const currentTeam = input.data.teamContext?.currentTeam;
   const history = boundConversationHistory(input.history, input.config.contextMessageLimit);
@@ -234,6 +263,19 @@ function buildUserPrompt(
     },
     recentConversation: history,
     boundedToolResults: toolResults,
+    baseballKnowledgeContext: knowledgeItems.map((item) => ({
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      category: item.category,
+      subcategory: item.subcategory,
+      level: item.level,
+      governingBody: item.governingBody,
+      version: item.version,
+      source: item.source,
+      verifiedAt: item.verifiedAt,
+      status: item.status,
+    })),
     availableActions: actions,
     suggestedFollowUps: followUps,
   });
