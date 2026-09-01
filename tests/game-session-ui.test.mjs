@@ -7,6 +7,7 @@ const css = fs.readFileSync(new URL("../app/game-session.css", import.meta.url),
 const globalCss = fs.readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const visuals = fs.readFileSync(new URL("../app/components/visuals.tsx", import.meta.url), "utf8");
 const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+const centerBaseball = new URL("../public/game-tracking/baseball-center-control-v1.png", import.meta.url);
 
 test("active games render as an immersive session with a deliberate exit", () => {
   assert.match(page, /game-session-active/);
@@ -31,6 +32,8 @@ test("the field-first score lane and scoring decisions stay in one viewport", ()
   assert.match(css, /\.game-session-active \.game-context-sheet\s*\{\s*overflow-y:\s*auto/);
   assert.match(css, /\.game-session-active \.game-context-sheet--scoring\s*\{[\s\S]*?overflow:\s*hidden/);
   assert.match(css, /Every live scoring decision fits as a single app screen/);
+  assert.match(css, /max-height:\s*48dvh/);
+  assert.match(css, /game-context-sheet--scoring \.game-flow-steps\s*\{?[\s\S]*?display:\s*none/);
   assert.match(globalCss, /\.game-field-command\s*\{[^}]*grid-template-rows:\s*auto minmax\(0,1fr\) auto/);
   assert.match(globalCss, /\.game-context-sheet--scoring/);
 });
@@ -61,6 +64,8 @@ test("field tracking renders the generated field asset, spray line, and draggabl
   assert.match(page, /draggable=\{Boolean\(runner\)\}/);
   assert.match(page, /onMoveRunner/);
   assert.match(page, /if \(!player\) return null/);
+  assert.match(page, /baseball-center-control-v1\.png/);
+  assert.ok(fs.statSync(centerBaseball).size > 0);
   assert.match(css, /game-base-diamond > button\.occupied[\s\S]*?width:\s*44px/);
   assert.match(globalCss, /clip-path:\s*polygon\(0 0, 100% 0, 100% 45%, 50% 100%, 0 45%\)/);
 });

@@ -18749,7 +18749,7 @@ function GameFieldCommand({
           const [left, top] = positionCoordinates[position];
           return <button key={position} type="button" className={`game-field-player ${selectedPlayerId === player.id ? "selected" : ""}`} style={{ left: `${left}%`, top: `${top}%` }} onClick={() => setSelectedPlayerId(player.id)} aria-label={`${position}: ${player.name}`}><b>{position}</b><span>{lastName(player.name)}</span></button>;
         })}
-        <button type="button" className="game-field-pitch-ball" onClick={onPitch} aria-label={draftActive ? "Resume pitch scoring" : "Record the next pitch"}><i aria-hidden="true" /><strong>{draftActive ? "RESUME" : "PITCH"}</strong></button>
+        <button type="button" className="game-field-pitch-ball" onClick={onPitch} aria-label={draftActive ? "Resume pitch scoring" : "Record the next pitch"}><img src="/game-tracking/baseball-center-control-v1.png" alt="" aria-hidden="true" /><strong>{draftActive ? "Resume" : "Pitch"}</strong></button>
         <div className="game-field-command__runners">
           <header><span>Runners</span><button type="button" onClick={onBases}>Bases</button></header>
           <GameBaseDiamond game={game} players={players} selectedBase={selectedRunnerBase} onSelectBase={onSelectRunnerBase} onMoveRunner={onRunnerMove} />
