@@ -18724,7 +18724,7 @@ function GameFieldCommand({
   const pitcher = players.find((player) => player.id === game.currentPitcherId);
   const selectedPlayer = active ? players.find((player) => player.id === selectedPlayerId) : undefined;
   const positionCoordinates: Record<string, [number, number]> = {
-    P: [50, 55], C: [50, 89], "1B": [70, 57], "2B": [61, 44], "3B": [30, 57], SS: [39, 44], LF: [23, 27], CF: [50, 17], RF: [77, 27], DH: [50, 72],
+    P: [50, 40], C: [50, 92], "1B": [80, 54], "2B": [68, 42], "3B": [20, 54], SS: [32, 42], LF: [23, 25], CF: [50, 15], RF: [77, 25], DH: [50, 70],
   };
   const quickOutcomes: Array<{ outcome: GamePitchOutcome; label: string }> = [
     { outcome: "Ball", label: "Ball" },
@@ -18750,7 +18750,7 @@ function GameFieldCommand({
         })}
         <button type="button" className="game-field-pitch-ball" onClick={onPitch} aria-label={draftActive ? "Resume pitch scoring" : "Record the next pitch"}><i aria-hidden="true" /><strong>{draftActive ? "RESUME" : "PITCH"}</strong></button>
         <div className="game-field-command__runners">
-          <header><span>Runners</span><button type="button" onClick={onBases}>Open controls</button></header>
+          <header><span>Runners</span><button type="button" onClick={onBases}>Bases</button></header>
           <GameBaseDiamond game={game} players={players} selectedBase={selectedRunnerBase} onSelectBase={onSelectRunnerBase} onMoveRunner={onRunnerMove} />
         </div>
       </div>

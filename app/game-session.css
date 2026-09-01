@@ -639,4 +639,92 @@
   .game-session-active .game-field-command {
     min-height: 0;
   }
+
+  /* Compact game HUD: preserve the field as the primary mobile surface. */
+  .game-session-active .game-score-ribbon {
+    grid-template-columns: minmax(0, 1fr) 92px minmax(0, 1fr);
+    height: 56px;
+    min-height: 56px;
+  }
+
+  .game-session-active .game-score-team,
+  .game-session-active .game-inning-state {
+    min-height: 0;
+    padding: 4px 7px;
+  }
+
+  .game-session-active .game-score-team {
+    align-items: center;
+    display: grid;
+    gap: 3px;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .game-session-active .game-score-team:last-child {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .game-session-active .game-score-team span {
+    font-size: 0.5rem;
+    grid-column: 1;
+    grid-row: 1;
+    letter-spacing: 0.05em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .game-session-active .game-score-team strong,
+  .game-session-active .game-score-team:last-child strong {
+    font-size: 1.35rem;
+    grid-column: 2;
+    grid-row: 1;
+    line-height: 1;
+    order: initial;
+  }
+
+  .game-session-active .game-score-team:last-child span {
+    grid-column: 2;
+    text-align: right;
+  }
+
+  .game-session-active .game-score-team:last-child strong {
+    grid-column: 1;
+  }
+
+  .game-session-active .game-inning-state {
+    align-content: center;
+    gap: 2px;
+  }
+
+  .game-session-active .game-inning-state > strong {
+    font-size: 0.72rem;
+  }
+
+  .game-session-active .game-count-lights {
+    flex-wrap: nowrap;
+    gap: 3px;
+  }
+
+  .game-session-active .game-state-lights {
+    gap: 1px;
+  }
+
+  .game-session-active .game-state-lights strong {
+    font-size: 0.48rem;
+  }
+
+  .game-session-active .game-state-lights i {
+    height: 5px;
+    width: 5px;
+  }
+
+  .game-session-active .game-ribbon-bases {
+    gap: 3px;
+  }
+
+  .game-session-active .game-ribbon-bases i {
+    height: 8px;
+    width: 8px;
+  }
 }
