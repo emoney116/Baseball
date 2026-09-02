@@ -53,6 +53,7 @@ import type { LucideIcon } from "lucide-react";
 import type React from "react";
 import { Children, isValidElement, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ClubhouseBaseballField } from "./components/ClubhouseBaseballField";
 import { BaseballField, DonutChart, Heatmap, IdentityAvatar, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
@@ -126,16 +127,6 @@ import {
   shortDate,
   trendByPractice,
 } from "./lib/stats";
-import {
-  getSprayDistribution,
-  getSprayHeatClusters,
-  getSpraySectorBoundaryPoint,
-  projectSprayPoint,
-  SPRAY_FIELD_GEOMETRY,
-  SPRAY_FIELD_PATHS,
-  SPRAY_FIELD_VIEWBOX,
-  type SprayLaneDistribution,
-} from "./lib/sprayChart";
 import {
   defaultPracticeHittingPitchMode,
   isPracticeHittingPitchTypeAvailable,
@@ -12038,7 +12029,7 @@ function PracticeConsole({
               </div>
               {trackSprayChart ? (
                 <div className="tracking-visual">
-                  <BaseballField points={hittingEvents.map((event) => event.fieldLocation).filter(isZonePoint)} activePoint={fieldLocation} onSelect={onFieldLocation} />
+                  <ClubhouseBaseballField points={hittingEvents.map((event) => event.fieldLocation).filter(isZonePoint)} activePoint={fieldLocation} onSelect={onFieldLocation} />
                 </div>
               ) : (
                 <div className="tracking-visual tracking-visual--compact">
@@ -12675,174 +12666,18 @@ function PracticeSprayField({
   onModeCycle?: () => void;
   batterHandedness?: Player["bats"];
 }) {
-  const chartId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
-  const home = SPRAY_FIELD_GEOMETRY.home;
-  const leftFoul = SPRAY_FIELD_GEOMETRY.leftFoulPole;
-  const rightFoul = SPRAY_FIELD_GEOMETRY.rightFoulPole;
-  const heatClusters = getSprayHeatClusters(points);
-  const maxHeatValue = Math.max(1, ...heatClusters.map((cluster) => cluster.value));
-  const sectorDistribution = getSprayDistribution(points, batterHandedness);
-  const showSectorMetrics = !onSelect && (mode === "percent" || mode === "count");
-  const showPointDots = Boolean(onSelect) || mode === "dots";
-
-  function handlePointerDown(event: React.PointerEvent<HTMLButtonElement>) {
-    if (!onSelect) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    onSelect({
-      x: clampNumber((event.clientX - rect.left) / rect.width, 0.05, 0.95),
-      y: clampNumber((event.clientY - rect.top) / rect.height, 0.04, 0.96),
-    });
-  }
-
-  function handleClick() {
-    if (!onSelect) onModeCycle?.();
-  }
-
   return (
-    <button
-      className={[
-        "practice-spray-field",
-        !onSelect ? "practice-spray-field--readonly" : "",
-        `practice-spray-field--${mode}`,
-      ].filter(Boolean).join(" ")}
-      type="button"
-      onPointerDown={handlePointerDown}
-      onClick={handleClick}
+    <ClubhouseBaseballField
+      className={`practice-spray-field--${mode}`}
+      points={points}
+      activePoint={activePoint}
+      onSelect={onSelect}
+      mode={mode === "dots" ? "spray" : mode}
+      onModeCycle={onModeCycle}
+      batterHandedness={batterHandedness}
       aria-label={onSelect ? "Set spray chart location" : `Spray chart ${chartMetricModeLabel(mode)}`}
-    >
-      {!onSelect && <span className="practice-spray-field__mode" aria-hidden="true">{chartMetricModeLabel(mode)}</span>}
-      <svg className="practice-spray-field__svg" viewBox={`0 0 ${SPRAY_FIELD_VIEWBOX.width} ${SPRAY_FIELD_VIEWBOX.height}`} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-        <defs>
-          <linearGradient id={`sprayGrass-${chartId}`} x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="var(--spray-field-grass-top)" />
-            <stop offset="100%" stopColor="var(--spray-field-grass-bottom)" />
-          </linearGradient>
-          <linearGradient id={`sprayDirt-${chartId}`} x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="var(--spray-field-dirt-top)" />
-            <stop offset="100%" stopColor="var(--spray-field-dirt-bottom)" />
-          </linearGradient>
-          <radialGradient id={`sprayHeat-${chartId}`} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="var(--spray-heat-hot)" stopOpacity="0.95" />
-            <stop offset="42%" stopColor="var(--spray-heat-warm)" stopOpacity="0.68" />
-            <stop offset="72%" stopColor="var(--spray-heat-cool)" stopOpacity="0.34" />
-            <stop offset="100%" stopColor="var(--spray-heat-cold)" stopOpacity="0" />
-          </radialGradient>
-          <clipPath id={`sprayFair-${chartId}`}>
-            <path d={SPRAY_FIELD_PATHS.fairTerritory} />
-          </clipPath>
-        </defs>
-        <g clipPath={`url(#sprayFair-${chartId})`}>
-          <path className="practice-spray-field__outfield" d={SPRAY_FIELD_PATHS.fairTerritory} fill={`url(#sprayGrass-${chartId})`} />
-          <path className="practice-spray-field__field-band" d={SPRAY_FIELD_PATHS.outfieldBandDeep} />
-          <path className="practice-spray-field__field-band practice-spray-field__field-band--alt" d={SPRAY_FIELD_PATHS.outfieldBandShallow} />
-          {showSectorMetrics && (
-            <g className="practice-spray-field__sector-layer">
-              {sectorDistribution.lanes.map((lane) => (
-                <path
-                  key={lane.id}
-                  className="practice-spray-field__sector"
-                  d={lane.path}
-                  style={{ "--spray-sector-opacity": lane.intensity } as React.CSSProperties}
-                />
-              ))}
-              {sectorDistribution.lanes.slice(1).map((lane) => {
-                const boundary = getSpraySectorBoundaryPoint(lane.startAngle);
-                return <line key={`${lane.id}-line`} className="practice-spray-field__sector-line" x1={home.x} y1={home.y} x2={boundary.x} y2={boundary.y} />;
-              })}
-            </g>
-          )}
-          {mode === "heat" && (
-            <g className="practice-spray-field__heat">
-              {heatClusters.map((cluster, index) => {
-                const point = projectSprayPoint(cluster);
-                return (
-                  <circle
-                    key={`${cluster.x}-${cluster.y}-${index}`}
-                    cx={point.x}
-                    cy={point.y}
-                    r={sprayHeatRadius(cluster.value, maxHeatValue)}
-                    fill={`url(#sprayHeat-${chartId})`}
-                    opacity={sprayHeatOpacity(cluster.value, maxHeatValue, points.length)}
-                  />
-                );
-              })}
-            </g>
-          )}
-        </g>
-        <g className="practice-spray-field__ground">
-          <path className="practice-spray-field__field-outline" d={SPRAY_FIELD_PATHS.fairTerritory} />
-          <path className="practice-spray-field__warning-line" d={SPRAY_FIELD_PATHS.warningTrack} />
-          <path className="practice-spray-field__dirt" d={SPRAY_FIELD_PATHS.infieldDirt} fill={`url(#sprayDirt-${chartId})`} />
-          <path className="practice-spray-field__infield-grass" d={SPRAY_FIELD_PATHS.infieldGrass} />
-          <path className="practice-spray-field__arc-line practice-spray-field__arc-line--infield" d={SPRAY_FIELD_PATHS.infieldArc} />
-          <line className="practice-spray-field__foul-line" x1={home.x} y1={home.y} x2={leftFoul.x} y2={leftFoul.y} />
-          <line className="practice-spray-field__foul-line" x1={home.x} y1={home.y} x2={rightFoul.x} y2={rightFoul.y} />
-          <path className="practice-spray-field__diamond-line" d={SPRAY_FIELD_PATHS.diamond} />
-          <path className="practice-spray-field__mound" d={SPRAY_FIELD_PATHS.mound} />
-          <line className="practice-spray-field__mound-rubber" x1={SPRAY_FIELD_GEOMETRY.mound.x - 12} y1={SPRAY_FIELD_GEOMETRY.mound.y} x2={SPRAY_FIELD_GEOMETRY.mound.x + 12} y2={SPRAY_FIELD_GEOMETRY.mound.y} />
-          {[
-            SPRAY_FIELD_GEOMETRY.secondBase,
-            SPRAY_FIELD_GEOMETRY.firstBase,
-            SPRAY_FIELD_GEOMETRY.thirdBase,
-          ].map((base) => <rect key={`${base.x}-${base.y}`} className="practice-spray-field__base" x={base.x - 10} y={base.y - 10} width="20" height="20" rx="2" transform={`rotate(45 ${base.x} ${base.y})`} />)}
-          <path className="practice-spray-field__plate" d={SPRAY_FIELD_PATHS.homePlate} />
-        </g>
-        {showPointDots && (
-          <g className="practice-spray-field__dots" clipPath={`url(#sprayFair-${chartId})`}>
-            {points.slice(-120).map((point, index) => {
-              const dot = projectSprayPoint(point);
-              return <circle key={`${point.x}-${point.y}-${index}`} className="practice-spray-field__dot" cx={dot.x} cy={dot.y} r="7.5" />;
-            })}
-          </g>
-        )}
-        {activePoint && (() => {
-          const active = projectSprayPoint(activePoint);
-          return (
-            <g className="practice-spray-field__active-point">
-              <circle cx={active.x} cy={active.y} r="16" />
-              <circle cx={active.x} cy={active.y} r="31" />
-            </g>
-          );
-        })()}
-        {showSectorMetrics && (
-          <g className="practice-spray-field__sector-labels">
-            {sectorDistribution.lanes.filter((lane) => lane.count > 0).map((lane) => (
-              <SpraySectorLabel key={lane.id} lane={lane} mode={mode} />
-            ))}
-          </g>
-        )}
-      </svg>
-      {!onSelect && !points.length && <span className="practice-spray-field__empty">No spray locations tracked</span>}
-    </button>
+    />
   );
-}
-
-function SpraySectorLabel({ lane, mode }: { lane: SprayLaneDistribution; mode: PracticeChartMetricMode }) {
-  const labelPoint = lane.labelPoint;
-  const value = mode === "count" ? String(lane.count) : formatPct(lane.pct, 0);
-  return (
-    <g className="practice-spray-field__sector-label" transform={`translate(${labelPoint.x.toFixed(2)} ${labelPoint.y.toFixed(2)})`}>
-      <text textAnchor="middle" dominantBaseline="middle">
-        <tspan x="0" dy="-0.2em">{value}</tspan>
-        {mode === "percent" && <tspan x="0" dy="1.15em">{sprayShortLaneLabel(lane.label)}</tspan>}
-      </text>
-    </g>
-  );
-}
-
-function sprayHeatRadius(value: number, maxValue: number) {
-  return 44 + (value / Math.max(1, maxValue)) * 62;
-}
-
-function sprayHeatOpacity(value: number, maxValue: number, total: number) {
-  const sampleWeight = Math.min(1, total / 18);
-  return Math.min(0.82, 0.18 + (value / Math.max(1, maxValue)) * 0.42 + sampleWeight * 0.18);
-}
-
-function sprayShortLaneLabel(label: string) {
-  if (label === "Extreme Pull") return "Ext Pull";
-  if (label === "Extreme Oppo") return "Ext Oppo";
-  return label;
 }
 
 function PracticeHittingPitchLocationGrid({
@@ -19022,11 +18857,11 @@ function GamesView({
 
 const GAME_DEFENSIVE_POSITIONS: Position[] = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
 const GAME_FIELD_POSITION_COORDINATES: Record<string, [number, number]> = {
-  P: [50, 61], C: [50, 92], "1B": [85, 58], "2B": [68, 40], "3B": [15, 58], SS: [32, 40], LF: [23, 25], CF: [50, 15], RF: [77, 25],
+  P: [50, 76], C: [50, 94], "1B": [67, 75], "2B": [63, 61], "3B": [33, 75], SS: [37, 61], LF: [25, 34], CF: [50, 20], RF: [75, 34],
 };
 const GAME_LIVE_FIELD_POSITION_COORDINATES: Record<string, [number, number]> = {
   ...GAME_FIELD_POSITION_COORDINATES,
-  P: [76, 80], C: [24, 80], "1B": [86, 55], "3B": [14, 55],
+  P: [73, 82], C: [27, 89], "1B": [70, 75], "3B": [30, 75],
 };
 
 function GameFieldCommand({
@@ -19812,6 +19647,10 @@ function AnalyticsView({
 
       <AnalyticsSummaryStrip result={result} />
 
+      {domain === "hitting" && result.sprayChart && (
+        <AnalyticsSprayChart result={result} />
+      )}
+
       <AnalyticsMetricKey result={result} />
 
       <AnalyticsInsights result={result} onOpenPlayer={onOpenPlayer} />
@@ -19853,6 +19692,32 @@ function AnalyticsSummaryStrip({ result }: { result: AnalyticsResult }) {
           {item.sub && <small>{item.sub}</small>}
         </div>
       ))}
+    </section>
+  );
+}
+
+function AnalyticsSprayChart({ result }: { result: AnalyticsResult }) {
+  const chart = result.sprayChart;
+  if (!chart) return null;
+  const hasTrackedLocations = chart.trackedLocations > 0;
+  return (
+    <section className="panel analytics-spray-chart" aria-label="Hitting spray chart">
+      <div className="analytics-spray-chart__header">
+        <div>
+          <span>Spray Chart</span>
+          <strong>{hasTrackedLocations ? `${chart.trackedLocations} tracked locations` : "No locations tracked"}</strong>
+        </div>
+        <small>{chart.ballsInPlay} {chart.ballsInPlay === 1 ? "ball" : "balls"} in play</small>
+      </div>
+      <ClubhouseBaseballField
+        points={chart.points}
+        mode={hasTrackedLocations ? "spray" : "blank"}
+        size="standard"
+        ariaLabel={`${chart.trackedLocations} tracked hitting locations in the current analytics selection`}
+      />
+      {chart.ballsInPlay > chart.trackedLocations && (
+        <small className="analytics-spray-chart__coverage">Location tracked on {chart.trackedLocations} of {chart.ballsInPlay} balls in play.</small>
+      )}
     </section>
   );
 }
@@ -21236,7 +21101,7 @@ function PlayerProfile({
             </div>
             <MiniLineChart values={trendByPractice(data.practices, hittingEvents, (events) => calculateHittingStats(events).contactPct).map((item) => item.value)} />
           </article>
-          <article className="panel"><BaseballField points={hittingEvents.map((event) => event.fieldLocation).filter(isZonePoint)} /></article>
+          <article className="panel"><ClubhouseBaseballField points={hittingEvents.map((event) => event.fieldLocation).filter(isZonePoint)} mode="spray" /></article>
         </section>
       )}
 

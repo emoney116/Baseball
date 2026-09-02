@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  canonicalPointToLegacyGame,
   getDistributionLabelPoint,
   getDistributionSector,
   getSprayDistribution,
   getSprayLane,
+  legacyGamePointToCanonical,
   projectSprayPoint,
   SPRAY_FIELD_GEOMETRY,
   SPRAY_FIELD_PATHS,
@@ -92,4 +94,22 @@ test("spray field mound is centered inside the infield diamond", () => {
 
   assert.equal(SPRAY_FIELD_GEOMETRY.mound.x, SPRAY_FIELD_GEOMETRY.secondBase.x);
   assert.ok(Math.abs(SPRAY_FIELD_GEOMETRY.mound.y - infieldCenterY) < 12);
+});
+
+test("legacy Game Center field points map into the canonical field space", () => {
+  const home = legacyGamePointToCanonical({ x: 0.5, y: 0.902 });
+  const leftFoul = legacyGamePointToCanonical({ x: 0.01, y: 0.4 });
+
+  assert.ok(Math.abs(home.x - SPRAY_FIELD_GEOMETRY.home.x / SPRAY_FIELD_VIEWBOX.width) < 0.000001);
+  assert.ok(Math.abs(home.y - SPRAY_FIELD_GEOMETRY.home.y / SPRAY_FIELD_VIEWBOX.height) < 0.000001);
+  assert.ok(Math.abs(leftFoul.x - SPRAY_FIELD_GEOMETRY.leftFoulPole.x / SPRAY_FIELD_VIEWBOX.width) < 0.000001);
+  assert.ok(Math.abs(leftFoul.y - SPRAY_FIELD_GEOMETRY.leftFoulPole.y / SPRAY_FIELD_VIEWBOX.height) < 0.000001);
+});
+
+test("legacy Game Center conversions round-trip without changing stored coordinates", () => {
+  const legacyPoint = { x: 0.72, y: 0.61 };
+  const roundTrip = canonicalPointToLegacyGame(legacyGamePointToCanonical(legacyPoint));
+
+  assert.ok(Math.abs(roundTrip.x - legacyPoint.x) < 0.000001);
+  assert.ok(Math.abs(roundTrip.y - legacyPoint.y) < 0.000001);
 });

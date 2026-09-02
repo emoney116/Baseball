@@ -6,6 +6,7 @@ const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8"
 const css = fs.readFileSync(new URL("../app/game-session.css", import.meta.url), "utf8");
 const globalCss = fs.readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const visuals = fs.readFileSync(new URL("../app/components/visuals.tsx", import.meta.url), "utf8");
+const sharedField = fs.readFileSync(new URL("../app/components/ClubhouseBaseballField.tsx", import.meta.url), "utf8");
 const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const centerBaseball = new URL("../public/game-tracking/baseball-center-control-v1.png", import.meta.url);
 
@@ -56,11 +57,12 @@ test("scorekeeper branches into pitch-first detail for balls in play", () => {
   assert.match(page, /Confirm play/);
 });
 
-test("field tracking renders the generated field asset, spray line, and draggable runners", () => {
-  assert.match(visuals, /field-chart__image/);
-  assert.match(globalCss, /baseball-field-spray-chart-v1\.png/);
-  assert.match(globalCss, /aspect-ratio:\s*1 \/ 1/);
-  assert.match(visuals, /field-chart__spray-line/);
+test("field tracking uses the shared scalable field renderer and keeps draggable runners", () => {
+  assert.match(visuals, /ClubhouseBaseballField/);
+  assert.match(visuals, /legacyGamePointToCanonical/);
+  assert.doesNotMatch(globalCss, /baseball-field-spray-chart-v1\.png/);
+  assert.match(sharedField, /SPRAY_FIELD_PATHS\.fairTerritory/);
+  assert.match(globalCss, /game-field-command__surface\s*\{[^}]*aspect-ratio:\s*10 \/ 7/);
   assert.match(page, /draggable=\{Boolean\(runner\)\}/);
   assert.match(page, /onMoveRunner/);
   assert.match(page, /if \(!player\) return null/);
@@ -68,13 +70,13 @@ test("field tracking renders the generated field asset, spray line, and draggabl
   assert.ok(fs.statSync(centerBaseball).size > 0);
   assert.match(css, /game-base-diamond > button\.occupied[\s\S]*?width:\s*44px/);
   assert.match(globalCss, /game-field-command__runners \.game-base-diamond\s*\{[^}]*height:\s*35%;[^}]*top:\s*63%;[^}]*width:\s*42%/);
-  assert.match(page, /GAME_LIVE_FIELD_POSITION_COORDINATES[\s\S]*?P:\s*\[76,\s*80\][\s\S]*?C:\s*\[24,\s*80\][\s\S]*?"1B":\s*\[86,\s*55\][\s\S]*?"3B":\s*\[14,\s*55\]/);
+  assert.match(page, /GAME_LIVE_FIELD_POSITION_COORDINATES[\s\S]*?P:\s*\[73,\s*82\][\s\S]*?C:\s*\[27,\s*89\][\s\S]*?"1B":\s*\[70,\s*75\][\s\S]*?"3B":\s*\[30,\s*75\]/);
   assert.match(globalCss, /game-base-diamond > button\.occupied,[\s\S]*?background:\s*var\(--brand-primary\)/);
   assert.match(globalCss, /game-field-pitch-ball\s*\{[^}]*height:\s*60px;[^}]*top:\s*62\.5%;[^}]*width:\s*60px/);
   assert.match(globalCss, /button\[data-base="second"\][^}]*top:\s*0;[^}]*translate\(-50%,-50%\)/);
   assert.match(globalCss, /button\[data-base="first"\][^}]*right:\s*0;[^}]*translate\(50%,-50%\)/);
   assert.match(page, /GAME_FIELD_POSITION_COORDINATES/);
-  assert.match(page, /P:\s*\[50,\s*61\], C:\s*\[50,\s*92\], "1B":\s*\[85,\s*58\], "2B":\s*\[68,\s*40\], "3B":\s*\[15,\s*58\]/);
+  assert.match(page, /P:\s*\[50,\s*76\], C:\s*\[50,\s*94\], "1B":\s*\[67,\s*75\], "2B":\s*\[63,\s*61\], "3B":\s*\[33,\s*75\]/);
   assert.match(page, /data-position=\{position\}/);
   assert.match(globalCss, /\.game-field-player\s*\{[^}]*height:\s*44px;[^}]*max-width:\s*58px;[^}]*min-width:\s*58px;[^}]*text-align:\s*center;[^}]*width:\s*58px/);
   assert.match(globalCss, /clip-path:\s*polygon\(0 0, 100% 0, 100% 45%, 50% 100%, 0 45%\)/);

@@ -17,8 +17,10 @@ import type {
   PitchType,
   Player,
   Practice,
+  ZonePoint,
 } from "../types.ts";
 import { isPracticeHardContactEvent } from "./hittingTaxonomy.ts";
+import { legacyGamePointToCanonical } from "./sprayChart.ts";
 import {
   calculateDefenseStats,
   defenseEventDrillContext,
@@ -167,6 +169,12 @@ export interface AnalyticsInsight {
   playerId?: ID;
 }
 
+export interface AnalyticsSprayChart {
+  points: Array<ZonePoint & { id: ID }>;
+  ballsInPlay: number;
+  trackedLocations: number;
+}
+
 export interface AnalyticsResult {
   query: AnalyticsQuery;
   title: string;
@@ -182,6 +190,7 @@ export interface AnalyticsResult {
   warnings: string[];
   scopeLabel: string;
   sampleLabel: string;
+  sprayChart?: AnalyticsSprayChart;
 }
 
 export interface AskClubhouseQuestion {
@@ -595,7 +604,10 @@ function buildHittingResult(
     const gameEvents = filterGameEvents(data, query, today);
     const rows = currentRosterPlayers(data).map((player) => gameHittingRow(player, gameEvents.filter((event) => event.batterId === player.id)));
     const teamTotals = gameHittingTeamRow(data, gameEvents);
-    return assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, ["trackedBip", "ab", "hits", "singles", "doubles", "triples", "homeRuns", "outs", "xbh", "totalBases", "avg", "slg", "iso", "babip"], warnings, availableEvents, filterDefinitions, scopeLabel);
+    return {
+      ...assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, ["trackedBip", "ab", "hits", "singles", "doubles", "triples", "homeRuns", "outs", "xbh", "totalBases", "avg", "slg", "iso", "babip"], warnings, availableEvents, filterDefinitions, scopeLabel),
+      sprayChart: buildGameSprayChart(gameEvents),
+    };
   }
 
   const events = filterHittingEvents(data, query, today);
@@ -603,7 +615,28 @@ function buildHittingResult(
   const teamTotals = hittingTeamRow(data, events);
   const columns = ["opportunities", "takes", "swings", "contacts", "bip", "misses", "fouls", "contactPct", "swingMissPct", "hard", "hardPct", "barrelPct", "lineDrivePct", "groundBallPct", "flyBallPct", "takePct", "avgEv", "maxEv", "evSamples"];
   if (query.source === "all") warnings.push("Hitting All combines compatible practice and Live BP swing-event metrics. Traditional game batting appears in the Games source until full PA results are tracked.");
-  return assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, columns, warnings, availableEvents, filterDefinitions, scopeLabel);
+  return {
+    ...assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, columns, warnings, availableEvents, filterDefinitions, scopeLabel),
+    sprayChart: buildHittingSprayChart(events),
+  };
+}
+
+function buildHittingSprayChart(events: HittingEvent[]): AnalyticsSprayChart {
+  const ballsInPlay = events.filter((event) => event.action === "Ball in play");
+  return {
+    points: ballsInPlay.flatMap((event) => event.fieldLocation ? [{ id: event.id, ...event.fieldLocation }] : []),
+    ballsInPlay: ballsInPlay.length,
+    trackedLocations: ballsInPlay.filter((event) => Boolean(event.fieldLocation)).length,
+  };
+}
+
+function buildGameSprayChart(events: GameEvent[]): AnalyticsSprayChart {
+  const ballsInPlay = events.filter((event) => Boolean(event.ballInPlayOutcome));
+  return {
+    points: ballsInPlay.flatMap((event) => event.fieldLocation ? [{ id: event.id, ...legacyGamePointToCanonical(event.fieldLocation) }] : []),
+    ballsInPlay: ballsInPlay.length,
+    trackedLocations: ballsInPlay.filter((event) => Boolean(event.fieldLocation)).length,
+  };
 }
 
 function buildPitchingResult(

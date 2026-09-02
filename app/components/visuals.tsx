@@ -1,7 +1,9 @@
 import type { LucideIcon } from "lucide-react";
 import type React from "react";
 import { BRAND_ASSETS } from "../lib/branding";
+import { canonicalPointToLegacyGame, legacyGamePointToCanonical } from "../lib/sprayChart";
 import type { Player, ZonePoint } from "../types";
+import { ClubhouseBaseballField } from "./ClubhouseBaseballField";
 
 type CategorizedZonePoint = ZonePoint & {
   category?: string;
@@ -288,40 +290,24 @@ export function BaseballField({
   onSelect?: (point: ZonePoint) => void;
   activePoint?: ZonePoint;
 }) {
-  function handleClick(event: React.MouseEvent<HTMLButtonElement>) {
-    if (!onSelect) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    onSelect({
-      x: (event.clientX - rect.left) / rect.width,
-      y: (event.clientY - rect.top) / rect.height,
-    });
-  }
-
-  const contents = <>
-      <span className="field-chart__image" aria-hidden="true" />
-      <svg className="field-chart__overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {activePoint && <>
-          <line className="field-chart__spray-line-glow" x1="50" y1="90.2" x2={activePoint.x * 100} y2={activePoint.y * 100} />
-          <line className="field-chart__spray-line" x1="50" y1="90.2" x2={activePoint.x * 100} y2={activePoint.y * 100} />
-        </>}
-      </svg>
-      <span className="field-chart__label field-chart__label--lf">LF</span>
-      <span className="field-chart__label field-chart__label--cf">CF</span>
-      <span className="field-chart__label field-chart__label--rf">RF</span>
-      {points?.slice(-48).map((point, index) => (
-        <span
-          className="field-chart__dot"
-          data-category={point.category}
-          key={`${point.x}-${point.y}-${index}`}
-          style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%`, opacity: Math.min(0.98, 0.8 + index / 240), "--point-color": point.color } as React.CSSProperties}
-        />
-      ))}
-      {activePoint && <span className="field-chart__target" style={{ left: `${activePoint.x * 100}%`, top: `${activePoint.y * 100}%` }} />}
-    </>;
-
-  if (!onSelect) return <div className="field-chart field-chart--readonly" role="img" aria-label={`${points?.length ?? 0} tracked batted ball locations`}>{contents}</div>;
-
-  return <button type="button" className="field-chart" onClick={handleClick} aria-label="Tap batted ball direction">{contents}</button>;
+  const canonicalPoints = points?.map((point) => ({
+    ...legacyGamePointToCanonical(point),
+    category: point.category,
+    color: point.color,
+  }));
+  const canonicalActivePoint = activePoint ? legacyGamePointToCanonical(activePoint) : undefined;
+  return (
+    <ClubhouseBaseballField
+      className="field-chart"
+      points={canonicalPoints}
+      activePoint={canonicalActivePoint}
+      onSelect={onSelect ? (point) => onSelect(canonicalPointToLegacyGame(point)) : undefined}
+      mode="spray"
+      size="large"
+      showTrajectory
+      ariaLabel={`${points?.length ?? 0} tracked game batted ball locations`}
+    />
+  );
 }
 
 export function Heatmap({ points }: { points: CategorizedZonePoint[] }) {
