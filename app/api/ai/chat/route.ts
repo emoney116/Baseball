@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAskClubhouseConfig, resolveAiUsageRole } from "../../../lib/askClubhouse/config";
+import { getAskClubhouseConfig, isAiAdmin, resolveAiUsageRole } from "../../../lib/askClubhouse/config";
 import { boundConversationHistory, generateAskClubhouseReply } from "../../../lib/askClubhouse/engine";
 import { OpenAIProvider } from "../../../lib/askClubhouse/provider";
 import { AskClubhouseScopeError, loadAskClubhouseData } from "../../../lib/askClubhouse/serverData";
@@ -94,6 +94,8 @@ export async function POST(request: NextRequest) {
       requiresWebSearch: intent.requiresWebSearch,
       requestHash,
       config,
+      timezone: config.defaultTimezone,
+      isAdmin: isAiAdmin(billingTeam?.role, data.teamContext?.profile?.role),
     });
     if (!limits.allowed) {
       return json({
@@ -139,6 +141,8 @@ export async function POST(request: NextRequest) {
       maxOutputTokens: config.maxOutputTokens,
       route: intent.route,
       usageRole,
+      usageTimezone: config.defaultTimezone,
+      internalTestingAllowance: config.internalTestingEnabled && isAiAdmin(billingTeam?.role, data.teamContext?.profile?.role),
       selectedTeamIds: scope.selectedTeams.map((team) => team.teamId),
       billingTeamId: billingTeam?.teamId,
     };
@@ -194,6 +198,7 @@ export async function POST(request: NextRequest) {
       webSearchCount: reply.webSearchCount,
       latencyMs: Date.now() - requestStartedAt,
       errorCode: reply.code,
+      quotaOutcome: reply.quotaOutcome,
       metadata: usageMetadata,
     });
     await touchConversation(supabase, conversationId);

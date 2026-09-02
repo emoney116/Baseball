@@ -2,6 +2,9 @@ export interface AskClubhouseConfig {
   model: string;
   hasProviderKey: boolean;
   webSearchEnabled: boolean;
+  defaultTimezone: string;
+  internalTestingEnabled: boolean;
+  adminTestingRequestLimit: number;
   dailyUserRequestLimit: number;
   dailyRoleRequestLimits: Record<AiUsageRole, number>;
   dailyTeamRequestLimit: number;
@@ -22,6 +25,7 @@ export interface AskClubhouseConfig {
 export type AiUsageRole = "coach" | "player" | "parent" | "fan" | "unknown";
 
 const DEFAULT_MODEL = "gpt-5-mini";
+const DEFAULT_TIMEZONE = "America/New_York";
 
 export function getAskClubhouseConfig(env: NodeJS.ProcessEnv = process.env): AskClubhouseConfig {
   const legacyUserLimit = readNumber(env.AI_DAILY_USER_REQUEST_LIMIT, 50, 1, 10000);
@@ -30,6 +34,9 @@ export function getAskClubhouseConfig(env: NodeJS.ProcessEnv = process.env): Ask
     model: readString(env.OPENAI_AI_MODEL, DEFAULT_MODEL),
     hasProviderKey: Boolean(readString(env.OPENAI_API_KEY, "")),
     webSearchEnabled: readBoolean(env.AI_WEB_SEARCH_ENABLED, false),
+    defaultTimezone: readTimeZone(env.AI_DEFAULT_TIMEZONE, DEFAULT_TIMEZONE),
+    internalTestingEnabled: readBoolean(env.AI_INTERNAL_TESTING_ENABLED, false),
+    adminTestingRequestLimit: readNumber(env.AI_DAILY_ADMIN_REQUEST_LIMIT, 100, 1, 10000),
     dailyUserRequestLimit: legacyUserLimit,
     dailyRoleRequestLimits: {
       coach: readNumber(env.AI_DAILY_COACH_REQUEST_LIMIT, hasLegacyUserLimit ? legacyUserLimit : 30, 1, 10000),
@@ -69,6 +76,11 @@ export function resolveAiUsageRole(teamRole?: string, profileRole?: string): AiU
   return "unknown";
 }
 
+export function isAiAdmin(teamRole?: string, profileRole?: string): boolean {
+  const role = (teamRole?.trim() || profileRole?.trim() || "").toUpperCase();
+  return /\b(OWNER|ADMIN)\b/.test(role);
+}
+
 function readString(value: string | undefined, fallback: string): string {
   const trimmed = value?.trim();
   return trimmed || fallback;
@@ -89,4 +101,14 @@ function readMoney(value: string | undefined, fallback: number, min: number, max
 function readBoolean(value: string | undefined, fallback: boolean): boolean {
   if (!value?.trim()) return fallback;
   return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
+function readTimeZone(value: string | undefined, fallback: string): string {
+  const candidate = value?.trim() || fallback;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format();
+    return candidate;
+  } catch {
+    return fallback;
+  }
 }

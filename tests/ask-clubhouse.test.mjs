@@ -7,7 +7,7 @@ import { executeAnalyticsQuery } from "../app/lib/analyticsQuery.ts";
 import { calculateAIRequestCost } from "../app/lib/askClubhouse/pricing.ts";
 import { OpenAIProvider } from "../app/lib/askClubhouse/provider.ts";
 import { buildAskClubhouseToolPlan, classifyAskClubhouseIntent, runAskClubhouseTools } from "../app/lib/askClubhouse/tools.ts";
-import { createAiRequestHash, enforceAiUsageLimits, evaluateAiUsageLimits } from "../app/lib/askClubhouse/usage.ts";
+import { countsTowardRequestQuota, createAiRequestHash, enforceAiUsageLimits, evaluateAiUsageLimits, summarizeAiUsageWindows } from "../app/lib/askClubhouse/usage.ts";
 import { findTrustedKnowledge, InMemoryBaseballKnowledgeProvider } from "../app/lib/askClubhouse/knowledge.ts";
 import { composeAskClubhouseQueryPlan, sampleState } from "../app/lib/askClubhouse/queryPlan.ts";
 import { diagnosePlayerDevelopment } from "../app/lib/askClubhouse/diagnosis.ts";
@@ -148,6 +148,9 @@ test("Ask Clubhouse config applies beta cost defaults", () => {
   assert.equal(config.dailyRoleWebSearchLimits.coach, 10);
   assert.equal(config.dailyTeamWebSearchLimit, 30);
   assert.equal(config.webSearchEnabled, false);
+  assert.equal(config.defaultTimezone, "America/New_York");
+  assert.equal(config.internalTestingEnabled, false);
+  assert.equal(config.adminTestingRequestLimit, 100);
   assert.equal(config.maxToolCallsPerRequest, 6);
   assert.equal(config.maxWebSearchesPerRequest, 1);
   assert.equal(config.maxInputCharacters, 4000);
@@ -867,6 +870,45 @@ test("AI usage limits stop duplicate submissions before provider work", async ()
   assert.equal(duplicate.code, "AI_DUPLICATE_COOLDOWN");
 });
 
+test("AI quota classification counts useful answers but excludes non-answer audit events", () => {
+  for (const status of ["completed", "no_data", "low_sample"]) {
+    assert.equal(countsTowardRequestQuota({ status }), true, `${status} should count`);
+  }
+  for (const status of ["refused", "duplicate", "rate_limited", "failed", "unavailable", "needs_clarification", "knowledge_miss", "out_of_scope", "started"]) {
+    assert.equal(countsTowardRequestQuota({ status }), false, `${status} should not count`);
+  }
+  assert.equal(countsTowardRequestQuota({ status: "completed", metadata: { usageAccounting: { countsTowardRequestQuota: false } } }), false);
+  assert.equal(countsTowardRequestQuota({ status: "failed", quotaOutcome: "useful_answer" }), true);
+});
+
+test("AI quota windows use the configured local timezone across DST boundaries", () => {
+  const rows = [
+    usageRow("2026-03-08T04:59:00.000Z"),
+    usageRow("2026-03-08T05:01:00.000Z"),
+  ];
+  const springStats = summarizeAiUsageWindows(rows, { profileId: "profile-1", teamId: "team-1" }, new Date("2026-03-08T06:00:00.000Z"), "America/New_York");
+  assert.equal(springStats.userDailyRequests, 1);
+  assert.equal(springStats.teamDailyRequests, 1);
+  assert.equal(springStats.teamMonthlyRequests, 2);
+
+  const fallStats = summarizeAiUsageWindows([
+    usageRow("2026-11-02T04:59:00.000Z"),
+    usageRow("2026-11-02T05:01:00.000Z"),
+  ], { profileId: "profile-1", teamId: "team-1" }, new Date("2026-11-02T06:00:00.000Z"), "America/New_York");
+  assert.equal(fallStats.userDailyRequests, 1);
+  assert.equal(fallStats.teamDailyRequests, 1);
+});
+
+test("internal admin testing allowance is explicit and still respects team ceilings", () => {
+  const normalConfig = getAskClubhouseConfig({});
+  const testConfig = getAskClubhouseConfig({ AI_INTERNAL_TESTING_ENABLED: "true", AI_DAILY_ADMIN_REQUEST_LIMIT: "100" });
+  const baseInput = { teamId: "team-1", role: "coach", requiresWebSearch: false };
+  assert.equal(evaluateAiUsageLimits({ ...baseInput, config: normalConfig, isAdmin: true }, usageStats({ userDailyRequests: 30 })).code, "AI_DAILY_USER_LIMIT");
+  assert.equal(evaluateAiUsageLimits({ ...baseInput, config: testConfig, isAdmin: true }, usageStats({ userDailyRequests: 99 })).allowed, true);
+  assert.equal(evaluateAiUsageLimits({ ...baseInput, config: testConfig, isAdmin: true }, usageStats({ userDailyRequests: 100 })).code, "AI_DAILY_USER_LIMIT");
+  assert.equal(evaluateAiUsageLimits({ ...baseInput, config: testConfig, isAdmin: true }, usageStats({ userDailyRequests: 99, teamDailyRequests: 150 })).code, "AI_DAILY_TEAM_LIMIT");
+});
+
 test("AI usage limits enforce coach, player, team, and monthly ceilings", () => {
   const config = getAskClubhouseConfig({});
   const baseInput = { teamId: "team-1", role: "coach", requiresWebSearch: false, config };
@@ -1073,6 +1115,22 @@ function usageStats(overrides = {}) {
     teamDailyWebSearches: 0,
     teamMonthlyCostUsd: 0,
     globalMonthlyCostUsd: 0,
+    ...overrides,
+  };
+}
+
+function usageRow(createdAt, overrides = {}) {
+  return {
+    profile_id: "profile-1",
+    organization_id: "org-1",
+    team_id: "team-1",
+    model: "gpt-5.6-luna",
+    status: "completed",
+    input_tokens: 100,
+    output_tokens: 50,
+    web_search_count: 0,
+    metadata: { usageAccounting: { estimatedTotalCostUsd: 0.001 } },
+    created_at: createdAt,
     ...overrides,
   };
 }

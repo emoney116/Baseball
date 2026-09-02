@@ -14,6 +14,8 @@ export class AiUsageStoreError extends Error {
   }
 }
 
+export type AiQuotaOutcome = "useful_answer" | "not_counted";
+
 export interface AiUsageLimitInput {
   profileId: string;
   organizationId?: string;
@@ -23,6 +25,8 @@ export interface AiUsageLimitInput {
   requestHash: string;
   config: AskClubhouseConfig;
   now?: Date;
+  timezone?: string;
+  isAdmin?: boolean;
 }
 
 export interface AiUsageLimitResult {
@@ -67,6 +71,7 @@ export interface FinishUsageInput {
   toolParams?: Record<string, unknown>[];
   errorCode?: string;
   metadata?: Record<string, unknown>;
+  quotaOutcome?: AiQuotaOutcome;
 }
 
 interface AiUsageEventRow {
@@ -114,22 +119,26 @@ export async function enforceAiUsageLimits(
     }
   }
 
-  const monthStart = startOfUtcMonth(now).toISOString();
+  const timezone = input.timezone ?? input.config.defaultTimezone;
+  const monthStart = startOfMonthInTimeZone(now, timezone).toISOString();
   const rows = await fetchUsageRows(supabase, monthStart);
-  const stats = summarizeAiUsageWindows(rows, input, now);
+  const stats = summarizeAiUsageWindows(rows, input, now, timezone);
   return evaluateAiUsageLimits(input, stats);
 }
 
 export function evaluateAiUsageLimits(
-  input: Pick<AiUsageLimitInput, "teamId" | "role" | "requiresWebSearch" | "config">,
+  input: Pick<AiUsageLimitInput, "teamId" | "role" | "requiresWebSearch" | "config" | "isAdmin">,
   stats: AiUsageWindowStats,
 ): AiUsageLimitResult {
-  if (stats.userDailyRequests >= input.config.dailyRoleRequestLimits[input.role]) {
+  const userRequestLimit = input.isAdmin && input.config.internalTestingEnabled
+    ? input.config.adminTestingRequestLimit
+    : input.config.dailyRoleRequestLimits[input.role];
+  if (stats.userDailyRequests >= userRequestLimit) {
     return {
       allowed: false,
       status: "rate_limited",
       code: "AI_DAILY_USER_LIMIT",
-      message: "You've reached today's Ask Clubhouse limit. Try again tomorrow.",
+      message: "You've reached today's Ask Clubhouse limit. It resets at midnight.",
     };
   }
 
@@ -175,7 +184,7 @@ export function evaluateAiUsageLimits(
         allowed: false,
         status: "rate_limited",
         code: "AI_DAILY_USER_WEB_SEARCH_LIMIT",
-        message: "Ask Clubhouse has reached today's web research limit. Try an internal team-data question or try again tomorrow.",
+        message: "Ask Clubhouse has reached today's web research limit. Try an internal team-data question. It resets at midnight.",
       };
     }
     if (input.teamId && stats.teamDailyWebSearches >= input.config.dailyTeamWebSearchLimit) {
@@ -195,21 +204,38 @@ export function summarizeAiUsageWindows(
   rows: AiUsageEventRow[],
   input: Pick<AiUsageLimitInput, "profileId" | "organizationId" | "teamId">,
   now: Date,
+  timezone = "America/New_York",
 ): AiUsageWindowStats {
-  const dayStartMs = startOfUtcDay(now).getTime();
-  const countedRows = rows.filter((row) => !["duplicate", "rate_limited"].includes(row.status));
-  const dailyRows = countedRows.filter((row) => Date.parse(row.created_at) >= dayStartMs);
-  const teamMonthlyRows = input.teamId ? countedRows.filter((row) => row.team_id === input.teamId) : [];
+  const dayStartMs = startOfDayInTimeZone(now, timezone).getTime();
+  const monthStartMs = startOfMonthInTimeZone(now, timezone).getTime();
+  const auditRows = rows.filter((row) => !["duplicate", "rate_limited", "started"].includes(row.status));
+  const quotaRows = auditRows.filter(countsTowardRequestQuota);
+  const dailyRows = quotaRows.filter((row) => Date.parse(row.created_at) >= dayStartMs);
+  const teamMonthlyRows = input.teamId ? quotaRows.filter((row) => row.team_id === input.teamId && Date.parse(row.created_at) >= monthStartMs) : [];
+  const dailyAuditRows = auditRows.filter((row) => Date.parse(row.created_at) >= dayStartMs);
+  const teamMonthlyAuditRows = input.teamId ? auditRows.filter((row) => row.team_id === input.teamId && Date.parse(row.created_at) >= monthStartMs) : [];
 
   return {
     userDailyRequests: dailyRows.filter((row) => row.profile_id === input.profileId).length,
     teamDailyRequests: input.teamId ? dailyRows.filter((row) => row.team_id === input.teamId).length : 0,
     teamMonthlyRequests: teamMonthlyRows.length,
-    userDailyWebSearches: sumWebSearches(dailyRows.filter((row) => row.profile_id === input.profileId)),
-    teamDailyWebSearches: input.teamId ? sumWebSearches(dailyRows.filter((row) => row.team_id === input.teamId)) : 0,
-    teamMonthlyCostUsd: sumEstimatedCost(teamMonthlyRows),
-    globalMonthlyCostUsd: sumEstimatedCost(countedRows),
+    userDailyWebSearches: sumWebSearches(dailyAuditRows.filter((row) => row.profile_id === input.profileId)),
+    teamDailyWebSearches: input.teamId ? sumWebSearches(dailyAuditRows.filter((row) => row.team_id === input.teamId)) : 0,
+    teamMonthlyCostUsd: sumEstimatedCost(teamMonthlyAuditRows),
+    globalMonthlyCostUsd: sumEstimatedCost(auditRows.filter((row) => Date.parse(row.created_at) >= monthStartMs)),
   };
+}
+
+export function countsTowardRequestQuota(event: {
+  status?: string;
+  quotaOutcome?: AiQuotaOutcome;
+  metadata?: Record<string, unknown> | null;
+}): boolean {
+  if (event.quotaOutcome) return event.quotaOutcome === "useful_answer";
+  const accounting = asRecord(event.metadata?.usageAccounting);
+  if (typeof accounting?.countsTowardRequestQuota === "boolean") return accounting.countsTowardRequestQuota;
+  if (typeof accounting?.countsTowardRequestQuota === "string") return accounting.countsTowardRequestQuota === "true";
+  return ["completed", "no_data", "low_sample"].includes(event.status ?? "");
 }
 
 export async function startAiUsageEvent(supabase: SupabaseClient, input: StartUsageInput): Promise<string | undefined> {
@@ -244,6 +270,7 @@ export async function finishAiUsageEvent(supabase: SupabaseClient, input: Finish
     outputTokens: input.providerUsage?.outputTokens,
     webSearchCount: input.webSearchCount,
   });
+  const countsInQuota = countsTowardRequestQuota({ status: input.status, quotaOutcome: input.quotaOutcome });
   const { error } = await supabase
     .from("ai_usage_events")
     .update({
@@ -271,6 +298,8 @@ export async function finishAiUsageEvent(supabase: SupabaseClient, input: Finish
           pricingVersion: cost.pricingVersion,
           pricedModel: cost.pricedModel,
           pricingFound: cost.pricingFound,
+          countsTowardRequestQuota: countsInQuota,
+          quotaOutcome: input.quotaOutcome ?? null,
         },
       },
       updated_at: new Date().toISOString(),
@@ -342,10 +371,57 @@ function normalizeQuestion(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLowerCase().slice(0, 500);
 }
 
-function startOfUtcDay(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+function startOfDayInTimeZone(date: Date, timezone: string): Date {
+  const parts = timeZoneParts(date, timezone);
+  return startOfLocalDateInTimeZone(parts.year, parts.month, parts.day, timezone);
 }
 
-function startOfUtcMonth(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+function startOfMonthInTimeZone(date: Date, timezone: string): Date {
+  const parts = timeZoneParts(date, timezone);
+  return startOfLocalDateInTimeZone(parts.year, parts.month, 1, timezone);
+}
+
+function startOfLocalDateInTimeZone(year: number, month: number, day: number, timezone: string): Date {
+  const localMidnightAsUtc = Date.UTC(year, month - 1, day);
+  let candidate = new Date(localMidnightAsUtc - timeZoneOffsetMs(new Date(localMidnightAsUtc), timezone));
+  const correctedOffset = timeZoneOffsetMs(candidate, timezone);
+  if (candidate.getTime() !== localMidnightAsUtc - correctedOffset) {
+    candidate = new Date(localMidnightAsUtc - correctedOffset);
+  }
+  return candidate;
+}
+
+function timeZoneParts(date: Date, timezone: string): { year: number; month: number; day: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: validTimeZone(timezone),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
+  return { year: values.year, month: values.month, day: values.day };
+}
+
+function timeZoneOffsetMs(date: Date, timezone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: validTimeZone(timezone),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
+  return Date.UTC(values.year, values.month - 1, values.day, values.hour, values.minute, values.second) - date.getTime();
+}
+
+function validTimeZone(timezone: string): string {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format();
+    return timezone;
+  } catch {
+    return "America/New_York";
+  }
 }

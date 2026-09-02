@@ -9,6 +9,7 @@ import {
   summarizeKnowledgeEvidence,
   summarizeToolEvidence,
 } from "./tools.ts";
+import type { AiQuotaOutcome } from "./usage.ts";
 import type {
   AIProvider,
   AIProviderUsage,
@@ -38,6 +39,7 @@ export interface GenerateAskReplyResult extends AskClubhouseApiResponse {
   toolNames: string[];
   toolParams: Record<string, unknown>[];
   webSearchCount: number;
+  quotaOutcome: AiQuotaOutcome;
 }
 
 export async function generateAskClubhouseReply(input: GenerateAskReplyInput): Promise<GenerateAskReplyResult> {
@@ -68,6 +70,7 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
       toolNames: [],
       toolParams: [],
       webSearchCount,
+      quotaOutcome: plan.status === "completed" && plan.route !== "external_research_required" ? "useful_answer" : "not_counted",
     };
   }
 
@@ -98,6 +101,7 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
       toolNames,
       toolParams,
       webSearchCount,
+      quotaOutcome: "not_counted",
     };
   }
 
@@ -122,6 +126,7 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
       toolNames,
       toolParams,
       webSearchCount,
+      quotaOutcome: "useful_answer",
     };
   }
 
@@ -146,6 +151,7 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
       toolNames,
       toolParams,
       webSearchCount,
+      quotaOutcome: "not_counted",
     };
   }
 
@@ -181,6 +187,7 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
       toolNames,
       toolParams,
       webSearchCount,
+      quotaOutcome: "useful_answer",
     };
   } catch (error) {
     const latencyMs = elapsedMs(startedAt);
@@ -210,6 +217,7 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
       toolNames,
       toolParams,
       webSearchCount,
+      quotaOutcome: "not_counted",
     };
   }
 }
