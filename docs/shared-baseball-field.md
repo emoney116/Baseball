@@ -32,3 +32,26 @@ the existing source, date, event, and situational filters run. The UI consumes
 the returned `sprayChart` descriptor only; it does not independently filter or
 aggregate hitting events. The descriptor preserves balls-in-play and tracked
 location coverage so missing charting data is visible instead of implied.
+
+## CLU9-40 visual answer contract
+
+CLU9-40 should request a bounded visual descriptor from the existing Analytics
+query layer, then render it with an existing Clubhouse component. It must not
+ask a model to generate a chart image or calculate filters independently.
+
+```ts
+type AnalyticsVisualDescriptor = {
+  kind: "spray_chart" | "pitch_location" | "heat_map";
+  mode: "blank" | "spray" | "count" | "percent" | "heat";
+  scope: { teamId: string; seasonId?: string; source: string };
+  filters: Record<string, string | number | boolean | undefined>;
+  coverage: { qualifyingEvents: number; trackedLocations: number };
+  data: unknown;
+};
+```
+
+For batted-ball answers, `data` is the existing `AnalyticsResult.sprayChart`
+payload and `ClubhouseBaseballField` is the renderer. Pitch-location answers
+continue to use the existing strike-zone renderer. The response/audit layer
+may retain the descriptor beside the query plan, but the model receives only
+the already-filtered, bounded summary required to explain it.
