@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getAskClubhouseConfig, resolveAiUsageRole } from "../app/lib/askClubhouse/config.ts";
-import { canUseExternalResearch } from "../app/lib/askClubhouse/entitlements.ts";
+import { canUseExternalResearch, hasEntitlement, resolveAskClubhouseAllowance, SUPER_USER_ENTITLEMENT } from "../app/lib/askClubhouse/entitlements.ts";
 import { generateAskClubhouseReply } from "../app/lib/askClubhouse/engine.ts";
 import { executeAnalyticsQuery } from "../app/lib/analyticsQuery.ts";
 import { calculateAIRequestCost } from "../app/lib/askClubhouse/pricing.ts";
 import { OpenAIProvider } from "../app/lib/askClubhouse/provider.ts";
 import { buildAskClubhouseToolPlan, classifyAskClubhouseIntent, runAskClubhouseTools } from "../app/lib/askClubhouse/tools.ts";
-import { countsTowardRequestQuota, createAiRequestHash, enforceAiUsageLimits, evaluateAiUsageLimits, summarizeAiUsageWindows } from "../app/lib/askClubhouse/usage.ts";
+import { countsTowardRequestQuota, createAiRequestHash, enforceAiUsageLimits, evaluateAiUsageLimits, finishAiUsageEvent, summarizeAiUsageWindows } from "../app/lib/askClubhouse/usage.ts";
 import { findTrustedKnowledge, InMemoryBaseballKnowledgeProvider } from "../app/lib/askClubhouse/knowledge.ts";
 import { composeAskClubhouseQueryPlan, sampleState } from "../app/lib/askClubhouse/queryPlan.ts";
 import { diagnosePlayerDevelopment } from "../app/lib/askClubhouse/diagnosis.ts";
@@ -930,6 +930,101 @@ test("AI usage limits enforce separate user and team web-search ceilings", () =>
   assert.equal(evaluateAiUsageLimits({ ...input, requiresWebSearch: false }, usageStats({ userDailyWebSearches: 99 })).allowed, true);
 });
 
+test("Super User is an entitlement that bypasses request counts but not cost safety", () => {
+  const config = getAskClubhouseConfig({});
+  const allowance = resolveAskClubhouseAllowance({
+    role: "coach",
+    entitlements: [superUserEntitlement()],
+  });
+  const input = {
+    teamId: "team-1",
+    role: "coach",
+    requiresWebSearch: false,
+    config,
+    allowance,
+  };
+
+  assert.equal(allowance.unlimitedRequests, true);
+  assert.equal(allowance.bypassTeamRequestCount, true);
+  assert.equal(allowance.webResearch, false);
+  assert.equal(evaluateAiUsageLimits(input, usageStats({
+    userDailyRequests: 1000,
+    teamDailyRequests: 150,
+    teamMonthlyRequests: 3000,
+  })).allowed, true);
+  assert.equal(evaluateAiUsageLimits({ ...input, isAdmin: true }, usageStats({
+    userDailyRequests: 1000,
+    teamDailyRequests: 150,
+    teamMonthlyRequests: 3000,
+  })).allowed, true);
+  assert.equal(evaluateAiUsageLimits(input, usageStats({
+    userDailyRequests: 1000,
+    teamDailyRequests: 150,
+    teamMonthlyRequests: 3000,
+    teamMonthlyCostUsd: 25,
+  })).code, "AI_MONTHLY_TEAM_COST_LIMIT");
+  assert.equal(evaluateAiUsageLimits(input, usageStats({
+    userDailyRequests: 1000,
+    teamMonthlyCostUsd: 0,
+    globalMonthlyCostUsd: 100,
+  })).code, "AI_MONTHLY_GLOBAL_COST_LIMIT");
+});
+
+test("role limits stay separate from Super User entitlement and expiry is immediate", () => {
+  const config = getAskClubhouseConfig({});
+  const normalCoach = resolveAskClubhouseAllowance({ role: "coach", entitlements: [] });
+  const adminWithoutEntitlement = resolveAskClubhouseAllowance({ role: "coach", entitlements: [] });
+  const expired = superUserEntitlement({ expiresAt: "2026-08-19T11:00:00.000Z" });
+  const revoked = superUserEntitlement({ enabled: false });
+
+  assert.equal(normalCoach.unlimitedRequests, false);
+  assert.equal(adminWithoutEntitlement.unlimitedRequests, false);
+  assert.equal(hasEntitlement([superUserEntitlement()], SUPER_USER_ENTITLEMENT, new Date("2026-08-20T12:00:00.000Z")), true);
+  assert.equal(hasEntitlement([expired], SUPER_USER_ENTITLEMENT, new Date("2026-08-20T12:00:00.000Z")), false);
+  assert.equal(hasEntitlement([revoked], SUPER_USER_ENTITLEMENT, new Date("2026-08-20T12:00:00.000Z")), false);
+  assert.equal(evaluateAiUsageLimits({ teamId: "team-1", role: "coach", requiresWebSearch: false, config, allowance: resolveAskClubhouseAllowance({ role: "coach", entitlements: [expired], now: new Date("2026-08-20T12:00:00.000Z") }) }, usageStats({ userDailyRequests: 30 })).code, "AI_DAILY_USER_LIMIT");
+});
+
+test("Super User usage remains auditable and cost-accounted", async () => {
+  let update;
+  const supabase = {
+    from(table) {
+      assert.equal(table, "ai_usage_events");
+      return {
+        update(values) {
+          update = values;
+          return {
+            eq() {
+              return Promise.resolve({ error: null });
+            },
+          };
+        },
+      };
+    },
+  };
+
+  await finishAiUsageEvent(supabase, {
+    usageEventId: "usage-super-user",
+    status: "completed",
+    latencyMs: 120,
+    providerUsage: {
+      inputTokens: 1000,
+      outputTokens: 100,
+      totalTokens: 1100,
+      model: "gpt-5-mini",
+    },
+    toolCallCount: 1,
+    webSearchCount: 0,
+    quotaOutcome: "useful_answer",
+    metadata: { superUserAllowance: true },
+  });
+
+  assert.equal(update.status, "completed");
+  assert.equal(update.metadata.superUserAllowance, true);
+  assert.equal(update.metadata.usageAccounting.countsTowardRequestQuota, true);
+  assert.equal(update.metadata.usageAccounting.estimatedTotalCostUsd > 0, true);
+});
+
 function player(id, name, jerseyNumber, primaryPosition, overrides = {}) {
   return {
     id,
@@ -1131,6 +1226,17 @@ function usageRow(createdAt, overrides = {}) {
     web_search_count: 0,
     metadata: { usageAccounting: { estimatedTotalCostUsd: 0.001 } },
     created_at: createdAt,
+    ...overrides,
+  };
+}
+
+function superUserEntitlement(overrides = {}) {
+  return {
+    id: "entitlement-super-user",
+    profileId: "profile-1",
+    entitlementKey: SUPER_USER_ENTITLEMENT,
+    enabled: true,
+    grantedAt: "2026-08-01T00:00:00.000Z",
     ...overrides,
   };
 }

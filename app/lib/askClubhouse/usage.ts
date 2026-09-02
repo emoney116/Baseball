@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AiUsageRole, AskClubhouseConfig } from "./config.ts";
+import type { AskClubhouseAllowance } from "./entitlements.ts";
 import { calculateAIRequestCost } from "./pricing.ts";
 import type { AIProviderUsage, AskClubhouseStatus } from "./types.ts";
 
@@ -27,6 +28,7 @@ export interface AiUsageLimitInput {
   now?: Date;
   timezone?: string;
   isAdmin?: boolean;
+  allowance?: AskClubhouseAllowance;
 }
 
 export interface AiUsageLimitResult {
@@ -127,13 +129,14 @@ export async function enforceAiUsageLimits(
 }
 
 export function evaluateAiUsageLimits(
-  input: Pick<AiUsageLimitInput, "teamId" | "role" | "requiresWebSearch" | "config" | "isAdmin">,
+  input: Pick<AiUsageLimitInput, "teamId" | "role" | "requiresWebSearch" | "config" | "isAdmin" | "allowance">,
   stats: AiUsageWindowStats,
 ): AiUsageLimitResult {
+  const hasUnlimitedRequestAllowance = input.allowance?.unlimitedRequests === true;
   const userRequestLimit = input.isAdmin && input.config.internalTestingEnabled
     ? input.config.adminTestingRequestLimit
     : input.config.dailyRoleRequestLimits[input.role];
-  if (stats.userDailyRequests >= userRequestLimit) {
+  if (!hasUnlimitedRequestAllowance && stats.userDailyRequests >= userRequestLimit) {
     return {
       allowed: false,
       status: "rate_limited",
@@ -142,7 +145,7 @@ export function evaluateAiUsageLimits(
     };
   }
 
-  if (input.teamId) {
+  if (input.teamId && !input.allowance?.bypassTeamRequestCount) {
     if (stats.teamDailyRequests >= input.config.dailyTeamRequestLimit) {
       return {
         allowed: false,
@@ -159,14 +162,15 @@ export function evaluateAiUsageLimits(
         message: "Ask Clubhouse has reached this team's current usage limit.",
       };
     }
-    if (stats.teamMonthlyCostUsd >= input.config.monthlyTeamCostLimitUsd) {
-      return {
-        allowed: false,
-        status: "rate_limited",
-        code: "AI_MONTHLY_TEAM_COST_LIMIT",
-        message: "Ask Clubhouse has reached this team's current usage limit.",
-      };
-    }
+  }
+
+  if (input.teamId && stats.teamMonthlyCostUsd >= input.config.monthlyTeamCostLimitUsd) {
+    return {
+      allowed: false,
+      status: "rate_limited",
+      code: "AI_MONTHLY_TEAM_COST_LIMIT",
+      message: "Ask Clubhouse has reached this team's current usage limit.",
+    };
   }
 
   if (stats.globalMonthlyCostUsd >= input.config.monthlyGlobalCostLimitUsd) {

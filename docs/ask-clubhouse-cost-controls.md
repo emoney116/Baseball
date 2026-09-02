@@ -35,9 +35,18 @@ Team and cost ceilings remain 150 requests/day, 3,000 requests/month, $25/team/m
 
 Admins do not receive a permanent founder allowance. For controlled internal testing only, set `AI_INTERNAL_TESTING_ENABLED=true` together with `AI_DAILY_ADMIN_REQUEST_LIMIT=100`. Team, monthly, and global cost ceilings still apply. This flag must not be enabled broadly for normal production administrators.
 
+## Role and entitlement separation
+
+`SUPER_USER` is an account entitlement, not a role. The additive `account_entitlements` table is profile-scoped, RLS-enabled, and writable only by server-side service-role tooling. The initial beta grant for `eboston.uchs@gmail.com` is an explicit idempotent migration seed; quota logic does not contain an email exception.
+
+An active, non-expired `SUPER_USER` bypasses the personal daily request count and the team daily/monthly request-count ceilings for requests attributable to that user. It does not bypass team or global cost ceilings, authorization/RLS, duplicate protection, cooldowns, input/output/context/tool/retry limits, or the `AI_WEB_SEARCH_ENABLED=false` beta switch. Every Super User request remains in `ai_usage_events` with normal usage and cost accounting.
+
+Revoking or expiring the entitlement returns the account to its role-based allowance immediately. A normal `ADMIN` remains on the coach allowance unless the secondary `AI_INTERNAL_TESTING_ENABLED` compatibility override is deliberately enabled. The server-side `grantAccountEntitlement` and `revokeAccountEntitlement` helpers are the current management foundation; no normal-user grant path exists.
+
+There is no existing account usage UI, so this pass does not add a badge or subscription screen. The future customer-facing name is `Clubhouse Unlimited`; the internal key remains `SUPER_USER`.
+
 ## Timezone windows
 
 Daily and monthly windows are calculated at midnight in the applicable team or organization timezone when trusted timezone metadata is available. The current team and organization schema does not store a timezone, so the centralized `AI_DEFAULT_TIMEZONE` fallback is used; its default is `America/New_York`, which currently matches the Metrolina test context. This is not a Metrolina-specific code path. Adding trusted team/organization timezone metadata is a future schema task.
 
 Limit messages use a product-facing reset description (`It resets at midnight`) rather than exposing UTC timestamps. The timezone calculation is DST-aware, including the America/New_York spring and fall transitions.
-

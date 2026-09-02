@@ -4,6 +4,7 @@ import { boundConversationHistory, generateAskClubhouseReply } from "../../../li
 import { OpenAIProvider } from "../../../lib/askClubhouse/provider";
 import { AskClubhouseScopeError, loadAskClubhouseData } from "../../../lib/askClubhouse/serverData";
 import { classifyAskClubhouseIntent } from "../../../lib/askClubhouse/tools";
+import { getUserEntitlements, resolveAskClubhouseAllowance } from "../../../lib/askClubhouse/entitlements";
 import { loadBaseballKnowledgeProvider } from "../../../lib/askClubhouse/knowledgeRepository";
 import type { AskClubhouseApiRequest, AskClubhouseApiResponse } from "../../../lib/askClubhouse/types";
 import {
@@ -74,6 +75,8 @@ export async function POST(request: NextRequest) {
     const billingTeam = currentTeam ?? scope.selectedTeams[0];
     const usageRole = resolveAiUsageRole(billingTeam?.role, data.teamContext?.profile?.role);
     const usageSupabase = createAdminClient();
+    const entitlements = await getUserEntitlements(usageSupabase, scope.profileId);
+    const allowance = resolveAskClubhouseAllowance({ role: usageRole, entitlements });
     const history = boundConversationHistory(body.messages, config.contextMessageLimit);
     const knowledgeProvider = await loadBaseballKnowledgeProvider(supabase, message);
     const intent = classifyAskClubhouseIntent(message, data.players, history, {
@@ -96,6 +99,7 @@ export async function POST(request: NextRequest) {
       config,
       timezone: config.defaultTimezone,
       isAdmin: isAiAdmin(billingTeam?.role, data.teamContext?.profile?.role),
+      allowance,
     });
     if (!limits.allowed) {
       return json({
@@ -142,6 +146,7 @@ export async function POST(request: NextRequest) {
       route: intent.route,
       usageRole,
       usageTimezone: config.defaultTimezone,
+      superUserAllowance: allowance.unlimitedRequests,
       internalTestingAllowance: config.internalTestingEnabled && isAiAdmin(billingTeam?.role, data.teamContext?.profile?.role),
       selectedTeamIds: scope.selectedTeams.map((team) => team.teamId),
       billingTeamId: billingTeam?.teamId,

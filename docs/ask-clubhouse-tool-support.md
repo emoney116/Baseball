@@ -49,7 +49,7 @@ Retrieval uses strict metadata filters for category, level, governing body, and 
 
 The repository exposes server-side functions for creating documents/chunks, updating content, changing status, and setting verification metadata. RLS allows authenticated users to read only non-expired `reviewed`/`verified` rows; writes remain server-admin operations. Knowledge IDs, source, status, and version travel in Ask Clubhouse evidence and bounded model context for debugging.
 
-`app/lib/askClubhouse/entitlements.ts` defines `canUseExternalResearch({ userId, role, teamId, organizationId }, config)`. V1 honors the server-side feature flag only; the context fields leave room for Coach Pro, Team, and Organization entitlements later.
+`app/lib/askClubhouse/entitlements.ts` defines `canUseExternalResearch({ userId, role, teamId, organizationId }, config)` plus the separate account-entitlement and allowance helpers. External research still honors the server-side feature flag only; `SUPER_USER` is reserved for request allowance and does not enable web research.
 
 ## Usage And Cost Guardrails
 
