@@ -29,6 +29,15 @@ import {
   defenseEventThrowResult,
 } from "./stats.ts";
 import { buildWeightRoomScoreRows, type WeightRoomWindow } from "./weightRoom.ts";
+import {
+  ANALYTICS_FILTER_CATALOG,
+  ANALYTICS_METRICS as CATALOG_ANALYTICS_METRICS,
+  ANALYTICS_SAMPLE_THRESHOLDS as CATALOG_ANALYTICS_SAMPLE_THRESHOLDS,
+  analyticsViewsFor,
+  normalizeAnalyticsView,
+  type AnalyticsViewDefinition,
+  type AnalyticsViewId,
+} from "./analyticsCatalog.ts";
 
 export type AnalyticsDomain = "hitting" | "pitching" | "defense" | "development";
 export type AnalyticsSource = "all" | "games" | "practice" | "live-bp";
@@ -40,7 +49,13 @@ export type AnalyticsMetricFormat = "integer" | "percentage" | "decimal" | "ev" 
 export type AnalyticsSortDirection = "asc" | "desc";
 export type AnalyticsGroupBy = "player";
 export type AnalyticsFilterAvailability = "supported" | "partial" | "unsupported" | "not-applicable";
-export type AnalyticsPitchLocationRegion = "up" | "middle" | "down" | "in" | "away" | "up_and_in" | "up_and_away" | "down_and_in" | "down_and_away";
+export type AnalyticsPitchLocationRegion =
+  | "in_zone" | "out_of_zone" | "up" | "middle" | "down"
+  | "in" | "away" | "up_and_in" | "up_and_away" | "down_and_in" | "down_and_away"
+  | "arm_side" | "glove_side" | "up_arm_side" | "up_glove_side" | "down_arm_side" | "down_glove_side";
+export type AnalyticsCountGroup = "first-pitch" | "ahead" | "even" | "behind" | "two-strike" | "full-count";
+export type AnalyticsGameState = "winning" | "tied" | "losing";
+export type AnalyticsRunnerState = "bases-empty" | "runners-on" | "risp";
 
 export interface AnalyticsQueryContext {
   teamId?: ID;
@@ -58,7 +73,8 @@ export interface AnalyticsFilters {
   pitcherHands?: Array<"R" | "L" | "S">;
   batterHands?: Array<"R" | "L" | "S">;
   pitchTypes?: PitchType[];
-  countGroups?: Array<"ahead" | "even" | "behind" | "two-strike">;
+  exactCounts?: string[];
+  countGroups?: AnalyticsCountGroup[];
   drillTypes?: string[];
   liveBpThrowerSources?: LiveBpThrowerSource[];
   battedBallTypes?: BattedBallType[];
@@ -73,12 +89,21 @@ export interface AnalyticsFilters {
   pitchVelocityMax?: number;
   pitchLocationRegions?: AnalyticsPitchLocationRegion[];
   directions?: Direction[];
+  gameStates?: AnalyticsGameState[];
+  innings?: string[];
+  outs?: string[];
+  runnerStates?: AnalyticsRunnerState[];
+  opponents?: string[];
+  homeAway?: Array<"Home" | "Away" | "Neutral">;
+  gamePitchOutcomes?: string[];
+  gameBipOutcomes?: string[];
 }
 
 export interface AnalyticsQuery {
   domain: AnalyticsDomain;
   source: AnalyticsSource;
   mode: AnalyticsMode;
+  view?: AnalyticsViewId;
   timeRange: AnalyticsTimeRange;
   developmentView?: AnalyticsDevelopmentView;
   customDateRange?: AnalyticsDateRange;
@@ -109,11 +134,14 @@ export interface AnalyticsMetricDefinition {
 export interface AnalyticsFilterDefinition {
   id: keyof AnalyticsFilters;
   label: string;
-  domain: AnalyticsDomain;
+  section: string;
+  domains: AnalyticsDomain[];
   supportedSources: AnalyticsSource[];
-  type: "multi-select";
+  type: "multi-select" | "range" | "pitch-location";
   options: Array<{ value: string; label: string }>;
   availability: AnalyticsFilterAvailability;
+  capabilityNote?: string;
+  dynamicOptions?: "opponents" | "innings";
 }
 
 export interface AnalyticsEventOption {
@@ -150,6 +178,10 @@ export interface AnalyticsRow {
   player: Player;
   cells: Record<string, AnalyticsCell>;
   sampleCount: number;
+  rowKind?: "player" | "group" | "team";
+  groupKey?: string;
+  groupLabel?: string;
+  groupMeta?: string;
 }
 
 export interface AnalyticsSummaryItem {
@@ -182,6 +214,7 @@ export interface AnalyticsResult {
   warnings: string[];
   scopeLabel: string;
   sampleLabel: string;
+  availableViews: AnalyticsViewDefinition[];
 }
 
 export interface AskClubhouseQuestion {
@@ -200,246 +233,11 @@ export interface AskClubhouseResponse {
 }
 
 export const ANALYTICS_SAMPLE_THRESHOLDS = {
-  hittingSwings: 12,
-  hittingBallsInPlay: 8,
-  exitVelocitySamples: 3,
-  pitchingPitches: 18,
-  defenseReps: 8,
-  weightRoomWorkouts: 1,
+  ...CATALOG_ANALYTICS_SAMPLE_THRESHOLDS,
 } as const;
 
-export const ANALYTICS_METRICS: AnalyticsMetricDefinition[] = [
-  metric("opportunities", "Opp", "hitting", "integer", ["all", "practice", "live-bp"], "Tracked pitches/opportunities in compatible hitting contexts.", true, true),
-  metric("takes", "Takes", "hitting", "integer", ["all", "practice", "live-bp"], "Taken pitches in compatible hitting contexts.", true, true),
-  metric("swings", "Swings", "hitting", "integer", ["all", "practice", "live-bp"], "Swings logged in practice or Live BP.", true, true),
-  metric("contacts", "Contact", "hitting", "integer", ["all", "practice", "live-bp"], "Fouls plus balls in play.", true, true),
-  metric("bip", "BIP", "hitting", "integer", ["all", "practice", "live-bp"], "Balls put in play.", true, true),
-  metric("misses", "Miss", "hitting", "integer", ["all", "practice", "live-bp"], "Swing-and-miss results.", true, true),
-  metric("fouls", "Foul", "hitting", "integer", ["all", "practice", "live-bp"], "Foul balls.", true, true),
-  metric("contactPct", "Contact %", "hitting", "percentage", ["all", "practice", "live-bp"], "Balls in play plus fouls divided by swings.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
-  metric("swingMissPct", "Whiff %", "hitting", "percentage", ["all", "practice", "live-bp"], "Misses divided by swings.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
-  metric("takePct", "Take %", "hitting", "percentage", ["all", "practice", "live-bp"], "Taken pitches divided by tracked opportunities.", true, true),
-  metric("hard", "Hard", "hitting", "integer", ["all", "practice", "live-bp"], "Explicit hard-contact balls in play.", true, true),
-  metric("hardPct", "Hard %", "hitting", "percentage", ["all", "practice", "live-bp"], "Explicit hard-contact outcomes divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-  metric("barrelPct", "Impact %", "hitting", "percentage", ["all", "practice", "live-bp"], "Legacy barrel/impact-quality contact divided by balls in play. This is not a true barrel calculation.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-  metric("lineDrivePct", "LD %", "hitting", "percentage", ["all", "practice", "live-bp"], "Line drives divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-  metric("groundBallPct", "GB %", "hitting", "percentage", ["all", "practice", "live-bp"], "Ground balls divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-  metric("flyBallPct", "FB %", "hitting", "percentage", ["all", "practice", "live-bp"], "Fly balls divided by balls in play.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-  metric("avgEv", "Avg EV", "hitting", "ev", ["all", "practice", "live-bp"], "Average exit velocity from recorded EV samples only.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.exitVelocitySamples),
-  metric("maxEv", "Max EV", "hitting", "ev", ["all", "practice", "live-bp"], "Highest recorded exit velocity in the selected scope.", true, true, 1),
-  metric("evSamples", "EV", "hitting", "integer", ["all", "practice", "live-bp"], "Count of swings with recorded exit velocity.", true, true),
-  metric("trackedBip", "BIP", "hitting", "integer", ["games"], "Logged game balls in play. Current game tracking does not yet preserve every plate appearance.", true, false),
-  metric("ab", "AB", "hitting", "integer", ["games"], "Supported at-bat outcomes from logged game balls in play.", true, false),
-  metric("hits", "H", "hitting", "integer", ["games"], "Hits from logged game balls in play.", true, false),
-  metric("singles", "1B", "hitting", "integer", ["games"], "Singles from logged game balls in play.", true, false),
-  metric("doubles", "2B", "hitting", "integer", ["games"], "Doubles from logged game balls in play.", true, false),
-  metric("triples", "3B", "hitting", "integer", ["games"], "Triples from logged game balls in play.", true, false),
-  metric("homeRuns", "HR", "hitting", "integer", ["games"], "Home runs from logged game balls in play.", true, false),
-  metric("outs", "Outs", "hitting", "integer", ["games"], "Tracked at-bat outs from logged game balls in play.", true, false),
-  metric("xbh", "XBH", "hitting", "integer", ["games"], "Extra-base hits from logged game balls in play.", true, false),
-  metric("totalBases", "TB", "hitting", "integer", ["games"], "Total bases from logged game balls in play.", true, false),
-  metric("avg", "AVG", "hitting", "decimal", ["games"], "Hits divided by supported at-bats from logged game balls in play.", true, false),
-  metric("slg", "SLG", "hitting", "decimal", ["games"], "Total bases divided by supported at-bats from logged game balls in play.", true, false),
-  metric("iso", "ISO", "hitting", "decimal", ["games"], "Slugging percentage minus batting average from supported at-bats.", true, false),
-  metric("babip", "BABIP", "hitting", "decimal", ["games"], "Hits excluding home runs divided by tracked balls in play excluding home runs.", true, false),
-  metric("pitches", "Pitches", "pitching", "integer", ["all", "practice", "live-bp", "games"], "Logged pitches in the selected scope.", true, true),
-  metric("strikePct", "Strike %", "pitching", "percentage", ["all", "practice", "live-bp", "games"], "Strikes divided by total pitches.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
-  metric("zonePct", "Zone %", "pitching", "percentage", ["all", "practice", "live-bp"], "Pitches charted inside the strike zone divided by total charted pitches.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
-  metric("whiffPct", "Whiff %", "pitching", "percentage", ["all", "practice", "live-bp", "games"], "Whiffs divided by swings.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
-  metric("cswPct", "CSW %", "pitching", "percentage", ["all", "practice", "live-bp", "games"], "Called strikes plus whiffs divided by total pitches.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
-  metric("avgPitchVelo", "Avg Pitch Velo", "pitching", "velocity", ["all", "practice", "live-bp", "games"], "Average recorded pitch velocity.", true, true, 3),
-  metric("maxPitchVelo", "Max Pitch Velo", "pitching", "velocity", ["all", "practice", "live-bp", "games"], "Highest recorded pitch velocity.", true, true, 1),
-  metric("positionWorked", "Pos", "defense", "text", ["all", "practice"], "Primary tracked defensive position in the selected scope.", true, true),
-  metric("reps", "Reps", "defense", "integer", ["all", "practice"], "Logged defensive reps.", true, true),
-  metric("cleanReps", "Clean", "defense", "integer", ["all", "practice"], "Clean, good, or great defensive reps.", true, true),
-  metric("cleanPct", "Clean %", "defense", "percentage", ["all", "practice"], "Clean, good, or great defensive reps divided by total reps.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.defenseReps),
-  metric("errors", "Errors", "defense", "integer", ["all", "practice"], "Logged defensive errors.", true, true),
-  metric("greatPlays", "Great Plays", "defense", "integer", ["all", "practice"], "Logged great plays.", true, true),
-  metric("throws", "Throws", "defense", "integer", ["all", "practice"], "Defensive throws with tracked throw result, excluding no-throw reps.", true, true),
-  metric("accurateThrows", "Acc Throws", "defense", "integer", ["all", "practice"], "Tracked defensive throws marked accurate.", true, true),
-  metric("throwAcc", "Throw Acc.", "defense", "percentage", ["all", "practice"], "Accurate tracked throws divided by throws with tracked throw result. No Throw is excluded.", true, true, ANALYTICS_SAMPLE_THRESHOLDS.defenseReps),
-  metric("weightScore", "Weight Room Score", "development", "integer", ["all"], "Existing Weight Room Development score. This is not a total baseball development score.", true, false, ANALYTICS_SAMPLE_THRESHOLDS.weightRoomWorkouts),
-  metric("workouts", "Workouts", "development", "integer", ["all"], "Completed workout sessions.", true, false),
-  metric("workoutCompletionPct", "Workout Completion", "development", "percentage", ["all"], "Completed workouts divided by assigned workout sessions.", true, false),
-  metric("attendancePct", "Attendance", "development", "percentage", ["all"], "Present or late attendance divided by practices in the selected scope.", true, false),
-  metric("practiceReps", "Practice Reps", "development", "integer", ["all"], "Tracked hitting swings, pitches, and defensive reps.", true, false),
-];
-
-export const ANALYTICS_FILTERS: AnalyticsFilterDefinition[] = [
-  {
-    id: "pitcherHands",
-    label: "Pitcher Hand",
-    domain: "hitting",
-    supportedSources: ["all", "practice", "live-bp"],
-    type: "multi-select",
-    options: handednessOptions(),
-    availability: "partial",
-  },
-  {
-    id: "batterHands",
-    label: "Batter Hand",
-    domain: "pitching",
-    supportedSources: ["all", "practice", "live-bp", "games"],
-    type: "multi-select",
-    options: handednessOptions(),
-    availability: "supported",
-  },
-  {
-    id: "pitchTypes",
-    label: "Pitch Type",
-    domain: "hitting",
-    supportedSources: ["all", "practice", "live-bp", "games"],
-    type: "multi-select",
-    options: ["4-Seam", "2-Seam", "Sinker", "Cutter", "Slider", "Curveball", "Changeup", "Splitter", "Knuckleball", "Other"].map((value) => ({ value, label: value })),
-    availability: "supported",
-  },
-  {
-    id: "pitchTypes",
-    label: "Pitch Type",
-    domain: "pitching",
-    supportedSources: ["all", "practice", "live-bp", "games"],
-    type: "multi-select",
-    options: ["4-Seam", "2-Seam", "Sinker", "Cutter", "Slider", "Curveball", "Changeup", "Splitter", "Knuckleball", "Other"].map((value) => ({ value, label: value })),
-    availability: "supported",
-  },
-  {
-    id: "countGroups",
-    label: "Count",
-    domain: "pitching",
-    supportedSources: ["all", "practice", "live-bp"],
-    type: "multi-select",
-    options: [
-      { value: "ahead", label: "Ahead" },
-      { value: "even", label: "Even" },
-      { value: "behind", label: "Behind" },
-      { value: "two-strike", label: "Two Strike" },
-    ],
-    availability: "supported",
-  },
-  {
-    id: "drillTypes",
-    label: "Drill",
-    domain: "hitting",
-    supportedSources: ["practice", "live-bp"],
-    type: "multi-select",
-    options: ["Tee", "Front Toss", "Machine", "Coach BP", "Other"].map((value) => ({ value, label: value })),
-    availability: "supported",
-  },
-  {
-    id: "liveBpThrowerSources",
-    label: "Thrower",
-    domain: "hitting",
-    supportedSources: ["all", "live-bp"],
-    type: "multi-select",
-    options: [
-      { value: "PLAYER", label: "Player" },
-      { value: "COACH", label: "Coach" },
-      { value: "MACHINE", label: "Machine" },
-    ],
-    availability: "partial",
-  },
-  {
-    id: "liveBpThrowerSources",
-    label: "Thrower",
-    domain: "pitching",
-    supportedSources: ["all", "live-bp"],
-    type: "multi-select",
-    options: [
-      { value: "PLAYER", label: "Player" },
-      { value: "COACH", label: "Coach" },
-      { value: "MACHINE", label: "Machine" },
-    ],
-    availability: "supported",
-  },
-  {
-    id: "battedBallTypes",
-    label: "Batted Ball",
-    domain: "hitting",
-    supportedSources: ["all", "practice", "live-bp"],
-    type: "multi-select",
-    options: ["Ground ball", "Line drive", "Fly ball", "Pop up"].map((value) => ({ value, label: value })),
-    availability: "supported",
-  },
-  {
-    id: "defenseStations",
-    label: "Position / Station",
-    domain: "defense",
-    supportedSources: ["all", "practice"],
-    type: "multi-select",
-    options: ["Infield", "Outfield", "Catching", "PFP", "Situational defense", "Team defense"].map((value) => ({ value, label: value })),
-    availability: "supported",
-  },
-  {
-    id: "defensePositions",
-    label: "Position",
-    domain: "defense",
-    supportedSources: ["all", "practice"],
-    type: "multi-select",
-    options: ["P", "C", "1B", "2B", "3B", "SS", "INF", "LF", "CF", "RF", "OF"].map((value) => ({ value, label: value })),
-    availability: "supported",
-  },
-  {
-    id: "defenseDrills",
-    label: "Drill",
-    domain: "defense",
-    supportedSources: ["all", "practice"],
-    type: "multi-select",
-    options: [
-      "Infield Ground Balls",
-      "Backhands",
-      "Forehands",
-      "Slow Rollers",
-      "Double Plays",
-      "First Base Picks",
-      "Outfield Fly Balls",
-      "Outfield Routes",
-      "Cutoffs & Relays",
-      "Catcher Blocking",
-      "Catcher Throwdowns",
-      "Bunt Defense",
-      "Pitcher Fielding Practice",
-      "Team Defense",
-      "Other",
-    ].map((value) => ({ value, label: value })),
-    availability: "supported",
-  },
-  {
-    id: "defenseRepTypes",
-    label: "Rep Type",
-    domain: "defense",
-    supportedSources: ["all", "practice"],
-    type: "multi-select",
-    options: ["Ground Ball", "Fly Ball", "Line Drive", "Double Play", "Throw", "Block", "Pick", "Bunt", "Other"].map((value) => ({ value, label: value })),
-    availability: "supported",
-  },
-  {
-    id: "defenseRepSubtypes",
-    label: "Subtype",
-    domain: "defense",
-    supportedSources: ["all", "practice"],
-    type: "multi-select",
-    options: ["Routine", "Forehand", "Backhand", "Slow Roller", "Charge", "Drop Step", "Over Shoulder", "Cutoff", "Relay", "Block", "Throwdown", "Pick", "Bunt", "Other"].map((value) => ({ value, label: value })),
-    availability: "supported",
-  },
-  {
-    id: "defenseResults",
-    label: "Result",
-    domain: "defense",
-    supportedSources: ["all", "practice"],
-    type: "multi-select",
-    options: ["Clean", "Error", "Good Play", "Great Play", "Missed Rep"].map((value) => ({ value, label: value })),
-    availability: "supported",
-  },
-  {
-    id: "defenseThrowResults",
-    label: "Throw",
-    domain: "defense",
-    supportedSources: ["all", "practice"],
-    type: "multi-select",
-    options: ["Accurate", "Inaccurate", "No Throw"].map((value) => ({ value, label: value })),
-    availability: "supported",
-  },
-];
+export const ANALYTICS_METRICS = CATALOG_ANALYTICS_METRICS;
+export const ANALYTICS_FILTERS = ANALYTICS_FILTER_CATALOG;
 
 export const ASK_CLUBHOUSE_QUESTIONS: AskClubhouseQuestion[] = [
   askQuestion("highest-practice-contact", "Who has the highest practice Contact %?", "hitting", "contactPct", "Practice Contact %, minimum 12 swings", {
@@ -510,7 +308,7 @@ export function executeAnalyticsQuery(data: AppData, input: AnalyticsQuery, opti
     const selectedEventIds = query.eventIds.filter((id) => availableEventIds.has(id));
     query = { ...query, eventIds: selectedEventIds.length ? selectedEventIds : undefined };
   }
-  const filterDefinitions = availableFilterDefinitions(query);
+  const filterDefinitions = availableFilterDefinitions(data, query);
 
   const result = query.domain === "hitting"
     ? buildHittingResult(data, query, warnings, availableEvents, filterDefinitions, scopeLabel, sourceLabel, options.today)
@@ -520,9 +318,11 @@ export function executeAnalyticsQuery(data: AppData, input: AnalyticsQuery, opti
         ? buildDefenseResult(data, query, warnings, availableEvents, filterDefinitions, scopeLabel, sourceLabel, options.today)
         : buildDevelopmentResult(data, query, warnings, availableEvents, filterDefinitions, scopeLabel, sourceLabel, options.today);
 
+  const viewedResult = applyAnalyticsView(data, result, options.today);
   return {
-    ...result,
-    rows: sortAnalyticsRows(result.rows, result.columns, query).slice(0, query.limit ?? result.rows.length),
+    ...viewedResult,
+    availableViews: analyticsViewsFor(query.domain, query.source),
+    rows: sortAnalyticsRows(viewedResult.rows, viewedResult.columns, query).slice(0, query.limit ?? viewedResult.rows.length),
   };
 }
 
@@ -601,7 +401,7 @@ function buildHittingResult(
   const events = filterHittingEvents(data, query, today);
   const rows = currentRosterPlayers(data).map((player) => hittingRow(player, events.filter((event) => event.hitterId === player.id)));
   const teamTotals = hittingTeamRow(data, events);
-  const columns = ["opportunities", "takes", "swings", "contacts", "bip", "misses", "fouls", "contactPct", "swingMissPct", "hard", "hardPct", "barrelPct", "lineDrivePct", "groundBallPct", "flyBallPct", "takePct", "avgEv", "maxEv", "evSamples"];
+  const columns = ["opportunities", "swings", "contacts", "contactPct", "hardPct", "avgEv", "maxEv", "takes", "bip", "misses", "fouls", "swingPct", "swingMissPct", "takePct", "zoneContactPct", "chasePct", "hard", "barrelPct", "lineDrivePct", "groundBallPct", "flyBallPct", "popUpPct", "pullPct", "middlePct", "oppoPct", "evSamples"];
   if (query.source === "all") warnings.push("Hitting All combines compatible practice and Live BP swing-event metrics. Traditional game batting appears in the Games source until full PA results are tracked.");
   return assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, columns, warnings, availableEvents, filterDefinitions, scopeLabel);
 }
@@ -623,7 +423,7 @@ function buildPitchingResult(
     .map((player) => pitchingRow(player, practiceEvents.filter((event) => event.pitcherId === player.id), gameEvents.filter((event) => event.pitcherId === player.id)));
   const teamTotals = pitchingTeamRow(data, practiceEvents, gameEvents);
   if (query.source === "games") warnings.push("Game pitching currently supports pitch-level metrics, not full innings/ERA/WHIP.");
-  return assembleResult("Team Pitching", data, query, sourceLabel, rows, teamTotals, ["pitches", "strikePct", "zonePct", "avgPitchVelo", "maxPitchVelo"], warnings, availableEvents, filterDefinitions, scopeLabel);
+  return assembleResult("Team Pitching", data, query, sourceLabel, rows, teamTotals, ["pitches", "strikePct", "zonePct", "avgPitchVelo", "maxPitchVelo", "balls", "strikes", "whiffPct", "cswPct", "firstPitchStrikePct"], warnings, availableEvents, filterDefinitions, scopeLabel);
 }
 
 function buildDefenseResult(
@@ -689,6 +489,175 @@ function buildDevelopmentResult(
   return assembleResult("Team Development", data, query, sourceLabel, rows, teamTotals, ["weightScore", "workouts", "workoutCompletionPct", "attendancePct", "practiceReps"], warnings, availableEvents, filterDefinitions, scopeLabel);
 }
 
+function applyAnalyticsView(data: AppData, result: AnalyticsResult, today?: string): AnalyticsResult {
+  const viewId = normalizeAnalyticsView(result.query.domain, result.query.source, result.query.view);
+  const definition = analyticsViewsFor(result.query.domain, result.query.source).find((item) => item.id === viewId);
+  if (!definition?.groupBy) return result;
+  const groupBy = definition.groupBy;
+
+  const warnings = [...result.warnings];
+  let rows: AnalyticsRow[] = [];
+  let totalEvents = 0;
+  let groupedEvents = 0;
+
+  if (result.query.domain === "hitting") {
+    if (result.query.source === "games") {
+      const events = filterGameEvents(data, result.query, today);
+      const groups = groupItems(events, (event) => gameHittingGroup(data, event, groupBy));
+      totalEvents = events.length;
+      groupedEvents = groupSize(groups);
+      rows = [...groups.entries()].map(([key, group], index) => groupAnalyticsRow(gameHittingRow(groupPlayer(data, key, index), group.items), key, group.label));
+    } else {
+      const events = filterHittingEvents(data, result.query, today);
+      const groups = groupItems(events, (event) => practiceHittingGroup(data, event, groupBy));
+      totalEvents = events.length;
+      groupedEvents = groupSize(groups);
+      rows = [...groups.entries()].map(([key, group], index) => groupAnalyticsRow(hittingRow(groupPlayer(data, key, index), group.items), key, group.label));
+    }
+  } else if (result.query.domain === "pitching") {
+    const practiceEvents = result.query.source === "games" ? [] : filterPitchEvents(data, result.query, today);
+    const gameEvents = result.query.source === "practice" || result.query.source === "live-bp" ? [] : filterGameEvents(data, result.query, today);
+    const practiceGroups = groupItems(practiceEvents, (event) => practicePitchingGroup(data, event, groupBy));
+    const gameGroups = groupItems(gameEvents, (event) => gamePitchingGroup(data, event, groupBy));
+    const keys = [...new Set([...practiceGroups.keys(), ...gameGroups.keys()])];
+    totalEvents = practiceEvents.length + gameEvents.length;
+    groupedEvents = groupSize(practiceGroups) + groupSize(gameGroups);
+    rows = keys.map((key, index) => {
+      const practiceGroup = practiceGroups.get(key);
+      const gameGroup = gameGroups.get(key);
+      const label = practiceGroup?.label ?? gameGroup?.label ?? key;
+      return groupAnalyticsRow(pitchingRow(groupPlayer(data, key, index), practiceGroup?.items ?? [], gameGroup?.items ?? []), key, label);
+    });
+  } else if (result.query.domain === "defense") {
+    const events = filterDefenseEvents(data, result.query, today);
+    const groups = groupItems(events, (event) => defenseGroup(event, groupBy));
+    totalEvents = events.length;
+    groupedEvents = groupSize(groups);
+    rows = [...groups.entries()].map(([key, group], index) => groupAnalyticsRow(defenseRow(groupPlayer(data, key, index), group.items), key, group.label));
+  }
+
+  if (totalEvents && groupedEvents < totalEvents) {
+    warnings.push(`${definition.label} is available on ${groupedEvents} of ${totalEvents} qualifying events; unclassified events are excluded from this view.`);
+  }
+  return { ...result, rows, warnings: [...new Set(warnings)], insights: [] };
+}
+
+function groupItems<T>(items: T[], resolve: (item: T) => { key: string; label: string } | undefined): Map<string, { label: string; items: T[] }> {
+  const groups = new Map<string, { label: string; items: T[] }>();
+  for (const item of items) {
+    const group = resolve(item);
+    if (!group) continue;
+    const current = groups.get(group.key);
+    if (current) current.items.push(item);
+    else groups.set(group.key, { label: group.label, items: [item] });
+  }
+  return groups;
+}
+
+function groupSize<T>(groups: Map<string, { items: T[] }>): number {
+  return [...groups.values()].reduce((total, group) => total + group.items.length, 0);
+}
+
+function practiceHittingGroup(data: AppData, event: HittingEvent, groupBy: NonNullable<AnalyticsViewDefinition["groupBy"]>) {
+  if (groupBy === "count") return countGroupLabel(hittingEventCount(data, event));
+  if (groupBy === "pitch-type" && event.pitchType) return { key: event.pitchType, label: event.pitchType };
+  if (groupBy === "hand") {
+    const pitcher = data.players.find((player) => player.id === event.pitcherId);
+    return pitcher ? { key: pitcher.throws, label: `vs ${pitcher.throws}HP` } : undefined;
+  }
+  if (groupBy === "batted-ball" && event.contactResult) return { key: event.contactResult, label: event.contactResult };
+  if (groupBy === "spray" && event.direction) {
+    const label = directionBucket(event.direction);
+    return { key: label, label };
+  }
+  return undefined;
+}
+
+function gameHittingGroup(data: AppData, event: GameEvent, groupBy: NonNullable<AnalyticsViewDefinition["groupBy"]>) {
+  if (groupBy === "count") return countGroupLabel(event.countBefore);
+  if (groupBy === "pitch-type" && event.pitchType) return { key: event.pitchType, label: event.pitchType };
+  if (groupBy === "hand") {
+    const pitcher = data.players.find((player) => player.id === event.pitcherId);
+    return pitcher ? { key: pitcher.throws, label: `vs ${pitcher.throws}HP` } : undefined;
+  }
+  if (groupBy === "game-state") {
+    const state = gameStateForEvent(event);
+    return { key: state, label: state === "winning" ? "Winning" : state === "losing" ? "Trailing" : "Tied" };
+  }
+  if (groupBy === "batted-ball") {
+    const label = gameContactTypeToBattedBall(event.contactType) ?? event.ballInPlayOutcome;
+    return label ? { key: label, label } : undefined;
+  }
+  return undefined;
+}
+
+function practicePitchingGroup(data: AppData, event: PitchEvent, groupBy: NonNullable<AnalyticsViewDefinition["groupBy"]>) {
+  if (groupBy === "count") return countGroupLabel(event.countBefore);
+  if (groupBy === "pitch-type") return { key: event.pitchType, label: event.pitchType };
+  if (groupBy === "hand") {
+    const batter = data.players.find((player) => player.id === event.hitterId);
+    return batter ? { key: batter.bats, label: `vs ${batter.bats}HB` } : undefined;
+  }
+  if (groupBy === "batted-ball" && event.battedBall) return { key: event.battedBall, label: event.battedBall };
+  if (groupBy === "spray" && event.location) return locationGroup(event.location, { pitcherRelative: true, pitcherThrows: data.players.find((player) => player.id === event.pitcherId)?.throws });
+  return undefined;
+}
+
+function gamePitchingGroup(data: AppData, event: GameEvent, groupBy: NonNullable<AnalyticsViewDefinition["groupBy"]>) {
+  if (groupBy === "count") return countGroupLabel(event.countBefore);
+  if (groupBy === "pitch-type" && event.pitchType) return { key: event.pitchType, label: event.pitchType };
+  if (groupBy === "hand") {
+    const batter = data.players.find((player) => player.id === event.batterId);
+    return batter ? { key: batter.bats, label: `vs ${batter.bats}HB` } : undefined;
+  }
+  if (groupBy === "game-state") {
+    const state = gameStateForEvent(event);
+    return { key: state, label: state === "winning" ? "Winning" : state === "losing" ? "Trailing" : "Tied" };
+  }
+  if (groupBy === "batted-ball") {
+    const label = gameContactTypeToBattedBall(event.contactType) ?? event.ballInPlayOutcome;
+    return label ? { key: label, label } : undefined;
+  }
+  if (groupBy === "spray" && event.location) return locationGroup(event.location, { pitcherRelative: true, pitcherThrows: data.players.find((player) => player.id === event.pitcherId)?.throws });
+  return undefined;
+}
+
+function defenseGroup(event: DefenseEvent, groupBy: NonNullable<AnalyticsViewDefinition["groupBy"]>) {
+  if (groupBy === "position") {
+    const value = defenseEventPosition(event, "");
+    return value ? { key: value, label: value } : undefined;
+  }
+  if (groupBy === "rep-type") {
+    const value = defenseEventRepType(event);
+    return value ? { key: value, label: value } : undefined;
+  }
+  if (groupBy === "drill") {
+    const value = defenseEventDrillContext(event);
+    return value ? { key: value, label: value } : undefined;
+  }
+  return undefined;
+}
+
+function countGroupLabel(count?: { balls: number; strikes: number }) {
+  return count ? { key: countLabel(count), label: countLabel(count) } : undefined;
+}
+
+function locationGroup(location: { x: number; y: number }, orientation: LocationOrientation = {}) {
+  const vertical = location.y < 0.34 ? "Up" : location.y > 0.66 ? "Down" : "Middle";
+  const horizontal = locationHorizontalLabel(location.x, orientation);
+  if (horizontal === "Unknown") return undefined;
+  const label = horizontal === "Middle" ? vertical : vertical === "Middle" ? horizontal : `${vertical} & ${horizontal}`;
+  return { key: label.toLowerCase().replaceAll(" ", "-"), label };
+}
+
+function groupPlayer(data: AppData, key: string, index: number): Player {
+  return { ...teamPlayer(data), id: `analytics-group:${key}`, name: key, jerseyNumber: index + 1, isPitcher: false, isHitter: false };
+}
+
+function groupAnalyticsRow(row: AnalyticsRow, key: string, label: string): AnalyticsRow {
+  return { ...row, rowKind: "group", groupKey: key, groupLabel: label };
+}
+
 function assembleResult(
   title: string,
   data: AppData,
@@ -732,6 +701,7 @@ function assembleResult(
     warnings: [...new Set(warnings)],
     scopeLabel,
     sampleLabel: `${sampleCount.toLocaleString()} tracked ${sampleCount === 1 ? "event" : "events"} · ${playersWithData} ${playersWithData === 1 ? "player" : "players"}`,
+    availableViews: analyticsViewsFor(query.domain, query.source),
   };
 }
 
@@ -745,6 +715,13 @@ function hittingRow(player: Player, events: HittingEvent[]): AnalyticsRow {
   const hard = events.filter(isPracticeHardContactEvent).length;
   const barrels = events.filter((event) => event.contactQuality === "Barrel").length;
   const evs = events.map((event) => event.exitVelocityMph).filter(isNumber);
+  const located = events.filter((event) => event.pitchLocation);
+  const inZone = located.filter((event) => isAnalyticsZonePoint(event.pitchLocation));
+  const outOfZone = located.filter((event) => !isAnalyticsZonePoint(event.pitchLocation));
+  const inZoneSwings = inZone.filter(isHittingSwing);
+  const inZoneContacts = inZoneSwings.filter(isHittingContact);
+  const chases = outOfZone.filter(isHittingSwing);
+  const directed = events.filter((event) => event.action === "Ball in play" && event.direction);
   return makeRow(player, {
     opportunities: countCell(events.length, events.length),
     takes: countCell(takes, events.length),
@@ -753,15 +730,22 @@ function hittingRow(player: Player, events: HittingEvent[]): AnalyticsRow {
     bip: countCell(ballsInPlay, events.length),
     misses: countCell(misses, swings),
     fouls: countCell(fouls, swings),
+    swingPct: rateCell(swings, events.length, "swings"),
     contactPct: rateCell(contacts, swings, "contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
     swingMissPct: rateCell(misses, swings, "misses", ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
     takePct: rateCell(takes, events.length, "takes"),
+    zoneContactPct: rateCell(inZoneContacts.length, inZoneSwings.length, "in-zone contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
+    chasePct: rateCell(chases.length, outOfZone.length, "chases", ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
     hard: countCell(hard, ballsInPlay),
     hardPct: rateCell(hard, ballsInPlay, "hard contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     barrelPct: rateCell(barrels, ballsInPlay, "impact contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     lineDrivePct: rateCell(events.filter((event) => event.contactResult === "Line drive").length, ballsInPlay, "line drives", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     groundBallPct: rateCell(events.filter((event) => event.contactResult === "Ground ball").length, ballsInPlay, "ground balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     flyBallPct: rateCell(events.filter((event) => event.contactResult === "Fly ball").length, ballsInPlay, "fly balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    popUpPct: rateCell(events.filter((event) => event.contactResult === "Pop up").length, ballsInPlay, "pop ups", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    pullPct: rateCell(directed.filter((event) => directionBucket(event.direction) === "Pull").length, directed.length, "pull-side balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    middlePct: rateCell(directed.filter((event) => directionBucket(event.direction) === "Middle").length, directed.length, "middle-field balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    oppoPct: rateCell(directed.filter((event) => directionBucket(event.direction) === "Opposite").length, directed.length, "opposite-field balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     avgEv: averageCell(evs, "ev", ANALYTICS_SAMPLE_THRESHOLDS.exitVelocitySamples),
     maxEv: maxCell(evs, "ev"),
     evSamples: countCell(evs.length, evs.length),
@@ -817,12 +801,17 @@ function pitchingRow(player: Player, pitchEvents: PitchEvent[], gameEvents: Game
   const whiffs = pitches.filter((pitch) => pitch.isWhiff).length;
   const velocities = pitches.map((pitch) => pitch.velocity).filter(isNumber);
   const locatedPitches = pitches.filter((pitch) => pitch.hasLocation);
+  const firstPitches = pitches.filter((pitch) => pitch.countBefore?.balls === 0 && pitch.countBefore?.strikes === 0);
+  const strikes = pitches.filter((pitch) => pitch.isStrike).length;
   return makeRow(player, {
     pitches: countCell(pitches.length, pitches.length),
-    strikePct: rateCell(pitches.filter((pitch) => pitch.isStrike).length, pitches.length, "strikes", ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
+    balls: countCell(pitches.length - strikes, pitches.length),
+    strikes: countCell(strikes, pitches.length),
+    strikePct: rateCell(strikes, pitches.length, "strikes", ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
     zonePct: rateCell(locatedPitches.filter((pitch) => pitch.isZone).length, locatedPitches.length, "zone pitches", ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
     whiffPct: rateCell(whiffs, swings, "whiffs", ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
     cswPct: rateCell(pitches.filter((pitch) => pitch.isCalledStrike || pitch.isWhiff).length, pitches.length, "CSW", ANALYTICS_SAMPLE_THRESHOLDS.pitchingPitches),
+    firstPitchStrikePct: rateCell(firstPitches.filter((pitch) => pitch.isStrike).length, firstPitches.length, "first-pitch strikes", 8),
     avgPitchVelo: averageCell(velocities, "velocity", 3),
     maxPitchVelo: maxCell(velocities, "velocity"),
   });
@@ -989,14 +978,40 @@ function filterGameEvents(data: AppData, query: AnalyticsQuery, today?: string):
     const game = games.get(event.gameId);
     if (!game || !dateInRange(game.date, dateRange)) return false;
     if (query.eventIds?.length && !query.eventIds.includes(game.id)) return false;
+    if (query.filters?.opponents?.length && !query.filters.opponents.includes(game.opponent)) return false;
+    if (query.filters?.homeAway?.length && !query.filters.homeAway.includes(game.homeAway as "Home" | "Away" | "Neutral")) return false;
+    if (query.filters?.innings?.length && !query.filters.innings.includes(String(event.inning))) return false;
+    if (query.filters?.outs?.length && !query.filters.outs.includes(String(event.outsBefore))) return false;
+    if (query.filters?.exactCounts?.length && (!event.countBefore || !query.filters.exactCounts.includes(countLabel(event.countBefore)))) return false;
+    if (query.filters?.countGroups?.length) {
+      const group = countGroup(event.countBefore);
+      if (!group || !query.filters.countGroups.some((selected) => countMatchesGroup(event.countBefore, selected))) return false;
+    }
+    if (query.filters?.gameStates?.length && !query.filters.gameStates.includes(gameStateForEvent(event))) return false;
+    if (query.filters?.runnerStates?.length && !query.filters.runnerStates.some((state) => runnerStateMatches(event, state))) return false;
     if (query.domain === "hitting" && query.filters?.pitchTypes?.length && (!event.pitchType || !query.filters.pitchTypes.includes(event.pitchType))) return false;
     if (query.domain === "pitching" && query.filters?.pitchTypes?.length && (!event.pitchType || !query.filters.pitchTypes.includes(event.pitchType))) return false;
     if (query.domain === "pitching" && query.filters?.batterHands?.length) {
       const batter = data.players.find((player) => player.id === event.batterId);
       if (!batter || !query.filters.batterHands.includes(batter.bats)) return false;
     }
+    if (query.domain === "hitting" && query.filters?.pitcherHands?.length) {
+      const pitcher = data.players.find((player) => player.id === event.pitcherId);
+      if (!pitcher || !query.filters.pitcherHands.includes(pitcher.throws)) return false;
+    }
+    if (query.filters?.gamePitchOutcomes?.length && (!event.pitchOutcome || !query.filters.gamePitchOutcomes.includes(event.pitchOutcome))) return false;
+    if (query.filters?.gameBipOutcomes?.length && (!event.ballInPlayOutcome || !query.filters.gameBipOutcomes.includes(event.ballInPlayOutcome))) return false;
+    if (query.filters?.battedBallTypes?.length) {
+      const contactType = gameContactTypeToBattedBall(event.contactType);
+      if (!contactType || !query.filters.battedBallTypes.includes(contactType)) return false;
+    }
     if (!velocityMatches(event.velocity, query.filters?.pitchVelocityMin, query.filters?.pitchVelocityMax)) return false;
-    if (query.filters?.pitchLocationRegions?.length && !query.filters.pitchLocationRegions.some((region) => pitchLocationMatches(event.location, region, data.players.find((player) => player.id === event.batterId)?.bats))) return false;
+    if (query.filters?.pitchLocationRegions?.length) {
+      const locationContext = query.domain === "pitching"
+        ? { pitcherRelative: true, pitcherThrows: data.players.find((player) => player.id === event.pitcherId)?.throws }
+        : { batterHand: data.players.find((player) => player.id === event.batterId)?.bats };
+      if (!query.filters.pitchLocationRegions.some((region) => pitchLocationMatches(event.location, region, locationContext))) return false;
+    }
     return true;
   });
 }
@@ -1013,9 +1028,12 @@ function hittingEventMatchesFilters(data: AppData, event: HittingEvent, filters?
     const pitcher = data.players.find((player) => player.id === event.pitcherId);
     if (!pitcher || !filters.pitcherHands.includes(pitcher.throws)) return false;
   }
+  const count = hittingEventCount(data, event);
+  if (filters.exactCounts?.length && (!count || !filters.exactCounts.includes(countLabel(count)))) return false;
+  if (filters.countGroups?.length && (!count || !filters.countGroups.some((selected) => countMatchesGroup(count, selected)))) return false;
   if (!velocityMatches(event.velocity, filters.pitchVelocityMin, filters.pitchVelocityMax)) return false;
-  if (filters.pitchLocationRegions?.length && !filters.pitchLocationRegions.some((region) => pitchLocationMatches(event.pitchLocation, region, data.players.find((player) => player.id === event.hitterId)?.bats))) return false;
-  if (filters.directions?.length && (!event.direction || !filters.directions.includes(event.direction))) return false;
+  if (filters.pitchLocationRegions?.length && !filters.pitchLocationRegions.some((region) => pitchLocationMatches(event.pitchLocation, region, { batterHand: data.players.find((player) => player.id === event.hitterId)?.bats }))) return false;
+  if (filters.directions?.length && (!event.direction || !filters.directions.includes(directionBucket(event.direction)))) return false;
   return true;
 }
 
@@ -1031,9 +1049,10 @@ function pitchEventMatchesFilters(data: AppData, event: PitchEvent, filters?: An
     const batter = data.players.find((player) => player.id === event.hitterId);
     if (!batter || !filters.batterHands.includes(batter.bats)) return false;
   }
-  if (filters.countGroups?.length && !filters.countGroups.includes(countGroup(event.countBefore))) return false;
+  if (filters.exactCounts?.length && (!event.countBefore || !filters.exactCounts.includes(countLabel(event.countBefore)))) return false;
+  if (filters.countGroups?.length && (!event.countBefore || !filters.countGroups.some((selected) => countMatchesGroup(event.countBefore, selected)))) return false;
   if (!velocityMatches(event.velocity, filters.pitchVelocityMin, filters.pitchVelocityMax)) return false;
-  if (filters.pitchLocationRegions?.length && !filters.pitchLocationRegions.some((region) => pitchLocationMatches(event.location, region, data.players.find((player) => player.id === event.hitterId)?.bats))) return false;
+  if (filters.pitchLocationRegions?.length && !filters.pitchLocationRegions.some((region) => pitchLocationMatches(event.location, region, { pitcherRelative: true, pitcherThrows: data.players.find((player) => player.id === event.pitcherId)?.throws }))) return false;
   return true;
 }
 
@@ -1043,17 +1062,44 @@ function velocityMatches(value: number | undefined, minimum?: number, maximum?: 
   return (minimum === undefined || value >= minimum) && (maximum === undefined || value <= maximum);
 }
 
-function pitchLocationMatches(location: { x: number; y: number } | undefined, region: AnalyticsPitchLocationRegion, batterHand?: "R" | "L" | "S"): boolean {
+function pitchLocationMatches(
+  location: { x: number; y: number } | undefined,
+  region: AnalyticsPitchLocationRegion,
+  orientation: LocationOrientation = {},
+): boolean {
   if (!location) return false;
+  if (region === "in_zone") return isAnalyticsZonePoint(location);
+  if (region === "out_of_zone") return !isAnalyticsZonePoint(location);
   const vertical = location.y < 0.34 ? "up" : location.y > 0.66 ? "down" : "middle";
-  const horizontal = batterHand === "L"
-    ? location.x > 0.66 ? "in" : location.x < 0.34 ? "away" : "middle"
-    : location.x < 0.34 ? "in" : location.x > 0.66 ? "away" : "middle";
-  if (region === "up" || region === "middle" || region === "down") return vertical === region;
-  if (region === "in" || region === "away") return horizontal === region;
-  const [expectedVertical, expectedHorizontal] = region.split("_and_") as ["up" | "down", "in" | "away"];
+  const horizontal = locationHorizontalLabel(location.x, orientation).toLowerCase().replace(" ", "_");
+  if (region === "middle") return vertical === "middle" && horizontal === "middle";
+  if (region === "up" || region === "down") return vertical === region && horizontal === "middle";
+  if (["in", "away", "arm_side", "glove_side"].includes(region)) return horizontal === region && vertical === "middle";
+  const [expectedVertical, expectedHorizontal] = region.includes("_and_")
+    ? region.split("_and_")
+    : region.match(/^(up|down)_(arm_side|glove_side)$/)?.slice(1) ?? [];
   return vertical === expectedVertical && horizontal === expectedHorizontal;
 }
+
+function locationHorizontalLabel(
+  x: number,
+  { batterHand, pitcherThrows, pitcherRelative }: LocationOrientation,
+): "In" | "Away" | "Arm Side" | "Glove Side" | "Middle" | "Unknown" {
+  if (x >= 0.34 && x <= 0.66) return "Middle";
+  if (pitcherRelative) {
+    if (pitcherThrows !== "R" && pitcherThrows !== "L") return "Unknown";
+    const isArmSide = pitcherThrows === "L" ? x > 0.66 : x < 0.34;
+    return isArmSide ? "Arm Side" : "Glove Side";
+  }
+  const isInside = batterHand === "L" ? x > 0.66 : x < 0.34;
+  return isInside ? "In" : "Away";
+}
+
+type LocationOrientation = {
+  batterHand?: "R" | "L" | "S";
+  pitcherRelative?: boolean;
+  pitcherThrows?: "R" | "L" | "S";
+};
 
 function resolveDateRange(_data: AppData, query: AnalyticsQuery, today?: string): AnalyticsDateRange {
   if (query.timeRange === "season") return {};
@@ -1129,9 +1175,20 @@ function sessionEventOption(data: AppData, id: ID, practiceId: ID, labelPrefix: 
   };
 }
 
-function availableFilterDefinitions(query: AnalyticsQuery): AnalyticsFilterDefinition[] {
-  if (query.mode !== "situational") return [];
-  return ANALYTICS_FILTERS.filter((filterItem) => filterItem.domain === query.domain && filterItem.supportedSources.includes(query.source));
+function availableFilterDefinitions(data: AppData, query: AnalyticsQuery): AnalyticsFilterDefinition[] {
+  return ANALYTICS_FILTERS
+    .filter((filterItem) => filterItem.domains.includes(query.domain) && filterItem.supportedSources.includes(query.source))
+    .map((filterItem) => {
+      if (filterItem.dynamicOptions === "opponents") {
+        const opponents = [...new Set(data.games.map((game) => game.opponent).filter(Boolean))].sort();
+        return { ...filterItem, options: opponents.map((value) => ({ value, label: value })) };
+      }
+      if (filterItem.dynamicOptions === "innings") {
+        const innings = [...new Set(data.gameEvents.map((event) => event.inning))].sort((left, right) => left - right);
+        return { ...filterItem, options: innings.map((value) => ({ value: String(value), label: `${ordinal(value)} Inning` })) };
+      }
+      return filterItem;
+    });
 }
 
 function normalizeAnalyticsQuery(query: AnalyticsQuery): AnalyticsQuery {
@@ -1142,9 +1199,10 @@ function normalizeAnalyticsQuery(query: AnalyticsQuery): AnalyticsQuery {
     ...query,
     source,
     mode,
+    view: normalizeAnalyticsView(query.domain, source, query.view),
     groupBy: "player",
     sort,
-    filters: mode === "situational" ? query.filters : {},
+    filters: query.filters ?? {},
   };
 }
 
@@ -1279,6 +1337,7 @@ function practicePitchSample(event: PitchEvent) {
     isWhiff: Boolean(event.isWhiff || event.outcome === "Whiff"),
     isCalledStrike: Boolean(event.isCalledStrike || event.outcome === "Called Strike"),
     velocity: event.velocity,
+    countBefore: event.countBefore,
   };
 }
 
@@ -1291,7 +1350,16 @@ function gamePitchSample(event: GameEvent) {
     isWhiff: event.pitchOutcome === "Swinging Strike",
     isCalledStrike: event.pitchOutcome === "Called Strike",
     velocity: event.velocity,
+    countBefore: event.countBefore,
   };
+}
+
+function isHittingSwing(event: HittingEvent): boolean {
+  return event.action !== "Took pitch";
+}
+
+function isHittingContact(event: HittingEvent): boolean {
+  return event.action === "Foul" || event.action === "Ball in play";
 }
 
 function isAnalyticsZonePoint(location: unknown): boolean {
@@ -1312,12 +1380,68 @@ function isAnalyticsZonePoint(location: unknown): boolean {
   return point.x >= 0.22 && point.x <= 0.78 && point.y >= 0.18 && point.y <= 0.82;
 }
 
-function countGroup(count?: { balls: number; strikes: number }): "ahead" | "even" | "behind" | "two-strike" {
-  if (!count) return "even";
+function countGroup(count?: { balls: number; strikes: number }): "ahead" | "even" | "behind" | "two-strike" | undefined {
+  if (!count) return undefined;
   if (count.strikes >= 2) return "two-strike";
   if (count.balls > count.strikes) return "ahead";
   if (count.strikes > count.balls) return "behind";
   return "even";
+}
+
+function countMatchesGroup(count: { balls: number; strikes: number } | undefined, group: AnalyticsCountGroup): boolean {
+  if (!count) return false;
+  if (group === "first-pitch") return count.balls === 0 && count.strikes === 0;
+  if (group === "full-count") return count.balls === 3 && count.strikes === 2;
+  return countGroup(count) === group;
+}
+
+function countLabel(count: { balls: number; strikes: number }): string {
+  return `${count.balls}-${count.strikes}`;
+}
+
+function hittingEventCount(data: AppData, event: HittingEvent): { balls: number; strikes: number } | undefined {
+  if (!event.plateAppearanceId) return undefined;
+  const linked = data.pitchEvents
+    .filter((pitch) => pitch.plateAppearanceId === event.plateAppearanceId)
+    .sort((left, right) => Math.abs(new Date(left.createdAt).getTime() - new Date(event.createdAt).getTime()) - Math.abs(new Date(right.createdAt).getTime() - new Date(event.createdAt).getTime()))[0];
+  return linked?.countBefore;
+}
+
+function gameStateForEvent(event: GameEvent): AnalyticsGameState {
+  if (event.metrolinaRunsBefore > event.opponentRunsBefore) return "winning";
+  if (event.metrolinaRunsBefore < event.opponentRunsBefore) return "losing";
+  return "tied";
+}
+
+function runnerStateMatches(event: GameEvent, state: AnalyticsRunnerState): boolean {
+  const runners = event.runnersBefore ?? event.stateBefore?.runners ?? {};
+  const occupied = Boolean(runners.first || runners.second || runners.third);
+  if (state === "bases-empty") return !occupied;
+  if (state === "runners-on") return occupied;
+  return Boolean(runners.second || runners.third);
+}
+
+function gameContactTypeToBattedBall(value?: string): BattedBallType | undefined {
+  if (value === "Ground Ball") return "Ground ball";
+  if (value === "Line Drive") return "Line drive";
+  if (value === "Fly Ball") return "Fly ball";
+  if (value === "Pop Up") return "Pop up";
+  return undefined;
+}
+
+function directionBucket(direction?: Direction): "Pull" | "Middle" | "Opposite" {
+  if (direction === "Pull" || direction === "Pull-center" || direction === "3B side") return "Pull";
+  if (direction === "Opposite" || direction === "Opposite-center" || direction === "1B side") return "Opposite";
+  return "Middle";
+}
+
+function ordinal(value: number): string {
+  const remainder100 = value % 100;
+  if (remainder100 >= 11 && remainder100 <= 13) return `${value}th`;
+  if (value % 10 === 1) return `${value}st`;
+  if (value % 10 === 2) return `${value}nd`;
+  if (value % 10 === 3) return `${value}rd`;
+  return `${value}th`;
 }
 
 function buildScopeLabel(data: AppData, query: AnalyticsQuery): string {
@@ -1332,20 +1456,8 @@ function buildScopeLabel(data: AppData, query: AnalyticsQuery): string {
   return `${range} · ${sourceLabels[query.source]}`;
 }
 
-function metric(id: string, label: string, domain: AnalyticsDomain, format: AnalyticsMetricFormat, supportedSources: AnalyticsSource[], definition: string, sortable: boolean, situationalSupport: boolean, minimumSample?: number): AnalyticsMetricDefinition {
-  return { id, label, domain, format, supportedSources, definition, sortable, situationalSupport, minimumSample };
-}
-
 function askQuestion(id: string, label: string, domain: AnalyticsDomain, rankingMetricId: string, criteria: string, query: Omit<AnalyticsQuery, "context">): AskClubhouseQuestion {
   return { id, label, domain, rankingMetricId, criteria, query };
-}
-
-function handednessOptions() {
-  return [
-    { value: "R", label: "R" },
-    { value: "L", label: "L" },
-    { value: "S", label: "Switch" },
-  ];
 }
 
 function average(values: number[]): number | undefined {

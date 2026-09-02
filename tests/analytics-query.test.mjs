@@ -4,6 +4,12 @@ import {
   executeAnalyticsQuery,
   runAskClubhouseQuestion,
 } from "../app/lib/analyticsQuery.ts";
+import {
+  analyticsSourcesForDomain,
+  analyticsViewsFor,
+  defaultAnalyticsMetricIds,
+  serializeAnalyticsContext,
+} from "../app/lib/analyticsCatalog.ts";
 
 const now = "2026-08-20T12:00:00.000Z";
 
@@ -272,7 +278,7 @@ test("pitching query calculates strike and zone rates with game source support",
   assert.equal(mylo.cells.pitches.display, "7");
   assert.equal(mylo.cells.strikePct.display, "71%");
   assert.equal(mylo.cells.zonePct.display, "75%");
-  assert.deepEqual(result.columns.map((column) => column.metricId), ["pitches", "strikePct", "zonePct", "avgPitchVelo", "maxPitchVelo"]);
+  assert.deepEqual(result.columns.map((column) => column.metricId), ["pitches", "strikePct", "zonePct", "avgPitchVelo", "maxPitchVelo", "balls", "strikes", "whiffPct", "cswPct", "firstPitchStrikePct"]);
   assert.equal(mylo.cells.avgPitchVelo.display, "83.0");
 });
 
@@ -374,6 +380,93 @@ test("Ask Clubhouse suggested questions are backed by query-layer output", () =>
   assert.equal(response.lines[0].label, "1. Jacob Seamon");
   assert.equal(response.lines[0].value, "90.8");
   assert.equal(response.result.query.source, "all");
+});
+
+test("unified Analytics applies composed filters without a situational mode", () => {
+  const result = executeAnalyticsQuery(baseData, {
+    ...query("hitting", "practice"),
+    mode: "box-score",
+    filters: { pitchTypes: ["Slider"], pitchVelocityMin: 80 },
+  });
+
+  assert.equal(result.filterDefinitions.some((definition) => definition.id === "pitchTypes"), true);
+  assert.equal(result.teamTotals.cells.opportunities.display, "—");
+});
+
+test("game filters compose count, velocity, location, score, outs, runners, and opponent", () => {
+  const qualifying = {
+    ...baseData.gameEvents[0],
+    velocity: 88,
+    countBefore: { balls: 1, strikes: 2 },
+    location: { x: 0.5, y: 0.5 },
+    outsBefore: 2,
+    metrolinaRunsBefore: 1,
+    opponentRunsBefore: 3,
+    runnersBefore: { second: "p-jackson" },
+  };
+  const data = { ...baseData, gameEvents: [qualifying, baseData.gameEvents[1]] };
+  const result = executeAnalyticsQuery(data, {
+    ...query("hitting", "games"),
+    filters: {
+      pitchTypes: ["4-Seam"],
+      pitchVelocityMin: 85,
+      pitchLocationRegions: ["middle"],
+      exactCounts: ["1-2"],
+      gameStates: ["losing"],
+      outs: ["2"],
+      runnerStates: ["risp"],
+      opponents: ["Charlotte Christian"],
+      homeAway: ["Home"],
+    },
+  });
+
+  assert.equal(result.teamTotals.cells.trackedBip.display, "1");
+  assert.equal(row(result, "p-jacob").cells.hits.display, "1");
+});
+
+test("pitching location filters use pitcher-relative arm and glove side", () => {
+  const pitches = [
+    pitchEvent("arm-side", "practice-aug-17", "pitching-1", "p-mylo", "Called Strike", { location: { x: 0.8, y: 0.5 } }),
+    pitchEvent("glove-side", "practice-aug-17", "pitching-1", "p-mylo", "Called Strike", { location: { x: 0.2, y: 0.5 } }),
+  ];
+  const data = { ...baseData, pitchEvents: pitches };
+  const result = executeAnalyticsQuery(data, {
+    ...query("pitching", "practice"),
+    filters: { pitchLocationRegions: ["arm_side"] },
+  });
+
+  assert.equal(result.teamTotals.cells.pitches.display, "1");
+  const locationFilter = result.filterDefinitions.find((definition) => definition.id === "pitchLocationRegions");
+  assert.equal(locationFilter.options.some((option) => option.value === "arm_side"), true);
+  assert.equal(locationFilter.options.some((option) => option.value === "away"), false);
+});
+
+test("count and pitch-type views group the same bounded query output", () => {
+  const gameEvents = [
+    { ...baseData.gameEvents[0], countBefore: { balls: 0, strikes: 0 }, pitchType: "4-Seam" },
+    { ...baseData.gameEvents[1], countBefore: { balls: 1, strikes: 2 }, pitchType: "Slider" },
+    { ...baseData.gameEvents[2], countBefore: undefined, pitchType: undefined },
+  ];
+  const counts = executeAnalyticsQuery({ ...baseData, gameEvents }, { ...query("pitching", "games"), view: "counts" });
+  const pitchTypes = executeAnalyticsQuery({ ...baseData, gameEvents }, { ...query("pitching", "games"), view: "pitch-types" });
+
+  assert.deepEqual(counts.rows.map((item) => item.groupLabel), ["0-0", "1-2"]);
+  assert.equal(counts.rows.every((item) => item.rowKind === "group"), true);
+  assert.match(counts.warnings.join(" "), /2 of 3 qualifying events/);
+  assert.deepEqual(pitchTypes.rows.map((item) => item.groupLabel).sort(), ["4-Seam", "Slider"]);
+});
+
+test("catalog hides irrelevant sources and views and serializes the active context", () => {
+  assert.deepEqual(analyticsSourcesForDomain("defense"), ["practice", "all"]);
+  assert.equal(analyticsViewsFor("hitting", "practice").some((view) => view.id === "game-state"), false);
+  assert.equal(analyticsViewsFor("hitting", "games").some((view) => view.id === "game-state"), true);
+  assert.deepEqual(defaultAnalyticsMetricIds("hitting", "games").slice(0, 4), ["trackedBip", "ab", "hits", "singles"]);
+
+  const analyticsQuery = { ...query("hitting", "practice"), view: "pitch-types", filters: { pitchTypes: ["Slider"] } };
+  const serialized = serializeAnalyticsContext(analyticsQuery, ["swings", "contactPct"]);
+  assert.equal(serialized.view, "pitch-types");
+  assert.deepEqual(serialized.filters.pitchTypes, ["Slider"]);
+  assert.deepEqual(serialized.metrics, ["swings", "contactPct"]);
 });
 
 function query(domain, source) {
