@@ -101,6 +101,8 @@ import type {
   AskClubhouseStatus,
   AskClubhouseTeamScope,
   AskClubhouseUsageSnapshot,
+  AskClubhouseVisual,
+  AskClubhouseVisualContext,
 } from "./lib/askClubhouse/types";
 import {
   applyRosterImportPlan,
@@ -294,6 +296,8 @@ type AskClubhouseChatMessage = AskClubhouseClientMessage & {
   pendingStartedAt?: number;
   route?: AskClubhouseRoute;
   ui?: AskClubhouseUiPayload;
+  visuals?: AskClubhouseVisual[];
+  visualUnavailable?: boolean;
 };
 
 type AskClubhouseLaunchContext = {
@@ -1501,6 +1505,7 @@ export default function MetrolinaBaseballApp() {
   const [askStage, setAskStage] = useState(initialAskFixture?.stage ?? ASK_CLUBHOUSE_GENERIC_STAGE);
   const [askError, setAskError] = useState<string | undefined>(initialAskFixture?.error);
   const [askLaunchContext, setAskLaunchContext] = useState<AskClubhouseLaunchContext>({ surface: "analytics" });
+  const [askVisualContext, setAskVisualContext] = useState<AskClubhouseVisualContext | undefined>();
   const [askSelectedScopeKeys, setAskSelectedScopeKeys] = useState<string[]>([]);
   const askDefaultScopeKeys = askLaunchContext.surface === "clubhouse_home"
     ? [ASK_ALL_TEAMS_SCOPE_KEY]
@@ -3879,6 +3884,7 @@ export default function MetrolinaBaseballApp() {
     setAskMessages([]);
     setAskInput("");
     setAskError(undefined);
+    setAskVisualContext(undefined);
   }
 
   function openAskClubhouse(surface: AskClubhouseLaunchSurface, analytics?: Partial<AnalyticsQuery>) {
@@ -3890,6 +3896,7 @@ export default function MetrolinaBaseballApp() {
     if (nextKeys.join("|") !== resolvedAskSelectedScopeKeys.join("|")) startNewAskChat();
     setAskSelectedScopeKeys(nextKeys);
     setAskLaunchContext({ surface, analytics });
+    setAskVisualContext(undefined);
     setAskOpen(true);
   }
 
@@ -3948,6 +3955,7 @@ export default function MetrolinaBaseballApp() {
             teamScopes,
             launchSurface: askLaunchContext.surface,
             analytics: askLaunchContext.analytics,
+            visualContext: askVisualContext,
           },
         }),
       });
@@ -3963,8 +3971,17 @@ export default function MetrolinaBaseballApp() {
         actions: payload.actions,
         followUps: payload.followUps,
         usage: payload.usage,
+        visuals: payload.visuals,
+        visualUnavailable: payload.visualUnavailable,
       };
       if (payload.conversationId) setAskConversationId(payload.conversationId);
+      const nextVisual = payload.visuals?.find((visual) => visual.type === "spray_chart" || visual.type === "pitch_location");
+      if (nextVisual) setAskVisualContext({
+        type: nextVisual.type,
+        mode: nextVisual.mode,
+        playerId: nextVisual.playerId,
+        query: nextVisual.query,
+      });
       if (!response.ok || !payload.ok) setAskError(payload.answer);
       setAskMessages((current) => current.map((messageItem) => messageItem.pending ? assistantMessage : messageItem));
     } catch {
@@ -3997,6 +4014,10 @@ export default function MetrolinaBaseballApp() {
           url.searchParams.set("sort", next.sort.metricId);
           url.searchParams.set("dir", next.sort.direction);
         }
+        if (next.filters && Object.keys(next.filters).length) url.searchParams.set("filters", encodeAnalyticsFilters(next.filters));
+        else url.searchParams.delete("filters");
+        if (next.view && next.view !== "overview") url.searchParams.set("statView", next.view);
+        else url.searchParams.delete("statView");
         if (action.playerId) url.searchParams.set("detailPlayer", action.playerId);
       },
     });
@@ -20265,6 +20286,8 @@ function AskClubhouseDrawer({
     return new URLSearchParams(window.location.search).get("askIdeas") === "all";
   });
   const visibleMessages = useMemo(() => dedupeAskClubhouseMessages(messages), [messages]);
+  const chatRef = useRef<HTMLElement | null>(null);
+  const shouldFollowChatRef = useRef(true);
   const lastUserQuestion = [...visibleMessages].reverse().find((message) => message.role === "user")?.content;
   const combinedSuggestions = [...contextualSuggestions, ...ASK_CLUBHOUSE_UI_SUGGESTIONS.filter((item) => !contextualSuggestions.some((suggestion) => suggestion.label === item.label))];
   const suggestions = showAllIdeas ? combinedSuggestions : combinedSuggestions.slice(0, 4);
@@ -20275,6 +20298,13 @@ function AskClubhouseDrawer({
     && !sending
     && !visibleMessages.some((message) => !message.pending && message.role === "assistant" && normalizeAskContent(message.content) === normalizeAskContent(error)),
   );
+
+  useEffect(() => {
+    if (!shouldFollowChatRef.current) return;
+    const chat = chatRef.current;
+    if (!chat) return;
+    window.requestAnimationFrame(() => chat.scrollTo({ top: chat.scrollHeight, behavior: "smooth" }));
+  }, [visibleMessages.length, sending]);
 
   return (
     <div
@@ -20305,7 +20335,15 @@ function AskClubhouseDrawer({
           selectedScopeKeys={selectedScopeKeys}
           onChange={onScopeChange}
         />
-        <section className="ask-chat" aria-label="Ask Clubhouse chat">
+        <section
+          className="ask-chat"
+          aria-label="Ask Clubhouse chat"
+          ref={chatRef}
+          onScroll={(event) => {
+            const target = event.currentTarget;
+            shouldFollowChatRef.current = target.scrollHeight - target.scrollTop - target.clientHeight < 72;
+          }}
+        >
           {!visibleMessages.length && (
             <AskClubhouseLanding
               suggestions={suggestions}
@@ -20497,11 +20535,112 @@ function AskClubhouseAssistantAnswer({
       {message.ui?.kind === "ranking" && <AskClubhouseRankingAnswer payload={message.ui} />}
       {message.ui?.kind === "comparison" && <AskClubhouseComparisonAnswer payload={message.ui} />}
       {!message.ui && <AskClubhouseTextAnswer content={message.content} />}
+      {message.visuals?.length ? <AskClubhouseVisualAnswers visuals={message.visuals} actions={message.actions} onAction={onAction} /> : null}
+      {message.visualUnavailable && <p className="ask-visual-unavailable">Visual unavailable for this answer.</p>}
       <AskClubhouseEvidence message={message} />
       <AskClubhouseActions message={message} onAction={onAction} />
       {showFollowUps && <AskClubhouseFollowUps message={message} onQuestion={onQuestion} />}
     </>
   );
+
+}
+
+function AskClubhouseVisualAnswers({
+  visuals,
+  actions,
+  onAction,
+}: {
+  visuals: AskClubhouseVisual[];
+  actions?: AskClubhouseAction[];
+  onAction: (action: AskClubhouseAction) => void;
+}) {
+  return (
+    <div className="ask-visual-answers" aria-label="Analytics visuals">
+      {visuals.map((visual, index) => (
+        <AskClubhouseVisualCard
+          key={`${visual.type}-${visual.playerId ?? "team"}-${index}`}
+          visual={visual}
+          action={actions?.find((candidate) => candidate.type === "open_analytics" && (!visual.playerId || candidate.playerId === visual.playerId))}
+          onAction={onAction}
+        />
+      ))}
+    </div>
+  );
+}
+
+function AskClubhouseVisualCard({
+  visual,
+  action,
+  onAction,
+}: {
+  visual: AskClubhouseVisual;
+  action?: AskClubhouseAction;
+  onAction: (action: AskClubhouseAction) => void;
+}) {
+  const [mode, setMode] = useState(visual.mode);
+  const isField = visual.type === "spray_chart";
+  const isZone = visual.type === "pitch_location";
+  const modes = isField
+    ? (["spray", "count", "percent", "heat"] as const)
+    : (["dots", "count", "percent", "heat"] as const);
+  const label = visual.coverage.trackedEvents === visual.coverage.qualifyingEvents
+    ? `${visual.coverage.trackedEvents} ${visual.coverage.label}`
+    : `${visual.coverage.trackedEvents} of ${visual.coverage.qualifyingEvents} ${visual.coverage.label} tracked`;
+
+  if (visual.type === "metric_summary") {
+    return (
+      <div className="ask-metric-strip ask-visual-metric-strip" aria-label={visual.title}>
+        {visual.metrics?.map((metric) => (
+          <div key={metric.id}>
+            <strong>{metric.value}</strong>
+            <span>{metric.label}</span>
+            {metric.sample && <small>{metric.sample}</small>}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (!isField && !isZone) return null;
+  return (
+    <section className="ask-visual-card">
+      <header className="ask-visual-card__head">
+        <div>
+          <small>Analytics</small>
+          <strong>{visual.title}</strong>
+        </div>
+        <div className="ask-visual-card__modes" role="group" aria-label={`${visual.title} display mode`}>
+          {modes.map((nextMode) => (
+            <button key={nextMode} type="button" className={mode === nextMode ? "active" : ""} onClick={() => setMode(nextMode)}>
+              {askVisualModeLabel(nextMode)}
+            </button>
+          ))}
+        </div>
+      </header>
+      {isField ? (
+        <ClubhouseBaseballField
+          className="ask-visual-card__field"
+          points={visual.points}
+          mode={mode === "dots" ? "spray" : mode}
+          size="standard"
+          coordinateSpace="practice"
+          showTrajectory={mode === "spray"}
+          ariaLabel={`${label} shown on the Clubhouse baseball field`}
+        />
+      ) : (
+        <StrikeZone points={visual.points} mode={mode === "spray" ? "dots" : mode} compact />
+      )}
+      <footer className="ask-visual-card__foot">
+        <span>{label}</span>
+        {visual.sample !== "qualified" && <em>Limited sample</em>}
+        {action && <button type="button" onClick={() => onAction(action)}>View in Analytics <ChevronRight size={14} aria-hidden="true" /></button>}
+      </footer>
+    </section>
+  );
+}
+
+function askVisualModeLabel(mode: AskClubhouseVisual["mode"]) {
+  return ({ spray: "Spray", dots: "Dots", count: "#", percent: "%", heat: "Heat" })[mode];
 }
 
 function AskClubhouseThinking({ stage, startedAt }: { stage: string; startedAt?: number }) {

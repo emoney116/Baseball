@@ -223,10 +223,13 @@ export function buildAskClubhouseToolPlan(
     teamId: currentTeam?.teamId,
     organizationId: currentTeam?.organizationId,
   }, config);
-  const classification = classifyAskClubhouseIntent(trimmed, data.players, history, {
+  const classifiedIntent = classifyAskClubhouseIntent(trimmed, data.players, history, {
     webSearchEnabled: researchEnabled,
     knowledgeProvider,
   });
+  const classification = isVisualFollowUp(lower, uiContext)
+    ? { ...classifiedIntent, route: "clubhouse_data" as const, requiresWebSearch: false, externalResearchRequired: false }
+    : classifiedIntent;
   const context = {
     teamId: currentTeam?.teamId,
     seasonId: currentTeam?.seasonId,
@@ -345,7 +348,27 @@ export function buildAskClubhouseToolPlan(
     };
   }
 
-  const queryPlan = composeAskClubhouseQueryPlan(trimmed, uiContext, playerMatch.status === "single" ? playerMatch.player : undefined);
+  const visualContextPlayer = uiContext?.visualContext?.playerId
+    ? data.players.find((player) => player.id === uiContext.visualContext?.playerId)
+    : undefined;
+  const queryPlan = composeAskClubhouseQueryPlan(trimmed, uiContext, playerMatch.status === "single" ? playerMatch.player : visualContextPlayer);
+  if (needsVisualClarification(lower, uiContext, queryPlan.playerId)) {
+    const answer = "Do you want a pitch-location heat map or a spray heat map?";
+    return {
+      status: "needs_clarification",
+      route: classification.route,
+      requiresWebSearch: false,
+      answer,
+      toolRequests: [],
+      actions: [],
+      followUps: ["Show the pitch-location heat map", "Show the spray heat map"],
+      clarification: answer,
+      knowledgeStatus: classification.knowledgeStatus,
+      knowledgeItems: classification.knowledgeItems,
+      externalResearchRequired: false,
+      queryPlan,
+    };
+  }
   if (queryPlan.unsupportedFilters.length) {
     return {
       status: "needs_clarification",
@@ -383,7 +406,7 @@ export function buildAskClubhouseToolPlan(
   }
   if (diagnosisRequest) {
     const diagnosis = diagnosePlayerDevelopment(data, diagnosisRequest, knowledgeProvider);
-    const actionQuery = queryFromPlan(queryPlan);
+    const actionQuery = analyticsQueryFromPlan(queryPlan);
     return {
       status: "completed",
       route: "clubhouse_data",
@@ -695,12 +718,14 @@ function unsupportedFilterAnswer(filters: string[]): string {
   return `I can answer the supported parts of this question, but ${filters.join(" and ")} ${filters.length === 1 ? "is" : "are"} not tracked well enough for a reliable split. I won't guess or silently ignore that filter.`;
 }
 
-function queryFromPlan(plan: AskClubhouseQueryPlan): AnalyticsQuery {
+export function analyticsQueryFromPlan(plan: AskClubhouseQueryPlan): AnalyticsQuery {
   return {
     domain: plan.domain,
     source: plan.scope.source,
     mode: Object.keys(plan.filters).length ? "situational" : "box-score",
     timeRange: plan.scope.timeRange,
+    customDateRange: plan.scope.customDateRange,
+    eventIds: plan.scope.eventIds,
     groupBy: "player",
     filters: plan.filters,
     sort: { metricId: plan.metric, direction: plan.ranking?.direction ?? "desc" },
@@ -801,6 +826,17 @@ function primaryMetricsFor(domain: AnalyticsQuery["domain"], source: AnalyticsSo
 
 function needsSituationalMode(lower: string): boolean {
   return /\b(pitch type|slider|fastball|curve|changeup|count|lefty|righty|handed|live bp thrower|machine|coach throwing|player throwing)\b/.test(lower);
+}
+
+function needsVisualClarification(lower: string, uiContext?: AskClubhouseUiContext, playerId?: ID): boolean {
+  if (!/\b(heat|heat map|heat chart)\b/.test(lower)) return false;
+  if (/\b(spray|location|where|miss|beat)\b/.test(lower)) return false;
+  return !playerId && !uiContext?.visualContext;
+}
+
+function isVisualFollowUp(lower: string, uiContext?: AskClubhouseUiContext): boolean {
+  if (!uiContext?.visualContext) return false;
+  return /\b(show|same|that|those|this|heat|spray|dots?|counts?|percent(?:age)?s?|map|chart|how did (?:he|she|they)|how (?:is|are) (?:he|she|they) doing)\b/.test(lower);
 }
 
 function playerClarificationLabel(player: Player): string {

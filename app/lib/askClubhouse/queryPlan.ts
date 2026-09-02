@@ -21,6 +21,8 @@ export interface AskClubhouseQueryPlan {
   scope: {
     source: AnalyticsSource;
     timeRange: AnalyticsQuery["timeRange"];
+    customDateRange?: AnalyticsQuery["customDateRange"];
+    eventIds?: ID[];
   };
   filters: AnalyticsFilters;
   playerId?: ID;
@@ -52,12 +54,16 @@ export function composeAskClubhouseQueryPlan(
   player?: Player,
 ): AskClubhouseQueryPlan {
   const lower = message.trim().toLowerCase();
-  const domain = inferDomain(lower, uiContext);
+  const visualFollowUp = isVisualFollowUp(lower, uiContext);
+  const resolvedContext = visualFollowUp && uiContext?.visualContext
+    ? { ...uiContext, analytics: uiContext.visualContext.query }
+    : uiContext;
+  const domain = inferDomain(lower, resolvedContext);
   const comparison = inferComparison(lower);
-  const source = inferSource(lower, uiContext, domain, comparison);
+  const source = inferSource(lower, resolvedContext, domain, comparison);
   const metric = inferMetric(lower, domain, source);
   const pitchTypes = inferPitchTypes(lower);
-  const filters: AnalyticsFilters = {};
+  const filters: AnalyticsFilters = { ...(resolvedContext?.analytics?.filters ?? {}) };
   if (pitchTypes.length) filters.pitchTypes = pitchTypes;
 
   const velocityRange = inferVelocityRange(lower);
@@ -106,7 +112,9 @@ export function composeAskClubhouseQueryPlan(
     metric,
     scope: {
       source,
-      timeRange: inferTimeRange(lower),
+      timeRange: visualFollowUp ? resolvedContext?.analytics?.timeRange ?? inferTimeRange(lower) : inferTimeRange(lower),
+      customDateRange: visualFollowUp ? resolvedContext?.analytics?.customDateRange : undefined,
+      eventIds: visualFollowUp ? resolvedContext?.analytics?.eventIds : undefined,
     },
     filters,
     playerId: player?.id,
@@ -125,6 +133,11 @@ export function sampleState(sample: number, minimumSample: number): "insufficien
   if (sample < minimumSample) return "insufficient";
   if (sample < minimumSample * 2) return "limited";
   return "qualified";
+}
+
+function isVisualFollowUp(lower: string, uiContext?: AskClubhouseUiContext) {
+  if (!uiContext?.visualContext) return false;
+  return /\b(show|same|that|those|this|heat|spray|dots?|counts?|percent(?:age)?s?|map|chart|how did (?:he|she|they)|how (?:is|are) (?:he|she|they) doing)\b/.test(lower);
 }
 
 export function inferPitchTypes(lower: string): PitchType[] {

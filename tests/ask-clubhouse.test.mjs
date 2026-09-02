@@ -7,6 +7,7 @@ import { executeAnalyticsQuery } from "../app/lib/analyticsQuery.ts";
 import { calculateAIRequestCost } from "../app/lib/askClubhouse/pricing.ts";
 import { OpenAIProvider } from "../app/lib/askClubhouse/provider.ts";
 import { buildAskClubhouseToolPlan, classifyAskClubhouseIntent, runAskClubhouseTools } from "../app/lib/askClubhouse/tools.ts";
+import { buildAskClubhouseVisuals, isAskClubhouseVisual } from "../app/lib/askClubhouse/visuals.ts";
 import { countsTowardRequestQuota, createAiRequestHash, enforceAiUsageLimits, evaluateAiUsageLimits, finishAiUsageEvent, summarizeAiUsageWindows } from "../app/lib/askClubhouse/usage.ts";
 import { findTrustedKnowledge, InMemoryBaseballKnowledgeProvider } from "../app/lib/askClubhouse/knowledge.ts";
 import { composeAskClubhouseQueryPlan, sampleState } from "../app/lib/askClubhouse/queryPlan.ts";
@@ -727,6 +728,100 @@ test("Ask Clubhouse engine uses mocked provider and tracks usage shape", async (
   assert.equal(response.usage.totalTokens, 144);
   assert.equal(response.usage.toolCallCount, 1);
   assert.equal(response.webSearchCount, 0);
+});
+
+test("Ask Clubhouse visual answers use a player-scoped Analytics query and bounded canonical points", () => {
+  const visualData = {
+    ...data,
+    hittingEvents: data.hittingEvents.map((event, index) => ({
+      ...event,
+      pitchLocation: { x: 0.35 + (index * 0.08), y: 0.45 },
+      fieldLocation: event.action === "Ball in play" ? { x: 0.3 + (index * 0.05), y: 0.42 } : undefined,
+    })),
+  };
+  const config = getAskClubhouseConfig({});
+  const plan = buildAskClubhouseToolPlan(visualData, "Show Jacob Seamon's practice spray chart", undefined, config);
+  const visuals = buildAskClubhouseVisuals({ data: visualData, message: "Show Jacob Seamon's practice spray chart", plan });
+  const chart = visuals.find((visual) => visual.type === "spray_chart");
+
+  assert.equal(chart?.playerId, "p-jacob");
+  assert.deepEqual(chart?.query.playerIds, ["p-jacob"]);
+  assert.deepEqual(chart?.points?.map((point) => point.id).sort(), ["he-3", "he-4"]);
+  assert.equal(chart?.coverage.qualifyingEvents, 2);
+});
+
+test("Ask Clubhouse visual follow-ups retain the prior filtered visual context", () => {
+  const config = getAskClubhouseConfig({});
+  const visualData = {
+    ...data,
+    hittingEvents: data.hittingEvents.map((event, index) => ({ ...event, pitchType: "Slider", pitchLocation: { x: 0.35 + (index * 0.08), y: 0.45 } })),
+  };
+  const context = {
+    visualContext: {
+      type: "pitch_location",
+      mode: "dots",
+      playerId: "p-jacob",
+      query: {
+        domain: "hitting",
+        source: "practice",
+        mode: "situational",
+        timeRange: "season",
+        filters: { pitchTypes: ["Slider"] },
+      },
+    },
+  };
+  const plan = buildAskClubhouseToolPlan(visualData, "How did he do?", context, config);
+  const visuals = buildAskClubhouseVisuals({ data: visualData, message: "How did he do?", plan, uiContext: context });
+
+  assert.equal(plan.status, "data");
+  assert.equal(visuals[0]?.type, "metric_summary");
+  assert.equal(visuals[1]?.mode, "dots");
+  assert.deepEqual(visuals[1]?.query.filters.pitchTypes, ["Slider"]);
+});
+
+test("Ask Clubhouse renders a player heat request as an authorized pitch-location descriptor", () => {
+  const visualData = {
+    ...data,
+    hittingEvents: data.hittingEvents.map((event, index) => ({ ...event, pitchType: "Slider", pitchLocation: { x: 0.25 + (index * 0.1), y: 0.45 } })),
+  };
+  const config = getAskClubhouseConfig({});
+  const plan = buildAskClubhouseToolPlan(visualData, "Show Jacob Seamon's slider heat map", undefined, config);
+  const visuals = buildAskClubhouseVisuals({ data: visualData, message: "Show Jacob Seamon's slider heat map", plan });
+  const chart = visuals.find((visual) => visual.type === "pitch_location");
+
+  assert.equal(plan.status, "data");
+  assert.equal(chart?.mode, "dots");
+  assert.equal(chart?.coverage.qualifyingEvents, 4);
+  assert.equal(chart?.coverage.trackedEvents, 4);
+});
+
+test("Ask Clubhouse performance visuals add both location and spray evidence when each is tracked", () => {
+  const visualData = {
+    ...data,
+    hittingEvents: data.hittingEvents.map((event, index) => ({
+      ...event,
+      pitchType: "Slider",
+      pitchLocation: { x: 0.25 + (index * 0.1), y: 0.45 },
+      fieldLocation: event.action === "Ball in play" ? { x: 0.3 + (index * 0.05), y: 0.42 } : undefined,
+    })),
+  };
+  const config = getAskClubhouseConfig({});
+  const plan = buildAskClubhouseToolPlan(visualData, "How is Jacob Seamon hitting sliders in Practice?", undefined, config);
+  const visuals = buildAskClubhouseVisuals({ data: visualData, message: "How is Jacob Seamon hitting sliders in Practice?", plan });
+
+  assert.ok(visuals.some((visual) => visual.type === "metric_summary"));
+  assert.ok(visuals.some((visual) => visual.type === "pitch_location"));
+  assert.ok(visuals.some((visual) => visual.type === "spray_chart"));
+});
+
+test("Ask Clubhouse rejects visual descriptors with unsupported filters", () => {
+  assert.equal(isAskClubhouseVisual({
+    type: "pitch_location",
+    mode: "dots",
+    title: "Unsafe",
+    domain: "hitting",
+    query: { domain: "hitting", source: "practice", filters: { arbitrarySql: ["select *"] } },
+  }), false);
 });
 
 test("OpenAI provider bounds web search and extracts compact sources", async () => {

@@ -240,11 +240,13 @@ export function StrikeZone({
   activePoint,
   onSelect,
   compact = false,
+  mode = "dots",
 }: {
   points?: CategorizedZonePoint[];
   activePoint?: ZonePoint;
   onSelect?: (point: ZonePoint) => void;
   compact?: boolean;
+  mode?: "dots" | "count" | "percent" | "heat";
 }) {
   function handleClick(event: React.MouseEvent<HTMLButtonElement>) {
     if (!onSelect) return;
@@ -255,6 +257,7 @@ export function StrikeZone({
     });
   }
 
+  const distribution = buildStrikeZoneDistribution(points ?? []);
   const contents = <>
       <span className="strike-zone__plate" />
       <span className="strike-zone__box" />
@@ -262,7 +265,20 @@ export function StrikeZone({
       <span className="strike-zone__grid strike-zone__grid--v2" />
       <span className="strike-zone__grid strike-zone__grid--h1" />
       <span className="strike-zone__grid strike-zone__grid--h2" />
-      {points?.slice(-42).map((point, index) => (
+      {mode !== "dots" && (
+        <span className={`strike-zone__distribution strike-zone__distribution--${mode}`} aria-hidden="true">
+          {distribution.map((cell) => (
+            <span
+              key={cell.id}
+              className="strike-zone__distribution-cell"
+              style={{ "--zone-intensity": String(cell.intensity) } as React.CSSProperties}
+            >
+              {mode === "count" ? cell.count : mode === "percent" ? `${cell.percent}%` : ""}
+            </span>
+          ))}
+        </span>
+      )}
+      {(mode === "dots" || Boolean(onSelect)) && points?.slice(-42).map((point, index) => (
         <span
           className="strike-zone__dot"
           data-category={point.category}
@@ -278,6 +294,22 @@ export function StrikeZone({
   }
 
   return <button type="button" className={`strike-zone ${compact ? "strike-zone--compact" : ""}`} onClick={handleClick} aria-label="Select pitch location from the pitcher's view">{contents}</button>;
+}
+
+function buildStrikeZoneDistribution(points: ZonePoint[]) {
+  const cells = Array.from({ length: 9 }, (_, index) => ({ id: `zone-${index}`, count: 0 }));
+  for (const point of points) {
+    const column = Math.max(0, Math.min(2, Math.floor(point.x * 3)));
+    const row = Math.max(0, Math.min(2, Math.floor(point.y * 3)));
+    cells[(row * 3) + column].count += 1;
+  }
+  const total = points.length || 1;
+  const max = Math.max(...cells.map((cell) => cell.count), 1);
+  return cells.map((cell) => ({
+    ...cell,
+    percent: Math.round((cell.count / total) * 100),
+    intensity: cell.count / max,
+  }));
 }
 
 export function BaseballField({

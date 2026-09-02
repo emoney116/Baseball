@@ -195,6 +195,25 @@ test("hitting spray visuals use the same already-filtered events as the box scor
   assert.deepEqual(result.sprayChart?.points.map((point) => point.id).sort(), ["he-5", "he-mylo-1"]);
 });
 
+test("player-scoped visual queries retain only that player's filtered spray and pitch-location events", () => {
+  const data = {
+    ...baseData,
+    hittingEvents: baseData.hittingEvents.map((event, index) => ({
+      ...event,
+      fieldLocation: event.action === "Ball in play" ? { x: 0.25 + (index * 0.07), y: 0.44 } : undefined,
+      pitchLocation: { x: 0.3 + (index * 0.05), y: 0.5 },
+    })),
+  };
+  const result = executeAnalyticsQuery(data, {
+    ...query("hitting", "practice"),
+    playerIds: ["p-jacob"],
+  });
+
+  assert.deepEqual(result.sprayChart?.points.map((point) => point.id).sort(), ["he-3", "he-4", "he-5"]);
+  assert.deepEqual(result.pitchLocationChart?.points.map((point) => point.id).sort(), ["he-1", "he-2", "he-3", "he-4", "he-5"]);
+  assert.equal(result.pitchLocationChart?.qualifyingEvents, 5);
+});
+
 test("date range filtering uses the current date window", () => {
   const data = {
     ...baseData,

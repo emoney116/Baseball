@@ -76,6 +76,7 @@ test("Ask Clubhouse exposes shared launch surfaces and authorized team scope con
 
 test("Ask Clubhouse answer styles include hierarchy and flat text rankings", () => {
   const css = readFileSync("app/globals.css", "utf8");
+  const page = readFileSync("app/page.tsx", "utf8");
 
   assert.match(css, /\.ask-answer-primary\s*\{/);
   assert.match(css, /\.ask-answer-scope\s*\{/);
@@ -84,6 +85,13 @@ test("Ask Clubhouse answer styles include hierarchy and flat text rankings", () 
   assert.match(css, /\.ask-header__close-button\s*\{/);
   assert.match(css, /\.ask-header\s*\{[\s\S]*grid-template-columns:\s*minmax\(96px, 1fr\) minmax\(0, auto\) minmax\(96px, 1fr\)/);
   assert.match(css, /\.ask-scope-menu\s*\{[\s\S]*top:\s*calc\(100% \+ 6px\)/);
+  assert.match(page, /function AskClubhouseVisualAnswers/);
+  assert.match(page, /<ClubhouseBaseballField/);
+  assert.match(page, /<StrikeZone points=\{visual\.points\}/);
+  assert.match(page, /encodeAnalyticsFilters\(next\.filters\)/);
+  assert.match(page, /visualContext: askVisualContext/);
+  assert.match(css, /\.ask-visual-card\s*\{/);
+  assert.match(css, /\.ask-visual-card__modes\s*\{/);
 });
 
 test("Ask Clubhouse mock states are local development only", () => {

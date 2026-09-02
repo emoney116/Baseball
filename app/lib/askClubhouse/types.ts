@@ -35,6 +35,44 @@ export interface AskClubhouseUiContext {
   teamScopes?: AskClubhouseTeamScope[];
   launchSurface?: AskClubhouseLaunchSurface;
   analytics?: Partial<AnalyticsQuery>;
+  visualContext?: AskClubhouseVisualContext;
+}
+
+export type AskClubhouseVisualType = "spray_chart" | "pitch_location" | "metric_summary" | "comparison" | "trend";
+export type AskClubhouseVisualMode = "spray" | "dots" | "count" | "percent" | "heat";
+
+export interface AskClubhouseVisualMetric {
+  id: string;
+  label: string;
+  value: string;
+  sample?: string;
+}
+
+export interface AskClubhouseVisualCoverage {
+  label: string;
+  qualifyingEvents: number;
+  trackedEvents: number;
+  minimumSample: number;
+}
+
+export interface AskClubhouseVisual {
+  type: AskClubhouseVisualType;
+  mode: AskClubhouseVisualMode;
+  title: string;
+  domain: AnalyticsQuery["domain"];
+  playerId?: ID;
+  query: Pick<AnalyticsQuery, "domain" | "source" | "mode" | "view" | "timeRange" | "customDateRange" | "eventIds" | "playerIds" | "filters" | "sort">;
+  sample: "insufficient" | "limited" | "qualified";
+  coverage: AskClubhouseVisualCoverage;
+  metrics?: AskClubhouseVisualMetric[];
+  points?: Array<{ id: ID; x: number; y: number }>;
+}
+
+export interface AskClubhouseVisualContext {
+  type: AskClubhouseVisualType;
+  mode: AskClubhouseVisualMode;
+  playerId?: ID;
+  query: AskClubhouseVisual["query"];
 }
 
 export interface AskClubhouseTeamScope {
@@ -92,6 +130,8 @@ export interface AskClubhouseApiResponse {
   message?: AskClubhouseClientMessage;
   answer?: string;
   evidence?: AskClubhouseEvidenceItem[];
+  visuals?: AskClubhouseVisual[];
+  visualUnavailable?: boolean;
   actions?: AskClubhouseAction[];
   followUps?: string[];
   usage?: AskClubhouseUsageSnapshot;

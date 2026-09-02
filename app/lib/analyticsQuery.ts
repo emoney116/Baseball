@@ -110,6 +110,8 @@ export interface AnalyticsQuery {
   developmentView?: AnalyticsDevelopmentView;
   customDateRange?: AnalyticsDateRange;
   eventIds?: ID[];
+  /** Internal, authorized player scope used by player-detail and Ask Clubhouse visual queries. */
+  playerIds?: ID[];
   filters?: AnalyticsFilters;
   metrics?: string[];
   groupBy: AnalyticsGroupBy;
@@ -207,6 +209,12 @@ export interface AnalyticsSprayChart {
   trackedLocations: number;
 }
 
+export interface AnalyticsPitchLocationChart {
+  points: Array<ZonePoint & { id: ID }>;
+  qualifyingEvents: number;
+  trackedLocations: number;
+}
+
 export interface AnalyticsResult {
   query: AnalyticsQuery;
   title: string;
@@ -224,6 +232,7 @@ export interface AnalyticsResult {
   sampleLabel: string;
   availableViews: AnalyticsViewDefinition[];
   sprayChart?: AnalyticsSprayChart;
+  pitchLocationChart?: AnalyticsPitchLocationChart;
 }
 
 export interface AskClubhouseQuestion {
@@ -407,6 +416,7 @@ function buildHittingResult(
     return {
       ...assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, ["trackedBip", "ab", "hits", "singles", "doubles", "triples", "homeRuns", "outs", "xbh", "totalBases", "avg", "slg", "iso", "babip"], warnings, availableEvents, filterDefinitions, scopeLabel),
       sprayChart: buildGameSprayChart(gameEvents),
+      pitchLocationChart: buildPitchLocationChart([], gameEvents),
     };
   }
 
@@ -418,6 +428,7 @@ function buildHittingResult(
   return {
     ...assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, columns, warnings, availableEvents, filterDefinitions, scopeLabel),
     sprayChart: buildHittingSprayChart(events),
+    pitchLocationChart: buildHittingPitchLocationChart(events),
   };
 }
 
@@ -427,6 +438,14 @@ function buildHittingSprayChart(events: HittingEvent[]): AnalyticsSprayChart {
     points: ballsInPlay.flatMap((event) => event.fieldLocation ? [{ id: event.id, ...event.fieldLocation }] : []),
     ballsInPlay: ballsInPlay.length,
     trackedLocations: ballsInPlay.filter((event) => Boolean(event.fieldLocation)).length,
+  };
+}
+
+function buildHittingPitchLocationChart(events: HittingEvent[]): AnalyticsPitchLocationChart {
+  return {
+    points: events.flatMap((event) => event.pitchLocation ? [{ id: event.id, ...event.pitchLocation }] : []),
+    qualifyingEvents: events.length,
+    trackedLocations: events.filter((event) => Boolean(event.pitchLocation)).length,
   };
 }
 
@@ -456,7 +475,22 @@ function buildPitchingResult(
     .map((player) => pitchingRow(player, practiceEvents.filter((event) => event.pitcherId === player.id), gameEvents.filter((event) => event.pitcherId === player.id)));
   const teamTotals = pitchingTeamRow(data, practiceEvents, gameEvents);
   if (query.source === "games") warnings.push("Game pitching currently supports pitch-level metrics, not full innings/ERA/WHIP.");
-  return assembleResult("Team Pitching", data, query, sourceLabel, rows, teamTotals, ["pitches", "strikePct", "zonePct", "avgPitchVelo", "maxPitchVelo", "balls", "strikes", "whiffPct", "cswPct", "firstPitchStrikePct"], warnings, availableEvents, filterDefinitions, scopeLabel);
+  return {
+    ...assembleResult("Team Pitching", data, query, sourceLabel, rows, teamTotals, ["pitches", "strikePct", "zonePct", "avgPitchVelo", "maxPitchVelo", "balls", "strikes", "whiffPct", "cswPct", "firstPitchStrikePct"], warnings, availableEvents, filterDefinitions, scopeLabel),
+    pitchLocationChart: buildPitchLocationChart(practiceEvents, gameEvents),
+  };
+}
+
+function buildPitchLocationChart(practiceEvents: PitchEvent[], gameEvents: GameEvent[]): AnalyticsPitchLocationChart {
+  const points = [
+    ...practiceEvents.flatMap((event) => event.location ? [{ id: event.id, ...event.location }] : []),
+    ...gameEvents.flatMap((event) => event.location ? [{ id: event.id, ...event.location }] : []),
+  ];
+  return {
+    points,
+    qualifyingEvents: practiceEvents.length + gameEvents.length,
+    trackedLocations: points.length,
+  };
 }
 
 function buildDefenseResult(
@@ -960,6 +994,7 @@ function filterHittingEvents(data: AppData, query: AnalyticsQuery, today?: strin
     if (query.source === "live-bp" && !isLive) return false;
     if (isLive && query.filters?.liveBpThrowerSources?.length && !query.filters.liveBpThrowerSources.includes(liveBpThrowerSource(session))) return false;
     if (query.source === "games") return false;
+    if (query.playerIds?.length && !query.playerIds.includes(event.hitterId)) return false;
     if (!practice || !dateInRange(practice.date, dateRange)) return false;
     if (query.eventIds?.length && !query.eventIds.includes(practice.id) && !query.eventIds.includes(event.sessionId)) return false;
     return hittingEventMatchesFilters(data, event, query.filters);
@@ -977,6 +1012,7 @@ function filterPitchEvents(data: AppData, query: AnalyticsQuery, today?: string)
     if (query.source === "live-bp" && !isLive) return false;
     if (isLive && query.filters?.liveBpThrowerSources?.length && !query.filters.liveBpThrowerSources.includes(liveBpThrowerSource(session))) return false;
     if (query.source === "games") return false;
+    if (query.playerIds?.length && !query.playerIds.includes(event.pitcherId)) return false;
     if (!practice || !dateInRange(practice.date, dateRange)) return false;
     if (query.eventIds?.length && !query.eventIds.includes(practice.id) && !query.eventIds.includes(event.sessionId)) return false;
     return pitchEventMatchesFilters(data, event, query.filters);
@@ -1008,6 +1044,10 @@ function filterGameEvents(data: AppData, query: AnalyticsQuery, today?: string):
   const games = new Map(data.games.map((game) => [game.id, game]));
   return data.gameEvents.filter((event) => {
     if ((event.recordStatus ?? "confirmed") !== "confirmed" || event.eventKind === "correction") return false;
+    if (query.playerIds?.length) {
+      const playerId = query.domain === "pitching" ? event.pitcherId : event.batterId;
+      if (!playerId || !query.playerIds.includes(playerId)) return false;
+    }
     const game = games.get(event.gameId);
     if (!game || !dateInRange(game.date, dateRange)) return false;
     if (query.eventIds?.length && !query.eventIds.includes(game.id)) return false;
@@ -1236,6 +1276,7 @@ function normalizeAnalyticsQuery(query: AnalyticsQuery): AnalyticsQuery {
     groupBy: "player",
     sort,
     filters: query.filters ?? {},
+    playerIds: query.playerIds?.length ? [...new Set(query.playerIds)] : undefined,
   };
 }
 

@@ -188,6 +188,8 @@ export async function POST(request: NextRequest) {
         actions: reply.actions ?? [],
         evidence: reply.evidence ?? [],
         followUps: reply.followUps ?? [],
+        visuals: (reply.visuals ?? []).map((visual) => ({ ...visual, points: undefined })),
+        visualUnavailable: reply.visualUnavailable,
         usage: reply.usage ?? {},
       },
     });
@@ -221,6 +223,8 @@ export async function POST(request: NextRequest) {
       },
       answer: assistantContent,
       evidence: reply.evidence,
+      visuals: reply.visuals,
+      visualUnavailable: reply.visualUnavailable,
       actions: reply.actions,
       followUps: reply.followUps,
       usage: reply.usage,
