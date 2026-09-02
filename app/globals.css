@@ -34758,6 +34758,17 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
 }
 
 @media (min-width: 721px) and (max-width: 1180px) {
+  .analytics-popover {
+    position: fixed;
+    top: 50%;
+    right: auto;
+    left: 50%;
+    width: min(460px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+    max-height: min(78vh, 720px);
+    transform: translate(-50%, -50%);
+  }
+
   .analytics-box-score__cell {
     padding-inline: 7px;
   }
