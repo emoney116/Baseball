@@ -11,6 +11,7 @@ import {
   ChevronRight,
   ChevronUp,
   ClipboardList,
+  Columns3,
   Copy,
   Download,
   Dumbbell,
@@ -35,6 +36,7 @@ import {
   Search,
   Send,
   Shield,
+  SlidersHorizontal,
   Sparkles,
   Sun,
   Star,
@@ -79,6 +81,15 @@ import {
   type AnalyticsSource,
   type AnalyticsTimeRange,
 } from "./lib/analyticsQuery";
+import {
+  analyticsPresetColumnIds as catalogPresetColumnIds,
+  analyticsSourcesForDomain,
+  defaultAnalyticsMetricIds,
+  normalizeAnalyticsView,
+  serializeAnalyticsContext,
+  type AnalyticsColumnPreset,
+  type AnalyticsViewId,
+} from "./lib/analyticsCatalog";
 import type {
   AskClubhouseAction,
   AskClubhouseApiResponse,
@@ -19458,7 +19469,8 @@ function AnalyticsView({
   const initialState = useMemo(() => readInitialAnalyticsState(), []);
   const [domain, setDomain] = useState<AnalyticsDomain>(initialState.domain);
   const [source, setSource] = useState<AnalyticsSource>(initialState.source);
-  const [mode, setMode] = useState<AnalyticsMode>(initialState.mode);
+  const mode: AnalyticsMode = "box-score";
+  const [analyticsView, setAnalyticsView] = useState<AnalyticsViewId>(initialState.analyticsView);
   const [timeRange, setTimeRange] = useState<AnalyticsTimeRange>(initialState.timeRange);
   const [developmentView, setDevelopmentView] = useState<AnalyticsDevelopmentView>(initialState.developmentView);
   const [eventIds, setEventIds] = useState<ID[]>(initialState.eventIds);
@@ -19470,6 +19482,7 @@ function AnalyticsView({
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>(() => readInitialAnalyticsDetailPlayerId(data));
   const [metricIds, setMetricIds] = useState<string[] | undefined>(initialState.metricIds);
+  const [columnPreset, setColumnPreset] = useState<AnalyticsColumnPreset>(initialState.metricIds?.length ? "custom" : "standard");
   const context = useMemo(() => ({
     teamId: data.teamContext?.currentTeam?.teamId,
     seasonId: data.teamContext?.currentTeam?.seasonId,
@@ -19480,23 +19493,35 @@ function AnalyticsView({
     domain,
     source: domain === "development" ? "all" : source,
     mode: domain === "development" ? "box-score" : mode,
+    view: analyticsView,
     timeRange,
     developmentView,
     customDateRange: customRange,
     eventIds,
     filters,
-    metrics: metricIds,
+    metrics: metricIds ?? defaultAnalyticsMetricIds(domain, domain === "development" ? "all" : source),
     groupBy: "player",
     sort,
     context,
-  }), [context, customRange, developmentView, domain, eventIds, filters, metricIds, mode, sort, source, timeRange]);
+  }), [analyticsView, context, customRange, developmentView, domain, eventIds, filters, metricIds, mode, sort, source, timeRange]);
   const result = useMemo(() => executeAnalyticsQuery(data, query), [data, query]);
+  const serializedAnalyticsContext = useMemo(
+    () => serializeAnalyticsContext(query, result.columns.map((column) => column.metricId)),
+    [query, result.columns],
+  );
   const selectedDetailRow = detailPlayerId ? result.rows.find((row) => row.player.id === detailPlayerId) : undefined;
-  const activeFilterCount = Object.values(filters).reduce((total, value) => total + (Array.isArray(value) ? value.length : 0), 0);
+  const activeFilterCount = Object.values(filters).reduce((total, value) => total + (Array.isArray(value) ? value.length : typeof value === "number" ? 1 : 0), 0);
   const activeFilterSummary = useMemo(
     () => result.filterDefinitions.flatMap((definition) => {
+      if (definition.type === "range") {
+        if (filters.pitchVelocityMin === undefined && filters.pitchVelocityMax === undefined) return [];
+        const label = filters.pitchVelocityMin !== undefined && filters.pitchVelocityMax !== undefined
+          ? `${filters.pitchVelocityMin}-${filters.pitchVelocityMax} mph`
+          : filters.pitchVelocityMin !== undefined ? `${filters.pitchVelocityMin}+ mph` : `Up to ${filters.pitchVelocityMax} mph`;
+        return [{ id: definition.id, value: "range", label }];
+      }
       const values = (filters[definition.id] as string[] | undefined) ?? [];
-      return values.map((value) => definition.options.find((option) => option.value === value)?.label ?? value);
+      return values.map((value) => ({ id: definition.id, value, label: definition.options.find((option) => option.value === value)?.label ?? value }));
     }),
     [filters, result.filterDefinitions],
   );
@@ -19511,27 +19536,21 @@ function AnalyticsView({
     { value: "practice", label: "Practice" },
     { value: "live-bp", label: "Live BP" },
     { value: "all", label: "All" },
-  ];
+  ].filter((option) => analyticsSourcesForDomain(domain).includes(option.value as AnalyticsSource));
   const analyticsTimeRangeOptions: ChoiceOption[] = [
     { value: "7d", label: "7D" },
     { value: "30d", label: "30D" },
     { value: "season", label: "Season" },
     { value: "custom", label: "Custom" },
   ];
-  const analyticsDevelopmentOptions: ChoiceOption[] = [
-    { value: "overview", label: "Overview" },
-    { value: "weight-room", label: "Weight Room" },
-    { value: "attendance", label: "Attendance" },
-    { value: "trends", label: "Trends" },
-  ];
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
     url.searchParams.set("view", "analytics");
     url.searchParams.set("domain", domain);
     url.searchParams.set("source", domain === "development" ? "all" : source);
-    url.searchParams.set("mode", domain === "development" ? "box-score" : mode);
+    url.searchParams.delete("mode");
+    url.searchParams.set("statView", analyticsView);
     url.searchParams.set("period", timeRange);
     if (developmentView !== "overview") url.searchParams.set("dev", developmentView);
     else url.searchParams.delete("dev");
@@ -19546,7 +19565,7 @@ function AnalyticsView({
       url.searchParams.delete("sort");
       url.searchParams.delete("dir");
     }
-    const encodedFilters = mode === "situational" ? encodeAnalyticsFilters(filters) : "";
+    const encodedFilters = encodeAnalyticsFilters(filters);
     if (encodedFilters) url.searchParams.set("filters", encodedFilters);
     else url.searchParams.delete("filters");
     if (timeRange === "custom" && customRange.start) url.searchParams.set("start", customRange.start);
@@ -19556,14 +19575,14 @@ function AnalyticsView({
     const nextUrl = `${url.pathname}${url.search}${url.hash}`;
     const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (nextUrl !== currentUrl) window.history.replaceState({}, "", nextUrl);
-  }, [customRange.end, customRange.start, developmentView, domain, eventIds, filters, metricIds, mode, sort, source, timeRange]);
+  }, [analyticsView, customRange.end, customRange.start, developmentView, domain, eventIds, filters, metricIds, sort, source, timeRange]);
 
   useEffect(() => {
     const handleAnalyticsPopState = () => {
       const next = readInitialAnalyticsState();
       setDomain(next.domain);
       setSource(next.source);
-      setMode(next.mode);
+      setAnalyticsView(next.analyticsView);
       setTimeRange(next.timeRange);
       setDevelopmentView(next.developmentView);
       setEventIds(next.eventIds);
@@ -19571,6 +19590,7 @@ function AnalyticsView({
       setFilters(next.filters);
       setSort(next.sort ?? defaultAnalyticsSort(next.domain, next.source, next.mode));
       setMetricIds(next.metricIds);
+      setColumnPreset(next.metricIds?.length ? "custom" : "standard");
       setDetailPlayerId(readInitialAnalyticsDetailPlayerId(data));
       setEventSelectorOpen(false);
       setFiltersOpen(false);
@@ -19582,13 +19602,15 @@ function AnalyticsView({
 
   function handleDomain(nextDomain: AnalyticsDomain) {
     setDomain(nextDomain);
-    const nextSource = nextDomain === "development" ? "all" : domain === "development" ? "games" : source;
-    const nextMode = nextDomain === "development" ? "box-score" : mode;
+    const supportedSources = analyticsSourcesForDomain(nextDomain);
+    const nextSource = supportedSources.includes(source) ? source : supportedSources[0];
     setSource(nextSource);
-    setMode(nextMode);
+    setAnalyticsView(normalizeAnalyticsView(nextDomain, nextSource));
+    if (nextDomain === "development") setDevelopmentView("overview");
     setFilters({});
     setMetricIds(undefined);
-    setSort(defaultAnalyticsSort(nextDomain, nextSource, nextMode));
+    setColumnPreset("standard");
+    setSort(defaultAnalyticsSort(nextDomain, nextSource, "box-score"));
   }
 
   function handleSource(nextSource: AnalyticsSource) {
@@ -19596,14 +19618,17 @@ function AnalyticsView({
     setFilters({});
     setEventIds([]);
     setMetricIds(undefined);
-    setSort(defaultAnalyticsSort(domain, nextSource, mode));
+    setColumnPreset("standard");
+    setAnalyticsView(normalizeAnalyticsView(domain, nextSource, analyticsView));
+    setSort(defaultAnalyticsSort(domain, nextSource, "box-score"));
   }
 
-  function handleMode(nextMode: AnalyticsMode) {
-    setMode(nextMode);
-    if (nextMode === "box-score") setFilters({});
-    setMetricIds(undefined);
-    setSort(defaultAnalyticsSort(domain, source, nextMode));
+  function handleAnalyticsView(nextView: AnalyticsViewId) {
+    setAnalyticsView(nextView);
+    if (domain === "development" && ["overview", "weight-room", "attendance", "trends"].includes(nextView)) {
+      setDevelopmentView(nextView as AnalyticsDevelopmentView);
+    }
+    setSort(defaultAnalyticsSort(domain, source, "box-score"));
   }
 
   function handleSort(metricId: string) {
@@ -19618,6 +19643,7 @@ function AnalyticsView({
   }
 
   function toggleFilter(definition: AnalyticsFilterDefinition, value: string) {
+    if (definition.type === "range") return;
     setFilters((current) => {
       const currentValues = new Set(((current[definition.id] as string[] | undefined) ?? []));
       if (currentValues.has(value)) currentValues.delete(value);
@@ -19631,6 +19657,7 @@ function AnalyticsView({
 
   function toggleColumn(metricId: string) {
     const availableIds = result.availableColumns.map((column) => column.metricId);
+    setColumnPreset("custom");
     setMetricIds((current) => {
       const selected = new Set(current ?? availableIds);
       if (selected.has(metricId)) selected.delete(metricId);
@@ -19640,10 +19667,26 @@ function AnalyticsView({
     });
   }
 
-  function applyColumnPreset(preset: AnalyticsColumnPreset) {
-    const presetIds = analyticsPresetColumnIds(result.availableColumns, preset);
+  function applyColumnPreset(preset: Exclude<AnalyticsColumnPreset, "custom">) {
+    const presetIds = catalogPresetColumnIds(result.availableColumns, preset);
     setMetricIds(presetIds.length ? presetIds : undefined);
+    setColumnPreset(preset);
     setColumnsOpen(false);
+  }
+
+  function removeFilterValue(id: keyof AnalyticsFilters, value: string) {
+    if (id === "pitchVelocityMin") {
+      setFilters((current) => ({ ...current, pitchVelocityMin: undefined, pitchVelocityMax: undefined }));
+      return;
+    }
+    setFilters((current) => ({
+      ...current,
+      [id]: ((current[id] as string[] | undefined) ?? []).filter((item) => item !== value),
+    }));
+  }
+
+  function setVelocityRange(minimum?: number, maximum?: number) {
+    setFilters((current) => ({ ...current, pitchVelocityMin: minimum, pitchVelocityMax: maximum }));
   }
 
   function writeAnalyticsDetailRoute(playerId: ID | undefined, options: { replace?: boolean } = {}) {
@@ -19669,7 +19712,7 @@ function AnalyticsView({
 
   return (
     <div className="page-stack analytics-page">
-      <SectionHeader title="Analytics" action={<AskClubhouseLauncher onClick={() => onAsk(query)} />} />
+      <SectionHeader title="Analytics" action={<AskClubhouseLauncher onClick={() => onAsk({ ...query, ...serializedAnalyticsContext })} />} />
 
       <section className="analytics-controls" aria-label="Analytics controls">
         <div className="analytics-domain-tabs">
@@ -19685,14 +19728,25 @@ function AnalyticsView({
             aria-label="Analytics category"
           />
         </div>
+        <nav className="analytics-view-tabs" aria-label={`${domain} analytics views`}>
+          {result.availableViews.map((viewDefinition) => (
+            <button
+              key={`${viewDefinition.id}-${viewDefinition.label}`}
+              type="button"
+              className={analyticsView === viewDefinition.id ? "active" : ""}
+              onClick={() => handleAnalyticsView(viewDefinition.id)}
+              title={viewDefinition.description}
+            >
+              {viewDefinition.label}
+              {viewDefinition.capability === "partial" && <i aria-label="Partial coverage" />}
+            </button>
+          ))}
+        </nav>
         <div className="analytics-controls__row analytics-controls__row--primary">
-          {domain !== "development" ? (
+          {domain !== "development" && (
             <>
-              <div className="analytics-mode-tabs">
-                <SegmentedControl values={["box-score", "situational"] as AnalyticsMode[]} active={mode} onChange={handleMode} />
-              </div>
               <div className="analytics-source-tabs">
-                <SegmentedControl values={["games", "practice", "live-bp", "all"] as AnalyticsSource[]} active={source} onChange={handleSource} />
+                <SegmentedControl values={analyticsSourcesForDomain(domain)} active={source} onChange={handleSource} />
               </div>
               <div className="analytics-source-select-wrap">
                 <ChoiceSelect
@@ -19702,22 +19756,6 @@ function AnalyticsView({
                   options={analyticsSourceOptions}
                   onChange={(value) => handleSource(value as AnalyticsSource)}
                   aria-label="Analytics source"
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="analytics-development-tabs">
-                <SegmentedControl values={["overview", "weight-room", "attendance", "trends"] as AnalyticsDevelopmentView[]} active={developmentView} onChange={setDevelopmentView} />
-              </div>
-              <div className="analytics-development-select-wrap">
-                <ChoiceSelect
-                  value={developmentView}
-                  className="analytics-development-select"
-                  showSelectedDescription={false}
-                  options={analyticsDevelopmentOptions}
-                  onChange={(value) => setDevelopmentView(value as AnalyticsDevelopmentView)}
-                  aria-label="Development analytics view"
                 />
               </div>
             </>
@@ -19733,7 +19771,11 @@ function AnalyticsView({
             aria-label="Analytics time range"
           />
           <div className="analytics-popover-wrap">
-            <button className="secondary-button" type="button" onClick={() => setEventSelectorOpen((open) => !open)}>
+            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
+              setEventSelectorOpen((open) => !open);
+              setFiltersOpen(false);
+              setColumnsOpen(false);
+            }}>
               {analyticsEventSummary(eventIds, result.availableEvents)}
               <ChevronDown size={14} aria-hidden="true" />
             </button>
@@ -19746,43 +19788,54 @@ function AnalyticsView({
               />
             )}
           </div>
-          {mode === "situational" && (
-            <div className="analytics-popover-wrap">
-              <button className="secondary-button" type="button" onClick={() => setFiltersOpen((open) => !open)}>
-                Filters{activeFilterCount ? ` ${activeFilterCount}` : ""}
-                <ChevronDown size={14} aria-hidden="true" />
-              </button>
-              {filtersOpen && (
-                <AnalyticsFilterPanel
-                  definitions={result.filterDefinitions}
-                  values={filters}
-                  onToggle={toggleFilter}
-                  onClear={() => setFilters({})}
-                />
-              )}
-            </div>
-          )}
           <div className="analytics-popover-wrap">
-            <button className="secondary-button" type="button" onClick={() => setColumnsOpen((open) => !open)}>
-              Columns
-              <ChevronDown size={14} aria-hidden="true" />
+            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
+              setFiltersOpen((open) => !open);
+              setEventSelectorOpen(false);
+              setColumnsOpen(false);
+            }}>
+              <SlidersHorizontal size={14} aria-hidden="true" />
+              Filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
+            </button>
+            {filtersOpen && (
+              <AnalyticsFilterPanel
+                definitions={result.filterDefinitions}
+                values={filters}
+                onToggle={toggleFilter}
+                onVelocityRange={setVelocityRange}
+                onClear={() => setFilters({})}
+              />
+            )}
+          </div>
+          <div className="analytics-popover-wrap">
+            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
+              setColumnsOpen((open) => !open);
+              setEventSelectorOpen(false);
+              setFiltersOpen(false);
+            }}>
+              <Columns3 size={14} aria-hidden="true" />
+              {columnPreset === "custom" ? "Columns: Custom" : `Columns: ${columnPreset[0].toUpperCase()}${columnPreset.slice(1)}`}
             </button>
             {columnsOpen && (
               <AnalyticsColumnPanel
                 columns={result.availableColumns}
-                selectedIds={metricIds ?? result.availableColumns.map((column) => column.metricId)}
+                selectedIds={metricIds ?? result.columns.map((column) => column.metricId)}
+                activePreset={columnPreset}
                 onToggle={toggleColumn}
                 onPreset={applyColumnPreset}
-                onReset={() => setMetricIds(undefined)}
+                onReset={() => { setMetricIds(undefined); setColumnPreset("standard"); }}
               />
             )}
           </div>
         </div>
-        {mode === "situational" && activeFilterSummary.length > 0 && (
+        {activeFilterSummary.length > 0 && (
           <div className="analytics-active-filter-summary" aria-label="Active analytics filters">
-            <span>Active filters</span>
-            {activeFilterSummary.slice(0, 5).map((label, index) => <em key={`${label}-${index}`}>{label}</em>)}
-            {activeFilterSummary.length > 5 && <small>+{activeFilterSummary.length - 5}</small>}
+            {activeFilterSummary.map((chip) => (
+              <button key={`${chip.id}-${chip.value}`} type="button" onClick={() => removeFilterValue(chip.id, chip.value)}>
+                {chip.label}<X size={12} aria-hidden="true" />
+              </button>
+            ))}
+            <button type="button" className="analytics-clear-filter-chip" onClick={() => setFilters({})}>Clear all</button>
           </div>
         )}
         {timeRange === "custom" && (
@@ -19798,6 +19851,15 @@ function AnalyticsView({
           </div>
         )}
       </section>
+
+      {(eventSelectorOpen || filtersOpen || columnsOpen) && (
+        <button
+          type="button"
+          className="analytics-sheet-scrim"
+          aria-label="Close Analytics panel"
+          onClick={() => { setEventSelectorOpen(false); setFiltersOpen(false); setColumnsOpen(false); }}
+        />
+      )}
 
       <AnalyticsTable
         result={result}
@@ -19832,7 +19894,7 @@ function AnalyticsView({
           onViewAllHitting={() => {
             setDomain("hitting");
             setSource("all");
-            setMode("box-score");
+            setAnalyticsView("overview");
             setFilters({});
             setEventIds([]);
             setDetailPlayerId(undefined);
@@ -19873,9 +19935,10 @@ function AnalyticsTable({
   const gridTemplateColumns = `minmax(132px, 1.35fr) repeat(${result.columns.length}, minmax(58px, 0.72fr))`;
   const minTableWidth = Math.max(660, 132 + result.columns.length * 60);
   const rowStyle: React.CSSProperties = { gridTemplateColumns, minWidth: minTableWidth };
-  const visibleRows = result.rows;
-  const hasTrackedData = visibleRows.some((row) => row.sampleCount > 0) || Boolean(result.teamTotals?.sampleCount);
-  const hasActiveFilters = Boolean(result.query.eventIds?.length) || Object.values(result.query.filters ?? {}).some((value) => Array.isArray(value) && value.length > 0);
+  const hasTrackedData = result.rows.some((row) => row.sampleCount > 0) || Boolean(result.teamTotals?.sampleCount);
+  const visibleRows = hasTrackedData ? result.rows : [];
+  const groupedView = visibleRows.some((row) => row.rowKind === "group");
+  const hasActiveFilters = Boolean(result.query.eventIds?.length) || Object.values(result.query.filters ?? {}).some((value) => (Array.isArray(value) && value.length > 0) || typeof value === "number");
   return (
     <section className="panel analytics-table-panel">
       {!hasTrackedData && (
@@ -19887,11 +19950,13 @@ function AnalyticsTable({
           {hasActiveFilters && <button type="button" className="text-button" onClick={onClearFilters}>Clear Filters</button>}
         </div>
       )}
-      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Box-score grids need keyboard access for horizontal and vertical scrolling. */}
-      <div className="analytics-scroll-panel analytics-box-score" role="region" tabIndex={0} aria-label={`${result.title} box score`}>
+      {hasTrackedData && (
+        <>
+          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Box-score grids need keyboard access for horizontal and vertical scrolling. */}
+          <div className="analytics-scroll-panel analytics-box-score" role="region" tabIndex={0} aria-label={`${result.title} box score`}>
         <div className="analytics-box-score__row analytics-box-score__row--head" role="row" style={rowStyle}>
           <button type="button" className="analytics-box-score__cell analytics-box-score__cell--player" onClick={() => onSort("player")} role="columnheader">
-            Player {sort?.metricId === "player" ? sortIndicator(sort.direction) : ""}
+            {groupedView ? "Split" : "Player"} {sort?.metricId === "player" ? sortIndicator(sort.direction) : ""}
           </button>
           {result.columns.map((column) => (
             <button
@@ -19907,12 +19972,12 @@ function AnalyticsTable({
           ))}
         </div>
         {visibleRows.length ? visibleRows.map((row) => (
-          <button key={row.player.id} type="button" className="analytics-box-score__row" role="row" style={rowStyle} onClick={() => onOpenPlayer(row.player.id)}>
+          <button key={row.player.id} type="button" className={`analytics-box-score__row${row.rowKind === "group" ? " analytics-box-score__row--group" : ""}`} role="row" style={rowStyle} onClick={() => row.rowKind !== "group" && onOpenPlayer(row.player.id)} aria-label={row.rowKind === "group" ? `${row.groupLabel} analytics split` : `Open ${row.player.name} analytics`}>
             <span className="analytics-box-score__cell analytics-box-score__cell--player analytics-player-cell" role="cell">
-              <PlayerAvatar player={row.player} size="sm" compact />
+              {row.rowKind !== "group" && <PlayerAvatar player={row.player} size="sm" compact />}
               <span>
-                <strong>{row.player.name}</strong>
-                <small>#{row.player.jerseyNumber} · {row.player.primaryPosition}{row.player.secondaryPosition ? ` / ${row.player.secondaryPosition}` : ""}</small>
+                <strong>{row.groupLabel ?? row.player.name}</strong>
+                {row.rowKind === "group" ? <small>{row.sampleCount} tracked</small> : <small>#{row.player.jerseyNumber} · {row.player.primaryPosition}{row.player.secondaryPosition ? ` / ${row.player.secondaryPosition}` : ""}</small>}
               </span>
             </span>
             {result.columns.map((column) => (
@@ -19936,7 +20001,9 @@ function AnalyticsTable({
             ))}
           </div>
         )}
-      </div>
+          </div>
+        </>
+      )}
     </section>
   );
 }
@@ -20039,43 +20106,60 @@ function AnalyticsEventSelector({
 function AnalyticsColumnPanel({
   columns,
   selectedIds,
+  activePreset,
   onToggle,
   onPreset,
   onReset,
 }: {
   columns: AnalyticsColumn[];
   selectedIds: string[];
+  activePreset: AnalyticsColumnPreset;
   onToggle: (metricId: string) => void;
-  onPreset: (preset: AnalyticsColumnPreset) => void;
+  onPreset: (preset: Exclude<AnalyticsColumnPreset, "custom">) => void;
   onReset: () => void;
 }) {
   const selected = new Set(selectedIds);
+  const groups = Object.entries(columns.reduce<Record<string, AnalyticsColumn[]>>((grouped, column) => {
+    (grouped[analyticsColumnGroup(column.metricId)] ??= []).push(column);
+    return grouped;
+  }, {}));
   return (
     <div className="analytics-popover analytics-popover--columns" role="dialog" aria-label="Analytics columns">
       <div className="analytics-popover__head">
-        <strong>Columns</strong>
+        <strong>Stat View</strong>
         <button type="button" className="text-button" onClick={onReset}>Default</button>
       </div>
       <div className="analytics-column-presets" aria-label="Column presets">
-        {(["standard", "advanced", "development"] as AnalyticsColumnPreset[]).map((preset) => (
-          <button key={preset} type="button" onClick={() => onPreset(preset)}>
+        {(["standard", "advanced", "development"] as const).map((preset) => (
+          <button key={preset} type="button" className={activePreset === preset ? "active" : ""} onClick={() => onPreset(preset)}>
             {preset[0].toUpperCase() + preset.slice(1)}
           </button>
         ))}
       </div>
       <div className="analytics-popover__body analytics-column-list">
-        {columns.map((column) => (
-          <button key={column.metricId} type="button" className={selected.has(column.metricId) ? "active" : ""} onClick={() => onToggle(column.metricId)} title={column.definition}>
-            <Check size={13} aria-hidden="true" />
-            <span>
-              <strong>{column.label}</strong>
-              {column.definition && <small>{column.definition}</small>}
-            </span>
-          </button>
+        {groups.map(([groupLabel, groupColumns]) => (
+          <section key={groupLabel} className="analytics-column-group">
+            <span>{groupLabel}</span>
+            {(groupColumns ?? []).map((column) => (
+              <button key={column.metricId} type="button" className={selected.has(column.metricId) ? "active" : ""} onClick={() => onToggle(column.metricId)} title={column.definition}>
+                <Check size={13} aria-hidden="true" />
+                <span>
+                  <strong>{column.label}</strong>
+                  {column.definition && <small>{column.definition}</small>}
+                </span>
+              </button>
+            ))}
+          </section>
         ))}
       </div>
     </div>
   );
+}
+
+function analyticsColumnGroup(metricId: string) {
+  if (["opportunities", "swings", "contacts", "bip", "takes", "misses", "fouls", "trackedBip", "ab", "hits", "singles", "doubles", "triples", "homeRuns", "outs", "xbh", "totalBases", "pitches", "balls", "strikes"].includes(metricId)) return "Standard";
+  if (["avg", "slg", "iso", "babip", "swingPct", "contactPct", "swingMissPct", "takePct", "zoneContactPct", "chasePct", "strikePct", "zonePct", "whiffPct", "cswPct", "firstPitchStrikePct"].includes(metricId)) return "Advanced";
+  return "Clubhouse Development";
 }
 
 function analyticsColumnDisplayLabel(label: string) {
@@ -20103,64 +20187,90 @@ function analyticsColumnDisplayLabel(label: string) {
   return labels[label] ?? label;
 }
 
-type AnalyticsColumnPreset = "standard" | "advanced" | "development";
-
-const ANALYTICS_COLUMN_PRESET_ORDER: Record<AnalyticsColumnPreset, string[]> = {
-  standard: [
-    "trackedBip", "ab", "hits", "singles", "doubles", "triples", "homeRuns", "outs", "xbh", "totalBases", "avg", "slg",
-    "opportunities", "takes", "swings", "contacts", "bip", "misses", "fouls", "contactPct", "takePct", "avgEv", "maxEv", "evSamples",
-    "pitches", "strikePct", "avgPitchVelo", "maxPitchVelo", "positionWorked", "reps", "cleanReps", "cleanPct", "errors", "throws", "throwAcc",
-    "workouts", "attendancePct", "practiceReps",
-  ],
-  advanced: [
-    "avg", "slg", "iso", "babip", "contactPct", "swingMissPct", "hardPct", "barrelPct", "lineDrivePct", "groundBallPct", "flyBallPct",
-    "avgEv", "maxEv", "whiffPct", "cswPct", "zonePct", "throwAcc", "workoutCompletionPct",
-  ],
-  development: [
-    "contactPct", "hardPct", "avgEv", "maxEv", "swingMissPct", "takePct", "strikePct", "cswPct", "whiffPct", "zonePct", "throwAcc",
-    "practiceReps", "weightScore", "attendancePct", "workoutCompletionPct",
-  ],
-};
-
-function analyticsPresetColumnIds(columns: AnalyticsColumn[], preset: AnalyticsColumnPreset) {
-  const available = new Set(columns.map((column) => column.metricId));
-  const ids = ANALYTICS_COLUMN_PRESET_ORDER[preset].filter((metricId) => available.has(metricId));
-  return ids.length ? ids : columns.map((column) => column.metricId);
-}
-
 function AnalyticsFilterPanel({
   definitions,
   values,
   onToggle,
+  onVelocityRange,
   onClear,
 }: {
   definitions: AnalyticsFilterDefinition[];
   values: AnalyticsFilters;
   onToggle: (definition: AnalyticsFilterDefinition, value: string) => void;
+  onVelocityRange: (minimum?: number, maximum?: number) => void;
   onClear: () => void;
 }) {
+  const sections = definitions.reduce<Record<string, AnalyticsFilterDefinition[]>>((groups, definition) => {
+    (groups[definition.section] ??= []).push(definition);
+    return groups;
+  }, {});
+  const hittingLocationGrid = [
+    ["up_and_away", "up", "up_and_in"],
+    ["away", "middle", "in"],
+    ["down_and_away", "down", "down_and_in"],
+  ];
+  const pitchingLocationGrid = [
+    ["up_arm_side", "up", "up_glove_side"],
+    ["arm_side", "middle", "glove_side"],
+    ["down_arm_side", "down", "down_glove_side"],
+  ];
   return (
-    <div className="analytics-popover analytics-popover--wide" role="dialog" aria-label="Situational filters">
+    <div className="analytics-popover analytics-popover--wide" role="dialog" aria-label="Analytics filters">
       <div className="analytics-popover__head">
-        <strong>Situational Filters</strong>
-        <button type="button" className="text-button" onClick={onClear}>Clear Filters</button>
+        <strong>Filter Stats</strong>
+        <button type="button" className="text-button" onClick={onClear}>Clear All</button>
       </div>
       <div className="analytics-popover__body analytics-filter-list">
-        {definitions.length ? definitions.map((definition) => {
-          const selected = new Set((values[definition.id] as string[] | undefined) ?? []);
-          return (
-            <section key={`${definition.domain}-${definition.id}`}>
-              <span>{definition.label}{definition.availability === "partial" ? " · partial" : ""}</span>
-              <div>
-                {definition.options.map((option) => (
-                  <button key={option.value} type="button" className={selected.has(option.value) ? "active" : ""} onClick={() => onToggle(definition, option.value)}>
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </section>
-          );
-        }) : <CompactEmpty title="No supported filters for this view yet" />}
+        {definitions.length ? Object.entries(sections).map(([sectionLabel, sectionDefinitions]) => (
+          <section key={sectionLabel} className="analytics-filter-section">
+            <h3>{sectionLabel}</h3>
+            {sectionDefinitions.map((definition) => {
+              const selected = new Set(
+                definition.type === "range" ? [] : ((values[definition.id] as string[] | undefined) ?? []),
+              );
+              const locationGrid = definition.options.some((option) => option.value === "arm_side") ? pitchingLocationGrid : hittingLocationGrid;
+              return (
+                <div key={`${definition.domains.join("-")}-${definition.id}`} className="analytics-filter-field">
+                  <span>
+                    {definition.label}
+                    {definition.availability === "partial" && <small>Partial coverage</small>}
+                  </span>
+                  {definition.capabilityNote && <p>{definition.capabilityNote}</p>}
+                  {definition.type === "range" ? (
+                    <div className="analytics-filter-range">
+                      <label><span>Min</span><input type="number" inputMode="decimal" value={values.pitchVelocityMin ?? ""} placeholder="Any" onChange={(event) => onVelocityRange(event.target.value ? Number(event.target.value) : undefined, values.pitchVelocityMax)} /></label>
+                      <span>to</span>
+                      <label><span>Max</span><input type="number" inputMode="decimal" value={values.pitchVelocityMax ?? ""} placeholder="Any" onChange={(event) => onVelocityRange(values.pitchVelocityMin, event.target.value ? Number(event.target.value) : undefined)} /></label>
+                      <em>mph</em>
+                    </div>
+                  ) : definition.type === "pitch-location" ? (
+                    <>
+                      <div className="analytics-zone-state-options">
+                        {definition.options.slice(0, 2).map((option) => (
+                          <button key={option.value} type="button" className={selected.has(option.value) ? "active" : ""} onClick={() => onToggle(definition, option.value)}>{option.label}</button>
+                        ))}
+                      </div>
+                      <div className="analytics-pitch-location-selector" aria-label="Pitch location regions">
+                        {locationGrid.flat().map((value) => {
+                          const option = definition.options.find((candidate) => candidate.value === value);
+                          return <button key={value} type="button" className={selected.has(value) ? "active" : ""} onClick={() => onToggle(definition, value)}>{option?.label ?? value}</button>;
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="analytics-filter-options">
+                      {definition.options.map((option) => (
+                        <button key={option.value} type="button" className={selected.has(option.value) ? "active" : ""} onClick={() => onToggle(definition, option.value)}>
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        )) : <CompactEmpty title="No supported filters for this source yet" />}
       </div>
     </div>
   );
@@ -20962,6 +21072,7 @@ function readInitialAnalyticsState(): {
   domain: AnalyticsDomain;
   source: AnalyticsSource;
   mode: AnalyticsMode;
+  analyticsView: AnalyticsViewId;
   timeRange: AnalyticsTimeRange;
   developmentView: AnalyticsDevelopmentView;
   eventIds: ID[];
@@ -20971,18 +21082,22 @@ function readInitialAnalyticsState(): {
   metricIds?: string[];
 } {
   if (typeof window === "undefined") {
-    return { domain: "hitting", source: "games", mode: "box-score", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {}, filters: {} };
+    return { domain: "hitting", source: "games", mode: "box-score", analyticsView: "overview", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {}, filters: {} };
   }
   const params = new URLSearchParams(window.location.search);
   const domain = parseAnalyticsParam(params.get("domain"), ["hitting", "pitching", "defense", "development"], "hitting");
-  const source = parseAnalyticsParam(params.get("source"), ["games", "practice", "live-bp", "all"], "games");
+  const requestedSource = parseAnalyticsParam(params.get("source"), ["games", "practice", "live-bp", "all"], "games");
+  const supportedSources = analyticsSourcesForDomain(domain);
+  const source = supportedSources.includes(requestedSource) ? requestedSource : supportedSources[0];
   const mode = parseAnalyticsParam(params.get("mode"), ["box-score", "situational"], "box-score");
+  const analyticsView = normalizeAnalyticsView(domain, domain === "development" ? "all" : source, params.get("statView") ?? undefined);
   const timeRange = parseAnalyticsParam(params.get("period"), ["7d", "30d", "season", "custom"], "season");
   const developmentView = parseAnalyticsParam(params.get("dev"), ["overview", "weight-room", "attendance", "trends"], "overview");
   return {
     domain,
     source: domain === "development" ? "all" : source,
     mode: domain === "development" ? "box-score" : mode,
+    analyticsView,
     timeRange,
     developmentView,
     eventIds: params.get("events")?.split(",").filter(Boolean) ?? [],
@@ -21010,14 +21125,32 @@ const ANALYTICS_FILTER_PARAM_KEYS: Array<keyof AnalyticsFilters> = [
   "pitcherHands",
   "batterHands",
   "pitchTypes",
+  "exactCounts",
   "countGroups",
   "drillTypes",
+  "liveBpThrowerSources",
   "battedBallTypes",
   "defenseStations",
+  "defensePositions",
+  "defenseDrills",
+  "defenseRepTypes",
+  "defenseRepSubtypes",
+  "defenseResults",
+  "defenseThrowResults",
+  "pitchLocationRegions",
+  "directions",
+  "gameStates",
+  "innings",
+  "outs",
+  "runnerStates",
+  "opponents",
+  "homeAway",
+  "gamePitchOutcomes",
+  "gameBipOutcomes",
 ];
 
 function encodeAnalyticsFilters(filters: AnalyticsFilters): string {
-  return ANALYTICS_FILTER_PARAM_KEYS
+  const arrays = ANALYTICS_FILTER_PARAM_KEYS
     .map((key) => {
       const value = filters[key];
       if (!Array.isArray(value) || !value.length) return "";
@@ -21025,15 +21158,26 @@ function encodeAnalyticsFilters(filters: AnalyticsFilters): string {
     })
     .filter(Boolean)
     .join(";");
+  const ranges = [
+    filters.pitchVelocityMin !== undefined ? `pitchVelocityMin:${filters.pitchVelocityMin}` : "",
+    filters.pitchVelocityMax !== undefined ? `pitchVelocityMax:${filters.pitchVelocityMax}` : "",
+  ].filter(Boolean).join(";");
+  return [arrays, ranges].filter(Boolean).join(";");
 }
 
 function parseAnalyticsFilters(value: string | null): AnalyticsFilters {
   if (!value) return {};
-  const parsed: Record<string, string[]> = {};
+  const parsed: Record<string, string[] | number> = {};
   for (const segment of value.split(";")) {
     const [rawKey, rawValues] = segment.split(":");
     const key = rawKey as keyof AnalyticsFilters;
-    if (!rawKey || !rawValues || !ANALYTICS_FILTER_PARAM_KEYS.includes(key)) continue;
+    if (!rawKey || !rawValues) continue;
+    if (rawKey === "pitchVelocityMin" || rawKey === "pitchVelocityMax") {
+      const numericValue = Number(rawValues);
+      if (Number.isFinite(numericValue)) parsed[rawKey] = numericValue;
+      continue;
+    }
+    if (!ANALYTICS_FILTER_PARAM_KEYS.includes(key)) continue;
     const values = rawValues.split("|").map((item) => decodeURIComponent(item)).filter(Boolean);
     if (values.length) parsed[key] = values;
   }

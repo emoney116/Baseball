@@ -8,6 +8,7 @@ test("practice hub opens active tracker modes without setup screen", () => {
   const styles = readFileSync("app/globals.css", "utf8");
   const taxonomy = readFileSync("app/lib/hittingTaxonomy.ts", "utf8");
   const analytics = readFileSync("app/lib/analyticsQuery.ts", "utf8");
+  const analyticsCatalog = readFileSync("app/lib/analyticsCatalog.ts", "utf8");
   const types = readFileSync("app/types.ts", "utf8");
   const attendanceListBlocks = styles.match(/\.attendance-roster__list \{[^}]+\}/g) ?? [];
 
@@ -139,7 +140,7 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(types, /pitch_r3c3/);
   assert.match(types, /zone_middle_middle/);
   assert.match(types, /outside_down_glove/);
-  assert.match(analytics, /metric\("zonePct", "Zone %"/);
+  assert.match(analyticsCatalog, /metric\("zonePct", "Zone%"/);
   assert.match(analytics, /isAnalyticsZonePoint/);
   assert.match(page, /function PracticeSprayField/);
   assert.match(page, /getSprayDistribution/);
