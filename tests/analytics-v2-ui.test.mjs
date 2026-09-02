@@ -18,6 +18,7 @@ test("Analytics V2 uses one filter panel with ranges, a location grid, and remov
   assert.match(page, /aria-label="Analytics filters"/);
   assert.match(page, /className="analytics-pitch-location-selector"/);
   assert.match(page, /className="analytics-filter-range"/);
+  assert.match(page, /definition\.type === "range" \? \[\] :/);
   assert.match(page, /removeFilterValue\(chip\.id, chip\.value\)/);
   assert.match(page, /className="analytics-clear-filter-chip"/);
   assert.match(css, /\.analytics-pitch-location-selector\s*\{[\s\S]*grid-template-columns:\s*repeat\(3/);

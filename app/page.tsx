@@ -20225,7 +20225,9 @@ function AnalyticsFilterPanel({
           <section key={sectionLabel} className="analytics-filter-section">
             <h3>{sectionLabel}</h3>
             {sectionDefinitions.map((definition) => {
-              const selected = new Set((values[definition.id] as string[] | undefined) ?? []);
+              const selected = new Set(
+                definition.type === "range" ? [] : ((values[definition.id] as string[] | undefined) ?? []),
+              );
               const locationGrid = definition.options.some((option) => option.value === "arm_side") ? pitchingLocationGrid : hittingLocationGrid;
               return (
                 <div key={`${definition.domains.join("-")}-${definition.id}`} className="analytics-filter-field">
