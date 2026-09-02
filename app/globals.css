@@ -34174,3 +34174,210 @@ textarea:focus,
     flex: 1;
   }
 }
+
+/* Mobile UX pass: keep the shared Ask entry floating on overview surfaces and make
+   Analytics read like a dense stat sheet without changing query output. */
+.ask-clubhouse-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 22px;
+  z-index: 58;
+  min-width: 50px;
+  min-height: 50px;
+  border: 1px solid color-mix(in srgb, var(--brand-border) 88%, var(--line-strong));
+  border-radius: 999px;
+  background: var(--brand-primary);
+  color: var(--brand-text-on-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--brand-primary) 30%, transparent), 0 0 0 4px color-mix(in srgb, var(--brand-primary) 10%, transparent);
+  cursor: pointer;
+  transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.ask-clubhouse-fab:hover,
+.ask-clubhouse-fab:focus-visible {
+  background: var(--brand-hover);
+  box-shadow: 0 16px 32px color-mix(in srgb, var(--brand-primary) 38%, transparent), 0 0 0 5px color-mix(in srgb, var(--brand-primary) 13%, transparent);
+  transform: translateY(-2px);
+}
+
+.ask-clubhouse-fab:active {
+  background: var(--brand-active);
+  transform: translateY(0);
+}
+
+.ask-clubhouse-fab span {
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+body[data-ask-clubhouse-open="true"] .ask-clubhouse-fab,
+body:has(.modal-backdrop) .ask-clubhouse-fab {
+  display: none;
+  pointer-events: none;
+}
+
+.analytics-active-filter-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.analytics-active-filter-summary > span {
+  margin-right: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.analytics-active-filter-summary em {
+  border: 1px solid var(--brand-border);
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--muted-strong);
+  font-style: normal;
+  padding: 4px 8px;
+}
+
+.analytics-active-filter-summary small {
+  color: var(--muted);
+}
+
+.analytics-column-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.analytics-column-presets button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.analytics-column-presets button:hover,
+.analytics-column-presets button:focus-visible {
+  border-color: var(--brand-border);
+  background: var(--brand-soft);
+  color: var(--text);
+}
+
+.analytics-box-score {
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.analytics-box-score__row {
+  width: 100%;
+}
+
+.analytics-box-score__cell {
+  min-width: 0;
+  padding-inline: 8px;
+  white-space: nowrap;
+}
+
+.analytics-box-score__cell--player {
+  box-shadow: 9px 0 12px -12px color-mix(in srgb, var(--text) 52%, transparent);
+}
+
+.analytics-box-score__row--head .analytics-box-score__cell--player,
+.analytics-box-score__row--team .analytics-box-score__cell--player {
+  z-index: 6;
+}
+
+.analytics-box-score__row--head {
+  z-index: 5;
+}
+
+.analytics-player-cell > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.analytics-player-cell strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .ask-clubhouse-fab {
+    right: max(16px, env(safe-area-inset-right));
+    bottom: var(--mobile-bottom-nav-safe-space);
+    width: 50px;
+    height: 50px;
+    min-width: 50px;
+    min-height: 50px;
+    padding: 0;
+  }
+
+  .ask-clubhouse-fab span {
+    display: none;
+  }
+
+  .analytics-box-score__row {
+    width: max-content;
+  }
+
+  .analytics-box-score__cell--player {
+    width: 132px;
+    min-width: 132px;
+    max-width: 132px;
+  }
+
+  .analytics-box-score__cell {
+    min-height: 46px;
+    padding-inline: 7px;
+  }
+
+  .analytics-box-score__row--head .analytics-box-score__cell {
+    min-height: 38px;
+  }
+
+  .analytics-popover--columns {
+    inset: auto 0 0;
+    width: 100vw;
+    max-width: 100vw;
+    max-height: min(74dvh, 580px);
+    border-radius: var(--mobile-sheet-radius) var(--mobile-sheet-radius) 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .analytics-column-presets {
+    padding-inline: 12px;
+  }
+
+  .practice-title-actions {
+    grid-template-columns: minmax(82px, 1fr) repeat(2, minmax(0, 1fr));
+  }
+
+  .weight-room-shell-header__actions {
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  }
+}
+
+@media (min-width: 721px) {
+  .analytics-box-score__cell--player {
+    min-width: 150px;
+  }
+}

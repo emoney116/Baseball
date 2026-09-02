@@ -6173,13 +6173,14 @@ function ClubhouseHome({
           <h1>Home</h1>
         </div>
         <div className="global-title-actions">
-          <AskClubhouseLauncher onClick={onAsk} />
           <button className="primary-button" type="button" onClick={onCreateTeam}>
             <Plus size={16} aria-hidden="true" />
             New Team/Org
           </button>
         </div>
       </section>
+
+      <AskClubhouseFab onClick={onAsk} />
 
       <section className="global-section">
         <SectionHeader title="My Organizations" action={<button className="text-button" type="button" onClick={() => onView("organizations")}>View all</button>} />
@@ -7359,9 +7360,7 @@ function HomeDashboard({
 
   return (
     <div className="page-stack home-dashboard">
-      <div className="ask-overview-launch-row">
-        <AskClubhouseLauncher onClick={onAsk} />
-      </div>
+      <AskClubhouseFab onClick={onAsk} />
       <section className="home-ops-grid">
         <HomeInfoCard
           icon={ClipboardList}
@@ -8567,7 +8566,6 @@ function PracticeHome({
         action={
           <div className="practice-title-actions">
             <time>{practice ? fullDate(practice.date) : fullDate(todayKey())}</time>
-            <AskClubhouseLauncher onClick={onAsk} compact />
             {!practice && (
               <button className="primary-button" type="button" onClick={onStartPractice}>
                 <Plus size={16} aria-hidden="true" />
@@ -8589,6 +8587,7 @@ function PracticeHome({
           </div>
         }
       />
+      {tab === "Overview" && !attendanceKeyOpen && !hittingStartOpen && <AskClubhouseFab onClick={onAsk} />}
       <nav className="practice-tabs" aria-label="Practice sections">
         {(["Overview", "Metrics", "History"] as PracticeHubTab[]).map((item) => (
           <button key={item} type="button" className={tab === item ? "active" : ""} onClick={() => onTab(item)}>
@@ -13715,7 +13714,6 @@ function WeightRoomView({
         </div>
         <SegmentedControl values={WEIGHT_ROOM_TABS} active={tab} onChange={onTab} />
         <div className="weight-room-shell-header__actions">
-          {tab === "Overview" && <AskClubhouseLauncher onClick={onAsk} compact />}
           <button className="secondary-button" type="button" onClick={() => onWeighInOpen(true)}>
             <Gauge size={16} aria-hidden="true" />
             Log Weigh-Ins
@@ -13726,6 +13724,7 @@ function WeightRoomView({
           </button>
         </div>
       </section>
+      {tab === "Overview" && !weighInOpen && <AskClubhouseFab onClick={onAsk} />}
 
       {tab === "Overview" && (
         <section className="weight-room-overview-grid">
@@ -18789,8 +18788,9 @@ function GamesView({
       <SectionHeader
         title="Game Center"
         context={data.teamContext?.currentTeam ? `${data.teamContext.currentTeam.teamName} - ${data.teamContext.currentTeam.seasonName ?? "Current season"}` : undefined}
-        action={workspaceMode === "field" ? <div className="section-header-actions"><AskClubhouseLauncher onClick={onAsk} compact /><button className="primary-button" type="button" onClick={onStartGame}><Plus size={16} aria-hidden="true" />Start Game</button></div> : undefined}
+        action={workspaceMode === "field" ? <div className="section-header-actions"><button className="primary-button" type="button" onClick={onStartGame}><Plus size={16} aria-hidden="true" />Start Game</button></div> : undefined}
       />
+      {!sessionActive && !scoringPanelOpen && !sessionMenuOpen && !sessionDrawer && <AskClubhouseFab onClick={onAsk} />}
 
       <section className="games-layout">
         <aside className="panel games-list">
@@ -19493,6 +19493,13 @@ function AnalyticsView({
   const result = useMemo(() => executeAnalyticsQuery(data, query), [data, query]);
   const selectedDetailRow = detailPlayerId ? result.rows.find((row) => row.player.id === detailPlayerId) : undefined;
   const activeFilterCount = Object.values(filters).reduce((total, value) => total + (Array.isArray(value) ? value.length : 0), 0);
+  const activeFilterSummary = useMemo(
+    () => result.filterDefinitions.flatMap((definition) => {
+      const values = (filters[definition.id] as string[] | undefined) ?? [];
+      return values.map((value) => definition.options.find((option) => option.value === value)?.label ?? value);
+    }),
+    [filters, result.filterDefinitions],
+  );
   const analyticsDomainOptions: ChoiceOption[] = [
     { value: "hitting", label: "Hitting" },
     { value: "pitching", label: "Pitching" },
@@ -19633,6 +19640,12 @@ function AnalyticsView({
     });
   }
 
+  function applyColumnPreset(preset: AnalyticsColumnPreset) {
+    const presetIds = analyticsPresetColumnIds(result.availableColumns, preset);
+    setMetricIds(presetIds.length ? presetIds : undefined);
+    setColumnsOpen(false);
+  }
+
   function writeAnalyticsDetailRoute(playerId: ID | undefined, options: { replace?: boolean } = {}) {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
@@ -19759,11 +19772,19 @@ function AnalyticsView({
                 columns={result.availableColumns}
                 selectedIds={metricIds ?? result.availableColumns.map((column) => column.metricId)}
                 onToggle={toggleColumn}
+                onPreset={applyColumnPreset}
                 onReset={() => setMetricIds(undefined)}
               />
             )}
           </div>
         </div>
+        {mode === "situational" && activeFilterSummary.length > 0 && (
+          <div className="analytics-active-filter-summary" aria-label="Active analytics filters">
+            <span>Active filters</span>
+            {activeFilterSummary.slice(0, 5).map((label, index) => <em key={`${label}-${index}`}>{label}</em>)}
+            {activeFilterSummary.length > 5 && <small>+{activeFilterSummary.length - 5}</small>}
+          </div>
+        )}
         {timeRange === "custom" && (
           <div className="analytics-custom-range">
             <label>
@@ -19849,8 +19870,8 @@ function AnalyticsTable({
   onOpenPlayer: (playerId: ID) => void;
   onClearFilters: () => void;
 }) {
-  const gridTemplateColumns = `minmax(210px, 1.45fr) repeat(${result.columns.length}, minmax(86px, 0.72fr))`;
-  const minTableWidth = Math.max(960, 230 + result.columns.length * 88);
+  const gridTemplateColumns = `minmax(132px, 1.35fr) repeat(${result.columns.length}, minmax(58px, 0.72fr))`;
+  const minTableWidth = Math.max(660, 132 + result.columns.length * 60);
   const rowStyle: React.CSSProperties = { gridTemplateColumns, minWidth: minTableWidth };
   const visibleRows = result.rows;
   const hasTrackedData = visibleRows.some((row) => row.sampleCount > 0) || Boolean(result.teamTotals?.sampleCount);
@@ -19881,7 +19902,7 @@ function AnalyticsTable({
               title={column.definition}
               role="columnheader"
             >
-              {column.label} {sort?.metricId === column.metricId ? sortIndicator(sort.direction) : ""}
+              {analyticsColumnDisplayLabel(column.label)} {sort?.metricId === column.metricId ? sortIndicator(sort.direction) : ""}
             </button>
           ))}
         </div>
@@ -20019,11 +20040,13 @@ function AnalyticsColumnPanel({
   columns,
   selectedIds,
   onToggle,
+  onPreset,
   onReset,
 }: {
   columns: AnalyticsColumn[];
   selectedIds: string[];
   onToggle: (metricId: string) => void;
+  onPreset: (preset: AnalyticsColumnPreset) => void;
   onReset: () => void;
 }) {
   const selected = new Set(selectedIds);
@@ -20032,6 +20055,13 @@ function AnalyticsColumnPanel({
       <div className="analytics-popover__head">
         <strong>Columns</strong>
         <button type="button" className="text-button" onClick={onReset}>Default</button>
+      </div>
+      <div className="analytics-column-presets" aria-label="Column presets">
+        {(["standard", "advanced", "development"] as AnalyticsColumnPreset[]).map((preset) => (
+          <button key={preset} type="button" onClick={() => onPreset(preset)}>
+            {preset[0].toUpperCase() + preset.slice(1)}
+          </button>
+        ))}
       </div>
       <div className="analytics-popover__body analytics-column-list">
         {columns.map((column) => (
@@ -20046,6 +20076,56 @@ function AnalyticsColumnPanel({
       </div>
     </div>
   );
+}
+
+function analyticsColumnDisplayLabel(label: string) {
+  const labels: Record<string, string> = {
+    Opportunities: "Opp",
+    Takes: "Take",
+    Swings: "SW",
+    Contacts: "CT",
+    Contact: "CT",
+    Miss: "Whiff",
+    "Contact %": "Contact%",
+    "Whiff %": "Whiff%",
+    "Take %": "Take%",
+    "Hard %": "Hard%",
+    "Impact %": "Impact%",
+    "Avg Pitch Velo": "Avg Velo",
+    "Max Pitch Velo": "Max Velo",
+    "Position / Station": "Pos / Stn",
+    "Acc Throws": "Acc Thrw",
+    "Throw Acc.": "Throw%",
+    "Weight Room Score": "Weight",
+    "Workout Completion": "Workout%",
+    "Practice Reps": "Reps",
+  };
+  return labels[label] ?? label;
+}
+
+type AnalyticsColumnPreset = "standard" | "advanced" | "development";
+
+const ANALYTICS_COLUMN_PRESET_ORDER: Record<AnalyticsColumnPreset, string[]> = {
+  standard: [
+    "trackedBip", "ab", "hits", "singles", "doubles", "triples", "homeRuns", "outs", "xbh", "totalBases", "avg", "slg",
+    "opportunities", "takes", "swings", "contacts", "bip", "misses", "fouls", "contactPct", "takePct", "avgEv", "maxEv", "evSamples",
+    "pitches", "strikePct", "avgPitchVelo", "maxPitchVelo", "positionWorked", "reps", "cleanReps", "cleanPct", "errors", "throws", "throwAcc",
+    "workouts", "attendancePct", "practiceReps",
+  ],
+  advanced: [
+    "avg", "slg", "iso", "babip", "contactPct", "swingMissPct", "hardPct", "barrelPct", "lineDrivePct", "groundBallPct", "flyBallPct",
+    "avgEv", "maxEv", "whiffPct", "cswPct", "zonePct", "throwAcc", "workoutCompletionPct",
+  ],
+  development: [
+    "contactPct", "hardPct", "avgEv", "maxEv", "swingMissPct", "takePct", "strikePct", "cswPct", "whiffPct", "zonePct", "throwAcc",
+    "practiceReps", "weightScore", "attendancePct", "workoutCompletionPct",
+  ],
+};
+
+function analyticsPresetColumnIds(columns: AnalyticsColumn[], preset: AnalyticsColumnPreset) {
+  const available = new Set(columns.map((column) => column.metricId));
+  const ids = ANALYTICS_COLUMN_PRESET_ORDER[preset].filter((metricId) => available.has(metricId));
+  return ids.length ? ids : columns.map((column) => column.metricId);
 }
 
 function AnalyticsFilterPanel({
@@ -20090,6 +20170,15 @@ function AskClubhouseLauncher({ onClick, compact = false }: { onClick: () => voi
   return (
     <button className={`secondary-button ask-clubhouse-launcher${compact ? " ask-clubhouse-launcher--compact" : ""}`} type="button" onClick={onClick}>
       <Sparkles size={15} aria-hidden="true" />
+      <span>Ask Clubhouse</span>
+    </button>
+  );
+}
+
+function AskClubhouseFab({ onClick }: { onClick: () => void }) {
+  return (
+    <button className="ask-clubhouse-fab" type="button" onClick={onClick} aria-label="Ask Clubhouse" title="Ask Clubhouse">
+      <Sparkles size={19} strokeWidth={2.25} aria-hidden="true" />
       <span>Ask Clubhouse</span>
     </button>
   );
