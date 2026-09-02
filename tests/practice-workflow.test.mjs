@@ -9,6 +9,7 @@ test("practice hub opens active tracker modes without setup screen", () => {
   const taxonomy = readFileSync("app/lib/hittingTaxonomy.ts", "utf8");
   const analytics = readFileSync("app/lib/analyticsQuery.ts", "utf8");
   const analyticsCatalog = readFileSync("app/lib/analyticsCatalog.ts", "utf8");
+  const sharedField = readFileSync("app/components/ClubhouseBaseballField.tsx", "utf8");
   const types = readFileSync("app/types.ts", "utf8");
   const attendanceListBlocks = styles.match(/\.attendance-roster__list \{[^}]+\}/g) ?? [];
 
@@ -143,10 +144,11 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(analyticsCatalog, /metric\("zonePct", "Zone%"/);
   assert.match(analytics, /isAnalyticsZonePoint/);
   assert.match(page, /function PracticeSprayField/);
-  assert.match(page, /getSprayDistribution/);
-  assert.match(page, /SPRAY_FIELD_GEOMETRY/);
-  assert.match(page, /SPRAY_FIELD_PATHS/);
-  assert.match(page, /practice-spray-field__sector-label/);
+  assert.match(page, /<ClubhouseBaseballField/);
+  assert.match(sharedField, /getSprayDistribution/);
+  assert.match(sharedField, /SPRAY_FIELD_GEOMETRY/);
+  assert.match(sharedField, /SPRAY_FIELD_PATHS/);
+  assert.match(sharedField, /practice-spray-field__sector-label/);
   assert.match(page, /function deriveHitDirectionFromFieldLocation/);
   assert.match(page, /practicePitchTypeLabel/);
   assert.match(page, /attendance-roster__scroll/);

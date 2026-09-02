@@ -9262,6 +9262,41 @@ select option {
   font-weight: 860;
 }
 
+.analytics-spray-chart {
+  display: grid;
+  gap: 10px;
+  max-width: 680px;
+  padding: 12px;
+}
+
+.analytics-spray-chart__header {
+  align-items: end;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.analytics-spray-chart__header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.analytics-spray-chart__header span,
+.analytics-spray-chart__header small,
+.analytics-spray-chart__coverage {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 780;
+}
+
+.analytics-spray-chart__header strong {
+  font-size: 15px;
+}
+
+.analytics-spray-chart .clubhouse-baseball-field {
+  max-width: 620px;
+}
+
 .analytics-table-panel {
   padding: 0;
   overflow: hidden;
@@ -13265,78 +13300,8 @@ button.analytics-box-score__row:hover {
 }
 
 .field-chart {
-  aspect-ratio: 1 / 1;
+  aspect-ratio: 10 / 7;
   min-height: 0;
-  background: #243b19;
-}
-
-.field-chart__image,
-.field-chart__overlay {
-  height: 100%;
-  inset: 0;
-  position: absolute;
-  width: 100%;
-}
-
-.field-chart__image {
-  background-image: url("/game-tracking/baseball-field-spray-chart-v1.png");
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: contain;
-}
-
-.field-chart__spray-line-glow,
-.field-chart__spray-line {
-  pointer-events: none;
-  vector-effect: non-scaling-stroke;
-}
-
-.field-chart__spray-line-glow {
-  stroke: rgba(255, 255, 255, 0.72);
-  stroke-linecap: round;
-  stroke-width: 5;
-}
-
-.field-chart__spray-line {
-  stroke: var(--brand-primary);
-  stroke-dasharray: 5 3;
-  stroke-linecap: round;
-  stroke-width: 2.5;
-}
-
-.field-chart__label {
-  position: absolute;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 12px;
-  font-weight: 900;
-}
-
-.field-chart__label--lf {
-  left: 20%;
-  top: 27%;
-}
-
-.field-chart__label--cf {
-  left: 48%;
-  top: 12%;
-}
-
-.field-chart__label--rf {
-  right: 20%;
-  top: 27%;
-}
-
-.field-chart__dot {
-  background: var(--point-color, var(--burgundy-strong));
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--point-color, var(--burgundy-strong)) 34%, transparent);
-}
-
-.field-chart__target {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #fff;
-  background: rgba(255, 255, 255, 0.2);
 }
 
 .heatmap {
@@ -21078,7 +21043,7 @@ body,
 .game-personnel-workbench { display: grid; gap: 12px; grid-template-columns: minmax(360px, .9fr) minmax(420px, 1.1fr); }
 .game-personnel-field, .game-lineup-editor, .game-plays-workbench { min-width: 0; }
 .game-field-editor { margin: 0 auto; max-width: 620px; position: relative; }
-.game-field-editor > .field-chart { cursor: default; width: 100%; }
+.game-field-editor > .field-chart { cursor: default; max-width: none; width: 100%; }
 .game-field-editor > button:not(.field-chart) { align-items: center; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 2px solid var(--line); border-radius: 999px; box-shadow: 0 7px 18px rgba(0,0,0,.18); color: var(--text); display: flex; flex-direction: column; min-height: 48px; min-width: 68px; padding: 6px 9px; position: absolute; transform: translate(-50%, -50%); z-index: 2; }
 .game-field-editor > button:not(.field-chart):hover, .game-field-editor > button.selected { border-color: var(--brand-primary); background: var(--brand-soft); }
 .game-field-editor > button:not(.field-chart) b { color: var(--brand-primary); font-size: .58rem; }
@@ -21132,9 +21097,8 @@ body,
 .game-field-matchup > div span { color: var(--brand-primary); font-size: .66rem; font-weight: 900; text-transform: uppercase; }
 .game-field-matchup > div strong { font-size: .68rem; }
 .game-field-command__body { align-items: center; display: flex; height: 100%; justify-content: center; margin: 0 auto; max-width: 100%; min-height: 0; position: relative; width: 100%; }
-.game-field-command__surface { aspect-ratio: 1; flex: 0 1 auto; height: 100%; margin: 0 auto; max-height: 680px; max-width: 100%; position: relative; width: auto; }
-.game-field-command__surface > .field-chart { inset: 0; position: absolute; }
-.game-field-command__surface > .field-chart .field-chart__image { height: 100%; inset: 0; max-width: none; position: absolute; width: 100%; }
+.game-field-command__surface { aspect-ratio: 10 / 7; flex: 0 1 auto; height: auto; margin: 0 auto; max-height: 680px; max-width: 100%; position: relative; width: min(100%, 970px); }
+.game-field-command__surface > .field-chart { inset: 0; max-width: none; position: absolute; width: 100%; }
 .game-field-player { align-items: center; background: color-mix(in srgb, var(--panel) 90%, transparent); border: 1px solid var(--line-strong); border-radius: 999px; box-shadow: 0 5px 14px rgba(0,0,0,.22); color: var(--text); display: flex; flex-direction: column; min-height: 44px; min-width: 58px; padding: 4px 7px; position: absolute; transform: translate(-50%,-50%); z-index: 8; }
 .game-field-player:hover, .game-field-player.selected { background: var(--brand-soft); border-color: var(--brand-primary); }
 .game-field-player b { color: var(--brand-primary); font-size: .53rem; }
@@ -21392,7 +21356,7 @@ body,
   .game-field-matchup > button small { font-size: .5rem; }
   .game-field-matchup > div { min-width: 52px; }
   .game-field-command__body { max-height: min(47dvh, 430px); }
-  .game-field-command__surface { height: 100%; width: auto; }
+  .game-field-command__surface { height: auto; width: 100%; }
   .game-field-player { background: transparent; border: 0; box-shadow: none; box-sizing: border-box; gap: 2px; height: 44px; justify-content: center; max-height: 44px; max-width: 58px; min-height: 44px; min-width: 58px; padding: 0 6px; text-align: center; width: 58px; }
   .game-field-player::before { background: color-mix(in srgb, var(--panel) 91%, transparent); border: 1px solid var(--brand-primary); border-radius: 999px; box-shadow: 0 4px 10px rgba(0,0,0,.2); content: ""; inset: 0; position: absolute; }
   .game-field-player:hover::before, .game-field-player.selected::before { background: var(--brand-soft); border-color: var(--brand-primary); }
@@ -27692,6 +27656,40 @@ button.weight-room-athlete-table__row:hover {
 .practice-spray-field__empty {
   position: absolute;
   pointer-events: none;
+}
+
+.clubhouse-baseball-field__label {
+  color: color-mix(in srgb, var(--text) 66%, transparent);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  pointer-events: none;
+  position: absolute;
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--background) 72%, transparent);
+  z-index: 4;
+}
+
+.clubhouse-baseball-field__label--lf { left: 23%; top: 32%; }
+.clubhouse-baseball-field__label--cf { left: 50%; top: 17%; transform: translateX(-50%); }
+.clubhouse-baseball-field__label--rf { right: 23%; top: 32%; }
+
+.clubhouse-baseball-field__trajectory-glow,
+.clubhouse-baseball-field__trajectory {
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.clubhouse-baseball-field__trajectory-glow {
+  stroke: rgba(255, 255, 255, 0.72);
+  stroke-linecap: round;
+  stroke-width: 5;
+}
+
+.clubhouse-baseball-field__trajectory {
+  stroke: var(--brand-primary);
+  stroke-dasharray: 5 3;
+  stroke-linecap: round;
+  stroke-width: 2.5;
 }
 
 .practice-spray-field__mode {

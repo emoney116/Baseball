@@ -177,6 +177,24 @@ test("hitting session and pitch-type filters scope practice analytics", () => {
   assert.equal(pitchFiltered.teamTotals.cells.swings.display, "2");
 });
 
+test("hitting spray visuals use the same already-filtered events as the box score", () => {
+  const data = {
+    ...baseData,
+    hittingEvents: baseData.hittingEvents.map((event, index) => event.action === "Ball in play"
+      ? { ...event, fieldLocation: { x: 0.3 + index * 0.06, y: 0.45 } }
+      : event),
+  };
+  const result = executeAnalyticsQuery(data, {
+    ...query("hitting", "practice"),
+    mode: "situational",
+    filters: { pitchTypes: ["Slider"] },
+  });
+
+  assert.equal(result.sprayChart?.ballsInPlay, 2);
+  assert.equal(result.sprayChart?.trackedLocations, 2);
+  assert.deepEqual(result.sprayChart?.points.map((point) => point.id).sort(), ["he-5", "he-mylo-1"]);
+});
+
 test("date range filtering uses the current date window", () => {
   const data = {
     ...baseData,
@@ -357,6 +375,20 @@ test("game hitting source only exposes supported ball-in-play metrics", () => {
   assert.equal(jacob.cells.totalBases.display, "3");
   assert.equal(jacob.cells.avg.display, "1.000");
   assert.match(result.warnings.join(" "), /logged game balls in play only/);
+});
+
+test("game spray visuals adapt historical game field coordinates without changing query scope", () => {
+  const data = {
+    ...baseData,
+    gameEvents: baseData.gameEvents.map((event, index) => event.ballInPlayOutcome
+      ? { ...event, fieldLocation: { x: index ? 0.72 : 0.28, y: 0.61 } }
+      : event),
+  };
+  const result = executeAnalyticsQuery(data, query("hitting", "games"));
+
+  assert.equal(result.sprayChart?.ballsInPlay, 2);
+  assert.equal(result.sprayChart?.trackedLocations, 2);
+  assert.ok(result.sprayChart?.points.every((point) => point.y > 0 && point.y < 1));
 });
 
 test("analytics context warnings protect team and season scope", () => {

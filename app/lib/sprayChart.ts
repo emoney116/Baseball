@@ -71,6 +71,16 @@ export const SPRAY_HOME_PLATE_ORIGIN: ZonePoint = unprojectSprayPoint(SPRAY_FIEL
 export const SPRAY_LEFT_FOUL_POINT: ZonePoint = unprojectSprayPoint(SPRAY_FIELD_GEOMETRY.leftFoulPole);
 export const SPRAY_RIGHT_FOUL_POINT: ZonePoint = unprojectSprayPoint(SPRAY_FIELD_GEOMETRY.rightFoulPole);
 
+// Game Center originally stored taps against its square field asset. Keep that
+// storage compatible while every rendered surface moves into this field space.
+const LEGACY_GAME_FIELD = {
+  homeY: 0.902,
+  foulY: 0.4,
+  fenceY: 0.035,
+  foulLeftX: 0.01,
+  foulRightX: 0.99,
+};
+
 const PHYSICAL_LANE_LABELS = ["Left", "Left Center", "Center", "Right Center", "Right"] as const;
 const RHH_LANE_LABELS = ["Extreme Pull", "Pull", "Middle", "Oppo", "Extreme Oppo"] as const;
 const LHH_LANE_LABELS = ["Extreme Oppo", "Oppo", "Middle", "Pull", "Extreme Pull"] as const;
@@ -93,6 +103,28 @@ export function unprojectSprayPoint(point: SprayFieldPoint): ZonePoint {
   return {
     x: point.x / SPRAY_FIELD_VIEWBOX.width,
     y: point.y / SPRAY_FIELD_VIEWBOX.height,
+  };
+}
+
+export function legacyGamePointToCanonical(point: ZonePoint): ZonePoint {
+  return {
+    x: clamp(interpolate(point.x, LEGACY_GAME_FIELD.foulLeftX, LEGACY_GAME_FIELD.foulRightX, SPRAY_LEFT_FOUL_POINT.x, SPRAY_RIGHT_FOUL_POINT.x), 0, 1),
+    y: clamp(piecewise(point.y, [
+      [LEGACY_GAME_FIELD.fenceY, 0.08],
+      [LEGACY_GAME_FIELD.foulY, SPRAY_LEFT_FOUL_POINT.y],
+      [LEGACY_GAME_FIELD.homeY, SPRAY_HOME_PLATE_ORIGIN.y],
+    ]), 0, 1),
+  };
+}
+
+export function canonicalPointToLegacyGame(point: ZonePoint): ZonePoint {
+  return {
+    x: clamp(interpolate(point.x, SPRAY_LEFT_FOUL_POINT.x, SPRAY_RIGHT_FOUL_POINT.x, LEGACY_GAME_FIELD.foulLeftX, LEGACY_GAME_FIELD.foulRightX), 0, 1),
+    y: clamp(piecewise(point.y, [
+      [0.08, LEGACY_GAME_FIELD.fenceY],
+      [SPRAY_LEFT_FOUL_POINT.y, LEGACY_GAME_FIELD.foulY],
+      [SPRAY_HOME_PLATE_ORIGIN.y, LEGACY_GAME_FIELD.homeY],
+    ]), 0, 1),
   };
 }
 
@@ -227,6 +259,27 @@ function pointFromHomeAngle(angle: number, distance: number): SprayFieldPoint {
     x: SPRAY_FIELD_GEOMETRY.home.x + Math.cos(angle) * distance,
     y: SPRAY_FIELD_GEOMETRY.home.y - Math.sin(angle) * distance,
   };
+}
+
+function interpolate(value: number, inputStart: number, inputEnd: number, outputStart: number, outputEnd: number) {
+  const progress = (value - inputStart) / Math.max(Number.EPSILON, inputEnd - inputStart);
+  return outputStart + progress * (outputEnd - outputStart);
+}
+
+function piecewise(value: number, anchors: Array<[number, number]>) {
+  if (value <= anchors[0][0]) return interpolate(value, anchors[0][0], anchors[1][0], anchors[0][1], anchors[1][1]);
+  for (let index = 1; index < anchors.length; index += 1) {
+    const previous = anchors[index - 1];
+    const current = anchors[index];
+    if (value <= current[0]) return interpolate(value, previous[0], current[0], previous[1], current[1]);
+  }
+  const previous = anchors[anchors.length - 2];
+  const current = anchors[anchors.length - 1];
+  return interpolate(value, previous[0], current[0], previous[1], current[1]);
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function spraySectorIntensity(count: number, total: number, maxCount: number) {
