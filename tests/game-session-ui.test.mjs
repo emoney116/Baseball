@@ -59,9 +59,9 @@ test("scorekeeper branches into pitch-first detail for balls in play", () => {
 
 test("field tracking uses the shared scalable field renderer and keeps draggable runners", () => {
   assert.match(visuals, /ClubhouseBaseballField/);
-  assert.match(visuals, /legacyGamePointToCanonical/);
-  assert.doesNotMatch(globalCss, /baseball-field-spray-chart-v1\.png/);
-  assert.match(sharedField, /SPRAY_FIELD_PATHS\.fairTerritory/);
+  assert.match(visuals, /coordinateSpace="game"/);
+  assert.match(sharedField, /baseball-field-spray-chart-v1\.png/);
+  assert.match(globalCss, /clubhouse-baseball-field__asset/);
   assert.match(globalCss, /game-field-command__surface\s*\{[^}]*aspect-ratio:\s*10 \/ 7/);
   assert.match(page, /draggable=\{Boolean\(runner\)\}/);
   assert.match(page, /onMoveRunner/);

@@ -27862,6 +27862,77 @@ button.weight-room-athlete-table__row:hover {
   vector-effect: non-scaling-stroke;
 }
 
+/* Every field view renders the Game Center asset authored for Clubhouse. */
+.clubhouse-baseball-field.practice-spray-field {
+  aspect-ratio: 1 / 1;
+  background: #243b19;
+  max-width: 540px;
+}
+
+.clubhouse-baseball-field--compact { max-width: 260px; }
+.clubhouse-baseball-field--standard { max-width: 460px; }
+.clubhouse-baseball-field--large { max-width: 620px; }
+
+.clubhouse-baseball-field__asset,
+.clubhouse-baseball-field__trajectory-layer {
+  height: 100%;
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 100%;
+}
+
+.clubhouse-baseball-field__asset {
+  background-color: #243b19;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  z-index: 0;
+}
+
+.game-field-editor > .clubhouse-baseball-field.field-chart,
+.game-field-command__surface > .clubhouse-baseball-field.field-chart {
+  max-width: none;
+  width: 100%;
+}
+
+.clubhouse-baseball-field__trajectory-layer { z-index: 3; }
+.clubhouse-baseball-field__dot,
+.clubhouse-baseball-field__target { z-index: 4; }
+
+.clubhouse-baseball-field__heat {
+  --heat-size: calc(38px + min(var(--heat-weight), 10) * 7px);
+  background: radial-gradient(circle, color-mix(in srgb, var(--spray-heat-hot) 82%, transparent) 0%, color-mix(in srgb, var(--spray-heat-warm) 54%, transparent) 34%, transparent 72%);
+  border-radius: 50%;
+  filter: blur(5px) saturate(1.08);
+  height: var(--heat-size);
+  pointer-events: none;
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: var(--heat-size);
+  z-index: 2;
+}
+
+.clubhouse-baseball-field__sector-label {
+  align-items: center;
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line-strong) 68%, transparent);
+  border-radius: 7px;
+  display: grid;
+  font-size: 11px;
+  gap: 1px;
+  min-width: 34px;
+  padding: 3px 5px;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+}
+
+.clubhouse-baseball-field__sector-label strong { font-size: 12px; }
+.clubhouse-baseball-field__sector-label small { color: var(--muted); font-size: 9px; font-weight: 800; }
+
 .practice-hitting-sheet__velocity-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(152px, 1fr));

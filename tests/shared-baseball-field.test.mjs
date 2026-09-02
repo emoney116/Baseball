@@ -8,18 +8,17 @@ const styles = await readFile(new URL("../app/globals.css", import.meta.url), "u
 
 test("shared field renderer owns every supported visualization mode", () => {
   assert.match(fieldComponent, /"blank" \| "spray" \| "count" \| "percent" \| "heat"/);
-  assert.match(fieldComponent, /SPRAY_FIELD_PATHS\.fairTerritory/);
+  assert.match(fieldComponent, /baseball-field-spray-chart-v1\.png/);
   assert.match(fieldComponent, /getSprayHeatClusters/);
   assert.match(fieldComponent, /getSprayDistribution/);
   assert.match(fieldComponent, /showTrajectory/);
   assert.match(fieldComponent, /clubhouse-baseball-field__trajectory/);
 });
 
-test("Game Center uses the shared renderer and not the retired static field asset", () => {
+test("Game Center uses the shared renderer with Cambell's native Game coordinate space", () => {
   assert.match(gameCompatibilityWrapper, /ClubhouseBaseballField/);
-  assert.match(gameCompatibilityWrapper, /legacyGamePointToCanonical/);
-  assert.match(gameCompatibilityWrapper, /canonicalPointToLegacyGame/);
-  assert.doesNotMatch(gameCompatibilityWrapper, /baseball-field-spray-chart-v1\.png/);
+  assert.match(gameCompatibilityWrapper, /coordinateSpace="game"/);
+  assert.match(styles, /clubhouse-baseball-field__asset/);
 });
 
 test("Game Center overrides the Practice chart width cap for field-relative controls", () => {

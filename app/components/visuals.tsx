@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import type React from "react";
 import { BRAND_ASSETS } from "../lib/branding";
-import { canonicalPointToLegacyGame, legacyGamePointToCanonical } from "../lib/sprayChart";
 import type { Player, ZonePoint } from "../types";
 import { ClubhouseBaseballField } from "./ClubhouseBaseballField";
 
@@ -290,20 +289,15 @@ export function BaseballField({
   onSelect?: (point: ZonePoint) => void;
   activePoint?: ZonePoint;
 }) {
-  const canonicalPoints = points?.map((point) => ({
-    ...legacyGamePointToCanonical(point),
-    category: point.category,
-    color: point.color,
-  }));
-  const canonicalActivePoint = activePoint ? legacyGamePointToCanonical(activePoint) : undefined;
   return (
     <ClubhouseBaseballField
       className="field-chart"
-      points={canonicalPoints}
-      activePoint={canonicalActivePoint}
-      onSelect={onSelect ? (point) => onSelect(canonicalPointToLegacyGame(point)) : undefined}
+      points={points}
+      activePoint={activePoint}
+      onSelect={onSelect}
       mode="spray"
       size="large"
+      coordinateSpace="game"
       showTrajectory
       ariaLabel={`${points?.length ?? 0} tracked game batted ball locations`}
     />

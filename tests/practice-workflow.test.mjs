@@ -146,9 +146,9 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /function PracticeSprayField/);
   assert.match(page, /<ClubhouseBaseballField/);
   assert.match(sharedField, /getSprayDistribution/);
-  assert.match(sharedField, /SPRAY_FIELD_GEOMETRY/);
-  assert.match(sharedField, /SPRAY_FIELD_PATHS/);
-  assert.match(sharedField, /practice-spray-field__sector-label/);
+  assert.match(sharedField, /baseball-field-spray-chart-v1\.png/);
+  assert.match(sharedField, /canonicalPointToLegacyGame/);
+  assert.match(sharedField, /clubhouse-baseball-field__sector-label/);
   assert.match(page, /function deriveHitDirectionFromFieldLocation/);
   assert.match(page, /practicePitchTypeLabel/);
   assert.match(page, /attendance-roster__scroll/);

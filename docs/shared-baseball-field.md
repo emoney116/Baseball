@@ -1,29 +1,24 @@
 # Shared Baseball Field Visualization
 
-`ClubhouseBaseballField` is the canonical scalable field renderer for Clubhouse.
-It uses the normalized `0..1` coordinate space and SVG geometry exported from
-`app/lib/sprayChart.ts`, with a `1000 x 700` view box. New Practice and
-Analytics batted-ball locations must be written in that normalized space.
+`ClubhouseBaseballField` is the canonical field renderer for Clubhouse. It
+uses Cambell's existing Game Center asset at
+`/game-tracking/baseball-field-spray-chart-v1.png` as its only field surface.
+Practice and Analytics retain their existing normalized stored coordinates and
+adapt them only at the rendering boundary.
 
 ## Rendering modes
 
 The shared component supports `blank`, `spray`, `count`, `percent`, and `heat`
 views. It accepts point overlays, a selectable active point, and an optional
-click handler for location entry. Count, percentage, and heat views use the
-same fair-territory geometry and calculated point distribution as spray dots.
+click handler for location entry. Count, percentage, and heat views layer
+calculated data above the same Game Center field asset.
 
 ## Legacy Game Center locations
 
-Existing Game Center events were recorded against the retired square field
-asset. They remain stored in their original coordinate space. `BaseballField`
-in `app/components/visuals.tsx` is now a compatibility wrapper: it converts
-legacy Game points to the canonical field for display and converts selected
-points back before the existing Game write path runs. No historical events are
-rewritten as part of this change.
-
-`legacyGamePointToCanonical` and `canonicalPointToLegacyGame` provide the
-explicit adapter. They are intentionally limited to the legacy Game surface;
-new Practice, Live BP, and Analytics locations must not pass through them.
+Existing Game Center events already use the asset's native coordinate space.
+`BaseballField` in `app/components/visuals.tsx` passes those coordinates
+straight through. The explicit coordinate adapter preserves existing Practice
+and Analytics point data without rewriting a historical event.
 
 ## Analytics ownership
 
