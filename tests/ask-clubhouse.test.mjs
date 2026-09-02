@@ -176,6 +176,25 @@ test("Ask Clubhouse answers baseball definitions without model tools", () => {
   assert.match(plan.answer, /on-base percentage plus slugging/);
 });
 
+test("standard Ask Clubhouse prompts map to bounded data plans", () => {
+  const config = getAskClubhouseConfig({});
+  const prompts = [
+    ["Who has the highest Practice Contact %?", "getHittingLeaderboard"],
+    ["What changed in our hitting this month?", "compareAnalyticsPeriods"],
+    ["Who leads Weight Room Development?", "getWeightRoomLeaderboard"],
+    ["Show our latest Practice summary", "getPracticeSummary"],
+    ["Which pitchers have the best Practice Strike %?", "getPitchingLeaderboard"],
+    ["Who has the most extra-base hits in Games?", "getHittingLeaderboard"],
+  ];
+
+  for (const [question, toolName] of prompts) {
+    const plan = buildAskClubhouseToolPlan(data, question, undefined, config);
+    assert.equal(plan.status, "data", question);
+    assert.ok(plan.toolRequests.length, question);
+    assert.equal(plan.toolRequests[0].name, toolName, question);
+  }
+});
+
 test("intelligence QA fixture contains 100+ categorized deterministic cases", () => {
   assert.ok(ASK_CLUBHOUSE_INTELLIGENCE_QA.length >= 100);
   const categories = new Set(ASK_CLUBHOUSE_INTELLIGENCE_QA.map((item) => item.category));

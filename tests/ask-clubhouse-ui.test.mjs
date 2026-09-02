@@ -49,6 +49,10 @@ test("Ask Clubhouse keeps launch suggestions on landing and follow-ups on only t
   const page = readFileSync("app/page.tsx", "utf8");
 
   assert.match(page, /ASK_CLUBHOUSE_UI_SUGGESTIONS/);
+  assert.doesNotMatch(page, /Which teams need my attention\?/);
+  assert.doesNotMatch(page, /What should we watch next game\?/);
+  assert.match(page, /Who has the highest Practice Contact %\?/);
+  assert.match(page, /Show our latest Practice summary/);
   assert.match(page, /function AskClubhouseFollowUps/);
   assert.match(page, /showFollowUps=\{message\.id === lastAssistantId\}/);
   assert.match(page, /showFollowUps && <AskClubhouseFollowUps/);

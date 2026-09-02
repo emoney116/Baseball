@@ -373,40 +373,40 @@ const ASK_CLUBHOUSE_ERROR_TITLE = "I couldn't complete that analysis right now."
 const ASK_CLUBHOUSE_ERROR_BODY = "Your Clubhouse data was not changed.";
 
 const ASK_CLUBHOUSE_UI_SUGGESTIONS: Array<{ label: string; icon: LucideIcon }> = [
-  { label: "Who are my hottest hitters?", icon: TrendingUp },
+  { label: "Who has the highest Practice Contact %?", icon: TrendingUp },
   { label: "Compare Practice vs Games", icon: BarChart3 },
-  { label: "Who has improved most?", icon: Gauge },
+  { label: "What changed in our hitting this month?", icon: Gauge },
   { label: "Who has the best bullpen Strike %?", icon: Trophy },
   { label: "Show our highest exit velocities", icon: Sparkles },
-  { label: "Who is leading the Weight Room?", icon: Dumbbell },
+  { label: "Who leads Weight Room Development?", icon: Dumbbell },
 ];
 
 const ASK_CLUBHOUSE_CONTEXT_SUGGESTIONS: Record<AskClubhouseLaunchSurface, Array<{ label: string; icon: LucideIcon }>> = {
   clubhouse_home: [
-    { label: "Which teams need my attention?", icon: TrendingUp },
-    { label: "Who has improved most?", icon: Gauge },
-    { label: "Compare my teams", icon: BarChart3 },
-    { label: "What should I review today?", icon: ClipboardList },
+    { label: "Who has the highest Practice Contact %?", icon: TrendingUp },
+    { label: "What changed in our hitting this month?", icon: Gauge },
+    { label: "Who leads Weight Room Development?", icon: Dumbbell },
+    { label: "Show our latest Practice summary", icon: ClipboardList },
   ],
   team_home: ASK_CLUBHOUSE_UI_SUGGESTIONS,
   practice: [
     { label: "Who has the highest Practice Contact %?", icon: TrendingUp },
-    { label: "Who has taken the most reps?", icon: BarChart3 },
-    { label: "Which pitchers throw the most strikes?", icon: Trophy },
-    { label: "Where is our Practice data thin?", icon: Gauge },
+    { label: "Who has the most tracked Practice swings?", icon: BarChart3 },
+    { label: "Which pitchers have the best Practice Strike %?", icon: Trophy },
+    { label: "Show our Practice hitting leaders", icon: Gauge },
   ],
   analytics: ASK_CLUBHOUSE_UI_SUGGESTIONS,
   weight_room: [
-    { label: "Who is leading the Weight Room?", icon: Dumbbell },
-    { label: "Who has improved most this month?", icon: TrendingUp },
+    { label: "Who leads Weight Room Development?", icon: Dumbbell },
+    { label: "Who improved most in the Weight Room this month?", icon: TrendingUp },
     { label: "Who has missed recent workouts?", icon: ClipboardList },
-    { label: "Compare strength progress across teams", icon: BarChart3 },
+    { label: "Who completed the most workouts?", icon: BarChart3 },
   ],
   games: [
     { label: "Who leads our game hitting?", icon: Trophy },
     { label: "Compare Practice vs Games", icon: BarChart3 },
-    { label: "Who has the most extra-base hits?", icon: TrendingUp },
-    { label: "What should we watch next game?", icon: Sparkles },
+    { label: "Who has the most extra-base hits in Games?", icon: TrendingUp },
+    { label: "Who has the highest game AVG?", icon: Sparkles },
   ],
 };
 
