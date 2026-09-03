@@ -5078,6 +5078,15 @@ function TeamWorkspaceHeader({
   }
   return (
     <section className="team-workspace-header team-workspace-header--home">
+      <button
+        className="icon-button team-workspace-header__home-button"
+        type="button"
+        onClick={onClubhouseHome}
+        aria-label="Back to Clubhouse Home"
+        title="Clubhouse Home"
+      >
+        <ChevronLeft size={18} aria-hidden="true" />
+      </button>
       <OrganizationLogo name={current.organizationName} logoUrl={teamOrganizationLogo(current, context)} />
       <div className="team-workspace-header__identity">
         <span>{current.organizationName}</span>
@@ -7146,9 +7155,9 @@ function ScheduleView({
         title="Schedule"
         context={teamContextLine(data.teamContext?.currentTeam)}
         action={(
-          <button type="button" className="primary-button" onClick={() => onAddEvent()}>
+          <button type="button" className="primary-button schedule-add-event" onClick={() => onAddEvent()} aria-label="Add event" title="Add event">
             <CalendarPlus size={16} aria-hidden="true" />
-            Add Event
+            <span>Add Event</span>
           </button>
         )}
       />
@@ -7181,7 +7190,7 @@ function ScheduleView({
           {mode === "Week" && <ScheduleWeekView cursor={cursor} items={visibleItems} onSelect={setSelectedItem} />}
           {mode === "Agenda" && <ScheduleAgendaView items={visibleItems} onSelect={setSelectedItem} />}
         </div>
-        <aside className="schedule-side">
+        <aside className={`schedule-side${selectedVisibleItem ? " schedule-side--selected" : ""}`}>
           <article className="panel schedule-next-card">
             <div className="panel-heading tight">
               <div>
@@ -7208,6 +7217,7 @@ function ScheduleView({
             onView={onView}
             onOpenGame={onOpenGame}
             onUpdateScheduleEvent={onUpdateScheduleEvent}
+            onClose={() => setSelectedItem(null)}
           />
         </aside>
       </section>
@@ -7326,12 +7336,14 @@ function ScheduleDetailCard({
   onView,
   onOpenGame,
   onUpdateScheduleEvent,
+  onClose,
 }: {
   data: AppData;
   item: ScheduleItem | null;
   onView: (view: ViewKey) => void;
   onOpenGame: (gameId: ID) => void;
   onUpdateScheduleEvent: (event: ScheduleEvent) => void;
+  onClose: () => void;
 }) {
   if (!item) {
     return (
@@ -7341,10 +7353,17 @@ function ScheduleDetailCard({
     );
   }
   const genericEvent = item.source === "event" ? (data.scheduleEvents ?? []).find((event) => event.id === item.sourceId) : undefined;
+  const game = item.source === "game" ? data.games.find((candidate) => candidate.id === item.sourceId) : undefined;
+  const opponentTeam = game
+    ? (data.teamContext?.availableTeams ?? []).find((team) => team.teamName.trim().toLowerCase() === game.opponent.trim().toLowerCase())
+    : undefined;
   return (
     <article className="panel schedule-detail-card">
+      <button className="icon-button schedule-detail-card__close" type="button" onClick={onClose} aria-label="Close event details">
+        <X size={16} aria-hidden="true" />
+      </button>
       <div className="schedule-detail-card__top">
-        <ScheduleTypeIcon type={item.eventType} />
+        {opponentTeam ? <OrganizationLogo name={opponentTeam.teamName} logoUrl={opponentTeam.logoUrl} /> : <ScheduleTypeIcon type={item.eventType} />}
         <span>
           <small>{item.eventType}</small>
           <strong>{item.title}</strong>
@@ -7733,18 +7752,34 @@ function RosterView({
                 </button>
               </>
             ) : (
-              <button className="primary-button" type="button" onClick={onInviteStaff}>
+              <button className="primary-button roster-header-action" type="button" onClick={onInviteStaff} aria-label="Invite staff" title="Invite staff">
                 <Mail size={16} aria-hidden="true" />
-                Invite Staff
+                <span>Invite Staff</span>
               </button>
             )}
           </div>
         }
       />
 
-      <section className="roster-section-row">
-        <SegmentedControl values={ROSTER_SECTIONS} active={section} onChange={onSection} />
-      </section>
+      {section === "Players" ? (
+        <section className="roster-filter-row">
+          <div className="roster-section-row">
+            <SegmentedControl values={ROSTER_SECTIONS} active={section} onChange={onSection} />
+          </div>
+          <ChoiceSelect
+            label="Status"
+            value={filter}
+            className="filter-select roster-status-select"
+            options={ROSTER_FILTERS.map((value) => ({ value, label: value }))}
+            onChange={(value) => onFilter(value as RosterFilter)}
+            aria-label="Filter roster by status"
+          />
+        </section>
+      ) : (
+        <section className="roster-section-row">
+          <SegmentedControl values={ROSTER_SECTIONS} active={section} onChange={onSection} />
+        </section>
+      )}
 
       {section === "Staff" ? (
         <StaffRosterView
@@ -7762,10 +7797,6 @@ function RosterView({
         />
       ) : (
         <>
-      <section className="roster-status-row">
-        <SegmentedControl values={ROSTER_FILTERS} active={filter} onChange={onFilter} />
-      </section>
-
       <section className="toolbar-panel roster-toolbar">
         <label className="search-pill">
           <Search size={15} aria-hidden="true" />
@@ -7809,7 +7840,10 @@ function RosterView({
             <button type="button" className="roster-player-cell" onClick={() => onOpenPlayer(player.id)}>
               <PlayerAvatar player={player} size="sm" compact />
               <span>
-                <strong>{player.name}</strong>
+                <strong>
+                  <span className="roster-player-name--full">{player.name}</span>
+                  <span className="roster-player-name--compact">{compactPlayerName(player.name)}</span>
+                </strong>
                 <small>{positionLine(player)}</small>
               </span>
             </button>
@@ -16370,6 +16404,7 @@ function WeightRoomPlayerPanel({
     if (!query) return true;
     return `${item.name} ${item.jerseyNumber}`.toLowerCase().includes(query);
   });
+  const selectedPlayerIndex = players.findIndex((item) => item.id === player.id);
   const exerciseRows = sortWeightRoomExerciseRows(buildWeightRoomPlayerExerciseRows(data, player, exerciseLibrary)
     .filter((row) => {
       const query = exerciseQuery.trim().toLowerCase();
@@ -16391,6 +16426,11 @@ function WeightRoomPlayerPanel({
   function selectTab(tab: WeightRoomAthleteTab) {
     setPlayerTab(tab);
     syncWeightRoomAthleteUrl(player.id, tab);
+  }
+
+  function movePlayer(direction: -1 | 1) {
+    const nextIndex = Math.max(0, Math.min(players.length - 1, selectedPlayerIndex + direction));
+    if (nextIndex !== selectedPlayerIndex) selectPlayer(players[nextIndex].id);
   }
 
   function toggleWorkoutExercise(exercise: string) {
@@ -16447,13 +16487,19 @@ function WeightRoomPlayerPanel({
       </aside>
       <article ref={athleteDetailsRef} className="panel weight-room-player-profile weight-room-athlete-panel">
         <div className="weight-room-mobile-player-select">
+          <button className="icon-button" type="button" onClick={() => movePlayer(-1)} disabled={selectedPlayerIndex <= 0} aria-label="Previous athlete">
+            <ChevronLeft size={17} aria-hidden="true" />
+          </button>
           <ChoiceSelect
             value={player.id}
             className="form-choice"
-            options={players.map((item) => ({ value: item.id, label: item.name, description: `#${item.jerseyNumber} - ${item.primaryPosition}` }))}
+            options={players.map((item) => ({ value: item.id, label: item.name }))}
             onChange={selectPlayer}
             aria-label="Select athlete"
           />
+          <button className="icon-button" type="button" onClick={() => movePlayer(1)} disabled={selectedPlayerIndex >= players.length - 1} aria-label="Next athlete">
+            <ChevronRight size={17} aria-hidden="true" />
+          </button>
         </div>
         <WeightRoomAthleteHeader player={player} onOpenPlayer={onOpenPlayer} />
         <WeightRoomAthleteTabs active={playerTab} onChange={selectTab} />
@@ -16512,10 +16558,10 @@ function WeightRoomPlayerPanel({
 function WeightRoomAthleteHeader({ player, onOpenPlayer }: { player: Player; onOpenPlayer: (playerId: ID) => void }) {
   return (
     <div className="profile-header weight-room-profile-header">
-      <PlayerAvatar player={player} size="lg" />
+      <PlayerAvatar player={player} size="lg" compact />
       <div>
         <h2>{player.name}</h2>
-        <small>#{player.jerseyNumber} - {player.primaryPosition} - Class of {player.graduationYear}</small>
+        <small>#{player.jerseyNumber} · {player.primaryPosition} · Class of {player.graduationYear}</small>
       </div>
       <button className="secondary-button" type="button" onClick={() => onOpenPlayer(player.id)}>
         Open Full Profile
@@ -17754,7 +17800,8 @@ function WeightRoomLeaderboardDetail({
   ].filter((note): note is string => Boolean(note));
 
   return (
-    <aside className="panel weight-room-score-drawer" aria-label={`${row.player.name} score detail`}>
+    <div className="weight-room-score-drawer-backdrop" role="presentation" onMouseDown={onClose}>
+      <aside className="panel weight-room-score-drawer" role="dialog" aria-modal="true" aria-label={`${row.player.name} score detail`} onMouseDown={(event) => event.stopPropagation()}>
       <button className="ghost-button weight-room-score-drawer__close" type="button" onClick={onClose} aria-label="Close score detail">
         <X size={16} aria-hidden="true" />
       </button>
@@ -17805,7 +17852,8 @@ function WeightRoomLeaderboardDetail({
         View Athlete
         <ChevronRight size={16} aria-hidden="true" />
       </button>
-    </aside>
+      </aside>
+    </div>
   );
 }
 
@@ -19374,6 +19422,7 @@ function AnalyticsSummaryStrip({ result }: { result: AnalyticsResult }) {
 
 function AnalyticsSprayChart({ result }: { result: AnalyticsResult }) {
   const chart = result.sprayChart;
+  const [mode, setMode] = useState<"spray" | "count" | "percent" | "heat">("spray");
   if (!chart) return null;
   const hasTrackedLocations = chart.trackedLocations > 0;
   return (
@@ -19383,11 +19432,17 @@ function AnalyticsSprayChart({ result }: { result: AnalyticsResult }) {
           <span>Spray Chart</span>
           <strong>{hasTrackedLocations ? `${chart.trackedLocations} tracked locations` : "No locations tracked"}</strong>
         </div>
-        <small>{chart.ballsInPlay} {chart.ballsInPlay === 1 ? "ball" : "balls"} in play</small>
+        <SegmentedControl
+          values={["spray", "count", "percent", "heat"] as const}
+          active={mode}
+          onChange={setMode}
+          ariaLabel="Spray chart display"
+          formatValue={(value) => ({ spray: "Spray", count: "#", percent: "%", heat: "Heat" })[value]}
+        />
       </div>
       <ClubhouseBaseballField
         points={chart.points}
-        mode={hasTrackedLocations ? "spray" : "blank"}
+        mode={hasTrackedLocations ? mode : "blank"}
         size="standard"
         ariaLabel={`${chart.trackedLocations} tracked hitting locations in the current analytics selection`}
       />
@@ -19455,8 +19510,8 @@ function AnalyticsTable({
             <span className="analytics-box-score__cell analytics-box-score__cell--player analytics-player-cell" role="cell">
               {row.rowKind !== "group" && <PlayerAvatar player={row.player} size="sm" compact />}
               <span>
-                <strong>{row.groupLabel ?? row.player.name}</strong>
-                {row.rowKind === "group" ? <small>{row.sampleCount} tracked</small> : <small>#{row.player.jerseyNumber} · {row.player.primaryPosition}{row.player.secondaryPosition ? ` / ${row.player.secondaryPosition}` : ""}</small>}
+                <strong>{row.groupLabel ?? `#${row.player.jerseyNumber} ${compactPlayerName(row.player.name)}`}</strong>
+                {row.rowKind === "group" && <small>{row.sampleCount} tracked</small>}
               </span>
             </span>
             {result.columns.map((column) => (
@@ -19488,13 +19543,17 @@ function AnalyticsTable({
 }
 
 function AnalyticsCellView({ cell, align }: { cell?: AnalyticsCell; align: "left" | "right" | "center" }) {
-  const sample = analyticsSampleText(cell);
   return (
     <span className={`analytics-box-score__cell analytics-box-score__cell--${align} ${cell?.kind === "insufficient-sample" ? "is-low-sample" : ""}`} role="cell">
       <strong>{cell?.display ?? "—"}</strong>
-      {sample && <small>{sample}</small>}
     </span>
   );
+}
+
+function compactPlayerName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return name;
+  return `${parts[0][0]}. ${parts.at(-1)}`;
 }
 
 function AnalyticsInsights({ result, onOpenPlayer }: { result: AnalyticsResult; onOpenPlayer: (playerId: ID) => void }) {
@@ -20921,23 +20980,17 @@ function PlayerProfile({
   return (
     <div className="page-stack profile-page">
       <section className="profile-header panel">
-        <PlayerAvatar player={player} size="xl" />
+        <PlayerAvatar player={player} size="xl" compact />
         <div>
           <span>{player.rosterStatus}</span>
           <h2>#{player.jerseyNumber} {player.name}</h2>
-          <small>{positionLine(player)} - {player.graduationYear} - {player.bats}/{player.throws} - {player.height} - {player.weight} lb</small>
+          <small>{positionLine(player)} · Class of {player.graduationYear}</small>
           <div className="profile-context-row">
             <TeamSwitcher context={data.teamContext} onSwitch={onTeamSwitch} compact />
           </div>
         </div>
-        <div className="status-toggle">
-          {ROSTER_STATUSES.map((status) => (
-            <button key={status} type="button" className={player.rosterStatus === status ? "active" : ""} onClick={() => onStatus(player.id, status)}>{status}</button>
-          ))}
-        </div>
-        <button className="secondary-button" type="button" onClick={onEdit}>
+        <button className="icon-button profile-edit-action" type="button" onClick={onEdit} aria-label={`Edit ${player.name}`} title="Edit player">
           <Edit3 size={16} aria-hidden="true" />
-          Edit
         </button>
       </section>
 
@@ -21691,7 +21744,7 @@ function PlayerEditorModal({ player, onClose, onSave }: { player?: Player; onClo
             <div className="single-player-field"><span className="single-player-field__label">Bats</span><ChoiceSelect aria-label="Bats" value={form.bats} className="manual-choice-cell" options={HANDEDNESS_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, bats: value as Player["bats"] })} /></div>
             <div className="single-player-field"><span className="single-player-field__label">Throws</span><ChoiceSelect aria-label="Throws" value={form.throws} className="manual-choice-cell" options={THROWS_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, throws: value as Player["throws"] })} /></div>
             <div className="single-player-field"><span className="single-player-field__label">Height</span><ManualHeightCell value={String(heightToInches(form.height))} onChange={(heightInches) => setForm({ ...form, height: heightInches ? formatHeightFromInches(Number(heightInches)) : undefined })} /></div>
-            <div className="single-player-field"><span className="single-player-field__label">Weight</span><ManualNumberCell label="Weight" placeholder="Wt" value={form.weight ? String(form.weight) : ""} min={80} max={320} onChange={(value) => setForm({ ...form, weight: Number(value) || undefined })} /></div>
+            <div className="single-player-field"><span className="single-player-field__label">Weight</span><ManualWeightPicker value={form.weight ? String(form.weight) : ""} onChange={(value) => setForm({ ...form, weight: Number(value) || undefined })} /></div>
             <div className="single-player-field"><span className="single-player-field__label">Status</span><ChoiceSelect aria-label="Status" value={form.rosterStatus ?? "Undecided"} className="manual-choice-cell" options={ROSTER_STATUSES.map((status) => ({ value: status, label: status }))} onChange={(value) => setForm({ ...form, rosterStatus: value as RosterStatus })} /></div>
           </div>
         </div>
@@ -22929,7 +22982,7 @@ function ManualRosterBuilder({
                   onChange={(value) => onChangeRow(row.id, { throws: value as Player["throws"] })}
                 />
                 <ManualHeightCell value={row.heightInches} onChange={(heightInches) => onChangeRow(row.id, { heightInches })} />
-                <ManualNumberCell label="Weight" placeholder="Wt" value={row.weight} min={80} max={320} onChange={(weight) => onChangeRow(row.id, { weight })} />
+                <ManualWeightPicker value={row.weight} onChange={(weight) => onChangeRow(row.id, { weight })} />
                 <ChoiceSelect
                   aria-label="Roster status"
                   value={row.rosterStatus}
@@ -23005,73 +23058,44 @@ function ManualNumberCell({
 }
 
 function ManualHeightCell({ value, onChange }: { value: string; onChange: (heightInches: string) => void }) {
-  const formattedHeight = formatManualHeight(value);
-  const [draft, setDraft] = useState(formattedHeight);
-  const [isFocused, setIsFocused] = useState(false);
-
-  function setHeightFromEntry(nextEntry: string) {
-    const digits = nextEntry.replace(/\D/g, "").slice(0, 3);
-    const nextDraft = formatHeightDigits(digits);
-    setDraft(nextDraft);
-
-    if (!digits) {
-      onChange("");
-      return;
-    }
-
-    const parsedFeet = Number(digits[0]);
-    const parsedInches = Math.max(0, Math.min(11, Number(digits.slice(1) || 0)));
-    if (!Number.isFinite(parsedFeet)) return;
-    onChange(String((parsedFeet * 12) + parsedInches));
-  }
-
-  function step(delta: number) {
-    const current = Number(value) || 72;
-    const next = Math.max(48, Math.min(90, current + delta));
-    const nextValue = String(next);
-    onChange(nextValue);
-    setDraft(formatManualHeight(nextValue));
-  }
-
   return (
     <div className="height-ft-in-cell" data-label="Height">
-      <input
+      <ChoiceSelect
         aria-label="Height"
-        type="text"
-        inputMode="numeric"
-        maxLength={4}
-        pattern="[0-9]*"
-        value={isFocused ? draft : formattedHeight}
-        placeholder="6'1"
-        onFocus={() => {
-          setIsFocused(true);
-          setDraft(formatManualHeight(value));
-        }}
-        onBlur={() => {
-          setIsFocused(false);
-          setDraft(formatManualHeight(value));
-        }}
-        onChange={(event) => setHeightFromEntry(event.target.value)}
+        value={value}
+        className="manual-choice-cell"
+        showSelectedDescription={false}
+        placeholder="Select height"
+        mobilePresentation="sheet"
+        options={Array.from({ length: 6 }, (_, feetOffset) => feetOffset + 3).flatMap((feet) => Array.from({ length: 12 }, (_, inches) => ({
+          value: String((feet * 12) + inches),
+          label: `${feet}'${inches}\"`,
+        })))}
+        onChange={onChange}
       />
-      <div className="height-step-buttons" aria-label="Adjust height">
-        <button type="button" onClick={() => step(1)} aria-label="Increase height by one inch"><ChevronUp size={12} aria-hidden="true" /></button>
-        <button type="button" onClick={() => step(-1)} aria-label="Decrease height by one inch"><ChevronDown size={12} aria-hidden="true" /></button>
-      </div>
     </div>
   );
 }
 
-function formatHeightDigits(digits: string) {
-  if (!digits) return "";
-  if (digits.length === 1) return `${digits}'`;
-  return `${digits[0]}'${digits.slice(1)}`;
+function ManualWeightPicker({ value, onChange }: { value: string; onChange: (weight: string) => void }) {
+  return (
+    <div className="manual-number-cell manual-weight-picker" data-label="Weight">
+      <ChoiceSelect
+        aria-label="Weight"
+        value={value}
+        className="manual-choice-cell"
+        showSelectedDescription={false}
+        placeholder="Select weight"
+        mobilePresentation="sheet"
+        searchable
+        searchPlaceholder="Search pounds..."
+        options={Array.from({ length: 500 }, (_, index) => ({ value: String(index + 1), label: `${index + 1} lb` }))}
+        onChange={onChange}
+      />
+    </div>
+  );
 }
 
-function formatManualHeight(value: string) {
-  const { feet, inches } = manualHeightParts(value);
-  if (!feet) return "";
-  return `${feet}'${inches || "0"}`;
-}
 
 function manualHeightParts(value: string) {
   const total = Number(value);

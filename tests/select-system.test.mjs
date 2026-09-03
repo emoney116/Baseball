@@ -82,6 +82,21 @@ test("annotated Home and Weight Room controls use compact actions and starting-w
   assert.match(page, /This Week \(lb\)/);
 });
 
+test("annotated mobile navigation and compact data displays avoid duplicate controls", () => {
+  assert.match(page, /aria-label="Back to Clubhouse Home"/);
+  assert.match(page, /schedule-side--selected/);
+  assert.match(page, /function ManualWeightPicker/);
+  assert.match(page, /Array\.from\(\{ length: 500 \}/);
+  assert.match(page, /feetOffset\) => feetOffset \+ 3/);
+  assert.match(page, /compactPlayerName/);
+  assert.match(page, /roster-player-name--compact/);
+  assert.match(page, /weight-room-score-drawer-backdrop/);
+  assert.match(page, /aria-modal="true"/);
+  assert.doesNotMatch(page.slice(page.indexOf("function AnalyticsCellView"), page.indexOf("function AnalyticsInsights")), /analyticsSampleText/);
+  assert.match(css, /\.roster-filter-row/);
+  assert.match(css, /\.weight-room-score-drawer-backdrop/);
+});
+
 test("the system documentation includes inventory, responsive behavior, and exception guidance", () => {
   assert.match(docs, /## Inventory/);
   assert.match(docs, /## Accessibility and layering/);

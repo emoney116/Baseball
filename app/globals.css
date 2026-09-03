@@ -3489,6 +3489,12 @@ textarea:focus-visible {
 .team-workspace-header--home {
   min-height: 82px;
   padding: 13px 16px;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+}
+
+.team-workspace-header__home-button {
+  width: 38px;
+  height: 38px;
 }
 
 .team-workspace-header--compact {
@@ -16527,6 +16533,10 @@ body {
   font-weight: 760;
 }
 
+.roster-player-name--compact {
+  display: none;
+}
+
 .roster-player-cell small {
   color: var(--muted);
   font-size: 12px;
@@ -17458,6 +17468,14 @@ body {
   .roster-player-cell {
     grid-template-columns: 32px minmax(0, 1fr);
     gap: 8px;
+  }
+
+  .roster-player-name--full {
+    display: none;
+  }
+
+  .roster-player-name--compact {
+    display: inline;
   }
 
   .choice-select.status-select-wrap {
@@ -24163,6 +24181,10 @@ button.weight-room-athlete-table__row:hover {
   display: grid;
   gap: 16px;
   padding: 18px;
+}
+
+.weight-room-score-drawer-backdrop {
+  display: contents;
 }
 
 .weight-room-score-drawer__close {
@@ -35336,5 +35358,138 @@ body:has(.analytics-ask-drawer) {
   .single-player-row .height-step-buttons {
     top: 12px;
     bottom: 6px;
+  }
+}
+
+/* Annotation follow-through: compact mobile actions and details that do not strand below a long schedule. */
+.schedule-detail-card__close {
+  display: none;
+}
+
+.roster-filter-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(136px, 180px);
+  align-items: end;
+  gap: 10px;
+}
+
+.roster-filter-row .roster-section-row .segmented-control {
+  width: 100%;
+}
+
+.roster-filter-row .roster-section-row .segmented-control button {
+  flex: 1 1 0;
+}
+
+.analytics-spray-chart__header .segmented-control {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 720px) {
+  .team-workspace-header--home {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .team-workspace-header--home .team-workspace-header__actions {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+
+  .team-workspace-header--home .team-workspace-header__actions > button {
+    flex: 1 1 0;
+  }
+
+  .schedule-page > .section-header .schedule-add-event {
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    height: 40px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .schedule-page > .section-header .schedule-add-event span {
+    display: none;
+  }
+
+  .schedule-side:not(.schedule-side--selected) {
+    display: none;
+  }
+
+  .schedule-side--selected {
+    position: fixed;
+    z-index: 10020;
+    inset: auto 8px calc(8px + env(safe-area-inset-bottom));
+    max-height: min(64dvh, 560px);
+    overflow: auto;
+  }
+
+  .schedule-side--selected .schedule-next-card {
+    display: none;
+  }
+
+  .schedule-side--selected .schedule-detail-card {
+    position: relative;
+    padding-top: 48px;
+  }
+
+  .schedule-detail-card__close {
+    display: inline-grid;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+
+  .roster-filter-row {
+    grid-template-columns: minmax(0, 1fr) minmax(124px, 0.82fr);
+    gap: 8px;
+  }
+
+  .roster-filter-row .choice-select__label {
+    font-size: 11px;
+  }
+
+  .profile-header {
+    grid-template-columns: 78px minmax(0, 1fr) auto;
+  }
+
+  .analytics-spray-chart__header {
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .analytics-spray-chart__header .segmented-control button {
+    min-width: 30px;
+    padding-inline: 7px;
+  }
+
+  .weight-room-mobile-player-select {
+    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    align-items: end;
+    gap: 6px;
+  }
+
+  .weight-room-mobile-player-select > .icon-button {
+    width: 38px;
+    height: 44px;
+  }
+
+  .weight-room-score-drawer-backdrop {
+    position: fixed;
+    z-index: 10020;
+    inset: 0;
+    display: grid;
+    align-items: end;
+    background: color-mix(in srgb, #000 50%, transparent);
+    padding: 16px 8px calc(8px + env(safe-area-inset-bottom));
+  }
+
+  .weight-room-score-drawer {
+    position: relative;
+    top: auto;
+    max-height: min(72dvh, 620px);
+    overflow: auto;
+    border-radius: var(--radius-sheet) var(--radius-sheet) var(--radius) var(--radius);
   }
 }
