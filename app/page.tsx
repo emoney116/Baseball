@@ -84,6 +84,7 @@ import {
 } from "./lib/analyticsQuery";
 import {
   analyticsPresetColumnIds as catalogPresetColumnIds,
+  analyticsMetricColumnGroup,
   analyticsSourcesForDomain,
   defaultAnalyticsMetricIds,
   normalizeAnalyticsView,
@@ -1078,7 +1079,6 @@ function parseLiveBpThrowerSourceParam(value: string | null): LiveBpThrowerSourc
 }
 
 const ROSTER_STATUSES: RosterStatus[] = ["Varsity", "JV", "MS", "Undecided", "Cut"];
-const ROSTER_FILTERS: RosterFilter[] = ["All", ...ROSTER_STATUSES];
 const ROSTER_SECTIONS: RosterSection[] = ["Players", "Staff"];
 const STAFF_BASEBALL_ROLES: StaffBaseballRole[] = [
   "Head Coach",
@@ -19827,20 +19827,6 @@ function AnalyticsView({
   );
 }
 
-function AnalyticsSummaryStrip({ result }: { result: AnalyticsResult }) {
-  return (
-    <section className="analytics-summary-strip" aria-label={`${result.title} summary`}>
-      {result.summary.map((item) => (
-        <div key={item.label}>
-          <span>{item.label}</span>
-          <strong>{item.value}</strong>
-          {item.sub && <small>{item.sub}</small>}
-        </div>
-      ))}
-    </section>
-  );
-}
-
 function AnalyticsCharts({
   result,
   surface,
@@ -20168,9 +20154,7 @@ function AnalyticsColumnPanel({
 }
 
 function analyticsColumnGroup(metricId: string) {
-  if (["opportunities", "swings", "contacts", "bip", "takes", "misses", "fouls", "trackedBip", "ab", "hits", "singles", "doubles", "triples", "homeRuns", "outs", "xbh", "totalBases", "pitches", "balls", "strikes"].includes(metricId)) return "Standard";
-  if (["avg", "slg", "iso", "babip", "swingPct", "contactPct", "swingMissPct", "takePct", "zoneContactPct", "chasePct", "strikePct", "zonePct", "whiffPct", "cswPct", "firstPitchStrikePct"].includes(metricId)) return "Advanced";
-  return "Clubhouse Development";
+  return analyticsMetricColumnGroup(metricId);
 }
 
 function analyticsColumnDisplayLabel(label: string) {

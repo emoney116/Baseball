@@ -315,8 +315,11 @@ test("pitching query calculates strike and zone rates with game source support",
   assert.equal(mylo.cells.pitches.display, "7");
   assert.equal(mylo.cells.strikePct.display, "71%");
   assert.equal(mylo.cells.zonePct.display, "75%");
-  assert.deepEqual(result.columns.map((column) => column.metricId), ["pitches", "strikePct", "zonePct", "avgPitchVelo", "maxPitchVelo", "balls", "strikes", "whiffPct", "cswPct", "firstPitchStrikePct"]);
+  assert.deepEqual(result.columns.map((column) => column.metricId), ["pitches", "strikePct", "zonePct", "avgPitchVelo", "maxPitchVelo", "balls", "strikes", "ballPct", "swingPctAllowed", "whiffPct", "swStrPct", "calledStrikePct", "cswPct", "contactAllowedPct", "zoneWhiffPct", "outZoneWhiffPct", "firstPitchStrikePct", "medianPitchVelo", "p90PitchVelo", "minPitchVelo", "veloSpread"]);
   assert.equal(mylo.cells.avgPitchVelo.display, "83.0");
+  assert.equal(mylo.cells.ballPct.display, "29%");
+  assert.equal(mylo.cells.calledStrikePct.display, "29%");
+  assert.equal(mylo.cells.medianPitchVelo.display, "83.0");
 });
 
 test("defense query uses worked position, structured filters, and weighted team rates", () => {
@@ -356,7 +359,7 @@ test("defense query uses worked position, structured filters, and weighted team 
   const jacob = row(result, "p-jacob");
 
   assert.equal(result.filterDefinitions.some((definition) => definition.id === "defensePositions"), true);
-  assert.deepEqual(result.columns.map((column) => column.metricId), ["positionWorked", "reps", "cleanReps", "errors", "cleanPct", "throwAcc", "throws", "accurateThrows", "greatPlays"]);
+  assert.deepEqual(result.columns.map((column) => column.metricId), ["positionWorked", "reps", "cleanReps", "errors", "fieldingErrors", "throwingErrors", "decisionErrors", "missedReps", "errorPct", "cleanPct", "throwAcc", "throws", "accurateThrows", "inaccurateThrows", "greatPlays"]);
   assert.equal(jacob.cells.positionWorked.display, "SS");
   assert.equal(jacob.cells.reps.display, "8");
   assert.equal(jacob.cells.cleanReps.display, "7");
@@ -388,12 +391,28 @@ test("game hitting source only exposes supported ball-in-play metrics", () => {
   const labels = result.columns.map((column) => column.label);
   const jacob = row(result, "p-jacob");
 
-  assert.deepEqual(labels, ["BIP", "AB", "H", "1B", "2B", "3B", "HR", "Outs", "XBH", "TB", "AVG", "SLG", "ISO", "BABIP"]);
+  assert.deepEqual(labels, ["BIP", "AB", "H", "1B", "2B", "3B", "HR", "Outs", "XBH", "TB", "AVG", "SLG", "ISO", "BABIP", "HR/AB%", "XBH/AB%", "TB/AB"]);
   assert.equal(jacob.cells.hits.display, "2");
   assert.equal(jacob.cells.singles.display, "1");
   assert.equal(jacob.cells.totalBases.display, "3");
   assert.equal(jacob.cells.avg.display, "1.000");
+  assert.equal(jacob.cells.xbhPct.display, "50%");
+  assert.equal(jacob.cells.tbPerAb.display, "1.500");
   assert.match(result.warnings.join(" "), /logged game balls in play only/);
+});
+
+test("expanded tracked metrics preserve source boundaries and qualification evidence", () => {
+  const result = executeAnalyticsQuery(baseData, query("hitting", "practice"));
+  const jacob = row(result, "p-jacob");
+
+  assert.equal(jacob.cells.bipPct.display, "60%");
+  assert.equal(jacob.cells.foulPct.display, "20%");
+  assert.equal(jacob.cells.groundBalls.display, "1");
+  assert.equal(jacob.cells.lineDrives.display, "1");
+  assert.equal(jacob.cells.gbFbRatio.display, "1.000");
+  assert.equal(jacob.cells.medianEv.display, "90.0");
+  assert.equal(jacob.cells.ev90.kind, "insufficient-sample");
+  assert.equal(result.availableColumns.some((column) => column.metricId === "avg"), false);
 });
 
 test("game spray visuals adapt historical game field coordinates without changing query scope", () => {
