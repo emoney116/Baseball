@@ -31200,6 +31200,12 @@ button.weight-room-athlete-table__row:hover {
   z-index: 4;
 }
 
+.analytics-pitch-location-grid .practice-pitch-location-grid__bucket.active {
+  border-color: var(--brand-primary);
+  background: color-mix(in srgb, var(--brand-primary) 68%, var(--surface-raised));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #fff 36%, transparent), 0 0 0 2px color-mix(in srgb, var(--brand-primary) 26%, transparent);
+}
+
 .practice-pitch-location-grid__bucket--zone {
   border-color: color-mix(in srgb, var(--text) 28%, var(--line));
   background: color-mix(in srgb, var(--panel-soft) 52%, transparent);

@@ -82,8 +82,9 @@ test("phase two phone composition keeps live tracking focused on the next rep", 
 
   assert.match(page, /const analyticsSourceOptions: ChoiceOption\[\]/);
   assert.match(page, /className="analytics-domain-tabs"/);
-  assert.match(page, /className="analytics-domain-select"/);
-  assert.match(page, /className="analytics-source-select/);
+  assert.match(page, /className="analytics-primary-navigation"/);
+  assert.match(page, /className="analytics-scope-select"/);
+  assert.doesNotMatch(page, /className="analytics-domain-select"/);
   assert.match(css, /\.analytics-domain-tabs\s*\{[\s\S]*overflow-x:\s*auto/);
   assert.match(css, /\.analytics-box-score__row\s*\{[\s\S]*width:\s*max-content/);
   assert.match(css, /\.analytics-box-score__cell--player\s*\{[\s\S]*width:\s*134px/);

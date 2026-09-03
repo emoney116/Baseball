@@ -391,14 +391,38 @@ test("game hitting source only exposes supported ball-in-play metrics", () => {
   const labels = result.columns.map((column) => column.label);
   const jacob = row(result, "p-jacob");
 
-  assert.deepEqual(labels, ["BIP", "AB", "H", "1B", "2B", "3B", "HR", "Outs", "XBH", "TB", "AVG", "SLG", "ISO", "BABIP", "HR/AB%", "XBH/AB%", "TB/AB"]);
+  assert.deepEqual(labels, ["PA", "AB", "H", "1B", "2B", "3B", "HR", "BB", "SO", "HBP", "Outs", "XBH", "TB", "OBP", "AVG", "SLG", "OPS", "ISO", "BABIP", "HR/AB%", "XBH/AB%", "TB/AB"]);
+  assert.equal(jacob.cells.pa.display, "—");
   assert.equal(jacob.cells.hits.display, "2");
   assert.equal(jacob.cells.singles.display, "1");
   assert.equal(jacob.cells.totalBases.display, "3");
   assert.equal(jacob.cells.avg.display, "1.000");
   assert.equal(jacob.cells.xbhPct.display, "50%");
   assert.equal(jacob.cells.tbPerAb.display, "1.500");
-  assert.match(result.warnings.join(" "), /logged game balls in play only/);
+  assert.match(result.warnings.join(" "), /completed logged plate appearances/);
+});
+
+test("game hitting adds completed plate-appearance metrics without inventing missing outcomes", () => {
+  const data = {
+    ...baseData,
+    gameEvents: [
+      { ...baseData.gameEvents[0], plateAppearanceId: "pa-1" },
+      { ...baseData.gameEvents[1], plateAppearanceId: "pa-2" },
+      { ...baseData.gameEvents[2], id: "ge-4", batterId: "p-jacob", plateAppearanceId: "pa-3" },
+    ],
+    plateAppearances: [
+      plateAppearance("pa-1", "p-jacob", "Single"),
+      plateAppearance("pa-2", "p-jacob", "Double"),
+      plateAppearance("pa-3", "p-jacob", "Walk"),
+    ],
+  };
+  const jacob = row(executeAnalyticsQuery(data, query("hitting", "games")), "p-jacob");
+
+  assert.equal(jacob.cells.pa.display, "3");
+  assert.equal(jacob.cells.ab.display, "2");
+  assert.equal(jacob.cells.walks.display, "1");
+  assert.equal(jacob.cells.obp.display, "1.000");
+  assert.equal(jacob.cells.ops.display, "2.500");
 });
 
 test("expanded tracked metrics preserve source boundaries and qualification evidence", () => {
@@ -532,7 +556,7 @@ test("catalog hides irrelevant sources and views and serializes the active conte
   assert.deepEqual(analyticsSourcesForDomain("defense"), ["practice", "all"]);
   assert.equal(analyticsViewsFor("hitting", "practice").some((view) => view.id === "game-state"), false);
   assert.equal(analyticsViewsFor("hitting", "games").some((view) => view.id === "game-state"), true);
-  assert.deepEqual(defaultAnalyticsMetricIds("hitting", "games").slice(0, 4), ["trackedBip", "ab", "hits", "singles"]);
+  assert.deepEqual(defaultAnalyticsMetricIds("hitting", "games").slice(0, 4), ["pa", "ab", "hits", "singles"]);
 
   const analyticsQuery = { ...query("hitting", "practice"), view: "pitch-types", filters: { pitchTypes: ["Slider"] } };
   const serialized = serializeAnalyticsContext(analyticsQuery, ["swings", "contactPct"]);
@@ -721,5 +745,19 @@ function gameEvent(id, gameId, batterId, pitcherId, pitchOutcome, ballInPlayOutc
     opponentRunsAfter: 0,
     situations: [],
     createdAt: now,
+  };
+}
+
+function plateAppearance(id, hitterId, outcome) {
+  return {
+    id,
+    gameId: "game-1",
+    pitcherId: "p-mylo",
+    hitterId,
+    startedAt: now,
+    endedAt: now,
+    outcome,
+    balls: outcome === "Walk" ? 4 : 0,
+    strikes: 0,
   };
 }

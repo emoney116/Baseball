@@ -17,7 +17,9 @@ test("mobile workspace polish keeps shared controls compact and team aware", () 
   assert.match(page, /className="roster-status-select"/);
   assert.match(page, /\["All", "Varsity", "JV", "MS"\]/);
   assert.match(page, /className="weight-room-mobile-player-select"/);
-  assert.match(page, /className="analytics-title-actions"/);
+  assert.match(page, /className="analytics-primary-navigation"/);
+  assert.match(page, /className="analytics-scope-select"/);
+  assert.doesNotMatch(page, /className="analytics-title-actions"/);
   assert.match(page, /<DensePlayerIdentity player=\{row\.player\} \/>/);
   assert.doesNotMatch(page, /\{sample && <small>\{sample\}<\/small>\}/);
 

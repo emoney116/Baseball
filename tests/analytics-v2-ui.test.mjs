@@ -12,7 +12,11 @@ test("Analytics exposes focused overview and chart workspaces", () => {
   assert.match(analyticsView, /className="analytics-view-tabs"/);
   assert.match(analyticsView, /analyticsWorkspace === "overview"/);
   assert.match(analyticsView, /\["overview", "charts", "insights"\]/);
-  assert.match(analyticsView, /className="analytics-domain-select"/);
+  assert.match(analyticsView, /className="analytics-primary-navigation"/);
+  assert.match(analyticsView, /className="analytics-scope-select"/);
+  assert.match(analyticsView, /analyticsEventTriggerLabel/);
+  assert.match(page, /aria-label="Event range"/);
+  assert.doesNotMatch(analyticsView, /className="analytics-domain-select"/);
   assert.match(analyticsView, /statView/);
   assert.match(analyticsView, /serializeAnalyticsContext/);
 });
@@ -27,12 +31,13 @@ test("Analytics filter sheet stages values and reuses the canonical catcher-view
   assert.match(page, /className="analytics-clear-filter-chip"/);
   assert.match(page, /setStagedFilters\(cloneAnalyticsFilters\(filters\)\)/);
   assert.match(page, /function applyStagedFilters/);
+  assert.match(css, /\.analytics-pitch-location-grid \.practice-pitch-location-grid__bucket\.active/);
   assert.match(css, /\.analytics-filter-sheet__footer\s*\{/);
   assert.match(css, /\.analytics-filter-sheet__body\s*\{[\s\S]*overflow-y:\s*auto/);
 });
 
 test("Analytics workspace keeps chart controls with the selected chart and supports player groups", () => {
-  assert.match(page, /analytics-workspace-tabs/);
+  assert.match(page, /analytics-view-tabs/);
   assert.match(page, /AnalyticsChartPlayerSelector/);
   assert.match(page, /aria-multiselectable="true"/);
   assert.match(page, /AnalyticsChartModes/);
@@ -55,6 +60,8 @@ test("Analytics columns upgrade legacy defaults and keep the wider catalog contr
   assert.match(page, /url\.searchParams\.set\("columnPreset", columnPreset\)/);
   assert.match(css, /\.analytics-box-score\s*\{[\s\S]*overflow-x:\s*auto/);
   assert.match(page, /const minTableWidth = Math\.max\(660, 132 \+ result\.columns\.length \* 60\)/);
+  assert.match(page, /Plate Appearances/);
+  assert.match(page, /Contact Percentage/);
 });
 
 test("Analytics catalog centralizes views, metrics, filters, and presets", () => {

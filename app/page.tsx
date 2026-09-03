@@ -19409,24 +19409,17 @@ function AnalyticsView({
     }),
     [filters, result.filterDefinitions],
   );
-  const analyticsDomainOptions: ChoiceOption[] = [
-    { value: "hitting", label: "Hitting" },
-    { value: "pitching", label: "Pitching" },
-    { value: "defense", label: "Defense" },
-    { value: "development", label: "Development" },
-  ];
   const analyticsSourceOptions: ChoiceOption[] = [
     { value: "games", label: "Games" },
     { value: "practice", label: "Practice" },
     { value: "live-bp", label: "Live BP" },
     { value: "all", label: "All" },
   ].filter((option) => analyticsSourcesForDomain(domain).includes(option.value as AnalyticsSource));
-  const analyticsTimeRangeOptions: ChoiceOption[] = [
-    { value: "7d", label: "7D" },
-    { value: "30d", label: "30D" },
-    { value: "season", label: "Season" },
-    { value: "custom", label: "Custom" },
-  ];
+  const analyticsScopeOptions: ChoiceOption[] = [...analyticsSourceOptions, { value: "weight-room", label: "Weight Room" }];
+  const analyticsScopeValue = domain === "development" ? "weight-room" : source;
+  const analyticsEventTriggerLabel = eventIds.length
+    ? analyticsEventSummary(eventIds, result.availableEvents)
+    : timeRange === "7d" ? "Last 7 Days" : timeRange === "30d" ? "Last 30 Days" : "All Events";
   useEffect(() => {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
@@ -19512,12 +19505,26 @@ function AnalyticsView({
     setSort(defaultAnalyticsSort(domain, nextSource, "box-score"));
   }
 
-  function handleAnalyticsView(nextView: AnalyticsViewId) {
-    setAnalyticsView(nextView);
-    if (domain === "development" && ["overview", "weight-room", "attendance", "trends"].includes(nextView)) {
-      setDevelopmentView(nextView as AnalyticsDevelopmentView);
+  function handleAnalyticsScope(nextValue: string) {
+    if (nextValue === "weight-room") {
+      handleDomain("development");
+      return;
     }
-    setSort(defaultAnalyticsSort(domain, source, "box-score"));
+    const nextSource = nextValue as AnalyticsSource;
+    if (domain === "development") {
+      setDomain("hitting");
+      setSource(nextSource);
+      setDevelopmentView("overview");
+      setFilters({});
+      setStagedFilters({});
+      setEventIds([]);
+      setMetricIds(undefined);
+      setColumnPreset("standard");
+      setAnalyticsView(normalizeAnalyticsView("hitting", nextSource));
+      setSort(defaultAnalyticsSort("hitting", nextSource, "box-score"));
+      return;
+    }
+    handleSource(nextSource);
   }
 
   function handleSort(metricId: string) {
@@ -19616,88 +19623,47 @@ function AnalyticsView({
 
   return (
     <div className="page-stack analytics-page">
-      <SectionHeader title="Analytics" action={(
-        <div className="analytics-title-actions">
-          {domain !== "development" && (
-            <div className="analytics-source-select-wrap">
-              <ChoiceSelect
-                value={source}
-                className="analytics-source-select analytics-source-select--header"
-                showSelectedDescription={false}
-                options={analyticsSourceOptions}
-                onChange={(value) => handleSource(value as AnalyticsSource)}
-                aria-label="Analytics source"
-                mobilePresentation="popover"
-              />
-            </div>
-          )}
-          <AskClubhouseLauncher onClick={() => onAsk({ ...query, ...serializedAnalyticsContext })} />
-        </div>
-      )} />
+      <SectionHeader title="Analytics" action={<AskClubhouseLauncher onClick={() => onAsk({ ...query, ...serializedAnalyticsContext })} />} />
 
       <section className="analytics-controls" aria-label="Analytics controls">
-        <div className="analytics-domain-tabs">
-          <SegmentedControl values={["hitting", "pitching", "defense", "development"] as AnalyticsDomain[]} active={domain} onChange={handleDomain} />
-        </div>
-        <div className="analytics-domain-select-wrap">
+        <div className="analytics-primary-navigation">
+          <div className="analytics-domain-tabs">
+            <SegmentedControl values={["hitting", "pitching", "defense"] as AnalyticsDomain[]} active={domain === "development" ? "hitting" : domain} onChange={handleDomain} />
+          </div>
           <ChoiceSelect
-            value={domain}
-            className="analytics-domain-select"
+            value={analyticsScopeValue}
+            className="analytics-scope-select"
             showSelectedDescription={false}
-            options={analyticsDomainOptions}
-            onChange={(value) => handleDomain(value as AnalyticsDomain)}
-            aria-label="Analytics category"
-            mobilePresentation="popover"
+            options={analyticsScopeOptions}
+            onChange={handleAnalyticsScope}
+            aria-label="Analytics source and Weight Room"
           />
         </div>
-        <nav className="analytics-workspace-tabs" aria-label="Analytics workspace">
+        <nav className="analytics-view-tabs" aria-label="Analytics workspace">
           {(["overview", "charts", "insights"] as const).map((workspace) => (
             <button key={workspace} type="button" className={analyticsWorkspace === workspace ? "active" : ""} onClick={() => setAnalyticsWorkspace(workspace)}>
               {workspace[0].toUpperCase() + workspace.slice(1)}
             </button>
           ))}
         </nav>
-        {analyticsWorkspace === "overview" && (
-          <nav className="analytics-view-tabs" aria-label={`${domain} analytics views`}>
-            {result.availableViews.map((viewDefinition) => (
-              <button
-                key={`${viewDefinition.id}-${viewDefinition.label}`}
-                type="button"
-                className={analyticsView === viewDefinition.id ? "active" : ""}
-                onClick={() => handleAnalyticsView(viewDefinition.id)}
-                title={viewDefinition.description}
-              >
-                {viewDefinition.label}
-                {viewDefinition.capability === "partial" && <i aria-label="Partial coverage" />}
-              </button>
-            ))}
-          </nav>
-        )}
         <div className="analytics-controls__row analytics-controls__row--filters">
-          <ChoiceSelect
-            value={timeRange}
-            className="analytics-select"
-            showSelectedDescription={false}
-            options={analyticsTimeRangeOptions}
-            onChange={(value) => setTimeRange(value as AnalyticsTimeRange)}
-            aria-label="Analytics time range"
-            mobilePresentation="popover"
-          />
           <div className="analytics-popover-wrap">
             <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
               setEventSelectorOpen((open) => !open);
               setFiltersOpen(false);
               setColumnsOpen(false);
             }}>
-              {analyticsEventSummary(eventIds, result.availableEvents)}
+              {analyticsEventTriggerLabel}
               <ChevronDown size={14} aria-hidden="true" />
             </button>
             {eventSelectorOpen && (
               <AnalyticsEventSelector
                 events={result.availableEvents}
                 selectedIds={eventIds}
+                timeRange={timeRange}
                 onToggle={toggleEvent}
                 onClear={() => setEventIds([])}
+                onTimeRangeChange={setTimeRange}
               />
             )}
           </div>
@@ -19748,18 +19714,6 @@ function AnalyticsView({
               </button>
             ))}
             <button type="button" className="analytics-clear-filter-chip" onClick={() => setFilters({})}>Clear all</button>
-          </div>
-        )}
-        {timeRange === "custom" && (
-          <div className="analytics-custom-range">
-            <label>
-              <span>Start</span>
-              <input type="date" value={customRange.start ?? ""} onChange={(event) => setCustomRange((current) => ({ ...current, start: event.target.value }))} />
-            </label>
-            <label>
-              <span>End</span>
-              <input type="date" value={customRange.end ?? ""} onChange={(event) => setCustomRange((current) => ({ ...current, end: event.target.value }))} />
-            </label>
           </div>
         )}
       </section>
@@ -20049,7 +20003,7 @@ function AnalyticsMetricKey({ result }: { result: AnalyticsResult }) {
         {result.columns.map((column) => (
           <span key={column.metricId}>
             <b>{analyticsColumnDisplayLabel(column.label)}</b>
-            {column.label}
+            <em>{analyticsMetricKeyLabel(column)}</em>
           </span>
         ))}
       </div>
@@ -20057,18 +20011,84 @@ function AnalyticsMetricKey({ result }: { result: AnalyticsResult }) {
   );
 }
 
+function analyticsMetricKeyLabel(column: AnalyticsColumn) {
+  const labels: Record<string, string> = {
+    opportunities: "Opportunities",
+    takes: "Taken Pitches",
+    swings: "Swings",
+    contacts: "Contacts",
+    bip: "Balls In Play",
+    misses: "Whiffs",
+    fouls: "Foul Balls",
+    contactPct: "Contact Percentage",
+    hardPct: "Hard Contact Percentage",
+    swingPct: "Swing Percentage",
+    bipPct: "Balls In Play Percentage",
+    swingMissPct: "Whiff Percentage",
+    foulPct: "Foul Percentage",
+    takePct: "Take Percentage",
+    zoneSwingPct: "In-Zone Swing Percentage",
+    zoneContactPct: "In-Zone Contact Percentage",
+    chasePct: "Chase Percentage",
+    outZoneContactPct: "Out-of-Zone Contact Percentage",
+    avgEv: "Average Exit Velocity",
+    medianEv: "Median Exit Velocity",
+    maxEv: "Maximum Exit Velocity",
+    ev90: "90th Percentile Exit Velocity",
+    ev95: "95th Percentile Exit Velocity",
+    pa: "Plate Appearances",
+    trackedBip: "Tracked Balls In Play",
+    ab: "At Bats",
+    hits: "Hits",
+    singles: "Singles",
+    doubles: "Doubles",
+    triples: "Triples",
+    homeRuns: "Home Runs",
+    walks: "Walks",
+    strikeouts: "Strikeouts",
+    hitByPitch: "Hit By Pitch",
+    outs: "Outs",
+    xbh: "Extra-Base Hits",
+    totalBases: "Total Bases",
+    avg: "Batting Average",
+    obp: "On-Base Percentage",
+    slg: "Slugging Percentage",
+    ops: "On-Base Plus Slugging",
+    iso: "Isolated Power",
+    babip: "Batting Average on Balls In Play",
+    hrPct: "Home Run Percentage",
+    xbhPct: "Extra-Base Hit Percentage",
+    tbPerAb: "Total Bases Per At Bat",
+  };
+  return labels[column.metricId] ?? column.definition?.replace(/\.$/, "") ?? column.label.replace(/%$/, " Percentage");
+}
+
 function AnalyticsEventSelector({
   events,
   selectedIds,
+  timeRange,
   onToggle,
   onClear,
+  onTimeRangeChange,
 }: {
   events: AnalyticsEventOption[];
   selectedIds: ID[];
+  timeRange: AnalyticsTimeRange;
   onToggle: (eventId: ID) => void;
   onClear: () => void;
+  onTimeRangeChange: (range: AnalyticsTimeRange) => void;
 }) {
   const [search, setSearch] = useState("");
+  const today = new Date();
+  const isIncludedByRange = (event: AnalyticsEventOption) => {
+    if (selectedIds.length) return selectedIds.includes(event.id);
+    if (timeRange === "season") return true;
+    const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : undefined;
+    if (!days || !event.date) return false;
+    const cutoff = new Date(today);
+    cutoff.setDate(cutoff.getDate() - days);
+    return new Date(event.date) >= cutoff;
+  };
   const normalizedSearch = search.trim().toLowerCase();
   const filteredEvents = normalizedSearch
     ? events.filter((eventOption) => [eventOption.label, eventOption.meta, eventOption.source].filter(Boolean).join(" ").toLowerCase().includes(normalizedSearch))
@@ -20078,7 +20098,12 @@ function AnalyticsEventSelector({
     <div className="analytics-popover" role="dialog" aria-label="Analytics events">
       <div className="analytics-popover__head">
         <strong>Events</strong>
-        <button type="button" className="text-button" onClick={onClear}>All Events</button>
+        <button type="button" className="text-button" onClick={() => { onClear(); onTimeRangeChange("season"); }}>All Events</button>
+      </div>
+      <div className="analytics-event-range-options" role="group" aria-label="Event range">
+        <button type="button" className={timeRange === "season" && !selectedIds.length ? "active" : ""} onClick={() => { onClear(); onTimeRangeChange("season"); }}>All</button>
+        <button type="button" className={timeRange === "7d" && !selectedIds.length ? "active" : ""} onClick={() => { onClear(); onTimeRangeChange("7d"); }}>Last 7</button>
+        <button type="button" className={timeRange === "30d" && !selectedIds.length ? "active" : ""} onClick={() => { onClear(); onTimeRangeChange("30d"); }}>Last 30</button>
       </div>
       <label className="analytics-popover-search">
         <span>Search events</span>
@@ -20089,7 +20114,7 @@ function AnalyticsEventSelector({
           <div key={group.label} className="analytics-event-group">
             <span>{group.label}</span>
             {group.events.map((eventOption) => (
-              <button key={eventOption.id} type="button" className={selectedIds.includes(eventOption.id) ? "active" : ""} onClick={() => onToggle(eventOption.id)}>
+              <button key={eventOption.id} type="button" className={isIncludedByRange(eventOption) ? "active" : ""} onClick={() => onToggle(eventOption.id)}>
                 <Check size={13} aria-hidden="true" />
                 <strong>{eventOption.label}</strong>
                 {eventOption.meta && <small>{eventOption.meta}</small>}

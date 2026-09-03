@@ -13,6 +13,7 @@ import type {
   HittingEvent,
   ID,
   LiveBpThrowerSource,
+  PlateAppearance,
   PitchEvent,
   PitchType,
   Player,
@@ -416,12 +417,12 @@ function buildHittingResult(
   today?: string,
 ): AnalyticsResult {
   if (query.source === "games") {
-    warnings.push("Game hitting currently uses logged game balls in play only; walks, strikeouts, and complete PA totals are not yet tracked as terminal game outcomes.");
+    warnings.push("Game hitting uses completed logged plate appearances when available. A dash means that outcome has not been recorded for the selected games.");
     const gameEvents = filterGameEvents(data, query, today);
-    const rows = currentRosterPlayers(data).map((player) => gameHittingRow(player, gameEvents.filter((event) => event.batterId === player.id)));
+    const rows = currentRosterPlayers(data).map((player) => gameHittingRow(player, gameEvents.filter((event) => event.batterId === player.id), data.plateAppearances));
     const teamTotals = gameHittingTeamRow(data, gameEvents);
     return {
-      ...assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, ["trackedBip", "ab", "hits", "singles", "doubles", "triples", "homeRuns", "outs", "xbh", "totalBases", "avg", "slg", "iso", "babip", "hrPct", "xbhPct", "tbPerAb"], warnings, availableEvents, filterDefinitions, scopeLabel),
+      ...assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, ["pa", "ab", "hits", "singles", "doubles", "triples", "homeRuns", "walks", "strikeouts", "hitByPitch", "outs", "xbh", "totalBases", "obp", "avg", "slg", "ops", "iso", "babip", "hrPct", "xbhPct", "tbPerAb"], warnings, availableEvents, filterDefinitions, scopeLabel),
       sprayChart: buildGameSprayChart(gameEvents),
       pitchLocationChart: buildGameHittingPitchLocationChart(gameEvents),
     };
@@ -603,7 +604,7 @@ function applyAnalyticsView(data: AppData, result: AnalyticsResult, today?: stri
       const groups = groupItems(events, (event) => gameHittingGroup(data, event, groupBy));
       totalEvents = events.length;
       groupedEvents = groupSize(groups);
-      rows = [...groups.entries()].map(([key, group], index) => groupAnalyticsRow(gameHittingRow(groupPlayer(data, key, index), group.items), key, group.label));
+      rows = [...groups.entries()].map(([key, group], index) => groupAnalyticsRow(gameHittingRow(groupPlayer(data, key, index), group.items, data.plateAppearances), key, group.label));
     } else {
       const events = filterHittingEvents(data, result.query, today);
       const groups = groupItems(events, (event) => practiceHittingGroup(data, event, groupBy));
@@ -880,31 +881,53 @@ function hittingTeamRow(data: AppData, events: HittingEvent[]): AnalyticsRow {
   return hittingRow(teamPlayer(data), events.filter((event) => eligibleIds.has(event.hitterId)));
 }
 
-function gameHittingRow(player: Player, events: GameEvent[]): AnalyticsRow {
+function gameHittingRow(player: Player, events: GameEvent[], plateAppearances: PlateAppearance[]): AnalyticsRow {
   const bip = events.filter((event) => event.ballInPlayOutcome);
-  const atBats = bip.filter((event) => event.ballInPlayOutcome && gameAtBatOutcomes.has(event.ballInPlayOutcome)).length;
-  const hits = bip.filter((event) => event.ballInPlayOutcome && hitOutcomes.has(event.ballInPlayOutcome)).length;
-  const doubles = bip.filter((event) => event.ballInPlayOutcome === "Double").length;
-  const triples = bip.filter((event) => event.ballInPlayOutcome === "Triple").length;
-  const homeRuns = bip.filter((event) => event.ballInPlayOutcome === "Home Run").length;
-  const singles = bip.filter((event) => event.ballInPlayOutcome === "Single").length;
-  const outs = Math.max(0, atBats - hits);
+  const appearanceIds = new Set(events.flatMap((event) => event.plateAppearanceId ? [event.plateAppearanceId] : []));
+  const completedAppearances = plateAppearances.filter((appearance) => appearance.hitterId === player.id && Boolean(appearance.endedAt) && appearanceIds.has(appearance.id));
+  const useCompletedAppearances = completedAppearances.length > 0;
+  const outcomes = completedAppearances.flatMap((appearance) => appearance.outcome ? [appearance.outcome] : []);
+  const atBats = useCompletedAppearances
+    ? outcomes.filter((outcome) => outcome !== "Walk" && outcome !== "HBP").length
+    : bip.filter((event) => event.ballInPlayOutcome && gameAtBatOutcomes.has(event.ballInPlayOutcome)).length;
+  const hits = useCompletedAppearances
+    ? outcomes.filter((outcome) => ["Single", "Double", "Triple", "Home run"].includes(outcome)).length
+    : bip.filter((event) => event.ballInPlayOutcome && hitOutcomes.has(event.ballInPlayOutcome)).length;
+  const doubles = useCompletedAppearances ? outcomes.filter((outcome) => outcome === "Double").length : bip.filter((event) => event.ballInPlayOutcome === "Double").length;
+  const triples = useCompletedAppearances ? outcomes.filter((outcome) => outcome === "Triple").length : bip.filter((event) => event.ballInPlayOutcome === "Triple").length;
+  const homeRuns = useCompletedAppearances ? outcomes.filter((outcome) => outcome === "Home run").length : bip.filter((event) => event.ballInPlayOutcome === "Home Run").length;
+  const singles = useCompletedAppearances ? outcomes.filter((outcome) => outcome === "Single").length : bip.filter((event) => event.ballInPlayOutcome === "Single").length;
+  const walks = outcomes.filter((outcome) => outcome === "Walk").length;
+  const hitByPitch = outcomes.filter((outcome) => outcome === "HBP").length;
+  const strikeouts = outcomes.filter((outcome) => outcome === "Strikeout looking" || outcome === "Strikeout swinging").length;
+  const outs = useCompletedAppearances ? outcomes.filter((outcome) => outcome.endsWith("out") || outcome.startsWith("Strikeout")).length : Math.max(0, atBats - hits);
   const xbh = doubles + triples + homeRuns;
   const totalBases = hits + doubles + triples * 2 + homeRuns * 3;
   const babipDenominator = Math.max(0, bip.length - homeRuns);
+  const plateAppearancesCount = completedAppearances.length;
+  const gameSample = plateAppearancesCount || bip.length;
+  const onBaseNumerator = hits + walks + hitByPitch;
+  const obp = plateAppearancesCount ? onBaseNumerator / plateAppearancesCount : undefined;
+  const slg = atBats ? totalBases / atBats : undefined;
   return makeRow(player, {
-    trackedBip: countCell(bip.length, bip.length),
-    ab: countCell(atBats, bip.length),
-    hits: countCell(hits, bip.length),
-    singles: countCell(singles, bip.length),
-    doubles: countCell(doubles, bip.length),
-    triples: countCell(triples, bip.length),
-    homeRuns: countCell(homeRuns, bip.length),
-    outs: countCell(outs, bip.length),
-    xbh: countCell(xbh, bip.length),
-    totalBases: countCell(totalBases, bip.length),
+    pa: plateAppearancesCount ? countCell(plateAppearancesCount, plateAppearancesCount) : cell("—", undefined, "not-tracked"),
+    trackedBip: countCell(bip.length, gameSample),
+    ab: countCell(atBats, gameSample),
+    hits: countCell(hits, gameSample),
+    singles: countCell(singles, gameSample),
+    doubles: countCell(doubles, gameSample),
+    triples: countCell(triples, gameSample),
+    homeRuns: countCell(homeRuns, gameSample),
+    walks: plateAppearancesCount ? countCell(walks, plateAppearancesCount) : cell("—", undefined, "not-tracked"),
+    strikeouts: plateAppearancesCount ? countCell(strikeouts, plateAppearancesCount) : cell("—", undefined, "not-tracked"),
+    hitByPitch: plateAppearancesCount ? countCell(hitByPitch, plateAppearancesCount) : cell("—", undefined, "not-tracked"),
+    outs: countCell(outs, gameSample),
+    xbh: countCell(xbh, gameSample),
+    totalBases: countCell(totalBases, gameSample),
+    obp: obp === undefined ? cell("—", undefined, "not-tracked") : cellFromNumber(obp, "decimal", "available", { numerator: onBaseNumerator, denominator: plateAppearancesCount, label: "OBP" }),
     avg: decimalRateCell(hits, atBats, "AVG"),
     slg: decimalRateCell(totalBases, atBats, "SLG"),
+    ops: obp === undefined || slg === undefined ? cell("—", undefined, "not-tracked") : cellFromNumber(obp + slg, "decimal", "available", { denominator: plateAppearancesCount, label: "OPS" }),
     iso: decimalRateCell(totalBases - hits, atBats, "ISO"),
     babip: decimalRateCell(hits - homeRuns, babipDenominator, "BABIP"),
     hrPct: rateCell(homeRuns, atBats, "home runs", 1),
@@ -915,7 +938,7 @@ function gameHittingRow(player: Player, events: GameEvent[]): AnalyticsRow {
 
 function gameHittingTeamRow(data: AppData, events: GameEvent[]): AnalyticsRow {
   const eligibleIds = currentRosterPlayerIdSet(data);
-  return gameHittingRow(teamPlayer(data), events.filter((event) => event.batterId ? eligibleIds.has(event.batterId) : false));
+  return gameHittingRow(teamPlayer(data), events.filter((event) => event.batterId ? eligibleIds.has(event.batterId) : false), data.plateAppearances);
 }
 
 function pitchingRow(player: Player, pitchEvents: PitchEvent[], gameEvents: GameEvent[]): AnalyticsRow {
