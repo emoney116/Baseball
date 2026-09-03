@@ -9347,13 +9347,9 @@ button.analytics-box-score__row:hover {
 }
 
 .analytics-box-score__row--team {
-  position: sticky;
-  bottom: 0;
-  z-index: 4;
   border-top: 1px solid var(--line);
   border-bottom: 0;
   background: var(--panel-strong);
-  box-shadow: 0 -12px 22px color-mix(in srgb, var(--canvas) 42%, transparent);
 }
 
 .analytics-box-score__cell {
@@ -9431,19 +9427,6 @@ button.analytics-box-score__row:hover {
   white-space: nowrap;
 }
 
-.analytics-team-mark {
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  background: var(--brand-soft);
-  border: 1px solid var(--brand-border);
-  color: var(--brand);
-  display: grid;
-  place-items: center;
-  font-size: 10px;
-  font-weight: 900;
-}
-
 .analytics-empty-table {
   display: grid;
   gap: 4px;
@@ -9506,6 +9489,30 @@ button.analytics-box-score__row:hover {
   color: var(--muted-strong);
   font-weight: 900;
   margin-right: 5px;
+}
+
+.analytics-event-range-options {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px 0;
+}
+
+.analytics-event-range-options button {
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--muted-strong);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 820;
+  padding: 4px 9px;
+}
+
+.analytics-event-range-options button.active {
+  border-color: var(--brand-border);
+  background: var(--brand-soft);
+  color: var(--brand);
 }
 
 .analytics-insights {
@@ -11550,6 +11557,296 @@ button.analytics-box-score__row:hover {
   padding: 7px 9px;
 }
 
+/* Dense stat rows reserve the horizontal space for data, not profile treatment. */
+.dense-player-identity {
+  min-width: 0;
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: var(--text-table-row);
+  font-weight: var(--weight-selected);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dense-player-identity__visual {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.dense-player-identity__jersey {
+  flex: 0 0 auto;
+  color: var(--text);
+  font-size: 0.92em;
+  opacity: 0.72;
+}
+
+.dense-player-identity__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.weight-room-mini-table {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.weight-room-mini-table > div,
+.weight-room-mini-table button {
+  min-width: 0;
+  grid-template-columns: minmax(128px, 1.35fr) repeat(4, minmax(42px, 0.55fr));
+  min-height: 46px;
+  gap: 4px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  border-radius: 0;
+  padding: 7px 10px;
+}
+
+.weight-room-mini-table > div {
+  min-height: 36px;
+  background: color-mix(in srgb, var(--surface-interactive) 52%, transparent);
+  font-size: 10px;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.weight-room-mini-table button {
+  background: transparent;
+}
+
+.weight-room-mini-table button:last-child {
+  border-bottom: 0;
+}
+
+.weight-room-mini-table button > span:not(:first-child),
+.weight-room-mini-table button > em {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.weight-room-mini-table button > em {
+  color: var(--text);
+  font-style: normal;
+}
+
+.analytics-player-cell {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.analytics-player-cell .dense-player-identity {
+  padding-inline: 8px;
+}
+
+.analytics-page .section-header__title-row {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.analytics-page .section-header__title-row .ask-clubhouse-launcher {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding-inline: 10px;
+  font-size: 11px;
+}
+
+.analytics-primary-navigation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.analytics-primary-navigation .analytics-domain-tabs {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.analytics-primary-navigation .analytics-domain-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.analytics-primary-navigation .segmented-control {
+  min-width: max-content;
+}
+
+.analytics-scope-select.choice-select,
+.analytics-select.choice-select {
+  flex: 0 0 auto;
+  width: 132px;
+}
+
+.analytics-scope-select.choice-select .choice-select__button,
+.analytics-select.choice-select .choice-select__button {
+  min-height: 36px;
+  border-color: var(--line);
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+.analytics-chart-workspace {
+  display: grid;
+  gap: 12px;
+}
+
+.analytics-chart-workspace__controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.analytics-chart-player-select.choice-select {
+  width: min(220px, 100%);
+}
+
+.analytics-chart-mode-control,
+.analytics-location-quick-options {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.analytics-chart-mode-control button,
+.analytics-location-quick-options button {
+  min-height: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-soft);
+  color: var(--muted-strong);
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 820;
+  cursor: pointer;
+}
+
+.analytics-chart-mode-control button.active,
+.analytics-location-quick-options button.active {
+  border-color: var(--brand-border);
+  background: var(--brand-primary);
+  color: var(--brand-text-on-primary);
+}
+
+.analytics-spray-chart,
+.analytics-pitch-location-chart {
+  max-width: 680px;
+}
+
+.analytics-spray-chart__header,
+.analytics-pitch-location-chart > strong {
+  font-size: 15px;
+  font-weight: 860;
+}
+
+.analytics-pitch-location-chart {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  padding: 12px;
+}
+
+.analytics-pitch-location-chart .strike-zone {
+  width: min(100%, 360px);
+}
+
+.analytics-filter-field--directions {
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+  padding-top: 12px;
+}
+
+.analytics-pitch-location-selector button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+@media (max-width: 720px) {
+  .analytics-primary-navigation {
+    flex-wrap: nowrap;
+    margin-inline: calc(-1 * var(--mobile-page-gutter));
+    padding-inline: var(--mobile-page-gutter);
+  }
+
+  .analytics-primary-navigation .analytics-domain-tabs {
+    flex: 1 1 auto;
+  }
+
+  .analytics-primary-navigation .segmented-control button {
+    padding-inline: 10px;
+  }
+
+  .analytics-primary-navigation .analytics-scope-select.choice-select {
+    flex: 0 0 116px;
+    width: 116px;
+  }
+
+  .analytics-box-score__cell {
+    min-height: 38px;
+    padding-inline: 4px;
+  }
+
+  .analytics-box-score__row--head .analytics-box-score__cell {
+    font-size: 9px;
+  }
+
+  .analytics-chart-workspace__controls {
+    align-items: stretch;
+  }
+
+  .analytics-chart-player-select.choice-select {
+    flex: 1 1 148px;
+  }
+
+  .analytics-chart-mode-control {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
+
+  .analytics-chart-mode-control button {
+    flex: 1 1 0;
+    padding-inline: 7px;
+  }
+}
+
+.analytics-box-score__cell {
+  min-height: 40px;
+}
+
+.analytics-box-score__row--head .analytics-box-score__cell {
+  min-height: 34px;
+}
+
+.practice-metrics-table__row {
+  grid-template-columns: minmax(148px, 1fr) repeat(5, minmax(96px, 0.55fr));
+}
+
+.weight-room-completed-athlete-table > div,
+.weight-room-completed-athlete-table > button {
+  grid-template-columns: minmax(148px, 0.9fr) 110px 120px 120px 120px 70px;
+}
+
+.weight-room-completed-drill-table > div,
+.weight-room-completed-drill-table > button {
+  grid-template-columns: minmax(148px, 0.9fr) 130px minmax(190px, 1fr) 130px 110px 130px;
+}
+
+.weight-room-completed-weigh-table > div,
+.weight-room-completed-weigh-table > button {
+  grid-template-columns: minmax(148px, 0.9fr) 130px 150px 110px;
+}
+
 .weight-room-mini-table > div span:not(:first-child),
 .weight-room-mini-table button > span,
 .weight-room-mini-table button > em {
@@ -13433,6 +13730,12 @@ button.analytics-box-score__row:hover {
   border-radius: 999px;
   transform: translate(-50%, -50%);
   pointer-events: none;
+}
+
+.clubhouse-baseball-field__dot {
+  background: var(--point-color, var(--burgundy-strong));
+  border: 1px solid color-mix(in srgb, var(--text) 72%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--point-color, var(--burgundy-strong)) 30%, transparent);
 }
 
 .strike-zone__dot {
@@ -35684,6 +35987,7 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
   width: 138px;
 }
 
+/* Final table-density overrides live last because earlier responsive layers also define these grids. */
 .analytics-player-cell {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -35998,5 +36302,105 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
 
   .analytics-box-score__cell strong {
     line-height: 1;
+  }
+}
+
+.practice-metrics-table__row {
+  grid-template-columns: minmax(148px, 1fr) repeat(5, minmax(96px, 0.55fr));
+}
+
+@media (max-width: 720px) {
+  .analytics-table-panel {
+    width: 100vw;
+    max-width: none;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    border-inline: 0;
+    border-radius: 0;
+  }
+
+  .analytics-box-score__row {
+    width: 100%;
+  }
+
+  .weight-room-mini-table > div,
+  .weight-room-mini-table button {
+    grid-template-columns: minmax(120px, 1.35fr) repeat(4, minmax(40px, 0.55fr));
+    gap: 3px;
+    padding-inline: 8px;
+  }
+
+  .analytics-box-score__cell--player {
+    width: 144px;
+    min-width: 144px;
+    max-width: 144px;
+  }
+
+  .analytics-player-cell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .analytics-box-score__cell {
+    min-height: 38px;
+    min-width: 0;
+    padding-inline: 2px;
+  }
+
+  .analytics-player-cell .dense-player-identity {
+    overflow: visible;
+    padding-inline: 0;
+  }
+
+  .analytics-player-cell .dense-player-identity__visual {
+    box-sizing: border-box;
+    padding-inline-start: 12px;
+  }
+
+  .analytics-box-score__cell--player.analytics-player-cell {
+    box-sizing: border-box;
+    padding-inline: 12px 8px;
+  }
+
+  .analytics-box-score__row--team .analytics-box-score__cell {
+    min-height: 38px;
+    padding-block: 4px;
+  }
+
+  .analytics-box-score__row--team .analytics-box-score__cell strong {
+    font-size: 12px;
+  }
+
+  .analytics-box-score__row--team .analytics-box-score__cell--player strong {
+    padding-inline-start: 8px;
+  }
+
+  .analytics-primary-navigation {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 116px;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+    margin-inline: calc(-1 * var(--mobile-page-gutter));
+    padding-inline: var(--mobile-page-gutter);
+  }
+
+  .analytics-primary-navigation .analytics-domain-tabs {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .analytics-primary-navigation .analytics-domain-tabs .segmented-control {
+    width: max-content;
+  }
+
+  .analytics-primary-navigation .analytics-scope-select.choice-select {
+    display: block;
+    width: 116px;
+    min-width: 116px;
+  }
+
+  .analytics-primary-navigation .analytics-scope-select.choice-select .choice-select__button {
+    width: 100%;
   }
 }

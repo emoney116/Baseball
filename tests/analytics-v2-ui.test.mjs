@@ -6,11 +6,13 @@ const page = readFileSync("app/page.tsx", "utf8");
 const css = readFileSync("app/globals.css", "utf8");
 const catalog = readFileSync("app/lib/analyticsCatalog.ts", "utf8");
 
-test("Analytics V2 removes the permanent mode split and exposes contextual views", () => {
-  const analyticsView = page.slice(page.indexOf("function AnalyticsView"), page.indexOf("function AnalyticsSummaryStrip"));
+test("Analytics exposes focused overview and chart workspaces", () => {
+  const analyticsView = page.slice(page.indexOf("function AnalyticsView"), page.indexOf("function AnalyticsCharts"));
   assert.doesNotMatch(analyticsView, /SegmentedControl values=\{\["box-score", "situational"\]/);
   assert.match(analyticsView, /className="analytics-view-tabs"/);
-  assert.match(analyticsView, /result\.availableViews\.map/);
+  assert.match(analyticsView, /analyticsWorkspace === "overview"/);
+  assert.match(analyticsView, /\["overview", "charts", "insights"\]/);
+  assert.match(analyticsView, /className="analytics-domain-select"/);
   assert.match(analyticsView, /statView/);
   assert.match(analyticsView, /serializeAnalyticsContext/);
 });

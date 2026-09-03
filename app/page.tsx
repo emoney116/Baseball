@@ -56,6 +56,7 @@ import type React from "react";
 import { Children, isValidElement, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ClubhouseBaseballField } from "./components/ClubhouseBaseballField";
+import { DensePlayerIdentity } from "./components/DensePlayerIdentity";
 import { BaseballField, DonutChart, Heatmap, IdentityAvatar, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
@@ -13887,7 +13888,7 @@ function WeightRoomWeighInCard({ data, players, date, onOpen }: { data: AppData;
     <article className="panel weight-room-weigh-card">
       <div className="panel-heading tight">
         <div>
-          <span>{weighed}/{players.length} logged</span>
+          <span>Weight (lb) · {weighed}/{players.length} logged</span>
           <h2>Weigh-ins</h2>
         </div>
         <div className="weight-room-card-actions">
@@ -13900,23 +13901,23 @@ function WeightRoomWeighInCard({ data, players, date, onOpen }: { data: AppData;
           <button className="text-button" type="button" onClick={onOpen}>View All</button>
         </div>
       </div>
-      <div className="weight-room-mini-table">
-        <div>
-          <span>Player</span>
-          <span>This Week</span>
-          <span>Last Week</span>
-          <span>Since Start</span>
-          <span>Starting</span>
+      <div className="weight-room-mini-table" role="table" aria-label="Recent player weigh-ins in pounds">
+        <div role="row">
+          <span role="columnheader">Player</span>
+          <span role="columnheader">This</span>
+          <span role="columnheader">Last</span>
+          <span role="columnheader">+/-</span>
+          <span role="columnheader">Start</span>
         </div>
         {visibleRows.map((row) => (
-          <button key={row.player.id} type="button" onClick={onOpen}>
-            <strong>{abbreviatedPlayerName(row.player.name)}</strong>
-            <span>{typeof row.thisWeek === "number" ? formatNumber(row.thisWeek, 1) : "-"}</span>
-            <span>{typeof row.lastWeek === "number" ? formatNumber(row.lastWeek, 1) : "-"}</span>
-            <em className={typeof row.change === "number" && row.change > 0 ? "positive" : typeof row.change === "number" && row.change < 0 ? "negative" : ""}>
-              {typeof row.change === "number" ? `${row.change > 0 ? "+" : ""}${formatNumber(row.change, 1)}` : "-"}
+          <button key={row.player.id} type="button" onClick={onOpen} role="row" aria-label={`Open weigh-ins for ${row.player.name}`}>
+            <DensePlayerIdentity player={row.player} />
+            <span role="cell">{typeof row.thisWeek === "number" ? formatNumber(row.thisWeek, 1) : "—"}</span>
+            <span role="cell">{typeof row.lastWeek === "number" ? formatNumber(row.lastWeek, 1) : "—"}</span>
+            <em role="cell">
+              {typeof row.change === "number" ? `${row.change > 0 ? "+" : ""}${formatNumber(row.change, 1)}` : "—"}
             </em>
-            <span>{typeof row.starting === "number" ? formatNumber(row.starting, 1) : "-"}</span>
+            <span role="cell">{typeof row.starting === "number" ? formatNumber(row.starting, 1) : "—"}</span>
           </button>
         ))}
       </div>
@@ -16332,8 +16333,8 @@ function WeightRoomCompletedWorkoutSummary({
                 return (
                   <div key={`${pr.player.id}-${pr.exercise}-${pr.entry.id}`} className="weight-room-pr-row">
                     <TrendingUp size={15} aria-hidden="true" />
-                    <PlayerAvatar player={pr.player} size="sm" compact />
-                    <span><strong>{pr.player.name}</strong><small>{pr.exercise}</small></span>
+                    <DensePlayerIdentity player={pr.player} />
+                    <span><small>{pr.exercise}</small></span>
                     <em>{formatWorkoutEntryValueForStation(pr.entry, station)}<small>Previous {formatWorkoutEntryValueForStation(pr.previous, station)}</small></em>
                   </div>
                 );
@@ -16343,8 +16344,8 @@ function WeightRoomCompletedWorkoutSummary({
               <div className="weight-room-completed-section-head"><h3>Athlete Highlights</h3></div>
               {sortedAthleteRows.filter((row) => row.resultCount > 0).slice(0, 4).map((row) => (
                 <button key={row.player.id} type="button" className="weight-room-athlete-highlight-row" onClick={() => setTab("Athletes")}>
-                  <PlayerAvatar player={row.player} size="sm" compact />
-                  <span><strong>{row.player.name}</strong><small>{formatActiveSetProgress(row.resultCount, row.planned)} results - {formatWorkoutVolume(row.volume)}</small></span>
+                  <DensePlayerIdentity player={row.player} />
+                  <span><small>{formatActiveSetProgress(row.resultCount, row.planned)} results - {formatWorkoutVolume(row.volume)}</small></span>
                 </button>
               ))}
               {!sortedAthleteRows.some((row) => row.resultCount > 0) && <CompactEmpty title="No athlete results were recorded." />}
@@ -16367,7 +16368,7 @@ function WeightRoomCompletedWorkoutSummary({
             </div>
             {sortedAthleteRows.map((row) => (
               <button key={row.player.id} type="button" role="row">
-                <strong><PlayerAvatar player={row.player} size="sm" compact />{row.player.name}<small>#{row.player.jerseyNumber} - {row.player.primaryPosition}</small></strong>
+                <DensePlayerIdentity player={row.player} />
                 <span>{row.exerciseCount} / {stations.length}</span>
                 <span>{formatActiveSetProgress(row.resultCount, row.planned)}</span>
                 <span>{row.planned ? formatPct(row.completion, 0) : "Not assigned"}</span>
@@ -16400,7 +16401,7 @@ function WeightRoomCompletedWorkoutSummary({
                 const previous = previousWorkoutEntry(data, player.id, selectedExercise.name, workoutDate);
                 return (
                   <button key={player.id} type="button" role="row">
-                    <strong><PlayerAvatar player={player} size="sm" compact />{player.name}</strong>
+                    <DensePlayerIdentity player={player} />
                     <span>{stationTargetSummary(selectedExercise)}</span>
                     <span>{playerEntries.length ? playerEntries.map((entry) => formatWorkoutEntryValueForStation(entry, selectedExercise)).join(", ") : "--"}</span>
                     <span>{previous ? formatWorkoutEntryValueForStation(previous, selectedExercise) : "--"}</span>
@@ -16425,7 +16426,7 @@ function WeightRoomCompletedWorkoutSummary({
               const change = typeof current === "number" && typeof previous === "number" ? current - previous : undefined;
               return (
                 <button key={player.id} type="button" role="row">
-                  <strong><PlayerAvatar player={player} size="sm" compact />{player.name}</strong>
+                  <DensePlayerIdentity player={player} />
                   <span>{typeof previous === "number" ? `${formatNumber(previous, 1)} lb` : "--"}</span>
                   <span>{typeof current === "number" ? `${formatNumber(current, 1)} lb` : "--"}</span>
                   <span className={change && change > 0 ? "positive" : change && change < 0 ? "negative" : ""}>{typeof change === "number" ? `${change > 0 ? "+" : ""}${formatNumber(change, 1)} lb` : "--"}</span>
@@ -19975,10 +19976,9 @@ function AnalyticsTable({
         {visibleRows.length ? visibleRows.map((row) => (
           <button key={row.player.id} type="button" className={`analytics-box-score__row${row.rowKind === "group" ? " analytics-box-score__row--group" : ""}`} role="row" style={rowStyle} onClick={() => row.rowKind !== "group" && onOpenPlayer(row.player.id)} aria-label={row.rowKind === "group" ? `${row.groupLabel} analytics split` : `Open ${row.player.name} analytics`}>
             <span className="analytics-box-score__cell analytics-box-score__cell--player analytics-player-cell" role="cell">
-              <span>
-                <strong>{row.groupLabel ?? `${abbreviatedPlayerName(row.player.name)} #${row.player.jerseyNumber}`}</strong>
-                {row.rowKind === "group" && <small>{row.sampleCount} tracked</small>}
-              </span>
+              {row.rowKind === "group"
+                ? <span><strong>{row.groupLabel}</strong><small>{row.sampleCount} tracked</small></span>
+                : <DensePlayerIdentity player={row.player} />}
             </span>
             {result.columns.map((column) => (
               <AnalyticsCellView key={column.metricId} cell={row.cells[column.metricId]} align={column.align} />
@@ -20009,9 +20009,10 @@ function AnalyticsTable({
 }
 
 function AnalyticsCellView({ cell, align }: { cell?: AnalyticsCell; align: "left" | "right" | "center" }) {
+  const display = cell?.display?.endsWith("%") ? cell.display.slice(0, -1) : cell?.display ?? "—";
   return (
     <span className={`analytics-box-score__cell analytics-box-score__cell--${align} ${cell?.kind === "insufficient-sample" ? "is-low-sample" : ""}`} role="cell">
-      <strong>{cell?.display ?? "—"}</strong>
+      <strong>{display}</strong>
     </span>
   );
 }
@@ -20048,7 +20049,7 @@ function AnalyticsMetricKey({ result }: { result: AnalyticsResult }) {
         {result.columns.map((column) => (
           <span key={column.metricId}>
             <b>{analyticsColumnDisplayLabel(column.label)}</b>
-            {column.definition}
+            {column.label}
           </span>
         ))}
       </div>
@@ -20142,8 +20143,7 @@ function AnalyticsColumnPanel({
               <button key={column.metricId} type="button" className={selected.has(column.metricId) ? "active" : ""} onClick={() => onToggle(column.metricId)} title={column.definition}>
                 <Check size={13} aria-hidden="true" />
                 <span>
-                  <strong>{column.label}</strong>
-                  {column.definition && <small>{column.definition}</small>}
+                  <strong>{analyticsColumnDisplayLabel(column.label)} - {column.label}</strong>
                 </span>
               </button>
             ))}
@@ -20165,21 +20165,43 @@ function analyticsColumnDisplayLabel(label: string) {
     Swings: "SW",
     Contacts: "CT",
     Contact: "CT",
-    Miss: "Whiff",
+    Miss: "WHF",
+    Whiff: "WHF",
     "Contact %": "CT%",
     "Contact%": "CT%",
-    "Whiff %": "Whiff%",
-    "Take %": "Take%",
+    "Whiff %": "WHF%",
+    "Whiff%": "WHF%",
+    "Take %": "TK%",
+    "Take%": "TK%",
+    "Swing%": "SW%",
+    "Zone CT%": "ZCT%",
+    "Chase%": "CH%",
     "Hard %": "HD%",
     "Hard%": "HD%",
-    "Impact %": "Impact%",
-    "Avg Pitch Velo": "Avg Velo",
-    "Max Pitch Velo": "Max Velo",
-    "Position / Station": "Pos / Stn",
-    "Acc Throws": "Acc Thrw",
-    "Throw Acc.": "Throw%",
-    "Weight Room Score": "Weight",
-    "Workout Completion": "Workout%",
+    "Impact %": "IMP%",
+    "Impact%": "IMP%",
+    "Avg EV": "AEV",
+    "Max EV": "MEV",
+    "Avg Pitch Velo": "AVV",
+    "Max Pitch Velo": "MVV",
+    "Avg Velo": "AVV",
+    "Max Velo": "MVV",
+    Strike: "STR",
+    "Strike%": "STR%",
+    "Zone%": "ZN%",
+    "Position / Station": "Pos",
+    "Acc Throws": "ACC",
+    "Throw Acc.": "ACC%",
+    "Throw%": "ACC%",
+    Clean: "CLN",
+    "Clean%": "CLN%",
+    Great: "GRT",
+    "Weight Room Score": "WGT",
+    Weight: "WGT",
+    Workouts: "WKO",
+    "Workout Completion": "WK%",
+    "Workout%": "WK%",
+    "Attend%": "ATT%",
     "Practice Reps": "Reps",
   };
   return labels[label] ?? label;
@@ -23663,12 +23685,6 @@ function isLegacyAnalyticsStandardColumns(metricIds: string[] | undefined): bool
     && metricIds.every((metricId, index) => metricId === LEGACY_ANALYTICS_STANDARD_COLUMNS[index]));
 }
 
-function abbreviatedPlayerName(name: string) {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length < 2) return name;
-  return `${parts[0][0]}. ${parts.slice(1).join(" ")}`;
-}
-
 function ManualNumberCell({
   label,
   value,
@@ -25799,15 +25815,7 @@ function practiceMetricColumns(category: PracticeMetricsCategory): PracticeMetri
   const playerColumn: PracticeMetricColumn = {
     key: "player",
     label: "Player",
-    render: (row) => (
-      <span className="practice-metrics-player">
-        <PlayerAvatar player={row.player} size="sm" compact />
-        <span>
-          <strong>{row.player.name}</strong>
-          <small>{positionLine(row.player)}</small>
-        </span>
-      </span>
-    ),
+    render: (row) => <DensePlayerIdentity player={row.player} />,
   };
 
   if (category === "Pitching") {
