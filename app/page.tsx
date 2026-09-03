@@ -19635,6 +19635,7 @@ function AnalyticsView({
           <ChoiceSelect
             value={analyticsScopeValue}
             className="analytics-scope-select"
+            mobilePresentation="popover"
             showSelectedDescription={false}
             options={analyticsScopeOptions}
             onChange={handleAnalyticsScope}

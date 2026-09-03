@@ -14,6 +14,7 @@ test("Analytics exposes focused overview and chart workspaces", () => {
   assert.match(analyticsView, /\["overview", "charts", "insights"\]/);
   assert.match(analyticsView, /className="analytics-primary-navigation"/);
   assert.match(analyticsView, /className="analytics-scope-select"/);
+  assert.match(analyticsView, /mobilePresentation="popover"/);
   assert.match(analyticsView, /analyticsEventTriggerLabel/);
   assert.match(page, /aria-label="Event range"/);
   assert.doesNotMatch(analyticsView, /className="analytics-domain-select"/);
