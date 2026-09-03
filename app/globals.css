@@ -7233,6 +7233,14 @@ select option {
   min-height: 38px;
 }
 
+.single-player-field {
+  display: contents;
+}
+
+.single-player-field__label {
+  display: none;
+}
+
 .import-warning-check {
   grid-column: 1 / -1;
   grid-template-columns: auto minmax(0, 1fr);
@@ -35240,4 +35248,80 @@ body:has(.analytics-ask-drawer) {
   .clubhouse-option-overlay__list > button { min-height: 46px; }
   .clubhouse-option-overlay__actions { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
   .analytics-multi-select.choice-select { width: min(168px, 46vw); }
+}
+
+/* Final phone overrides: keep Roster actions compact and player entry legible. */
+@media (max-width: 720px) {
+  .roster-page > .section-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px;
+  }
+
+  .roster-page > .section-header .section-actions {
+    width: auto;
+    display: flex !important;
+    grid-template-columns: none !important;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .roster-page > .section-header .roster-header-action {
+    width: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    height: 40px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .roster-page > .section-header .roster-header-action span {
+    display: none;
+  }
+
+  .single-player-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .single-player-row > .single-player-field {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(82px, 0.62fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .single-player-row > .single-player-field:last-child {
+    border-bottom: 0;
+  }
+
+  .single-player-field__label {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 760;
+  }
+
+  .single-player-row .manual-number-cell,
+  .single-player-row .height-ft-in-cell,
+  .single-player-row .choice-select {
+    display: block;
+  }
+
+  .single-player-row .manual-number-cell::before,
+  .single-player-row .height-ft-in-cell::before,
+  .single-player-row .choice-select::before {
+    content: none;
+  }
+
+  .single-player-row .manual-number-buttons,
+  .single-player-row .height-step-buttons {
+    top: 12px;
+    bottom: 6px;
+  }
 }

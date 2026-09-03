@@ -7733,13 +7733,13 @@ function RosterView({
           <div className="section-actions">
             {section === "Players" ? (
               <>
-                <button className="secondary-button" type="button" onClick={onImport}>
+                <button className="secondary-button roster-header-action" type="button" onClick={onImport} aria-label="Import roster" title="Import roster">
                   <Upload size={16} aria-hidden="true" />
-                  Import Roster
+                  <span>Import Roster</span>
                 </button>
-                <button className="primary-button" type="button" onClick={onAddPlayer}>
+                <button className="primary-button roster-header-action" type="button" onClick={onAddPlayer} aria-label="Add player" title="Add player">
                   <UserPlus size={16} aria-hidden="true" />
-                  Add Player
+                  <span>Add Player</span>
                 </button>
               </>
             ) : (
@@ -21693,16 +21693,16 @@ function PlayerEditorModal({ player, onClose, onSave }: { player?: Player; onClo
             <span>Status</span>
           </div>
           <div className="single-player-row">
-            <input aria-label="Name" placeholder="Player name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-            <ManualNumberCell label="Number" placeholder="#" value={form.jerseyNumber ? String(form.jerseyNumber) : ""} min={0} max={99} onChange={(value) => setForm({ ...form, jerseyNumber: Number(value) || 0 })} />
-            <ChoiceSelect aria-label="Graduation" value={String(form.graduationYear || currentRosterYear())} className="manual-choice-cell manual-year-cell" options={graduationYearOptions(form.graduationYear)} onChange={(value) => setForm({ ...form, graduationYear: Number(value) || currentRosterYear() })} />
-            <ChoiceSelect aria-label="Primary" value={form.primaryPosition} className="manual-choice-cell" options={POSITIONS.map((position) => ({ value: position, label: position }))} onChange={(value) => setForm({ ...form, primaryPosition: value as Position })} />
-            <ChoiceSelect aria-label="Secondary" value={form.secondaryPosition ?? ""} className="manual-choice-cell" options={SECONDARY_POSITIONS.map((position) => ({ value: position, label: position || "None" }))} onChange={(value) => setForm({ ...form, secondaryPosition: value ? value as Position : undefined })} />
-            <ChoiceSelect aria-label="Bats" value={form.bats} className="manual-choice-cell" options={HANDEDNESS_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, bats: value as Player["bats"] })} />
-            <ChoiceSelect aria-label="Throws" value={form.throws} className="manual-choice-cell" options={THROWS_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, throws: value as Player["throws"] })} />
-            <ManualHeightCell value={String(heightToInches(form.height))} onChange={(heightInches) => setForm({ ...form, height: heightInches ? formatHeightFromInches(Number(heightInches)) : undefined })} />
-            <ManualNumberCell label="Weight" placeholder="Wt" value={form.weight ? String(form.weight) : ""} min={80} max={320} onChange={(value) => setForm({ ...form, weight: Number(value) || undefined })} />
-            <ChoiceSelect aria-label="Status" value={form.rosterStatus ?? "Undecided"} className="manual-choice-cell" options={ROSTER_STATUSES.map((status) => ({ value: status, label: status }))} onChange={(value) => setForm({ ...form, rosterStatus: value as RosterStatus })} />
+            <div className="single-player-field"><span className="single-player-field__label">Name</span><input aria-label="Name" placeholder="Player name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></div>
+            <div className="single-player-field"><span className="single-player-field__label">Number</span><ManualNumberCell label="Number" placeholder="#" value={form.jerseyNumber ? String(form.jerseyNumber) : ""} min={0} max={99} onChange={(value) => setForm({ ...form, jerseyNumber: Number(value) || 0 })} /></div>
+            <div className="single-player-field"><span className="single-player-field__label">Class</span><ChoiceSelect aria-label="Graduation" value={String(form.graduationYear || currentRosterYear())} className="manual-choice-cell manual-year-cell" options={graduationYearOptions(form.graduationYear)} onChange={(value) => setForm({ ...form, graduationYear: Number(value) || currentRosterYear() })} /></div>
+            <div className="single-player-field"><span className="single-player-field__label">Primary</span><ChoiceSelect aria-label="Primary" value={form.primaryPosition} className="manual-choice-cell" options={POSITIONS.map((position) => ({ value: position, label: position }))} onChange={(value) => setForm({ ...form, primaryPosition: value as Position })} /></div>
+            <div className="single-player-field"><span className="single-player-field__label">Secondary</span><ChoiceSelect aria-label="Secondary" value={form.secondaryPosition ?? ""} className="manual-choice-cell" options={SECONDARY_POSITIONS.map((position) => ({ value: position, label: position || "None" }))} onChange={(value) => setForm({ ...form, secondaryPosition: value ? value as Position : undefined })} /></div>
+            <div className="single-player-field"><span className="single-player-field__label">Bats</span><ChoiceSelect aria-label="Bats" value={form.bats} className="manual-choice-cell" options={HANDEDNESS_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, bats: value as Player["bats"] })} /></div>
+            <div className="single-player-field"><span className="single-player-field__label">Throws</span><ChoiceSelect aria-label="Throws" value={form.throws} className="manual-choice-cell" options={THROWS_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, throws: value as Player["throws"] })} /></div>
+            <div className="single-player-field"><span className="single-player-field__label">Height</span><ManualHeightCell value={String(heightToInches(form.height))} onChange={(heightInches) => setForm({ ...form, height: heightInches ? formatHeightFromInches(Number(heightInches)) : undefined })} /></div>
+            <div className="single-player-field"><span className="single-player-field__label">Weight</span><ManualNumberCell label="Weight" placeholder="Wt" value={form.weight ? String(form.weight) : ""} min={80} max={320} onChange={(value) => setForm({ ...form, weight: Number(value) || undefined })} /></div>
+            <div className="single-player-field"><span className="single-player-field__label">Status</span><ChoiceSelect aria-label="Status" value={form.rosterStatus ?? "Undecided"} className="manual-choice-cell" options={ROSTER_STATUSES.map((status) => ({ value: status, label: status }))} onChange={(value) => setForm({ ...form, rosterStatus: value as RosterStatus })} /></div>
           </div>
         </div>
       </section>
@@ -22998,9 +22998,10 @@ function ManualNumberCell({
     <div className="manual-number-cell" data-label={label}>
       <input
         aria-label={label}
-        type="text"
+        type="number"
         inputMode="numeric"
-        pattern="[0-9]*"
+        min={min}
+        max={max}
         placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(clean(event.target.value))}

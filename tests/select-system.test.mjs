@@ -59,6 +59,15 @@ test("remaining native selects are documented live-scoring exceptions", () => {
   assert.match(docs, /Schedule date fields retain the platform date picker/);
 });
 
+test("mobile roster actions and player entry retain compact, labeled, touch-friendly controls", () => {
+  assert.match(page, /className="secondary-button roster-header-action"/);
+  assert.match(page, /className="primary-button roster-header-action"/);
+  assert.match(page, /className="single-player-field__label">Number/);
+  assert.match(page, /type="number"[\s\S]*inputMode="numeric"[\s\S]*min=\{min\}[\s\S]*max=\{max\}/);
+  assert.match(css, /\.roster-page > \.section-header \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) auto/);
+  assert.match(css, /\.single-player-row > \.single-player-field \{[\s\S]*grid-template-columns: minmax\(82px, 0\.62fr\) minmax\(0, 1fr\)/);
+});
+
 test("the system documentation includes inventory, responsive behavior, and exception guidance", () => {
   assert.match(docs, /## Inventory/);
   assert.match(docs, /## Accessibility and layering/);
