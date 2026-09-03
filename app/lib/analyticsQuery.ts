@@ -15,6 +15,7 @@ import type {
   LiveBpThrowerSource,
   PlateAppearance,
   PitchEvent,
+  PitchLocationGridZoneId,
   PitchType,
   Player,
   Practice,
@@ -55,7 +56,8 @@ export type AnalyticsFilterAvailability = "supported" | "partial" | "unsupported
 export type AnalyticsPitchLocationRegion =
   | "in_zone" | "out_of_zone" | "up" | "middle" | "down"
   | "in" | "away" | "up_and_in" | "up_and_away" | "down_and_in" | "down_and_away"
-  | "arm_side" | "glove_side" | "up_arm_side" | "up_glove_side" | "down_arm_side" | "down_glove_side";
+  | "arm_side" | "glove_side" | "up_arm_side" | "up_glove_side" | "down_arm_side" | "down_glove_side"
+  | PitchLocationGridZoneId;
 export type AnalyticsCountGroup = "first-pitch" | "ahead" | "even" | "behind" | "two-strike" | "full-count";
 export type AnalyticsGameState = "winning" | "tied" | "losing";
 export type AnalyticsRunnerState = "bases-empty" | "runners-on" | "risp";
@@ -512,9 +514,16 @@ function buildPitchingResult(
 }
 
 function buildPitchLocationChart(practiceEvents: PitchEvent[], gameEvents: GameEvent[]): AnalyticsPitchLocationChart {
+  const hitOutcomes = new Set(["Single", "Double", "Triple", "Home Run"]);
   const points = [
     ...practiceEvents.flatMap((event) => event.location ? [{ id: event.id, ...event.location }] : []),
-    ...gameEvents.flatMap((event) => event.location ? [{ id: event.id, ...event.location }] : []),
+    ...gameEvents.flatMap((event) => event.location ? [{
+      id: event.id,
+      ...event.location,
+      chartOutcome: event.ballInPlayOutcome
+        ? hitOutcomes.has(event.ballInPlayOutcome) ? "hit" : "out"
+        : undefined,
+    }] : []),
   ];
   return {
     points,
@@ -1244,6 +1253,7 @@ function pitchLocationMatches(
   orientation: LocationOrientation = {},
 ): boolean {
   if (!location) return false;
+  if (region.startsWith("pitch_r")) return pitchLocationGridZoneIdForPoint(location) === region;
   if (region === "in_zone") return isAnalyticsZonePoint(location);
   if (region === "out_of_zone") return !isAnalyticsZonePoint(location);
   const vertical = location.y < 0.34 ? "up" : location.y > 0.66 ? "down" : "middle";
@@ -1255,6 +1265,13 @@ function pitchLocationMatches(
     ? region.split("_and_")
     : region.match(/^(up|down)_(arm_side|glove_side)$/)?.slice(1) ?? [];
   return vertical === expectedVertical && horizontal === expectedHorizontal;
+}
+
+function pitchLocationGridZoneIdForPoint(location: { x: number; y: number; zoneId?: string }): PitchLocationGridZoneId {
+  if (location.zoneId?.match(/^pitch_r[1-5]c[1-5]$/)) return location.zoneId as PitchLocationGridZoneId;
+  const row = Math.min(5, Math.max(1, Math.floor(location.y * 5) + 1));
+  const column = Math.min(5, Math.max(1, Math.floor(location.x * 5) + 1));
+  return `pitch_r${row}c${column}` as PitchLocationGridZoneId;
 }
 
 function locationHorizontalLabel(

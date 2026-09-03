@@ -24,6 +24,8 @@ test("Analytics filter sheet stages values and reuses the canonical catcher-view
   assert.match(page, /aria-label="Analytics filters"/);
   assert.match(page, /Catcher View/);
   assert.match(page, /PITCH_LOCATION_BUCKETS\.map/);
+  assert.match(page, /const value = bucket\.id/);
+  assert.match(page, /Tap one or more tiles/);
   assert.match(page, /analyticsLocationRegionForBucket/);
   assert.match(page, /className="analytics-filter-range"/);
   assert.match(page, /definition\.type === "range" \? \[\] :/);
@@ -42,6 +44,11 @@ test("Analytics workspace keeps chart controls with the selected chart and suppo
   assert.match(page, /aria-multiselectable="true"/);
   assert.match(page, /AnalyticsChartModes/);
   assert.match(page, /analytics-chart-surface-control/);
+  assert.match(page, /analytics-chart-mode-cycle/);
+  assert.match(page, /includeAverage/);
+  assert.match(page, /mode === "average"/);
+  assert.match(page, /formatDecimal\(average\)/);
+  assert.match(css, /\.analytics-chart-mode-cycle\s*\{[\s\S]*border-radius:\s*999px/);
 });
 
 test("Analytics V2 keeps stat-sheet density and converts panels to phone bottom sheets", () => {
@@ -59,7 +66,7 @@ test("Analytics columns upgrade legacy defaults and keep the wider catalog contr
   assert.match(page, /\[\.\.\.visibleIds, metricId\]/);
   assert.match(page, /url\.searchParams\.set\("columnPreset", columnPreset\)/);
   assert.match(css, /\.analytics-box-score\s*\{[\s\S]*overflow-x:\s*auto/);
-  assert.match(page, /const minTableWidth = Math\.max\(660, 132 \+ result\.columns\.length \* 60\)/);
+  assert.match(page, /const minTableWidth = Math\.max\(676, 144 \+ result\.columns\.length \* 64\)/);
   assert.match(page, /Plate Appearances/);
   assert.match(page, /Contact Percentage/);
 });

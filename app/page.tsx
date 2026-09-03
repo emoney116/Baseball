@@ -1166,7 +1166,7 @@ const HITTING_RESULT_ACTIONS = PRACTICE_HITTING_RESULT_OPTIONS;
 type HittingSheetStep = "setup" | "result" | "detail";
 type LiveBpPitchSheetStep = "result" | "contact" | "spray";
 type HittingContactDraft = PracticeHittingResultOption;
-type PracticeChartMetricMode = "heat" | "dots" | "percent" | "count";
+type PracticeChartMetricMode = "heat" | "dots" | "percent" | "count" | "average";
 type PitchingDraft = {
   pitchType: PitchType;
   velocity: string;
@@ -12708,16 +12708,17 @@ function PracticeSprayField({
   onModeCycle?: () => void;
   batterHandedness?: Player["bats"];
 }) {
+  const displayMode = mode === "average" ? "heat" : mode;
   return (
     <ClubhouseBaseballField
-      className={`practice-spray-field--${mode}`}
+      className={`practice-spray-field--${displayMode}`}
       points={points}
       activePoint={activePoint}
       onSelect={onSelect}
-      mode={mode === "dots" ? "spray" : mode}
+      mode={displayMode === "dots" ? "spray" : displayMode}
       onModeCycle={onModeCycle}
       batterHandedness={batterHandedness}
-      aria-label={onSelect ? "Set spray chart location" : `Spray chart ${chartMetricModeLabel(mode)}`}
+      aria-label={onSelect ? "Set spray chart location" : `Spray chart ${chartMetricModeLabel(displayMode)}`}
     />
   );
 }
@@ -12868,6 +12869,7 @@ function chartMetricModeLabel(mode: PracticeChartMetricMode) {
   if (mode === "dots") return "Spray";
   if (mode === "percent") return "%";
   if (mode === "count") return "#";
+  if (mode === "average") return "AVG";
   return "Heat";
 }
 
@@ -19805,6 +19807,7 @@ function AnalyticsCharts({
   const canShowSpray = Boolean(result.sprayChart);
   const canShowLocation = Boolean(result.pitchLocationChart);
   const resolvedSurface = surface === "spray" && !canShowSpray ? "location" : surface === "location" && !canShowLocation ? "spray" : surface;
+  const selectedHitter = playerIds.length === 1 ? players.find((player) => player.id === playerIds[0]) : undefined;
   return (
     <section className="analytics-chart-workspace" aria-label="Analytics charts">
       <div className="analytics-chart-workspace__controls">
@@ -19815,7 +19818,7 @@ function AnalyticsCharts({
         </div>
       </div>
       {resolvedSurface === "spray" && result.sprayChart && <AnalyticsSprayChart result={result} mode={mode} onModeChange={onModeChange} />}
-      {resolvedSurface === "location" && result.pitchLocationChart && <AnalyticsPitchLocationChart result={result} mode={mode} onModeChange={onModeChange} />}
+      {resolvedSurface === "location" && result.pitchLocationChart && <AnalyticsPitchLocationChart result={result} mode={mode} onModeChange={onModeChange} hitter={selectedHitter} />}
       {!canShowSpray && !canShowLocation && <CompactEmpty title="No charted locations for this analytics context" />}
     </section>
   );
@@ -19843,34 +19846,29 @@ function AnalyticsChartPlayerSelector({ players, selectedIds, onChange }: { play
   );
 }
 
-function AnalyticsChartModes({ mode, onChange }: { mode: PracticeChartMetricMode; onChange: (mode: PracticeChartMetricMode) => void }) {
-  return <div className="analytics-chart-modes" role="group" aria-label="Chart display mode">
-    {(["dots", "heat", "count", "percent"] as const).map((item) => <button key={item} type="button" className={mode === item ? "active" : ""} onClick={() => onChange(item)}>{chartMetricModeLabel(item)}</button>)}
-  </div>;
+function AnalyticsChartModes({ mode, onChange, includeAverage = false }: { mode: PracticeChartMetricMode; onChange: (mode: PracticeChartMetricMode) => void; includeAverage?: boolean }) {
+  const displayMode = mode === "dots" ? "heat" : mode;
+  const nextMode = displayMode === "heat" ? "count" : displayMode === "count" ? "percent" : displayMode === "percent" && includeAverage ? "average" : "heat";
+  return <button className="analytics-chart-mode-cycle" type="button" onClick={() => onChange(nextMode)} aria-label={`Chart display: ${chartMetricModeLabel(displayMode)}. Activate to change view.`}>{chartMetricModeLabel(displayMode)}</button>;
 }
 
 function AnalyticsSprayChart({ result, mode = "heat", onModeChange }: { result: AnalyticsResult; mode?: PracticeChartMetricMode; onModeChange?: (mode: PracticeChartMetricMode) => void }) {
   const chart = result.sprayChart;
   if (!chart) return null;
+  const displayMode = mode === "average" ? "heat" : mode;
   const hasTrackedLocations = chart.trackedLocations > 0;
   return (
     <section className="panel analytics-spray-chart" aria-label="Hitting spray chart">
       <div className="analytics-spray-chart__header">
-        <div>
-          <span>Team Spray Chart</span>
-          <strong>{hasTrackedLocations ? `${chart.trackedLocations} tracked locations` : "No locations tracked"}</strong>
-        </div>
-        <div><AnalyticsChartModes mode={mode} onChange={onModeChange ?? (() => undefined)} /><small>{chart.ballsInPlay} {chart.ballsInPlay === 1 ? "ball" : "balls"} in play</small></div>
+        <span>Team Spray Chart</span>
+        <AnalyticsChartModes mode={displayMode} onChange={onModeChange ?? (() => undefined)} />
       </div>
       <ClubhouseBaseballField
         points={chart.points}
-        mode={hasTrackedLocations ? (mode === "dots" ? "spray" : mode) : "blank"}
+        mode={hasTrackedLocations ? (displayMode === "dots" ? "spray" : displayMode) : "blank"}
         size="standard"
         ariaLabel={`${chart.trackedLocations} tracked hitting locations in the current analytics selection`}
       />
-      {chart.ballsInPlay > chart.trackedLocations && (
-        <small className="analytics-spray-chart__coverage">Location tracked on {chart.trackedLocations} of {chart.ballsInPlay} balls in play.</small>
-      )}
     </section>
   );
 }
@@ -19888,8 +19886,8 @@ function AnalyticsTable({
   onOpenPlayer: (playerId: ID) => void;
   onClearFilters: () => void;
 }) {
-  const gridTemplateColumns = `minmax(132px, 1.35fr) repeat(${result.columns.length}, minmax(58px, 0.72fr))`;
-  const minTableWidth = Math.max(660, 132 + result.columns.length * 60);
+  const gridTemplateColumns = `minmax(132px, 1.35fr) repeat(${result.columns.length}, minmax(64px, 0.72fr))`;
+  const minTableWidth = Math.max(676, 144 + result.columns.length * 64);
   const rowStyle: React.CSSProperties = { gridTemplateColumns, minWidth: minTableWidth };
   const hasTrackedData = result.rows.some((row) => row.sampleCount > 0) || Boolean(result.teamTotals?.sampleCount);
   const visibleRows = hasTrackedData ? result.rows : [];
@@ -19918,7 +19916,7 @@ function AnalyticsTable({
             <button
               key={column.metricId}
               type="button"
-              className={`analytics-box-score__cell analytics-box-score__cell--${column.align}`}
+              className="analytics-box-score__cell analytics-box-score__cell--center"
               onClick={() => column.sortable && onSort(column.metricId)}
               title={column.definition}
               role="columnheader"
@@ -19935,7 +19933,7 @@ function AnalyticsTable({
                 : <DensePlayerIdentity player={row.player} />}
             </span>
             {result.columns.map((column) => (
-              <AnalyticsCellView key={column.metricId} cell={row.cells[column.metricId]} align={column.align} />
+              <AnalyticsCellView key={column.metricId} cell={row.cells[column.metricId]} />
             ))}
           </button>
         )) : (
@@ -19951,7 +19949,7 @@ function AnalyticsTable({
               <span><strong>TEAM</strong><small>Weighted totals</small></span>
             </span>
             {result.columns.map((column) => (
-              <AnalyticsCellView key={column.metricId} cell={result.teamTotals?.cells[column.metricId]} align={column.align} />
+              <AnalyticsCellView key={column.metricId} cell={result.teamTotals?.cells[column.metricId]} />
             ))}
           </div>
         )}
@@ -19962,10 +19960,10 @@ function AnalyticsTable({
   );
 }
 
-function AnalyticsCellView({ cell, align }: { cell?: AnalyticsCell; align: "left" | "right" | "center" }) {
+function AnalyticsCellView({ cell }: { cell?: AnalyticsCell }) {
   const display = cell?.display?.endsWith("%") ? cell.display.slice(0, -1) : cell?.display ?? "—";
   return (
-    <span className={`analytics-box-score__cell analytics-box-score__cell--${align} ${cell?.kind === "insufficient-sample" ? "is-low-sample" : ""}`} role="cell">
+    <span className={`analytics-box-score__cell analytics-box-score__cell--center ${cell?.kind === "insufficient-sample" ? "is-low-sample" : ""}`} role="cell">
       <strong>{display}</strong>
     </span>
   );
@@ -20246,8 +20244,10 @@ function analyticsFilterValueSummary(definition: AnalyticsFilterDefinition, valu
   const selected = (values[definition.id] as string[] | undefined) ?? [];
   if (!selected.length) return "All";
   if (definition.type === "pitch-location") {
+    const directTiles = selected.filter((value) => value.startsWith("pitch_r"));
+    if (directTiles.length === selected.length) return directTiles.length === 1 ? "1 tile" : `${directTiles.length} tiles`;
     if (selected.length === 1) return definition.options.find((option) => option.value === selected[0])?.label ?? selected[0];
-    return `${selected.length} regions`;
+    return `${selected.length} selections`;
   }
   if (selected.length === 1) return definition.options.find((option) => option.value === selected[0])?.label ?? selected[0];
   return `${selected.length} selected`;
@@ -20340,7 +20340,6 @@ function AnalyticsFilterPanel({
                       ))}
                     </div>
                   )}
-                  {definition.availability === "partial" && <small className="analytics-filter-field__coverage">Partial coverage in this source.</small>}
                 </div>
               );
             })}
@@ -20359,32 +20358,37 @@ function AnalyticsFilterPanel({
   );
 }
 
-function AnalyticsPitchLocationChart({ result, mode, onModeChange }: { result: AnalyticsResult; mode: PracticeChartMetricMode; onModeChange: (mode: PracticeChartMetricMode) => void }) {
+function AnalyticsPitchLocationChart({ result, mode, onModeChange, hitter }: { result: AnalyticsResult; mode: PracticeChartMetricMode; onModeChange: (mode: PracticeChartMetricMode) => void; hitter?: Player }) {
   const chart = result.pitchLocationChart;
   if (!chart) return null;
-  const bucketStats = chart.points.reduce<Partial<Record<PitchLocationGridZoneId, { count: number; outcomes: number; successes: number }>>>((counts, point) => {
+  const bucketStats = chart.points.reduce<Partial<Record<PitchLocationGridZoneId, { count: number; outcomes: number; successes: number; atBats: number; hits: number }>>>((counts, point) => {
     const bucket = pitchLocationBucketFromPoint(point);
     if (!bucket) return counts;
-    const stats = counts[bucket.id] ?? { count: 0, outcomes: 0, successes: 0 };
+    const stats = (counts[bucket.id] ?? { count: 0, outcomes: 0, successes: 0, atBats: 0, hits: 0 }) as { count: number; outcomes: number; successes: number; atBats: number; hits: number };
     stats.count += 1;
     if (point.chartOutcome) {
       stats.outcomes += 1;
       if (point.chartOutcome === "hit" || point.chartOutcome === "contact") stats.successes += 1;
+      if (point.chartOutcome === "hit" || point.chartOutcome === "out") {
+        stats.atBats += 1;
+        if (point.chartOutcome === "hit") stats.hits += 1;
+      }
     }
     counts[bucket.id] = stats;
     return counts;
   }, {});
   const maxCount = Math.max(1, ...Object.values(bucketStats).map((stats) => stats?.count ?? 0));
+  const batsLeft = hitter?.bats === "L";
   return <section className="panel analytics-pitch-location-chart" aria-label="Team pitch location chart">
     <div className="analytics-spray-chart__header">
-      <div><span>Team Pitch Location</span><strong>{chart.metricLabel} · {chart.trackedLocations} tracked of {chart.qualifyingEvents} events</strong></div>
-      <AnalyticsChartModes mode={mode} onChange={onModeChange} />
+      <span>Team Pitch Location</span>
+      <AnalyticsChartModes mode={mode} onChange={onModeChange} includeAverage />
     </div>
     <div className={`practice-pitch-location-grid practice-pitch-location-grid--analytics practice-pitch-location-grid--${mode === "dots" ? "dots" : mode} analytics-pitch-location-chart__grid`} role="img" aria-label={`${chart.trackedLocations} tracked pitch locations, catcher view`}>
       <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--up">Up</span>
       <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--down">Down</span>
-      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--left">Away</span>
-      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--right">In</span>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--left">{batsLeft ? "Away" : "In"}</span>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--right">{batsLeft ? "In" : "Away"}</span>
       <div className="practice-pitch-location-grid__stage">
         <span className="practice-pitch-location-grid__zone" aria-hidden="true" />
         <span className="practice-pitch-location-grid__plate" aria-hidden="true" />
@@ -20393,13 +20397,16 @@ function AnalyticsPitchLocationChart({ result, mode, onModeChange }: { result: A
           const count = stats?.count ?? 0;
           const intensity = count / maxCount;
           const outcomeRate = stats?.outcomes ? stats.successes / stats.outcomes : undefined;
-          const colorScore = outcomeRate ?? intensity;
-          const metric = chart.metricLabel === "Pitch density" ? (count / Math.max(1, chart.trackedLocations)) : outcomeRate;
-          return <span key={bucket.id} className={`practice-pitch-location-grid__bucket ${bucket.isZone ? "practice-pitch-location-grid__bucket--zone" : "practice-pitch-location-grid__bucket--outside"}`} style={{ gridColumn: bucket.column, gridRow: bucket.row, "--pitch-heat-opacity": count ? 0.22 + intensity * 0.62 : 0, "--pitch-heat-color": colorScore >= 0.72 ? "#ef5b5b" : colorScore >= 0.42 ? "#c99245" : "#4b91d1" } as React.CSSProperties}><i className="practice-pitch-location-grid__heat" aria-hidden="true" />{mode === "count" && count > 0 && <b className="practice-pitch-location-grid__bucket-metric">{count}</b>}{mode === "percent" && metric !== undefined && <b className="practice-pitch-location-grid__bucket-metric">{Math.round(metric * 100)}%</b>}</span>;
+          const average = stats?.atBats ? stats.hits / stats.atBats : undefined;
+          const colorScore = mode === "average"
+            ? Math.min(1, (average ?? 0) / 0.5)
+            : outcomeRate ?? intensity;
+          const metric = mode === "average" ? average : chart.metricLabel === "Pitch density" ? (count / Math.max(1, chart.trackedLocations)) : outcomeRate;
+          const metricLabel = mode === "count" && count > 0 ? String(count) : mode === "percent" && metric !== undefined ? `${Math.round(metric * 100)}%` : mode === "average" && average !== undefined ? formatDecimal(average) : undefined;
+          return <span key={bucket.id} className={`practice-pitch-location-grid__bucket ${bucket.isZone ? "practice-pitch-location-grid__bucket--zone" : "practice-pitch-location-grid__bucket--outside"}`} style={{ gridColumn: bucket.column, gridRow: bucket.row, "--pitch-heat-opacity": count ? 0.22 + intensity * 0.62 : 0, "--pitch-heat-color": colorScore >= 0.72 ? "#ef5b5b" : colorScore >= 0.42 ? "#c99245" : "#4b91d1" } as React.CSSProperties}><i className="practice-pitch-location-grid__heat" aria-hidden="true" />{metricLabel && <b className="practice-pitch-location-grid__bucket-metric">{metricLabel}</b>}</span>;
         })}
       </div>
     </div>
-    <small className="analytics-spray-chart__coverage">Catcher view. Color shows {chart.metricLabel.toLowerCase()} from cold blue to hot red.</small>
   </section>;
 }
 
@@ -20415,26 +20422,27 @@ function AnalyticsPitchLocationSelector({
   const pitcherRelative = definition.options.some((option) => option.value === "arm_side");
   return (
     <div className="analytics-pitch-location-view" aria-label="Catcher view pitch location selector">
-      <div className="analytics-pitch-location-view__label"><span>Catcher View</span><small>Tap one or more regions</small></div>
+      <div className="analytics-pitch-location-view__label"><span>Catcher View</span><small>Tap one or more tiles</small></div>
       <div className="practice-pitch-location-grid practice-pitch-location-grid--entry practice-pitch-location-grid--interactive analytics-pitch-location-grid">
         <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--up">Up</span>
         <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--down">Down</span>
-        <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--left">{pitcherRelative ? "Arm" : "Away"}</span>
-        <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--right">{pitcherRelative ? "Glove" : "In"}</span>
+        <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--left">{pitcherRelative ? "Arm" : "In"}</span>
+        <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--right">{pitcherRelative ? "Glove" : "Away"}</span>
         <div className="practice-pitch-location-grid__stage">
           <span className="practice-pitch-location-grid__zone" aria-hidden="true" />
           <span className="practice-pitch-location-grid__plate" aria-hidden="true" />
           {PITCH_LOCATION_BUCKETS.map((bucket) => {
-            const value = analyticsLocationRegionForBucket(bucket, pitcherRelative);
-            const label = definition.options.find((option) => option.value === value)?.label ?? value;
+            const value = bucket.id;
+            const label = analyticsPitchLocationTileLabel(bucket, pitcherRelative);
+            const isSelected = analyticsPitchLocationBucketSelected(selected, bucket, pitcherRelative);
             return <button
               key={bucket.id}
               type="button"
-              className={`practice-pitch-location-grid__bucket ${bucket.isZone ? "practice-pitch-location-grid__bucket--zone" : "practice-pitch-location-grid__bucket--outside"}${selected.has(value) ? " active" : ""}`}
+              className={`practice-pitch-location-grid__bucket ${bucket.isZone ? "practice-pitch-location-grid__bucket--zone" : "practice-pitch-location-grid__bucket--outside"}${isSelected ? " active" : ""}`}
               style={{ gridColumn: bucket.column, gridRow: bucket.row } as React.CSSProperties}
               onClick={() => onToggle(definition, value)}
               aria-label={label}
-              aria-pressed={selected.has(value)}
+              aria-pressed={isSelected}
               title={label}
             />;
           })}
@@ -20444,9 +20452,20 @@ function AnalyticsPitchLocationSelector({
   );
 }
 
+function analyticsPitchLocationBucketSelected(selected: Set<string>, bucket: PitchLocationBucket, pitcherRelative: boolean) {
+  return selected.has(bucket.id) || selected.has(bucket.isZone ? "in_zone" : "out_of_zone") || selected.has(analyticsLocationRegionForBucket(bucket, pitcherRelative));
+}
+
+function analyticsPitchLocationTileLabel(bucket: PitchLocationBucket, pitcherRelative: boolean) {
+  const vertical = bucket.row < 3 ? "Up" : bucket.row > 3 ? "Down" : "Middle";
+  const horizontal = bucket.column < 3 ? (pitcherRelative ? "Arm Side" : "In") : bucket.column > 3 ? (pitcherRelative ? "Glove Side" : "Away") : "Middle";
+  const position = vertical === "Middle" && horizontal === "Middle" ? "Middle" : vertical === "Middle" ? horizontal : horizontal === "Middle" ? vertical : `${vertical} & ${horizontal}`;
+  return `${position}, ${bucket.isZone ? "in-zone" : "out-of-zone"} tile`;
+}
+
 function analyticsLocationRegionForBucket(bucket: PitchLocationBucket, pitcherRelative: boolean) {
   const vertical = bucket.y < 0.34 ? "up" : bucket.y > 0.66 ? "down" : "middle";
-  const horizontal = bucket.x < 0.34 ? (pitcherRelative ? "arm_side" : "away") : bucket.x > 0.66 ? (pitcherRelative ? "glove_side" : "in") : "middle";
+  const horizontal = bucket.x < 0.34 ? (pitcherRelative ? "arm_side" : "in") : bucket.x > 0.66 ? (pitcherRelative ? "glove_side" : "away") : "middle";
   if (vertical === "middle" && horizontal === "middle") return "middle";
   if (vertical === "middle") return horizontal;
   if (horizontal === "middle") return vertical;

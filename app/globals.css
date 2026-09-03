@@ -9270,10 +9270,11 @@ select option {
 }
 
 .analytics-spray-chart__header {
-  align-items: end;
+  align-items: start;
   display: flex;
   gap: 12px;
   justify-content: space-between;
+  width: 100%;
 }
 
 .analytics-spray-chart__header > div {
@@ -31173,7 +31174,8 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .practice-pitch-location-grid--percent .practice-pitch-location-grid__heat,
-.practice-pitch-location-grid--count .practice-pitch-location-grid__heat {
+.practice-pitch-location-grid--count .practice-pitch-location-grid__heat,
+.practice-pitch-location-grid--average .practice-pitch-location-grid__heat {
   opacity: calc(var(--pitch-heat-opacity, 0) * 0.18);
 }
 
@@ -34823,6 +34825,7 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
 
 .analytics-box-score__row {
   width: 100%;
+  padding-inline-end: 12px;
 }
 
 .analytics-box-score__cell {
@@ -35640,6 +35643,26 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
   color: var(--brand-text-on-primary);
 }
 
+.analytics-chart-mode-cycle {
+  min-width: 42px;
+  min-height: 26px;
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-soft) 86%, transparent);
+  color: var(--muted-strong);
+  padding: 0 9px;
+  font-size: 10px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.analytics-chart-mode-cycle:hover,
+.analytics-chart-mode-cycle:focus-visible {
+  border-color: var(--brand-border);
+  background: var(--brand-soft);
+  color: var(--text);
+}
+
 .analytics-chart-player-select {
   position: relative;
 }
@@ -36382,9 +36405,9 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
 
   .analytics-primary-navigation {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 116px;
+    grid-template-columns: max-content 116px;
     align-items: center;
-    gap: 8px;
+    gap: 0;
     flex-wrap: nowrap;
     margin-inline: calc(-1 * var(--mobile-page-gutter));
     padding-inline: var(--mobile-page-gutter);

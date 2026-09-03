@@ -455,6 +455,24 @@ test("game spray visuals adapt historical game field coordinates without changin
   assert.ok(result.sprayChart?.points.every((point) => point.y > 0 && point.y < 1));
 });
 
+test("game pitch-location charts retain hit and out outcomes for batting average", () => {
+  const data = {
+    ...baseData,
+    gameEvents: baseData.gameEvents.map((event, index) => ({
+      ...event,
+      ballInPlayOutcome: index === 1 ? "Ground Out" : event.ballInPlayOutcome,
+      location: { x: index === 1 ? 0.65 : 0.35, y: 0.5 },
+    })),
+  };
+
+  const hitting = executeAnalyticsQuery(data, query("hitting", "games"));
+  const pitching = executeAnalyticsQuery(data, query("pitching", "games"));
+
+  assert.deepEqual(hitting.pitchLocationChart?.points.slice(0, 2).map((point) => point.chartOutcome), ["hit", "out"]);
+  assert.deepEqual(pitching.pitchLocationChart?.points.slice(0, 2).map((point) => point.chartOutcome), ["hit", "out"]);
+  assert.equal(pitching.pitchLocationChart?.points.at(-1)?.chartOutcome, undefined);
+});
+
 test("analytics context warnings protect team and season scope", () => {
   const result = executeAnalyticsQuery(baseData, {
     ...query("hitting", "practice"),
@@ -535,6 +553,22 @@ test("pitching location filters use pitcher-relative arm and glove side", () => 
   const locationFilter = result.filterDefinitions.find((definition) => definition.id === "pitchLocationRegions");
   assert.equal(locationFilter.options.some((option) => option.value === "arm_side"), true);
   assert.equal(locationFilter.options.some((option) => option.value === "away"), false);
+});
+
+test("hitting location filters preserve an individually selected canonical tile", () => {
+  const data = {
+    ...baseData,
+    hittingEvents: [
+      { ...baseData.hittingEvents[0], pitchLocation: { x: 0.7, y: 0.3, zoneId: "pitch_r2c4" } },
+      { ...baseData.hittingEvents[1], pitchLocation: { x: 0.7, y: 0.5, zoneId: "pitch_r3c4" } },
+    ],
+  };
+  const result = executeAnalyticsQuery(data, {
+    ...query("hitting", "practice"),
+    filters: { pitchLocationRegions: ["pitch_r2c4"] },
+  });
+
+  assert.equal(result.teamTotals.cells.opportunities.display, "1");
 });
 
 test("count and pitch-type views group the same bounded query output", () => {

@@ -41,7 +41,7 @@ test("dense stat tables use the shared player identity and compact Weight Room h
   assert.doesNotMatch(analyticsTable, /PlayerAvatar player=\{row\.player\}/);
   assert.doesNotMatch(analyticsTable, /\{sample && <small>/);
   assert.match(analyticsTable, /minmax\(132px, 1\.35fr\)/);
-  assert.match(analyticsTable, /minTableWidth = Math\.max\(660, 132 \+ result\.columns\.length \* 60\)/);
+  assert.match(analyticsTable, /minTableWidth = Math\.max\(676, 144 \+ result\.columns\.length \* 64\)/);
   assert.match(analyticsTable, /analytics-team-mark/);
   assert.match(page, /cell\?\.display\?\.endsWith\("%"\) \? cell\.display\.slice\(0, -1\)/);
   assert.match(page, /Contact%": "CT%"/);
