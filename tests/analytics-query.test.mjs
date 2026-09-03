@@ -402,9 +402,11 @@ test("game hitting source only exposes supported ball-in-play metrics", () => {
 });
 
 test("expanded tracked metrics preserve source boundaries and qualification evidence", () => {
-  const result = executeAnalyticsQuery(baseData, query("hitting", "practice"));
+  const metricIds = defaultAnalyticsMetricIds("hitting", "practice");
+  const result = executeAnalyticsQuery(baseData, { ...query("hitting", "practice"), metrics: metricIds });
   const jacob = row(result, "p-jacob");
 
+  assert.deepEqual(result.columns.map((column) => column.metricId), metricIds);
   assert.equal(jacob.cells.bipPct.display, "60%");
   assert.equal(jacob.cells.foulPct.display, "20%");
   assert.equal(jacob.cells.groundBalls.display, "1");

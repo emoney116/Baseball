@@ -45,6 +45,16 @@ test("Analytics V2 keeps stat-sheet density and converts panels to phone bottom 
   assert.match(page, /row\.rowKind === "group"/);
 });
 
+test("Analytics columns upgrade legacy defaults and keep the wider catalog controllable", () => {
+  assert.match(page, /LEGACY_ANALYTICS_STANDARD_COLUMNS/);
+  assert.match(page, /isLegacyAnalyticsStandardColumns\(requestedMetricIds\)/);
+  assert.match(page, /const visibleIds = current \?\? result\.columns\.map\(\(column\) => column\.metricId\)/);
+  assert.match(page, /\[\.\.\.visibleIds, metricId\]/);
+  assert.match(page, /url\.searchParams\.set\("columnPreset", columnPreset\)/);
+  assert.match(css, /\.analytics-box-score\s*\{[\s\S]*overflow-x:\s*auto/);
+  assert.match(page, /const minTableWidth = Math\.max\(660, 132 \+ result\.columns\.length \* 60\)/);
+});
+
 test("Analytics catalog centralizes views, metrics, filters, and presets", () => {
   assert.match(catalog, /ANALYTICS_VIEW_CATALOG/);
   assert.match(catalog, /ANALYTICS_METRICS/);

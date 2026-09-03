@@ -19360,7 +19360,7 @@ function AnalyticsView({
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>(() => readInitialAnalyticsDetailPlayerId(data));
   const [metricIds, setMetricIds] = useState<string[] | undefined>(initialState.metricIds);
-  const [columnPreset, setColumnPreset] = useState<AnalyticsColumnPreset>(initialState.metricIds?.length ? "custom" : "standard");
+  const [columnPreset, setColumnPreset] = useState<AnalyticsColumnPreset>(initialState.columnPreset);
   const [analyticsWorkspace, setAnalyticsWorkspace] = useState<"overview" | "charts" | "insights">("overview");
   const [chartSurface, setChartSurface] = useState<"spray" | "location">("spray");
   const [chartMode, setChartMode] = useState<PracticeChartMetricMode>("heat");
@@ -19441,6 +19441,8 @@ function AnalyticsView({
     else url.searchParams.delete("events");
     if (metricIds?.length) url.searchParams.set("columns", metricIds.join(","));
     else url.searchParams.delete("columns");
+    if (columnPreset !== "standard") url.searchParams.set("columnPreset", columnPreset);
+    else url.searchParams.delete("columnPreset");
     if (sort?.metricId) {
       url.searchParams.set("sort", sort.metricId);
       url.searchParams.set("dir", sort.direction);
@@ -19458,7 +19460,7 @@ function AnalyticsView({
     const nextUrl = `${url.pathname}${url.search}${url.hash}`;
     const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (nextUrl !== currentUrl) window.history.replaceState({}, "", nextUrl);
-  }, [analyticsView, customRange.end, customRange.start, developmentView, domain, eventIds, filters, metricIds, sort, source, timeRange]);
+  }, [analyticsView, columnPreset, customRange.end, customRange.start, developmentView, domain, eventIds, filters, metricIds, sort, source, timeRange]);
 
   useEffect(() => {
     const handleAnalyticsPopState = () => {
@@ -19474,7 +19476,7 @@ function AnalyticsView({
       setStagedFilters(next.filters);
       setSort(next.sort ?? defaultAnalyticsSort(next.domain, next.source, next.mode));
       setMetricIds(next.metricIds);
-      setColumnPreset(next.metricIds?.length ? "custom" : "standard");
+      setColumnPreset(next.columnPreset);
       setDetailPlayerId(readInitialAnalyticsDetailPlayerId(data));
       setEventSelectorOpen(false);
       setFiltersOpen(false);
@@ -19542,20 +19544,19 @@ function AnalyticsView({
   }
 
   function toggleColumn(metricId: string) {
-    const availableIds = result.availableColumns.map((column) => column.metricId);
     setColumnPreset("custom");
     setMetricIds((current) => {
-      const selected = new Set(current ?? availableIds);
-      if (selected.has(metricId)) selected.delete(metricId);
-      else selected.add(metricId);
-      if (!selected.size) return current ?? availableIds;
-      return availableIds.filter((id) => selected.has(id));
+      const visibleIds = current ?? result.columns.map((column) => column.metricId);
+      const nextIds = visibleIds.includes(metricId)
+        ? visibleIds.filter((id) => id !== metricId)
+        : [...visibleIds, metricId];
+      return nextIds.length ? nextIds : visibleIds;
     });
   }
 
   function applyColumnPreset(preset: Exclude<AnalyticsColumnPreset, "custom">) {
     const presetIds = catalogPresetColumnIds(result.availableColumns, preset);
-    setMetricIds(presetIds.length ? presetIds : undefined);
+    setMetricIds(preset === "standard" ? undefined : presetIds.length ? presetIds : undefined);
     setColumnPreset(preset);
     setColumnsOpen(false);
   }
@@ -19733,7 +19734,7 @@ function AnalyticsView({
                 activePreset={columnPreset}
                 onToggle={toggleColumn}
                 onPreset={applyColumnPreset}
-                onReset={() => { setMetricIds(undefined); setColumnPreset("standard"); }}
+                onReset={() => { setMetricIds(undefined); setColumnPreset("standard"); setColumnsOpen(false); }}
               />
             )}
           </div>
@@ -21337,9 +21338,10 @@ function readInitialAnalyticsState(): {
   filters: AnalyticsFilters;
   sort?: AnalyticsQuery["sort"];
   metricIds?: string[];
+  columnPreset: AnalyticsColumnPreset;
 } {
   if (typeof window === "undefined") {
-    return { domain: "hitting", source: "games", mode: "box-score", analyticsView: "overview", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {}, filters: {} };
+    return { domain: "hitting", source: "games", mode: "box-score", analyticsView: "overview", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {}, filters: {}, columnPreset: "standard" };
   }
   const params = new URLSearchParams(window.location.search);
   const domain = parseAnalyticsParam(params.get("domain"), ["hitting", "pitching", "defense", "development"], "hitting");
@@ -21350,6 +21352,9 @@ function readInitialAnalyticsState(): {
   const analyticsView = normalizeAnalyticsView(domain, domain === "development" ? "all" : source, params.get("statView") ?? undefined);
   const timeRange = parseAnalyticsParam(params.get("period"), ["7d", "30d", "season", "custom"], "season");
   const developmentView = parseAnalyticsParam(params.get("dev"), ["overview", "weight-room", "attendance", "trends"], "overview");
+  const requestedMetricIds = params.get("columns")?.split(",").filter(Boolean);
+  const metricIds = isLegacyAnalyticsStandardColumns(requestedMetricIds) ? undefined : requestedMetricIds?.length ? requestedMetricIds : undefined;
+  const columnPreset = parseAnalyticsParam(params.get("columnPreset"), ["standard", "advanced", "development", "custom"], metricIds?.length ? "custom" : "standard");
   return {
     domain,
     source: domain === "development" ? "all" : source,
@@ -21358,7 +21363,8 @@ function readInitialAnalyticsState(): {
     timeRange,
     developmentView,
     eventIds: params.get("events")?.split(",").filter(Boolean) ?? [],
-    metricIds: params.get("columns")?.split(",").filter(Boolean) || undefined,
+    metricIds,
+    columnPreset,
     filters: parseAnalyticsFilters(params.get("filters")),
     sort: params.get("sort") ? { metricId: params.get("sort") ?? "player", direction: params.get("dir") === "asc" ? "asc" : "desc" } : undefined,
     customRange: {
@@ -23648,6 +23654,13 @@ function NumberWheelCell({
       )}
     </div>
   );
+}
+
+const LEGACY_ANALYTICS_STANDARD_COLUMNS = ["opportunities", "swings", "contacts", "contactPct", "hardPct", "avgEv", "maxEv"];
+
+function isLegacyAnalyticsStandardColumns(metricIds: string[] | undefined): boolean {
+  return Boolean(metricIds?.length === LEGACY_ANALYTICS_STANDARD_COLUMNS.length
+    && metricIds.every((metricId, index) => metricId === LEGACY_ANALYTICS_STANDARD_COLUMNS[index]));
 }
 
 function abbreviatedPlayerName(name: string) {

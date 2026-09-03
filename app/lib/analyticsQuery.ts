@@ -779,8 +779,14 @@ function assembleResult(
       definition: metricItem.definition,
       sortable: metricItem.sortable,
     }));
-  const selectedMetrics = query.metrics?.length ? new Set(query.metrics) : undefined;
-  const columns = selectedMetrics ? availableColumns.filter((column) => selectedMetrics.has(column.metricId)) : availableColumns;
+  const selectedMetrics = query.metrics?.length ? query.metrics : undefined;
+  const availableColumnById = new Map(availableColumns.map((column) => [column.metricId, column]));
+  const columns = selectedMetrics
+    ? selectedMetrics.flatMap((metricId) => {
+      const column = availableColumnById.get(metricId);
+      return column ? [column] : [];
+    })
+    : availableColumns;
   const sampleCount = rows.reduce((total, row) => total + row.sampleCount, 0);
   const playersWithData = rows.filter((row) => row.sampleCount > 0).length;
   return {
