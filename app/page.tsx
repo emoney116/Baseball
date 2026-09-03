@@ -53,9 +53,9 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type React from "react";
-import { Children, isValidElement, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { Children, isValidElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ClubhouseBaseballField } from "./components/ClubhouseBaseballField";
+import { ClubhouseMultiSelect, ClubhouseOptionSheet, ClubhousePicker, ClubhouseSearchSelect, ClubhouseSegmentedControl as SegmentedControl, ClubhouseSelect as ChoiceSelect, type ClubhouseOption } from "./components/ClubhouseSelect";
 import { BaseballField, DonutChart, Heatmap, IdentityAvatar, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
@@ -4998,325 +4998,8 @@ function TopCommand({
   );
 }
 
-type ChoiceOption = {
-  value: string;
-  label: string;
-  description?: string;
-  icon?: React.ReactNode;
-};
-type ChoiceSelectMobilePresentation = "auto" | "popover" | "sheet";
+type ChoiceOption = ClubhouseOption;
 
-function ChoiceSelect({
-  label,
-  value,
-  options,
-  onChange,
-  className = "",
-  disabled = false,
-  showSelectedDescription = true,
-  placeholder = "Select",
-  open: controlledOpen,
-  onOpenChange,
-  mobilePresentation = "auto",
-  "aria-label": ariaLabel,
-}: {
-  label?: string;
-  value: string;
-  options: ChoiceOption[];
-  onChange: (value: string) => void;
-  className?: string;
-  disabled?: boolean;
-  showSelectedDescription?: boolean;
-  placeholder?: string;
-  open?: boolean;
-  onOpenChange?: (open: boolean) => void;
-  mobilePresentation?: ChoiceSelectMobilePresentation;
-  "aria-label"?: string;
-}) {
-  const [internalOpen, setInternalOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{
-    top: number;
-    left: number;
-    width: number;
-    maxHeight: number;
-    placement: "top" | "bottom" | "sheet";
-  } | null>(null);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const didInitialSelectedScrollRef = useRef(false);
-  const selected = options.find((option) => option.value === value);
-  const reactId = useId();
-  const listboxId = `choice-select-${reactId.replace(/[^a-z0-9_-]/gi, "")}`;
-  const open = controlledOpen ?? internalOpen;
-  const { edges: menuEdges } = useScrollEdges(menuRef, `${open}-${menuPosition?.top ?? 0}-${menuPosition?.maxHeight ?? 0}-${options.length}-${value}`);
-  const setSelectOpen = useCallback((nextOpen: boolean | ((current: boolean) => boolean)) => {
-    const resolved = typeof nextOpen === "function" ? nextOpen(open) : nextOpen;
-    if (controlledOpen === undefined) setInternalOpen(resolved);
-    onOpenChange?.(resolved);
-  }, [controlledOpen, onOpenChange, open]);
-
-  const updateMenuPosition = useCallback(() => {
-    if (!buttonRef.current || typeof window === "undefined") return;
-    const rect = buttonRef.current.getBoundingClientRect();
-    const viewportPadding = 12;
-    const gap = 6;
-    const viewport = window.visualViewport;
-    const viewportTop = viewport?.offsetTop ?? 0;
-    const viewportLeft = viewport?.offsetLeft ?? 0;
-    const viewportHeight = viewport?.height ?? window.innerHeight;
-    const viewportWidth = viewport?.width ?? window.innerWidth;
-    const viewportBottom = viewportTop + viewportHeight;
-    const viewportRight = viewportLeft + viewportWidth;
-    const optionHeight = 44;
-    const desiredHeight = Math.min(320, Math.max(96, options.length * optionHeight + 16));
-    const availableBelow = Math.max(0, viewportBottom - rect.bottom - viewportPadding - gap);
-    const availableAbove = Math.max(0, rect.top - viewportTop - viewportPadding - gap);
-    const bestAvailable = Math.max(availableBelow, availableAbove);
-    const shouldUseSheet = mobilePresentation === "sheet" || (
-      mobilePresentation === "auto" && (viewportWidth <= 640 || (viewportWidth <= 900 && viewportHeight <= 540) || bestAvailable < 132)
-    );
-    if (shouldUseSheet) {
-      const maxHeight = Math.min(320, Math.max(196, viewportHeight - viewportPadding * 2));
-      setMenuPosition({
-        top: viewportTop + Math.max(viewportPadding, viewportHeight - maxHeight - viewportPadding),
-        left: viewportLeft + 8,
-        width: viewportWidth - 16,
-        maxHeight,
-        placement: "sheet",
-      });
-      return;
-    }
-
-    const canFitBelow = availableBelow >= desiredHeight;
-    const canFitAbove = availableAbove >= desiredHeight;
-    const placement = canFitBelow || (!canFitAbove && availableBelow >= availableAbove) ? "bottom" : "top";
-    const availableHeight = placement === "top" ? availableAbove : availableBelow;
-    const maxHeight = Math.max(96, Math.min(320, availableHeight));
-    const menuHeight = Math.min(desiredHeight, maxHeight);
-    const widestOption = Math.min(320, Math.max(180, ...options.map((option) => (option.label.length + (option.description?.length ?? 0) * 0.45) * 7.5 + 42)));
-    const width = Math.min(Math.max(rect.width, widestOption), viewportWidth - viewportPadding * 2);
-    const left = Math.min(Math.max(rect.left, viewportLeft + viewportPadding), viewportRight - width - viewportPadding);
-    const unclampedTop = placement === "top"
-      ? rect.top - gap - menuHeight
-      : rect.bottom + gap;
-    const top = Math.min(
-      Math.max(unclampedTop, viewportTop + viewportPadding),
-      viewportBottom - menuHeight - viewportPadding,
-    );
-    setMenuPosition({ top, left, width, maxHeight, placement });
-  }, [mobilePresentation, options]);
-
-  const focusOption = useCallback((index?: number) => {
-    const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
-    if (!buttons.length) return;
-    const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value));
-    const targetIndex = Math.max(0, Math.min(buttons.length - 1, index ?? selectedIndex));
-    buttons[targetIndex]?.focus();
-    buttons[targetIndex]?.scrollIntoView({ block: "nearest" });
-  }, [options, value]);
-
-  const closeMenu = useCallback((returnFocus = false) => {
-    setSelectOpen(false);
-    if (returnFocus) window.setTimeout(() => buttonRef.current?.focus(), 0);
-  }, [setSelectOpen]);
-
-  useEffect(() => {
-    if (!open) didInitialSelectedScrollRef.current = false;
-  }, [open]);
-
-  const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closeMenu(true);
-      return;
-    }
-    const buttons = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]') ?? []);
-    if (!buttons.length) return;
-    const currentIndex = Math.max(0, buttons.findIndex((button) => button === document.activeElement));
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      focusOption(Math.min(buttons.length - 1, currentIndex + 1));
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      focusOption(Math.max(0, currentIndex - 1));
-    }
-    if (event.key === "Home") {
-      event.preventDefault();
-      focusOption(0);
-    }
-    if (event.key === "End") {
-      event.preventDefault();
-      focusOption(buttons.length - 1);
-    }
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      const currentOption = options[currentIndex];
-      if (!currentOption) return;
-      onChange(currentOption.value);
-      closeMenu(true);
-    }
-  };
-
-  useEffect(() => {
-    if (!open) return;
-
-    updateMenuPosition();
-    const animationFrame = window.requestAnimationFrame(updateMenuPosition);
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target instanceof Node ? event.target : null;
-      if (
-        target &&
-        (rootRef.current?.contains(target) || menuRef.current?.contains(target))
-      ) {
-        return;
-      }
-      closeMenu();
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeMenu(true);
-    };
-    const handleFocusIn = (event: FocusEvent) => {
-      const target = event.target instanceof Node ? event.target : null;
-      if (
-        target &&
-        (rootRef.current?.contains(target) || menuRef.current?.contains(target))
-      ) {
-        return;
-      }
-      closeMenu();
-    };
-    window.addEventListener("resize", updateMenuPosition);
-    window.addEventListener("orientationchange", updateMenuPosition);
-    window.addEventListener("scroll", updateMenuPosition, true);
-    window.visualViewport?.addEventListener("resize", updateMenuPosition);
-    window.visualViewport?.addEventListener("scroll", updateMenuPosition);
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    document.addEventListener("focusin", handleFocusIn);
-    return () => {
-      window.cancelAnimationFrame(animationFrame);
-      window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("orientationchange", updateMenuPosition);
-      window.removeEventListener("scroll", updateMenuPosition, true);
-      window.visualViewport?.removeEventListener("resize", updateMenuPosition);
-      window.visualViewport?.removeEventListener("scroll", updateMenuPosition);
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-      document.removeEventListener("focusin", handleFocusIn);
-    };
-  }, [closeMenu, open, updateMenuPosition]);
-
-  useEffect(() => {
-    if (!open || !menuPosition || didInitialSelectedScrollRef.current) return;
-    didInitialSelectedScrollRef.current = true;
-    const animationFrame = window.requestAnimationFrame(() => {
-      const selectedButton = menuRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
-      selectedButton?.scrollIntoView({ block: "nearest" });
-    });
-    return () => window.cancelAnimationFrame(animationFrame);
-  }, [menuPosition, open]);
-
-  const menu = open && !disabled && menuPosition && typeof document !== "undefined"
-    ? createPortal(
-      <>
-        {menuPosition.placement === "sheet" && <div className="choice-select__sheet-scrim" aria-hidden="true" />}
-        <div
-          ref={menuRef}
-          id={listboxId}
-          className={[
-            "choice-select__menu",
-            "choice-select__menu--portal",
-            menuEdges.canScrollUp ? "has-scroll-up" : "",
-            menuEdges.canScrollDown ? "has-scroll-down" : "",
-            className,
-          ].filter(Boolean).join(" ")}
-          data-placement={menuPosition.placement}
-          role="listbox"
-          tabIndex={-1}
-          aria-label={ariaLabel ?? label}
-          onKeyDown={handleMenuKeyDown}
-          style={{
-            top: menuPosition.top,
-            left: menuPosition.left,
-            width: menuPosition.width,
-            maxHeight: menuPosition.maxHeight,
-          }}
-        >
-          <span className="choice-select__menu-edge choice-select__menu-edge--top" aria-hidden="true">
-            <ChevronUp size={13} aria-hidden="true" />
-          </span>
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={option.value === value ? "active" : ""}
-              role="option"
-              aria-selected={option.value === value}
-              onClick={() => {
-                onChange(option.value);
-                closeMenu(true);
-              }}
-            >
-              {option.icon && <span className="choice-select__icon">{option.icon}</span>}
-              <span>
-                {option.label}
-                {option.description && <small>{option.description}</small>}
-              </span>
-            </button>
-          ))}
-          <span className="choice-select__menu-edge choice-select__menu-edge--bottom" aria-hidden="true">
-            <ChevronDown size={13} aria-hidden="true" />
-          </span>
-        </div>
-      </>,
-      document.body,
-    )
-    : null;
-
-  return (
-    <div
-      ref={rootRef}
-      className={["choice-select", open ? "open" : "", className].filter(Boolean).join(" ")}
-      data-label={ariaLabel ?? label}
-      data-empty={!selected ? "true" : undefined}
-    >
-      {label && <span className="choice-select__label">{label}</span>}
-      <button
-        ref={buttonRef}
-        type="button"
-        className="choice-select__button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={open ? listboxId : undefined}
-        aria-label={ariaLabel ?? label}
-        disabled={disabled}
-        onClick={() => {
-          updateMenuPosition();
-          setSelectOpen((current) => !current);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            updateMenuPosition();
-            setSelectOpen(true);
-            didInitialSelectedScrollRef.current = true;
-            window.setTimeout(() => focusOption(event.key === "ArrowUp" ? options.length - 1 : undefined), 0);
-          }
-        }}
-      >
-        {selected?.icon && <span className="choice-select__icon">{selected.icon}</span>}
-        <strong>
-          {selected?.label ?? placeholder}
-          {showSelectedDescription && selected?.description && <small>{selected.description}</small>}
-        </strong>
-        <ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {menu}
-    </div>
-  );
-}
 
 function TeamSwitcher({
   context,
@@ -5341,10 +5024,12 @@ function TeamSwitcher({
       <span>
         <small>{current.organizationName}</small>
         {switchTeams.length > 1 ? (
-          <ChoiceSelect
+          <ClubhouseSearchSelect
             value={selectedValue}
             aria-label="Current team"
             className="team-switch-choice"
+            sheetTitle="Switch team"
+            searchPlaceholder="Search teams..."
             options={switchTeams.map((team) => ({ value: teamValue(team), label: `${team.teamName} - ${team.seasonName ?? "Current season"}` }))}
             onChange={(value) => {
               const next = switchTeams.find((team) => teamValue(team) === value);
@@ -12531,19 +12216,12 @@ function PracticeHittingChartCarousel({
   const [sprayMode, setSprayMode] = useState<PracticeChartMetricMode>("dots");
   const [pitchLocationMode, setPitchLocationMode] = useState<PracticeChartMetricMode>("heat");
   const [pitchFilters, setPitchFilters] = useState<PitchType[]>([]);
-  const [pitchFilterOpen, setPitchFilterOpen] = useState(false);
-  const pitchFilterRef = useRef<HTMLDivElement | null>(null);
   const chartScrollerRef = useRef<HTMLDivElement | null>(null);
   const [requestedViewId, setRequestedViewId] = useState<"spray" | "location">("spray");
   const pitchFilterOptions = PITCH_TYPES.filter((pitchType) => events.some((event) => event.pitchType === pitchType));
   const filteredEvents = pitchFilters.length
     ? events.filter((event) => event.pitchType && pitchFilters.includes(event.pitchType))
     : events;
-  const pitchFilterLabel = pitchFilters.length === 0
-    ? "All"
-    : pitchFilters.length === 1
-      ? PITCH_TYPE_LABELS[pitchFilters[0]]
-      : `${pitchFilters.length} pitches`;
   const ballsInPlayCount = filteredEvents.filter((event) => event.action === "Ball in play").length;
   const sprayPoints = filteredEvents.filter((event) => event.action === "Ball in play").map((event) => event.fieldLocation).filter(isZonePoint);
   const pitchLocationEvents = filteredEvents.filter((event) => isZonePoint(event.pitchLocation));
@@ -12553,24 +12231,6 @@ function PracticeHittingChartCarousel({
   ].filter(Boolean) as Array<{ id: "spray" | "location"; label: string; count: string }>, [ballsInPlayCount, pitchLocationEvents.length, showPitchLocation, showSpray, sprayPoints.length]);
 
   const activeViewId = views.some((view) => view.id === requestedViewId) ? requestedViewId : views[0]?.id;
-
-  useEffect(() => {
-    if (!pitchFilterOpen) return;
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target instanceof Node ? event.target : null;
-      if (target && pitchFilterRef.current?.contains(target)) return;
-      setPitchFilterOpen(false);
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPitchFilterOpen(false);
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [pitchFilterOpen]);
 
   if (!views.length) return null;
 
@@ -12589,14 +12249,6 @@ function PracticeHittingChartCarousel({
     if (nextView && nextView.id !== activeViewId) setRequestedViewId(nextView.id);
   }
 
-  function togglePitchFilter(pitchType: PitchType) {
-    setPitchFilters((current) => (
-      current.includes(pitchType)
-        ? current.filter((item) => item !== pitchType)
-        : [...current, pitchType]
-    ));
-  }
-
   return (
     <section className="practice-hitting-live-charts" aria-label="Hitting charts">
       <div className="practice-hitting-live-charts__head">
@@ -12610,45 +12262,19 @@ function PracticeHittingChartCarousel({
               ))}
             </div>
           )}
-          <div className="practice-hitting-chart-filter practice-pitching-filter-menu" ref={pitchFilterRef}>
-            <button
-              className="practice-pitching-filter-pill"
-              type="button"
-              onClick={() => setPitchFilterOpen((open) => !open)}
-              aria-label="Filter hitting charts by pitch type"
-              aria-haspopup="menu"
-              aria-expanded={pitchFilterOpen}
-            >
-              <span>Pitch Filter</span>
-              <strong>{pitchFilterLabel}</strong>
-              <ChevronDown size={15} aria-hidden="true" />
-            </button>
-            {pitchFilterOpen && (
-              <div className="practice-pitching-filter-popover practice-pitching-filter-sheet" role="menu" aria-label="Hitting chart pitch filter">
-                <button type="button" role="menuitemcheckbox" aria-checked={pitchFilters.length === 0} className={pitchFilters.length === 0 ? "active" : ""} onClick={() => setPitchFilters([])}>
-                  <span>
-                    <strong>All Pitches</strong>
-                    <small>{events.length} swings</small>
-                  </span>
-                  {pitchFilters.length === 0 && <Check size={16} aria-hidden="true" />}
-                </button>
-                {pitchFilterOptions.map((pitchType) => {
-                  const active = pitchFilters.includes(pitchType);
-                  const count = events.filter((event) => event.pitchType === pitchType).length;
-                  return (
-                    <button key={pitchType} type="button" role="menuitemcheckbox" aria-checked={active} className={active ? "active" : ""} onClick={() => togglePitchFilter(pitchType)}>
-                      <span>
-                        <strong><i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />{practicePitchTypeLabel(pitchType)}</strong>
-                        <small>{count} swings</small>
-                      </span>
-                      <em aria-hidden="true">{active && <Check size={15} />}</em>
-                    </button>
-                  );
-                })}
-                {!pitchFilterOptions.length && <CompactEmpty title="No pitch types logged yet" />}
-              </div>
-            )}
-          </div>
+          <ClubhouseMultiSelect
+            className="practice-hitting-chart-filter"
+            label="Pitch Filter"
+            values={pitchFilters}
+            placeholder="All Pitches"
+            options={pitchFilterOptions.map((pitchType) => ({
+              value: pitchType,
+              label: practicePitchTypeLabel(pitchType),
+              description: `${events.filter((event) => event.pitchType === pitchType).length} swings`,
+            }))}
+            onApply={(nextValues) => setPitchFilters(nextValues as PitchType[])}
+            aria-label="Filter hitting charts by pitch type"
+          />
         </div>
       </div>
       <div ref={chartScrollerRef} className="practice-hitting-live-charts__scroller" aria-label="Swipe charts" onScroll={syncActiveChartView}>
@@ -19167,12 +18793,12 @@ function GameLiveIntelligence({ game, events, allEvents, players, focusedPlayerI
       <div className="game-tendex-tabs" role="tablist" aria-label="Tendex analysis view">{(["overview", "advanced", "locations", "spray"] as const).map((item) => <button key={item} type="button" role="tab" aria-selected={view === item} className={view === item ? "active" : ""} onClick={() => setView(item)}>{item === "advanced" ? "Tendencies" : item[0].toUpperCase() + item.slice(1)}</button>)}</div>
       <div className="game-tendex-scope"><button type="button" className={scope === "game" ? "active" : ""} onClick={() => setScope("game")}>This Game</button><button type="button" className={scope === "season" ? "active" : ""} onClick={() => setScope("season")}>Season</button></div>
       <div className="game-live-filters game-live-filters--tendex">
-        <label><span>Pitcher</span><select value={pitcherFilter} onChange={(event) => setPitcherFilter(event.target.value)}><option value="all">All pitchers</option>{pitcherOptions.map((id) => <option key={id} value={id}>{players.find((player) => player.id === id)?.name ?? id}</option>)}</select></label>
-        <label><span>Batter</span><select value={batterFilter} onChange={(event) => setBatterFilter(event.target.value)}><option value="all">All batters</option>{batterOptions.map((id) => <option key={id} value={id}>{players.find((player) => player.id === id)?.name ?? id}</option>)}</select></label>
-        <label><span>Bats</span><select value={sideFilter} onChange={(event) => setSideFilter(event.target.value as typeof sideFilter)}><option value="all">Both sides</option><option value="R">Right</option><option value="L">Left</option><option value="S">Switch</option></select></label>
-        <label><span>Count state</span><select value={bucketFilter} onChange={(event) => setBucketFilter(event.target.value)}><option value="all">All counts</option>{TENDEX_COUNT_BUCKETS.map((bucket) => <option key={bucket.key} value={bucket.key}>{bucket.label}</option>)}</select></label>
-        <label><span>Pitch</span><select value={pitchTypeFilter} onChange={(event) => setPitchTypeFilter(event.target.value as PitchType | "all")}><option value="all">All pitches</option>{TENDEX_PITCH_TYPES.map((type) => <option key={type} value={type}>{PITCH_TYPE_LABELS[type]}</option>)}</select></label>
-        <label><span>Outs</span><select value={outsFilter} onChange={(event) => setOutsFilter(event.target.value)}><option value="all">All outs</option><option value="0">0 outs</option><option value="1">1 out</option><option value="2">2 outs</option></select></label>
+        <ClubhouseSearchSelect label="Pitcher" value={pitcherFilter} options={[{ value: "all", label: "All pitchers" }, ...pitcherOptions.map((id) => ({ value: id, label: players.find((player) => player.id === id)?.name ?? id }))]} onChange={setPitcherFilter} aria-label="Pitcher" />
+        <ClubhouseSearchSelect label="Batter" value={batterFilter} options={[{ value: "all", label: "All batters" }, ...batterOptions.map((id) => ({ value: id, label: players.find((player) => player.id === id)?.name ?? id }))]} onChange={setBatterFilter} aria-label="Batter" />
+        <ClubhousePicker label="Bats" value={sideFilter} options={[{ value: "all", label: "Both sides" }, { value: "R", label: "Right" }, { value: "L", label: "Left" }, { value: "S", label: "Switch" }]} onChange={(value) => setSideFilter(value as typeof sideFilter)} aria-label="Bats" />
+        <ClubhousePicker label="Count state" value={bucketFilter} options={[{ value: "all", label: "All counts" }, ...TENDEX_COUNT_BUCKETS.map((bucket) => ({ value: bucket.key, label: bucket.label }))]} onChange={setBucketFilter} aria-label="Count state" />
+        <ChoiceSelect label="Pitch" value={pitchTypeFilter} options={[{ value: "all", label: "All pitches" }, ...TENDEX_PITCH_TYPES.map((type) => ({ value: type, label: PITCH_TYPE_LABELS[type] }))]} onChange={(value) => setPitchTypeFilter(value as PitchType | "all")} aria-label="Pitch" />
+        <ClubhousePicker label="Outs" value={outsFilter} options={[{ value: "all", label: "All outs" }, { value: "0", label: "0 outs" }, { value: "1", label: "1 out" }, { value: "2", label: "2 outs" }]} onChange={setOutsFilter} aria-label="Outs" />
       </div>
       <div className="game-tendex-filter-summary"><strong>{scope === "game" ? "This game" : "Season"} · n={pitches.length}</strong><span>{confidence} sample</span><button type="button" className="text-button" onClick={() => { setPitcherFilter(game.currentPitcherId ?? "all"); setBatterFilter("all"); setSideFilter("all"); setBucketFilter("all"); setPitchTypeFilter("all"); setOutsFilter("all"); }}>Reset filters</button></div>
     </div>
@@ -19333,7 +18959,6 @@ function AnalyticsView({
   const [customRange, setCustomRange] = useState<{ start?: string; end?: string }>(initialState.customRange);
   const [filters, setFilters] = useState<AnalyticsFilters>(initialState.filters);
   const [sort, setSort] = useState<AnalyticsQuery["sort"]>(() => initialState.sort ?? defaultAnalyticsSort(initialState.domain, initialState.source, initialState.mode));
-  const [eventSelectorOpen, setEventSelectorOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>(() => readInitialAnalyticsDetailPlayerId(data));
@@ -19448,7 +19073,6 @@ function AnalyticsView({
       setMetricIds(next.metricIds);
       setColumnPreset(next.metricIds?.length ? "custom" : "standard");
       setDetailPlayerId(readInitialAnalyticsDetailPlayerId(data));
-      setEventSelectorOpen(false);
       setFiltersOpen(false);
       setColumnsOpen(false);
     };
@@ -19494,23 +19118,6 @@ function AnalyticsView({
     });
   }
 
-  function toggleEvent(eventId: ID) {
-    setEventIds((current) => current.includes(eventId) ? current.filter((id) => id !== eventId) : [...current, eventId]);
-  }
-
-  function toggleFilter(definition: AnalyticsFilterDefinition, value: string) {
-    if (definition.type === "range") return;
-    setFilters((current) => {
-      const currentValues = new Set(((current[definition.id] as string[] | undefined) ?? []));
-      if (currentValues.has(value)) currentValues.delete(value);
-      else currentValues.add(value);
-      return {
-        ...current,
-        [definition.id]: [...currentValues],
-      };
-    });
-  }
-
   function toggleColumn(metricId: string) {
     const availableIds = result.availableColumns.map((column) => column.metricId);
     setColumnPreset("custom");
@@ -19539,10 +19146,6 @@ function AnalyticsView({
       ...current,
       [id]: ((current[id] as string[] | undefined) ?? []).filter((item) => item !== value),
     }));
-  }
-
-  function setVelocityRange(minimum?: number, maximum?: number) {
-    setFilters((current) => ({ ...current, pitchVelocityMin: minimum, pitchVelocityMax: maximum }));
   }
 
   function writeAnalyticsDetailRoute(playerId: ID | undefined, options: { replace?: boolean } = {}) {
@@ -19618,7 +19221,7 @@ function AnalyticsView({
           )}
         </div>
         <div className="analytics-controls__row analytics-controls__row--filters">
-          <ChoiceSelect
+          <ClubhousePicker
             value={timeRange}
             className="analytics-select"
             showSelectedDescription={false}
@@ -19626,47 +19229,47 @@ function AnalyticsView({
             onChange={(value) => setTimeRange(value as AnalyticsTimeRange)}
             aria-label="Analytics time range"
           />
-          <div className="analytics-popover-wrap">
-            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
-              setEventSelectorOpen((open) => !open);
-              setFiltersOpen(false);
-              setColumnsOpen(false);
-            }}>
-              {analyticsEventSummary(eventIds, result.availableEvents)}
-              <ChevronDown size={14} aria-hidden="true" />
-            </button>
-            {eventSelectorOpen && (
-              <AnalyticsEventSelector
-                events={result.availableEvents}
-                selectedIds={eventIds}
-                onToggle={toggleEvent}
-                onClear={() => setEventIds([])}
-              />
+          <ClubhouseMultiSelect
+            className="analytics-select analytics-multi-select"
+            label="Events"
+            values={eventIds}
+            placeholder="All Events"
+            searchable
+            searchPlaceholder="Search games or practices..."
+            options={result.availableEvents.map((eventOption) => ({
+              value: eventOption.id,
+              label: eventOption.label,
+              description: [eventOption.source, eventOption.meta].filter(Boolean).join(" · "),
+            }))}
+            onApply={(nextValues) => setEventIds(nextValues as ID[])}
+            aria-label={analyticsEventSummary(eventIds, result.availableEvents)}
+          />
+          <ClubhouseOptionSheet
+            title="Filters"
+            open={filtersOpen}
+            onOpenChange={(nextOpen) => {
+              setFiltersOpen(nextOpen);
+              if (nextOpen) setColumnsOpen(false);
+            }}
+            className="analytics-option-sheet"
+            trigger={(
+              <button className="secondary-button analytics-control-trigger" type="button" onClick={() => setFiltersOpen(true)}>
+                <SlidersHorizontal size={14} aria-hidden="true" />
+                Filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
+              </button>
             )}
-          </div>
-          <div className="analytics-popover-wrap">
-            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
-              setFiltersOpen((open) => !open);
-              setEventSelectorOpen(false);
-              setColumnsOpen(false);
-            }}>
-              <SlidersHorizontal size={14} aria-hidden="true" />
-              Filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
-            </button>
-            {filtersOpen && (
-              <AnalyticsFilterPanel
-                definitions={result.filterDefinitions}
-                values={filters}
-                onToggle={toggleFilter}
-                onVelocityRange={setVelocityRange}
-                onClear={() => setFilters({})}
-              />
-            )}
-          </div>
+          >
+            <AnalyticsFilterPanel
+              definitions={result.filterDefinitions}
+              values={filters}
+              embedded
+              onApply={setFilters}
+              onClose={() => setFiltersOpen(false)}
+            />
+          </ClubhouseOptionSheet>
           <div className="analytics-popover-wrap">
             <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
               setColumnsOpen((open) => !open);
-              setEventSelectorOpen(false);
               setFiltersOpen(false);
             }}>
               <Columns3 size={14} aria-hidden="true" />
@@ -19708,12 +19311,12 @@ function AnalyticsView({
         )}
       </section>
 
-      {(eventSelectorOpen || filtersOpen || columnsOpen) && (
+      {(filtersOpen || columnsOpen) && (
         <button
           type="button"
           className="analytics-sheet-scrim"
           aria-label="Close Analytics panel"
-          onClick={() => { setEventSelectorOpen(false); setFiltersOpen(false); setColumnsOpen(false); }}
+          onClick={() => { setFiltersOpen(false); setColumnsOpen(false); }}
         />
       )}
 
@@ -19944,6 +19547,7 @@ function AnalyticsMetricKey({ result }: { result: AnalyticsResult }) {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function AnalyticsEventSelector({
   events,
   selectedIds,
@@ -20076,16 +19680,17 @@ function analyticsColumnDisplayLabel(label: string) {
 function AnalyticsFilterPanel({
   definitions,
   values,
-  onToggle,
-  onVelocityRange,
-  onClear,
+  onApply,
+  onClose,
+  embedded = false,
 }: {
   definitions: AnalyticsFilterDefinition[];
   values: AnalyticsFilters;
-  onToggle: (definition: AnalyticsFilterDefinition, value: string) => void;
-  onVelocityRange: (minimum?: number, maximum?: number) => void;
-  onClear: () => void;
+  onApply: (values: AnalyticsFilters) => void;
+  onClose: () => void;
+  embedded?: boolean;
 }) {
+  const [draft, setDraft] = useState<AnalyticsFilters>(values);
   const sections = definitions.reduce<Record<string, AnalyticsFilterDefinition[]>>((groups, definition) => {
     (groups[definition.section] ??= []).push(definition);
     return groups;
@@ -20100,11 +19705,27 @@ function AnalyticsFilterPanel({
     ["arm_side", "middle", "glove_side"],
     ["down_arm_side", "down", "down_glove_side"],
   ];
+  const activeDraftCount = Object.values(draft).reduce((count, value) => count + (Array.isArray(value) ? value.length : value === undefined ? 0 : 1), 0);
+
+  function toggle(definition: AnalyticsFilterDefinition, value: string) {
+    if (definition.type === "range") return;
+    setDraft((current) => {
+      const nextValues = new Set(((current[definition.id] as string[] | undefined) ?? []));
+      if (nextValues.has(value)) nextValues.delete(value);
+      else nextValues.add(value);
+      return { ...current, [definition.id]: [...nextValues] };
+    });
+  }
+
+  function setVelocity(minimum?: number, maximum?: number) {
+    setDraft((current) => ({ ...current, pitchVelocityMin: minimum, pitchVelocityMax: maximum }));
+  }
+
   return (
-    <div className="analytics-popover analytics-popover--wide" role="dialog" aria-label="Analytics filters">
+    <div className={embedded ? "analytics-option-sheet__body" : "analytics-popover analytics-popover--wide"} role="dialog" aria-label="Analytics filters">
       <div className="analytics-popover__head">
         <strong>Filter Stats</strong>
-        <button type="button" className="text-button" onClick={onClear}>Clear All</button>
+        <button type="button" className="text-button" onClick={() => setDraft({})}>Clear All</button>
       </div>
       <div className="analytics-popover__body analytics-filter-list">
         {definitions.length ? Object.entries(sections).map(([sectionLabel, sectionDefinitions]) => (
@@ -20112,7 +19733,7 @@ function AnalyticsFilterPanel({
             <h3>{sectionLabel}</h3>
             {sectionDefinitions.map((definition) => {
               const selected = new Set(
-                definition.type === "range" ? [] : ((values[definition.id] as string[] | undefined) ?? []),
+                definition.type === "range" ? [] : ((draft[definition.id] as string[] | undefined) ?? []),
               );
               const locationGrid = definition.options.some((option) => option.value === "arm_side") ? pitchingLocationGrid : hittingLocationGrid;
               return (
@@ -20124,29 +19745,29 @@ function AnalyticsFilterPanel({
                   {definition.capabilityNote && <p>{definition.capabilityNote}</p>}
                   {definition.type === "range" ? (
                     <div className="analytics-filter-range">
-                      <label><span>Min</span><input type="number" inputMode="decimal" value={values.pitchVelocityMin ?? ""} placeholder="Any" onChange={(event) => onVelocityRange(event.target.value ? Number(event.target.value) : undefined, values.pitchVelocityMax)} /></label>
+                      <label><span>Min</span><input type="number" inputMode="decimal" value={draft.pitchVelocityMin ?? ""} placeholder="Any" onChange={(event) => setVelocity(event.target.value ? Number(event.target.value) : undefined, draft.pitchVelocityMax)} /></label>
                       <span>to</span>
-                      <label><span>Max</span><input type="number" inputMode="decimal" value={values.pitchVelocityMax ?? ""} placeholder="Any" onChange={(event) => onVelocityRange(values.pitchVelocityMin, event.target.value ? Number(event.target.value) : undefined)} /></label>
+                      <label><span>Max</span><input type="number" inputMode="decimal" value={draft.pitchVelocityMax ?? ""} placeholder="Any" onChange={(event) => setVelocity(draft.pitchVelocityMin, event.target.value ? Number(event.target.value) : undefined)} /></label>
                       <em>mph</em>
                     </div>
                   ) : definition.type === "pitch-location" ? (
                     <>
                       <div className="analytics-zone-state-options">
                         {definition.options.slice(0, 2).map((option) => (
-                          <button key={option.value} type="button" className={selected.has(option.value) ? "active" : ""} onClick={() => onToggle(definition, option.value)}>{option.label}</button>
+                          <button key={option.value} type="button" className={selected.has(option.value) ? "active" : ""} onClick={() => toggle(definition, option.value)}>{option.label}</button>
                         ))}
                       </div>
                       <div className="analytics-pitch-location-selector" aria-label="Pitch location regions">
                         {locationGrid.flat().map((value) => {
                           const option = definition.options.find((candidate) => candidate.value === value);
-                          return <button key={value} type="button" className={selected.has(value) ? "active" : ""} onClick={() => onToggle(definition, value)}>{option?.label ?? value}</button>;
+                          return <button key={value} type="button" className={selected.has(value) ? "active" : ""} onClick={() => toggle(definition, value)}>{option?.label ?? value}</button>;
                         })}
                       </div>
                     </>
                   ) : (
                     <div className="analytics-filter-options">
                       {definition.options.map((option) => (
-                        <button key={option.value} type="button" className={selected.has(option.value) ? "active" : ""} onClick={() => onToggle(definition, option.value)}>
+                        <button key={option.value} type="button" className={selected.has(option.value) ? "active" : ""} onClick={() => toggle(definition, option.value)}>
                           {option.label}
                         </button>
                       ))}
@@ -20158,6 +19779,10 @@ function AnalyticsFilterPanel({
           </section>
         )) : <CompactEmpty title="No supported filters for this source yet" />}
       </div>
+      <footer className="analytics-option-sheet__actions clubhouse-option-overlay__actions">
+        <button type="button" className="secondary-button" onClick={onClose}>Cancel</button>
+        <button type="button" className="primary-button" onClick={() => { onApply(draft); onClose(); }}>Apply{activeDraftCount ? ` (${activeDraftCount})` : ""}</button>
+      </footer>
     </div>
   );
 }
@@ -20180,7 +19805,8 @@ function AskClubhouseFab({ onClick }: { onClick: () => void }) {
   );
 }
 
-function AskClubhouseScopeSelector({
+/* eslint-disable @typescript-eslint/no-unused-vars */
+function LegacyAskClubhouseScopeSelector({
   teams,
   selectedScopeKeys,
   onChange,
@@ -20244,6 +19870,51 @@ function AskClubhouseScopeSelector({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/* eslint-enable @typescript-eslint/no-unused-vars */
+
+function AskClubhouseScopeSelector({
+  teams,
+  selectedScopeKeys,
+  onChange,
+}: {
+  teams: TeamOption[];
+  selectedScopeKeys: string[];
+  onChange: (scopeKeys: string[]) => void;
+}) {
+  const options: ClubhouseOption[] = [
+    {
+      value: ASK_ALL_TEAMS_SCOPE_KEY,
+      label: "All teams",
+      description: "Ask across every team you can access",
+    },
+    ...teams.map((team) => ({
+      value: askTeamScopeKey(team),
+      label: team.teamName,
+      description: [team.organizationName, team.seasonName ?? "Current season"].filter(Boolean).join(" · "),
+    })),
+  ];
+
+  return (
+    <div className="ask-scope-control clubhouse-ask-scope-control">
+      <ClubhouseMultiSelect
+        label="Data from"
+        values={selectedScopeKeys}
+        options={options}
+        placeholder="All teams"
+        searchable={teams.length > 8}
+        searchPlaceholder="Search teams..."
+        onApply={(nextValues) => {
+          const teamKeys = nextValues.filter((value) => value !== ASK_ALL_TEAMS_SCOPE_KEY);
+          onChange(nextValues.includes(ASK_ALL_TEAMS_SCOPE_KEY) && teamKeys.length === 0
+            ? [ASK_ALL_TEAMS_SCOPE_KEY]
+            : teamKeys);
+        }}
+        aria-label="Ask Clubhouse team scope"
+      />
     </div>
   );
 }
@@ -23676,7 +23347,8 @@ function RecentGamesCard({
   );
 }
 
-function SegmentedControl<T extends string>({ values, active, onChange }: { values: T[]; active: T; onChange: (value: T) => void }) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function LegacySegmentedControl<T extends string>({ values, active, onChange }: { values: T[]; active: T; onChange: (value: T) => void }) {
   return (
     <div className="segmented-control">
       {values.map((value) => (

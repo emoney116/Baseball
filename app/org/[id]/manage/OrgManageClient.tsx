@@ -18,6 +18,7 @@ import {
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ChangeEvent, type Dispatch, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import { cityOptionsForState, US_STATE_OPTIONS } from "../../../lib/locations";
+import { ClubhouseSelect as ChoiceSelect, type ClubhouseOption } from "../../../components/ClubhouseSelect";
 import type { OrgRole, OrganizationManageData, OrganizationVisibility } from "../../../lib/organizationManagement";
 
 type TabKey = "general" | "teams" | "staff" | "invites" | "visibility";
@@ -48,10 +49,7 @@ const STAFF_ROLE_OPTIONS = [
 ];
 const SEASON_OPTIONS = buildSeasonOptions();
 
-type ChoiceOption = {
-  value: string;
-  label: string;
-};
+type ChoiceOption = ClubhouseOption;
 
 const SCROLL_EDGE_THRESHOLD = 3;
 
@@ -1030,7 +1028,8 @@ function VisibilityTab({ value, onChange }: { value: OrganizationVisibility; onC
   );
 }
 
-function ChoiceSelect({
+/* eslint-disable @typescript-eslint/no-unused-vars */
+function LegacyChoiceSelect({
   label,
   value,
   options,
@@ -1294,6 +1293,8 @@ function ChoiceSelect({
     </div>
   );
 }
+
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 function OrgLogo({ name, logoUrl, large = false }: { name: string; logoUrl?: string; large?: boolean }) {
   const resolvedLogoUrl = logoUrl || (/metrolina/i.test(name) ? "/brand/metrolina-baseball-alpha.png" : "");
