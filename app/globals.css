@@ -36405,9 +36405,9 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
 
   .analytics-primary-navigation {
     display: grid;
-    grid-template-columns: max-content 116px;
+    grid-template-columns: minmax(0, 1fr) 116px;
     align-items: center;
-    gap: 0;
+    gap: 8px;
     flex-wrap: nowrap;
     margin-inline: calc(-1 * var(--mobile-page-gutter));
     padding-inline: var(--mobile-page-gutter);
@@ -36431,5 +36431,11 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
 
   .analytics-primary-navigation .analytics-scope-select.choice-select .choice-select__button {
     width: 100%;
+  }
+
+  .analytics-page > .section-header > div {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
   }
 }

@@ -15,6 +15,7 @@ test("Analytics exposes focused overview and chart workspaces", () => {
   assert.match(analyticsView, /className="analytics-primary-navigation"/);
   assert.match(analyticsView, /className="analytics-scope-select"/);
   assert.match(analyticsView, /mobilePresentation="popover"/);
+  assert.match(analyticsView, /value: "all", label: "All Field"/);
   assert.match(analyticsView, /analyticsEventTriggerLabel/);
   assert.match(page, /aria-label="Event range"/);
   assert.doesNotMatch(analyticsView, /className="analytics-domain-select"/);
@@ -67,6 +68,8 @@ test("Analytics columns upgrade legacy defaults and keep the wider catalog contr
   assert.match(page, /\[\.\.\.visibleIds, metricId\]/);
   assert.match(page, /url\.searchParams\.set\("columnPreset", columnPreset\)/);
   assert.match(css, /\.analytics-box-score\s*\{[\s\S]*overflow-x:\s*auto/);
+  assert.match(css, /\.analytics-primary-navigation\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\) 116px/);
+  assert.match(css, /\.analytics-page > \.section-header > div\s*\{[\s\S]*align-items:\s*center/);
   assert.match(page, /const minTableWidth = Math\.max\(676, 144 \+ result\.columns\.length \* 64\)/);
   assert.match(page, /Plate Appearances/);
   assert.match(page, /Contact Percentage/);

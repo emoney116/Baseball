@@ -19415,7 +19415,7 @@ function AnalyticsView({
     { value: "games", label: "Games" },
     { value: "practice", label: "Practice" },
     { value: "live-bp", label: "Live BP" },
-    { value: "all", label: "All" },
+    { value: "all", label: "All Field" },
   ].filter((option) => analyticsSourcesForDomain(domain).includes(option.value as AnalyticsSource));
   const analyticsScopeOptions: ChoiceOption[] = [...analyticsSourceOptions, { value: "weight-room", label: "Weight Room" }];
   const analyticsScopeValue = domain === "development" ? "weight-room" : source;
