@@ -19909,9 +19909,11 @@ function AskClubhouseScopeSelector({
         searchPlaceholder="Search teams..."
         onApply={(nextValues) => {
           const teamKeys = nextValues.filter((value) => value !== ASK_ALL_TEAMS_SCOPE_KEY);
-          onChange(nextValues.includes(ASK_ALL_TEAMS_SCOPE_KEY) && teamKeys.length === 0
-            ? [ASK_ALL_TEAMS_SCOPE_KEY]
-            : teamKeys);
+          onChange(
+            teamKeys.length === 0
+              ? [ASK_ALL_TEAMS_SCOPE_KEY]
+              : teamKeys,
+          );
         }}
         aria-label="Ask Clubhouse team scope"
       />
