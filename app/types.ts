@@ -36,7 +36,7 @@ export type Position =
 
 export type Handedness = "R" | "L" | "S";
 export type Throws = "R" | "L" | "S";
-export type RosterStatus = "Varsity" | "JV" | "Undecided" | "Cut";
+export type RosterStatus = "Varsity" | "JV" | "MS" | "Undecided" | "Cut";
 export type ProgramLevel = "Varsity" | "JV" | "Development";
 export type TeamMembershipRole = "OWNER" | "ADMIN" | "HEAD_COACH" | "ASSISTANT_COACH" | "STAFF" | "COACH" | "PLAYER";
 export type StaffBaseballRole =
@@ -297,6 +297,7 @@ export interface Player {
   weight?: number;
   avatarColor: string;
   imageUrl?: string;
+  teamImageUrl?: string;
   isPitcher: boolean;
   isHitter: boolean;
   notes?: string;
@@ -315,6 +316,7 @@ export interface PlayerTeamMembership {
   rosterRole?: string;
   isCaptain?: boolean;
   positionLabels?: string[];
+  teamImageUrl?: string;
   active: boolean;
   startDate?: string;
   endDate?: string;

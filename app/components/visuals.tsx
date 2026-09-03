@@ -100,9 +100,10 @@ export function PlayerAvatar({
     <IdentityAvatar
       id={player.id}
       name={player.name}
-      src={player.imageUrl}
+      src={player.teamImageUrl ?? player.imageUrl}
       size={size}
       badge={compact ? undefined : `#${player.jerseyNumber}`}
+      className="player-avatar--player"
     />
   );
 }

@@ -14,14 +14,27 @@ test("Analytics V2 removes the permanent mode split and exposes contextual views
   assert.match(analyticsView, /statView/);
   assert.match(analyticsView, /serializeAnalyticsContext/);
 });
-test("Analytics V2 uses one filter panel with ranges, a location grid, and removable chips", () => {
+test("Analytics filter sheet stages values and reuses the canonical catcher-view location grid", () => {
   assert.match(page, /aria-label="Analytics filters"/);
-  assert.match(page, /className="analytics-pitch-location-selector"/);
+  assert.match(page, /Catcher View/);
+  assert.match(page, /PITCH_LOCATION_BUCKETS\.map/);
+  assert.match(page, /analyticsLocationRegionForBucket/);
   assert.match(page, /className="analytics-filter-range"/);
   assert.match(page, /definition\.type === "range" \? \[\] :/);
   assert.match(page, /removeFilterValue\(chip\.id, chip\.value\)/);
   assert.match(page, /className="analytics-clear-filter-chip"/);
-  assert.match(css, /\.analytics-pitch-location-selector\s*\{[\s\S]*grid-template-columns:\s*repeat\(3/);
+  assert.match(page, /setStagedFilters\(cloneAnalyticsFilters\(filters\)\)/);
+  assert.match(page, /function applyStagedFilters/);
+  assert.match(css, /\.analytics-filter-sheet__footer\s*\{/);
+  assert.match(css, /\.analytics-filter-sheet__body\s*\{[\s\S]*overflow-y:\s*auto/);
+});
+
+test("Analytics workspace keeps chart controls with the selected chart and supports player groups", () => {
+  assert.match(page, /analytics-workspace-tabs/);
+  assert.match(page, /AnalyticsChartPlayerSelector/);
+  assert.match(page, /aria-multiselectable="true"/);
+  assert.match(page, /AnalyticsChartModes/);
+  assert.match(page, /analytics-chart-surface-control/);
 });
 
 test("Analytics V2 keeps stat-sheet density and converts panels to phone bottom sheets", () => {

@@ -210,9 +210,10 @@ export interface AnalyticsSprayChart {
 }
 
 export interface AnalyticsPitchLocationChart {
-  points: Array<ZonePoint & { id: ID }>;
+  points: Array<ZonePoint & { id: ID; chartOutcome?: "hit" | "out" | "contact" | "miss" }>;
   qualifyingEvents: number;
   trackedLocations: number;
+  metricLabel: "Batting average" | "Contact rate" | "Pitch density";
 }
 
 export interface AnalyticsResult {
@@ -416,7 +417,7 @@ function buildHittingResult(
     return {
       ...assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, ["trackedBip", "ab", "hits", "singles", "doubles", "triples", "homeRuns", "outs", "xbh", "totalBases", "avg", "slg", "iso", "babip"], warnings, availableEvents, filterDefinitions, scopeLabel),
       sprayChart: buildGameSprayChart(gameEvents),
-      pitchLocationChart: buildPitchLocationChart([], gameEvents),
+      pitchLocationChart: buildGameHittingPitchLocationChart(gameEvents),
     };
   }
 
@@ -443,9 +444,31 @@ function buildHittingSprayChart(events: HittingEvent[]): AnalyticsSprayChart {
 
 function buildHittingPitchLocationChart(events: HittingEvent[]): AnalyticsPitchLocationChart {
   return {
-    points: events.flatMap((event) => event.pitchLocation ? [{ id: event.id, ...event.pitchLocation }] : []),
+    points: events.flatMap((event) => event.pitchLocation ? [{
+      id: event.id,
+      ...event.pitchLocation,
+      chartOutcome: event.action === "Ball in play" || event.action === "Foul" ? "contact" : "miss",
+    }] : []),
     qualifyingEvents: events.length,
     trackedLocations: events.filter((event) => Boolean(event.pitchLocation)).length,
+    metricLabel: "Contact rate",
+  };
+}
+
+function buildGameHittingPitchLocationChart(events: GameEvent[]): AnalyticsPitchLocationChart {
+  const hitOutcomes = new Set(["Single", "Double", "Triple", "Home Run"]);
+  const points = events.flatMap((event) => {
+    if (!event.location) return [];
+    const chartOutcome: "hit" | "out" | undefined = event.ballInPlayOutcome
+      ? hitOutcomes.has(event.ballInPlayOutcome) ? "hit" : "out"
+      : undefined;
+    return [{ id: event.id, ...event.location, chartOutcome }];
+  });
+  return {
+    points,
+    qualifyingEvents: events.length,
+    trackedLocations: points.length,
+    metricLabel: "Batting average",
   };
 }
 
@@ -490,6 +513,7 @@ function buildPitchLocationChart(practiceEvents: PitchEvent[], gameEvents: GameE
     points,
     qualifyingEvents: practiceEvents.length + gameEvents.length,
     trackedLocations: points.length,
+    metricLabel: "Pitch density",
   };
 }
 

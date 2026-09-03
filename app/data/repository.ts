@@ -127,6 +127,9 @@ function buildCurrentPlayerMembership(data: AppData, player: Player): PlayerTeam
     rosterStatus: player.rosterStatus ?? "Undecided",
     jerseyNumber: player.jerseyNumber,
     rosterRole: player.programLevel,
+    isCaptain: existing?.isCaptain,
+    positionLabels: existing?.positionLabels,
+    teamImageUrl: player.teamImageUrl ?? existing?.teamImageUrl,
     active: !player.archived,
   };
 }

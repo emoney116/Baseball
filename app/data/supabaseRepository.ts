@@ -1491,6 +1491,7 @@ async function syncPlayers(supabase: SupabaseClient, foundation: Foundation, pla
       metadata: {
         isCaptain: membership.isCaptain ?? false,
         positionLabels: membership.positionLabels ?? [],
+        teamImageUrl: membership.teamImageUrl ?? null,
       },
     }));
   if (membershipRows.length === 0) return;
@@ -2373,6 +2374,7 @@ function mapPlayer(row: any, membership?: any): Player {
     weight: row.weight ?? undefined,
     avatarColor: metadata.avatarColor ?? "#30343b",
     imageUrl: row.photo_url ?? undefined,
+    teamImageUrl: membership?.metadata?.teamImageUrl ?? undefined,
     isPitcher: row.is_pitcher,
     isHitter: row.is_hitter,
     notes: metadata.notes ?? undefined,
@@ -2405,6 +2407,7 @@ function mapPlayerTeamMembership(row: any): PlayerTeamMembership {
     rosterRole: row.roster_role ?? undefined,
     isCaptain: row.metadata?.isCaptain ?? undefined,
     positionLabels: Array.isArray(row.metadata?.positionLabels) ? row.metadata.positionLabels : undefined,
+    teamImageUrl: row.metadata?.teamImageUrl ?? undefined,
     active: Boolean(row.active),
     startDate: row.start_date ?? undefined,
     endDate: row.end_date ?? undefined,

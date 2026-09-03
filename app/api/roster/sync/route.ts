@@ -40,6 +40,7 @@ type RosterMembershipInput = {
   endDate?: string;
   isCaptain?: boolean;
   positionLabels?: string[];
+  teamImageUrl?: string;
 };
 
 const STAFF_ROLES = new Set(["OWNER", "ADMIN", "HEAD_COACH", "ASSISTANT_COACH", "STAFF", "COACH"]);
@@ -233,6 +234,7 @@ export async function POST(request: NextRequest) {
           metadata: {
             isCaptain: membership.isCaptain ?? false,
             positionLabels: membership.positionLabels ?? [],
+            teamImageUrl: membership.teamImageUrl ?? null,
           },
         };
       })

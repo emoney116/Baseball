@@ -116,7 +116,7 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /LEGACY_PITCH_LOCATION_ID_MAP/);
   assert.match(page, /practice-pitch-location-grid__marker-layer/);
   assert.match(page, /pitchLocationOrientationLabels/);
-  assert.doesNotMatch(page, /Catcher View/);
+  assert.match(page, /Catcher View/);
   assert.match(page, /type HittingSheetStep = "setup" \| "result" \| "detail"/);
   assert.match(page, /practice-hitting-sheet__flow/);
   assert.match(page, /aria-label="Switch hitting charts"/);

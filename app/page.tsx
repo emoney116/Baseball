@@ -1077,7 +1077,7 @@ function parseLiveBpThrowerSourceParam(value: string | null): LiveBpThrowerSourc
   return LIVE_BP_THROWER_SOURCE_VALUES.includes(value as LiveBpThrowerSource) ? value as LiveBpThrowerSource : "PLAYER";
 }
 
-const ROSTER_STATUSES: RosterStatus[] = ["Varsity", "JV", "Undecided", "Cut"];
+const ROSTER_STATUSES: RosterStatus[] = ["Varsity", "JV", "MS", "Undecided", "Cut"];
 const ROSTER_FILTERS: RosterFilter[] = ["All", ...ROSTER_STATUSES];
 const ROSTER_SECTIONS: RosterSection[] = ["Players", "Staff"];
 const STAFF_BASEBALL_ROLES: StaffBaseballRole[] = [
@@ -1316,7 +1316,7 @@ const ROSTER_CSV_TEMPLATE = [
   "Mason,Lee,17,2026,P,1B,R,R,Metrolina Varsity,Varsity",
 ].join("\n");
 const TEAM_TYPE_OPTIONS = ["School", "Travel", "Club", "Other"];
-const SCHOOL_LEVEL_OPTIONS = ["Varsity", "JV", "Freshman", "Other"];
+const SCHOOL_LEVEL_OPTIONS = ["Varsity", "JV", "MS", "Freshman", "Other"];
 const AGE_GROUP_OPTIONS = ["18+", "18U", "17U", "16U", "15U", "14U", "13U", "12U", "11U", "10U", "9U", "8U", "7U", "6U", "Other"];
 const SEASON_OPTIONS = buildSeasonOptions();
 
@@ -4506,7 +4506,6 @@ export default function MetrolinaBaseballApp() {
               setEditingPlayerId(selectedPlayer.id);
               setPlayerEditorOpen(true);
             }}
-            onStatus={updateRosterStatus}
             onOpenSessionSummary={openExistingSessionSummary}
           />
         )}
@@ -5350,6 +5349,7 @@ function TeamSwitcher({
               const next = switchTeams.find((team) => teamValue(team) === value);
               if (next) void onSwitch(next);
             }}
+            mobilePresentation="popover"
           />
         ) : (
           <strong>{current.teamName}</strong>
@@ -5385,7 +5385,7 @@ function TeamWorkspaceHeader({
         <OrganizationLogo name={current.organizationName} logoUrl={teamOrganizationLogo(current, context)} />
         <div className="team-workspace-header__identity">
           <span>{current.organizationName}</span>
-          <TeamIdentitySwitcher context={context} current={current} onSwitch={onSwitch} onClubhouseHome={onClubhouseHome} compact />
+        <TeamIdentitySwitcher context={context} current={current} onSwitch={onSwitch} compact />
           <small>{current.seasonName ?? "Current season"}</small>
         </div>
       </section>
@@ -5393,10 +5393,13 @@ function TeamWorkspaceHeader({
   }
   return (
     <section className="team-workspace-header team-workspace-header--home">
+      <button className="icon-button team-workspace-back" type="button" onClick={onClubhouseHome} aria-label="Back to Clubhouse Home" title="Clubhouse Home">
+        <ChevronLeft size={18} aria-hidden="true" />
+      </button>
       <OrganizationLogo name={current.organizationName} logoUrl={teamOrganizationLogo(current, context)} />
       <div className="team-workspace-header__identity">
         <span>{current.organizationName}</span>
-        <TeamIdentitySwitcher context={context} current={current} onSwitch={onSwitch} onClubhouseHome={onClubhouseHome} />
+        <TeamIdentitySwitcher context={context} current={current} onSwitch={onSwitch} />
         <small>{current.seasonName ?? "Current season"}</small>
       </div>
       <div className="team-workspace-header__actions">
@@ -5417,13 +5420,11 @@ function TeamIdentitySwitcher({
   context,
   current,
   onSwitch,
-  onClubhouseHome,
   compact = false,
 }: {
   context?: TeamContext;
   current: TeamOption;
   onSwitch: (team: TeamOption) => void | Promise<void>;
-  onClubhouseHome: () => void;
   compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -5469,10 +5470,6 @@ function TeamIdentitySwitcher({
               ))}
             </div>
           ))}
-          <button className="team-switcher-home-row" type="button" onClick={() => { setOpen(false); onClubhouseHome(); }}>
-            <ChevronLeft size={15} aria-hidden="true" />
-            Clubhouse Home
-          </button>
         </div>
       )}
     </div>
@@ -6196,9 +6193,8 @@ function ClubhouseHome({
           <h1>Home</h1>
         </div>
         <div className="global-title-actions">
-          <button className="primary-button" type="button" onClick={onCreateTeam}>
+          <button className="primary-button global-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
             <Plus size={16} aria-hidden="true" />
-            New Team/Org
           </button>
         </div>
       </section>
@@ -6283,9 +6279,8 @@ function OrganizationsView({
       <SectionHeader
         title="Organizations"
         action={
-          <button className="primary-button" type="button" onClick={() => onCreateTeam(undefined, "organization")}>
+          <button className="primary-button global-create-button" type="button" onClick={() => onCreateTeam(undefined, "organization")} aria-label="New team or organization" title="New Team/Org">
             <Plus size={16} aria-hidden="true" />
-            New Team/Org
           </button>
         }
       />
@@ -6295,7 +6290,6 @@ function OrganizationsView({
             key={organization.id}
             organization={organization}
             onEnterTeam={onEnterTeam}
-            onCreateTeam={onCreateTeam}
             expanded
           />
         )) : <CompactEmpty title="No organizations yet" />}
@@ -6321,9 +6315,8 @@ function MyTeamsView({
       <SectionHeader
         title="My Teams"
         action={
-          <button className="primary-button" type="button" onClick={onCreateTeam}>
+          <button className="primary-button global-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
             <Plus size={16} aria-hidden="true" />
-            New Team/Org
           </button>
         }
       />
@@ -6753,9 +6746,8 @@ function FollowingView({
       <SectionHeader
         title="Following"
         action={
-          <button className="primary-button" type="button" onClick={onCreateTeam}>
+          <button className="primary-button global-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
             <Plus size={16} aria-hidden="true" />
-            New Team/Org
           </button>
         }
       />
@@ -6848,9 +6840,8 @@ function DiscoverView({
       <SectionHeader
         title="Discover"
         action={
-          <button className="primary-button" type="button" onClick={onCreateTeam}>
+          <button className="primary-button global-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
             <Plus size={16} aria-hidden="true" />
-            New Team/Org
           </button>
         }
       />
@@ -7493,6 +7484,7 @@ function ScheduleView({
               setSelectedItem(null);
             }}
             aria-label="Filter schedule by event type"
+            mobilePresentation="popover"
           />
           <SegmentedControl values={["Calendar", "Week", "Agenda"] as ScheduleViewMode[]} active={mode} onChange={setMode} />
           <button type="button" className="secondary-button" onClick={() => setCursor(new Date())}>Today</button>
@@ -7529,6 +7521,7 @@ function ScheduleView({
           <ScheduleDetailCard
             data={data}
             item={selectedVisibleItem}
+            onClose={() => setSelectedItem(null)}
             onView={onView}
             onOpenGame={onOpenGame}
             onUpdateScheduleEvent={onUpdateScheduleEvent}
@@ -7647,12 +7640,14 @@ function ScheduleAgendaView({ items, onSelect }: { items: ScheduleItem[]; onSele
 function ScheduleDetailCard({
   data,
   item,
+  onClose,
   onView,
   onOpenGame,
   onUpdateScheduleEvent,
 }: {
   data: AppData;
   item: ScheduleItem | null;
+  onClose: () => void;
   onView: (view: ViewKey) => void;
   onOpenGame: (gameId: ID) => void;
   onUpdateScheduleEvent: (event: ScheduleEvent) => void;
@@ -7667,6 +7662,9 @@ function ScheduleDetailCard({
   const genericEvent = item.source === "event" ? (data.scheduleEvents ?? []).find((event) => event.id === item.sourceId) : undefined;
   return (
     <article className="panel schedule-detail-card">
+      <button className="icon-button schedule-detail-card__close" type="button" onClick={onClose} aria-label="Close event details">
+        <X size={16} aria-hidden="true" />
+      </button>
       <div className="schedule-detail-card__top">
         <ScheduleTypeIcon type={item.eventType} />
         <span>
@@ -8025,6 +8023,14 @@ function RosterView({
 }) {
   const [sortConfig, setSortConfig] = useState<{ key: RosterSortKey; direction: SortDirection }>({ key: "number", direction: "asc" });
   const gradYears = Array.from(new Set(players.map((player) => String(player.graduationYear)))).sort();
+  const statusOptions: RosterFilter[] = (() => {
+    if (team?.teamType !== "School") return ["All", "Undecided", "Cut"];
+    if (team.teamLevel === "Varsity") return ["All", "Varsity"];
+    if (team.teamLevel === "JV") return ["All", "JV"];
+    if (team.teamLevel === "MS") return ["All", "MS"];
+    return ["All", "Varsity", "JV", "MS"];
+  })();
+  if (!statusOptions.includes(filter)) statusOptions.push(filter);
   function changeSort(key: RosterSortKey) {
     setSortConfig((current) => (
       current.key === key
@@ -8043,32 +8049,37 @@ function RosterView({
     <div className="page-stack roster-page">
       <SectionHeader
         title="Roster"
-        context={team ? `${team.teamName} - ${team.seasonName ?? "Current season"}` : undefined}
         action={
-          <div className="section-actions">
-            {section === "Players" ? (
-              <>
-                <button className="secondary-button" type="button" onClick={onImport}>
-                  <Upload size={16} aria-hidden="true" />
-                  Import Roster
-                </button>
-                <button className="primary-button" type="button" onClick={onAddPlayer}>
-                  <UserPlus size={16} aria-hidden="true" />
-                  Add Player
-                </button>
-              </>
-            ) : (
-              <button className="primary-button" type="button" onClick={onInviteStaff}>
+          <div className="section-actions roster-title-actions">
+            <button className="icon-button" type="button" onClick={onImport} aria-label="Import roster" title="Import Roster">
+              <Upload size={16} aria-hidden="true" />
+            </button>
+            <button className="icon-button roster-add-player" type="button" onClick={onAddPlayer} aria-label="Add player" title="Add Player">
+              <UserPlus size={16} aria-hidden="true" />
+            </button>
+            {section === "Staff" && (
+              <button className="icon-button" type="button" onClick={onInviteStaff} aria-label="Invite staff" title="Invite Staff">
                 <Mail size={16} aria-hidden="true" />
-                Invite Staff
               </button>
             )}
           </div>
         }
       />
 
-      <section className="roster-section-row">
+      <section className="roster-scope-row">
+        <div className="roster-section-row">
         <SegmentedControl values={ROSTER_SECTIONS} active={section} onChange={onSection} />
+        </div>
+        {section === "Players" && (
+          <ChoiceSelect
+            value={filter}
+            className="roster-status-select"
+            options={statusOptions.map((status) => ({ value: status, label: status }))}
+            onChange={(value) => onFilter(value as RosterFilter)}
+            aria-label="Filter roster by team status"
+            mobilePresentation="popover"
+          />
+        )}
       </section>
 
       {section === "Staff" ? (
@@ -8087,10 +8098,6 @@ function RosterView({
         />
       ) : (
         <>
-      <section className="roster-status-row">
-        <SegmentedControl values={ROSTER_FILTERS} active={filter} onChange={onFilter} />
-      </section>
-
       <section className="toolbar-panel roster-toolbar">
         <label className="search-pill">
           <Search size={15} aria-hidden="true" />
@@ -8103,6 +8110,7 @@ function RosterView({
           options={[{ value: "All", label: "All" }, ...POSITIONS.map((position) => ({ value: position, label: position }))]}
           onChange={(value) => onPositionFilter(value as RosterPositionFilter)}
           aria-label="Filter roster by position"
+          mobilePresentation="popover"
         />
         <ChoiceSelect
           label="Class"
@@ -8111,6 +8119,7 @@ function RosterView({
           options={[{ value: "All", label: "All" }, ...gradYears.map((year) => ({ value: year, label: year }))]}
           onChange={onYearFilter}
           aria-label="Filter roster by class"
+          mobilePresentation="popover"
         />
       </section>
 
@@ -13865,7 +13874,7 @@ function WeightRoomWeighInCard({ data, players, date, onOpen }: { data: AppData;
     const thisWeek = latestWeeklyBodyWeight(data, player.id, currentWeek, date);
     const lastWeek = latestBodyWeightBeforeWeek(data, player.id, currentWeek);
     const starting = startingBodyWeight(data, player.id);
-    const change = typeof thisWeek === "number" && typeof lastWeek === "number" ? thisWeek - lastWeek : undefined;
+    const change = typeof thisWeek === "number" && typeof starting === "number" ? thisWeek - starting : undefined;
     return { player, thisWeek, lastWeek, starting, change };
   });
   const pageSize = 5;
@@ -13896,18 +13905,18 @@ function WeightRoomWeighInCard({ data, players, date, onOpen }: { data: AppData;
           <span>Player</span>
           <span>This Week</span>
           <span>Last Week</span>
-          <span>Change</span>
+          <span>Since Start</span>
           <span>Starting</span>
         </div>
         {visibleRows.map((row) => (
           <button key={row.player.id} type="button" onClick={onOpen}>
-            <strong><PlayerAvatar player={row.player} size="sm" compact />{row.player.name}</strong>
-            <span>{row.thisWeek ? `${formatNumber(row.thisWeek, 1)} lb` : "-"}</span>
-            <span>{row.lastWeek ? `${formatNumber(row.lastWeek, 1)} lb` : "-"}</span>
-            <em className={row.change && row.change > 0 ? "positive" : row.change && row.change < 0 ? "negative" : ""}>
+            <strong>{abbreviatedPlayerName(row.player.name)}</strong>
+            <span>{typeof row.thisWeek === "number" ? formatNumber(row.thisWeek, 1) : "-"}</span>
+            <span>{typeof row.lastWeek === "number" ? formatNumber(row.lastWeek, 1) : "-"}</span>
+            <em className={typeof row.change === "number" && row.change > 0 ? "positive" : typeof row.change === "number" && row.change < 0 ? "negative" : ""}>
               {typeof row.change === "number" ? `${row.change > 0 ? "+" : ""}${formatNumber(row.change, 1)}` : "-"}
             </em>
-            <span>{row.starting ? `${formatNumber(row.starting, 1)} lb` : "-"}</span>
+            <span>{typeof row.starting === "number" ? formatNumber(row.starting, 1) : "-"}</span>
           </button>
         ))}
       </div>
@@ -16762,6 +16771,8 @@ function WeightRoomPlayerPanel({
   }), exerciseSort);
   const progressScore = buildScoredWeightRoomLeaderboard([player], data.workoutSessions, data.workoutEntries, progressWindow)[0];
   const progressRows = buildWeightRoomPlayerProgressRows(data, player, exerciseLibrary);
+  const selectedPlayerIndex = Math.max(0, players.findIndex((item) => item.id === player.id));
+  const adjacentPlayer = (delta: number) => players[(selectedPlayerIndex + delta + players.length) % players.length];
 
   useEffect(() => {
     syncWeightRoomAthleteUrl(player.id, playerTab);
@@ -16831,13 +16842,16 @@ function WeightRoomPlayerPanel({
       </aside>
       <article ref={athleteDetailsRef} className="panel weight-room-player-profile weight-room-athlete-panel">
         <div className="weight-room-mobile-player-select">
+          <button className="icon-button" type="button" onClick={() => selectPlayer(adjacentPlayer(-1).id)} aria-label="Previous athlete"><ChevronLeft size={16} aria-hidden="true" /></button>
           <ChoiceSelect
             value={player.id}
             className="form-choice"
-            options={players.map((item) => ({ value: item.id, label: item.name, description: `#${item.jerseyNumber} - ${item.primaryPosition}` }))}
+            options={players.map((item) => ({ value: item.id, label: item.name }))}
             onChange={selectPlayer}
             aria-label="Select athlete"
+            mobilePresentation="popover"
           />
+          <button className="icon-button" type="button" onClick={() => selectPlayer(adjacentPlayer(1).id)} aria-label="Next athlete"><ChevronRight size={16} aria-hidden="true" /></button>
         </div>
         <WeightRoomAthleteHeader player={player} onOpenPlayer={onOpenPlayer} />
         <WeightRoomAthleteTabs active={playerTab} onChange={selectTab} />
@@ -17037,6 +17051,7 @@ function WeightRoomAthleteWorkouts({
           })) : [{ value: "", label: "No workouts" }]}
           onChange={onWorkout}
           aria-label="Select workout"
+          mobilePresentation="popover"
         />
         <div className="weight-room-workout-command__metrics">
           <span><strong>{formatWorkoutVolume(volume)}</strong><small>Total Volume</small></span>
@@ -17055,6 +17070,7 @@ function WeightRoomAthleteWorkouts({
           options={categories.map((item) => ({ value: item, label: item === "All" ? "All" : item }))}
           onChange={(value) => onCategory(value as WeightRoomExerciseCategory | "All")}
           aria-label="Workout exercise category"
+          mobilePresentation="popover"
         />
       </div>
 
@@ -17105,7 +17121,7 @@ function WeightRoomWorkoutDetail({
   const groupedRows = groupWeightRoomWorkoutRows(rows);
 
   return (
-    <div className="weight-room-workout-detail">
+    <ScrollablePanel className="weight-room-workout-detail" bodyClassName="weight-room-workout-detail-scroll" ariaLabel={`${workoutSessionTitle(data, session)} detail table`} direction="horizontal">
       <div className="weight-room-athlete-table weight-room-workout-detail-table" role="table" aria-label={`${workoutSessionTitle(data, session)} detail`}>
         <div className="weight-room-athlete-table__head" role="row">
           <WeightRoomSortHeader label="Exercise" sortKey="exercise" sort={sort} onSort={onSort} />
@@ -17143,7 +17159,7 @@ function WeightRoomWorkoutDetail({
         })}
         {!groupedRows.length && <CompactEmpty title="No sets match the current filters." />}
       </div>
-    </div>
+    </ScrollablePanel>
   );
 }
 
@@ -17369,6 +17385,7 @@ function WeightRoomExerciseLibraryCard({
   const [dropPresetStationTarget, setDropPresetStationTarget] = useState<{ id: ID; position: "before" | "after" } | undefined>();
   const [confirmingExercise, setConfirmingExercise] = useState<string | undefined>();
   const [confirmingPreset, setConfirmingPreset] = useState<ID | undefined>();
+  const [mobileLibrarySection, setMobileLibrarySection] = useState<"Presets" | "Library">("Library");
   const [hiddenExercises, setHiddenExercises] = useState<Set<string>>(() => new Set());
   const exerciseRows = exercises.filter((exercise, index, all) =>
     all.findIndex((item) => item.name.toLowerCase() === exercise.name.toLowerCase()) === index
@@ -17508,8 +17525,11 @@ function WeightRoomExerciseLibraryCard({
 
   return (
     <>
+      <div className="weight-room-exercise-mobile-tabs">
+        <SegmentedControl values={["Library", "Presets"] as Array<"Library" | "Presets">} active={mobileLibrarySection} onChange={setMobileLibrarySection} />
+      </div>
       <div className="weight-room-exercise-left-column">
-        <article className="panel weight-room-presets-card">
+        <article className={`panel weight-room-presets-card ${mobileLibrarySection === "Presets" ? "mobile-active" : ""}`}>
           <div className="weight-room-section-head">
             <div>
               <h2>Exercise Presets</h2>
@@ -17557,7 +17577,7 @@ function WeightRoomExerciseLibraryCard({
           )}
         </article>
 
-        <article className="panel weight-room-library-card">
+        <article className={`panel weight-room-library-card ${mobileLibrarySection === "Library" ? "mobile-active" : ""}`}>
           <div className="weight-room-section-head">
             <div>
               <h2>Team Exercise Library</h2>
@@ -17577,6 +17597,7 @@ function WeightRoomExerciseLibraryCard({
                 options={categories.map((item) => ({ value: item, label: item === "All" ? "All" : item }))}
                 onChange={(value) => setCategory(value as WeightRoomExerciseCategory | "All")}
                 aria-label="Exercise category"
+                mobilePresentation="popover"
               />
             </div>
           </div>
@@ -18018,13 +18039,14 @@ function WeightRoomLeaderboardPanel({
         </section>
 
         <div className="weight-room-leaderboard-toolbar">
-          <div className="weight-room-leaderboard-filter" role="group" aria-label="Leaderboard filters">
-            {WEIGHT_ROOM_LEADERBOARD_FILTERS.map((item) => (
-              <button key={item} type="button" className={filter === item ? "active" : ""} onClick={() => setFilter(item)}>
-                {item}
-              </button>
-            ))}
-          </div>
+          <ChoiceSelect
+            value={filter}
+            className="weight-room-leaderboard-filter-select"
+            options={WEIGHT_ROOM_LEADERBOARD_FILTERS.map((item) => ({ value: item, label: item }))}
+            onChange={(value) => setFilter(value as WeightRoomLeaderboardFilter)}
+            aria-label="Leaderboard filter"
+            mobilePresentation="popover"
+          />
         </div>
 
         {rankedRows.length ? (
@@ -18143,11 +18165,10 @@ function WeightRoomLeaderboardDetail({
         <X size={16} aria-hidden="true" />
       </button>
       <div className="weight-room-score-drawer__player">
-        <PlayerAvatar player={row.player} size="lg" />
+        <PlayerAvatar player={row.player} size="lg" compact />
         <div>
           <span>{row.qualified ? `Rank #${rank ?? "-"}` : "Not Yet Qualified"}</span>
           <h3>{row.player.name}</h3>
-          <small>#{row.player.jerseyNumber} - {row.player.primaryPosition} - Class of {row.player.graduationYear}</small>
         </div>
       </div>
 
@@ -19332,6 +19353,7 @@ function AnalyticsView({
   const [eventIds, setEventIds] = useState<ID[]>(initialState.eventIds);
   const [customRange, setCustomRange] = useState<{ start?: string; end?: string }>(initialState.customRange);
   const [filters, setFilters] = useState<AnalyticsFilters>(initialState.filters);
+  const [stagedFilters, setStagedFilters] = useState<AnalyticsFilters>(initialState.filters);
   const [sort, setSort] = useState<AnalyticsQuery["sort"]>(() => initialState.sort ?? defaultAnalyticsSort(initialState.domain, initialState.source, initialState.mode));
   const [eventSelectorOpen, setEventSelectorOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -19339,6 +19361,10 @@ function AnalyticsView({
   const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>(() => readInitialAnalyticsDetailPlayerId(data));
   const [metricIds, setMetricIds] = useState<string[] | undefined>(initialState.metricIds);
   const [columnPreset, setColumnPreset] = useState<AnalyticsColumnPreset>(initialState.metricIds?.length ? "custom" : "standard");
+  const [analyticsWorkspace, setAnalyticsWorkspace] = useState<"overview" | "charts" | "insights">("overview");
+  const [chartSurface, setChartSurface] = useState<"spray" | "location">("spray");
+  const [chartMode, setChartMode] = useState<PracticeChartMetricMode>("heat");
+  const [chartPlayerIds, setChartPlayerIds] = useState<ID[]>([]);
   const context = useMemo(() => ({
     teamId: data.teamContext?.currentTeam?.teamId,
     seasonId: data.teamContext?.currentTeam?.seasonId,
@@ -19354,12 +19380,13 @@ function AnalyticsView({
     developmentView,
     customDateRange: customRange,
     eventIds,
+    playerIds: analyticsWorkspace === "charts" && chartPlayerIds.length ? chartPlayerIds : undefined,
     filters,
     metrics: metricIds ?? defaultAnalyticsMetricIds(domain, domain === "development" ? "all" : source),
     groupBy: "player",
     sort,
     context,
-  }), [analyticsView, context, customRange, developmentView, domain, eventIds, filters, metricIds, mode, sort, source, timeRange]);
+  }), [analyticsView, analyticsWorkspace, chartPlayerIds, context, customRange, developmentView, domain, eventIds, filters, metricIds, mode, sort, source, timeRange]);
   const result = useMemo(() => executeAnalyticsQuery(data, query), [data, query]);
   const serializedAnalyticsContext = useMemo(
     () => serializeAnalyticsContext(query, result.columns.map((column) => column.metricId)),
@@ -19444,6 +19471,7 @@ function AnalyticsView({
       setEventIds(next.eventIds);
       setCustomRange(next.customRange);
       setFilters(next.filters);
+      setStagedFilters(next.filters);
       setSort(next.sort ?? defaultAnalyticsSort(next.domain, next.source, next.mode));
       setMetricIds(next.metricIds);
       setColumnPreset(next.metricIds?.length ? "custom" : "standard");
@@ -19464,6 +19492,7 @@ function AnalyticsView({
     setAnalyticsView(normalizeAnalyticsView(nextDomain, nextSource));
     if (nextDomain === "development") setDevelopmentView("overview");
     setFilters({});
+    setStagedFilters({});
     setMetricIds(undefined);
     setColumnPreset("standard");
     setSort(defaultAnalyticsSort(nextDomain, nextSource, "box-score"));
@@ -19472,6 +19501,7 @@ function AnalyticsView({
   function handleSource(nextSource: AnalyticsSource) {
     setSource(nextSource);
     setFilters({});
+    setStagedFilters({});
     setEventIds([]);
     setMetricIds(undefined);
     setColumnPreset("standard");
@@ -19498,9 +19528,9 @@ function AnalyticsView({
     setEventIds((current) => current.includes(eventId) ? current.filter((id) => id !== eventId) : [...current, eventId]);
   }
 
-  function toggleFilter(definition: AnalyticsFilterDefinition, value: string) {
+  function toggleStagedFilter(definition: AnalyticsFilterDefinition, value: string) {
     if (definition.type === "range") return;
-    setFilters((current) => {
+    setStagedFilters((current) => {
       const currentValues = new Set(((current[definition.id] as string[] | undefined) ?? []));
       if (currentValues.has(value)) currentValues.delete(value);
       else currentValues.add(value);
@@ -19541,8 +19571,24 @@ function AnalyticsView({
     }));
   }
 
-  function setVelocityRange(minimum?: number, maximum?: number) {
-    setFilters((current) => ({ ...current, pitchVelocityMin: minimum, pitchVelocityMax: maximum }));
+  function setStagedFilterValues(definition: AnalyticsFilterDefinition, nextValues: string[]) {
+    setStagedFilters((current) => ({ ...current, [definition.id]: nextValues.length ? nextValues : undefined }));
+  }
+
+  function setStagedVelocityRange(minimum?: number, maximum?: number) {
+    setStagedFilters((current) => ({ ...current, pitchVelocityMin: minimum, pitchVelocityMax: maximum }));
+  }
+
+  function openFilters() {
+    setStagedFilters(cloneAnalyticsFilters(filters));
+    setFiltersOpen(true);
+    setEventSelectorOpen(false);
+    setColumnsOpen(false);
+  }
+
+  function applyStagedFilters() {
+    setFilters(cloneAnalyticsFilters(stagedFilters));
+    setFiltersOpen(false);
   }
 
   function writeAnalyticsDetailRoute(playerId: ID | undefined, options: { replace?: boolean } = {}) {
@@ -19568,7 +19614,24 @@ function AnalyticsView({
 
   return (
     <div className="page-stack analytics-page">
-      <SectionHeader title="Analytics" action={<AskClubhouseLauncher onClick={() => onAsk({ ...query, ...serializedAnalyticsContext })} />} />
+      <SectionHeader title="Analytics" action={(
+        <div className="analytics-title-actions">
+          {domain !== "development" && (
+            <div className="analytics-source-select-wrap">
+              <ChoiceSelect
+                value={source}
+                className="analytics-source-select analytics-source-select--header"
+                showSelectedDescription={false}
+                options={analyticsSourceOptions}
+                onChange={(value) => handleSource(value as AnalyticsSource)}
+                aria-label="Analytics source"
+                mobilePresentation="popover"
+              />
+            </div>
+          )}
+          <AskClubhouseLauncher onClick={() => onAsk({ ...query, ...serializedAnalyticsContext })} />
+        </div>
+      )} />
 
       <section className="analytics-controls" aria-label="Analytics controls">
         <div className="analytics-domain-tabs">
@@ -19582,41 +19645,32 @@ function AnalyticsView({
             options={analyticsDomainOptions}
             onChange={(value) => handleDomain(value as AnalyticsDomain)}
             aria-label="Analytics category"
+            mobilePresentation="popover"
           />
         </div>
-        <nav className="analytics-view-tabs" aria-label={`${domain} analytics views`}>
-          {result.availableViews.map((viewDefinition) => (
-            <button
-              key={`${viewDefinition.id}-${viewDefinition.label}`}
-              type="button"
-              className={analyticsView === viewDefinition.id ? "active" : ""}
-              onClick={() => handleAnalyticsView(viewDefinition.id)}
-              title={viewDefinition.description}
-            >
-              {viewDefinition.label}
-              {viewDefinition.capability === "partial" && <i aria-label="Partial coverage" />}
+        <nav className="analytics-workspace-tabs" aria-label="Analytics workspace">
+          {(["overview", "charts", "insights"] as const).map((workspace) => (
+            <button key={workspace} type="button" className={analyticsWorkspace === workspace ? "active" : ""} onClick={() => setAnalyticsWorkspace(workspace)}>
+              {workspace[0].toUpperCase() + workspace.slice(1)}
             </button>
           ))}
         </nav>
-        <div className="analytics-controls__row analytics-controls__row--primary">
-          {domain !== "development" && (
-            <>
-              <div className="analytics-source-tabs">
-                <SegmentedControl values={analyticsSourcesForDomain(domain)} active={source} onChange={handleSource} />
-              </div>
-              <div className="analytics-source-select-wrap">
-                <ChoiceSelect
-                  value={source}
-                  className="analytics-source-select"
-                  showSelectedDescription={false}
-                  options={analyticsSourceOptions}
-                  onChange={(value) => handleSource(value as AnalyticsSource)}
-                  aria-label="Analytics source"
-                />
-              </div>
-            </>
-          )}
-        </div>
+        {analyticsWorkspace === "overview" && (
+          <nav className="analytics-view-tabs" aria-label={`${domain} analytics views`}>
+            {result.availableViews.map((viewDefinition) => (
+              <button
+                key={`${viewDefinition.id}-${viewDefinition.label}`}
+                type="button"
+                className={analyticsView === viewDefinition.id ? "active" : ""}
+                onClick={() => handleAnalyticsView(viewDefinition.id)}
+                title={viewDefinition.description}
+              >
+                {viewDefinition.label}
+                {viewDefinition.capability === "partial" && <i aria-label="Partial coverage" />}
+              </button>
+            ))}
+          </nav>
+        )}
         <div className="analytics-controls__row analytics-controls__row--filters">
           <ChoiceSelect
             value={timeRange}
@@ -19625,6 +19679,7 @@ function AnalyticsView({
             options={analyticsTimeRangeOptions}
             onChange={(value) => setTimeRange(value as AnalyticsTimeRange)}
             aria-label="Analytics time range"
+            mobilePresentation="popover"
           />
           <div className="analytics-popover-wrap">
             <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
@@ -19645,21 +19700,20 @@ function AnalyticsView({
             )}
           </div>
           <div className="analytics-popover-wrap">
-            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
-              setFiltersOpen((open) => !open);
-              setEventSelectorOpen(false);
-              setColumnsOpen(false);
-            }}>
+            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => filtersOpen ? setFiltersOpen(false) : openFilters()}>
               <SlidersHorizontal size={14} aria-hidden="true" />
               Filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
             </button>
             {filtersOpen && (
               <AnalyticsFilterPanel
                 definitions={result.filterDefinitions}
-                values={filters}
-                onToggle={toggleFilter}
-                onVelocityRange={setVelocityRange}
-                onClear={() => setFilters({})}
+                values={stagedFilters}
+                onToggle={toggleStagedFilter}
+                onSetValues={setStagedFilterValues}
+                onVelocityRange={setStagedVelocityRange}
+                onClear={() => setStagedFilters({})}
+                onCancel={() => { setStagedFilters(cloneAnalyticsFilters(filters)); setFiltersOpen(false); }}
+                onApply={applyStagedFilters}
               />
             )}
           </div>
@@ -19717,26 +19771,34 @@ function AnalyticsView({
         />
       )}
 
-      <AnalyticsTable
-        result={result}
-        sort={sort}
-        onSort={handleSort}
-        onOpenPlayer={openAnalyticsPlayerDetail}
-        onClearFilters={() => {
-          setFilters({});
-          setEventIds([]);
-        }}
-      />
+      {analyticsWorkspace === "overview" && <>
+        <AnalyticsTable
+          result={result}
+          sort={sort}
+          onSort={handleSort}
+          onOpenPlayer={openAnalyticsPlayerDetail}
+          onClearFilters={() => {
+            setFilters({});
+            setEventIds([]);
+          }}
+        />
+        <AnalyticsMetricKey result={result} />
+      </>}
 
-      <AnalyticsSummaryStrip result={result} />
-
-      {domain === "hitting" && result.sprayChart && (
-        <AnalyticsSprayChart result={result} />
+      {analyticsWorkspace === "charts" && (
+        <AnalyticsCharts
+          result={result}
+          surface={chartSurface}
+          mode={chartMode}
+          playerIds={chartPlayerIds}
+          players={data.players}
+          onSurfaceChange={setChartSurface}
+          onModeChange={setChartMode}
+          onPlayerIdsChange={setChartPlayerIds}
+        />
       )}
 
-      <AnalyticsMetricKey result={result} />
-
-      <AnalyticsInsights result={result} onOpenPlayer={onOpenPlayer} />
+      {analyticsWorkspace === "insights" && <AnalyticsInsights result={result} onOpenPlayer={onOpenPlayer} />}
 
       {selectedDetailRow && (
         <AnalyticsPlayerDrawer
@@ -19779,7 +19841,73 @@ function AnalyticsSummaryStrip({ result }: { result: AnalyticsResult }) {
   );
 }
 
-function AnalyticsSprayChart({ result }: { result: AnalyticsResult }) {
+function AnalyticsCharts({
+  result,
+  surface,
+  mode,
+  playerIds,
+  players,
+  onSurfaceChange,
+  onModeChange,
+  onPlayerIdsChange,
+}: {
+  result: AnalyticsResult;
+  surface: "spray" | "location";
+  mode: PracticeChartMetricMode;
+  playerIds: ID[];
+  players: Player[];
+  onSurfaceChange: (surface: "spray" | "location") => void;
+  onModeChange: (mode: PracticeChartMetricMode) => void;
+  onPlayerIdsChange: (playerIds: ID[]) => void;
+}) {
+  const canShowSpray = Boolean(result.sprayChart);
+  const canShowLocation = Boolean(result.pitchLocationChart);
+  const resolvedSurface = surface === "spray" && !canShowSpray ? "location" : surface === "location" && !canShowLocation ? "spray" : surface;
+  return (
+    <section className="analytics-chart-workspace" aria-label="Analytics charts">
+      <div className="analytics-chart-workspace__controls">
+        <AnalyticsChartPlayerSelector players={players} selectedIds={playerIds} onChange={onPlayerIdsChange} />
+        <div className="analytics-chart-surface-control" role="group" aria-label="Chart type">
+          {canShowSpray && <button type="button" className={resolvedSurface === "spray" ? "active" : ""} onClick={() => onSurfaceChange("spray")}>Spray Chart</button>}
+          {canShowLocation && <button type="button" className={resolvedSurface === "location" ? "active" : ""} onClick={() => onSurfaceChange("location")}>Location Chart</button>}
+        </div>
+      </div>
+      {resolvedSurface === "spray" && result.sprayChart && <AnalyticsSprayChart result={result} mode={mode} onModeChange={onModeChange} />}
+      {resolvedSurface === "location" && result.pitchLocationChart && <AnalyticsPitchLocationChart result={result} mode={mode} onModeChange={onModeChange} />}
+      {!canShowSpray && !canShowLocation && <CompactEmpty title="No charted locations for this analytics context" />}
+    </section>
+  );
+}
+
+function AnalyticsChartPlayerSelector({ players, selectedIds, onChange }: { players: Player[]; selectedIds: ID[]; onChange: (playerIds: ID[]) => void }) {
+  const [open, setOpen] = useState(false);
+  const selectedPlayers = players.filter((player) => selectedIds.includes(player.id));
+  const label = selectedPlayers.length === 0 ? "Team" : selectedPlayers.length === 1 ? selectedPlayers[0].name : `${selectedPlayers.length} players`;
+  return (
+    <div className="analytics-chart-player-select">
+      <button type="button" className="secondary-button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="listbox">
+        <Users size={14} aria-hidden="true" /><strong>{label}</strong><ChevronDown size={14} aria-hidden="true" />
+      </button>
+      {open && <div className="analytics-chart-player-select__menu" role="listbox" aria-multiselectable="true" aria-label="Chart players">
+        <button type="button" role="option" aria-selected={selectedIds.length === 0} className={selectedIds.length === 0 ? "active" : ""} onClick={() => onChange([])}><Check size={14} aria-hidden="true" /><span><strong>Team</strong><small>All players</small></span></button>
+        {players.map((player) => {
+          const selected = selectedIds.includes(player.id);
+          return <button key={player.id} type="button" role="option" aria-selected={selected} className={selected ? "active" : ""} onClick={() => onChange(selected ? selectedIds.filter((id) => id !== player.id) : [...selectedIds, player.id])}>
+            <Check size={14} aria-hidden="true" /><span><strong>{player.name}</strong><small>#{player.jerseyNumber}</small></span>
+          </button>;
+        })}
+      </div>}
+    </div>
+  );
+}
+
+function AnalyticsChartModes({ mode, onChange }: { mode: PracticeChartMetricMode; onChange: (mode: PracticeChartMetricMode) => void }) {
+  return <div className="analytics-chart-modes" role="group" aria-label="Chart display mode">
+    {(["dots", "heat", "count", "percent"] as const).map((item) => <button key={item} type="button" className={mode === item ? "active" : ""} onClick={() => onChange(item)}>{chartMetricModeLabel(item)}</button>)}
+  </div>;
+}
+
+function AnalyticsSprayChart({ result, mode = "heat", onModeChange }: { result: AnalyticsResult; mode?: PracticeChartMetricMode; onModeChange?: (mode: PracticeChartMetricMode) => void }) {
   const chart = result.sprayChart;
   if (!chart) return null;
   const hasTrackedLocations = chart.trackedLocations > 0;
@@ -19787,14 +19915,14 @@ function AnalyticsSprayChart({ result }: { result: AnalyticsResult }) {
     <section className="panel analytics-spray-chart" aria-label="Hitting spray chart">
       <div className="analytics-spray-chart__header">
         <div>
-          <span>Spray Chart</span>
+          <span>Team Spray Chart</span>
           <strong>{hasTrackedLocations ? `${chart.trackedLocations} tracked locations` : "No locations tracked"}</strong>
         </div>
-        <small>{chart.ballsInPlay} {chart.ballsInPlay === 1 ? "ball" : "balls"} in play</small>
+        <div><AnalyticsChartModes mode={mode} onChange={onModeChange ?? (() => undefined)} /><small>{chart.ballsInPlay} {chart.ballsInPlay === 1 ? "ball" : "balls"} in play</small></div>
       </div>
       <ClubhouseBaseballField
         points={chart.points}
-        mode={hasTrackedLocations ? "spray" : "blank"}
+        mode={hasTrackedLocations ? (mode === "dots" ? "spray" : mode) : "blank"}
         size="standard"
         ariaLabel={`${chart.trackedLocations} tracked hitting locations in the current analytics selection`}
       />
@@ -19860,10 +19988,9 @@ function AnalyticsTable({
         {visibleRows.length ? visibleRows.map((row) => (
           <button key={row.player.id} type="button" className={`analytics-box-score__row${row.rowKind === "group" ? " analytics-box-score__row--group" : ""}`} role="row" style={rowStyle} onClick={() => row.rowKind !== "group" && onOpenPlayer(row.player.id)} aria-label={row.rowKind === "group" ? `${row.groupLabel} analytics split` : `Open ${row.player.name} analytics`}>
             <span className="analytics-box-score__cell analytics-box-score__cell--player analytics-player-cell" role="cell">
-              {row.rowKind !== "group" && <PlayerAvatar player={row.player} size="sm" compact />}
               <span>
-                <strong>{row.groupLabel ?? row.player.name}</strong>
-                {row.rowKind === "group" ? <small>{row.sampleCount} tracked</small> : <small>#{row.player.jerseyNumber} · {row.player.primaryPosition}{row.player.secondaryPosition ? ` / ${row.player.secondaryPosition}` : ""}</small>}
+                <strong>{row.groupLabel ?? `${abbreviatedPlayerName(row.player.name)} #${row.player.jerseyNumber}`}</strong>
+                {row.rowKind === "group" && <small>{row.sampleCount} tracked</small>}
               </span>
             </span>
             {result.columns.map((column) => (
@@ -19895,11 +20022,9 @@ function AnalyticsTable({
 }
 
 function AnalyticsCellView({ cell, align }: { cell?: AnalyticsCell; align: "left" | "right" | "center" }) {
-  const sample = analyticsSampleText(cell);
   return (
     <span className={`analytics-box-score__cell analytics-box-score__cell--${align} ${cell?.kind === "insufficient-sample" ? "is-low-sample" : ""}`} role="cell">
       <strong>{cell?.display ?? "—"}</strong>
-      {sample && <small>{sample}</small>}
     </span>
   );
 }
@@ -19935,7 +20060,7 @@ function AnalyticsMetricKey({ result }: { result: AnalyticsResult }) {
       <div>
         {result.columns.map((column) => (
           <span key={column.metricId}>
-            <b>{column.label}</b>
+            <b>{analyticsColumnDisplayLabel(column.label)}</b>
             {column.definition}
           </span>
         ))}
@@ -20056,10 +20181,12 @@ function analyticsColumnDisplayLabel(label: string) {
     Contacts: "CT",
     Contact: "CT",
     Miss: "Whiff",
-    "Contact %": "Contact%",
+    "Contact %": "CT%",
+    "Contact%": "CT%",
     "Whiff %": "Whiff%",
     "Take %": "Take%",
-    "Hard %": "Hard%",
+    "Hard %": "HD%",
+    "Hard%": "HD%",
     "Impact %": "Impact%",
     "Avg Pitch Velo": "Avg Velo",
     "Max Pitch Velo": "Max Velo",
@@ -20073,78 +20200,107 @@ function analyticsColumnDisplayLabel(label: string) {
   return labels[label] ?? label;
 }
 
+function cloneAnalyticsFilters(filters: AnalyticsFilters): AnalyticsFilters {
+  return Object.fromEntries(Object.entries(filters).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value])) as AnalyticsFilters;
+}
+
+function analyticsFilterValueSummary(definition: AnalyticsFilterDefinition, values: AnalyticsFilters) {
+  if (definition.type === "range") {
+    const { pitchVelocityMin: minimum, pitchVelocityMax: maximum } = values;
+    if (minimum === undefined && maximum === undefined) return "Any";
+    if (minimum !== undefined && maximum !== undefined) return `${minimum}-${maximum}`;
+    return minimum !== undefined ? `${minimum}+` : `Up to ${maximum}`;
+  }
+  const selected = (values[definition.id] as string[] | undefined) ?? [];
+  if (!selected.length) return "All";
+  if (definition.type === "pitch-location") {
+    if (selected.length === 1) return definition.options.find((option) => option.value === selected[0])?.label ?? selected[0];
+    return `${selected.length} regions`;
+  }
+  if (selected.length === 1) return definition.options.find((option) => option.value === selected[0])?.label ?? selected[0];
+  return `${selected.length} selected`;
+}
+
 function AnalyticsFilterPanel({
   definitions,
   values,
   onToggle,
+  onSetValues,
   onVelocityRange,
   onClear,
+  onCancel,
+  onApply,
 }: {
   definitions: AnalyticsFilterDefinition[];
   values: AnalyticsFilters;
   onToggle: (definition: AnalyticsFilterDefinition, value: string) => void;
+  onSetValues: (definition: AnalyticsFilterDefinition, values: string[]) => void;
   onVelocityRange: (minimum?: number, maximum?: number) => void;
   onClear: () => void;
+  onCancel: () => void;
+  onApply: () => void;
 }) {
   const sections = definitions.reduce<Record<string, AnalyticsFilterDefinition[]>>((groups, definition) => {
     (groups[definition.section] ??= []).push(definition);
     return groups;
   }, {});
-  const hittingLocationGrid = [
-    ["up_and_away", "up", "up_and_in"],
-    ["away", "middle", "in"],
-    ["down_and_away", "down", "down_and_in"],
-  ];
-  const pitchingLocationGrid = [
-    ["up_arm_side", "up", "up_glove_side"],
-    ["arm_side", "middle", "glove_side"],
-    ["down_arm_side", "down", "down_glove_side"],
-  ];
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => new Set(["Pitch", "Count"]));
+  const activeFilterGroups = definitions.filter((definition) => analyticsFilterValueSummary(definition, values) !== (definition.type === "range" ? "Any" : "All")).length;
+  const sectionEntries = Object.entries(sections).map(([label, sectionDefinitions]) => ({
+    label,
+    definitions: sectionDefinitions,
+    activeCount: sectionDefinitions.filter((definition) => analyticsFilterValueSummary(definition, values) !== (definition.type === "range" ? "Any" : "All")).length,
+  }));
   return (
-    <div className="analytics-popover analytics-popover--wide" role="dialog" aria-label="Analytics filters">
-      <div className="analytics-popover__head">
-        <strong>Filter Stats</strong>
-        <button type="button" className="text-button" onClick={onClear}>Clear All</button>
+    <div className="analytics-popover analytics-popover--wide analytics-filter-sheet" role="dialog" aria-modal="true" aria-label="Analytics filters">
+      <div className="analytics-filter-sheet__head">
+        <strong>Filters</strong>
+        <button type="button" className="text-button" onClick={onClear} disabled={!activeFilterGroups}>Clear All</button>
       </div>
-      <div className="analytics-popover__body analytics-filter-list">
-        {definitions.length ? Object.entries(sections).map(([sectionLabel, sectionDefinitions]) => (
-          <section key={sectionLabel} className="analytics-filter-section">
-            <h3>{sectionLabel}</h3>
-            {sectionDefinitions.map((definition) => {
+      <div className="analytics-filter-sheet__body">
+        {definitions.length ? sectionEntries.map(({ label: sectionLabel, definitions: sectionDefinitions, activeCount }) => {
+          const isOpen = expandedSections.has(sectionLabel) || activeCount > 0;
+          return (
+          <section key={sectionLabel} className={`analytics-filter-section${isOpen ? " is-open" : ""}`}>
+            <button type="button" className="analytics-filter-section__toggle" onClick={() => setExpandedSections((current) => {
+              const next = new Set(current);
+              if (next.has(sectionLabel)) next.delete(sectionLabel);
+              else next.add(sectionLabel);
+              return next;
+            })} aria-expanded={isOpen}>
+              <span>{sectionLabel === "Game State" ? "Game Situation" : sectionLabel}</span>
+              {activeCount > 0 && <small>{activeCount} active</small>}
+              <ChevronDown size={15} aria-hidden="true" />
+            </button>
+            {isOpen && sectionDefinitions.map((definition) => {
               const selected = new Set(
                 definition.type === "range" ? [] : ((values[definition.id] as string[] | undefined) ?? []),
               );
-              const locationGrid = definition.options.some((option) => option.value === "arm_side") ? pitchingLocationGrid : hittingLocationGrid;
+              const summary = analyticsFilterValueSummary(definition, values);
               return (
                 <div key={`${definition.domains.join("-")}-${definition.id}`} className="analytics-filter-field">
-                  <span>
-                    {definition.label}
-                    {definition.availability === "partial" && <small>Partial coverage</small>}
-                  </span>
-                  {definition.capabilityNote && <p>{definition.capabilityNote}</p>}
+                  <div className="analytics-filter-field__head">
+                    <strong>{definition.type === "range" ? `${definition.label} (mph)` : definition.label}</strong>
+                    <span>{summary}</span>
+                  </div>
                   {definition.type === "range" ? (
                     <div className="analytics-filter-range">
-                      <label><span>Min</span><input type="number" inputMode="decimal" value={values.pitchVelocityMin ?? ""} placeholder="Any" onChange={(event) => onVelocityRange(event.target.value ? Number(event.target.value) : undefined, values.pitchVelocityMax)} /></label>
+                      <label><span>Min</span><input type="number" inputMode="decimal" min="0" value={values.pitchVelocityMin ?? ""} placeholder="Any" onChange={(event) => onVelocityRange(event.target.value ? Number(event.target.value) : undefined, values.pitchVelocityMax)} /></label>
                       <span>to</span>
-                      <label><span>Max</span><input type="number" inputMode="decimal" value={values.pitchVelocityMax ?? ""} placeholder="Any" onChange={(event) => onVelocityRange(values.pitchVelocityMin, event.target.value ? Number(event.target.value) : undefined)} /></label>
-                      <em>mph</em>
+                      <label><span>Max</span><input type="number" inputMode="decimal" min="0" value={values.pitchVelocityMax ?? ""} placeholder="Any" onChange={(event) => onVelocityRange(values.pitchVelocityMin, event.target.value ? Number(event.target.value) : undefined)} /></label>
                     </div>
                   ) : definition.type === "pitch-location" ? (
                     <>
-                      <div className="analytics-zone-state-options">
+                      <div className="analytics-zone-state-options analytics-zone-state-options--three">
+                        <button type="button" className={!selected.size ? "active" : ""} onClick={() => onSetValues(definition, [])}>All</button>
                         {definition.options.slice(0, 2).map((option) => (
                           <button key={option.value} type="button" className={selected.has(option.value) ? "active" : ""} onClick={() => onToggle(definition, option.value)}>{option.label}</button>
                         ))}
                       </div>
-                      <div className="analytics-pitch-location-selector" aria-label="Pitch location regions">
-                        {locationGrid.flat().map((value) => {
-                          const option = definition.options.find((candidate) => candidate.value === value);
-                          return <button key={value} type="button" className={selected.has(value) ? "active" : ""} onClick={() => onToggle(definition, value)}>{option?.label ?? value}</button>;
-                        })}
-                      </div>
+                      <AnalyticsPitchLocationSelector definition={definition} selected={selected} onToggle={onToggle} />
                     </>
                   ) : (
-                    <div className="analytics-filter-options">
+                    <div className={`analytics-filter-options${definition.id === "exactCounts" ? " analytics-filter-options--counts" : ""}${definition.id === "drillTypes" ? " analytics-filter-options--drills" : ""}`}>
                       {definition.options.map((option) => (
                         <button key={option.value} type="button" className={selected.has(option.value) ? "active" : ""} onClick={() => onToggle(definition, option.value)}>
                           {option.label}
@@ -20152,19 +20308,122 @@ function AnalyticsFilterPanel({
                       ))}
                     </div>
                   )}
+                  {definition.availability === "partial" && <small className="analytics-filter-field__coverage">Partial coverage in this source.</small>}
                 </div>
               );
             })}
           </section>
-        )) : <CompactEmpty title="No supported filters for this source yet" />}
+        );
+        }) : <CompactEmpty title="No supported filters for this source yet" />}
+      </div>
+      <div className="analytics-filter-sheet__footer">
+        <span>Active Filters <strong>{activeFilterGroups}</strong></span>
+        <div>
+          <button type="button" className="secondary-button" onClick={onCancel}>Cancel</button>
+          <button type="button" className="primary-button" onClick={onApply}>Apply Filters <b>{activeFilterGroups}</b></button>
+        </div>
       </div>
     </div>
   );
 }
 
+function AnalyticsPitchLocationChart({ result, mode, onModeChange }: { result: AnalyticsResult; mode: PracticeChartMetricMode; onModeChange: (mode: PracticeChartMetricMode) => void }) {
+  const chart = result.pitchLocationChart;
+  if (!chart) return null;
+  const bucketStats = chart.points.reduce<Partial<Record<PitchLocationGridZoneId, { count: number; outcomes: number; successes: number }>>>((counts, point) => {
+    const bucket = pitchLocationBucketFromPoint(point);
+    if (!bucket) return counts;
+    const stats = counts[bucket.id] ?? { count: 0, outcomes: 0, successes: 0 };
+    stats.count += 1;
+    if (point.chartOutcome) {
+      stats.outcomes += 1;
+      if (point.chartOutcome === "hit" || point.chartOutcome === "contact") stats.successes += 1;
+    }
+    counts[bucket.id] = stats;
+    return counts;
+  }, {});
+  const maxCount = Math.max(1, ...Object.values(bucketStats).map((stats) => stats?.count ?? 0));
+  return <section className="panel analytics-pitch-location-chart" aria-label="Team pitch location chart">
+    <div className="analytics-spray-chart__header">
+      <div><span>Team Pitch Location</span><strong>{chart.metricLabel} · {chart.trackedLocations} tracked of {chart.qualifyingEvents} events</strong></div>
+      <AnalyticsChartModes mode={mode} onChange={onModeChange} />
+    </div>
+    <div className={`practice-pitch-location-grid practice-pitch-location-grid--analytics practice-pitch-location-grid--${mode === "dots" ? "dots" : mode} analytics-pitch-location-chart__grid`} role="img" aria-label={`${chart.trackedLocations} tracked pitch locations, catcher view`}>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--up">Up</span>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--down">Down</span>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--left">Away</span>
+      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--right">In</span>
+      <div className="practice-pitch-location-grid__stage">
+        <span className="practice-pitch-location-grid__zone" aria-hidden="true" />
+        <span className="practice-pitch-location-grid__plate" aria-hidden="true" />
+        {PITCH_LOCATION_BUCKETS.map((bucket) => {
+          const stats = bucketStats[bucket.id];
+          const count = stats?.count ?? 0;
+          const intensity = count / maxCount;
+          const outcomeRate = stats?.outcomes ? stats.successes / stats.outcomes : undefined;
+          const colorScore = outcomeRate ?? intensity;
+          const metric = chart.metricLabel === "Pitch density" ? (count / Math.max(1, chart.trackedLocations)) : outcomeRate;
+          return <span key={bucket.id} className={`practice-pitch-location-grid__bucket ${bucket.isZone ? "practice-pitch-location-grid__bucket--zone" : "practice-pitch-location-grid__bucket--outside"}`} style={{ gridColumn: bucket.column, gridRow: bucket.row, "--pitch-heat-opacity": count ? 0.22 + intensity * 0.62 : 0, "--pitch-heat-color": colorScore >= 0.72 ? "#ef5b5b" : colorScore >= 0.42 ? "#c99245" : "#4b91d1" } as React.CSSProperties}><i className="practice-pitch-location-grid__heat" aria-hidden="true" />{mode === "count" && count > 0 && <b className="practice-pitch-location-grid__bucket-metric">{count}</b>}{mode === "percent" && metric !== undefined && <b className="practice-pitch-location-grid__bucket-metric">{Math.round(metric * 100)}%</b>}</span>;
+        })}
+      </div>
+    </div>
+    <small className="analytics-spray-chart__coverage">Catcher view. Color shows {chart.metricLabel.toLowerCase()} from cold blue to hot red.</small>
+  </section>;
+}
+
+function AnalyticsPitchLocationSelector({
+  definition,
+  selected,
+  onToggle,
+}: {
+  definition: AnalyticsFilterDefinition;
+  selected: Set<string>;
+  onToggle: (definition: AnalyticsFilterDefinition, value: string) => void;
+}) {
+  const pitcherRelative = definition.options.some((option) => option.value === "arm_side");
+  return (
+    <div className="analytics-pitch-location-view" aria-label="Catcher view pitch location selector">
+      <div className="analytics-pitch-location-view__label"><span>Catcher View</span><small>Tap one or more regions</small></div>
+      <div className="practice-pitch-location-grid practice-pitch-location-grid--entry practice-pitch-location-grid--interactive analytics-pitch-location-grid">
+        <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--up">Up</span>
+        <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--down">Down</span>
+        <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--left">{pitcherRelative ? "Arm" : "Away"}</span>
+        <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--right">{pitcherRelative ? "Glove" : "In"}</span>
+        <div className="practice-pitch-location-grid__stage">
+          <span className="practice-pitch-location-grid__zone" aria-hidden="true" />
+          <span className="practice-pitch-location-grid__plate" aria-hidden="true" />
+          {PITCH_LOCATION_BUCKETS.map((bucket) => {
+            const value = analyticsLocationRegionForBucket(bucket, pitcherRelative);
+            const label = definition.options.find((option) => option.value === value)?.label ?? value;
+            return <button
+              key={bucket.id}
+              type="button"
+              className={`practice-pitch-location-grid__bucket ${bucket.isZone ? "practice-pitch-location-grid__bucket--zone" : "practice-pitch-location-grid__bucket--outside"}${selected.has(value) ? " active" : ""}`}
+              style={{ gridColumn: bucket.column, gridRow: bucket.row } as React.CSSProperties}
+              onClick={() => onToggle(definition, value)}
+              aria-label={label}
+              aria-pressed={selected.has(value)}
+              title={label}
+            />;
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function analyticsLocationRegionForBucket(bucket: PitchLocationBucket, pitcherRelative: boolean) {
+  const vertical = bucket.y < 0.34 ? "up" : bucket.y > 0.66 ? "down" : "middle";
+  const horizontal = bucket.x < 0.34 ? (pitcherRelative ? "arm_side" : "away") : bucket.x > 0.66 ? (pitcherRelative ? "glove_side" : "in") : "middle";
+  if (vertical === "middle" && horizontal === "middle") return "middle";
+  if (vertical === "middle") return horizontal;
+  if (horizontal === "middle") return vertical;
+  return `${vertical}_${pitcherRelative ? "" : "and_"}${horizontal}`.replace("_and_arm", "_arm").replace("_and_glove", "_glove");
+}
+
 function AskClubhouseLauncher({ onClick, compact = false }: { onClick: () => void; compact?: boolean }) {
   return (
-    <button className={`secondary-button ask-clubhouse-launcher${compact ? " ask-clubhouse-launcher--compact" : ""}`} type="button" onClick={onClick}>
+    <button className={`secondary-button ask-clubhouse-launcher${compact ? " ask-clubhouse-launcher--compact" : ""}`} type="button" onClick={onClick} aria-label="Ask Clubhouse" title="Ask Clubhouse">
       <Sparkles size={15} aria-hidden="true" />
       <span>Ask Clubhouse</span>
     </button>
@@ -21230,7 +21489,6 @@ function PlayerProfile({
   onTab,
   onTeamSwitch,
   onEdit,
-  onStatus,
   onOpenSessionSummary,
 }: {
   data: AppData;
@@ -21239,7 +21497,6 @@ function PlayerProfile({
   onTab: (tab: ProfileTab) => void;
   onTeamSwitch: (team: TeamOption) => void | Promise<void>;
   onEdit: () => void;
-  onStatus: (playerId: ID, status: RosterStatus) => void;
   onOpenSessionSummary: (type: "Hitting" | "Pitching" | "Defense", sessionId: ID) => void;
 }) {
   const pitchEvents = playerPitchEvents(data, player.id);
@@ -21254,6 +21511,8 @@ function PlayerProfile({
   const recentActivity = buildPlayerRecentActivity(data, player).slice(0, 6);
   const memberships = buildPlayerMembershipCards(data, player);
   const gameStats = buildPlayerGameSnapshot(data, player);
+  const [hittingLocationMode, setHittingLocationMode] = useState<"spray" | "count" | "percent" | "heat">("spray");
+  const [pitchLocationMode, setPitchLocationMode] = useState<"dots" | "count" | "percent" | "heat">("dots");
 
   return (
     <div className="page-stack profile-page">
@@ -21267,14 +21526,8 @@ function PlayerProfile({
             <TeamSwitcher context={data.teamContext} onSwitch={onTeamSwitch} compact />
           </div>
         </div>
-        <div className="status-toggle">
-          {ROSTER_STATUSES.map((status) => (
-            <button key={status} type="button" className={player.rosterStatus === status ? "active" : ""} onClick={() => onStatus(player.id, status)}>{status}</button>
-          ))}
-        </div>
-        <button className="secondary-button" type="button" onClick={onEdit}>
+        <button className="icon-button profile-player-edit" type="button" onClick={onEdit} aria-label="Edit player" title="Edit player">
           <Edit3 size={16} aria-hidden="true" />
-          Edit
         </button>
       </section>
 
@@ -21349,7 +21602,10 @@ function PlayerProfile({
       {tab === "practice" && (
         <section className="profile-grid">
           <article className="panel"><div className="panel-heading"><div><span>Practice</span><h2>Recent Sessions</h2></div></div><SessionList data={data} player={player} /></article>
-          <article className="panel"><Heatmap points={pitchEvents.map((event) => event.location).filter(isZonePoint)} /></article>
+          <article className="panel profile-location-card">
+            <SegmentedControl values={["dots", "count", "percent", "heat"] as const} active={pitchLocationMode} onChange={setPitchLocationMode} />
+            <StrikeZone points={pitchEvents.map((event) => event.location).filter(isZonePoint)} mode={pitchLocationMode} />
+          </article>
         </section>
       )}
 
@@ -21394,7 +21650,10 @@ function PlayerProfile({
             </div>
             <MiniLineChart values={trendByPractice(data.practices, hittingEvents, (events) => calculateHittingStats(events).contactPct).map((item) => item.value)} />
           </article>
-          <article className="panel"><ClubhouseBaseballField points={hittingEvents.map((event) => event.fieldLocation).filter(isZonePoint)} mode="spray" /></article>
+          <article className="panel profile-location-card">
+            <SegmentedControl values={["spray", "count", "percent", "heat"] as const} active={hittingLocationMode} onChange={setHittingLocationMode} />
+            <ClubhouseBaseballField points={hittingEvents.map((event) => event.fieldLocation).filter(isZonePoint)} mode={hittingLocationMode} />
+          </article>
         </section>
       )}
 
@@ -21926,18 +22185,18 @@ function ScheduleEventModal({
       <div className="schedule-event-form">
         <div className="form-field schedule-event-type-field wide">
           <span>Event Type</span>
-          <ChoiceSelect value={eventType} className="form-choice schedule-event-type-select" options={eventTypeOptions} onChange={(value) => chooseType(value as ScheduleEventType)} aria-label="Event type" />
+          <ChoiceSelect value={eventType} className="form-choice schedule-event-type-select" options={eventTypeOptions} onChange={(value) => chooseType(value as ScheduleEventType)} aria-label="Event type" mobilePresentation="popover" />
         </div>
         {eventType === "Game" && (
           <>
             {renderOpponentLookup(false)}
-            <div className="form-field schedule-home-away-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={SCHEDULE_HOME_AWAY_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => updateHomeAway(value as Game["homeAway"])} aria-label="Home or away" /></div>
+            <div className="form-field schedule-home-away-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={SCHEDULE_HOME_AWAY_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => updateHomeAway(value as Game["homeAway"])} aria-label="Home or away" mobilePresentation="popover" /></div>
           </>
         )}
         {eventType === "Scrimmage" && (
           <>
             {renderOpponentLookup(true)}
-            <div className="form-field schedule-home-away-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={SCHEDULE_HOME_AWAY_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => updateHomeAway(value as Game["homeAway"])} aria-label="Scrimmage home or away" /></div>
+            <div className="form-field schedule-home-away-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={SCHEDULE_HOME_AWAY_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => updateHomeAway(value as Game["homeAway"])} aria-label="Scrimmage home or away" mobilePresentation="popover" /></div>
           </>
         )}
         {eventType === "Tournament" && (
@@ -22001,11 +22260,50 @@ function PlayerEditorModal({ player, onClose, onSave }: { player?: Player; onClo
       updatedAt: new Date().toISOString(),
     },
   );
+  const [cropState, setCropState] = useState<AvatarCropState | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
   const roleFlags = derivePlayerRoleFlags(form.primaryPosition, form.secondaryPosition);
+
+  function handleTeamPhoto(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !file.type.startsWith("image/") || file.size > 8_000_000) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const sourceUrl = typeof reader.result === "string" ? reader.result : "";
+      if (sourceUrl) setCropState({ sourceUrl, fileName: file.name, zoom: 1, offsetX: 0, offsetY: 0, status: "idle", message: "" });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function applyTeamPhotoCrop() {
+    if (!cropState) return;
+    setCropState((current) => current ? { ...current, status: "saving", message: "" } : current);
+    try {
+      const teamImageUrl = await cropAvatarImage(cropState);
+      setForm((current) => ({ ...current, teamImageUrl }));
+      setCropState(null);
+    } catch (error) {
+      setCropState((current) => current ? { ...current, status: "error", message: error instanceof Error ? error.message : "Unable to crop that image." } : current);
+    }
+  }
 
   return (
     <ModalFrame title={player ? "Edit Player" : "Add Player"} onClose={onClose} panelClassName="modal-panel--player">
       <section className="single-player-builder">
+        <div className="player-team-photo-editor">
+          <PlayerAvatar player={form} size="lg" compact />
+          <div>
+            <strong>Team photo</strong>
+            <small>Overrides the player profile photo for this team.</small>
+          </div>
+          <button className="secondary-button" type="button" onClick={() => photoInputRef.current?.click()}>
+            <Upload size={15} aria-hidden="true" />
+            {form.teamImageUrl ? "Change" : "Add Photo"}
+          </button>
+          {form.teamImageUrl && <button className="icon-button" type="button" onClick={() => setForm({ ...form, teamImageUrl: undefined })} aria-label="Remove team photo"><Trash2 size={15} aria-hidden="true" /></button>}
+          <input ref={photoInputRef} type="file" accept="image/*" onChange={handleTeamPhoto} hidden />
+        </div>
         <div className="single-player-table">
           <div className="single-player-head" aria-hidden="true">
             <span>Name</span>
@@ -22022,20 +22320,30 @@ function PlayerEditorModal({ player, onClose, onSave }: { player?: Player; onClo
           <div className="single-player-row">
             <input aria-label="Name" placeholder="Player name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
             <ManualNumberCell label="Number" placeholder="#" value={form.jerseyNumber ? String(form.jerseyNumber) : ""} min={0} max={99} onChange={(value) => setForm({ ...form, jerseyNumber: Number(value) || 0 })} />
-            <ChoiceSelect aria-label="Graduation" value={String(form.graduationYear || currentRosterYear())} className="manual-choice-cell manual-year-cell" options={graduationYearOptions(form.graduationYear)} onChange={(value) => setForm({ ...form, graduationYear: Number(value) || currentRosterYear() })} />
-            <ChoiceSelect aria-label="Primary" value={form.primaryPosition} className="manual-choice-cell" options={POSITIONS.map((position) => ({ value: position, label: position }))} onChange={(value) => setForm({ ...form, primaryPosition: value as Position })} />
-            <ChoiceSelect aria-label="Secondary" value={form.secondaryPosition ?? ""} className="manual-choice-cell" options={SECONDARY_POSITIONS.map((position) => ({ value: position, label: position || "None" }))} onChange={(value) => setForm({ ...form, secondaryPosition: value ? value as Position : undefined })} />
-            <ChoiceSelect aria-label="Bats" value={form.bats} className="manual-choice-cell" options={HANDEDNESS_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, bats: value as Player["bats"] })} />
-            <ChoiceSelect aria-label="Throws" value={form.throws} className="manual-choice-cell" options={THROWS_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, throws: value as Player["throws"] })} />
-            <ManualHeightCell value={String(heightToInches(form.height))} onChange={(heightInches) => setForm({ ...form, height: heightInches ? formatHeightFromInches(Number(heightInches)) : undefined })} />
-            <ManualNumberCell label="Weight" placeholder="Wt" value={form.weight ? String(form.weight) : ""} min={80} max={320} onChange={(value) => setForm({ ...form, weight: Number(value) || undefined })} />
-            <ChoiceSelect aria-label="Status" value={form.rosterStatus ?? "Undecided"} className="manual-choice-cell" options={ROSTER_STATUSES.map((status) => ({ value: status, label: status }))} onChange={(value) => setForm({ ...form, rosterStatus: value as RosterStatus })} />
+            <ChoiceSelect aria-label="Graduation" value={String(form.graduationYear || currentRosterYear())} className="manual-choice-cell manual-year-cell" options={graduationYearOptions(form.graduationYear)} onChange={(value) => setForm({ ...form, graduationYear: Number(value) || currentRosterYear() })} mobilePresentation="popover" />
+            <ChoiceSelect aria-label="Primary" value={form.primaryPosition} className="manual-choice-cell" options={POSITIONS.map((position) => ({ value: position, label: position }))} onChange={(value) => setForm({ ...form, primaryPosition: value as Position })} mobilePresentation="popover" />
+            <ChoiceSelect aria-label="Secondary" value={form.secondaryPosition ?? ""} className="manual-choice-cell" options={SECONDARY_POSITIONS.map((position) => ({ value: position, label: position || "None" }))} onChange={(value) => setForm({ ...form, secondaryPosition: value ? value as Position : undefined })} mobilePresentation="popover" />
+            <ChoiceSelect aria-label="Bats" value={form.bats} className="manual-choice-cell" options={HANDEDNESS_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, bats: value as Player["bats"] })} mobilePresentation="popover" />
+            <ChoiceSelect aria-label="Throws" value={form.throws} className="manual-choice-cell" options={THROWS_OPTIONS.map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, throws: value as Player["throws"] })} mobilePresentation="popover" />
+            <NumberWheelCell label="Height" value={heightToInches(form.height) || 72} min={36} max={107} formatValue={(value) => formatHeightFromInches(value)} onChange={(value) => setForm({ ...form, height: formatHeightFromInches(value) })} />
+            <NumberWheelCell label="Weight" value={form.weight ?? 175} min={1} max={500} unit="lb" onChange={(weight) => setForm({ ...form, weight })} />
+            <ChoiceSelect aria-label="Status" value={form.rosterStatus ?? "Undecided"} className="manual-choice-cell" options={ROSTER_STATUSES.map((status) => ({ value: status, label: status }))} onChange={(value) => setForm({ ...form, rosterStatus: value as RosterStatus })} mobilePresentation="popover" />
           </div>
         </div>
       </section>
       <div className="modal-actions">
         <button className="primary-button" type="button" onClick={() => onSave({ ...form, ...roleFlags, updatedAt: new Date().toISOString() })}><Save size={16} aria-hidden="true" />Save Player</button>
       </div>
+      {cropState && (
+        <AvatarCropModal
+          title="Team Player Photo"
+          state={cropState}
+          onChange={setCropState}
+          onCancel={() => setCropState(null)}
+          onPickDifferent={() => photoInputRef.current?.click()}
+          onApply={() => void applyTeamPhotoCrop()}
+        />
+      )}
     </ModalFrame>
   );
 }
@@ -23293,6 +23601,77 @@ function ManualRosterBuilder({
   );
 }
 
+function NumberWheelCell({
+  label,
+  value,
+  min,
+  max,
+  unit,
+  formatValue = (option) => String(option),
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  unit?: string;
+  formatValue?: (value: number) => string;
+  onChange: (value: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const selectedRef = useRef<HTMLButtonElement | null>(null);
+  const options = useMemo(() => Array.from({ length: max - min + 1 }, (_, index) => min + index), [max, min]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.setTimeout(() => selectedRef.current?.scrollIntoView({ block: "center" }), 0);
+  }, [open, draft]);
+
+  return (
+    <div className="number-wheel-cell" data-label={label}>
+      <button type="button" className="number-wheel-cell__trigger" onClick={() => { setDraft(value); setOpen(true); }} aria-label={`${label}: ${formatValue(value)}${unit ? ` ${unit}` : ""}`}>
+        <strong>{formatValue(value)}</strong>
+        {unit && <small>{unit}</small>}
+        <ChevronDown size={13} aria-hidden="true" />
+      </button>
+      {open && typeof document !== "undefined" && createPortal(
+        <div className="modal-backdrop number-wheel-backdrop" role="dialog" aria-modal="true" aria-label={`${label} selector`}>
+          <div className="number-wheel-picker">
+            <div className="number-wheel-picker__head">
+              <button type="button" onClick={() => setOpen(false)}>Cancel</button>
+              <strong>{label}</strong>
+              <button type="button" onClick={() => { onChange(draft); setOpen(false); }}>Done</button>
+            </div>
+            <div className="number-wheel-picker__options" role="listbox" aria-label={label}>
+              {options.map((option) => (
+                <button
+                  key={option}
+                  ref={draft === option ? selectedRef : undefined}
+                  type="button"
+                  role="option"
+                  aria-selected={draft === option}
+                  className={draft === option ? "active" : ""}
+                  onClick={() => setDraft(option)}
+                >
+                  <span>{formatValue(option)}</span>{unit && <small>{unit}</small>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+function abbreviatedPlayerName(name: string) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length < 2) return name;
+  return `${parts[0][0]}. ${parts.slice(1).join(" ")}`;
+}
+
 function ManualNumberCell({
   label,
   value,
@@ -23663,7 +24042,7 @@ function RecentGamesCard({
             type="button"
             onClick={() => onView("games")}
           >
-            <span className="activity-feed__icon activity-feed__icon--game" />
+            <OrganizationLogo name={game.opponent} size="sm" />
             <span>
               <strong>{matchupPrefix(game.homeAway).replace(".", "")} {game.opponent}</strong>
               <small>{game.result ? `${game.result} ${game.metrolinaScore}-${game.opponentScore}` : game.location}</small>

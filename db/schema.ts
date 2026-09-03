@@ -15,7 +15,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const membershipRole = pgEnum("membership_role", ["ADMIN", "COACH", "PLAYER"]);
-export const rosterStatus = pgEnum("roster_status", ["Varsity", "JV", "Undecided", "Cut"]);
+export const rosterStatus = pgEnum("roster_status", ["Varsity", "JV", "MS", "Undecided", "Cut"]);
 export const practiceStatus = pgEnum("practice_status", ["scheduled", "active", "completed", "cancelled"]);
 export const practiceSessionCategory = pgEnum("practice_session_category", ["hitting", "pitching", "defense"]);
 export const gameStatus = pgEnum("game_status", ["scheduled", "active", "final", "cancelled"]);

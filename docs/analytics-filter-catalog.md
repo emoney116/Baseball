@@ -1,6 +1,6 @@
 # Analytics Filter and View Catalog
 
-Last audited: 2026-09-02
+Last audited: 2026-09-03
 
 The executable catalog is `app/lib/analyticsCatalog.ts`. Every view is a grouping/preset over the same bounded Analytics Query Engine. There is no separate Box Score and Situational calculation path.
 
@@ -27,6 +27,43 @@ The executable catalog is `app/lib/analyticsCatalog.ts`. Every view is a groupin
 Views with partial coverage report how many qualifying events contain the grouping dimension. Unclassified events are not silently assigned to a default bucket.
 
 ## Universal Filters
+
+## Filter experience
+
+The Analytics filter sheet is a staged control surface over the same bounded Analytics Query Engine. It does not run a query while the coach is composing a selection.
+
+- Opening **Filters** clones the currently applied filter state into a staged state.
+- **Apply Filters** commits the staged state once, closes the sheet, updates the table/charts, active chips, and the Analytics deep link.
+- **Cancel** discards the staged state and leaves applied Analytics unchanged.
+- **Clear All** clears only staged Analytics filters. It does not reset domain, source, season/time context, or event selection.
+- The Filters trigger shows an active count when applied filters exist. Applied chips remain individually removable outside the sheet.
+
+### Hierarchy and availability
+
+The sheet shows only filters supported by the active domain and source. Its sections are ordered for baseball workflows:
+
+1. **Pitch**: pitch type, velocity, and pitch location.
+2. **Count**: exact count and count group.
+3. **Matchup**: pitcher hand for hitting, batter hand for pitching.
+4. **Contact**: batted-ball type and spray direction where available.
+5. **Practice**: drill and Live BP thrower context where available.
+6. **Game Situation**: score state, inning, outs, and runners for Games.
+7. **Game**, **Result**, and defense-specific sections appear only when their catalog definitions support the active context.
+
+Pitch and Count open by default. Other sections stay compact until selected; an active count keeps a section visibly expanded so no applied condition is hidden. The sheet uses the existing ChoiceSelect family where single-choice context controls already exist; its specialized multi-select controls remain local because the current branch has no CLU9-42 shared multi-select surface to reuse.
+
+### Pitch location
+
+Pitch Location uses the same canonical 25-cell pitch grid used by tracking: the nine in-zone cells plus the full outer ring and home plate. It is explicitly labeled **Catcher View** and does not create another SVG or coordinate model.
+
+- **All**, **In Zone**, and **Out of Zone** remain available above the visual grid.
+- Region selection supports the query engine's existing union semantics. Multiple selected regions are shown as a region count.
+- Hitting locations map to the existing hitter-relative `Away` / `In` region identifiers. Pitching locations map to the existing pitcher-relative `Arm Side` / `Glove Side` identifiers. The query engine remains responsible for applying each player’s handedness to recorded coordinates.
+- Partial coverage is shown once, quietly, inside the relevant filter card. Events without tracked locations do not qualify when a location filter is applied.
+
+### Count behavior
+
+Exact count and count group are separate existing filters. Exact count exposes the canonical twelve count states. Count groups use the centralized `First Pitch`, `Hitter Ahead`, `Even`, `Pitcher Ahead`, `Two Strike`, and `Full Count` definitions. Active filter groups retain existing AND semantics; multiple options inside a filter retain existing OR semantics.
 
 ### Source and time
 
