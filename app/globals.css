@@ -27843,6 +27843,13 @@ button.weight-room-athlete-table__row:hover {
   stroke-width: 2.5;
 }
 
+.clubhouse-baseball-field__trajectory--spray {
+  opacity: 0.34;
+  stroke: rgba(255, 255, 255, 0.72);
+  stroke-dasharray: 2 4;
+  stroke-width: 1.25;
+}
+
 .practice-spray-field__mode {
   top: 9px;
   right: 9px;

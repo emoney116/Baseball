@@ -12,6 +12,8 @@ test("shared field renderer owns every supported visualization mode", () => {
   assert.match(fieldComponent, /getSprayHeatClusters/);
   assert.match(fieldComponent, /getSprayDistribution/);
   assert.match(fieldComponent, /showTrajectory/);
+  assert.match(fieldComponent, /showTrajectories/);
+  assert.match(fieldComponent, /function TrajectoryLines/);
   assert.match(fieldComponent, /clubhouse-baseball-field__trajectory/);
 });
 

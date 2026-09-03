@@ -33,6 +33,7 @@ export function ClubhouseBaseballField({
   className = "",
   showLabels = true,
   showTrajectory = false,
+  showTrajectories = false,
   ariaLabel,
 }: {
   points?: ClubhouseFieldPoint[];
@@ -46,6 +47,7 @@ export function ClubhouseBaseballField({
   className?: string;
   showLabels?: boolean;
   showTrajectory?: boolean;
+  showTrajectories?: boolean;
   ariaLabel?: string;
 }) {
   const toGamePoint = (point: ZonePoint) => coordinateSpace === "game" ? point : canonicalPointToLegacyGame(point);
@@ -79,6 +81,7 @@ export function ClubhouseBaseballField({
       />
     ))}
     {showSectorMetrics && <SectorMetrics distribution={sectorDistribution} mode={mode} />}
+    {showTrajectories && gamePoints.length > 0 && <TrajectoryLines points={gamePoints} />}
     {showPointDots && gamePoints.slice(-120).map((point, index) => (
       <span
         key={point.id ?? `${point.x}-${point.y}-${index}`}
@@ -118,6 +121,23 @@ function ActivePoint({ point, showTrajectory }: { point: ZonePoint; showTrajecto
     {showTrajectory && <svg className="clubhouse-baseball-field__trajectory-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><line className="clubhouse-baseball-field__trajectory-glow" x1="50" y1="90.2" x2={point.x * 100} y2={point.y * 100} /><line className="clubhouse-baseball-field__trajectory" x1="50" y1="90.2" x2={point.x * 100} y2={point.y * 100} /></svg>}
     <span className="field-chart__target clubhouse-baseball-field__target" style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }} />
   </>;
+}
+
+function TrajectoryLines({ points }: { points: ZonePoint[] }) {
+  return (
+    <svg className="clubhouse-baseball-field__trajectory-layer" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      {points.slice(-48).map((point, index) => (
+        <line
+          key={`${point.x}-${point.y}-${index}`}
+          className="clubhouse-baseball-field__trajectory clubhouse-baseball-field__trajectory--spray"
+          x1="50"
+          y1="90.2"
+          x2={point.x * 100}
+          y2={point.y * 100}
+        />
+      ))}
+    </svg>
+  );
 }
 
 function clamp(value: number, min: number, max: number) {

@@ -87,6 +87,7 @@ test("Ask Clubhouse answer styles include hierarchy and flat text rankings", () 
   assert.match(css, /\.ask-scope-menu\s*\{[\s\S]*top:\s*calc\(100% \+ 6px\)/);
   assert.match(page, /function AskClubhouseVisualAnswers/);
   assert.match(page, /<ClubhouseBaseballField/);
+  assert.match(page, /showTrajectories=\{mode === "spray"\}/);
   assert.match(page, /<StrikeZone points=\{visual\.points\}/);
   assert.match(page, /encodeAnalyticsFilters\(next\.filters\)/);
   assert.match(page, /visualContext: askVisualContext/);

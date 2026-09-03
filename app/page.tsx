@@ -20629,6 +20629,7 @@ function AskClubhouseVisualCard({
           size="standard"
           coordinateSpace="practice"
           showTrajectory={mode === "spray"}
+          showTrajectories={mode === "spray"}
           ariaLabel={`${label} shown on the Clubhouse baseball field`}
         />
       ) : (
