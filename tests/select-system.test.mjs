@@ -7,6 +7,7 @@ const page = readFileSync("app/page.tsx", "utf8");
 const orgManage = readFileSync("app/org/[id]/manage/OrgManageClient.tsx", "utf8");
 const css = readFileSync("app/globals.css", "utf8");
 const docs = readFileSync("docs/clubhouse-select-system.md", "utf8");
+const visuals = readFileSync("app/components/visuals.tsx", "utf8");
 
 test("shared select family covers single, searchable, multi, picker, segmented, and contextual surfaces", () => {
   for (const primitive of [
@@ -66,6 +67,12 @@ test("mobile roster actions and player entry retain compact, labeled, touch-frie
   assert.match(page, /type="number"[\s\S]*inputMode="numeric"[\s\S]*min=\{min\}[\s\S]*max=\{max\}/);
   assert.match(css, /\.roster-page > \.section-header \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) auto/);
   assert.match(css, /\.single-player-row > \.single-player-field \{[\s\S]*grid-template-columns: minmax\(82px, 0\.62fr\) minmax\(0, 1fr\)/);
+});
+
+test("player avatars use one shared neutral treatment when no photo is available", () => {
+  assert.match(visuals, /variant: requestedVariant/);
+  assert.match(visuals, /variant = requestedVariant \?\? avatarVariantForIdentity/);
+  assert.match(visuals, /<IdentityAvatar[\s\S]*variant="neutral"/);
 });
 
 test("the system documentation includes inventory, responsive behavior, and exception guidance", () => {

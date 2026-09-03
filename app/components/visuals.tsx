@@ -41,6 +41,7 @@ export function IdentityAvatar({
   name,
   src,
   size = "md",
+  variant: requestedVariant,
   badge,
   className = "",
   as = "span",
@@ -52,6 +53,7 @@ export function IdentityAvatar({
   name: string;
   src?: string;
   size?: AvatarSize;
+  variant?: AvatarVariant;
   badge?: string | number;
   className?: string;
   as?: "span" | "div" | "label";
@@ -59,7 +61,7 @@ export function IdentityAvatar({
   decorative?: boolean;
   children?: React.ReactNode;
 }) {
-  const variant = avatarVariantForIdentity(id, name);
+  const variant = requestedVariant ?? avatarVariantForIdentity(id, name);
   const classes = [
     "player-avatar",
     `player-avatar--${size}`,
@@ -102,6 +104,7 @@ export function PlayerAvatar({
       name={player.name}
       src={player.imageUrl}
       size={size}
+      variant="neutral"
       badge={compact ? undefined : `#${player.jerseyNumber}`}
     />
   );
