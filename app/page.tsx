@@ -20588,13 +20588,17 @@ function AskClubhouseVisualCard({
     : `${visual.coverage.trackedEvents} of ${visual.coverage.qualifyingEvents} ${visual.coverage.label} tracked`;
 
   if (visual.type === "metric_summary") {
+    const metrics = visual.metrics?.slice(0, 5) ?? [];
     return (
-      <div className="ask-metric-strip ask-visual-metric-strip" aria-label={visual.title}>
-        {visual.metrics?.map((metric) => (
+      <div
+        className="ask-metric-strip ask-visual-metric-strip"
+        aria-label={visual.title}
+        style={{ "--ask-visual-metric-count": metrics.length } as React.CSSProperties}
+      >
+        {metrics.map((metric) => (
           <div key={metric.id}>
             <strong>{metric.value}</strong>
             <span>{metric.label}</span>
-            {metric.sample && <small>{metric.sample}</small>}
           </div>
         ))}
       </div>
@@ -20776,10 +20780,15 @@ function AskClubhouseComparisonAnswer({ payload }: { payload: Extract<AskClubhou
 }
 
 function AskClubhouseEvidence({ message }: { message: AskClubhouseChatMessage }) {
-  if (!message.evidence?.length) return null;
+  const evidence = (message.evidence ?? []).filter((item) => (
+    !message.visuals?.length
+    || Boolean(item.url)
+    || item.title.startsWith("Baseball Knowledge")
+  ));
+  if (!evidence.length) return null;
   return (
     <div className="ask-evidence-list">
-      {message.evidence.map((item) => (
+      {evidence.map((item) => (
         <div key={`${message.id}-${item.title}`}>
           {item.url ? (
             <a href={item.url} target="_blank" rel="noreferrer">{item.title}</a>

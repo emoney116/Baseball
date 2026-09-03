@@ -180,7 +180,7 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
   try {
     const providerResult = await input.provider.generate({
       system: buildSystemPrompt(input.config, plan.route, plan.requiresWebSearch, plan.knowledgeItems.length > 0),
-      prompt: buildUserPrompt(input, toolResults, plan.actions, plan.followUps, plan.route, plan.interpretation, plan.knowledgeItems),
+      prompt: buildUserPrompt(input, toolResults, plan.actions, plan.followUps, plan.route, plan.interpretation, plan.knowledgeItems, visuals),
       maxOutputTokens: input.config.maxOutputTokens,
       webSearch: {
         enabled: plan.requiresWebSearch,
@@ -273,6 +273,7 @@ function buildSystemPrompt(config: AskClubhouseConfig, route: GenerateAskReplyRe
       : "Treat any unsourced current-rule or benchmark claim as unverified.",
     "Be concise and coach-friendly. Start with the answer, then explain the sample/denominator when it matters.",
     "Call out small samples, missing data, and unsupported metrics plainly.",
+    "When visual evidence is supplied, treat its coverage and point count as authoritative. Never say the requested visual data is unavailable when the evidence contains tracked points.",
     "Do not ask the user to run queries. Offer the provided analytics actions when useful.",
     `Keep the response under ${config.maxOutputTokens} output tokens.`,
   ].join("\n");
@@ -286,6 +287,7 @@ function buildUserPrompt(
   route: GenerateAskReplyResult["route"],
   interpretation?: string,
   knowledgeItems: BaseballKnowledgeItem[] = [],
+  visuals: AskClubhouseVisual[] = [],
 ): string {
   const currentTeam = input.data.teamContext?.currentTeam;
   const history = boundConversationHistory(input.history, input.config.contextMessageLimit);
@@ -301,6 +303,19 @@ function buildUserPrompt(
     },
     recentConversation: history,
     boundedToolResults: toolResults,
+    visualEvidence: visuals.map((visual) => ({
+      type: visual.type,
+      title: visual.title,
+      mode: visual.mode,
+      playerId: visual.playerId,
+      coverage: visual.coverage,
+      pointCount: visual.points?.length ?? 0,
+      metrics: visual.metrics?.map((metric) => ({
+        label: metric.label,
+        value: metric.value,
+        sample: metric.sample,
+      })),
+    })),
     baseballKnowledgeContext: knowledgeItems.map((item) => ({
       id: item.id,
       title: item.title,

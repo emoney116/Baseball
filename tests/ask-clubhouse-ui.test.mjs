@@ -94,6 +94,16 @@ test("Ask Clubhouse answer styles include hierarchy and flat text rankings", () 
   assert.match(css, /\.ask-visual-card__modes\s*\{/);
 });
 
+test("Ask Clubhouse visual answers keep metric strips single-row and suppress redundant tool evidence", () => {
+  const source = readFileSync("app/page.tsx", "utf8");
+  const css = readFileSync("app/globals.css", "utf8");
+
+  assert.match(source, /const metrics = visual\.metrics\?\.slice\(0, 5\) \?\? \[\]/);
+  assert.doesNotMatch(source, /\{metric\.sample && <small>\{metric\.sample\}<\/small>\}/);
+  assert.match(source, /!message\.visuals\?\.length[\s\S]*item\.title\.startsWith\("Baseball Knowledge"\)/);
+  assert.match(css, /grid-template-columns: repeat\(var\(--ask-visual-metric-count, 1\), minmax\(0, 1fr\)\)/);
+});
+
 test("Ask Clubhouse mock states are local development only", () => {
   const page = readFileSync("app/page.tsx", "utf8");
 

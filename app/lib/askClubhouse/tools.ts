@@ -764,6 +764,7 @@ function analyticsRequest(
     name,
     query: {
       ...query,
+      playerIds: playerId ? [playerId] : query.playerIds,
       metrics: undefined,
       filters: query.mode === "situational" ? query.filters ?? {} : {},
     },

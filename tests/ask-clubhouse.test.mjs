@@ -746,8 +746,39 @@ test("Ask Clubhouse visual answers use a player-scoped Analytics query and bound
 
   assert.equal(chart?.playerId, "p-jacob");
   assert.deepEqual(chart?.query.playerIds, ["p-jacob"]);
+  assert.deepEqual(plan.toolRequests[0]?.query.playerIds, ["p-jacob"]);
   assert.deepEqual(chart?.points?.map((point) => point.id).sort(), ["he-3", "he-4"]);
   assert.equal(chart?.coverage.qualifyingEvents, 2);
+});
+
+test("Ask Clubhouse gives the provider compact, authoritative visual coverage", async () => {
+  const visualData = {
+    ...data,
+    hittingEvents: data.hittingEvents.map((event, index) => ({
+      ...event,
+      fieldLocation: event.action === "Ball in play" ? { x: 0.3 + (index * 0.05), y: 0.42 } : undefined,
+    })),
+  };
+  const config = getAskClubhouseConfig({ OPENAI_API_KEY: "test-key" });
+  const provider = {
+    model: config.model,
+    async generate(input) {
+      const prompt = JSON.parse(input.prompt);
+      const spray = prompt.visualEvidence.find((visual) => visual.type === "spray_chart");
+      assert.equal(spray.pointCount, 2);
+      assert.equal(spray.coverage.trackedEvents, 2);
+      return { text: "Jacob has two tracked balls in play.", usage: { model: config.model } };
+    },
+  };
+
+  const response = await generateAskClubhouseReply({
+    data: visualData,
+    message: "Show Jacob Seamon's practice spray chart",
+    config,
+    provider,
+  });
+
+  assert.equal(response.visuals?.find((visual) => visual.type === "spray_chart")?.points?.length, 2);
 });
 
 test("Ask Clubhouse visual follow-ups retain the prior filtered visual context", () => {

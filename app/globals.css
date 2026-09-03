@@ -10582,11 +10582,27 @@ button.analytics-box-score__row:hover {
 }
 
 .ask-visual-metric-strip {
-  grid-template-columns: repeat(auto-fit, minmax(min(72px, 33%), 1fr));
+  grid-template-columns: repeat(var(--ask-visual-metric-count, 1), minmax(0, 1fr));
+}
+
+.ask-visual-metric-strip div {
+  min-height: 58px;
+  padding: 8px 4px;
 }
 
 .ask-visual-metric-strip div + div {
   border-left: 1px solid var(--line);
+}
+
+.ask-visual-metric-strip strong {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.ask-visual-metric-strip span {
+  font-size: 9px;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .ask-visual-card {
