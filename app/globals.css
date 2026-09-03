@@ -35016,6 +35016,12 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
   --clubhouse-select-scrim-layer: 10000;
 }
 
+/* Ask Clubhouse is itself a high-level drawer. Its scoped selector must clear it. */
+body:has(.analytics-ask-drawer) {
+  --clubhouse-select-scrim-layer: 12001;
+  --clubhouse-select-layer: 12002;
+}
+
 .clubhouse-select .choice-select__button {
   min-height: var(--clubhouse-select-control-height);
   border-radius: var(--clubhouse-select-radius);

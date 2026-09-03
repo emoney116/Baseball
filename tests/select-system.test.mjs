@@ -29,6 +29,7 @@ test("single-select overlay supports keyboard, focus, visual viewport positionin
   assert.match(select, /scrollIntoView\(\{ block: "nearest" \}\)/);
   assert.match(select, /aria-selected/);
   assert.match(select, /clubhouse-option-overlay__scrim/);
+  assert.match(css, /body:has\(\.analytics-ask-drawer\)[\s\S]*--clubhouse-select-layer:\s*12002/);
 });
 
 test("multi-select stages choices and offers clear, cancel, and apply semantics", () => {
