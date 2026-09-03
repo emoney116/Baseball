@@ -75,6 +75,13 @@ test("player avatars use one shared neutral treatment when no photo is available
   assert.match(visuals, /<IdentityAvatar[\s\S]*variant="neutral"/);
 });
 
+test("annotated Home and Weight Room controls use compact actions and starting-weight change", () => {
+  assert.match(page, /className="primary-button global-home-add-action"/);
+  assert.doesNotMatch(page, /organization-add-team-button/);
+  assert.match(page, /typeof thisWeek === "number" && typeof starting === "number" \? thisWeek - starting/);
+  assert.match(page, /This Week \(lb\)/);
+});
+
 test("the system documentation includes inventory, responsive behavior, and exception guidance", () => {
   assert.match(docs, /## Inventory/);
   assert.match(docs, /## Accessibility and layering/);

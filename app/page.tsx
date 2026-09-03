@@ -5881,9 +5881,9 @@ function ClubhouseHome({
           <h1>Home</h1>
         </div>
         <div className="global-title-actions">
-          <button className="primary-button" type="button" onClick={onCreateTeam}>
+          <button className="primary-button global-home-add-action" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New team or organization">
             <Plus size={16} aria-hidden="true" />
-            New Team/Org
+            <span>New Team/Org</span>
           </button>
         </div>
       </section>
@@ -5968,9 +5968,9 @@ function OrganizationsView({
       <SectionHeader
         title="Organizations"
         action={
-          <button className="primary-button" type="button" onClick={() => onCreateTeam(undefined, "organization")}>
+          <button className="primary-button global-home-add-action" type="button" onClick={() => onCreateTeam(undefined, "organization")} aria-label="New team or organization" title="New team or organization">
             <Plus size={16} aria-hidden="true" />
-            New Team/Org
+            <span>New Team/Org</span>
           </button>
         }
       />
@@ -5980,7 +5980,6 @@ function OrganizationsView({
             key={organization.id}
             organization={organization}
             onEnterTeam={onEnterTeam}
-            onCreateTeam={onCreateTeam}
             expanded
           />
         )) : <CompactEmpty title="No organizations yet" />}
@@ -6006,9 +6005,9 @@ function MyTeamsView({
       <SectionHeader
         title="My Teams"
         action={
-          <button className="primary-button" type="button" onClick={onCreateTeam}>
+          <button className="primary-button global-home-add-action" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New team or organization">
             <Plus size={16} aria-hidden="true" />
-            New Team/Org
+            <span>New Team/Org</span>
           </button>
         }
       />
@@ -6438,9 +6437,9 @@ function FollowingView({
       <SectionHeader
         title="Following"
         action={
-          <button className="primary-button" type="button" onClick={onCreateTeam}>
+          <button className="primary-button global-home-add-action" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New team or organization">
             <Plus size={16} aria-hidden="true" />
-            New Team/Org
+            <span>New Team/Org</span>
           </button>
         }
       />
@@ -6533,9 +6532,9 @@ function DiscoverView({
       <SectionHeader
         title="Discover"
         action={
-          <button className="primary-button" type="button" onClick={onCreateTeam}>
+          <button className="primary-button global-home-add-action" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New team or organization">
             <Plus size={16} aria-hidden="true" />
-            New Team/Org
+            <span>New Team/Org</span>
           </button>
         }
       />
@@ -6597,13 +6596,11 @@ function OrganizationCard({
   organization,
   onEnterTeam,
   onOpenOrganization,
-  onCreateTeam,
   expanded = false,
 }: {
   organization: OrganizationSummary;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenOrganization?: (organization: OrganizationSummary) => void;
-  onCreateTeam?: (organizationId?: ID) => void;
   expanded?: boolean;
 }) {
   const firstTeam = organization.teams[0];
@@ -6641,12 +6638,6 @@ function OrganizationCard({
       {onOpenOrganization && (
         <button className="text-button organization-open-button" type="button" onClick={() => onOpenOrganization(organization)}>
           Open Organization
-        </button>
-      )}
-      {expanded && onCreateTeam && (
-        <button className="secondary-button organization-add-team-button" type="button" onClick={() => onCreateTeam(organization.id)}>
-          <Plus size={15} aria-hidden="true" />
-          Add Team
         </button>
       )}
     </article>
@@ -7728,7 +7719,6 @@ function RosterView({
     <div className="page-stack roster-page">
       <SectionHeader
         title="Roster"
-        context={team ? `${team.teamName} - ${team.seasonName ?? "Current season"}` : undefined}
         action={
           <div className="section-actions">
             {section === "Players" ? (
@@ -13491,7 +13481,7 @@ function WeightRoomWeighInCard({ data, players, date, onOpen }: { data: AppData;
     const thisWeek = latestWeeklyBodyWeight(data, player.id, currentWeek, date);
     const lastWeek = latestBodyWeightBeforeWeek(data, player.id, currentWeek);
     const starting = startingBodyWeight(data, player.id);
-    const change = typeof thisWeek === "number" && typeof lastWeek === "number" ? thisWeek - lastWeek : undefined;
+    const change = typeof thisWeek === "number" && typeof starting === "number" ? thisWeek - starting : undefined;
     return { player, thisWeek, lastWeek, starting, change };
   });
   const pageSize = 5;
@@ -13520,7 +13510,7 @@ function WeightRoomWeighInCard({ data, players, date, onOpen }: { data: AppData;
       <div className="weight-room-mini-table">
         <div>
           <span>Player</span>
-          <span>This Week</span>
+          <span>This Week (lb)</span>
           <span>Last Week</span>
           <span>Change</span>
           <span>Starting</span>
@@ -13528,12 +13518,12 @@ function WeightRoomWeighInCard({ data, players, date, onOpen }: { data: AppData;
         {visibleRows.map((row) => (
           <button key={row.player.id} type="button" onClick={onOpen}>
             <strong><PlayerAvatar player={row.player} size="sm" compact />{row.player.name}</strong>
-            <span>{row.thisWeek ? `${formatNumber(row.thisWeek, 1)} lb` : "-"}</span>
-            <span>{row.lastWeek ? `${formatNumber(row.lastWeek, 1)} lb` : "-"}</span>
+            <span>{typeof row.thisWeek === "number" ? formatNumber(row.thisWeek, 1) : "-"}</span>
+            <span>{typeof row.lastWeek === "number" ? formatNumber(row.lastWeek, 1) : "-"}</span>
             <em className={row.change && row.change > 0 ? "positive" : row.change && row.change < 0 ? "negative" : ""}>
               {typeof row.change === "number" ? `${row.change > 0 ? "+" : ""}${formatNumber(row.change, 1)}` : "-"}
             </em>
-            <span>{row.starting ? `${formatNumber(row.starting, 1)} lb` : "-"}</span>
+            <span>{typeof row.starting === "number" ? formatNumber(row.starting, 1) : "-"}</span>
           </button>
         ))}
       </div>
