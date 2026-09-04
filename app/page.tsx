@@ -6203,8 +6203,8 @@ function ClubhouseHome({
           action={
             <div className="section-header-actions global-home-section-actions">
               <button className="text-button" type="button" onClick={() => onView("organizations")}>View all</button>
-              <button className="primary-button global-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
-                <Plus size={16} aria-hidden="true" />
+              <button className="primary-button global-create-button global-home-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
+                <Plus size={14} aria-hidden="true" />
               </button>
             </div>
           }
@@ -6222,7 +6222,18 @@ function ClubhouseHome({
       </section>
 
       <section className="global-section">
-        <SectionHeader title="My Teams" action={<button className="text-button" type="button" onClick={() => onView("following")}>View all</button>} />
+        <SectionHeader
+          className="global-home-section-header"
+          title="My Teams"
+          action={
+            <div className="section-header-actions global-home-section-actions">
+              <button className="text-button" type="button" onClick={() => onView("following")}>View all</button>
+              <button className="primary-button global-create-button global-home-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
+                <Plus size={14} aria-hidden="true" />
+              </button>
+            </div>
+          }
+        />
         <div className="managed-team-grid">
           {teams.length ? teams.slice(0, 6).map((team) => (
             <ManagedTeamCard

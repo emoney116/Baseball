@@ -36806,6 +36806,13 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
 
   .global-home-section-actions {
     flex: 0 0 auto;
-    gap: 6px;
+    gap: 10px;
+  }
+
+  .global-home-create-button.global-create-button {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
   }
 }
