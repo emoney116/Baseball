@@ -25,8 +25,8 @@ export type AnalyticsViewId =
   | "trends";
 
 export type AnalyticsColumnPreset =
-  | "standard" | "advanced" | "approach" | "contact" | "batted-ball"
-  | "command" | "efficiency" | "velocity" | "development" | "position" | "custom";
+  | "standard" | "advanced" | "approach" | "contact" | "batted-ball" | "baserunning"
+  | "command" | "efficiency" | "velocity" | "pitch-mix" | "development" | "position" | "custom";
 export type AnalyticsViewCapability = "supported" | "partial" | "derivable" | "not-tracked";
 
 export interface AnalyticsViewDefinition {
@@ -104,9 +104,9 @@ const METRIC_FULL_NAMES: Record<string, string> = {
   pitches: "Pitches", balls: "Balls", strikes: "Strikes", strikePct: "Strike Percentage", ballPct: "Ball Percentage", swingPctAllowed: "Swing Percentage Allowed", zonePct: "Zone Percentage", whiffPct: "Whiff Percentage", swStrPct: "Swinging Strike Percentage", calledStrikePct: "Called Strike Percentage", cswPct: "Called Strike Plus Whiff Percentage", contactAllowedPct: "Contact Percentage Allowed", zoneContactAllowedPct: "Zone Contact Percentage Allowed", chasePctAllowed: "Chase Percentage Allowed", zoneWhiffPct: "Zone Whiff Percentage", outZoneWhiffPct: "Out-of-Zone Whiff Percentage", firstPitchStrikePct: "First-Pitch Strike Percentage", avgPitchVelo: "Average Velocity", medianPitchVelo: "Median Velocity", p90PitchVelo: "90th Percentile Velocity", maxPitchVelo: "Maximum Velocity", minPitchVelo: "Minimum Velocity", veloSpread: "Velocity Delta",
   positionWorked: "Position Worked", reps: "Defensive Repetitions", cleanReps: "Clean Repetitions", cleanPct: "Clean Percentage", errors: "Errors", fieldingErrors: "Fielding Errors", throwingErrors: "Throwing Errors", decisionErrors: "Decision Errors", missedReps: "Missed Repetitions", errorPct: "Error Percentage", greatPlays: "Great Plays", throws: "Throw Attempts", accurateThrows: "Accurate Throws", inaccurateThrows: "Inaccurate Throws", throwAcc: "Throw Accuracy Percentage",
   trackedBip: "Tracked Game Balls in Play", weightScore: "Weight Room Development Score", workouts: "Completed Workouts", workoutCompletionPct: "Workout Completion Percentage", attendancePct: "Practice Attendance Percentage", practiceReps: "Practice Repetitions",
-  gamesPlayed: "Games Played", runs: "Runs Scored", rbi: "Runs Batted In", sacrificeFlies: "Sacrifice Flies", sacrificeBunts: "Sacrifice Bunts", reachedOnError: "Reached on Error", fieldersChoice: "Fielder's Choice", stolenBases: "Stolen Bases", caughtStealing: "Caught Stealing", stolenBasePct: "Stolen Base Percentage", strikeoutPct: "Strikeout Percentage", walkPct: "Walk Percentage", walkToStrikeout: "Walk to Strikeout Ratio", paPerStrikeout: "Plate Appearances per Strikeout", paPerWalk: "Plate Appearances per Walk", xbhHitPct: "Extra-Base Hit Percentage", hrPaPct: "Home Run Percentage", tbPerPa: "Total Bases per Plate Appearance",
+  gamesPlayed: "Games Played", pitchesPerPlateAppearance: "Pitches per Plate Appearance", runs: "Runs Scored", rbi: "Runs Batted In", sacrificeFlies: "Sacrifice Flies", sacrificeBunts: "Sacrifice Bunts", reachedOnError: "Reached on Error", fieldersChoice: "Fielder's Choice", stolenBases: "Stolen Bases", caughtStealing: "Caught Stealing", stolenBaseAttempts: "Stolen Base Attempts", stolenBasePct: "Stolen Base Percentage", strikeoutPct: "Strikeout Percentage", walkPct: "Walk Percentage", walkToStrikeout: "Walk to Strikeout Ratio", paPerStrikeout: "Plate Appearances per Strikeout", paPerWalk: "Plate Appearances per Walk", xbhHitPct: "Extra-Base Hit Percentage", hrPaPct: "Home Run Percentage", tbPerPa: "Total Bases per Plate Appearance",
   calledStrikePctHitting: "Called Strike Percentage", swingingStrikePctHitting: "Swinging Strike Percentage", firstPitchSwingPct: "First-Pitch Swing Percentage", twoStrikeContactPct: "Two-Strike Contact Percentage",
-  appearances: "Pitching Appearances", gamesStarted: "Games Started", inningsPitched: "Innings Pitched", battersFaced: "Batters Faced", hitsAllowed: "Hits Allowed", runsAllowed: "Runs Allowed", homeRunsAllowed: "Home Runs Allowed", walksAllowed: "Walks Allowed", hitBatters: "Hit Batters", wildPitches: "Wild Pitches", whip: "Walks and Hits per Inning Pitched", strikeoutPctAllowed: "Strikeout Percentage", walkPctAllowed: "Walk Percentage", strikeoutMinusWalkPct: "Strikeout Minus Walk Percentage", strikeoutToWalk: "Strikeout to Walk Ratio", strikeoutsPerNine: "Strikeouts per Nine Innings", walksPerNine: "Walks per Nine Innings", hitsPerNine: "Hits per Nine Innings", homeRunsPerNine: "Home Runs per Nine Innings", opponentAvg: "Opponent Batting Average", opponentObp: "Opponent On-Base Percentage", opponentSlg: "Opponent Slugging Percentage", opponentOps: "Opponent On-Base Plus Slugging", opponentBabip: "Opponent Batting Average on Balls in Play",
+  appearances: "Pitching Appearances", gamesStarted: "Games Started", inningsPitched: "Innings Pitched", battersFaced: "Batters Faced", hitsAllowed: "Hits Allowed", runsAllowed: "Runs Allowed", homeRunsAllowed: "Home Runs Allowed", walksAllowed: "Walks Allowed", hitBatters: "Hit Batters", wildPitches: "Wild Pitches", whip: "Walks and Hits per Inning Pitched", strikeoutPctAllowed: "Strikeout Percentage", walkPctAllowed: "Walk Percentage", strikeoutMinusWalkPct: "Strikeout Minus Walk Percentage", strikeoutToWalk: "Strikeout to Walk Ratio", strikeoutsPerNine: "Strikeouts per Nine Innings", walksPerNine: "Walks per Nine Innings", hitsPerNine: "Hits per Nine Innings", homeRunsPerNine: "Home Runs per Nine Innings", opponentAvg: "Opponent Batting Average", opponentObp: "Opponent On-Base Percentage", opponentSlg: "Opponent Slugging Percentage", opponentOps: "Opponent On-Base Plus Slugging", opponentBabip: "Opponent Batting Average on Balls in Play", ballsInPlayAllowed: "Balls in Play Allowed", groundBallsAllowed: "Ground Balls Allowed", lineDrivesAllowed: "Line Drives Allowed", flyBallsAllowed: "Fly Balls Allowed", popUpsAllowed: "Pop Ups Allowed", groundBallPctAllowed: "Ground Ball Percentage Allowed", lineDrivePctAllowed: "Line Drive Percentage Allowed", flyBallPctAllowed: "Fly Ball Percentage Allowed", popUpPctAllowed: "Pop Up Percentage Allowed", gbFbRatioAllowed: "Ground Ball to Fly Ball Ratio Allowed", airPctAllowed: "Air Ball Percentage Allowed", hardContactAllowed: "Hard Contact Allowed", hardContactAllowedPct: "Hard Contact Percentage Allowed", softContactAllowedPct: "Soft Contact Percentage Allowed",
   pitchesPerInning: "Pitches per Inning", pitchesPerBatterFaced: "Pitches per Batter Faced", pitchesPerOut: "Pitches per Out", threePitchOuts: "Three-Pitch Outs", threePitchOutRate: "Three-Pitch Out Rate", fourPitchOuts: "Four-Pitch Outs", fourPitchOutRate: "Four-Pitch Out Rate", thirteenPitchInnings: "13-Pitch Innings", thirteenPitchInningRate: "13-Pitch Inning Rate", fifteenPitchInnings: "15-Pitch Innings", fifteenPitchInningRate: "15-Pitch Inning Rate", oneTwoThreeInnings: "1-2-3 Innings", oneTwoThreeInningRate: "1-2-3 Inning Rate", leadoffOuts: "Leadoff Outs", leadoffOutRate: "Leadoff Out Rate", scorelessInningRate: "Scoreless Inning Rate", twoStrikeFinishRate: "Two-Strike Finish Rate", putawayRate: "Putaway Rate",
 };
 
@@ -170,6 +170,7 @@ export const ANALYTICS_METRICS: AnalyticsMetricDefinition[] = [
   metric("maxEv", "Max EV", "hitting", "ev", ["all", "practice", "live-bp"], "Highest recorded exit velocity.", 1),
   metric("evSamples", "EV N", "hitting", "integer", ["all", "practice", "live-bp"], "Events with recorded exit velocity."),
   metric("pa", "PA", "hitting", "integer", ["games"], "Completed logged plate appearances."),
+  metric("pitchesPerPlateAppearance", "P/PA", "hitting", "ratio", ["games"], "Confirmed pitches divided by completed plate appearances with a recorded pitch sequence."),
   metric("trackedBip", "BIP", "hitting", "integer", ["games"], "Logged game balls in play; not complete plate appearances."),
   metric("ab", "AB", "hitting", "integer", ["games"], "Completed logged plate appearances that count as at bats."),
   metric("hits", "H", "hitting", "integer", ["games"], "Hits from logged game balls in play."),
@@ -201,6 +202,7 @@ export const ANALYTICS_METRICS: AnalyticsMetricDefinition[] = [
   metric("fieldersChoice", "FC", "hitting", "integer", ["games"], "Confirmed fielder's-choice outcomes."),
   metric("stolenBases", "SB", "hitting", "integer", ["games"], "Confirmed stolen-base runner actions."),
   metric("caughtStealing", "CS", "hitting", "integer", ["games"], "Confirmed caught-stealing runner actions."),
+  metric("stolenBaseAttempts", "SBA", "hitting", "integer", ["games"], "Stolen-base attempts: stolen bases plus caught stealing."),
   metric("stolenBasePct", "SB%", "hitting", "percentage", ["games"], "Stolen bases divided by stolen-base attempts (SB plus CS)."),
   metric("strikeoutPct", "K%", "hitting", "percentage", ["games"], "Strikeouts divided by completed plate appearances."),
   metric("walkPct", "BB%", "hitting", "percentage", ["games"], "Walks divided by completed plate appearances."),
@@ -237,6 +239,20 @@ export const ANALYTICS_METRICS: AnalyticsMetricDefinition[] = [
   metric("maxPitchVelo", "MaxV", "pitching", "velocity", ["all", "practice", "live-bp", "games"], "Highest recorded pitch velocity.", 1),
   metric("minPitchVelo", "MinV", "pitching", "velocity", ["all", "practice", "live-bp", "games"], "Lowest recorded pitch velocity.", 1),
   metric("veloSpread", "VeloΔ", "pitching", "velocity", ["all", "practice", "live-bp", "games"], "Highest minus lowest recorded pitch velocity.", 3),
+  metric("ballsInPlayAllowed", "BIP", "pitching", "integer", ["all", "practice", "live-bp", "games"], "Balls put in play against the pitcher."),
+  metric("groundBallsAllowed", "GB", "pitching", "integer", ["all", "practice", "live-bp", "games"], "Classified ground balls allowed."),
+  metric("lineDrivesAllowed", "LD", "pitching", "integer", ["all", "practice", "live-bp", "games"], "Classified line drives allowed."),
+  metric("flyBallsAllowed", "FB", "pitching", "integer", ["all", "practice", "live-bp", "games"], "Classified fly balls allowed."),
+  metric("popUpsAllowed", "PU", "pitching", "integer", ["all", "practice", "live-bp", "games"], "Classified pop ups allowed."),
+  metric("groundBallPctAllowed", "GB%", "pitching", "percentage", ["all", "practice", "live-bp", "games"], "Classified ground balls divided by classified balls in play allowed.", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+  metric("lineDrivePctAllowed", "LD%", "pitching", "percentage", ["all", "practice", "live-bp", "games"], "Classified line drives divided by classified balls in play allowed.", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+  metric("flyBallPctAllowed", "FB%", "pitching", "percentage", ["all", "practice", "live-bp", "games"], "Classified fly balls divided by classified balls in play allowed.", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+  metric("popUpPctAllowed", "PU%", "pitching", "percentage", ["all", "practice", "live-bp", "games"], "Classified pop ups divided by classified balls in play allowed.", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+  metric("gbFbRatioAllowed", "GB/FB", "pitching", "ratio", ["all", "practice", "live-bp", "games"], "Classified ground balls allowed divided by classified fly balls allowed.", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+  metric("airPctAllowed", "Air%", "pitching", "percentage", ["all", "practice", "live-bp", "games"], "Classified line drives, fly balls, and pop ups divided by classified balls in play allowed.", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+  metric("hardContactAllowed", "Hard", "pitching", "integer", ["all", "practice", "live-bp"], "Explicit hard-contact balls in play allowed."),
+  metric("hardContactAllowedPct", "Hard%", "pitching", "percentage", ["all", "practice", "live-bp"], "Hard contact allowed divided by quality-classified balls in play allowed.", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+  metric("softContactAllowedPct", "Soft%", "pitching", "percentage", ["all", "practice", "live-bp"], "Weak contact allowed divided by quality-classified balls in play allowed.", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
   metric("appearances", "APP", "pitching", "integer", ["games"], "Distinct confirmed games with a logged pitch by the pitcher."),
   metric("gamesStarted", "GS", "pitching", "integer", ["games"], "Games where the player is the recorded starting pitcher."),
   metric("inningsPitched", "IP", "pitching", "innings", ["games"], "Outs recorded divided by three, formatted as baseball innings."),
@@ -364,27 +380,34 @@ export const ANALYTICS_COLUMN_PRESETS: Record<Exclude<AnalyticsColumnPreset, "cu
     "workouts", "attendancePct", "practiceReps",
   ],
   advanced: [
-    "runs", "rbi", "totalBases", "walks", "hitByPitch", "strikeouts", "sacrificeFlies", "sacrificeBunts", "reachedOnError", "fieldersChoice", "stolenBases", "caughtStealing", "stolenBasePct", "iso", "babip", "xbhHitPct", "hrPaPct", "tbPerPa", "strikeoutPct", "walkPct", "walkToStrikeout", "paPerStrikeout", "paPerWalk",
+    "gamesPlayed", "singles", "doubles", "triples", "homeRuns", "outs", "xbh", "hrPct", "xbhPct", "tbPerAb", "runs", "rbi", "totalBases", "walks", "hitByPitch", "strikeouts", "sacrificeFlies", "sacrificeBunts", "reachedOnError", "fieldersChoice", "iso", "babip", "xbhHitPct", "hrPaPct", "tbPerPa", "strikeoutPct", "walkPct", "walkToStrikeout", "paPerStrikeout", "paPerWalk", "pitchesPerPlateAppearance",
     "appearances", "gamesStarted", "hitsAllowed", "runsAllowed", "homeRunsAllowed", "hitBatters", "wildPitches", "strikeoutPctAllowed", "walkPctAllowed", "strikeoutMinusWalkPct", "strikeoutToWalk", "strikeoutsPerNine", "walksPerNine", "hitsPerNine", "homeRunsPerNine", "opponentAvg", "opponentObp", "opponentSlg", "opponentOps", "opponentBabip",
     "throwAcc", "errorPct", "workoutCompletionPct",
   ],
   approach: [
-    "opportunities", "takes", "swings", "contacts", "misses", "fouls", "swingPct", "takePct", "contactPct", "swingMissPct", "foulPct", "zoneSwingPct", "zoneContactPct", "chasePct", "outZoneContactPct",
+    "opportunities", "takes", "swings", "contacts", "misses", "fouls", "swingPct", "takePct", "contactPct", "swingMissPct", "foulPct", "zoneSwingPct", "zoneContactPct", "chasePct", "outZoneContactPct", "calledStrikePctHitting", "swingingStrikePctHitting", "firstPitchSwingPct", "twoStrikeContactPct",
   ],
   contact: [
-    "bip", "bipPct", "hard", "hardPct", "softPct", "avgEv", "medianEv", "ev90", "ev95", "maxEv", "evSamples",
+    "bip", "trackedBip", "bipPct", "hard", "hardPct", "barrelPct", "softPct", "avgEv", "medianEv", "ev90", "ev95", "maxEv", "evSamples",
+    "ballsInPlayAllowed", "groundBallsAllowed", "lineDrivesAllowed", "flyBallsAllowed", "popUpsAllowed", "groundBallPctAllowed", "lineDrivePctAllowed", "flyBallPctAllowed", "popUpPctAllowed", "gbFbRatioAllowed", "airPctAllowed", "hardContactAllowed", "hardContactAllowedPct", "softContactAllowedPct",
   ],
   "batted-ball": [
     "groundBalls", "lineDrives", "flyBalls", "popUps", "groundBallPct", "lineDrivePct", "flyBallPct", "popUpPct", "gbFbRatio", "airPct", "pullPct", "middlePct", "oppoPct",
   ],
   command: [
-    "pitches", "strikes", "balls", "strikePct", "ballPct", "firstPitchStrikePct", "zonePct", "calledStrikePct", "swStrPct", "cswPct", "whiffPct", "zoneWhiffPct", "outZoneWhiffPct", "contactAllowedPct", "zoneContactAllowedPct", "chasePctAllowed",
+    "pitches", "strikes", "balls", "strikePct", "ballPct", "swingPctAllowed", "firstPitchStrikePct", "zonePct", "calledStrikePct", "swStrPct", "cswPct", "whiffPct", "zoneWhiffPct", "outZoneWhiffPct", "contactAllowedPct", "zoneContactAllowedPct", "chasePctAllowed",
   ],
   efficiency: [
     "inningsPitched", "battersFaced", "pitches", "pitchesPerInning", "pitchesPerBatterFaced", "pitchesPerOut", "threePitchOuts", "threePitchOutRate", "fourPitchOuts", "fourPitchOutRate", "thirteenPitchInnings", "thirteenPitchInningRate", "fifteenPitchInnings", "fifteenPitchInningRate", "oneTwoThreeInnings", "oneTwoThreeInningRate", "leadoffOuts", "leadoffOutRate", "scorelessInningRate", "twoStrikeFinishRate", "putawayRate",
   ],
   velocity: [
     "avgPitchVelo", "medianPitchVelo", "p90PitchVelo", "minPitchVelo", "maxPitchVelo", "veloSpread",
+  ],
+  baserunning: [
+    "stolenBases", "caughtStealing", "stolenBaseAttempts", "stolenBasePct",
+  ],
+  "pitch-mix": [
+    "pitches", "strikePct", "ballPct", "swingPctAllowed", "whiffPct", "cswPct", "zonePct", "avgPitchVelo", "maxPitchVelo",
   ],
   development: [
     "contactPct", "hardPct", "avgEv", "medianEv", "ev90", "ev95", "maxEv", "pullPct", "middlePct", "oppoPct", "zoneContactPct", "chasePct",
@@ -435,6 +458,8 @@ export function analyticsMetricColumnGroup(metricId: string): string {
   if (definition?.presetGroups?.includes("efficiency")) return "Efficiency";
   if (definition?.presetGroups?.includes("command")) return "Command";
   if (definition?.presetGroups?.includes("velocity")) return "Velocity";
+  if (definition?.presetGroups?.includes("pitch-mix")) return "Pitch Mix";
+  if (definition?.presetGroups?.includes("baserunning")) return "Baserunning";
   if (definition?.presetGroups?.includes("approach")) return "Approach";
   if (definition?.presetGroups?.includes("contact")) return "Contact";
   if (definition?.presetGroups?.includes("batted-ball")) return "Batted Ball";
@@ -444,8 +469,8 @@ export function analyticsMetricColumnGroup(metricId: string): string {
 }
 
 export function analyticsPresetsForDomain(domain: AnalyticsDomain): Array<Exclude<AnalyticsColumnPreset, "custom">> {
-  if (domain === "hitting") return ["standard", "advanced", "approach", "contact", "batted-ball", "development"];
-  if (domain === "pitching") return ["standard", "advanced", "command", "efficiency", "velocity", "development"];
+  if (domain === "hitting") return ["standard", "advanced", "approach", "contact", "batted-ball", "baserunning", "development"];
+  if (domain === "pitching") return ["standard", "advanced", "command", "efficiency", "contact", "velocity", "pitch-mix", "development"];
   if (domain === "defense") return ["standard", "development", "position"];
   return ["standard", "development"];
 }

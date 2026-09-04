@@ -417,6 +417,7 @@ test("every exposed metric has canonical key, short label, full name, formula, a
     assert.notEqual(metric.fullName, metric.label);
     assert.equal(Boolean(metric.definition), true);
     assert.equal(metric.supportedSources.length > 0, true);
+    assert.equal(metric.presetGroups.length > 0, true, `${metric.id} is not assigned to a preset`);
   }
   assert.deepEqual(
     ["three_pitch_out_rate", "pitches_per_batter_faced", "exit_velocity_90th_percentile"].map((key) => ANALYTICS_METRICS.find((metric) => metric.key === key)?.fullName),
@@ -468,6 +469,65 @@ test("game hitting fixture calculates a complete traditional line from confirmed
   assert.equal(jacob.cells.babip.display, ".500");
   assert.equal(jacob.cells.strikeoutPct.display, "10%");
   assert.equal(jacob.cells.walkPct.display, "10%");
+});
+
+test("game hitting derives a completed batting line and pitches per PA from confirmed pitch sequences", () => {
+  const gameEvents = [
+    ...gamePa("a", 1, 0, 0, ["In Play"], [{ balls: 0, strikes: 0 }], "Single"),
+    ...gamePa("b", 1, 0, 0, ["Ball", "Ball", "Ball", "Ball"], [{ balls: 0, strikes: 0 }, { balls: 1, strikes: 0 }, { balls: 2, strikes: 0 }, { balls: 3, strikes: 0 }]),
+    ...gamePa("c", 1, 0, 1, ["Called Strike", "Foul", "Swinging Strike"], [{ balls: 0, strikes: 0 }, { balls: 0, strikes: 1 }, { balls: 0, strikes: 2 }]),
+    ...gamePa("d", 1, 1, 2, ["Ball", "In Play"], [{ balls: 0, strikes: 0 }, { balls: 1, strikes: 0 }], "Ground Out"),
+  ];
+  const data = { ...baseData, gameEvents, plateAppearances: [] };
+  const jacob = row(executeAnalyticsQuery(data, { ...query("hitting", "games"), metrics: ["pa", "ab", "hits", "avg", "obp", "pitchesPerPlateAppearance"] }), "p-jacob");
+
+  assert.equal(jacob.cells.pa.display, "4");
+  assert.equal(jacob.cells.ab.display, "3");
+  assert.equal(jacob.cells.hits.display, "1");
+  assert.equal(jacob.cells.avg.display, ".333");
+  assert.equal(jacob.cells.obp.display, ".500");
+  assert.equal(jacob.cells.pitchesPerPlateAppearance.display, "2.50");
+});
+
+test("baserunning exposes attempts separately from successful steals", () => {
+  const data = {
+    ...baseData,
+    gameEvents: [
+      { ...baseData.gameEvents[0], runnerId: "p-jacob", runnerAction: "Stolen Base" },
+      { ...baseData.gameEvents[1], runnerId: "p-jacob", runnerAction: "Caught Stealing" },
+    ],
+  };
+  const jacob = row(executeAnalyticsQuery(data, { ...query("hitting", "games"), metrics: ["stolenBases", "caughtStealing", "stolenBaseAttempts", "stolenBasePct"] }), "p-jacob");
+
+  assert.equal(jacob.cells.stolenBases.display, "1");
+  assert.equal(jacob.cells.caughtStealing.display, "1");
+  assert.equal(jacob.cells.stolenBaseAttempts.display, "2");
+  assert.equal(jacob.cells.stolenBasePct.display, "50%");
+});
+
+test("pitching contact allowed uses direct classified pitch-event primitives", () => {
+  const data = {
+    ...baseData,
+    pitchEvents: [
+      ...baseData.pitchEvents.filter((event) => event.sessionId === "pitching-1"),
+      pitchEvent("pe-bip-1", "practice-aug-17", "pitching-1", "p-mylo", "Ball in play", { battedBall: "Ground ball", contactQuality: "Hard contact" }),
+      pitchEvent("pe-bip-2", "practice-aug-17", "pitching-1", "p-mylo", "Ball in play", { battedBall: "Line drive", contactQuality: "Medium contact" }),
+      pitchEvent("pe-bip-3", "practice-aug-17", "pitching-1", "p-mylo", "Ball in play", { battedBall: "Fly ball", contactQuality: "Weak contact" }),
+      pitchEvent("pe-bip-4", "practice-aug-17", "pitching-1", "p-mylo", "Ball in play", { battedBall: "Pop up", contactQuality: "Medium contact" }),
+    ],
+  };
+  const mylo = row(executeAnalyticsQuery(data, { ...query("pitching", "practice"), metrics: ["ballsInPlayAllowed", "groundBallsAllowed", "lineDrivesAllowed", "flyBallsAllowed", "popUpsAllowed", "groundBallPctAllowed", "airPctAllowed", "hardContactAllowed", "hardContactAllowedPct", "softContactAllowedPct"] }), "p-mylo");
+
+  assert.equal(mylo.cells.ballsInPlayAllowed.display, "4");
+  assert.equal(mylo.cells.groundBallsAllowed.display, "1");
+  assert.equal(mylo.cells.lineDrivesAllowed.display, "1");
+  assert.equal(mylo.cells.flyBallsAllowed.display, "1");
+  assert.equal(mylo.cells.popUpsAllowed.display, "1");
+  assert.equal(mylo.cells.groundBallPctAllowed.display, "25%");
+  assert.equal(mylo.cells.airPctAllowed.display, "75%");
+  assert.equal(mylo.cells.hardContactAllowed.display, "1");
+  assert.equal(mylo.cells.hardContactAllowedPct.display, "25%");
+  assert.equal(mylo.cells.softContactAllowedPct.display, "25%");
 });
 
 test("pitching efficiency fixture uses documented PA and inning denominators", () => {
@@ -541,6 +601,21 @@ test("game batted-ball metrics use confirmed scored contact types", () => {
   assert.equal(jacob.cells.popUps.display, "1");
   assert.equal(jacob.cells.groundBallPct.display, "25%");
   assert.equal(jacob.cells.airPct.display, "75%");
+});
+
+test("game batted-ball rates stay unavailable when contact types are not scored", () => {
+  const data = {
+    ...baseData,
+    gameEvents: [
+      { ...baseData.gameEvents[0], ballInPlayOutcome: "Single", contactType: undefined },
+      { ...baseData.gameEvents[1], ballInPlayOutcome: "Ground Out", contactType: undefined },
+    ],
+  };
+  const jacob = row(executeAnalyticsQuery(data, { ...query("hitting", "games"), metrics: ["groundBalls", "groundBallPct", "airPct"] }), "p-jacob");
+
+  assert.equal(jacob.cells.groundBalls.display, "—");
+  assert.equal(jacob.cells.groundBallPct.display, "—");
+  assert.equal(jacob.cells.airPct.display, "—");
 });
 
 test("defense fixture calculates clean, error, and throw accuracy rates from raw reps", () => {

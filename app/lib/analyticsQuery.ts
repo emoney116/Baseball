@@ -439,7 +439,7 @@ function buildHittingResult(
   const trackedEvents = includesTrackedSwings ? filterHittingEvents(data, query, today) : [];
   const gameEvents = includesGames ? filterGameEvents(data, query, today) : [];
   const trackedMetricIds = ["opportunities", "swings", "contacts", "contactPct", "hardPct", "avgEv", "maxEv", "takes", "bip", "misses", "fouls", "swingPct", "bipPct", "swingMissPct", "foulPct", "takePct", "zoneSwingPct", "zoneContactPct", "chasePct", "outZoneContactPct", "hard", "barrelPct", "softPct", "lineDrivePct", "groundBallPct", "flyBallPct", "popUpPct", "groundBalls", "lineDrives", "flyBalls", "popUps", "gbFbRatio", "airPct", "pullPct", "middlePct", "oppoPct", "medianEv", "ev90", "ev95", "evSamples"];
-  const gameMetricIds = ["gamesPlayed", "pa", "ab", "runs", "hits", "singles", "doubles", "triples", "homeRuns", "rbi", "totalBases", "walks", "hitByPitch", "strikeouts", "sacrificeFlies", "sacrificeBunts", "reachedOnError", "fieldersChoice", "stolenBases", "caughtStealing", "stolenBasePct", "outs", "xbh", "obp", "avg", "slg", "ops", "iso", "babip", "strikeoutPct", "walkPct", "walkToStrikeout", "paPerStrikeout", "paPerWalk", "xbhHitPct", "hrPaPct", "tbPerPa", "hrPct", "xbhPct", "tbPerAb", "opportunities", "takes", "swings", "contacts", "bip", "misses", "fouls", "swingPct", "takePct", "contactPct", "swingMissPct", "foulPct", "bipPct", "zoneSwingPct", "zoneContactPct", "chasePct", "outZoneContactPct", "lineDrivePct", "groundBallPct", "flyBallPct", "popUpPct", "groundBalls", "lineDrives", "flyBalls", "popUps", "gbFbRatio", "airPct", "calledStrikePctHitting", "swingingStrikePctHitting", "firstPitchSwingPct", "twoStrikeContactPct"];
+  const gameMetricIds = ["gamesPlayed", "pa", "pitchesPerPlateAppearance", "ab", "runs", "hits", "singles", "doubles", "triples", "homeRuns", "rbi", "totalBases", "walks", "hitByPitch", "strikeouts", "sacrificeFlies", "sacrificeBunts", "reachedOnError", "fieldersChoice", "stolenBases", "caughtStealing", "stolenBaseAttempts", "stolenBasePct", "outs", "xbh", "obp", "avg", "slg", "ops", "iso", "babip", "strikeoutPct", "walkPct", "walkToStrikeout", "paPerStrikeout", "paPerWalk", "xbhHitPct", "hrPaPct", "tbPerPa", "hrPct", "xbhPct", "tbPerAb", "opportunities", "takes", "swings", "contacts", "bip", "misses", "fouls", "swingPct", "takePct", "contactPct", "swingMissPct", "foulPct", "bipPct", "zoneSwingPct", "zoneContactPct", "chasePct", "outZoneContactPct", "lineDrivePct", "groundBallPct", "flyBallPct", "popUpPct", "groundBalls", "lineDrives", "flyBalls", "popUps", "gbFbRatio", "airPct", "calledStrikePctHitting", "swingingStrikePctHitting", "firstPitchSwingPct", "twoStrikeContactPct"];
 
   if (includesGames && !includesTrackedSwings) {
     warnings.push("Game hitting uses completed logged plate appearances when available. A dash means that outcome has not been recorded for the selected games.");
@@ -600,7 +600,7 @@ function buildPitchingResult(
   const teamTotals = pitchingTeamRow(data, practiceEvents, gameEvents);
   if (sources.includes("games")) warnings.push("Game pitching uses confirmed pitch sequences and completed plate appearances. Earned runs, decisions, intentional walks, and balks remain unavailable until those primitives are recorded.");
   return {
-    ...assembleResult("Team Pitching", data, query, sourceLabel, rows, teamTotals, ["inningsPitched", "battersFaced", "strikeouts", "walksAllowed", "whip", "pitches", "appearances", "gamesStarted", "hitsAllowed", "runsAllowed", "homeRunsAllowed", "hitBatters", "wildPitches", "strikeoutPctAllowed", "walkPctAllowed", "strikeoutMinusWalkPct", "strikeoutToWalk", "strikeoutsPerNine", "walksPerNine", "hitsPerNine", "homeRunsPerNine", "opponentAvg", "opponentObp", "opponentSlg", "opponentOps", "opponentBabip", "pitchesPerInning", "pitchesPerBatterFaced", "pitchesPerOut", "threePitchOuts", "threePitchOutRate", "fourPitchOuts", "fourPitchOutRate", "thirteenPitchInnings", "thirteenPitchInningRate", "fifteenPitchInnings", "fifteenPitchInningRate", "oneTwoThreeInnings", "oneTwoThreeInningRate", "leadoffOuts", "leadoffOutRate", "scorelessInningRate", "twoStrikeFinishRate", "putawayRate", "strikePct", "zonePct", "avgPitchVelo", "maxPitchVelo", "balls", "strikes", "ballPct", "swingPctAllowed", "whiffPct", "swStrPct", "calledStrikePct", "cswPct", "contactAllowedPct", "zoneContactAllowedPct", "chasePctAllowed", "zoneWhiffPct", "outZoneWhiffPct", "firstPitchStrikePct", "medianPitchVelo", "p90PitchVelo", "minPitchVelo", "veloSpread"], warnings, availableEvents, filterDefinitions, scopeLabel),
+    ...assembleResult("Team Pitching", data, query, sourceLabel, rows, teamTotals, ["inningsPitched", "battersFaced", "strikeouts", "walksAllowed", "whip", "pitches", "appearances", "gamesStarted", "hitsAllowed", "runsAllowed", "homeRunsAllowed", "hitBatters", "wildPitches", "strikeoutPctAllowed", "walkPctAllowed", "strikeoutMinusWalkPct", "strikeoutToWalk", "strikeoutsPerNine", "walksPerNine", "hitsPerNine", "homeRunsPerNine", "opponentAvg", "opponentObp", "opponentSlg", "opponentOps", "opponentBabip", "pitchesPerInning", "pitchesPerBatterFaced", "pitchesPerOut", "threePitchOuts", "threePitchOutRate", "fourPitchOuts", "fourPitchOutRate", "thirteenPitchInnings", "thirteenPitchInningRate", "fifteenPitchInnings", "fifteenPitchInningRate", "oneTwoThreeInnings", "oneTwoThreeInningRate", "leadoffOuts", "leadoffOutRate", "scorelessInningRate", "twoStrikeFinishRate", "putawayRate", "strikePct", "zonePct", "avgPitchVelo", "maxPitchVelo", "balls", "strikes", "ballPct", "swingPctAllowed", "whiffPct", "swStrPct", "calledStrikePct", "cswPct", "contactAllowedPct", "zoneContactAllowedPct", "chasePctAllowed", "zoneWhiffPct", "outZoneWhiffPct", "firstPitchStrikePct", "medianPitchVelo", "p90PitchVelo", "minPitchVelo", "veloSpread", "ballsInPlayAllowed", "groundBallsAllowed", "lineDrivesAllowed", "flyBallsAllowed", "popUpsAllowed", "groundBallPctAllowed", "lineDrivePctAllowed", "flyBallPctAllowed", "popUpPctAllowed", "gbFbRatioAllowed", "airPctAllowed", "hardContactAllowed", "hardContactAllowedPct", "softContactAllowedPct"], warnings, availableEvents, filterDefinitions, scopeLabel),
     pitchLocationChart: buildPitchLocationChart(practiceEvents, gameEvents),
   };
 }
@@ -996,28 +996,33 @@ function gameHittingRow(player: Player, events: GameEvent[], plateAppearances: P
   const bip = events.filter((event) => event.ballInPlayOutcome);
   const appearanceIds = new Set(events.flatMap((event) => event.plateAppearanceId ? [event.plateAppearanceId] : []));
   const completedAppearances = plateAppearances.filter((appearance) => (isTeamTotal || appearance.hitterId === player.id) && Boolean(appearance.endedAt) && appearanceIds.has(appearance.id));
-  const useCompletedAppearances = completedAppearances.length > 0;
-  const outcomes = completedAppearances.flatMap((appearance) => appearance.outcome ? [appearance.outcome] : []);
+  const persistedAppearanceIds = new Set(completedAppearances.map((appearance) => appearance.id));
+  const derivedAppearances = completedGamePlateAppearances(events);
+  const derivedOnlyAppearances = derivedAppearances.filter((appearance) => !persistedAppearanceIds.has(appearance.id));
+  const outcomes: string[] = [
+    ...completedAppearances.flatMap((appearance) => appearance.outcome ? [appearance.outcome] : []),
+    ...derivedOnlyAppearances.map((appearance) => gameHittingOutcomeLabel(appearance.outcome)),
+  ];
+  const plateAppearancesCount = completedAppearances.length + derivedOnlyAppearances.length;
   const sacrificeFlies = bip.filter((event) => event.ballInPlayOutcome === "Sac Fly").length;
   const sacrificeBunts = bip.filter((event) => event.ballInPlayOutcome === "Sac Bunt").length;
-  const atBats = useCompletedAppearances
-    ? Math.max(0, completedAppearances.length - outcomes.filter((outcome) => outcome === "Walk" || outcome === "HBP").length - sacrificeFlies - sacrificeBunts)
+  const atBats = plateAppearancesCount
+    ? Math.max(0, plateAppearancesCount - outcomes.filter((outcome) => outcome === "Walk" || outcome === "HBP").length - sacrificeFlies - sacrificeBunts)
     : bip.filter((event) => event.ballInPlayOutcome && gameAtBatOutcomes.has(event.ballInPlayOutcome)).length;
-  const hits = useCompletedAppearances
+  const hits = plateAppearancesCount
     ? outcomes.filter((outcome) => ["Single", "Double", "Triple", "Home run"].includes(outcome)).length
     : bip.filter((event) => event.ballInPlayOutcome && hitOutcomes.has(event.ballInPlayOutcome)).length;
-  const doubles = useCompletedAppearances ? outcomes.filter((outcome) => outcome === "Double").length : bip.filter((event) => event.ballInPlayOutcome === "Double").length;
-  const triples = useCompletedAppearances ? outcomes.filter((outcome) => outcome === "Triple").length : bip.filter((event) => event.ballInPlayOutcome === "Triple").length;
-  const homeRuns = useCompletedAppearances ? outcomes.filter((outcome) => outcome === "Home run").length : bip.filter((event) => event.ballInPlayOutcome === "Home Run").length;
-  const singles = useCompletedAppearances ? outcomes.filter((outcome) => outcome === "Single").length : bip.filter((event) => event.ballInPlayOutcome === "Single").length;
+  const doubles = plateAppearancesCount ? outcomes.filter((outcome) => outcome === "Double").length : bip.filter((event) => event.ballInPlayOutcome === "Double").length;
+  const triples = plateAppearancesCount ? outcomes.filter((outcome) => outcome === "Triple").length : bip.filter((event) => event.ballInPlayOutcome === "Triple").length;
+  const homeRuns = plateAppearancesCount ? outcomes.filter((outcome) => outcome === "Home run").length : bip.filter((event) => event.ballInPlayOutcome === "Home Run").length;
+  const singles = plateAppearancesCount ? outcomes.filter((outcome) => outcome === "Single").length : bip.filter((event) => event.ballInPlayOutcome === "Single").length;
   const walks = outcomes.filter((outcome) => outcome === "Walk").length;
   const hitByPitch = outcomes.filter((outcome) => outcome === "HBP").length;
   const strikeouts = outcomes.filter((outcome) => outcome === "Strikeout looking" || outcome === "Strikeout swinging").length;
-  const outs = useCompletedAppearances ? outcomes.filter((outcome) => outcome.endsWith("out") || outcome.startsWith("Strikeout")).length : Math.max(0, atBats - hits);
+  const outs = plateAppearancesCount ? outcomes.filter((outcome) => outcome.endsWith("out") || outcome.startsWith("Strikeout")).length : Math.max(0, atBats - hits);
   const xbh = doubles + triples + homeRuns;
   const totalBases = hits + doubles + triples * 2 + homeRuns * 3;
   const babipDenominator = Math.max(0, atBats - strikeouts - homeRuns + sacrificeFlies);
-  const plateAppearancesCount = completedAppearances.length;
   const gameSample = plateAppearancesCount || bip.length;
   const onBaseNumerator = hits + walks + hitByPitch;
   const obpDenominator = atBats + walks + hitByPitch + sacrificeFlies;
@@ -1054,6 +1059,7 @@ function gameHittingRow(player: Player, events: GameEvent[], plateAppearances: P
     fieldersChoice: countCell(fieldersChoice, gameSample),
     stolenBases: countCell(stolenBases, gameSample),
     caughtStealing: countCell(caughtStealing, gameSample),
+    stolenBaseAttempts: countCell(stolenBases + caughtStealing, gameSample),
     stolenBasePct: rateCell(stolenBases, stolenBases + caughtStealing, "stolen-base attempts"),
     obp: obp === undefined ? cell("—", undefined, "not-tracked") : cellFromNumber(obp, "decimal", "available", { numerator: onBaseNumerator, denominator: obpDenominator, label: "OBP" }),
     avg: decimalRateCell(hits, atBats, "AVG"),
@@ -1072,7 +1078,15 @@ function gameHittingRow(player: Player, events: GameEvent[], plateAppearances: P
     xbhHitPct: rateCell(xbh, hits, "extra-base hits"),
     hrPaPct: rateCell(homeRuns, plateAppearancesCount, "home runs"),
     tbPerPa: decimalRateCell(totalBases, plateAppearancesCount, "TB/PA"),
+    pitchesPerPlateAppearance: ratioCell(derivedAppearances.reduce((total, appearance) => total + appearance.pitchCount, 0), derivedAppearances.length, "P/PA"),
   });
+}
+
+function gameHittingOutcomeLabel(outcome: CompletedGamePlateAppearance["outcome"]): string {
+  if (outcome === "walk") return "Walk";
+  if (outcome === "hbp") return "HBP";
+  if (outcome === "strikeout") return "Strikeout swinging";
+  return outcome === "Home Run" ? "Home run" : outcome;
 }
 
 function gameHittingTrackingCells(events: GameEvent[]): Record<string, AnalyticsCell> {
@@ -1092,10 +1106,11 @@ function gameHittingTrackingCells(events: GameEvent[]): Record<string, Analytics
   const twoStrike = pitches.filter((pitch) => pitch.countBefore?.strikes === 2);
   const twoStrikeSwings = twoStrike.filter((pitch) => gamePitchSample(pitch).isSwing);
   const battedBalls = pitches.filter((pitch) => Boolean(pitch.ballInPlayOutcome));
-  const groundBalls = battedBalls.filter((pitch) => pitch.contactType === "Ground Ball").length;
-  const lineDrives = battedBalls.filter((pitch) => pitch.contactType === "Line Drive").length;
-  const flyBalls = battedBalls.filter((pitch) => pitch.contactType === "Fly Ball").length;
-  const popUps = battedBalls.filter((pitch) => pitch.contactType === "Pop Up").length;
+  const classifiedBattedBalls = battedBalls.filter((pitch) => Boolean(pitch.contactType));
+  const groundBalls = classifiedBattedBalls.filter((pitch) => pitch.contactType === "Ground Ball").length;
+  const lineDrives = classifiedBattedBalls.filter((pitch) => pitch.contactType === "Line Drive").length;
+  const flyBalls = classifiedBattedBalls.filter((pitch) => pitch.contactType === "Fly Ball").length;
+  const popUps = classifiedBattedBalls.filter((pitch) => pitch.contactType === "Pop Up").length;
   return {
     opportunities: countCell(pitches.length, pitches.length),
     takes: countCell(pitches.length - swings, pitches.length),
@@ -1114,16 +1129,16 @@ function gameHittingTrackingCells(events: GameEvent[]): Record<string, Analytics
     zoneContactPct: rateCell(inZoneSwings.filter((pitch) => gamePitchSample(pitch).isContact).length, inZoneSwings.length, "in-zone contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
     chasePct: rateCell(outOfZoneSwings.length, outOfZone.length, "chases", ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
     outZoneContactPct: rateCell(outOfZoneSwings.filter((pitch) => gamePitchSample(pitch).isContact).length, outOfZoneSwings.length, "out-of-zone contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
-    groundBalls: countCell(groundBalls, battedBalls.length),
-    lineDrives: countCell(lineDrives, battedBalls.length),
-    flyBalls: countCell(flyBalls, battedBalls.length),
-    popUps: countCell(popUps, battedBalls.length),
-    groundBallPct: rateCell(groundBalls, battedBalls.length, "ground balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-    lineDrivePct: rateCell(lineDrives, battedBalls.length, "line drives", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-    flyBallPct: rateCell(flyBalls, battedBalls.length, "fly balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-    popUpPct: rateCell(popUps, battedBalls.length, "pop ups", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    groundBalls: countCell(groundBalls, classifiedBattedBalls.length),
+    lineDrives: countCell(lineDrives, classifiedBattedBalls.length),
+    flyBalls: countCell(flyBalls, classifiedBattedBalls.length),
+    popUps: countCell(popUps, classifiedBattedBalls.length),
+    groundBallPct: rateCell(groundBalls, classifiedBattedBalls.length, "ground balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    lineDrivePct: rateCell(lineDrives, classifiedBattedBalls.length, "line drives", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    flyBallPct: rateCell(flyBalls, classifiedBattedBalls.length, "fly balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    popUpPct: rateCell(popUps, classifiedBattedBalls.length, "pop ups", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     gbFbRatio: ratioCell(groundBalls, flyBalls, "GB/FB"),
-    airPct: rateCell(lineDrives + flyBalls + popUps, battedBalls.length, "air balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    airPct: rateCell(lineDrives + flyBalls + popUps, classifiedBattedBalls.length, "air balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     calledStrikePctHitting: rateCell(samples.filter((pitch) => pitch.isCalledStrike).length, pitches.length, "called strikes"),
     swingingStrikePctHitting: rateCell(misses, pitches.length, "swinging strikes"),
     firstPitchSwingPct: rateCell(pitches.filter((pitch) => pitch.countBefore?.balls === 0 && pitch.countBefore?.strikes === 0 && gamePitchSample(pitch).isSwing).length, pitches.filter((pitch) => pitch.countBefore?.balls === 0 && pitch.countBefore?.strikes === 0).length, "first-pitch swings"),
@@ -1157,6 +1172,18 @@ function pitchingRow(data: AppData, player: Player, pitchEvents: PitchEvent[], g
   const inZoneSwings = pitches.filter((pitch) => pitch.hasLocation && pitch.isZone && pitch.isSwing);
   const outOfZoneSwings = pitches.filter((pitch) => pitch.hasLocation && !pitch.isZone && pitch.isSwing);
   const outOfZonePitches = pitches.filter((pitch) => pitch.hasLocation && !pitch.isZone);
+  const battedBalls = [
+    ...pitchEvents.filter((event) => event.isBallInPlay || event.outcome === "Ball in play").map((event) => ({ type: event.battedBall, quality: event.contactQuality })),
+    ...gameEvents.filter((event) => Boolean(event.ballInPlayOutcome)).map((event) => ({ type: gameContactTypeToBattedBall(event.contactType), quality: undefined })),
+  ];
+  const classifiedBattedBalls = battedBalls.filter((event) => Boolean(event.type));
+  const groundBallsAllowed = classifiedBattedBalls.filter((event) => event.type === "Ground ball").length;
+  const lineDrivesAllowed = classifiedBattedBalls.filter((event) => event.type === "Line drive").length;
+  const flyBallsAllowed = classifiedBattedBalls.filter((event) => event.type === "Fly ball").length;
+  const popUpsAllowed = classifiedBattedBalls.filter((event) => event.type === "Pop up").length;
+  const qualityTrackedBattedBalls = battedBalls.filter((event) => Boolean(event.quality));
+  const hardContactAllowed = qualityTrackedBattedBalls.filter((event) => event.quality === "Hard contact").length;
+  const softContactAllowed = qualityTrackedBattedBalls.filter((event) => event.quality === "Weak contact").length;
   const gameStats = gamePitchingStats(data, player, gameEvents);
   return makeRow(player, {
     pitches: countCell(pitches.length, pitches.length),
@@ -1182,6 +1209,20 @@ function pitchingRow(data: AppData, player: Player, pitchEvents: PitchEvent[], g
     maxPitchVelo: maxCell(velocities, "velocity"),
     minPitchVelo: minCell(velocities, "velocity"),
     veloSpread: spreadCell(velocities, "velocity", 3),
+    ballsInPlayAllowed: countCell(battedBalls.length, battedBalls.length),
+    groundBallsAllowed: countCell(groundBallsAllowed, classifiedBattedBalls.length),
+    lineDrivesAllowed: countCell(lineDrivesAllowed, classifiedBattedBalls.length),
+    flyBallsAllowed: countCell(flyBallsAllowed, classifiedBattedBalls.length),
+    popUpsAllowed: countCell(popUpsAllowed, classifiedBattedBalls.length),
+    groundBallPctAllowed: rateCell(groundBallsAllowed, classifiedBattedBalls.length, "ground balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    lineDrivePctAllowed: rateCell(lineDrivesAllowed, classifiedBattedBalls.length, "line drives", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    flyBallPctAllowed: rateCell(flyBallsAllowed, classifiedBattedBalls.length, "fly balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    popUpPctAllowed: rateCell(popUpsAllowed, classifiedBattedBalls.length, "pop ups", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    gbFbRatioAllowed: ratioCell(groundBallsAllowed, flyBallsAllowed, "GB/FB"),
+    airPctAllowed: rateCell(lineDrivesAllowed + flyBallsAllowed + popUpsAllowed, classifiedBattedBalls.length, "air balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    hardContactAllowed: countCell(hardContactAllowed, qualityTrackedBattedBalls.length),
+    hardContactAllowedPct: rateCell(hardContactAllowed, qualityTrackedBattedBalls.length, "hard contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    softContactAllowedPct: rateCell(softContactAllowed, qualityTrackedBattedBalls.length, "soft contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     ...gamePitchingCells(gameStats),
   });
 }
@@ -1230,6 +1271,7 @@ type GamePitchingSummary = {
 };
 
 type CompletedGamePlateAppearance = {
+  id: ID;
   gameId: ID;
   inning: number;
   half: GameEvent["half"];
@@ -1361,6 +1403,7 @@ function completedGamePlateAppearances(events: GameEvent[]): CompletedGamePlateA
     const outcome = gamePlateAppearanceOutcome(terminal);
     if (!outcome) return [];
     return [{
+      id: terminal.plateAppearanceId!,
       gameId: terminal.gameId,
       inning: terminal.inning,
       half: terminal.half,

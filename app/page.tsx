@@ -19702,7 +19702,7 @@ function AnalyticsView({
               setFiltersOpen(false);
             }}>
               <Columns3 size={14} aria-hidden="true" />
-              {columnPreset === "custom" ? "Columns: Custom" : `Columns: ${columnPreset[0].toUpperCase()}${columnPreset.slice(1)}`}
+              {columnPreset === "custom" ? "Columns: Custom" : `Columns: ${columnPreset.split("-").map((word) => `${word[0].toUpperCase()}${word.slice(1)}`).join(" ")}`}
             </button>
             {columnsOpen && (
               <AnalyticsColumnPanel
@@ -21511,7 +21511,7 @@ function readInitialAnalyticsState(): {
   const developmentView = parseAnalyticsParam(params.get("dev"), ["overview", "weight-room", "attendance", "trends"], "overview");
   const requestedMetricIds = params.get("columns")?.split(",").filter(Boolean);
   const metricIds = isLegacyAnalyticsStandardColumns(requestedMetricIds) ? undefined : requestedMetricIds?.length ? requestedMetricIds : undefined;
-  const columnPreset = parseAnalyticsParam(params.get("columnPreset"), ["standard", "advanced", "approach", "contact", "batted-ball", "command", "efficiency", "velocity", "development", "position", "custom"], metricIds?.length ? "custom" : "standard");
+  const columnPreset = parseAnalyticsParam(params.get("columnPreset"), ["standard", "advanced", "approach", "contact", "batted-ball", "baserunning", "command", "efficiency", "velocity", "pitch-mix", "development", "position", "custom"], metricIds?.length ? "custom" : "standard");
   return {
     domain,
     source,
