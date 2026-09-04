@@ -3,6 +3,7 @@ import type {
   AnalyticsColumn,
   AnalyticsDomain,
   AnalyticsFilterDefinition,
+  AnalyticsFieldSource,
   AnalyticsMetricDefinition,
   AnalyticsQuery,
   AnalyticsSource,
@@ -39,6 +40,7 @@ export interface AnalyticsViewDefinition {
 export interface SerializedAnalyticsContext {
   domain: AnalyticsDomain;
   source: AnalyticsSource;
+  fieldSources?: AnalyticsFieldSource[];
   view: AnalyticsViewId;
   timeRange: AnalyticsQuery["timeRange"];
   eventIds: string[];
@@ -310,10 +312,15 @@ export function analyticsMetricColumnGroup(metricId: string): string {
   return "Development";
 }
 
-export function defaultAnalyticsMetricIds(domain: AnalyticsDomain, source: AnalyticsSource): string[] {
+export function defaultAnalyticsMetricIds(domain: AnalyticsDomain, source: AnalyticsSource, fieldSources?: AnalyticsFieldSource[]): string[] {
+  const resolvedSources: AnalyticsFieldSource[] = fieldSources?.length
+    ? fieldSources
+    : source === "all"
+      ? domain === "pitching" ? ["games", "practice", "live-bp"] : domain === "defense" ? ["practice"] : ["practice", "live-bp"]
+      : [source];
   const supported = new Set(
     ANALYTICS_METRICS
-      .filter((metricDefinition) => metricDefinition.domain === domain && metricDefinition.supportedSources.includes(source))
+      .filter((metricDefinition) => metricDefinition.domain === domain && resolvedSources.some((fieldSource) => metricDefinition.supportedSources.includes(fieldSource)))
       .map((metricDefinition) => metricDefinition.id),
   );
   return ANALYTICS_COLUMN_PRESETS.standard.filter((metricId) => supported.has(metricId));
@@ -323,6 +330,7 @@ export function serializeAnalyticsContext(query: AnalyticsQuery, visibleMetricId
   return {
     domain: query.domain,
     source: query.source,
+    fieldSources: query.fieldSources?.length ? [...query.fieldSources] : undefined,
     view: normalizeAnalyticsView(query.domain, query.source, query.view),
     timeRange: query.timeRange,
     eventIds: [...(query.eventIds ?? [])],

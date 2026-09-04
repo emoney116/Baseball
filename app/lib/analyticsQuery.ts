@@ -45,6 +45,7 @@ import {
 
 export type AnalyticsDomain = "hitting" | "pitching" | "defense" | "development";
 export type AnalyticsSource = "all" | "games" | "practice" | "live-bp";
+export type AnalyticsFieldSource = Exclude<AnalyticsSource, "all">;
 export type AnalyticsMode = "box-score" | "situational";
 export type AnalyticsTimeRange = "7d" | "30d" | "season" | "custom";
 export type AnalyticsDevelopmentView = "overview" | "weight-room" | "attendance" | "trends";
@@ -107,6 +108,8 @@ export interface AnalyticsFilters {
 export interface AnalyticsQuery {
   domain: AnalyticsDomain;
   source: AnalyticsSource;
+  /** Optional field-source set for the Analytics context selector. */
+  fieldSources?: AnalyticsFieldSource[];
   mode: AnalyticsMode;
   view?: AnalyticsViewId;
   timeRange: AnalyticsTimeRange;
@@ -222,7 +225,7 @@ export interface AnalyticsPitchLocationChart {
   points: Array<ZonePoint & { id: ID; chartOutcome?: "hit" | "out" | "contact" | "miss" }>;
   qualifyingEvents: number;
   trackedLocations: number;
-  metricLabel: "Batting average" | "Contact rate" | "Pitch density";
+  metricLabel: "Batting average" | "Contact rate" | "Pitch density" | "Mixed source";
 }
 
 export interface AnalyticsResult {
@@ -328,9 +331,9 @@ export const ASK_CLUBHOUSE_QUESTIONS: AskClubhouseQuestion[] = [
 export function executeAnalyticsQuery(data: AppData, input: AnalyticsQuery, options: { today?: string } = {}): AnalyticsResult {
   let query = normalizeAnalyticsQuery(input);
   const warnings = validateAnalyticsContext(data, query);
-  const sourceLabel = sourceLabels[query.source];
+  const sourceLabel = analyticsFieldSourceLabel(query);
   const scopeLabel = buildScopeLabel(data, query);
-  const availableEvents = buildEventOptions(data, query.domain, query.source);
+  const availableEvents = buildEventOptions(data, query.domain, analyticsFieldSources(query));
   if (query.eventIds?.length) {
     const availableEventIds = new Set(availableEvents.map((event) => event.id));
     const selectedEventIds = query.eventIds.filter((id) => availableEventIds.has(id));
@@ -418,28 +421,61 @@ function buildHittingResult(
   sourceLabel: string,
   today?: string,
 ): AnalyticsResult {
-  if (query.source === "games") {
+  const sources = analyticsFieldSources(query);
+  const includesGames = sources.includes("games");
+  const includesTrackedSwings = sources.some((source) => source === "practice" || source === "live-bp");
+  const trackedEvents = includesTrackedSwings ? filterHittingEvents(data, query, today) : [];
+  const gameEvents = includesGames ? filterGameEvents(data, query, today) : [];
+  const trackedMetricIds = ["opportunities", "swings", "contacts", "contactPct", "hardPct", "avgEv", "maxEv", "takes", "bip", "misses", "fouls", "swingPct", "bipPct", "swingMissPct", "foulPct", "takePct", "zoneSwingPct", "zoneContactPct", "chasePct", "outZoneContactPct", "hard", "barrelPct", "softPct", "lineDrivePct", "groundBallPct", "flyBallPct", "popUpPct", "groundBalls", "lineDrives", "flyBalls", "popUps", "gbFbRatio", "airPct", "pullPct", "middlePct", "oppoPct", "medianEv", "ev90", "ev95", "evSamples"];
+  const gameMetricIds = ["pa", "ab", "hits", "singles", "doubles", "triples", "homeRuns", "walks", "strikeouts", "hitByPitch", "outs", "xbh", "totalBases", "obp", "avg", "slg", "ops", "iso", "babip", "hrPct", "xbhPct", "tbPerAb"];
+
+  if (includesGames && !includesTrackedSwings) {
     warnings.push("Game hitting uses completed logged plate appearances when available. A dash means that outcome has not been recorded for the selected games.");
-    const gameEvents = filterGameEvents(data, query, today);
     const rows = currentRosterPlayers(data).map((player) => gameHittingRow(player, gameEvents.filter((event) => event.batterId === player.id), data.plateAppearances));
     const teamTotals = gameHittingTeamRow(data, gameEvents);
     return {
-      ...assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, ["pa", "ab", "hits", "singles", "doubles", "triples", "homeRuns", "walks", "strikeouts", "hitByPitch", "outs", "xbh", "totalBases", "obp", "avg", "slg", "ops", "iso", "babip", "hrPct", "xbhPct", "tbPerAb"], warnings, availableEvents, filterDefinitions, scopeLabel),
+      ...assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, gameMetricIds, warnings, availableEvents, filterDefinitions, scopeLabel),
       sprayChart: buildGameSprayChart(gameEvents),
       pitchLocationChart: buildGameHittingPitchLocationChart(gameEvents),
     };
   }
 
-  const events = filterHittingEvents(data, query, today);
-  const rows = currentRosterPlayers(data).map((player) => hittingRow(player, events.filter((event) => event.hitterId === player.id)));
-  const teamTotals = hittingTeamRow(data, events);
-  const columns = ["opportunities", "swings", "contacts", "contactPct", "hardPct", "avgEv", "maxEv", "takes", "bip", "misses", "fouls", "swingPct", "bipPct", "swingMissPct", "foulPct", "takePct", "zoneSwingPct", "zoneContactPct", "chasePct", "outZoneContactPct", "hard", "barrelPct", "softPct", "lineDrivePct", "groundBallPct", "flyBallPct", "popUpPct", "groundBalls", "lineDrives", "flyBalls", "popUps", "gbFbRatio", "airPct", "pullPct", "middlePct", "oppoPct", "medianEv", "ev90", "ev95", "evSamples"];
-  if (query.source === "all") warnings.push("Hitting All combines compatible practice and Live BP swing-event metrics. Traditional game batting appears in the Games source until full PA results are tracked.");
+  const trackedRows = currentRosterPlayers(data).map((player) => hittingRow(player, trackedEvents.filter((event) => event.hitterId === player.id)));
+  const trackedTeamTotals = hittingTeamRow(data, trackedEvents);
+  if (includesGames) {
+    warnings.push("Mixed field sources keep tracked swing metrics and completed game plate-appearance metrics in their own columns.");
+    const gameRows = currentRosterPlayers(data).map((player) => gameHittingRow(player, gameEvents.filter((event) => event.batterId === player.id), data.plateAppearances));
+    const gameTeamTotals = gameHittingTeamRow(data, gameEvents);
+    const rows = trackedRows.map((trackedRow, index) => mergeAnalyticsRows(trackedRow, gameRows[index]));
+    const teamTotals = mergeAnalyticsRows(trackedTeamTotals, gameTeamTotals);
+    const trackedSpray = buildHittingSprayChart(trackedEvents);
+    const gameSpray = buildGameSprayChart(gameEvents);
+    const trackedLocation = buildHittingPitchLocationChart(trackedEvents);
+    const gameLocation = buildGameHittingPitchLocationChart(gameEvents);
+    return {
+      ...assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, [...trackedMetricIds, ...gameMetricIds], warnings, availableEvents, filterDefinitions, scopeLabel),
+      sprayChart: {
+        points: [...trackedSpray.points, ...gameSpray.points],
+        ballsInPlay: trackedSpray.ballsInPlay + gameSpray.ballsInPlay,
+        trackedLocations: trackedSpray.trackedLocations + gameSpray.trackedLocations,
+      },
+      pitchLocationChart: {
+        points: [...trackedLocation.points, ...gameLocation.points],
+        qualifyingEvents: trackedLocation.qualifyingEvents + gameLocation.qualifyingEvents,
+        trackedLocations: trackedLocation.trackedLocations + gameLocation.trackedLocations,
+        metricLabel: "Mixed source",
+      },
+    };
+  }
   return {
-    ...assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, columns, warnings, availableEvents, filterDefinitions, scopeLabel),
-    sprayChart: buildHittingSprayChart(events),
-    pitchLocationChart: buildHittingPitchLocationChart(events),
+    ...assembleResult("Team Hitting", data, query, sourceLabel, trackedRows, trackedTeamTotals, trackedMetricIds, warnings, availableEvents, filterDefinitions, scopeLabel),
+    sprayChart: buildHittingSprayChart(trackedEvents),
+    pitchLocationChart: buildHittingPitchLocationChart(trackedEvents),
   };
+}
+
+function mergeAnalyticsRows(left: AnalyticsRow, right: AnalyticsRow): AnalyticsRow {
+  return { ...left, cells: { ...left.cells, ...right.cells }, sampleCount: left.sampleCount + right.sampleCount };
 }
 
 function buildHittingSprayChart(events: HittingEvent[]): AnalyticsSprayChart {
@@ -500,8 +536,9 @@ function buildPitchingResult(
   sourceLabel: string,
   today?: string,
 ): AnalyticsResult {
-  const practiceEvents = query.source === "games" ? [] : filterPitchEvents(data, query, today);
-  const gameEvents = query.source === "practice" || query.source === "live-bp" ? [] : filterGameEvents(data, query, today);
+  const sources = analyticsFieldSources(query);
+  const practiceEvents = sources.some((source) => source === "practice" || source === "live-bp") ? filterPitchEvents(data, query, today) : [];
+  const gameEvents = sources.includes("games") ? filterGameEvents(data, query, today) : [];
   const rows = currentRosterPlayers(data)
     .filter((player) => player.isPitcher || practiceEvents.some((event) => event.pitcherId === player.id) || gameEvents.some((event) => event.pitcherId === player.id))
     .map((player) => pitchingRow(player, practiceEvents.filter((event) => event.pitcherId === player.id), gameEvents.filter((event) => event.pitcherId === player.id)));
@@ -608,7 +645,8 @@ function applyAnalyticsView(data: AppData, result: AnalyticsResult, today?: stri
   let groupedEvents = 0;
 
   if (result.query.domain === "hitting") {
-    if (result.query.source === "games") {
+    const sources = analyticsFieldSources(result.query);
+    if (sources.length === 1 && sources[0] === "games") {
       const events = filterGameEvents(data, result.query, today);
       const groups = groupItems(events, (event) => gameHittingGroup(data, event, groupBy));
       totalEvents = events.length;
@@ -622,8 +660,9 @@ function applyAnalyticsView(data: AppData, result: AnalyticsResult, today?: stri
       rows = [...groups.entries()].map(([key, group], index) => groupAnalyticsRow(hittingRow(groupPlayer(data, key, index), group.items), key, group.label));
     }
   } else if (result.query.domain === "pitching") {
-    const practiceEvents = result.query.source === "games" ? [] : filterPitchEvents(data, result.query, today);
-    const gameEvents = result.query.source === "practice" || result.query.source === "live-bp" ? [] : filterGameEvents(data, result.query, today);
+    const sources = analyticsFieldSources(result.query);
+    const practiceEvents = sources.some((source) => source === "practice" || source === "live-bp") ? filterPitchEvents(data, result.query, today) : [];
+    const gameEvents = sources.includes("games") ? filterGameEvents(data, result.query, today) : [];
     const practiceGroups = groupItems(practiceEvents, (event) => practicePitchingGroup(data, event, groupBy));
     const gameGroups = groupItems(gameEvents, (event) => gamePitchingGroup(data, event, groupBy));
     const keys = [...new Set([...practiceGroups.keys(), ...gameGroups.keys()])];
@@ -781,7 +820,7 @@ function assembleResult(
   const availableColumns = metricIds
     .map((metricId) => metricById(metricId))
     .filter((metricItem): metricItem is AnalyticsMetricDefinition => Boolean(metricItem))
-    .filter((metricItem) => metricItem.supportedSources.includes(query.source) || (query.source === "all" && metricItem.supportedSources.includes("all")))
+    .filter((metricItem) => analyticsFieldSources(query).some((source) => metricItem.supportedSources.includes(source)))
     .map((metricItem) => ({
       metricId: metricItem.id,
       label: metricItem.label,
@@ -1102,10 +1141,10 @@ function filterHittingEvents(data: AppData, query: AnalyticsQuery, today?: strin
     const practice = data.practices.find((item) => item.id === event.practiceId);
     const session = sessions.get(event.sessionId);
     const isLive = event.isLiveBp || session?.type === "Live BP";
-    if (query.source === "practice" && isLive) return false;
-    if (query.source === "live-bp" && !isLive) return false;
+    const sources = analyticsFieldSources(query);
+    if (isLive && !sources.includes("live-bp")) return false;
+    if (!isLive && !sources.includes("practice")) return false;
     if (isLive && query.filters?.liveBpThrowerSources?.length && !query.filters.liveBpThrowerSources.includes(liveBpThrowerSource(session))) return false;
-    if (query.source === "games") return false;
     if (query.playerIds?.length && !query.playerIds.includes(event.hitterId)) return false;
     if (!practice || !dateInRange(practice.date, dateRange)) return false;
     if (query.eventIds?.length && !query.eventIds.includes(practice.id) && !query.eventIds.includes(event.sessionId)) return false;
@@ -1120,10 +1159,10 @@ function filterPitchEvents(data: AppData, query: AnalyticsQuery, today?: string)
     const practice = data.practices.find((item) => item.id === event.practiceId);
     const session = sessions.get(event.sessionId);
     const isLive = session?.type === "Live BP";
-    if (query.source === "practice" && isLive) return false;
-    if (query.source === "live-bp" && !isLive) return false;
+    const sources = analyticsFieldSources(query);
+    if (isLive && !sources.includes("live-bp")) return false;
+    if (!isLive && !sources.includes("practice")) return false;
     if (isLive && query.filters?.liveBpThrowerSources?.length && !query.filters.liveBpThrowerSources.includes(liveBpThrowerSource(session))) return false;
-    if (query.source === "games") return false;
     if (query.playerIds?.length && !query.playerIds.includes(event.pitcherId)) return false;
     if (!practice || !dateInRange(practice.date, dateRange)) return false;
     if (query.eventIds?.length && !query.eventIds.includes(practice.id) && !query.eventIds.includes(event.sessionId)) return false;
@@ -1320,7 +1359,7 @@ function filterPracticesByDate(practices: Practice[], range: AnalyticsDateRange,
   return practices.filter((practice) => dateInRange(practice.date, range) && (!query.eventIds?.length || query.eventIds.includes(practice.id)));
 }
 
-function buildEventOptions(data: AppData, domain: AnalyticsDomain, source: AnalyticsSource): AnalyticsEventOption[] {
+function buildEventOptions(data: AppData, domain: AnalyticsDomain, sources: AnalyticsFieldSource[]): AnalyticsEventOption[] {
   const practiceOptions = data.practices.map((practice) => ({
     id: practice.id,
     label: `${shortDate(practice.date)} Practice`,
@@ -1347,7 +1386,6 @@ function buildEventOptions(data: AppData, domain: AnalyticsDomain, source: Analy
   const defenseSessionOptions = domain === "defense"
     ? data.defenseSessions.map((session) => sessionEventOption(data, session.id, session.practiceId, `${session.drillContext ?? session.station} Defense`, "practice"))
     : [];
-  const sources = source === "all" ? ["games", "practice", "live-bp"] : [source];
   return [
     ...(sources.includes("games") ? gameOptions : []),
     ...(sources.includes("practice") ? [...practiceOptions, ...hittingSessionOptions, ...defenseSessionOptions] : []),
@@ -1369,8 +1407,9 @@ function sessionEventOption(data: AppData, id: ID, practiceId: ID, labelPrefix: 
 }
 
 function availableFilterDefinitions(data: AppData, query: AnalyticsQuery): AnalyticsFilterDefinition[] {
+  const sources = analyticsFieldSources(query);
   return ANALYTICS_FILTERS
-    .filter((filterItem) => filterItem.domains.includes(query.domain) && filterItem.supportedSources.includes(query.source))
+    .filter((filterItem) => filterItem.domains.includes(query.domain) && sources.every((source) => filterItem.supportedSources.includes(source)))
     .map((filterItem) => {
       if (filterItem.dynamicOptions === "opponents") {
         const opponents = [...new Set(data.games.map((game) => game.opponent).filter(Boolean))].sort();
@@ -1385,12 +1424,14 @@ function availableFilterDefinitions(data: AppData, query: AnalyticsQuery): Analy
 }
 
 function normalizeAnalyticsQuery(query: AnalyticsQuery): AnalyticsQuery {
-  const source = query.domain === "development" ? "all" : query.source;
+  const fieldSources = query.domain === "development" ? [] : normalizeAnalyticsFieldSources(query.fieldSources ?? analyticsFieldSources(query));
+  const source = query.domain === "development" ? "all" : fieldSources.length === 1 ? fieldSources[0] : "all";
   const mode = query.domain === "development" ? "box-score" : query.mode;
   const sort = query.sort ?? defaultAnalyticsSort(query.domain, source, mode);
   return {
     ...query,
     source,
+    fieldSources,
     mode,
     view: normalizeAnalyticsView(query.domain, source, query.view),
     groupBy: "player",
@@ -1470,6 +1511,26 @@ function averageCell(values: number[], format: AnalyticsMetricFormat, minSample:
 function maxCell(values: number[], format: AnalyticsMetricFormat): AnalyticsCell {
   if (!values.length) return cell("—", undefined, "not-tracked");
   return cellFromNumber(Math.max(...values), format, "available", { denominator: values.length, label: "samples" });
+}
+
+function normalizeAnalyticsFieldSources(sources: AnalyticsFieldSource[]): AnalyticsFieldSource[] {
+  const supported = new Set<AnalyticsFieldSource>(["games", "practice", "live-bp"]);
+  const requested = new Set(sources.filter((source) => supported.has(source)));
+  const normalized = (["games", "practice", "live-bp"] as AnalyticsFieldSource[]).filter((source) => requested.has(source));
+  return normalized.length ? normalized : ["practice"];
+}
+
+function analyticsFieldSources(query: Pick<AnalyticsQuery, "domain" | "source" | "fieldSources">): AnalyticsFieldSource[] {
+  if (query.fieldSources?.length) return normalizeAnalyticsFieldSources(query.fieldSources);
+  if (query.source === "all") {
+    if (query.domain === "pitching") return ["games", "practice", "live-bp"];
+    return query.domain === "defense" ? ["practice"] : ["practice", "live-bp"];
+  }
+  return [query.source];
+}
+
+function analyticsFieldSourceLabel(query: Pick<AnalyticsQuery, "domain" | "source" | "fieldSources">): string {
+  return analyticsFieldSources(query).map((source) => sourceLabels[source]).join(" + ");
 }
 
 function minCell(values: number[], format: AnalyticsMetricFormat): AnalyticsCell {
@@ -1666,7 +1727,7 @@ function buildScopeLabel(data: AppData, query: AnalyticsQuery): string {
       : query.timeRange === "30d"
         ? "Last 30 days"
         : "Custom";
-  return `${range} · ${sourceLabels[query.source]}`;
+  return `${range} · ${analyticsFieldSourceLabel(query)}`;
 }
 
 function askQuestion(id: string, label: string, domain: AnalyticsDomain, rankingMetricId: string, criteria: string, query: Omit<AnalyticsQuery, "context">): AskClubhouseQuestion {

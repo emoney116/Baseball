@@ -425,6 +425,22 @@ test("game hitting adds completed plate-appearance metrics without inventing mis
   assert.equal(jacob.cells.ops.display, "2.500");
 });
 
+test("field-source selections combine compatible hitting data without blending metrics", () => {
+  const result = executeAnalyticsQuery(baseData, {
+    ...query("hitting", "all"),
+    fieldSources: ["practice", "games"],
+    metrics: ["opportunities", "hits"],
+  });
+  const jacob = row(result, "p-jacob");
+
+  assert.deepEqual(result.query.fieldSources, ["games", "practice"]);
+  assert.deepEqual(result.columns.map((column) => column.metricId), ["opportunities", "hits"]);
+  assert.equal(jacob.cells.opportunities.display, "5");
+  assert.equal(jacob.cells.hits.display, "2");
+  assert.equal(result.availableEvents.some((event) => event.source === "games"), true);
+  assert.equal(result.availableEvents.some((event) => event.source === "practice"), true);
+});
+
 test("expanded tracked metrics preserve source boundaries and qualification evidence", () => {
   const metricIds = defaultAnalyticsMetricIds("hitting", "practice");
   const result = executeAnalyticsQuery(baseData, { ...query("hitting", "practice"), metrics: metricIds });
@@ -597,6 +613,9 @@ test("catalog hides irrelevant sources and views and serializes the active conte
   assert.equal(serialized.view, "pitch-types");
   assert.deepEqual(serialized.filters.pitchTypes, ["Slider"]);
   assert.deepEqual(serialized.metrics, ["swings", "contactPct"]);
+
+  const mixedContext = serializeAnalyticsContext({ ...analyticsQuery, source: "all", fieldSources: ["games", "practice"] }, ["opportunities", "hits"]);
+  assert.deepEqual(mixedContext.fieldSources, ["games", "practice"]);
 });
 
 function query(domain, source) {

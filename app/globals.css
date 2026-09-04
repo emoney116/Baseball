@@ -35679,6 +35679,81 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
   margin-left: auto;
 }
 
+.analytics-source-selector {
+  position: relative;
+}
+
+.analytics-source-selector__menu {
+  position: absolute;
+  z-index: 160;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 184px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel-strong);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+}
+
+.analytics-source-selector__field-sources {
+  display: grid;
+  gap: 2px;
+}
+
+.analytics-source-selector__field-sources label,
+.analytics-source-selector__menu > button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 9px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.analytics-source-selector__field-sources label:hover,
+.analytics-source-selector__field-sources label:has(input:focus-visible),
+.analytics-source-selector__field-sources label.active,
+.analytics-source-selector__menu > button:hover,
+.analytics-source-selector__menu > button:focus-visible,
+.analytics-source-selector__menu > button.active {
+  background: color-mix(in srgb, var(--brand-primary) 16%, var(--panel-soft));
+}
+
+.analytics-source-selector__field-sources input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.analytics-source-selector__checkbox {
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  color: var(--brand-text-on-primary);
+}
+
+.analytics-source-selector__field-sources label.active .analytics-source-selector__checkbox {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary);
+}
+
+.analytics-source-selector__divider {
+  height: 1px;
+  margin: 5px 2px;
+  background: var(--line);
+}
+
 .analytics-chart-player-select__menu {
   position: absolute;
   z-index: 62;
@@ -36405,12 +36480,13 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
 
   .analytics-primary-navigation {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 116px;
+    grid-template-columns: minmax(0, 1fr) 143px;
     align-items: center;
     gap: 8px;
     flex-wrap: nowrap;
     margin-inline: calc(-1 * var(--mobile-page-gutter));
-    padding-inline: var(--mobile-page-gutter);
+    padding-left: var(--mobile-page-gutter);
+    padding-right: calc(var(--mobile-page-gutter) + 12px);
   }
 
   .analytics-primary-navigation .analytics-domain-tabs {
@@ -36423,13 +36499,13 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
     width: max-content;
   }
 
-  .analytics-primary-navigation .analytics-scope-select.choice-select {
+  .analytics-primary-navigation .analytics-source-selector.analytics-scope-select {
     display: block;
-    width: 116px;
-    min-width: 116px;
+    width: 143px;
+    min-width: 143px;
   }
 
-  .analytics-primary-navigation .analytics-scope-select.choice-select .choice-select__button {
+  .analytics-primary-navigation .analytics-source-selector.analytics-scope-select .choice-select__button {
     width: 100%;
   }
 

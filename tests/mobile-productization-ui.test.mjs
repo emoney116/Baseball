@@ -80,10 +80,12 @@ test("phase two phone composition keeps live tracking focused on the next rep", 
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.ops-main--practice-tracking \.team-workspace-header--compact\s*\{[\s\S]*display:\s*none/);
   assert.match(phase2Layer, /@media \(max-width: 560px\) \{[\s\S]*\.practice-home \.practice-overview-grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\)/);
 
-  assert.match(page, /const analyticsSourceOptions: ChoiceOption\[\]/);
+  assert.match(page, /function AnalyticsSourceSelector/);
+  assert.match(page, /type="checkbox"/);
+  assert.match(page, /onOpenWeightRoom/);
   assert.match(page, /className="analytics-domain-tabs"/);
   assert.match(page, /className="analytics-primary-navigation"/);
-  assert.match(page, /className="analytics-scope-select"/);
+  assert.match(page, /analytics-source-selector analytics-scope-select/);
   assert.doesNotMatch(page, /className="analytics-domain-select"/);
   assert.match(css, /\.analytics-domain-tabs\s*\{[\s\S]*overflow-x:\s*auto/);
   assert.match(css, /\.analytics-box-score__row\s*\{[\s\S]*width:\s*max-content/);

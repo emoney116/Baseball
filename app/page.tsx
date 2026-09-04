@@ -75,6 +75,7 @@ import {
   type AnalyticsDomain,
   type AnalyticsEventOption,
   type AnalyticsFilterDefinition,
+  type AnalyticsFieldSource,
   type AnalyticsFilters,
   type AnalyticsMode,
   type AnalyticsQuery,
@@ -19349,6 +19350,7 @@ function AnalyticsView({
   const initialState = useMemo(() => readInitialAnalyticsState(), []);
   const [domain, setDomain] = useState<AnalyticsDomain>(initialState.domain);
   const [source, setSource] = useState<AnalyticsSource>(initialState.source);
+  const [fieldSources, setFieldSources] = useState<AnalyticsFieldSource[]>(initialState.fieldSources);
   const mode: AnalyticsMode = "box-score";
   const [analyticsView, setAnalyticsView] = useState<AnalyticsViewId>(initialState.analyticsView);
   const [timeRange, setTimeRange] = useState<AnalyticsTimeRange>(initialState.timeRange);
@@ -19377,6 +19379,7 @@ function AnalyticsView({
   const query = useMemo<AnalyticsQuery>(() => ({
     domain,
     source: domain === "development" ? "all" : source,
+    fieldSources: domain === "development" ? undefined : fieldSources,
     mode: domain === "development" ? "box-score" : mode,
     view: analyticsView,
     timeRange,
@@ -19385,11 +19388,11 @@ function AnalyticsView({
     eventIds,
     playerIds: analyticsWorkspace === "charts" && chartPlayerIds.length ? chartPlayerIds : undefined,
     filters,
-    metrics: metricIds ?? defaultAnalyticsMetricIds(domain, domain === "development" ? "all" : source),
+    metrics: metricIds ?? defaultAnalyticsMetricIds(domain, domain === "development" ? "all" : source, domain === "development" ? undefined : fieldSources),
     groupBy: "player",
     sort,
     context,
-  }), [analyticsView, analyticsWorkspace, chartPlayerIds, context, customRange, developmentView, domain, eventIds, filters, metricIds, mode, sort, source, timeRange]);
+  }), [analyticsView, analyticsWorkspace, chartPlayerIds, context, customRange, developmentView, domain, eventIds, fieldSources, filters, metricIds, mode, sort, source, timeRange]);
   const result = useMemo(() => executeAnalyticsQuery(data, query), [data, query]);
   const serializedAnalyticsContext = useMemo(
     () => serializeAnalyticsContext(query, result.columns.map((column) => column.metricId)),
@@ -19411,14 +19414,7 @@ function AnalyticsView({
     }),
     [filters, result.filterDefinitions],
   );
-  const analyticsSourceOptions: ChoiceOption[] = [
-    { value: "games", label: "Games" },
-    { value: "practice", label: "Practice" },
-    { value: "live-bp", label: "Live BP" },
-    { value: "all", label: "All Field" },
-  ].filter((option) => analyticsSourcesForDomain(domain).includes(option.value as AnalyticsSource));
-  const analyticsScopeOptions: ChoiceOption[] = [...analyticsSourceOptions, { value: "weight-room", label: "Weight Room" }];
-  const analyticsScopeValue = domain === "development" ? "weight-room" : source;
+  const analyticsFieldSourceOptions = analyticsSourcesForDomain(domain).filter((candidate): candidate is AnalyticsFieldSource => candidate !== "all");
   const analyticsEventTriggerLabel = eventIds.length
     ? analyticsEventSummary(eventIds, result.availableEvents)
     : timeRange === "7d" ? "Last 7 Days" : timeRange === "30d" ? "Last 30 Days" : "All Events";
@@ -19428,6 +19424,8 @@ function AnalyticsView({
     url.searchParams.set("view", "analytics");
     url.searchParams.set("domain", domain);
     url.searchParams.set("source", domain === "development" ? "all" : source);
+    if (domain !== "development" && fieldSources.length > 1) url.searchParams.set("sources", fieldSources.join(","));
+    else url.searchParams.delete("sources");
     url.searchParams.delete("mode");
     url.searchParams.set("statView", analyticsView);
     url.searchParams.set("period", timeRange);
@@ -19456,13 +19454,14 @@ function AnalyticsView({
     const nextUrl = `${url.pathname}${url.search}${url.hash}`;
     const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (nextUrl !== currentUrl) window.history.replaceState({}, "", nextUrl);
-  }, [analyticsView, columnPreset, customRange.end, customRange.start, developmentView, domain, eventIds, filters, metricIds, sort, source, timeRange]);
+  }, [analyticsView, columnPreset, customRange.end, customRange.start, developmentView, domain, eventIds, fieldSources, filters, metricIds, sort, source, timeRange]);
 
   useEffect(() => {
     const handleAnalyticsPopState = () => {
       const next = readInitialAnalyticsState();
       setDomain(next.domain);
       setSource(next.source);
+      setFieldSources(next.fieldSources);
       setAnalyticsView(next.analyticsView);
       setTimeRange(next.timeRange);
       setDevelopmentView(next.developmentView);
@@ -19484,9 +19483,15 @@ function AnalyticsView({
 
   function handleDomain(nextDomain: AnalyticsDomain) {
     setDomain(nextDomain);
-    const supportedSources = analyticsSourcesForDomain(nextDomain);
-    const nextSource = supportedSources.includes(source) ? source : supportedSources[0];
+    const supportedSources = analyticsSourcesForDomain(nextDomain).filter((candidate): candidate is AnalyticsFieldSource => candidate !== "all");
+    const nextFieldSources = nextDomain === "development"
+      ? fieldSources
+      : fieldSources.filter((candidate) => supportedSources.includes(candidate)).length
+        ? normalizeAnalyticsFieldSources(fieldSources.filter((candidate) => supportedSources.includes(candidate)))
+        : [supportedSources[0] ?? "practice"];
+    const nextSource = nextDomain === "development" ? "all" : analyticsSourceFromFieldSources(nextFieldSources);
     setSource(nextSource);
+    setFieldSources(nextFieldSources);
     setAnalyticsView(normalizeAnalyticsView(nextDomain, nextSource));
     if (nextDomain === "development") setDevelopmentView("overview");
     setFilters({});
@@ -19496,8 +19501,12 @@ function AnalyticsView({
     setSort(defaultAnalyticsSort(nextDomain, nextSource, "box-score"));
   }
 
-  function handleSource(nextSource: AnalyticsSource) {
+  function handleFieldSources(nextFieldSources: AnalyticsFieldSource[]) {
+    if (!nextFieldSources.length) return;
+    const normalizedFieldSources = normalizeAnalyticsFieldSources(nextFieldSources);
+    const nextSource = analyticsSourceFromFieldSources(normalizedFieldSources);
     setSource(nextSource);
+    setFieldSources(normalizedFieldSources);
     setFilters({});
     setStagedFilters({});
     setEventIds([]);
@@ -19507,26 +19516,25 @@ function AnalyticsView({
     setSort(defaultAnalyticsSort(domain, nextSource, "box-score"));
   }
 
-  function handleAnalyticsScope(nextValue: string) {
-    if (nextValue === "weight-room") {
-      handleDomain("development");
-      return;
-    }
-    const nextSource = nextValue as AnalyticsSource;
+  function handleFieldSourceToggle(nextFieldSource: AnalyticsFieldSource) {
     if (domain === "development") {
       setDomain("hitting");
-      setSource(nextSource);
+      setSource(nextFieldSource);
+      setFieldSources([nextFieldSource]);
       setDevelopmentView("overview");
       setFilters({});
       setStagedFilters({});
       setEventIds([]);
       setMetricIds(undefined);
       setColumnPreset("standard");
-      setAnalyticsView(normalizeAnalyticsView("hitting", nextSource));
-      setSort(defaultAnalyticsSort("hitting", nextSource, "box-score"));
+      setAnalyticsView(normalizeAnalyticsView("hitting", nextFieldSource));
+      setSort(defaultAnalyticsSort("hitting", nextFieldSource, "box-score"));
       return;
     }
-    handleSource(nextSource);
+    const nextFieldSources = fieldSources.includes(nextFieldSource)
+      ? fieldSources.filter((sourceItem) => sourceItem !== nextFieldSource)
+      : [...fieldSources, nextFieldSource];
+    handleFieldSources(nextFieldSources);
   }
 
   function handleSort(metricId: string) {
@@ -19632,14 +19640,12 @@ function AnalyticsView({
           <div className="analytics-domain-tabs">
             <SegmentedControl values={["hitting", "pitching", "defense"] as AnalyticsDomain[]} active={domain === "development" ? "hitting" : domain} onChange={handleDomain} />
           </div>
-          <ChoiceSelect
-            value={analyticsScopeValue}
-            className="analytics-scope-select"
-            mobilePresentation="popover"
-            showSelectedDescription={false}
-            options={analyticsScopeOptions}
-            onChange={handleAnalyticsScope}
-            aria-label="Analytics source and Weight Room"
+          <AnalyticsSourceSelector
+            domain={domain}
+            selectedSources={fieldSources}
+            availableSources={analyticsFieldSourceOptions}
+            onToggleSource={handleFieldSourceToggle}
+            onOpenWeightRoom={() => handleDomain("development")}
           />
         </div>
         <nav className="analytics-view-tabs" aria-label="Analytics workspace">
@@ -19775,6 +19781,7 @@ function AnalyticsView({
           onViewAllHitting={() => {
             setDomain("hitting");
             setSource("all");
+            setFieldSources(["practice", "live-bp"]);
             setAnalyticsView("overview");
             setFilters({});
             setEventIds([]);
@@ -19822,6 +19829,69 @@ function AnalyticsCharts({
       {resolvedSurface === "location" && result.pitchLocationChart && <AnalyticsPitchLocationChart result={result} mode={mode} onModeChange={onModeChange} hitter={selectedHitter} />}
       {!canShowSpray && !canShowLocation && <CompactEmpty title="No charted locations for this analytics context" />}
     </section>
+  );
+}
+
+function AnalyticsSourceSelector({
+  domain,
+  selectedSources,
+  availableSources,
+  onToggleSource,
+  onOpenWeightRoom,
+}: {
+  domain: AnalyticsDomain;
+  selectedSources: AnalyticsFieldSource[];
+  availableSources: AnalyticsFieldSource[];
+  onToggleSource: (source: AnalyticsFieldSource) => void;
+  onOpenWeightRoom: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const sourceLabels: Record<AnalyticsFieldSource, string> = { games: "Games", practice: "Practice", "live-bp": "Live BP" };
+  const summary = domain === "development"
+    ? "Workouts"
+    : selectedSources.length === 1 ? sourceLabels[selectedSources[0]] : `${selectedSources.length} Sources`;
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className={`analytics-source-selector analytics-scope-select${open ? " open" : ""}`}>
+      <button type="button" className="choice-select__button" aria-haspopup="menu" aria-expanded={open} aria-label="Analytics source and Workouts" onClick={() => setOpen((current) => !current)}>
+        <strong>{summary}</strong>
+        <ChevronDown size={14} aria-hidden="true" />
+      </button>
+      {open && <div className="analytics-source-selector__menu" role="menu" aria-label="Analytics source and Workouts">
+        {domain !== "development" && <div className="analytics-source-selector__field-sources" role="group" aria-label="Field sources">
+          {availableSources.map((source) => {
+            const selected = selectedSources.includes(source);
+            return <label key={source} className={selected ? "active" : ""}>
+              <input type="checkbox" checked={selected} onChange={() => onToggleSource(source)} />
+              <span className="analytics-source-selector__checkbox" aria-hidden="true">{selected && <Check size={13} strokeWidth={3} />}</span>
+              <span>{sourceLabels[source]}</span>
+            </label>;
+          })}
+        </div>}
+        {domain !== "development" && <div className="analytics-source-selector__divider" aria-hidden="true" />}
+        <button type="button" className={domain === "development" ? "active" : ""} role="menuitem" onClick={() => { setOpen(false); onOpenWeightRoom(); }}>
+          <Dumbbell size={15} aria-hidden="true" />
+          <span>Workouts</span>
+        </button>
+      </div>}
+    </div>
   );
 }
 
@@ -21396,6 +21466,7 @@ function AnalyticsPlayerDrawer({
 function readInitialAnalyticsState(): {
   domain: AnalyticsDomain;
   source: AnalyticsSource;
+  fieldSources: AnalyticsFieldSource[];
   mode: AnalyticsMode;
   analyticsView: AnalyticsViewId;
   timeRange: AnalyticsTimeRange;
@@ -21408,13 +21479,19 @@ function readInitialAnalyticsState(): {
   columnPreset: AnalyticsColumnPreset;
 } {
   if (typeof window === "undefined") {
-    return { domain: "hitting", source: "games", mode: "box-score", analyticsView: "overview", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {}, filters: {}, columnPreset: "standard" };
+    return { domain: "hitting", source: "games", fieldSources: ["games"], mode: "box-score", analyticsView: "overview", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {}, filters: {}, columnPreset: "standard" };
   }
   const params = new URLSearchParams(window.location.search);
   const domain = parseAnalyticsParam(params.get("domain"), ["hitting", "pitching", "defense", "development"], "hitting");
   const requestedSource = parseAnalyticsParam(params.get("source"), ["games", "practice", "live-bp", "all"], "games");
   const supportedSources = analyticsSourcesForDomain(domain);
-  const source = supportedSources.includes(requestedSource) ? requestedSource : supportedSources[0];
+  const requestedFieldSources = params.get("sources")?.split(",").filter((source): source is AnalyticsFieldSource => source === "games" || source === "practice" || source === "live-bp") ?? [];
+  const fieldSources = domain === "development"
+    ? []
+    : requestedFieldSources.filter((candidate) => supportedSources.includes(candidate)).length
+      ? [...new Set(requestedFieldSources.filter((candidate) => supportedSources.includes(candidate)))]
+      : analyticsFieldSourcesForSource(domain, supportedSources.includes(requestedSource) ? requestedSource : supportedSources[0]);
+  const source = domain === "development" ? "all" : analyticsSourceFromFieldSources(fieldSources);
   const mode = parseAnalyticsParam(params.get("mode"), ["box-score", "situational"], "box-score");
   const analyticsView = normalizeAnalyticsView(domain, domain === "development" ? "all" : source, params.get("statView") ?? undefined);
   const timeRange = parseAnalyticsParam(params.get("period"), ["7d", "30d", "season", "custom"], "season");
@@ -21424,7 +21501,8 @@ function readInitialAnalyticsState(): {
   const columnPreset = parseAnalyticsParam(params.get("columnPreset"), ["standard", "advanced", "development", "custom"], metricIds?.length ? "custom" : "standard");
   return {
     domain,
-    source: domain === "development" ? "all" : source,
+    source,
+    fieldSources,
     mode: domain === "development" ? "box-score" : mode,
     analyticsView,
     timeRange,
@@ -21439,6 +21517,21 @@ function readInitialAnalyticsState(): {
       end: params.get("end") ?? undefined,
     },
   };
+}
+
+function analyticsFieldSourcesForSource(domain: AnalyticsDomain, source: AnalyticsSource): AnalyticsFieldSource[] {
+  if (source !== "all") return [source];
+  if (domain === "pitching") return ["games", "practice", "live-bp"];
+  return domain === "defense" ? ["practice"] : ["practice", "live-bp"];
+}
+
+function normalizeAnalyticsFieldSources(fieldSources: AnalyticsFieldSource[]): AnalyticsFieldSource[] {
+  const requested = new Set(fieldSources);
+  return (["games", "practice", "live-bp"] as AnalyticsFieldSource[]).filter((source) => requested.has(source));
+}
+
+function analyticsSourceFromFieldSources(fieldSources: AnalyticsFieldSource[]): AnalyticsSource {
+  return fieldSources.length === 1 ? fieldSources[0] : "all";
 }
 
 function readInitialAnalyticsDetailPlayerId(data: AppData): ID | undefined {
