@@ -11,6 +11,7 @@ import {
   defaultAnalyticsMetricIds,
   serializeAnalyticsContext,
 } from "../app/lib/analyticsCatalog.ts";
+import { buildAnalyticsInsights } from "../app/lib/analyticsInsights.ts";
 
 const now = "2026-08-20T12:00:00.000Z";
 
@@ -446,6 +447,58 @@ test("game hitting adds completed plate-appearance metrics without inventing mis
   assert.equal(jacob.cells.walks.display, "1");
   assert.equal(jacob.cells.obp.display, "1.000");
   assert.equal(jacob.cells.ops.display, "2.500");
+});
+
+test("Insights situational rows reuse the canonical Game query and preserve their deep-link filters", () => {
+  const gameEvents = gamePa("risp", 1, 1, 1, ["In Play"], [{ balls: 0, strikes: 0 }], "Single")
+    .map((event) => ({ ...event, runnersBefore: { second: "p-jackson" }, pitcherId: "p-mylo" }));
+  const data = { ...baseData, gameEvents, plateAppearances: [] };
+  const model = buildAnalyticsInsights(data, query("hitting", "games"), "hitting", { today: "2026-08-20" });
+  const risp = model.sections.find((section) => section.id === "situational-hitting")?.rows.find((item) => item.id === "risp");
+
+  assert.ok(risp);
+  assert.equal(risp.primary.display, "1.000");
+  assert.deepEqual(risp.drillQuery?.filters?.runnerStates, ["risp"]);
+  const direct = executeAnalyticsQuery(data, { ...query("hitting", "games"), metrics: ["avg", "ops", "pa"], filters: { runnerStates: ["risp"] } });
+  assert.equal(risp.primary.display, direct.teamTotals.cells.avg.display);
+});
+
+test("Insights changes meaningfully for Practice and never renders Game situations there", () => {
+  const model = buildAnalyticsInsights(baseData, query("hitting", "practice"), "hitting", { today: "2026-08-20" });
+  assert.equal(model.sections.some((section) => section.id === "situational-hitting"), false);
+  assert.equal(model.sections.some((section) => section.id === "practice-contact"), true);
+});
+
+test("Insights 30-day trends compare the immediately preceding equal Game window", () => {
+  const currentGame = { ...baseData.games[0], id: "game-current", date: "2026-08-15" };
+  const previousGame = { ...baseData.games[0], id: "game-previous", date: "2026-07-10" };
+  const currentEvents = gamePa("current", 1, 0, 0, ["In Play"], [{ balls: 0, strikes: 0 }], "Single")
+    .map((event) => ({ ...event, gameId: currentGame.id }));
+  const previousEvents = gamePa("previous", 1, 0, 1, ["In Play"], [{ balls: 0, strikes: 0 }], "Ground Out")
+    .map((event) => ({ ...event, gameId: previousGame.id }));
+  const data = { ...baseData, games: [currentGame, previousGame], gameEvents: [...currentEvents, ...previousEvents], plateAppearances: [] };
+  const model = buildAnalyticsInsights(data, { ...query("hitting", "games"), timeRange: "30d" }, "hitting", { today: "2026-08-20" });
+  const ops = model.sections.find((section) => section.id === "offense-overview")?.rows.find((row) => row.primaryMetricId === "ops");
+
+  assert.ok(ops?.trend);
+  assert.equal(ops.trend.direction, "up");
+  assert.equal(ops.trend.favorable, true);
+  assert.equal(ops.trend.display, "+2.000");
+});
+
+test("Insights pitch-efficiency rows match the canonical pitching totals", () => {
+  const gameEvents = [
+    ...gamePa("a", 1, 0, 1, ["Called Strike", "Foul", "Swinging Strike"], [{ balls: 0, strikes: 0 }, { balls: 0, strikes: 1 }, { balls: 0, strikes: 2 }]),
+    ...gamePa("b", 1, 1, 2, ["Ball", "Called Strike", "Foul", "Ground Out"], [{ balls: 0, strikes: 0 }, { balls: 1, strikes: 0 }, { balls: 1, strikes: 1 }, { balls: 1, strikes: 2 }], "Ground Out"),
+    ...gamePa("c", 1, 2, 3, ["Ball", "Ground Out"], [{ balls: 0, strikes: 0 }, { balls: 1, strikes: 0 }], "Ground Out"),
+  ];
+  const data = { ...baseData, gameEvents, plateAppearances: [] };
+  const model = buildAnalyticsInsights(data, query("pitching", "games"), "pitching", { today: "2026-08-20" });
+  const threePitch = model.sections.find((section) => section.id === "inning-efficiency")?.rows.find((item) => item.primaryMetricId === "threePitchOutRate");
+  const direct = executeAnalyticsQuery(data, { ...query("pitching", "games"), metrics: ["threePitchOutRate"] });
+
+  assert.ok(threePitch);
+  assert.equal(threePitch.primary.display, direct.teamTotals.cells.threePitchOutRate.display);
 });
 
 test("game hitting fixture calculates a complete traditional line from confirmed PAs", () => {

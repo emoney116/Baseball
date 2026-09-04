@@ -8,6 +8,7 @@ This is a local handoff for the Analytics V3 work that would normally be entered
 - Game result mapping and compatible multi-source aggregation rules.
 - Deterministic game hitting, pitching efficiency, baseball-innings, batted-ball, and practice-defense validation.
 - Audit-backed additions: game P/PA, SBA, direct pitcher batted-ball/contact-quality metrics, source-safe batted-ball denominators, and Baserunning/Pitch Mix presets.
+- Analytics Insights V1: source-aware team summaries, Game-only situational and efficiency sections, Practice-compatible tracking sections, deterministic takeaways, and contextual drills back to the canonical Analytics workspace.
 
 ## Metric-Catalog Audit Status
 

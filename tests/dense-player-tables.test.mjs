@@ -49,7 +49,7 @@ test("dense stat tables use the shared player identity and compact Weight Room h
   assert.match(page, /analyticsWorkspace === "overview"/);
   assert.match(page, /<AnalyticsCharts/);
   assert.match(page, /analyticsWorkspace === "insights"/);
-  assert.match(page, /<AnalyticsInsights result=\{result\}/);
+  assert.match(page, /<AnalyticsInsights\s+data=\{data\}\s+query=\{query\}\s+domain=\{insightsDomain\}/);
   assert.doesNotMatch(page, /<AnalyticsSummaryStrip result=\{result\}/);
   assert.match(practiceColumns, /render: \(row\) => <DensePlayerIdentity player=\{row\.player\} \/>/);
   assert.ok((completedWorkout.match(/<DensePlayerIdentity player=/g) ?? []).length >= 3);

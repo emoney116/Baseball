@@ -84,6 +84,7 @@ import {
   type AnalyticsSource,
   type AnalyticsTimeRange,
 } from "./lib/analyticsQuery";
+import { buildAnalyticsInsights, type AnalyticsInsightsDomain } from "./lib/analyticsInsights";
 import {
   analyticsPresetColumnIds as catalogPresetColumnIds,
   analyticsMetricColumnGroup,
@@ -19367,7 +19368,8 @@ function AnalyticsView({
   const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>(() => readInitialAnalyticsDetailPlayerId(data));
   const [metricIds, setMetricIds] = useState<string[] | undefined>(initialState.metricIds);
   const [columnPreset, setColumnPreset] = useState<AnalyticsColumnPreset>(initialState.columnPreset);
-  const [analyticsWorkspace, setAnalyticsWorkspace] = useState<"overview" | "charts" | "insights">("overview");
+  const [analyticsWorkspace, setAnalyticsWorkspace] = useState<"overview" | "charts" | "insights">(initialState.workspace);
+  const [insightsDomain, setInsightsDomain] = useState<AnalyticsInsightsDomain>(initialState.insightsDomain);
   const [chartSurface, setChartSurface] = useState<"spray" | "location">("spray");
   const [chartMode, setChartMode] = useState<PracticeChartMetricMode>("heat");
   const [chartPlayerIds, setChartPlayerIds] = useState<ID[]>([]);
@@ -19429,6 +19431,10 @@ function AnalyticsView({
     else url.searchParams.delete("sources");
     url.searchParams.delete("mode");
     url.searchParams.set("statView", analyticsView);
+    if (analyticsWorkspace !== "overview") url.searchParams.set("workspace", analyticsWorkspace);
+    else url.searchParams.delete("workspace");
+    if (analyticsWorkspace === "insights" && insightsDomain !== domain) url.searchParams.set("insightsDomain", insightsDomain);
+    else url.searchParams.delete("insightsDomain");
     url.searchParams.set("period", timeRange);
     if (developmentView !== "overview") url.searchParams.set("dev", developmentView);
     else url.searchParams.delete("dev");
@@ -19455,7 +19461,7 @@ function AnalyticsView({
     const nextUrl = `${url.pathname}${url.search}${url.hash}`;
     const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (nextUrl !== currentUrl) window.history.replaceState({}, "", nextUrl);
-  }, [analyticsView, columnPreset, customRange.end, customRange.start, developmentView, domain, eventIds, fieldSources, filters, metricIds, sort, source, timeRange]);
+  }, [analyticsView, analyticsWorkspace, columnPreset, customRange.end, customRange.start, developmentView, domain, eventIds, fieldSources, filters, insightsDomain, metricIds, sort, source, timeRange]);
 
   useEffect(() => {
     const handleAnalyticsPopState = () => {
@@ -19464,6 +19470,8 @@ function AnalyticsView({
       setSource(next.source);
       setFieldSources(next.fieldSources);
       setAnalyticsView(next.analyticsView);
+      setAnalyticsWorkspace(next.workspace);
+      setInsightsDomain(next.insightsDomain);
       setTimeRange(next.timeRange);
       setDevelopmentView(next.developmentView);
       setEventIds(next.eventIds);
@@ -19500,6 +19508,30 @@ function AnalyticsView({
     setMetricIds(undefined);
     setColumnPreset("standard");
     setSort(defaultAnalyticsSort(nextDomain, nextSource, "box-score"));
+    setInsightsDomain(nextDomain === "development" ? "hitting" : nextDomain);
+  }
+
+  function openInsightDrill(queryPatch: Partial<AnalyticsQuery>) {
+    const nextDomain = queryPatch.domain ?? domain;
+    const nextFieldSources = queryPatch.fieldSources?.length
+      ? normalizeAnalyticsFieldSources(queryPatch.fieldSources)
+      : fieldSources;
+    setDomain(nextDomain);
+    setSource(queryPatch.source ?? analyticsSourceFromFieldSources(nextFieldSources));
+    setFieldSources(nextFieldSources);
+    setTimeRange(queryPatch.timeRange ?? timeRange);
+    setCustomRange(queryPatch.customDateRange ?? customRange);
+    setEventIds(queryPatch.eventIds ?? eventIds);
+    setFilters(queryPatch.filters ?? filters);
+    setStagedFilters(queryPatch.filters ?? filters);
+    setMetricIds(queryPatch.metrics);
+    setColumnPreset(queryPatch.metrics?.length ? "custom" : "standard");
+    setAnalyticsView(queryPatch.view ?? "overview");
+    setSort(queryPatch.sort ?? defaultAnalyticsSort(nextDomain, queryPatch.source ?? analyticsSourceFromFieldSources(nextFieldSources), "box-score"));
+    setAnalyticsWorkspace("overview");
+    setEventSelectorOpen(false);
+    setFiltersOpen(false);
+    setColumnsOpen(false);
   }
 
   function handleFieldSources(nextFieldSources: AnalyticsFieldSource[]) {
@@ -19765,7 +19797,18 @@ function AnalyticsView({
         />
       )}
 
-      {analyticsWorkspace === "insights" && <AnalyticsInsights result={result} onOpenPlayer={onOpenPlayer} />}
+      {analyticsWorkspace === "insights" && <AnalyticsInsights
+        data={data}
+        query={query}
+        domain={insightsDomain}
+        onDomainChange={(nextDomain) => {
+          setInsightsDomain(nextDomain);
+          if (nextDomain !== "team" && nextDomain !== domain) handleDomain(nextDomain);
+        }}
+        onDrillDown={openInsightDrill}
+        onOpenPlayer={onOpenPlayer}
+        onAsk={onAsk}
+      />}
 
       {selectedDetailRow && (
         <AnalyticsPlayerDrawer
@@ -20042,25 +20085,100 @@ function AnalyticsCellView({ cell }: { cell?: AnalyticsCell }) {
   );
 }
 
-function AnalyticsInsights({ result, onOpenPlayer }: { result: AnalyticsResult; onOpenPlayer: (playerId: ID) => void }) {
+function AnalyticsInsights({
+  data,
+  query,
+  domain,
+  onDomainChange,
+  onDrillDown,
+  onOpenPlayer,
+  onAsk,
+}: {
+  data: AppData;
+  query: AnalyticsQuery;
+  domain: AnalyticsInsightsDomain;
+  onDomainChange: (domain: AnalyticsInsightsDomain) => void;
+  onDrillDown: (query: Partial<AnalyticsQuery>) => void;
+  onOpenPlayer: (playerId: ID) => void;
+  onAsk: (analytics: Partial<AnalyticsQuery>) => void;
+}) {
+  const [detailSectionId, setDetailSectionId] = useState<string>();
+  const model = useMemo(() => buildAnalyticsInsights(data, query, domain), [data, domain, query]);
+  const detailSection = detailSectionId ? model.sections.find((section) => section.id === detailSectionId) : undefined;
+  const sections = detailSection ? [detailSection] : model.sections;
+  const sectionTitle = domain === "team" ? "Team Insights" : `${domain === "hitting" ? "Offense" : domain[0].toUpperCase() + domain.slice(1)} Insights`;
+  const handleRow = (row: { drillQuery?: Partial<AnalyticsQuery> }) => {
+    const playerId = row.drillQuery?.playerIds?.[0];
+    if (playerId) {
+      onOpenPlayer(playerId);
+      return;
+    }
+    if (row.drillQuery) onDrillDown(row.drillQuery);
+  };
   return (
     <section className="analytics-insights" aria-label="Team insights">
-      <div className="panel-heading tight">
+      <div className="analytics-insights__head">
         <div>
-          <span>{result.scopeLabel}</span>
-          <h2>Team Insights</h2>
+          <span>{model.sourceLabel} · Team-first summaries</span>
+          <h2>{detailSection ? detailSection.detailTitle ?? detailSection.title : sectionTitle}</h2>
         </div>
+        <button
+          className="icon-button analytics-insights__ask"
+          type="button"
+          aria-label="Ask Clubhouse about these insights"
+          onClick={() => onAsk({ ...query, ...(detailSection?.rows[0]?.drillQuery ?? {}) })}
+        >
+          <Sparkles size={16} aria-hidden="true" />
+        </button>
       </div>
-      <div className="analytics-insight-list">
-        {result.insights.length ? result.insights.map((insight) => (
-          <button key={insight.id} type="button" onClick={() => insight.playerId && onOpenPlayer(insight.playerId)}>
-            <span>{insight.label}</span>
-            <strong>{insight.title}</strong>
-            <em>{insight.value}</em>
-            {insight.meta && <small>{insight.meta}</small>}
-          </button>
-        )) : <CompactEmpty title="No insights yet for this selection" />}
+      {detailSection && (
+        <button className="analytics-insights__back" type="button" onClick={() => setDetailSectionId(undefined)}>
+          <ChevronLeft size={15} aria-hidden="true" /> All Insights
+        </button>
+      )}
+      {!detailSection && (
+        <div className="analytics-insights__domains" role="tablist" aria-label="Insights domain">
+          {([
+            ["hitting", "Offense"],
+            ["pitching", "Pitching"],
+            ["defense", "Defense"],
+            ["team", "Team"],
+          ] as Array<[AnalyticsInsightsDomain, string]>).map(([value, label]) => (
+            <button key={value} type="button" role="tab" aria-selected={domain === value} className={domain === value ? "active" : ""} onClick={() => onDomainChange(value)}>{label}</button>
+          ))}
+        </div>
+      )}
+      <div className="analytics-insights__sections">
+        {sections.map((section) => (
+          <section key={section.id} className="analytics-insights__section panel">
+            <div className="analytics-insights__section-head">
+              <h3>{section.title}</h3>
+              {!detailSection && section.rows.length > 4 && <button type="button" onClick={() => setDetailSectionId(section.id)}>View All</button>}
+            </div>
+            {section.rows.length ? <>
+              <div className="analytics-insights__labels" aria-hidden="true"><span>Metric</span><span>Team</span><span>Compare</span></div>
+              <div className="analytics-insights__rows">
+                {(detailSection ? section.rows : section.rows.slice(0, 5)).map((row) => (
+                  <button key={row.id} type="button" className="analytics-insights__row" onClick={() => handleRow(row)}>
+                    <span>{row.label}</span>
+                    <strong>{row.primary.display}</strong>
+                    <em>{row.secondary?.display ?? row.trend?.display ?? row.sample ?? ""}</em>
+                    {row.trend && <i className={row.trend.favorable ? "is-favorable" : row.trend.direction === "neutral" ? "is-neutral" : "is-unfavorable"} aria-label={row.trend.display}>
+                      {row.trend.direction === "up" ? <ChevronUp size={13} aria-hidden="true" /> : row.trend.direction === "down" ? <ChevronDown size={13} aria-hidden="true" /> : null}
+                    </i>}
+                  </button>
+                ))}
+              </div>
+            </> : <p className="analytics-insights__empty">{section.emptyMessage ?? "Not enough data yet."}</p>}
+          </section>
+        ))}
       </div>
+      {!detailSection && model.takeaways.length > 0 && (
+        <section className="analytics-insights__takeaways" aria-label="Key takeaways">
+          <h3>Key Takeaways</h3>
+          {model.takeaways.map((takeaway) => <p key={takeaway.id} className={`is-${takeaway.tone}`}>{takeaway.text}</p>)}
+        </section>
+      )}
     </section>
   );
 }
@@ -21490,9 +21608,11 @@ function readInitialAnalyticsState(): {
   sort?: AnalyticsQuery["sort"];
   metricIds?: string[];
   columnPreset: AnalyticsColumnPreset;
+  workspace: "overview" | "charts" | "insights";
+  insightsDomain: AnalyticsInsightsDomain;
 } {
   if (typeof window === "undefined") {
-    return { domain: "hitting", source: "games", fieldSources: ["games"], mode: "box-score", analyticsView: "overview", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {}, filters: {}, columnPreset: "standard" };
+    return { domain: "hitting", source: "games", fieldSources: ["games"], mode: "box-score", analyticsView: "overview", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {}, filters: {}, columnPreset: "standard", workspace: "overview", insightsDomain: "hitting" };
   }
   const params = new URLSearchParams(window.location.search);
   const domain = parseAnalyticsParam(params.get("domain"), ["hitting", "pitching", "defense", "development"], "hitting");
@@ -21512,6 +21632,8 @@ function readInitialAnalyticsState(): {
   const requestedMetricIds = params.get("columns")?.split(",").filter(Boolean);
   const metricIds = isLegacyAnalyticsStandardColumns(requestedMetricIds) ? undefined : requestedMetricIds?.length ? requestedMetricIds : undefined;
   const columnPreset = parseAnalyticsParam(params.get("columnPreset"), ["standard", "advanced", "approach", "contact", "batted-ball", "baserunning", "command", "efficiency", "velocity", "pitch-mix", "development", "position", "custom"], metricIds?.length ? "custom" : "standard");
+  const workspace = parseAnalyticsParam(params.get("workspace"), ["overview", "charts", "insights"], "overview");
+  const insightsDomain = parseAnalyticsParam(params.get("insightsDomain"), ["hitting", "pitching", "defense", "team"], domain === "development" ? "hitting" : domain);
   return {
     domain,
     source,
@@ -21523,6 +21645,8 @@ function readInitialAnalyticsState(): {
     eventIds: params.get("events")?.split(",").filter(Boolean) ?? [],
     metricIds,
     columnPreset,
+    workspace,
+    insightsDomain,
     filters: parseAnalyticsFilters(params.get("filters")),
     sort: params.get("sort") ? { metricId: params.get("sort") ?? "player", direction: params.get("dir") === "asc" ? "asc" : "desc" } : undefined,
     customRange: {
