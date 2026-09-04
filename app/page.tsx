@@ -56,6 +56,7 @@ import type React from "react";
 import { Children, isValidElement, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ClubhouseBaseballField } from "./components/ClubhouseBaseballField";
+import { DemoDataQaPanel } from "./components/DemoDataQaPanel";
 import { DensePlayerIdentity } from "./components/DensePlayerIdentity";
 import { BaseballField, DonutChart, Heatmap, IdentityAvatar, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
@@ -5951,6 +5952,7 @@ function AccountProfileView({
             )) : <CompactEmpty title="No organizations yet" />}
           </div>
         </article>
+        <DemoDataQaPanel />
       </section>
       {cropState && (
         <AvatarCropModal

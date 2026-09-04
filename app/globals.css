@@ -36693,3 +36693,85 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
     min-height: 44px;
   }
 }
+.demo-data-qa-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.demo-data-qa-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.demo-data-qa-panel label,
+.demo-data-qa-panel__volume {
+  display: grid;
+  gap: 6px;
+  color: var(--muted-strong);
+  font-size: 12px;
+}
+
+.demo-data-qa-panel select {
+  min-height: 38px;
+  width: 100%;
+}
+
+.demo-data-qa-panel__volume {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+
+.demo-data-qa-panel__volume > div,
+.demo-data-qa-panel__actions,
+.demo-data-qa-panel__confirm > div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.demo-data-qa-panel__volume button {
+  min-width: 72px;
+}
+
+.demo-data-qa-panel__check {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.demo-data-qa-panel__check input {
+  accent-color: var(--brand);
+}
+
+.demo-data-qa-panel__status,
+.demo-data-qa-panel__confirm {
+  border: 1px solid var(--border);
+  padding: 10px;
+  border-radius: 6px;
+  display: grid;
+  gap: 5px;
+}
+
+.demo-data-qa-panel__status small,
+.demo-data-qa-panel__status em,
+.demo-data-qa-panel__message {
+  color: var(--muted-strong);
+  font-size: 12px;
+  font-style: normal;
+  margin: 0;
+}
+
+.demo-data-qa-panel__actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .demo-data-qa-panel__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .demo-data-qa-panel__volume {
+    grid-template-columns: 1fr;
+  }
+}
