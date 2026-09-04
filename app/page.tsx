@@ -19499,7 +19499,10 @@ function AnalyticsView({
     setSource(nextSource);
     setFieldSources(nextFieldSources);
     setAnalyticsView(normalizeAnalyticsView(nextDomain, nextSource));
-    if (nextDomain === "development") setDevelopmentView("overview");
+    if (nextDomain === "development") {
+      setDevelopmentView("weight-room");
+      setAnalyticsWorkspace("overview");
+    }
     setFilters({});
     setStagedFilters({});
     setMetricIds(undefined);
@@ -19558,6 +19561,7 @@ function AnalyticsView({
       setColumnPreset("standard");
       setAnalyticsView(normalizeAnalyticsView("hitting", nextFieldSource));
       setSort(defaultAnalyticsSort("hitting", nextFieldSource, "box-score"));
+      setAnalyticsWorkspace("overview");
       return;
     }
     const nextFieldSources = fieldSources.includes(nextFieldSource)
@@ -19667,7 +19671,13 @@ function AnalyticsView({
       <section className="analytics-controls" aria-label="Analytics controls">
         <div className="analytics-primary-navigation">
           <div className="analytics-domain-tabs">
-            <SegmentedControl values={["hitting", "pitching", "defense"] as AnalyticsDomain[]} active={domain === "development" ? "hitting" : domain} onChange={handleDomain} />
+            <SegmentedControl
+              values={["hitting", "pitching", "defense"] as AnalyticsDomain[]}
+              active={domain === "development" ? undefined : domain}
+              onChange={handleDomain}
+              disabled={domain === "development"}
+              disabledTitle="Choose a field source to view Hitting, Pitching, or Defense."
+            />
           </div>
           <AnalyticsSourceSelector
             domain={domain}
@@ -19679,7 +19689,14 @@ function AnalyticsView({
         </div>
         <nav className="analytics-view-tabs" aria-label="Analytics workspace">
           {(["overview", "charts", "insights"] as const).map((workspace) => (
-            <button key={workspace} type="button" className={analyticsWorkspace === workspace ? "active" : ""} onClick={() => setAnalyticsWorkspace(workspace)}>
+            <button
+              key={workspace}
+              type="button"
+              className={analyticsWorkspace === workspace ? "active" : ""}
+              onClick={() => setAnalyticsWorkspace(workspace)}
+              disabled={domain === "development" && workspace !== "overview"}
+              title={domain === "development" && workspace !== "overview" ? "Workouts uses the team and player development table." : undefined}
+            >
               {workspace[0].toUpperCase() + workspace.slice(1)}
             </button>
           ))}
@@ -19793,10 +19810,10 @@ function AnalyticsView({
         />
       )}
 
-      {analyticsWorkspace === "insights" && <AnalyticsInsights
+      {analyticsWorkspace === "insights" && domain !== "development" && <AnalyticsInsights
         data={data}
         query={query}
-        domain={domain === "development" ? "hitting" : domain}
+        domain={domain}
         onDrillDown={openInsightDrill}
         onOpenPlayer={onOpenPlayer}
       />}
@@ -19911,17 +19928,17 @@ function AnalyticsSourceSelector({
         <ChevronDown size={14} aria-hidden="true" />
       </button>
       {open && <div className="analytics-source-selector__menu" role="menu" aria-label="Analytics source and Workouts">
-        {domain !== "development" && <div className="analytics-source-selector__field-sources" role="group" aria-label="Field sources">
+        <div className="analytics-source-selector__field-sources" role="group" aria-label="Field sources">
           {availableSources.map((source) => {
-            const selected = selectedSources.includes(source);
+            const selected = domain !== "development" && selectedSources.includes(source);
             return <label key={source} className={selected ? "active" : ""}>
               <input type="checkbox" checked={selected} onChange={() => onToggleSource(source)} />
               <span className="analytics-source-selector__checkbox" aria-hidden="true">{selected && <Check size={13} strokeWidth={3} />}</span>
               <span>{sourceLabels[source]}</span>
             </label>;
           })}
-        </div>}
-        {domain !== "development" && <div className="analytics-source-selector__divider" aria-hidden="true" />}
+        </div>
+        <div className="analytics-source-selector__divider" aria-hidden="true" />
         <button type="button" className={domain === "development" ? "active" : ""} role="menuitem" onClick={() => { setOpen(false); onOpenWeightRoom(); }}>
           <Dumbbell size={15} aria-hidden="true" />
           <span>Workouts</span>
@@ -21587,11 +21604,12 @@ function readInitialAnalyticsState(): {
   const mode = parseAnalyticsParam(params.get("mode"), ["box-score", "situational"], "box-score");
   const analyticsView = normalizeAnalyticsView(domain, domain === "development" ? "all" : source, params.get("statView") ?? undefined);
   const timeRange = parseAnalyticsParam(params.get("period"), ["7d", "30d", "season", "custom"], "season");
-  const developmentView = parseAnalyticsParam(params.get("dev"), ["overview", "weight-room", "attendance", "trends"], "overview");
+  const developmentView = parseAnalyticsParam(params.get("dev"), ["overview", "weight-room", "attendance", "trends"], domain === "development" ? "weight-room" : "overview");
   const requestedMetricIds = params.get("columns")?.split(",").filter(Boolean);
   const metricIds = isLegacyAnalyticsStandardColumns(requestedMetricIds) ? undefined : requestedMetricIds?.length ? requestedMetricIds : undefined;
   const columnPreset = parseAnalyticsParam(params.get("columnPreset"), ["standard", "advanced", "approach", "contact", "batted-ball", "baserunning", "command", "efficiency", "velocity", "pitch-mix", "development", "position", "custom"], metricIds?.length ? "custom" : "standard");
-  const workspace = parseAnalyticsParam(params.get("workspace"), ["overview", "charts", "insights"], "overview");
+  const requestedWorkspace = parseAnalyticsParam(params.get("workspace"), ["overview", "charts", "insights"], "overview");
+  const workspace = domain === "development" ? "overview" : requestedWorkspace;
   return {
     domain,
     source,
@@ -24300,11 +24318,11 @@ function RecentGamesCard({
   );
 }
 
-function SegmentedControl<T extends string>({ values, active, onChange }: { values: T[]; active: T; onChange: (value: T) => void }) {
+function SegmentedControl<T extends string>({ values, active, onChange, disabled = false, disabledTitle }: { values: T[]; active?: T; onChange: (value: T) => void; disabled?: boolean; disabledTitle?: string }) {
   return (
     <div className="segmented-control">
       {values.map((value) => (
-        <button key={value} type="button" className={value === active ? "active" : ""} onClick={() => onChange(value)}>
+        <button key={value} type="button" className={value === active ? "active" : ""} onClick={() => onChange(value)} disabled={disabled} title={disabled ? disabledTitle : undefined}>
           {formatSegment(value)}
         </button>
       ))}

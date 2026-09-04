@@ -377,7 +377,7 @@ export const ANALYTICS_COLUMN_PRESETS: Record<Exclude<AnalyticsColumnPreset, "cu
     "opportunities", "swings", "contacts", "bip", "swingPct", "contactPct", "hardPct", "avgEv", "maxEv",
     "inningsPitched", "battersFaced", "strikeouts", "walksAllowed", "whip", "pitches",
     "positionWorked", "reps", "cleanPct", "errors", "throwAcc",
-    "workouts", "attendancePct", "practiceReps",
+    "weightScore", "workouts", "workoutCompletionPct", "attendancePct", "practiceReps",
   ],
   advanced: [
     "gamesPlayed", "singles", "doubles", "triples", "homeRuns", "outs", "xbh", "hrPct", "xbhPct", "tbPerAb", "runs", "rbi", "totalBases", "walks", "hitByPitch", "strikeouts", "sacrificeFlies", "sacrificeBunts", "reachedOnError", "fieldersChoice", "iso", "babip", "xbhHitPct", "hrPaPct", "tbPerPa", "strikeoutPct", "walkPct", "walkToStrikeout", "paPerStrikeout", "paPerWalk", "pitchesPerPlateAppearance",
@@ -476,7 +476,9 @@ export function analyticsPresetsForDomain(domain: AnalyticsDomain): Array<Exclud
 }
 
 export function defaultAnalyticsMetricIds(domain: AnalyticsDomain, source: AnalyticsSource, fieldSources?: AnalyticsFieldSource[]): string[] {
-  const resolvedSources: AnalyticsFieldSource[] = fieldSources?.length
+  const resolvedSources: AnalyticsSource[] = domain === "development"
+    ? ["all"]
+    : fieldSources?.length
     ? fieldSources
     : source === "all"
       ? domain === "pitching" ? ["games", "practice", "live-bp"] : domain === "defense" ? ["practice"] : ["practice", "live-bp"]
