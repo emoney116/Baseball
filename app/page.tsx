@@ -58,6 +58,7 @@ import { createPortal } from "react-dom";
 import { ClubhouseBaseballField } from "./components/ClubhouseBaseballField";
 import { DemoDataQaPanel } from "./components/DemoDataQaPanel";
 import { DensePlayerIdentity } from "./components/DensePlayerIdentity";
+import { PlayerAccountLinksPanel, TeamPlayerClaimsPanel } from "./components/PlayerAccountLinksPanel";
 import { BaseballField, DonutChart, Heatmap, IdentityAvatar, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
@@ -5952,6 +5953,7 @@ function AccountProfileView({
             )) : <CompactEmpty title="No organizations yet" />}
           </div>
         </article>
+        <PlayerAccountLinksPanel />
         <DemoDataQaPanel />
       </section>
       {cropState && (
@@ -8101,6 +8103,8 @@ function RosterView({
           />
         )}
       </section>
+
+      {section === "Players" && <TeamPlayerClaimsPanel teamId={team?.teamId} />}
 
       {section === "Staff" ? (
         <StaffRosterView

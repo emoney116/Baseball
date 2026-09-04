@@ -36809,10 +36809,188 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
     gap: 10px;
   }
 
-  .global-home-create-button.global-create-button {
+.global-home-create-button.global-create-button {
     width: 34px;
     min-width: 34px;
     height: 34px;
     min-height: 34px;
   }
+}
+
+/* Player self-claim and coach review share a compact, touch-safe audit surface. */
+.player-account-links-panel,
+.team-player-claims-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.player-link-search-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.player-link-search-step .search-pill {
+  flex: 1;
+}
+
+.player-link-team-results,
+.player-link-player-results,
+.player-link-current-links,
+.team-player-claims-list {
+  display: grid;
+  gap: 6px;
+}
+
+.player-link-team-option,
+.player-link-player-option,
+.player-link-summary,
+.team-player-claim-row {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-strong);
+}
+
+.player-link-team-option,
+.player-link-player-option,
+.player-link-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  color: inherit;
+  text-align: left;
+}
+
+.player-link-team-option span,
+.player-link-player-option span,
+.player-link-summary span,
+.team-player-claim-row > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.player-link-team-option small,
+.player-link-player-option small,
+.player-link-summary small,
+.team-player-claim-row small {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-link-team-option.is-selected,
+.player-link-player-option.is-selected,
+.player-link-summary.is-active {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 12%, var(--panel-strong));
+}
+
+.player-link-roster-step,
+.player-link-current-links {
+  display: grid;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.player-link-step-heading span,
+.player-link-confirmation span,
+.team-player-claims-history summary {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.player-link-step-heading strong,
+.player-link-current-links h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.player-link-confirmation {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--canvas-muted);
+}
+
+.player-link-confirmation > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.player-link-confirmation small {
+  color: var(--muted);
+}
+
+.player-link-status {
+  flex: 0 0 auto;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.player-link-status--pending { color: var(--brand-strong); background: color-mix(in srgb, var(--brand) 14%, transparent); }
+.player-link-status--approved { color: var(--success); background: color-mix(in srgb, var(--success) 13%, transparent); }
+.player-link-status--rejected,
+.player-link-status--revoked { color: var(--muted-strong); background: var(--canvas-muted); }
+
+.player-link-message,
+.player-link-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.player-link-message--error { color: var(--danger); }
+
+.team-player-claim-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+}
+
+.team-player-claim-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.team-player-claim-actions .primary-button,
+.team-player-claim-actions .secondary-button,
+.player-link-confirmation .primary-button {
+  min-height: 34px;
+  padding-inline: 10px;
+}
+
+.team-player-claims-history {
+  display: grid;
+  gap: 8px;
+}
+
+.team-player-claims-history summary {
+  cursor: pointer;
+}
+
+@media (max-width: 560px) {
+  .player-link-search-step { align-items: stretch; }
+  .player-link-search-step .secondary-button { min-width: 70px; }
+  .player-link-confirmation { grid-template-columns: auto minmax(0, 1fr); }
+  .player-link-confirmation .primary-button { grid-column: 1 / -1; width: 100%; }
+  .team-player-claim-row { align-items: stretch; flex-direction: column; }
+  .team-player-claim-actions { width: 100%; justify-content: stretch; }
+  .team-player-claim-actions button { flex: 1; }
 }
