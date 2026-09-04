@@ -38,6 +38,23 @@ export type DemoSeedFixture = {
   exercises: Record<string, unknown>[];
 };
 
+const DEMO_SEED_INSERTS: ReadonlyArray<{ table: string; fixtureKey: keyof DemoSeedFixture; countKey: string }> = [
+  { table: "practices", fixtureKey: "practices", countKey: "practices" },
+  { table: "practice_sessions", fixtureKey: "practiceSessions", countKey: "practiceSessions" },
+  { table: "games", fixtureKey: "games", countKey: "games" },
+  { table: "game_lineups", fixtureKey: "gameLineups", countKey: "gameLineups" },
+  { table: "plate_appearances", fixtureKey: "plateAppearances", countKey: "plateAppearances" },
+  { table: "pitch_events", fixtureKey: "pitchEvents", countKey: "pitchEvents" },
+  { table: "hitting_events", fixtureKey: "hittingEvents", countKey: "hittingEvents" },
+  { table: "defense_events", fixtureKey: "defenseEvents", countKey: "defenseEvents" },
+  { table: "exercises", fixtureKey: "exercises", countKey: "exercises" },
+  { table: "workouts", fixtureKey: "workouts", countKey: "workouts" },
+  { table: "workout_sessions", fixtureKey: "workoutSessions", countKey: "workoutSessions" },
+  { table: "workout_sets", fixtureKey: "workoutSets", countKey: "workoutSets" },
+  { table: "player_measurements", fixtureKey: "playerMeasurements", countKey: "playerMeasurements" },
+  { table: "game_pitch_events", fixtureKey: "gamePitchEvents", countKey: "gamePitchEvents" },
+];
+
 type Target = { organizationId: string; teamId: string; seasonId: string };
 type AdminClient = SupabaseClient;
 
@@ -67,6 +84,10 @@ export function demoCleanupTables(): readonly string[] {
     "hitting_events", "pitch_events", "defense_events", "practice_sessions", "practices",
     "workout_sets", "workout_sessions", "player_measurements", "workouts", "exercises",
   ];
+}
+
+export function demoSeedInsertTables(): readonly string[] {
+  return DEMO_SEED_INSERTS.map((item) => item.table);
 }
 
 export async function readDemoSeedAccess(admin: AdminClient, profileId: string) {
@@ -116,20 +137,9 @@ export async function seedDemoData(admin: AdminClient, input: {
     const roster = await readDemoRoster(admin, access.target);
     const fixture = buildDemoSeedFixture({ target: access.target, runId: run.id, roster, dataset: input.dataset, volume: input.volume });
     const counts: DemoCounts = {};
-    await insert(admin, "practices", fixture.practices, counts, "practices");
-    await insert(admin, "practice_sessions", fixture.practiceSessions, counts, "practiceSessions");
-    await insert(admin, "plate_appearances", fixture.plateAppearances, counts, "plateAppearances");
-    await insert(admin, "pitch_events", fixture.pitchEvents, counts, "pitchEvents");
-    await insert(admin, "hitting_events", fixture.hittingEvents, counts, "hittingEvents");
-    await insert(admin, "defense_events", fixture.defenseEvents, counts, "defenseEvents");
-    await insert(admin, "exercises", fixture.exercises, counts, "exercises");
-    await insert(admin, "workouts", fixture.workouts, counts, "workouts");
-    await insert(admin, "workout_sessions", fixture.workoutSessions, counts, "workoutSessions");
-    await insert(admin, "workout_sets", fixture.workoutSets, counts, "workoutSets");
-    await insert(admin, "player_measurements", fixture.playerMeasurements, counts, "playerMeasurements");
-    await insert(admin, "games", fixture.games, counts, "games");
-    await insert(admin, "game_lineups", fixture.gameLineups, counts, "gameLineups");
-    await insert(admin, "game_pitch_events", fixture.gamePitchEvents, counts, "gamePitchEvents");
+    for (const item of DEMO_SEED_INSERTS) {
+      await insert(admin, item.table, fixture[item.fixtureKey], counts, item.countKey);
+    }
     await finishRun(admin, run.id, "completed", counts, {});
     return { runId: run.id as string, counts };
   } catch (error) {

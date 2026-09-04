@@ -7,6 +7,7 @@ import { buildAskClubhouseVisuals } from "../app/lib/askClubhouse/visuals.ts";
 import {
   buildDemoSeedFixture,
   demoCleanupTables,
+  demoSeedInsertTables,
   isAllowedDemoTarget,
   isDemoSeedActorAuthorized,
 } from "../app/lib/demoDataSeed.ts";
@@ -41,6 +42,9 @@ test("the v1 fixture is deterministic, fully marked, and cleanup is marker-scope
   const cleanupCandidates = [...seededRows, realRow].filter((row) => row.demo_seed_run_id === "run-v1-a");
   assert.equal(cleanupCandidates.includes(realRow), false);
   assert.deepEqual(demoCleanupTables().slice(0, 4), ["game_pitch_events", "plate_appearances", "game_lineups", "games"]);
+  const insertTables = demoSeedInsertTables();
+  assert.ok(insertTables.indexOf("games") < insertTables.indexOf("plate_appearances"));
+  assert.ok(insertTables.indexOf("plate_appearances") < insertTables.indexOf("game_pitch_events"));
   assert.equal(demoCleanupTables().includes("players"), false);
   assert.equal(demoCleanupTables().includes("player_team_memberships"), false);
 });
