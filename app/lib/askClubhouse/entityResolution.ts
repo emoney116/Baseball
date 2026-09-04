@@ -81,7 +81,7 @@ function hasExplicitPartialPlayerReference(message: string, token: string, prote
   if (!hasWordBoundedName(message, token)) return false;
   const escaped = escapeRegExp(token);
   const addressedAsPerson = new RegExp(
-    `\\b(?:how|why)\\s+(?:is|did|does|can|should)\\s+${escaped}\\b|\\b(?:show|compare|for|about)\\s+${escaped}\\b|\\b${escaped}(?:'s|\\s+(?:hit|hits|hitting|pitch|pitches|pitching|perform|performs|improve|improves|doing|topped|reached|recorded|threw|had|has))\\b`,
+    `\\b(?:how|why)\\s+(?:is|did|does|can|should)\\s+${escaped}\\b|\\bwhat\\s+(?:can|should|did|does)\\s+${escaped}\\b|\\b(?:show(?:\\s+me)?|compare|for|about)\\s+${escaped}\\b|\\b${escaped}(?:'s|\\s+(?:hit|hits|hitting|pitch|pitches|pitching|perform|performs|improve|improves|doing|topped|reached|recorded|threw|had|has))\\b`,
   ).test(message);
   if (!addressedAsPerson) return false;
   if (!protectedBaseballTerm) return true;

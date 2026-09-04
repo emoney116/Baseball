@@ -330,6 +330,10 @@ test("Ask Clubhouse returns a structured data-first development diagnosis", () =
   assert.match(plan.answer, /WHAT I SEE/);
   assert.match(plan.answer, /WATCH NEXT/);
   assert.equal(plan.toolRequests.length, 0);
+
+  const conversationalPlan = buildAskClubhouseToolPlan({ ...data, hittingEvents: events }, "What can Jacob do to hit sliders better?", undefined, getAskClubhouseConfig({}));
+  assert.equal(conversationalPlan.status, "completed");
+  assert.equal(conversationalPlan.diagnosis?.playerId, "p-jacob");
 });
 
 test("Ask Clubhouse routes each question by intent and bounds web use", () => {
@@ -749,6 +753,23 @@ test("Ask Clubhouse visual answers use a player-scoped Analytics query and bound
   assert.deepEqual(plan.toolRequests[0]?.query.playerIds, ["p-jacob"]);
   assert.deepEqual(chart?.points?.map((point) => point.id).sort(), ["he-3", "he-4"]);
   assert.equal(chart?.coverage.qualifyingEvents, 2);
+});
+
+test("Ask Clubhouse recognizes conversational player requests for a spray chart", () => {
+  const visualData = {
+    ...data,
+    hittingEvents: data.hittingEvents.map((event, index) => ({
+      ...event,
+      fieldLocation: event.action === "Ball in play" ? { x: 0.3 + (index * 0.05), y: 0.42 } : undefined,
+    })),
+  };
+  const config = getAskClubhouseConfig({});
+  const plan = buildAskClubhouseToolPlan(visualData, "Show me Jacob Seamons spray chart", undefined, config);
+  const visuals = buildAskClubhouseVisuals({ data: visualData, message: "Show me Jacob Seamons spray chart", plan });
+
+  assert.equal(plan.status, "data");
+  assert.equal(plan.queryPlan.playerId, "p-jacob");
+  assert.equal(visuals.find((visual) => visual.type === "spray_chart")?.playerId, "p-jacob");
 });
 
 test("Ask Clubhouse gives the provider compact, authoritative visual coverage", async () => {
