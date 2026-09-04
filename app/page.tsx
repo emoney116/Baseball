@@ -6194,21 +6194,21 @@ function ClubhouseHome({
 
   return (
     <div className="page-stack global-home">
-      <section className="global-title-row">
-        <div>
-          <h1>Home</h1>
-        </div>
-        <div className="global-title-actions">
-          <button className="primary-button global-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
-            <Plus size={16} aria-hidden="true" />
-          </button>
-        </div>
-      </section>
-
       <AskClubhouseFab onClick={onAsk} />
 
       <section className="global-section">
-        <SectionHeader title="My Organizations" action={<button className="text-button" type="button" onClick={() => onView("organizations")}>View all</button>} />
+        <SectionHeader
+          className="global-home-section-header"
+          title="My Organizations"
+          action={
+            <div className="section-header-actions global-home-section-actions">
+              <button className="text-button" type="button" onClick={() => onView("organizations")}>View all</button>
+              <button className="primary-button global-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
+                <Plus size={16} aria-hidden="true" />
+              </button>
+            </div>
+          }
+        />
         <div className="organization-grid">
           {organizations.length ? organizations.map((organization) => (
             <OrganizationCard
@@ -6283,6 +6283,7 @@ function OrganizationsView({
   return (
     <div className="page-stack global-home">
       <SectionHeader
+        className="global-primary-header"
         title="Organizations"
         action={
           <button className="primary-button global-create-button" type="button" onClick={() => onCreateTeam(undefined, "organization")} aria-label="New team or organization" title="New Team/Org">
@@ -6750,6 +6751,7 @@ function FollowingView({
   return (
     <div className="page-stack global-home">
       <SectionHeader
+        className="global-primary-header"
         title="Following"
         action={
           <button className="primary-button global-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
@@ -6844,6 +6846,7 @@ function DiscoverView({
   return (
     <div className="page-stack global-home">
       <SectionHeader
+        className="global-primary-header"
         title="Discover"
         action={
           <button className="primary-button global-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
@@ -24229,6 +24232,7 @@ function PracticeSummaryModal({
 }
 
 function SectionHeader({
+  className,
   eyebrow,
   title,
   titleAdornment,
@@ -24236,6 +24240,7 @@ function SectionHeader({
   context,
   action,
 }: {
+  className?: string;
   eyebrow?: string;
   title: string;
   titleAdornment?: React.ReactNode;
@@ -24244,7 +24249,7 @@ function SectionHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <section className="section-header">
+    <section className={`section-header ${className ?? ""}`}>
       <div>
         {eyebrow && <span>{eyebrow}</span>}
         <div className="section-header__title-row">

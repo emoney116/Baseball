@@ -36775,3 +36775,37 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
     grid-template-columns: 1fr;
   }
 }
+
+/* Keep the global page title and add control in one compact scan line on phones. */
+@media (max-width: 720px) {
+  .global-title-row {
+    align-items: center;
+    flex-direction: row;
+    min-height: 38px;
+  }
+
+  .global-primary-header.section-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    min-height: 38px;
+  }
+
+  .global-primary-header.section-header > .global-create-button {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
+  .global-home-section-header.section-header {
+    gap: 8px;
+  }
+
+  .global-home-section-header.section-header h2 {
+    font-size: 22px;
+  }
+
+  .global-home-section-actions {
+    flex: 0 0 auto;
+    gap: 6px;
+  }
+}

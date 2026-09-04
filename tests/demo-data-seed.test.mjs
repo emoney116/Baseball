@@ -8,6 +8,7 @@ import {
   buildDemoSeedFixture,
   demoCleanupTables,
   demoSeedInsertTables,
+  validateDemoSeedFixture,
   isAllowedDemoTarget,
   isDemoSeedActorAuthorized,
 } from "../app/lib/demoDataSeed.ts";
@@ -38,6 +39,7 @@ test("the v1 fixture is deterministic, fully marked, and cleanup is marker-scope
   const seededRows = Object.values(first).flat();
   assert.ok(seededRows.length > 100);
   assert.ok(seededRows.every((row) => row.demo_seed_run_id === "run-v1-a" && row.demo_metadata?.is_demo === true));
+  assert.doesNotThrow(() => validateDemoSeedFixture(first));
   const realRow = { id: "real-practice", demo_seed_run_id: null };
   const cleanupCandidates = [...seededRows, realRow].filter((row) => row.demo_seed_run_id === "run-v1-a");
   assert.equal(cleanupCandidates.includes(realRow), false);
@@ -67,6 +69,13 @@ test("domain-specific seeds retain their own source primitives", () => {
   const defenseOnly = buildDemoSeedFixture({ target, roster, dataset: "defense", volume: "small", runId: "run-defense", id: () => `defense-${++defenseIndex}` });
   assert.ok(defenseOnly.defenseEvents.length > 0);
   assert.ok(defenseOnly.defenseEvents.every((row) => row.session_id === null));
+  assert.ok(defenseOnly.defenseEvents.every((row) => ["Accurate", "Inaccurate", "No Throw"].includes(row.throw_result)));
+  const invalidDefense = structuredClone(defenseOnly);
+  invalidDefense.defenseEvents[0].throw_result = "Off target";
+  assert.throws(() => validateDemoSeedFixture(invalidDefense), /Invalid demo throw result/);
+  const invalidReference = structuredClone(defenseOnly);
+  invalidReference.defenseEvents[0].practice_id = "missing-practice";
+  assert.throws(() => validateDemoSeedFixture(invalidReference), /references a missing practice_id/);
 });
 
 test("seeded QA data answers canonical analytics and Ask Clubhouse questions without web search", () => {

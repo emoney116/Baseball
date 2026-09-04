@@ -90,6 +90,68 @@ export function demoSeedInsertTables(): readonly string[] {
   return DEMO_SEED_INSERTS.map((item) => item.table);
 }
 
+export function validateDemoSeedFixture(fixture: DemoSeedFixture) {
+  const allowedDefenseResults = new Set(["Clean", "Error", "Missed Rep", "Good Play", "Great Play"]);
+  const allowedThrowResults = new Set(["Accurate", "Inaccurate", "No Throw"]);
+  const allowedEntrySources = new Set(["COACH", "PLAYER", "DEVICE", "IMPORT"]);
+  const allowedVerificationStatuses = new Set(["COACH_RECORDED", "PLAYER_RECORDED", "COACH_VERIFIED"]);
+  const allowedGameRecordStatuses = new Set(["confirmed", "corrected", "voided"]);
+
+  for (const event of fixture.defenseEvents) {
+    if (event.result !== null && event.result !== undefined && !allowedDefenseResults.has(String(event.result))) throw new DemoSeedError(`Invalid demo defense result: ${String(event.result)}.`, 500);
+    if (event.throw_result !== null && event.throw_result !== undefined && !allowedThrowResults.has(String(event.throw_result))) throw new DemoSeedError(`Invalid demo throw result: ${String(event.throw_result)}.`, 500);
+    validatePracticeEvent(event, allowedEntrySources, allowedVerificationStatuses);
+  }
+  for (const event of [...fixture.pitchEvents, ...fixture.hittingEvents]) {
+    validatePracticeEvent(event, allowedEntrySources, allowedVerificationStatuses);
+  }
+  for (const event of fixture.hittingEvents) {
+    if (event.exit_velocity_mph !== null && event.exit_velocity_mph !== undefined && (Number(event.exit_velocity_mph) < 1 || Number(event.exit_velocity_mph) > 300)) throw new DemoSeedError(`Invalid demo exit velocity: ${String(event.exit_velocity_mph)}.`, 500);
+  }
+  for (const event of fixture.gamePitchEvents) {
+    if (!allowedGameRecordStatuses.has(String(event.record_status))) throw new DemoSeedError(`Invalid demo game record status: ${String(event.record_status)}.`, 500);
+  }
+  validateFixtureReferences(fixture);
+}
+
+function validatePracticeEvent(event: Record<string, unknown>, allowedEntrySources: Set<string>, allowedVerificationStatuses: Set<string>) {
+  if (!allowedEntrySources.has(String(event.entry_source))) throw new DemoSeedError(`Invalid demo event source: ${String(event.entry_source)}.`, 500);
+  if (!allowedVerificationStatuses.has(String(event.verification_status))) throw new DemoSeedError(`Invalid demo verification status: ${String(event.verification_status)}.`, 500);
+}
+
+function validateFixtureReferences(fixture: DemoSeedFixture) {
+  const ids = (rows: Record<string, unknown>[]) => new Set(rows.map((row) => String(row.id)).filter(Boolean));
+  const practiceIds = ids(fixture.practices);
+  const sessionIds = ids(fixture.practiceSessions);
+  const gameIds = ids(fixture.games);
+  const plateAppearanceIds = ids(fixture.plateAppearances);
+  const exerciseIds = ids(fixture.exercises);
+  const workoutSessionIds = ids(fixture.workoutSessions);
+  const requireReference = (rows: Record<string, unknown>[], field: string, allowed: Set<string>, label: string) => {
+    for (const row of rows) {
+      const value = row[field];
+      if (value !== null && value !== undefined && !allowed.has(String(value))) throw new DemoSeedError(`Demo ${label} references a missing ${field}.`, 500);
+    }
+  };
+  requireReference(fixture.practiceSessions, "practice_id", practiceIds, "practice session");
+  requireReference(fixture.plateAppearances, "practice_id", practiceIds, "plate appearance");
+  requireReference(fixture.plateAppearances, "game_id", gameIds, "plate appearance");
+  requireReference([...fixture.pitchEvents, ...fixture.hittingEvents, ...fixture.defenseEvents], "practice_id", practiceIds, "practice event");
+  requireReference([...fixture.pitchEvents, ...fixture.hittingEvents, ...fixture.defenseEvents], "session_id", sessionIds, "practice event");
+  requireReference(fixture.workoutSessions, "workout_id", ids(fixture.workouts), "workout session");
+  requireReference(fixture.workoutSets, "workout_session_id", workoutSessionIds, "workout set");
+  requireReference(fixture.workoutSets, "exercise_id", exerciseIds, "workout set");
+  requireReference(fixture.gameLineups, "game_id", gameIds, "game lineup");
+  requireReference(fixture.gamePitchEvents, "game_id", gameIds, "game pitch event");
+  requireReference(fixture.gamePitchEvents, "plate_appearance_id", plateAppearanceIds, "game pitch event");
+  const gameSequences = new Set<string>();
+  for (const event of fixture.gamePitchEvents) {
+    const sequenceKey = `${String(event.game_id)}:${String(event.sequence_number)}`;
+    if (gameSequences.has(sequenceKey)) throw new DemoSeedError("Demo game pitch events must have unique game sequence numbers.", 500);
+    gameSequences.add(sequenceKey);
+  }
+}
+
 export async function readDemoSeedAccess(admin: AdminClient, profileId: string) {
   const target = await resolveDemoTarget(admin);
   const [{ data: profile, error: profileError }, entitlements, { count, error: membershipError }] = await Promise.all([
@@ -130,12 +192,12 @@ export async function seedDemoData(admin: AdminClient, input: {
   const access = await readDemoSeedAccess(admin, input.profileId);
   if (!access.authorized) throw new DemoSeedError("Only internal Super Users or Metrolina organization admins can seed demo data.", 403);
   if (!input.replaceExisting) throw new DemoSeedError("V1 demo seeding requires replacing the existing marked demo data so repeated runs remain idempotent.", 409);
-  await deleteDemoData(admin, { profileId: input.profileId, dataset: input.dataset, volume: input.volume, skipAccessCheck: true });
-
   const run = await createRun(admin, access.target, input.profileId, "seed", input.dataset, input.volume);
   try {
     const roster = await readDemoRoster(admin, access.target);
     const fixture = buildDemoSeedFixture({ target: access.target, runId: run.id, roster, dataset: input.dataset, volume: input.volume });
+    validateDemoSeedFixture(fixture);
+    await deleteDemoData(admin, { profileId: input.profileId, dataset: input.dataset, volume: input.volume, skipAccessCheck: true });
     const counts: DemoCounts = {};
     for (const item of DEMO_SEED_INSERTS) {
       await insert(admin, item.table, fixture[item.fixtureKey], counts, item.countKey);
@@ -264,7 +326,7 @@ export function buildDemoSeedFixture(input: {
       empty.practiceSessions.push({ id: defenseSessionId, practice_id: practiceId, player_id: roster.others[0].id, category: "defense", session_type: "Infield", started_at: now, ended_at: now, summary_note: "Clubhouse QA v1 defense reps", metadata: { station: "Infield" }, ...marker("defense") });
       for (let index = 0; index < 12 * multiplier; index += 1) {
         const player = roster.others[index % roster.others.length];
-        empty.defenseEvents.push({ id: id(), practice_id: practiceId, session_id: null, player_id: player.id, station: index % 2 ? "Infield" : "Outfield", event_number: index + 1, outcome: index % 6 === 0 ? "Error" : "Clean", position_worked: index % 2 ? "SS" : "CF", rep_type: index % 2 ? "Ground Ball" : "Fly Ball", result: index % 6 === 0 ? "Error" : "Clean", throw_result: index % 5 === 0 ? "Off target" : "Accurate", error_type: index % 6 === 0 ? "Fielding" : null, created_at: now, entry_source: "COACH", verification_status: "COACH_VERIFIED", idempotency_key: `${input.runId}:defense:${index}`, ...marker("defense") });
+        empty.defenseEvents.push({ id: id(), practice_id: practiceId, session_id: null, player_id: player.id, station: index % 2 ? "Infield" : "Outfield", event_number: index + 1, outcome: index % 6 === 0 ? "Error" : "Clean", position_worked: index % 2 ? "SS" : "CF", rep_type: index % 2 ? "Ground Ball" : "Fly Ball", result: index % 6 === 0 ? "Error" : "Clean", throw_result: index % 5 === 0 ? "Inaccurate" : "Accurate", error_type: index % 6 === 0 ? "Fielding" : null, created_at: now, entry_source: "COACH", verification_status: "COACH_VERIFIED", idempotency_key: `${input.runId}:defense:${index}`, ...marker("defense") });
       }
     }
   }
