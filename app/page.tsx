@@ -87,6 +87,7 @@ import {
 import {
   analyticsPresetColumnIds as catalogPresetColumnIds,
   analyticsMetricColumnGroup,
+  analyticsPresetsForDomain,
   analyticsSourcesForDomain,
   defaultAnalyticsMetricIds,
   normalizeAnalyticsView,
@@ -19705,6 +19706,7 @@ function AnalyticsView({
             </button>
             {columnsOpen && (
               <AnalyticsColumnPanel
+                domain={domain}
                 columns={result.availableColumns}
                 selectedIds={metricIds ?? result.columns.map((column) => column.metricId)}
                 activePreset={columnPreset}
@@ -20197,6 +20199,7 @@ function AnalyticsEventSelector({
 }
 
 function AnalyticsColumnPanel({
+  domain,
   columns,
   selectedIds,
   activePreset,
@@ -20204,6 +20207,7 @@ function AnalyticsColumnPanel({
   onPreset,
   onReset,
 }: {
+  domain: AnalyticsDomain;
   columns: AnalyticsColumn[];
   selectedIds: string[];
   activePreset: AnalyticsColumnPreset;
@@ -20212,7 +20216,12 @@ function AnalyticsColumnPanel({
   onReset: () => void;
 }) {
   const selected = new Set(selectedIds);
-  const groups = Object.entries(columns.reduce<Record<string, AnalyticsColumn[]>>((grouped, column) => {
+  const [search, setSearch] = useState("");
+  const normalizedSearch = search.trim().toLowerCase();
+  const matchingColumns = normalizedSearch
+    ? columns.filter((column) => `${column.label} ${column.fullName} ${column.key}`.toLowerCase().includes(normalizedSearch))
+    : columns;
+  const groups = Object.entries(matchingColumns.reduce<Record<string, AnalyticsColumn[]>>((grouped, column) => {
     (grouped[analyticsColumnGroup(column.metricId)] ??= []).push(column);
     return grouped;
   }, {}));
@@ -20223,13 +20232,17 @@ function AnalyticsColumnPanel({
         <button type="button" className="text-button" onClick={onReset}>Default</button>
       </div>
       <div className="analytics-column-presets" aria-label="Column presets">
-        {(["standard", "advanced", "development"] as const).map((preset) => (
+        {analyticsPresetsForDomain(domain).map((preset) => (
           <button key={preset} type="button" className={activePreset === preset ? "active" : ""} onClick={() => onPreset(preset)}>
             {preset[0].toUpperCase() + preset.slice(1)}
           </button>
         ))}
       </div>
       <div className="analytics-popover__body analytics-column-list">
+        <label className="analytics-column-search">
+          <Search size={14} aria-hidden="true" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search metrics" aria-label="Search analytics metrics" />
+        </label>
         {groups.map(([groupLabel, groupColumns]) => (
           <section key={groupLabel} className="analytics-column-group">
             <span>{groupLabel}</span>
@@ -20237,7 +20250,7 @@ function AnalyticsColumnPanel({
               <button key={column.metricId} type="button" className={selected.has(column.metricId) ? "active" : ""} onClick={() => onToggle(column.metricId)} title={column.definition}>
                 <Check size={13} aria-hidden="true" />
                 <span>
-                  <strong>{analyticsColumnDisplayLabel(column.label)} - {column.label}</strong>
+                  <strong>{column.label} - {column.fullName}</strong>
                 </span>
               </button>
             ))}
@@ -21498,7 +21511,7 @@ function readInitialAnalyticsState(): {
   const developmentView = parseAnalyticsParam(params.get("dev"), ["overview", "weight-room", "attendance", "trends"], "overview");
   const requestedMetricIds = params.get("columns")?.split(",").filter(Boolean);
   const metricIds = isLegacyAnalyticsStandardColumns(requestedMetricIds) ? undefined : requestedMetricIds?.length ? requestedMetricIds : undefined;
-  const columnPreset = parseAnalyticsParam(params.get("columnPreset"), ["standard", "advanced", "development", "custom"], metricIds?.length ? "custom" : "standard");
+  const columnPreset = parseAnalyticsParam(params.get("columnPreset"), ["standard", "advanced", "approach", "contact", "batted-ball", "command", "efficiency", "velocity", "development", "position", "custom"], metricIds?.length ? "custom" : "standard");
   return {
     domain,
     source,

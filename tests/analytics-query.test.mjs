@@ -7,6 +7,7 @@ import {
 import {
   analyticsSourcesForDomain,
   analyticsViewsFor,
+  ANALYTICS_METRICS,
   defaultAnalyticsMetricIds,
   serializeAnalyticsContext,
 } from "../app/lib/analyticsCatalog.ts";
@@ -315,7 +316,8 @@ test("pitching query calculates strike and zone rates with game source support",
   assert.equal(mylo.cells.pitches.display, "7");
   assert.equal(mylo.cells.strikePct.display, "71%");
   assert.equal(mylo.cells.zonePct.display, "75%");
-  assert.deepEqual(result.columns.map((column) => column.metricId), ["pitches", "strikePct", "zonePct", "avgPitchVelo", "maxPitchVelo", "balls", "strikes", "ballPct", "swingPctAllowed", "whiffPct", "swStrPct", "calledStrikePct", "cswPct", "contactAllowedPct", "zoneWhiffPct", "outZoneWhiffPct", "firstPitchStrikePct", "medianPitchVelo", "p90PitchVelo", "minPitchVelo", "veloSpread"]);
+  assert.equal(result.columns.some((column) => column.metricId === "inningsPitched"), true);
+  assert.equal(result.columns.some((column) => column.metricId === "pitches"), true);
   assert.equal(mylo.cells.avgPitchVelo.display, "83.0");
   assert.equal(mylo.cells.ballPct.display, "29%");
   assert.equal(mylo.cells.calledStrikePct.display, "29%");
@@ -386,12 +388,16 @@ test("game defense source does not reuse practice defensive reps", () => {
   assert.equal(result.warnings.some((warning) => warning.includes("future tracking gaps")), true);
 });
 
-test("game hitting source only exposes supported ball-in-play metrics", () => {
+test("game hitting source exposes the expanded completed-plate-appearance catalog", () => {
   const result = executeAnalyticsQuery(baseData, query("hitting", "games"));
   const labels = result.columns.map((column) => column.label);
   const jacob = row(result, "p-jacob");
 
-  assert.deepEqual(labels, ["PA", "AB", "H", "1B", "2B", "3B", "HR", "BB", "SO", "HBP", "Outs", "XBH", "TB", "OBP", "AVG", "SLG", "OPS", "ISO", "BABIP", "HR/AB%", "XBH/AB%", "TB/AB"]);
+  assert.equal(labels.includes("GP"), true);
+  assert.equal(labels.includes("RBI"), true);
+  assert.equal(labels.includes("SB%"), true);
+  assert.equal(labels.includes("K%"), true);
+  assert.equal(labels.includes("TB/PA"), true);
   assert.equal(jacob.cells.pa.display, "—");
   assert.equal(jacob.cells.hits.display, "2");
   assert.equal(jacob.cells.singles.display, "1");
@@ -400,6 +406,22 @@ test("game hitting source only exposes supported ball-in-play metrics", () => {
   assert.equal(jacob.cells.xbhPct.display, "50%");
   assert.equal(jacob.cells.tbPerAb.display, "1.500");
   assert.match(result.warnings.join(" "), /completed logged plate appearances/);
+});
+
+test("every exposed metric has canonical key, short label, full name, formula, and source availability", () => {
+  assert.equal(ANALYTICS_METRICS.length > 150, true);
+  for (const metric of ANALYTICS_METRICS) {
+    assert.match(metric.key, /^[a-z][a-z0-9_]*$/);
+    assert.equal(Boolean(metric.label), true);
+    assert.equal(Boolean(metric.fullName), true);
+    assert.notEqual(metric.fullName, metric.label);
+    assert.equal(Boolean(metric.definition), true);
+    assert.equal(metric.supportedSources.length > 0, true);
+  }
+  assert.deepEqual(
+    ["three_pitch_out_rate", "pitches_per_batter_faced", "exit_velocity_90th_percentile"].map((key) => ANALYTICS_METRICS.find((metric) => metric.key === key)?.fullName),
+    ["Three-Pitch Out Rate", "Pitches per Batter Faced", "90th Percentile Exit Velocity"],
+  );
 });
 
 test("game hitting adds completed plate-appearance metrics without inventing missing outcomes", () => {
@@ -425,6 +447,123 @@ test("game hitting adds completed plate-appearance metrics without inventing mis
   assert.equal(jacob.cells.ops.display, "2.500");
 });
 
+test("game hitting fixture calculates a complete traditional line from confirmed PAs", () => {
+  const outcomes = ["Single", "Double", "Triple", "Home run", "Walk", "HBP", "Strikeout swinging", "Sac Fly", "Ground Out", "Line Out"];
+  const gameEvents = outcomes.map((outcome, index) => gamePaEvent(`hit-${index + 1}`, "game-1", "p-jacob", "p-mylo", index + 1, outcome, index === 7 ? "Sac Fly" : outcome === "Ground Out" ? "Ground Out" : outcome === "Line Out" ? "Line Out" : outcome === "Single" || outcome === "Double" || outcome === "Triple" ? outcome : outcome === "Home run" ? "Home Run" : undefined));
+  const data = {
+    ...baseData,
+    gameEvents,
+    plateAppearances: outcomes.map((outcome, index) => plateAppearance(`hit-${index + 1}`, "p-jacob", outcome === "Sac Fly" ? "Flyout" : outcome)),
+  };
+  const jacob = row(executeAnalyticsQuery(data, query("hitting", "games")), "p-jacob");
+
+  assert.equal(jacob.cells.pa.display, "10");
+  assert.equal(jacob.cells.ab.display, "7");
+  assert.equal(jacob.cells.hits.display, "4");
+  assert.equal(jacob.cells.avg.display, ".571");
+  assert.equal(jacob.cells.obp.display, ".600");
+  assert.equal(jacob.cells.slg.display, "1.429");
+  assert.equal(jacob.cells.ops.display, "2.029");
+  assert.equal(jacob.cells.iso.display, ".857");
+  assert.equal(jacob.cells.babip.display, ".500");
+  assert.equal(jacob.cells.strikeoutPct.display, "10%");
+  assert.equal(jacob.cells.walkPct.display, "10%");
+});
+
+test("pitching efficiency fixture uses documented PA and inning denominators", () => {
+  const gameEvents = [
+    ...gamePa("a", 1, 0, 1, ["Called Strike", "Foul", "Swinging Strike"], [{ balls: 0, strikes: 0 }, { balls: 0, strikes: 1 }, { balls: 0, strikes: 2 }]),
+    ...gamePa("b", 1, 1, 2, ["Called Strike", "Ball", "Foul", "In Play"], [{ balls: 0, strikes: 0 }, { balls: 0, strikes: 1 }, { balls: 1, strikes: 1 }, { balls: 1, strikes: 1 }], "Ground Out"),
+    ...gamePa("c", 1, 2, 3, ["Ball", "Ball", "Called Strike", "Foul", "Ball", "In Play"], [{ balls: 0, strikes: 0 }, { balls: 1, strikes: 0 }, { balls: 2, strikes: 0 }, { balls: 2, strikes: 1 }, { balls: 2, strikes: 2 }, { balls: 3, strikes: 2 }], "Fly Out"),
+    ...gamePa("d", 2, 0, 0, ["Ball", "Ball", "Ball", "Ball"], [{ balls: 0, strikes: 0 }, { balls: 1, strikes: 0 }, { balls: 2, strikes: 0 }, { balls: 3, strikes: 0 }]),
+    ...gamePa("e", 2, 0, 1, ["Ball", "Called Strike", "Ball", "In Play"], [{ balls: 0, strikes: 0 }, { balls: 1, strikes: 0 }, { balls: 1, strikes: 1 }, { balls: 2, strikes: 1 }], "Ground Out"),
+    ...gamePa("f", 2, 1, 2, ["Called Strike", "Ball", "Foul", "In Play"], [{ balls: 0, strikes: 0 }, { balls: 0, strikes: 1 }, { balls: 1, strikes: 1 }, { balls: 1, strikes: 1 }], "Fly Out"),
+    ...gamePa("g", 2, 2, 3, ["Called Strike", "Ball", "In Play"], [{ balls: 0, strikes: 0 }, { balls: 0, strikes: 1 }, { balls: 1, strikes: 1 }], "Pop Out"),
+  ];
+  const data = {
+    ...baseData,
+    games: [{ ...baseData.games[0], startingPitcherId: "p-mylo" }],
+    gameEvents,
+    plateAppearances: [],
+  };
+  const mylo = row(executeAnalyticsQuery(data, { ...query("pitching", "games"), metrics: ["inningsPitched", "battersFaced", "pitches", "pitchesPerInning", "threePitchOuts", "threePitchOutRate", "fourPitchOuts", "fourPitchOutRate", "thirteenPitchInnings", "thirteenPitchInningRate", "fifteenPitchInnings", "fifteenPitchInningRate", "oneTwoThreeInnings", "oneTwoThreeInningRate", "leadoffOuts", "leadoffOutRate", "scorelessInningRate", "twoStrikeFinishRate", "putawayRate"] }), "p-mylo");
+
+  assert.equal(mylo.cells.inningsPitched.display, "2.0");
+  assert.equal(mylo.cells.battersFaced.display, "7");
+  assert.equal(mylo.cells.pitches.display, "28");
+  assert.equal(mylo.cells.pitchesPerInning.display, "14.00");
+  assert.equal(mylo.cells.threePitchOuts.display, "2");
+  assert.equal(mylo.cells.threePitchOutRate.display, "33%");
+  assert.equal(mylo.cells.fourPitchOuts.display, "3");
+  assert.equal(mylo.cells.fourPitchOutRate.display, "50%");
+  assert.equal(mylo.cells.thirteenPitchInnings.display, "1");
+  assert.equal(mylo.cells.thirteenPitchInningRate.display, "50%");
+  assert.equal(mylo.cells.fifteenPitchInnings.display, "2");
+  assert.equal(mylo.cells.oneTwoThreeInnings.display, "1");
+  assert.equal(mylo.cells.oneTwoThreeInningRate.display, "50%");
+  assert.equal(mylo.cells.leadoffOutRate.display, "50%");
+  assert.equal(mylo.cells.scorelessInningRate.display, "100%");
+  assert.equal(mylo.cells.twoStrikeFinishRate.display, "100%");
+  assert.equal(mylo.cells.putawayRate.display, "50%");
+});
+
+test("pitching innings display outs in baseball notation instead of decimal innings", () => {
+  const gameEvents = Array.from({ length: 16 }, (_, index) => gamePa(
+    String.fromCharCode(97 + index),
+    Math.floor(index / 3) + 1,
+    index % 3,
+    index % 3 === 2 ? 0 : (index % 3) + 1,
+    ["In Play"],
+    [{ balls: 0, strikes: 0 }],
+    "Ground Out",
+  )[0]);
+  const data = { ...baseData, gameEvents, plateAppearances: [] };
+  const mylo = row(executeAnalyticsQuery(data, { ...query("pitching", "games"), metrics: ["inningsPitched"] }), "p-mylo");
+
+  assert.equal(mylo.cells.inningsPitched.display, "5.1");
+});
+
+test("game batted-ball metrics use confirmed scored contact types", () => {
+  const data = {
+    ...baseData,
+    gameEvents: [
+      { ...baseData.gameEvents[0], contactType: "Ground Ball" },
+      { ...baseData.gameEvents[1], contactType: "Line Drive" },
+      { ...baseData.gameEvents[2], batterId: "p-jacob", pitchOutcome: "In Play", ballInPlayOutcome: "Fly Out", contactType: "Fly Ball" },
+      { ...baseData.gameEvents[2], id: "ge-4", batterId: "p-jacob", pitchOutcome: "In Play", ballInPlayOutcome: "Pop Out", contactType: "Pop Up" },
+    ],
+  };
+  const jacob = row(executeAnalyticsQuery(data, { ...query("hitting", "games"), metrics: ["groundBalls", "lineDrives", "flyBalls", "popUps", "groundBallPct", "lineDrivePct", "flyBallPct", "popUpPct", "airPct"] }), "p-jacob");
+
+  assert.equal(jacob.cells.groundBalls.display, "1");
+  assert.equal(jacob.cells.lineDrives.display, "1");
+  assert.equal(jacob.cells.flyBalls.display, "1");
+  assert.equal(jacob.cells.popUps.display, "1");
+  assert.equal(jacob.cells.groundBallPct.display, "25%");
+  assert.equal(jacob.cells.airPct.display, "75%");
+});
+
+test("defense fixture calculates clean, error, and throw accuracy rates from raw reps", () => {
+  const data = {
+    ...baseData,
+    defenseSessions: [defenseSession("def-fixture", "practice-aug-17", "p-jacob", "Infield")],
+    defenseEvents: [
+      defenseEvent("def-1", "practice-aug-17", "def-fixture", "p-jacob", { outcome: "Clean", result: "Clean", throwResult: "Accurate" }),
+      defenseEvent("def-2", "practice-aug-17", "def-fixture", "p-jacob", { outcome: "Clean", result: "Clean", throwResult: "Inaccurate" }),
+      defenseEvent("def-3", "practice-aug-17", "def-fixture", "p-jacob", { outcome: "Error", result: "Error", errorType: "Fielding", throwResult: "No Throw" }),
+      defenseEvent("def-4", "practice-aug-17", "def-fixture", "p-jacob", { outcome: "Clean", result: "Clean", throwResult: "No Throw" }),
+    ],
+  };
+  const jacob = row(executeAnalyticsQuery(data, { ...query("defense", "practice"), metrics: ["reps", "cleanPct", "errors", "errorPct", "throws", "accurateThrows", "throwAcc"] }), "p-jacob");
+
+  assert.equal(jacob.cells.reps.display, "4");
+  assert.equal(jacob.cells.cleanPct.display, "75%");
+  assert.equal(jacob.cells.errorPct.display, "25%");
+  assert.equal(jacob.cells.throws.display, "2");
+  assert.equal(jacob.cells.accurateThrows.display, "1");
+  assert.equal(jacob.cells.throwAcc.display, "50%");
+});
+
 test("field-source selections combine compatible hitting data without blending metrics", () => {
   const result = executeAnalyticsQuery(baseData, {
     ...query("hitting", "all"),
@@ -435,7 +574,7 @@ test("field-source selections combine compatible hitting data without blending m
 
   assert.deepEqual(result.query.fieldSources, ["games", "practice"]);
   assert.deepEqual(result.columns.map((column) => column.metricId), ["opportunities", "hits"]);
-  assert.equal(jacob.cells.opportunities.display, "5");
+  assert.equal(jacob.cells.opportunities.display, "7");
   assert.equal(jacob.cells.hits.display, "2");
   assert.equal(result.availableEvents.some((event) => event.source === "games"), true);
   assert.equal(result.availableEvents.some((event) => event.source === "practice"), true);
@@ -606,7 +745,7 @@ test("catalog hides irrelevant sources and views and serializes the active conte
   assert.deepEqual(analyticsSourcesForDomain("defense"), ["practice", "all"]);
   assert.equal(analyticsViewsFor("hitting", "practice").some((view) => view.id === "game-state"), false);
   assert.equal(analyticsViewsFor("hitting", "games").some((view) => view.id === "game-state"), true);
-  assert.deepEqual(defaultAnalyticsMetricIds("hitting", "games").slice(0, 4), ["pa", "ab", "hits", "singles"]);
+  assert.deepEqual(defaultAnalyticsMetricIds("hitting", "games").slice(0, 4), ["pa", "ab", "hits", "avg"]);
 
   const analyticsQuery = { ...query("hitting", "practice"), view: "pitch-types", filters: { pitchTypes: ["Slider"] } };
   const serialized = serializeAnalyticsContext(analyticsQuery, ["swings", "contactPct"]);
@@ -799,6 +938,28 @@ function gameEvent(id, gameId, batterId, pitcherId, pitchOutcome, ballInPlayOutc
     situations: [],
     createdAt: now,
   };
+}
+
+function gamePaEvent(id, gameId, batterId, pitcherId, sequenceNumber, outcome, ballInPlayOutcome) {
+  return {
+    ...gameEvent(id, gameId, batterId, pitcherId, outcome === "Walk" ? "Ball" : outcome === "HBP" ? "HBP" : outcome.startsWith("Strikeout") ? "Swinging Strike" : "In Play", ballInPlayOutcome),
+    plateAppearanceId: id,
+    sequenceNumber,
+    countBefore: outcome === "Walk" ? { balls: 3, strikes: 0 } : outcome.startsWith("Strikeout") ? { balls: 0, strikes: 2 } : { balls: 0, strikes: 0 },
+  };
+}
+
+function gamePa(id, inning, outsBefore, outsAfter, outcomes, counts, ballInPlayOutcome) {
+  const sequenceStart = Number(id.charCodeAt(0)) * 10;
+  return outcomes.map((pitchOutcome, index) => ({
+    ...gameEvent(`${id}-${index + 1}`, "game-1", "p-jacob", "p-mylo", pitchOutcome, index === outcomes.length - 1 ? ballInPlayOutcome : undefined),
+    plateAppearanceId: id,
+    sequenceNumber: sequenceStart + index,
+    inning,
+    countBefore: counts[index],
+    outsBefore,
+    outsAfter: index === outcomes.length - 1 ? outsAfter : outsBefore,
+  }));
 }
 
 function plateAppearance(id, hitterId, outcome) {

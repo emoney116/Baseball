@@ -9169,6 +9169,32 @@ select option {
   gap: 5px;
 }
 
+.analytics-column-search {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  margin: 4px 0 7px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.analytics-column-search input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+
+.analytics-column-search:focus-within {
+  border-color: var(--brand-border);
+}
+
 .analytics-column-list button {
   border: 1px solid transparent;
   border-radius: var(--radius);
