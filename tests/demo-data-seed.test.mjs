@@ -62,6 +62,11 @@ test("domain-specific seeds retain their own source primitives", () => {
   assert.equal(weightOnly.workoutSets.length, weightOnly.workoutSessions.length);
   const jacobSets = weightOnly.workoutSets.filter((row) => row.player_id === "p-jacob");
   assert.ok(Number(jacobSets.at(-1)?.weight) > Number(jacobSets[0]?.weight));
+
+  let defenseIndex = 0;
+  const defenseOnly = buildDemoSeedFixture({ target, roster, dataset: "defense", volume: "small", runId: "run-defense", id: () => `defense-${++defenseIndex}` });
+  assert.ok(defenseOnly.defenseEvents.length > 0);
+  assert.ok(defenseOnly.defenseEvents.every((row) => row.session_id === null));
 });
 
 test("seeded QA data answers canonical analytics and Ask Clubhouse questions without web search", () => {

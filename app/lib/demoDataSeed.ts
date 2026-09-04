@@ -264,7 +264,7 @@ export function buildDemoSeedFixture(input: {
       empty.practiceSessions.push({ id: defenseSessionId, practice_id: practiceId, player_id: roster.others[0].id, category: "defense", session_type: "Infield", started_at: now, ended_at: now, summary_note: "Clubhouse QA v1 defense reps", metadata: { station: "Infield" }, ...marker("defense") });
       for (let index = 0; index < 12 * multiplier; index += 1) {
         const player = roster.others[index % roster.others.length];
-        empty.defenseEvents.push({ id: id(), practice_id: practiceId, session_id: defenseSessionId, player_id: player.id, station: index % 2 ? "Infield" : "Outfield", event_number: index + 1, outcome: index % 6 === 0 ? "Error" : "Clean", position_worked: index % 2 ? "SS" : "CF", rep_type: index % 2 ? "Ground Ball" : "Fly Ball", result: index % 6 === 0 ? "Error" : "Clean", throw_result: index % 5 === 0 ? "Off target" : "Accurate", error_type: index % 6 === 0 ? "Fielding" : null, created_at: now, entry_source: "COACH", verification_status: "COACH_VERIFIED", idempotency_key: `${input.runId}:defense:${index}`, ...marker("defense") });
+        empty.defenseEvents.push({ id: id(), practice_id: practiceId, session_id: null, player_id: player.id, station: index % 2 ? "Infield" : "Outfield", event_number: index + 1, outcome: index % 6 === 0 ? "Error" : "Clean", position_worked: index % 2 ? "SS" : "CF", rep_type: index % 2 ? "Ground Ball" : "Fly Ball", result: index % 6 === 0 ? "Error" : "Clean", throw_result: index % 5 === 0 ? "Off target" : "Accurate", error_type: index % 6 === 0 ? "Fielding" : null, created_at: now, entry_source: "COACH", verification_status: "COACH_VERIFIED", idempotency_key: `${input.runId}:defense:${index}`, ...marker("defense") });
       }
     }
   }
