@@ -163,6 +163,9 @@ export function PlayerAccountLinksPanel() {
       });
       setActiveLinkId(link.id);
       setStatus("idle");
+      const target=new URL('/',window.location.origin);
+      target.searchParams.set('player',link.playerId);target.searchParams.set('team',link.player.teamId);target.searchParams.set('season',link.player.seasonId);
+      window.location.assign(target.toString());
     } catch (error) {
       setStatus("error");
       setMessage(error instanceof Error ? error.message : "Unable to select player context.");

@@ -1019,6 +1019,7 @@ export interface PlateAppearance {
 
 export interface CoachNote {
   id: ID;
+  visibility?: "coach_only" | "player_visible";
   scope:
     | { type: "Player"; playerId: ID }
     | { type: "Practice"; practiceId: ID }
@@ -1032,6 +1033,7 @@ export interface CoachNote {
 
 export interface DevelopmentGoal {
   id: ID;
+  playerVisible?: boolean;
   playerId: ID;
   title: string;
   tags: NoteTag[];

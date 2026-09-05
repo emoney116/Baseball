@@ -149,7 +149,7 @@ export const authRepository = {
     const firstName = input.firstName?.trim() ?? "";
     const lastName = input.lastName?.trim() ?? "";
     const displayName = [firstName, lastName].filter(Boolean).join(" ").trim() || input.email;
-    const redirectTo = absoluteUrl("/", browserSiteUrl());
+    const redirectTo = absoluteUrl("/auth/callback", browserSiteUrl());
     const { data, error } = await supabase.auth.signUp({
       email: input.email,
       password: input.password,
@@ -2160,7 +2160,7 @@ async function syncNotesAndGoals(supabase: SupabaseClient, foundation: Foundatio
         player_id: "playerId" in scope ? scope.playerId : null,
         practice_id: "practiceId" in scope ? scope.practiceId : null,
         session_id: "sessionId" in scope ? scope.sessionId : null,
-        visibility: "coach_only",
+        visibility: note.visibility === "player_visible" ? "player_visible" : "coach_only",
         tags: note.tags,
         note: note.text,
         created_at: note.createdAt,
@@ -2180,6 +2180,7 @@ async function syncNotesAndGoals(supabase: SupabaseClient, foundation: Foundatio
       title: goal.title,
       tags: goal.tags,
       completed: goal.completed ?? false,
+      player_visible: goal.playerVisible === true,
       created_at: goal.createdAt,
       updated_at: goal.updatedAt,
     })),
@@ -3217,6 +3218,7 @@ function mapCoachNote(row: any): CoachNote {
     scope,
     tags: row.tags ?? [],
     text: row.note,
+    visibility: row.visibility === "player_visible" ? "player_visible" : "coach_only",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -3227,6 +3229,7 @@ function mapDevelopmentGoal(row: any): DevelopmentGoal {
     id: row.id,
     playerId: row.player_id,
     title: row.title,
+    playerVisible: row.player_visible === true,
     tags: row.tags ?? [],
     completed: row.completed,
     createdAt: row.created_at,

@@ -137,8 +137,9 @@ export function classifyAskClubhouseIntent(
   const definitionQuestion = /^(what is|what are|what does|define|explain|what(?:'s| is) the difference between)\b/i.test(trimmed)
     && !/\b(my|our|this|team|player|practice|game|clubhouse)\b/i.test(trimmed);
   const contextualTeamReference = /\b(?:our|my|this) team'?s?\b/i.test(trimmed);
-  const personalDataReference = /\b(?:my|our|this)\s+(?:hitting|pitching|defense|performance|data|results|stats|breaking balls?|fastballs?|sliders?|contact|velocity)\b/i.test(trimmed)
-    || /\b(?:am|do|have) i\b.*\b(?:improv|perform|hit|pitch|contact|breaking balls?|fastballs?|sliders?)\b/i.test(trimmed);
+  const personalDataReference = /\b(?:my|our|this)\s+(?:hitting|pitching|defense|performance|data|results|stats|spray chart|heat ?map|pitch location|breaking balls?|fastballs?|sliders?|contact|velocity)\b/i.test(trimmed)
+    || /\b(?:am|do|have) i\b.*\b(?:improv\w*|perform\w*|hitt?\w*|pitch\w*|contact|breaking balls?|fastballs?|sliders?)\b/i.test(trimmed)
+    || /\bwhat should i work on\b/i.test(trimmed);
   const explicitTeamData = (!definitionQuestion && TEAM_DATA_PATTERN.test(trimmed))
     || messageHasExplicitPlayerReference(trimmed, players);
   const currentBaseballContext = CURRENT_BASEBALL_CONTEXT_PATTERN.test(trimmed);

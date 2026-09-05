@@ -16,6 +16,9 @@ import {
 } from "../../../lib/askClubhouse/usage";
 import { createAdminClient } from "../../../lib/supabase/admin";
 import { createClient } from "../../../lib/supabase/server";
+import { hasStaffAccess, loadPlayerSession, listPlayerContexts } from "../../../lib/playerAccess";
+import { PlayerLinkError } from "../../../lib/playerAccountLinks";
+import { playerAskContext, isPrivateTeamQuestion } from "../../../lib/playerAskScope";
 
 export async function POST(request: NextRequest) {
   const requestStartedAt = Date.now();
@@ -64,7 +67,27 @@ export async function POST(request: NextRequest) {
       }, 401);
     }
 
-    const { data, scope } = await loadAskClubhouseData(
+    const usageSupabase = createAdminClient();
+    const staffViewer = await hasStaffAccess(usageSupabase, userData.user.id);
+    const playerSession = staffViewer ? undefined : await loadPlayerSession(usageSupabase, userData.user.id, {
+      playerId: body.uiContext?.viewerPlayerId ?? body.uiContext?.playerId,
+      teamId: body.uiContext?.teamId,
+      seasonId: body.uiContext?.seasonId,
+    });
+    if (!staffViewer && (!playerSession?.data || !playerSession.context)) {
+      return json({ok:false,status:"refused",answer:"An approved player link is required to use your development data.",code:"PLAYER_LINK_REQUIRED"},403);
+    }
+    if (playerSession?.context) {
+      const c = playerSession.context;
+      body.uiContext = playerAskContext(c,body.uiContext);
+      if (isPrivateTeamQuestion(message)) {
+        return json({ok:false,status:"refused",answer:"I can help with your own development data and baseball questions, but not other players' private statistics or staff information.",code:"PLAYER_SCOPE_DENIED"},403);
+      }
+      body.messages = [];
+    }
+    const { data, scope } = playerSession?.data && playerSession.context ? {
+      data:playerSession.data,scope:{profileId:userData.user.id,selectedTeams:[playerSession.context.team]},
+    } : await loadAskClubhouseData(
       supabase,
       userData.user,
       body.uiContext?.teamId,
@@ -74,7 +97,6 @@ export async function POST(request: NextRequest) {
     const currentTeam = data.teamContext?.currentTeam;
     const billingTeam = currentTeam ?? scope.selectedTeams[0];
     const usageRole = resolveAiUsageRole(billingTeam?.role, data.teamContext?.profile?.role);
-    const usageSupabase = createAdminClient();
     const entitlements = await getUserEntitlements(usageSupabase, scope.profileId);
     const allowance = resolveAskClubhouseAllowance({ role: usageRole, entitlements });
     const history = boundConversationHistory(body.messages, config.contextMessageLimit);
@@ -177,6 +199,13 @@ export async function POST(request: NextRequest) {
     });
 
     const assistantContent = reply.answer ?? "Ask Clubhouse could not produce an answer for that question.";
+    if (playerSession?.context) {
+      const contexts=await listPlayerContexts(usageSupabase,userData.user.id);
+      if(!contexts.some(c=>c.linkId===playerSession.context!.linkId && c.membershipId===playerSession.context!.membershipId)) {
+        await finishAiUsageEvent(usageSupabase,{usageEventId,status:'refused',toolCallCount:0,toolNames:[],toolParams:[],webSearchCount:0,latencyMs:Date.now()-requestStartedAt,errorCode:'PLAYER_ACCESS_REVOKED',quotaOutcome:'not_counted'});
+        throw new PlayerLinkError('Your player access has changed. Refresh to continue.',403);
+      }
+    }
     const assistantMessageId = await insertMessage(supabase, {
       conversationId,
       profileId: scope.profileId,
@@ -231,6 +260,9 @@ export async function POST(request: NextRequest) {
       code: reply.code,
     });
   } catch (error) {
+    if (error instanceof PlayerLinkError) {
+      return json({ok:false,status:'refused',answer:error.message,code:'PLAYER_SCOPE_DENIED'},error.status);
+    }
     if (error instanceof AskClubhouseScopeError) {
       return json({
         ok: false,

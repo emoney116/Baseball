@@ -759,6 +759,24 @@ function mapGameEvent(row: AnyRow): GameEvent {
     pitchType: normalizePitchType(row.pitch_type),
     pitchOutcome: row.pitch_outcome as GamePitchOutcome | undefined,
     ballInPlayOutcome: row.ball_in_play_outcome as GameBallInPlayOutcome | undefined,
+    eventKind: row.event_kind ?? "pitch",
+    sequenceNumber: row.sequence_number ?? undefined,
+    plateAppearanceId: row.plate_appearance_id ?? undefined,
+    plateAppearanceNumber: row.plate_appearance_number ?? undefined,
+    pitchNumber: row.pitch_number ?? undefined,
+    pitchNumberInPlateAppearance: row.pitch_number_in_plate_appearance ?? undefined,
+    contactType: row.contact_type ?? undefined,
+    runnerMovements: row.runner_movements ?? undefined,
+    rbi: row.rbi ?? undefined,
+    recordStatus: row.record_status ?? "confirmed",
+    runnerAction: row.runner_action ?? undefined,
+    runnerId: row.runner_id ?? undefined,
+    runnerBase: row.runner_base ?? undefined,
+    countBefore: row.count_before ?? undefined,
+    countAfter: row.count_after ?? undefined,
+    runnersBefore: row.runners_before ?? undefined,
+    runnersAfter: row.runners_after ?? undefined,
+    fieldLocation: row.field_location ?? undefined,
     velocity: toNumber(row.velocity),
     location: row.location ?? undefined,
     outsBefore: row.outs_before,
@@ -872,3 +890,7 @@ function toNumber(value: unknown): number | undefined {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
+
+export { emptyData, mapPlayer, mapPlayerTeamMembership, mapPractice, mapAttendance,
+  mapPitchEvent, mapHittingEvent, mapDefenseEvent, mapHittingSession, mapPitchingSession,
+  mapDefenseSession, mapWorkoutSession, mapWorkoutEntry, mapGame, mapGameEvent };

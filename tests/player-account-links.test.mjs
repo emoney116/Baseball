@@ -19,15 +19,15 @@ function rosterPlayer(playerId, membershipId, name = "Jackson Smith") {
   return { playerId, membershipId, teamId, seasonId, name, jerseyNumber: 12, graduationYear: 2027, primaryPosition: "SS" };
 }
 
-test("claim alias resolution requires a full strong roster identity and keeps the selected membership context", () => {
+test("claim authorization preserves exact selected identity even when a same-name presentation alias exists", () => {
   const canonical = rosterPlayer("20000000-0000-4000-8000-000000000001", "30000000-0000-4000-8000-000000000001");
   const alias = rosterPlayer("20000000-0000-4000-8000-000000000002", "30000000-0000-4000-8000-000000000002");
   const resolved = resolveCanonicalClaimPlayer(alias, [canonical, alias], [
     player(canonical.playerId, "Jackson Smith", 2027, "2026-09-02T12:00:00.000Z"),
     player(alias.playerId, "Jackson Smith", 2027, "2026-09-01T12:00:00.000Z"),
   ]);
-  assert.equal(resolved.playerId, canonical.playerId);
-  assert.equal(resolved.membershipId, canonical.membershipId);
+  assert.equal(resolved.playerId, alias.playerId);
+  assert.equal(resolved.membershipId, alias.membershipId);
 
   const sameNameDifferentJersey = { ...alias, jerseyNumber: 7 };
   assert.equal(
@@ -51,14 +51,16 @@ test("player-link lifecycle only permits coach review from pending and revocatio
 
 test("approved player links can be multi-player, while a revoked link immediately loses self context", () => {
   const links = [
-    { playerId: "player-a", status: "APPROVED" },
-    { playerId: "player-b", status: "APPROVED" },
-    { playerId: "player-c", status: "REVOKED" },
+    { playerId: "player-a", status: "APPROVED", relationshipType: "PLAYER" },
+    { playerId: "player-b", status: "APPROVED", relationshipType: "PLAYER" },
+    { playerId: "player-c", status: "REVOKED", relationshipType: "PLAYER" },
+    { playerId: "player-d", status: "APPROVED", relationshipType: "GUARDIAN" },
   ];
   assert.equal(canProfileAccessPlayerSelf(links, "player-a"), true);
   assert.equal(canProfileAccessPlayerSelf(links, "player-b"), true);
   assert.equal(canProfileAccessPlayerSelf(links, "player-c"), false);
   assert.equal(canProfileAccessPlayerSelf(links, "other-player"), false);
+  assert.equal(canProfileAccessPlayerSelf(links, "player-d"), false);
 });
 
 test("association migration keeps accounts and players separate and enforces one active player self-account", () => {

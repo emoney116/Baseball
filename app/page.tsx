@@ -59,6 +59,9 @@ import { ClubhouseBaseballField } from "./components/ClubhouseBaseballField";
 import { DemoDataQaPanel } from "./components/DemoDataQaPanel";
 import { DensePlayerIdentity } from "./components/DensePlayerIdentity";
 import { PlayerAccountLinksPanel, TeamPlayerClaimsPanel } from "./components/PlayerAccountLinksPanel";
+import { PlayerInvitationsPanel } from "./components/PlayerInvitationsPanel";
+import { PlayerShell } from "./components/PlayerShell";
+import type { PlayerSession } from "./lib/playerAccess";
 import { BaseballField, DonutChart, Heatmap, IdentityAvatar, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
@@ -1424,6 +1427,7 @@ export default function MetrolinaBaseballApp() {
   const [data, setData] = useState<AppData | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [authState, setAuthState] = useState<AuthState>({ status: "anonymous" });
+  const [playerSession, setPlayerSession] = useState<PlayerSession | null>(null);
   const [loadError, setLoadError] = useState<PersistenceError | Error | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -1887,6 +1891,7 @@ export default function MetrolinaBaseballApp() {
     setAuthState(auth);
 
     if (auth.status !== "authenticated") {
+      setPlayerSession(null);
       setData(null);
       setHydrated(true);
       return;
@@ -1894,6 +1899,19 @@ export default function MetrolinaBaseballApp() {
 
     try {
       const params = new URLSearchParams(window.location.search);
+      const playerParams=new URLSearchParams();
+      for(const key of ['player','team','season']) {const value=params.get(key);if(value)playerParams.set(key,value);}
+      const sessionResponse = await fetch(`/api/player/session?${playerParams}`, { cache: 'no-store' });
+      const sessionPayload = await sessionResponse.json();
+      if (!sessionResponse.ok) throw new Error(sessionPayload.message ?? 'Unable to verify account access.');
+      if (isCancelled()) return;
+      if (sessionPayload.mode === 'player') {
+        setPlayerSession(sessionPayload);
+        setData(null);
+        setHydrated(true);
+        return;
+      }
+      setPlayerSession(null);
       const requestedTeam = selectedTeamId ?? params.get("team");
       const requestedSeason = selectedSeasonId ?? params.get("season");
       const loaded = withStoredThemePreference(await supabaseAppRepository.load(requestedTeam ?? undefined, requestedSeason ?? undefined));
@@ -4051,6 +4069,8 @@ export default function MetrolinaBaseballApp() {
     );
   }
 
+  if (playerSession) return <PlayerShell initialSession={playerSession} />;
+
   if (!data) {
     return (
       <main className="loading-screen">
@@ -4513,6 +4533,10 @@ export default function MetrolinaBaseballApp() {
               setPlayerEditorOpen(true);
             }}
             onOpenSessionSummary={openExistingSessionSummary}
+            onVisibility={(kind,id,visible)=>commit(current=>({...current,
+              coachNotes:kind==='note'?current.coachNotes.map(n=>n.id===id?{...n,visibility:visible?'player_visible':'coach_only',updatedAt:new Date().toISOString()}:n):current.coachNotes,
+              developmentGoals:kind==='goal'?current.developmentGoals.map(g=>g.id===id?{...g,playerVisible:visible,updatedAt:new Date().toISOString()}:g):current.developmentGoals,
+            }))}
           />
         )}
       </section>
@@ -8104,7 +8128,8 @@ function RosterView({
         )}
       </section>
 
-      {section === "Players" && <TeamPlayerClaimsPanel teamId={team?.teamId} />}
+      {section === "Players" && <TeamPlayerClaimsPanel key={team?.teamId} teamId={team?.teamId} />}
+      {section === "Players" && team?.seasonId && <PlayerInvitationsPanel key={`${team.teamId}-${team.seasonId}`} teamId={team.teamId} seasonId={team.seasonId} />}
 
       {section === "Staff" ? (
         <StaffRosterView
@@ -21772,6 +21797,7 @@ function PlayerProfile({
   onTeamSwitch,
   onEdit,
   onOpenSessionSummary,
+  onVisibility,
 }: {
   data: AppData;
   player: Player;
@@ -21780,6 +21806,7 @@ function PlayerProfile({
   onTeamSwitch: (team: TeamOption) => void | Promise<void>;
   onEdit: () => void;
   onOpenSessionSummary: (type: "Hitting" | "Pitching" | "Defense", sessionId: ID) => void;
+  onVisibility: (kind:'note'|'goal',id:ID,visible:boolean)=>void;
 }) {
   const pitchEvents = playerPitchEvents(data, player.id);
   const hittingEvents = playerHittingEvents(data, player.id);
@@ -21868,7 +21895,7 @@ function PlayerProfile({
           <article className="panel">
             <div className="panel-heading tight"><div><span>Development Focus</span><h2>Current Goals</h2></div></div>
             <div className="goal-list">
-              {goals.length ? goals.map((goal, index) => <div key={goal.id}><strong>{index + 1}. {goal.title}</strong><small>{goal.tags.join(", ")}</small></div>) : <CompactEmpty title="No development goals yet" />}
+              {goals.length ? goals.map((goal, index) => <div key={goal.id}><strong>{index + 1}. {goal.title}</strong><small>{goal.tags.join(", ")}</small><label><input type="checkbox" checked={goal.playerVisible===true} onChange={e=>onVisibility('goal',goal.id,e.target.checked)}/> Visible to Player</label></div>) : <CompactEmpty title="No development goals yet" />}
             </div>
           </article>
 
@@ -21972,7 +21999,7 @@ function PlayerProfile({
       {tab === "notes" && (
         <section className="profile-grid">
           <article className="panel note-list">
-            {notes.map((note) => <div key={note.id}><strong>{note.tags.join(", ")}</strong><p>{note.text}</p><small>{fullDate(note.createdAt.slice(0, 10))}</small></div>)}
+            {notes.map((note) => <div key={note.id}><strong>{note.tags.join(", ")}</strong><p>{note.text}</p><small>{fullDate(note.createdAt.slice(0, 10))}</small><label><input type="checkbox" checked={note.visibility==='player_visible'} onChange={e=>onVisibility('note',note.id,e.target.checked)}/> Visible to Player</label></div>)}
           </article>
         </section>
       )}

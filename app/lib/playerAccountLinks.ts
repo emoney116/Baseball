@@ -1,4 +1,3 @@
-import { strongRosterIdentityKey } from "./playerIdentity.ts";
 import { getUserEntitlements, hasEntitlement, SUPER_USER_ENTITLEMENT } from "./askClubhouse/entitlements.ts";
 import type { createAdminClient } from "./supabase/admin";
 
@@ -86,44 +85,18 @@ export function isPlayerLinkStatus(value: unknown): value is PlayerLinkStatus {
   return value === "PENDING" || value === "APPROVED" || value === "REJECTED" || value === "REVOKED";
 }
 
-export function resolveCanonicalClaimPlayer(selected: ClaimRosterPlayer, roster: ClaimRosterPlayer[], players: Array<Pick<PlayerRow, "id" | "first_name" | "last_name" | "graduation_year" | "active" | "updated_at">>): ClaimRosterPlayer {
-  const playerById = new Map(players.map((player) => [player.id, player]));
-  const selectedPlayer = playerById.get(selected.playerId);
-  if (!selectedPlayer) return selected;
-  const key = strongRosterIdentityKey({
-    name: `${selectedPlayer.first_name} ${selectedPlayer.last_name}`,
-    graduationYear: selectedPlayer.graduation_year,
-    jerseyNumber: selected.jerseyNumber,
-    teamId: selected.teamId,
-    seasonId: selected.seasonId,
-  });
-  if (!key) return selected;
-  const aliases = roster.filter((candidate) => {
-    const player = playerById.get(candidate.playerId);
-    return player && strongRosterIdentityKey({
-      name: `${player.first_name} ${player.last_name}`,
-      graduationYear: player.graduation_year,
-      jerseyNumber: candidate.jerseyNumber,
-      teamId: candidate.teamId,
-      seasonId: candidate.seasonId,
-    }) === key;
-  });
-  if (aliases.length < 2) return selected;
-  return [...aliases].sort((left, right) => {
-    const leftPlayer = playerById.get(left.playerId);
-    const rightPlayer = playerById.get(right.playerId);
-    return Number(rightPlayer?.active !== false) - Number(leftPlayer?.active !== false)
-      || String(rightPlayer?.updated_at ?? "").localeCompare(String(leftPlayer?.updated_at ?? ""))
-      || left.playerId.localeCompare(right.playerId);
-  })[0] ?? selected;
+export function resolveCanonicalClaimPlayer(selected: ClaimRosterPlayer): ClaimRosterPlayer {
+  // Presentation deduplication is not authorization evidence. Until aliases
+  // have an explicit reviewed mapping, claim the exact selected identity.
+  return selected;
 }
 
 export function canTransitionPlayerLink(status: PlayerLinkStatus, action: "approve" | "reject" | "revoke") {
   return (action === "approve" || action === "reject") ? status === "PENDING" : status === "APPROVED";
 }
 
-export function canProfileAccessPlayerSelf(links: Array<Pick<PlayerLinkSummary, "playerId" | "status">>, playerId: string) {
-  return links.some((link) => link.playerId === playerId && link.status === "APPROVED");
+export function canProfileAccessPlayerSelf(links: Array<Pick<PlayerLinkSummary, "playerId" | "status" | "relationshipType">>, playerId: string) {
+  return links.some((link) => link.playerId === playerId && link.status === "APPROVED" && link.relationshipType === "PLAYER");
 }
 
 export async function ensurePlayerLinkProfile(admin: AdminClient, user: ProfileIdentity) {
@@ -147,7 +120,7 @@ export async function searchClaimTeams(admin: AdminClient, query: string): Promi
   const { data: organizations, error: organizationError } = await admin
     .from("organizations")
     .select("id,name,visibility")
-    .in("visibility", ["PUBLIC", "UNLISTED"])
+    .eq("visibility", "PUBLIC")
     .order("name", { ascending: true })
     .limit(80);
   if (organizationError) throw new PlayerLinkError("Team search is unavailable.", 500);
@@ -159,6 +132,7 @@ export async function searchClaimTeams(admin: AdminClient, query: string): Promi
     .from("teams")
     .select("id,organization_id,name,level,active")
     .in("organization_id", organizationIds)
+    .eq("visibility", "PUBLIC")
     .eq("active", true)
     .order("name", { ascending: true });
   if (teamError) throw new PlayerLinkError("Team search is unavailable.", 500);
@@ -240,12 +214,7 @@ export async function createSelfPlayerClaim(admin: AdminClient, input: { profile
   const selected = rosterResult.players.find((player) => player.membershipId === input.membershipId);
   if (!selected) throw new PlayerLinkError("That roster player is not available to claim.", 404);
 
-  const playerIds = rosterResult.players.map((player) => player.playerId);
-  const { data: playerRows, error: playerError } = playerIds.length
-    ? await admin.from("players").select("id,first_name,last_name,graduation_year,active,updated_at").in("id", playerIds)
-    : { data: [], error: null };
-  if (playerError) throw new PlayerLinkError("Unable to resolve this player identity.", 500);
-  const canonical = resolveCanonicalClaimPlayer(selected, rosterResult.players, (playerRows ?? []) as PlayerRow[]);
+  const canonical = resolveCanonicalClaimPlayer(selected);
 
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { count: recentClaims, error: rateError } = await admin
@@ -305,14 +274,14 @@ export async function createSelfPlayerClaim(admin: AdminClient, input: { profile
 
 export async function getApprovedPlayerLinks(admin: AdminClient, profileId: string) {
   const links = await listProfilePlayerLinks(admin, profileId, { statuses: ["APPROVED"] });
-  return links;
+  return links.filter((link) => link.relationshipType === "PLAYER");
 }
 
 export async function assertApprovedPlayerLink(admin: AdminClient, profileId: string, input: { playerId: string; teamId?: string; seasonId?: string }) {
   const approved = await getApprovedPlayerLinks(admin, profileId);
   const match = approved.find((link) => link.playerId === input.playerId);
   if (!match) throw new PlayerLinkError("You do not have approved player access for this context.", 403);
-  if (input.teamId || input.seasonId) {
+  {
     const { data: memberships, error } = await admin
       .from("player_team_memberships")
       .select("id")
@@ -374,6 +343,7 @@ export async function transitionPlayerLink(admin: AdminClient, input: { actorPro
     .from("profile_player_links")
     .update(patch)
     .eq("id", claim.id)
+    .eq("status", claim.status)
     .select("id,profile_id,player_id,claim_player_team_membership_id,claim_team_id,claim_season_id,relationship_type,status,source,requested_at,approved_at,rejected_at,revoked_at,request_message")
     .single();
   if (updateError || !updated) {
@@ -410,7 +380,7 @@ async function readDiscoverableClaimTeam(admin: AdminClient, teamId: string, sea
   assertUuid(teamId, "team");
   assertUuid(seasonId, "season");
   const [{ data: team, error: teamError }, { data: season, error: seasonError }] = await Promise.all([
-    admin.from("teams").select("id,organization_id,name,level,active").eq("id", teamId).eq("active", true).maybeSingle(),
+    admin.from("teams").select("id,organization_id,name,level,active").eq("id", teamId).eq("active", true).eq("visibility", "PUBLIC").maybeSingle(),
     admin.from("seasons").select("id,team_id,name,active").eq("id", seasonId).eq("active", true).maybeSingle(),
   ]);
   if (teamError || seasonError || !team || !season || (season as SeasonRow).team_id !== teamId || isProgramContainerTeam(team as TeamRow)) {
@@ -420,7 +390,7 @@ async function readDiscoverableClaimTeam(admin: AdminClient, teamId: string, sea
     .from("organizations")
     .select("id,name,visibility")
     .eq("id", (team as TeamRow).organization_id)
-    .in("visibility", ["PUBLIC", "UNLISTED"])
+    .eq("visibility", "PUBLIC")
     .maybeSingle();
   if (organizationError || !organization) throw new PlayerLinkError("That team is not available for player claims.", 404);
   return {
