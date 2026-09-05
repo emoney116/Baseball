@@ -10,6 +10,7 @@ import {
   LogOut,
   ArrowUp,
   X,
+  ArrowLeft,
 } from "lucide-react";
 import type { PlayerSession, PlayerContext } from "../lib/playerAccess";
 import type { AnalyticsDomain, AnalyticsSource } from "../lib/analyticsQuery";
@@ -23,6 +24,8 @@ import { authRepository } from "../data/supabaseRepository";
 import { createClient } from "../lib/supabase/client";
 import type { AskClubhouseApiResponse } from "../lib/askClubhouse/types";
 import { BRAND_ASSETS } from "../lib/branding";
+import { PlayerSelfTracking } from "./PlayerSelfTracking";
+import { PLAYER_MODE_DETAILS } from "../lib/playerCapabilities";
 
 type View = "Home" | "Schedule" | "Development" | "Analytics" | "More";
 const nav = [
@@ -75,6 +78,7 @@ export function PlayerShell({
               playerId: c.playerId,
               teamId: c.team.teamId,
               seasonId: c.team.seasonId ?? "",
+              workspace: "player",
             }
           : {},
       );
@@ -161,6 +165,7 @@ export function PlayerShell({
         playerId: c.playerId,
         teamId: c.team.teamId,
         seasonId: c.team.seasonId ?? "",
+        workspace: "player",
       });
       const r = await fetch(`/api/player/session?${q}`, { cache: "no-store" }),
         p = await r.json();
@@ -172,6 +177,7 @@ export function PlayerShell({
       url.searchParams.set("player", c.playerId);
       url.searchParams.set("team", c.team.teamId);
       url.searchParams.set("season", c.team.seasonId ?? "");
+      url.searchParams.set("workspace", "player");
       window.history.replaceState(null, "", url);
     } catch (e) {
       if (seq === generation.current) {
@@ -207,7 +213,7 @@ export function PlayerShell({
   );
   async function askQuestion(event: React.FormEvent) {
     event.preventDefault();
-    if (!context || !question.trim()) return;
+    if (!context || !session.access?.capabilities.canUseAskClubhouse || !question.trim()) return;
     const seq = contextGeneration.current;
     setAsking(true);
     setAnswer(null);
@@ -303,6 +309,7 @@ export function PlayerShell({
     );
   return (
     <main className="player-beta">
+      <button type="button" className="context-back-button" onClick={() => window.location.assign('/')}><ArrowLeft size={16} /> Clubhouse Home</button>
       <header className="player-beta-header">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={context?.team.logoUrl || BRAND_ASSETS.mark} alt="" />
@@ -318,7 +325,7 @@ export function PlayerShell({
               : "Player Account"}
           </p>
         </div>
-        {context && (
+        {context && session.access?.capabilities.canUseAskClubhouse && (
           <button
             className="icon-button"
             title="Ask Clubhouse"
@@ -351,6 +358,7 @@ export function PlayerShell({
         </label>
       )}
       {error && <p role="alert">{error}</p>}
+      {session.access && <p className="muted">{PLAYER_MODE_DETAILS[session.access.mode].label}</p>}
       {loading ? (
         <p role="status">Loading your player context...</p>
       ) : !context ? (
@@ -358,6 +366,7 @@ export function PlayerShell({
       ) : (
         data && (
           <>
+            {(view === "Home" || view === "Development") && <PlayerSelfTracking key={context.membershipId} session={session} preview={preview} onSaved={() => switchContext(context)} />}
             {view === "Home" && (
               <>
                 <section className="player-beta-section">
@@ -585,7 +594,8 @@ export function PlayerShell({
             )}
             {view === "More" && (
               <section className="player-beta-section">
-                <PlayerAccountLinksPanel />
+                {session.access?.capabilities.canViewRoster && <><h2>Team Roster</h2>{session.teamRoster?.map(p => <div className="player-beta-item" key={p.playerId}><strong>#{p.jersey ?? "—"} {p.name}</strong><span>{p.position}</span></div>)}</>}
+                {!preview && <PlayerAccountLinksPanel />}
               </section>
             )}
           </>

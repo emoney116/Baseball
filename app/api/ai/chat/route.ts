@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     const usageSupabase = createAdminClient();
-    const staffViewer = await hasStaffAccess(usageSupabase, userData.user.id);
+    const staffViewer = !body.uiContext?.viewerPlayerId && await hasStaffAccess(usageSupabase, userData.user.id);
     const playerSession = staffViewer ? undefined : await loadPlayerSession(usageSupabase, userData.user.id, {
       playerId: body.uiContext?.viewerPlayerId ?? body.uiContext?.playerId,
       teamId: body.uiContext?.teamId,
@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
       return json({ok:false,status:"refused",answer:"An approved player link is required to use your development data.",code:"PLAYER_LINK_REQUIRED"},403);
     }
     if (playerSession?.context) {
+      if (!playerSession.access?.capabilities.canUseAskClubhouse) throw new PlayerLinkError('Ask Clubhouse is unavailable in this context.',403);
       const c = playerSession.context;
       body.uiContext = playerAskContext(c,body.uiContext);
       if (isPrivateTeamQuestion(message)) {

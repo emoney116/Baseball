@@ -2,9 +2,11 @@ import { notFound } from "next/navigation";
 import { sampleData } from "../data/sampleData";
 import { PlayerShell } from "../components/PlayerShell";
 import type { PlayerSession } from "../lib/playerAccess";
+import { isPlayerAccessMode, resolvePlayerCapabilities } from "../lib/playerCapabilities";
 export const dynamic = "force-dynamic";
-export default function PlayerPreview() {
+export default async function PlayerPreview({ searchParams }: { searchParams: Promise<{ access?: string }> }) {
   if (process.env.NODE_ENV !== "development") notFound();
+  const params = await searchParams;
   const p = {
     ...sampleData.players.find(
       (p) => p.id === sampleData.hittingEvents[0]?.hitterId,
@@ -70,6 +72,9 @@ export default function PlayerPreview() {
     contexts: [context],
     context,
     data,
+    profileId: "demo-profile",
+    access: resolvePlayerCapabilities({ approved: true, teamDefault: isPlayerAccessMode(params.access) ? params.access : "VIEW_ONLY" }),
+    teamRoster: sampleData.players.slice(0, 8).map(p => ({ playerId: p.id, name: p.name, jersey: p.jerseyNumber, position: p.primaryPosition })),
   };
   return <PlayerShell initialSession={session} preview />;
 }

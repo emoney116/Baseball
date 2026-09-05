@@ -60,6 +60,7 @@ import { DemoDataQaPanel } from "./components/DemoDataQaPanel";
 import { DensePlayerIdentity } from "./components/DensePlayerIdentity";
 import { PlayerAccountLinksPanel, TeamPlayerClaimsPanel } from "./components/PlayerAccountLinksPanel";
 import { PlayerInvitationsPanel } from "./components/PlayerInvitationsPanel";
+import { PlayerAccessPanel } from "./components/PlayerAccessPanel";
 import { PlayerShell } from "./components/PlayerShell";
 import type { PlayerSession } from "./lib/playerAccess";
 import { BaseballField, DonutChart, Heatmap, IdentityAvatar, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
@@ -1900,12 +1901,21 @@ export default function MetrolinaBaseballApp() {
     try {
       const params = new URLSearchParams(window.location.search);
       const playerParams=new URLSearchParams();
-      for(const key of ['player','team','season']) {const value=params.get(key);if(value)playerParams.set(key,value);}
+      if (params.get('workspace') === 'player') playerParams.set('workspace', 'player');
+      for(const key of ['player','team','season']) {const value=key === 'team' ? selectedTeamId ?? params.get(key) : key === 'season' ? selectedSeasonId ?? params.get(key) : params.get(key);if(value)playerParams.set(key,value);}
       const sessionResponse = await fetch(`/api/player/session?${playerParams}`, { cache: 'no-store' });
       const sessionPayload = await sessionResponse.json();
       if (!sessionResponse.ok) throw new Error(sessionPayload.message ?? 'Unable to verify account access.');
       if (isCancelled()) return;
       if (sessionPayload.mode === 'player') {
+        if (sessionPayload.accountHome) {
+          setPlayerSession(null);
+          const loaded = withStoredThemePreference(sessionPayload.data);
+          setData(loaded); setHydrated(true);
+          if (TEAM_CONTEXT_VIEWS.has(params.get('view') as ViewKey)) params.set('view', 'home');
+          if (!options.silent) applyRouteStateFromParams(loaded, params, { initial: true });
+          return;
+        }
         setPlayerSession(sessionPayload);
         setData(null);
         setHydrated(true);
@@ -1915,6 +1925,9 @@ export default function MetrolinaBaseballApp() {
       const requestedTeam = selectedTeamId ?? params.get("team");
       const requestedSeason = selectedSeasonId ?? params.get("season");
       const loaded = withStoredThemePreference(await supabaseAppRepository.load(requestedTeam ?? undefined, requestedSeason ?? undefined));
+      if (loaded.teamContext && Array.isArray(sessionPayload.playerContexts)) {
+        loaded.teamContext.availableTeams = [...loaded.teamContext.availableTeams, ...sessionPayload.playerContexts.map((c: NonNullable<PlayerSession['context']>) => ({ ...c.team, playerContextId: c.playerId, playerContextName: c.name }))];
+      }
       if (isCancelled()) return;
 
       setData(loaded);
@@ -2408,6 +2421,10 @@ export default function MetrolinaBaseballApp() {
   }
 
   async function switchTeam(team: TeamOption) {
+    if (team.playerContextId) {
+      window.location.assign(`/?${new URLSearchParams({ team: team.teamId, season: team.seasonId ?? '', player: team.playerContextId, workspace: 'player', view: 'teamHome' })}`);
+      return;
+    }
     setTopAccountMenuOpen(false);
     setSidebarAccountMenuOpen(false);
     await loadApplicationData(() => false, team.teamId, team.seasonId);
@@ -2421,6 +2438,10 @@ export default function MetrolinaBaseballApp() {
   }
 
   async function enterTeam(team: TeamOption) {
+    if (team.playerContextId) {
+      window.location.assign(`/?${new URLSearchParams({ team: team.teamId, season: team.seasonId ?? '', player: team.playerContextId, workspace: 'player', view: 'teamHome' })}`);
+      return;
+    }
     await switchTeam(team);
   }
 
@@ -4090,7 +4111,7 @@ export default function MetrolinaBaseballApp() {
   const MobileMoreIcon = mobileMoreItem?.icon;
 
   return (
-    <main className="ops-shell">
+    <main className="ops-shell" data-account-kind={data.teamContext?.profile?.role === "PLAYER" ? "player" : "staff"}>
       <aside className="ops-sidebar" aria-label="Primary navigation">
         <div className="sidebar-brand">
           <button className="brand-lockup" type="button" onClick={returnToClubhouseHome}>
@@ -5374,7 +5395,7 @@ function TeamSwitcher({
             value={selectedValue}
             aria-label="Current team"
             className="team-switch-choice"
-            options={switchTeams.map((team) => ({ value: teamValue(team), label: `${team.teamName} - ${team.seasonName ?? "Current season"}` }))}
+            options={switchTeams.map((team) => ({ value: teamValue(team), label: `${team.teamName} - ${team.seasonName ?? "Current season"} - ${teamContextRole(team)}` }))}
             onChange={(value) => {
               const next = switchTeams.find((team) => teamValue(team) === value);
               if (next) void onSwitch(next);
@@ -5493,7 +5514,7 @@ function TeamIdentitySwitcher({
                 >
                   <span>
                     <strong>{team.teamName}</strong>
-                    <small>{team.seasonName ?? "Current season"}</small>
+                    <small>{team.seasonName ?? "Current season"} - {teamContextRole(team)}</small>
                   </span>
                   {teamValue(team) === selectedValue ? <Check size={15} aria-hidden="true" /> : <ChevronRight size={15} aria-hidden="true" />}
                 </button>
@@ -5701,7 +5722,7 @@ function MobilePinnedMenu({
               <OrganizationLogo name={team.organizationName} logoUrl={team.logoUrl ?? teamOrganizationLogo(team, context)} />
               <span>
                 <strong>{shortTeamName(team.teamName)}</strong>
-                <small>{team.seasonName ?? "Current season"}</small>
+                <small>{team.seasonName ?? "Current season"} - {teamContextRole(team)}</small>
               </span>
               <ChevronRight size={15} aria-hidden="true" />
             </button>
@@ -7019,7 +7040,7 @@ function ManagedTeamCard({
   onTogglePinnedTeam?: (team: TeamOption) => void | Promise<void>;
 }) {
   const pinned = isPinnedTeam(pinnedTeams, team);
-  const metadata = [team.organizationName, team.seasonName ?? "Current season"].filter(Boolean).join(" - ");
+  const metadata = [team.organizationName, team.seasonName ?? "Current season", teamContextRole(team)].filter(Boolean).join(" - ");
   return (
     <article className="panel managed-team-card">
       <button className="managed-team-card__main" type="button" onClick={() => void onEnterTeam(team)}>
@@ -8129,6 +8150,7 @@ function RosterView({
       </section>
 
       {section === "Players" && <TeamPlayerClaimsPanel key={team?.teamId} teamId={team?.teamId} />}
+      {section === "Players" && team?.seasonId && <PlayerAccessPanel key={`access-${team.teamId}-${team.seasonId}`} teamId={team.teamId} seasonId={team.seasonId} />}
       {section === "Players" && team?.seasonId && <PlayerInvitationsPanel key={`${team.teamId}-${team.seasonId}`} teamId={team.teamId} seasonId={team.seasonId} />}
 
       {section === "Staff" ? (
@@ -27507,7 +27529,11 @@ function teamLevelFromName(teamName: string) {
 }
 
 function teamValue(team?: TeamOption) {
-  return team ? `${team.teamId}:${team.seasonId ?? "all"}` : "";
+  return team ? `${team.teamId}:${team.seasonId ?? "all"}${team.playerContextId ? `:player:${team.playerContextId}` : ""}` : "";
+}
+
+function teamContextRole(team: TeamOption) {
+  return team.playerContextId ? `Player: ${team.playerContextName ?? "My profile"}` : roleLabel(team.role);
 }
 
 function profileTeamPinMatchesTeam(pin: ProfileTeamPin, team: TeamOption) {

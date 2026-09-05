@@ -35,3 +35,6 @@ Public discovery is intentionally separate from private development. Existing ex
 - Staff API middleware rejects ordinary players before organization/team/roster/internal administration. Existing endpoint-specific team/org authority remains required. Bootstrap retains its separate allowlisted setup authorization; staff invite acceptance retains its existing exact-email/token checks.
 - Historical notes remain coach_only; historical goals default player_visible=false. Coaches explicitly opt individual notes/goals into player visibility. Self-entry of coach-tracked data is not enabled.
 - Live authenticated HTTP, email and hosted Supabase behavior remain launch-gate checks, not inferred from the in-process database or mocked browser fixtures.
+# Player Access Modes Addendum
+
+CLU9-47 extends this identity/RLS boundary with contextual capability bundles. See [Player Access Capability Matrix](player-access-capability-matrix.md) for exact keys, team defaults, overrides, self-entry provenance and protected writes. Global Clubhouse Home remains shared; modes apply inside a validated player/team workspace. No mode grants staff authority or weakens the private-data boundary below.

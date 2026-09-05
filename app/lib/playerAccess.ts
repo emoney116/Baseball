@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppData, TeamOption } from "../types.ts";
 import { PlayerLinkError } from "./playerAccountLinks.ts";
+import { resolvePlayerCapabilities, type EffectivePlayerAccess } from "./playerCapabilities.ts";
 import {
   getUserEntitlements,
   hasEntitlement,
@@ -41,6 +42,9 @@ export type PlayerSession = {
   contexts: PlayerContext[];
   context?: PlayerContext;
   data?: AppData;
+  access?: EffectivePlayerAccess;
+  accountHome?: boolean;
+  teamRoster?: Array<{ playerId: string; name: string; jersey?: number; position?: string }>;
 };
 const staffRoles = [
   "OWNER",
@@ -160,6 +164,16 @@ export async function listPlayerContexts(
   });
 }
 
+export async function loadPlayerAccountHome(db: SupabaseClient, profileId: string, contexts: PlayerContext[]) {
+  const profiles = await rows(db.from("profiles").select("id,email,first_name,last_name,display_name,avatar_url").eq("id", profileId));
+  const p = profiles[0] ?? {};
+  const orgIds = [...new Set(contexts.map(c => c.team.organizationId).filter(Boolean))];
+  const organizations = orgIds.length ? await rows(db.from("organizations").select("id,name,slug,logo_url").in("id", orgIds)) : [];
+  const profile = { id: profileId, role: "PLAYER" as const, email: p.email, firstName: p.first_name, lastName: p.last_name, displayName: p.display_name, avatarUrl: p.avatar_url };
+  const availableTeams = contexts.map(c => ({ ...c.team, organizationName: organizations.find(o => o.id === c.team.organizationId)?.name ?? "", playerContextId: c.playerId, playerContextName: c.name }));
+  return emptyData({ profile, availableTeams, organizations: organizations.map(o => ({ id: o.id, name: o.name, slug: o.slug, logoUrl: o.logo_url, role: "PLAYER" as const, active: true })) }, profile, undefined);
+}
+
 export function selectPlayerContext(
   contexts: PlayerContext[],
   requested: { playerId?: string; teamId?: string; seasonId?: string },
@@ -193,7 +207,9 @@ export async function loadPlayerSession(
   const contexts = await listPlayerContexts(db, profileId);
   const context = selectPlayerContext(contexts, requested);
   if (!context) return { mode: "player", profileId, contexts };
+  const access = await loadContextPlayerAccess(db, context);
   const data = await loadPlayerData(db, profileId, context);
+  const teamRoster = access.capabilities.canViewRoster ? await loadSafeTeamRoster(db, context) : undefined;
   // Close the read/revoke race before returning any private payload.
   const current = await listPlayerContexts(db, profileId);
   if (
@@ -206,7 +222,26 @@ export async function loadPlayerSession(
       "Player access has changed. Refresh to continue.",
       403,
     );
-  return { mode: "player", profileId, contexts: current, context, data };
+  const latestAccess = await loadContextPlayerAccess(db, context);
+  if (JSON.stringify(access) !== JSON.stringify(latestAccess))
+    throw new PlayerLinkError("Player permissions changed. Refresh to continue.", 403);
+  return { mode: "player", profileId, contexts: current, context, data, access, teamRoster };
+}
+
+export async function loadContextPlayerAccess(db: SupabaseClient, context: PlayerContext) {
+  const [teams, overrides] = await Promise.all([
+    rows(db.from("teams").select("player_access_default").eq("id", context.team.teamId).eq("active", true)),
+    rows(db.from("player_access_overrides").select("access_mode").eq("team_id", context.team.teamId).eq("player_id", context.playerId), "player_id"),
+  ]);
+  if (!teams.length) throw new PlayerLinkError("Team unavailable.", 403);
+  return resolvePlayerCapabilities({ approved: true, teamDefault: teams[0].player_access_default, override: overrides[0]?.access_mode });
+}
+
+async function loadSafeTeamRoster(db: SupabaseClient, context: PlayerContext) {
+  const memberships = await rows(db.from("player_team_memberships").select("player_id,jersey_number").eq("team_id", context.team.teamId).eq("season_id", context.team.seasonId!).eq("active", true));
+  if (!memberships.length) return [];
+  const players = await rows(db.from("players").select("id,first_name,last_name,primary_position").in("id", memberships.map(m => m.player_id)).eq("active", true));
+  return players.map(p => ({ playerId: p.id as string, name: `${p.first_name} ${p.last_name}`, jersey: memberships.find(m => m.player_id === p.id)?.jersey_number as number | undefined, position: p.primary_position as string | undefined }));
 }
 
 const pick = (r: Row, keys: string) =>
@@ -232,7 +267,7 @@ export function safePlayerRow(kind: string, r: Row): Row {
     hitting: `${eventAudit},hitter_id,plate_appearance_id,event_number,action,contact_result,contact_quality,direction,field_location,pitch_location,pitch_type,velocity,exit_velocity_mph,is_live_bp`,
     defense: `${eventAudit},player_id,station,event_number,outcome,position_worked,drill_context,rep_type,rep_subtype,result,throw_result,difficulty,location,timing_seconds,error_type`,
     workout:
-      "id,player_id,session_date,week_of,day_name,completed,effort_score,body_weight,created_at,updated_at",
+      "id,player_id,session_date,week_of,day_name,completed,effort_score,body_weight,created_at,updated_at,created_by_profile_id,entry_source",
     set: "id,workout_session_id,player_id,exercise_id,set_number,weight,reps,sets,value,unit,rpe,status,created_at",
     game: "id,game_date,starts_at,opponent,home_away,location,game_type,result,our_score,opponent_score,inning,half,outs,balls,strikes,created_at,updated_at",
     gameEvent:
@@ -414,6 +449,8 @@ async function loadPlayerData(
       completed: r.completed,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
+      createdByProfileId: r.created_by_profile_id,
+      entrySource: r.entry_source,
     })),
     coachNotes: notes.map((r) => ({
       id: r.id,
@@ -447,10 +484,10 @@ type RowQuery = PromiseLike<RowResult> & {
   range?: (from: number, to: number) => PromiseLike<RowResult>;
   order?: (column: string) => unknown;
 };
-async function rows(query: RowQuery): Promise<Row[]> {
+async function rows(query: RowQuery, orderColumn = "id"): Promise<Row[]> {
   const result: Row[] = [];
   // Stable paging avoids the Data API's default 1,000-row truncation.
-  query.order?.("id");
+  query.order?.(orderColumn);
   for (let offset = 0; ; offset += 1000) {
     const { data, error } = await (query.range
       ? query.range(offset, offset + 999)

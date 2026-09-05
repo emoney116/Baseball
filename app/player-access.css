@@ -1,0 +1,27 @@
+.player-access-settings { padding: 20px 0; border-bottom: 1px solid var(--border, #444); }
+.player-access-settings h2 { display: flex; align-items: center; gap: 8px; font-size: 18px; margin: 0 0 20px; }
+.player-access-settings h3, .player-tracking-form h3 { font-size: 14px; margin: 12px 0; }
+.player-access-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border: 1px solid var(--border, #444); border-radius: 6px; }
+.player-access-modes button { min-width: 0; min-height: 44px; padding: 8px 4px; font: inherit; font-size: 12px; font-weight: 700; color: inherit; background: transparent; border: 0; border-radius: 4px; white-space: normal; }
+.player-access-modes button[aria-pressed=true] { background: var(--brand, #bd285f); color: #fff; }
+.player-access-modes button:focus-visible, .player-access-row select:focus-visible { outline: 2px solid #48a7b5; outline-offset: 2px; }
+.player-access-settings p { font-size: 13px; line-height: 1.5; }
+.player-access-settings details { padding: 12px 0; }
+.player-access-settings summary { cursor: pointer; font-size: 14px; min-height: 28px; }
+.player-access-settings summary svg { vertical-align: middle; }
+.player-access-overrides { border-top: 1px solid var(--border, #444); }
+.player-access-overrides summary span { margin-left: 8px; color: #8d9da4; }
+.player-access-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 156px); align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border, #444); }
+.player-access-row strong { display: block; font-size: 13px; overflow-wrap: anywhere; }
+.player-access-row small { display: block; color: #929ca0; font-size: 10px; margin-top: 4px; overflow-wrap: anywhere; }
+.player-access-row select { min-width: 0; width: 100%; min-height: 44px; font-size: 13px; }
+.player-tracking-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.player-tracking-actions button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.player-tracking-form { display: grid; gap: 14px; margin-top: 16px; }
+.player-tracking-form label { display: grid; gap: 6px; font-size: 14px; }
+.player-tracking-form input:not([type=checkbox]) { min-height: 44px; min-width: 0; width: 100%; }
+.player-tracking-form input[type=checkbox] { width: 20px; height: 20px; }
+.player-self-tracking .player-access-row { grid-template-columns: minmax(0, 1fr) 44px; }
+.player-self-tracking .text-button { white-space: normal; overflow-wrap: anywhere; text-align: left; }
+[data-account-kind=player] .global-create-button, [data-account-kind=player] .account-create-button { display: none; }
+@media (min-width: 700px) { .player-access-settings { max-width: 760px; } .player-access-row { grid-template-columns: minmax(0, 1fr) 190px; } }

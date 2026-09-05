@@ -8,6 +8,7 @@ import { THEME_BOOTSTRAP_SCRIPT } from "./lib/themePreference";
 import "./globals.css";
 import "./theme.css";
 import "./game-session.css";
+import "./player-access.css";
 
 const geist = Geist({
   subsets: ["latin"],

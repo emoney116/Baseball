@@ -683,6 +683,8 @@ function mapDefenseEvent(row: AnyRow): DefenseEvent {
 
 function mapWorkoutSession(row: AnyRow): WorkoutSession {
   return {
+    createdByProfileId: row.created_by_profile_id,
+    entrySource: row.entry_source,
     id: row.id,
     playerId: row.player_id,
     date: row.session_date,

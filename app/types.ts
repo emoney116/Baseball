@@ -397,6 +397,8 @@ export interface AppProfile {
 }
 
 export interface TeamOption {
+  playerContextId?: ID;
+  playerContextName?: string;
   organizationId?: ID;
   organizationName: string;
   teamId: ID;
@@ -681,6 +683,8 @@ export type DefenseEvent = {
 } & PracticeEventAudit;
 
 export interface WorkoutSession {
+  createdByProfileId?: string;
+  entrySource?: string;
   id: ID;
   playerId: ID;
   date: string;
@@ -1032,6 +1036,8 @@ export interface CoachNote {
 }
 
 export interface DevelopmentGoal {
+  createdByProfileId?: string;
+  entrySource?: string;
   id: ID;
   playerVisible?: boolean;
   playerId: ID;

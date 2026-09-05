@@ -46,6 +46,11 @@ The test suite includes known self metrics, own Game/count/RISP and Weight Room 
 
 ## Live Acceptance Checklist
 
+- [ ] CLU9-47: shared global Home shows mixed legitimate staff/player contexts; entering each resolves its own workspace without treating coach Analytics filters as player mode.
+- [ ] CLU9-47: coach sets team default, individual override and restore-default; test all three player bundles on phone/iPad.
+- [ ] CLU9-47: create/update/delete personal body weight and goals, deny coach-owned edits; stale downgrade/revoke denies next write and preserves history.
+- [ ] CLU9-47: apply the additive access-modes migration through the normal approved release workflow before hosted mode QA. No mass mode changes.
+
 - [ ] A: New internal account -> public Metrolina team/season -> exact player -> claim -> pending -> correct coach approval -> Player Home.
 - [ ] B: Independent claim -> rejection -> remains unlinked, no private data.
 - [ ] C: Exact-player coach invite -> new signup -> verified email callback -> accept -> approved link and correct Player Home.
