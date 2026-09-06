@@ -12,6 +12,7 @@ import {
 } from "../../lib/playerInvitations";
 import { sendPlayerInviteEmail } from "../../lib/email/playerInvite";
 import { requestSiteUrl } from "../../lib/siteUrl";
+import { labelExactRoster, playerSelectionLabel } from "../../lib/exactRosterIdentity";
 export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
     const { data: players, error: playerError } = ids.length
       ? await db
           .from("players")
-          .select("id,first_name,last_name")
+          .select("id,first_name,last_name,created_at")
           .in("id", ids)
           .eq("active", true)
       : { data: [], error: null };
@@ -50,15 +51,19 @@ export async function GET(request: NextRequest) {
       ? await db.from("profile_player_links").select("player_id").in("player_id", ids).eq("relationship_type", "PLAYER").eq("status", "APPROVED")
       : { data: [], error: null };
     if (linkError) throw new PlayerLinkError("Unable to verify linked players.", 503);
+    const labeledPlayers = labelExactRoster(
+      (players ?? []).map(p => ({ ...p, name: `${p.first_name} ${p.last_name}`, createdAt: p.created_at })),
+      (links ?? []).map(l => l.player_id),
+    );
     const roster = (memberships ?? []).flatMap((m) => {
-      const p = players?.find((p) => p.id === m.player_id);
+      const p = labeledPlayers.find((p) => p.id === m.player_id);
       return p
         ? [
             {
               membershipId: m.id,
               playerId: p.id,
               linked: Boolean(links?.some(link => link.player_id === p.id)),
-              name: `${m.jersey_number !== null ? `#${m.jersey_number} ` : ""}${p.first_name} ${p.last_name}`,
+              name: `${m.jersey_number !== null ? `#${m.jersey_number} ` : ""}${playerSelectionLabel(p)}`,
             },
           ]
         : [];

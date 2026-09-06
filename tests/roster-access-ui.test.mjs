@@ -37,7 +37,7 @@ test("access settings move out of roster into a routable team-context page", () 
 test("individual invitation actions replace the bulk roster panel", () => {
   assert.doesNotMatch(invites, /Select Roster|Select between|roster-management-disclosure/);
   assert.match(page, /p.playerId === player.id && !p.linked/);
-  assert.match(page, /aria-label=\{`Invite \$\{player.name\} by email`\}/);
+  assert.match(page, /aria-label=\{`Invite \$\{playerSelectionLabel\(player\)\} by email`\}/);
   assert.match(page, /ModalFrame title="Player Invitation"/);
   assert.match(invites, /entries: \[\{ membershipId: player.membershipId, email: email.trim\(\) \}\]/);
 });

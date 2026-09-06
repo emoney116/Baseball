@@ -62,7 +62,7 @@ import type {
 import { APP_NAME } from "../lib/branding";
 import { absoluteUrl, browserSiteUrl } from "../lib/siteUrl";
 import { createClient } from "../lib/supabase/client";
-import { canonicalizeAppDataPlayerIdentities } from "../lib/playerIdentity.ts";
+import { exactRosterWorkingData } from "../lib/exactRosterIdentity.ts";
 
 const SEASON_NAME = "Fall 2026";
 const SELECTED_TEAM_STORAGE_KEY = "clubhouse9-current-team-v2";
@@ -1111,7 +1111,11 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     loadPublicDirectory(),
   ]);
 
-  return canonicalizeAppDataPlayerIdentities({
+  const approvedLinks = players.length
+    ? await supabase.from("profile_player_links").select("player_id").in("player_id", players.map(p => p.id)).eq("status", "APPROVED").eq("relationship_type", "PLAYER")
+    : { data: [], error: null };
+  if (approvedLinks.error) throw new PersistenceError("load-failed", "Unable to load roster account status.");
+  return exactRosterWorkingData({
     teamContext: foundation.teamContext,
     players,
     playerTeamMemberships: memberships.filter((membership: any) => visiblePlayerIdsSet.has(membership.player_id)).map(mapPlayerTeamMembership),
@@ -1175,7 +1179,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
       selectedTeamId: foundation.teamId,
       selectedSeasonId: foundation.seasonId,
     },
-  }).data;
+  }, (approvedLinks.data ?? []).map(link => link.player_id));
 }
 
 async function loadProfileFollows(supabase: SupabaseClient, profileId?: string): Promise<ProfileFollow[]> {

@@ -37128,3 +37128,15 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
 .live-qa-controls { display: flex; flex-wrap: wrap; gap: 12px; padding-block: 16px; border-bottom: 1px solid var(--line); }
 .live-qa-controls label { display: grid; gap: 6px; }
 .live-qa-controls select { max-width: 100%; min-height: 44px; background: var(--panel); color: var(--text); }
+.dense-player-identity:has(.player-record-label) { flex-wrap: wrap; }
+.player-record-label,
+.roster-player-cell .player-record-label,
+.practice-console--active small.player-record-label {
+  display: block;
+  flex-basis: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
+}

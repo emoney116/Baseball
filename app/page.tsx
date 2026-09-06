@@ -64,6 +64,7 @@ import { PlayerInvitationsPanel, usePlayerInvitationRoster } from "./components/
 import { PlayerAccessPanel } from "./components/PlayerAccessPanel";
 import { CoachLiveEntrySettings } from "./components/CoachLiveEntrySettings";
 import { mergeLiveRefresh } from "./lib/liveSyncDelta";
+import { playerSelectionLabel } from "./lib/exactRosterIdentity";
 import { PlayerShell } from "./components/PlayerShell";
 import type { PlayerSession } from "./lib/playerAccess";
 import { BaseballField, DonutChart, Heatmap, IdentityAvatar, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
@@ -8156,7 +8157,7 @@ function RosterView({
     .filter((player) => filter === "All" || player.rosterStatus === filter)
     .filter((player) => positionFilter === "All" || player.primaryPosition === positionFilter || player.secondaryPosition === positionFilter)
     .filter((player) => yearFilter === "All" || String(player.graduationYear) === yearFilter)
-    .filter((player) => `${player.name} ${player.jerseyNumber} ${player.primaryPosition} ${player.secondaryPosition ?? ""} ${player.graduationYear}`.toLowerCase().includes(query.toLowerCase()))
+    .filter((player) => `${playerSelectionLabel(player)} ${player.jerseyNumber} ${player.primaryPosition} ${player.secondaryPosition ?? ""} ${player.graduationYear}`.toLowerCase().includes(query.toLowerCase()))
     .sort((a, b) => compareRosterPlayers(a, b, sortConfig.key, sortConfig.direction));
 
   return (
@@ -8259,7 +8260,7 @@ function RosterView({
             <button type="button" className="roster-player-cell" onClick={() => onOpenPlayer(player.id)}>
               <PlayerAvatar player={player} size="sm" compact />
               <span>
-                <strong>{player.name}</strong>
+                <strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}
                 <small>{positionLine(player)}</small>
               </span>
             </button>
@@ -8278,22 +8279,22 @@ function RosterView({
               className={`status-select-wrap status-select-wrap--${(player.rosterStatus ?? "Undecided").toLowerCase()}`}
               options={ROSTER_STATUSES.map((status) => ({ value: status, label: status }))}
               onChange={(value) => onStatus(player.id, value as RosterStatus)}
-              aria-label={`Roster status for ${player.name}`}
+              aria-label={`Roster status for ${playerSelectionLabel(player)}`}
             />
             <span className="row-action-group">
-              {invitations.data?.roster.some(p => p.playerId === player.id && !p.linked) && <button className="row-action-button" type="button" onClick={() => setInvitePlayerId(player.id)} aria-label={`Invite ${player.name} by email`} title={`Invite ${player.name} by email`}><Mail size={15} aria-hidden="true" /></button>}
-              <button className="row-action-button" type="button" onClick={() => onEditPlayer(player.id)} aria-label={`Edit ${player.name}`}>
+              {invitations.data?.roster.some(p => p.playerId === player.id && !p.linked) && <button className="row-action-button" type="button" onClick={() => setInvitePlayerId(player.id)} aria-label={`Invite ${playerSelectionLabel(player)} by email`} title={`Invite ${playerSelectionLabel(player)} by email`}><Mail size={15} aria-hidden="true" /></button>}
+              <button className="row-action-button" type="button" onClick={() => onEditPlayer(player.id)} aria-label={`Edit ${playerSelectionLabel(player)}`}>
                 <Edit3 size={15} aria-hidden="true" />
               </button>
               <button
                 className="row-action-button row-action-button--danger"
                 type="button"
                 onClick={() => {
-                  if (window.confirm(`Delete ${player.name} from the active roster? Historical data will be preserved.`)) {
+                  if (window.confirm(`Delete ${playerSelectionLabel(player)} from the active roster? Historical data will be preserved.`)) {
                     onDeletePlayer(player.id);
                   }
                 }}
-                aria-label={`Delete ${player.name}`}
+                aria-label={`Delete ${playerSelectionLabel(player)}`}
               >
                 <Trash2 size={15} aria-hidden="true" />
               </button>
@@ -8829,11 +8830,11 @@ function PracticeHome({
                         type="button"
                         onClick={() => toggleAttendanceStatus(player.id, status)}
                         className={`attendance-avatar attendance-avatar--${status.toLowerCase()}`}
-                        aria-label={`${player.name}: ${status}. Click to change status.`}
+                        aria-label={`${playerSelectionLabel(player)}: ${status}. Click to change status.`}
                       >
                         <PlayerAvatar player={player} size="sm" compact />
                         <span className="attendance-avatar__meta">
-                          <strong>{player.name}</strong>
+                          <strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}
                           <small>{status}</small>
                         </span>
                       </button>
@@ -9778,7 +9779,7 @@ function PracticeConsole({
       || (switcherFilter === "Hitters" && item.isHitter)
       || (switcherFilter === "Infield" && ["P", "C", "1B", "2B", "3B", "SS"].includes(item.primaryPosition))
       || (switcherFilter === "Outfield" && ["LF", "CF", "RF", "OF"].includes(item.primaryPosition)))
-    .filter((item) => `${item.name} ${item.jerseyNumber} ${item.primaryPosition} ${item.secondaryPosition ?? ""}`.toLowerCase().includes(switcherQuery.toLowerCase())), [players, mode, showAllPitchingPlayers, switcherFilter, switcherQuery, liveBpThrowerSource]);
+    .filter((item) => `${playerSelectionLabel(item)} ${item.jerseyNumber} ${item.primaryPosition} ${item.secondaryPosition ?? ""}`.toLowerCase().includes(switcherQuery.toLowerCase())), [players, mode, showAllPitchingPlayers, switcherFilter, switcherQuery, liveBpThrowerSource]);
   const matchesHittingStation = (session: HittingSession) => (
     session.type === hittingStation
     || (hittingStation === "Machine" && isMachineHittingStation(session.type))
@@ -10476,7 +10477,7 @@ function PracticeConsole({
       </section>
 
       <div className="practice-mode-picker-trigger">
-        {practice && !practice.endedAt && currentSession && mode !== "Live BP" && data.teamContext?.currentTeam && <CoachLiveEntrySettings key={currentSession.id} teamId={data.teamContext.currentTeam.teamId} sessionId={currentSession.id} domain={mode === "Hitting" ? "hitting" : mode === "Pitching" ? "pitching" : "defense"} playerName={player.name} preview={isLocalDevAuthBypass()} />}
+        {practice && !practice.endedAt && currentSession && mode !== "Live BP" && data.teamContext?.currentTeam && <CoachLiveEntrySettings key={currentSession.id} teamId={data.teamContext.currentTeam.teamId} sessionId={currentSession.id} domain={mode === "Hitting" ? "hitting" : mode === "Pitching" ? "pitching" : "defense"} playerName={playerSelectionLabel(player)} preview={isLocalDevAuthBypass()} />}
         <ChoiceSelect
           value={mode}
           options={practiceModeOptions}
@@ -10510,7 +10511,7 @@ function PracticeConsole({
                 <button className="practice-hitting-player-card" type="button" onClick={() => setHittingPlayersOpen(true)}>
                   <PlayerAvatar player={player} size="lg" />
                   <span>
-                    <strong>{player.name}</strong>
+                    <strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}
                   </span>
                   <ChevronDown size={16} aria-hidden="true" />
                 </button>
@@ -10870,7 +10871,7 @@ function PracticeConsole({
                   <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => selectHittingPlayer(item.id)}>
                     <PlayerAvatar player={item} size="sm" compact />
                     <span>
-                      <strong>{item.name}</strong>
+                      <strong>{item.name}</strong>{item.identityLabel && <small className="player-record-label">{item.identityLabel}</small>}
                       <small>#{item.jerseyNumber}</small>
                     </span>
                   </button>
@@ -10933,7 +10934,7 @@ function PracticeConsole({
           )}
 
           {hittingStatsOpen && (
-            <ModalFrame title={`${player.name} Hitting`} onClose={() => setHittingStatsOpen(false)} panelClassName="practice-hitting-stats-sheet">
+            <ModalFrame title={`${playerSelectionLabel(player)} Hitting`} onClose={() => setHittingStatsOpen(false)} panelClassName="practice-hitting-stats-sheet">
               <div className="practice-hitting-stats-scope" aria-label="Hitting analytics scope">
                 <button type="button" className={effectiveHittingStatsScopeSessionId === "all" ? "active" : ""} onClick={() => setHittingStatsScopeSessionId("all")}>
                   All Sessions
@@ -11014,7 +11015,7 @@ function PracticeConsole({
                 <button className="practice-pitching-player-card" type="button" onClick={() => setPitchingPlayersOpen(true)}>
                   <PlayerAvatar player={player} size="lg" />
                   <span>
-                    <strong>{player.name}</strong>
+                    <strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}
                     <small>#{player.jerseyNumber} · {throwingRoleLabel(player)}</small>
                   </span>
                   <ChevronDown size={16} aria-hidden="true" />
@@ -11180,7 +11181,7 @@ function PracticeConsole({
                 <div className="practice-hitting-sheet__context-main">
                   <PlayerAvatar player={player} size="sm" compact />
                   <span className="practice-hitting-sheet__context-copy">
-                    <strong>{player.name}</strong>
+                    <strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}
                     <small>{pitchingSessionContext}</small>
                   </span>
                 </div>
@@ -11410,7 +11411,7 @@ function PracticeConsole({
                   <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => selectPitcher(item.id)}>
                     <PlayerAvatar player={item} size="sm" compact />
                     <span>
-                      <strong>{item.name}</strong>
+                      <strong>{item.name}</strong>{item.identityLabel && <small className="player-record-label">{item.identityLabel}</small>}
                       <small>#{item.jerseyNumber}</small>
                     </span>
                   </button>
@@ -11460,7 +11461,7 @@ function PracticeConsole({
           )}
 
           {pitchingStatsOpen && (
-            <ModalFrame title={`${player.name} Pitching`} onClose={() => setPitchingStatsOpen(false)} panelClassName="practice-pitching-stats-sheet">
+            <ModalFrame title={`${playerSelectionLabel(player)} Pitching`} onClose={() => setPitchingStatsOpen(false)} panelClassName="practice-pitching-stats-sheet">
               <div className="practice-hitting-stats-scope" aria-label="Pitching analytics scope">
                 <button type="button" className={effectivePitchingStatsScopeSessionId === "all" ? "active" : ""} onClick={() => setPitchingStatsScopeSessionId("all")}>
                   All Sessions
@@ -11567,7 +11568,7 @@ function PracticeConsole({
                 <button className="practice-pitching-player-card practice-defense-player-card" type="button" onClick={() => setDefensePlayersOpen(true)}>
                   <PlayerAvatar player={player} size="lg" />
                   <span>
-                    <strong>{player.name}</strong>
+                    <strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}
                     <small>{defenseSessionContext}</small>
                   </span>
                   <ChevronDown size={16} aria-hidden="true" />
@@ -11684,7 +11685,7 @@ function PracticeConsole({
                 <div className="practice-hitting-sheet__context-main">
                   <PlayerAvatar player={player} size="sm" compact />
                   <span className="practice-hitting-sheet__context-copy">
-                    <strong>{player.name}</strong>
+                    <strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}
                     <small>{defenseDraft.positionWorked} - {defenseDraft.drillContext}</small>
                   </span>
                 </div>
@@ -11888,7 +11889,7 @@ function PracticeConsole({
                   <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => selectDefender(item.id)}>
                     <PlayerAvatar player={item} size="sm" compact />
                     <span>
-                      <strong>{item.name}</strong>
+                      <strong>{item.name}</strong>{item.identityLabel && <small className="player-record-label">{item.identityLabel}</small>}
                       <small>#{item.jerseyNumber} · {positionLine(item)}</small>
                     </span>
                   </button>
@@ -11941,7 +11942,7 @@ function PracticeConsole({
           )}
 
           {defenseStatsOpen && (
-            <ModalFrame title={`${player.name} Defense`} onClose={() => setDefenseStatsOpen(false)} panelClassName="practice-defense-stats-sheet">
+            <ModalFrame title={`${playerSelectionLabel(player)} Defense`} onClose={() => setDefenseStatsOpen(false)} panelClassName="practice-defense-stats-sheet">
               <div className="practice-hitting-stats-scope" aria-label="Defense analytics scope">
                 <button type="button" className={effectiveDefenseStatsScopeSessionId === "all" ? "active" : ""} onClick={() => setDefenseStatsScopeSessionId("all")}>
                   All Sessions
@@ -12460,7 +12461,7 @@ function PracticeConsole({
         <SegmentedControl values={["All", "Pitchers", "Hitters", "Infield", "Outfield"] as PracticeTrackerPlayerFilter[]} active={switcherFilter} onChange={setSwitcherFilter} />
         <ScrollablePanel className="practice-player-strip__player-scroll" bodyClassName="practice-player-strip__players" ariaLabel="practice player switcher" direction="horizontal">
           {playerPool.map((item) => (
-            <button key={item.id} type="button" className={item.id === player.id || item.id === liveBpPitcher?.id || item.id === liveBpHitter?.id ? "active" : ""} onClick={() => mode === "Live BP" && item.isHitter ? onLiveBpHitter(item.id) : onSelectPlayer(item.id)} title={`${item.name}: ${practicePlayerStatus(data, practice, item.id)}`}>
+            <button key={item.id} type="button" className={item.id === player.id || item.id === liveBpPitcher?.id || item.id === liveBpHitter?.id ? "active" : ""} onClick={() => mode === "Live BP" && item.isHitter ? onLiveBpHitter(item.id) : onSelectPlayer(item.id)} title={`${playerSelectionLabel(item)}: ${practicePlayerStatus(data, practice, item.id)}`}>
               <PlayerAvatar player={item} size="sm" compact />
               <span>{lastName(item.name)}</span>
               <small>#{item.jerseyNumber}</small>
@@ -12497,7 +12498,7 @@ function TrackerPlayerCard({
       {player ? <PlayerAvatar player={player} size="md" /> : <span className="player-avatar player-avatar--md player-avatar--tone-neutral">--</span>}
       <span>
         <small>{label}</small>
-        <strong>{player ? `${player.name}` : fallbackTitle ?? `Select ${label.toLowerCase()}`}</strong>
+        <strong>{player ? `${playerSelectionLabel(player)}` : fallbackTitle ?? `Select ${label.toLowerCase()}`}</strong>
         <em>{player ? `${player.jerseyNumber ? `#${player.jerseyNumber} - ` : ""}${positionLine(player)}${stat ? ` - ${stat}` : ""}` : stat ?? "--"}</em>
       </span>
     </button>
@@ -15322,7 +15323,7 @@ function WeightRoomActiveWeighIns({
   const filteredPlayers = players.filter((player) => {
     const q = query.trim().toLowerCase();
     const value = optionalNumber(drafts[player.id] ?? "");
-    return (!q || `${player.name} ${player.jerseyNumber}`.toLowerCase().includes(q))
+    return (!q || `${playerSelectionLabel(player)} ${player.jerseyNumber}`.toLowerCase().includes(q))
       && (!missingOnly || typeof value !== "number");
   });
 
@@ -15372,10 +15373,10 @@ function WeightRoomActiveWeighIns({
           const change = typeof today === "number" && typeof previous === "number" ? today - previous : undefined;
           return (
             <div key={player.id} className="weight-room-active-weigh-table__row" role="row">
-              <span className="weight-room-active-athlete-cell"><PlayerAvatar player={player} size="sm" compact /><strong>{player.name}</strong><small>#{player.jerseyNumber} - {player.primaryPosition}</small></span>
+              <span className="weight-room-active-athlete-cell"><PlayerAvatar player={player} size="sm" compact /><strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}<small>#{player.jerseyNumber} - {player.primaryPosition}</small></span>
               <span>{typeof previous === "number" ? `${formatNumber(previous, 1)} lb` : "--"}</span>
               <input
-                aria-label={`${player.name} weigh-in`}
+                aria-label={`${playerSelectionLabel(player)} weigh-in`}
                 inputMode="decimal"
                 value={drafts[player.id] ?? ""}
                 onBlur={() => save(player.id)}
@@ -15675,11 +15676,11 @@ function WeightRoomGroupEditor({
                         setDropGroupId(undefined);
                       }}
                       onClick={() => onRemovePlayer(group.id, player.id)}
-                      title={`Drag ${player.name} to another group or click to remove`}
-                      aria-label={`Drag or remove ${player.name}`}
+                      title={`Drag ${playerSelectionLabel(player)} to another group or click to remove`}
+                      aria-label={`Drag or remove ${playerSelectionLabel(player)}`}
                     >
                       <PlayerAvatar player={player} size="sm" compact />
-                      <span>{player.name}</span>
+                      <span>{playerSelectionLabel(player)}</span>
                       <X size={12} aria-hidden="true" />
                     </button>
                   ))}
@@ -15701,7 +15702,7 @@ function WeightRoomGroupEditor({
                         >
                           <PlayerAvatar player={player} size="sm" compact />
                           <span>
-                            <strong>{player.name}</strong>
+                            <strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}
                             <small>{inThisGroup ? "In this group" : assignedGroupName ? `Move from ${assignedGroupName}` : "Unassigned"}</small>
                           </span>
                         </button>
@@ -15718,7 +15719,7 @@ function WeightRoomGroupEditor({
           <div><strong>Unassigned</strong><small>{unassigned.length} athlete{unassigned.length === 1 ? "" : "s"}</small></div>
           <div>
             {unassigned.slice(0, 12).map((player) => (
-              <span key={player.id}><PlayerAvatar player={player} size="sm" compact />{player.name}</span>
+              <span key={player.id}><PlayerAvatar player={player} size="sm" compact />{playerSelectionLabel(player)}</span>
             ))}
             {!unassigned.length && <small>Everyone is assigned.</small>}
             {unassigned.length > 12 && <small>+{unassigned.length - 12} more</small>}
@@ -16128,7 +16129,7 @@ function WeightRoomGroupStationTable({
           <div key={player.id} role="row">
             <span className="weight-room-active-athlete-cell">
               <PlayerAvatar player={player} size="sm" compact />
-              <strong>{player.name}</strong>
+              <strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}
               <small>Last: {previousWorkoutEntry(data, player.id, station.name, workoutDate) ? formatWorkoutEntryValueForStation(previousWorkoutEntry(data, player.id, station.name, workoutDate)!, station) : "--"}</small>
             </span>
             {Array.from({ length: targetSets }, (_, index) => {
@@ -16192,7 +16193,7 @@ function WeightRoomIndividualWorkout({
         <ChoiceSelect
           value={player?.id ?? ""}
           className="form-choice"
-          options={players.map((item) => ({ value: item.id, label: item.name, description: `#${item.jerseyNumber} - ${item.primaryPosition}` }))}
+          options={players.map((item) => ({ value: item.id, label: item.name, description: [item.identityLabel, `#${item.jerseyNumber} - ${item.primaryPosition}`].filter(Boolean).join(" - ") }))}
           onChange={onPlayer}
           showSelectedDescription={false}
           aria-label="Workout athlete"
@@ -16886,7 +16887,7 @@ function WeightRoomPlayerPanel({
   const filteredPlayers = players.filter((item) => {
     const query = playerQuery.trim().toLowerCase();
     if (!query) return true;
-    return `${item.name} ${item.jerseyNumber}`.toLowerCase().includes(query);
+    return `${playerSelectionLabel(item)} ${item.jerseyNumber}`.toLowerCase().includes(query);
   });
   const exerciseRows = sortWeightRoomExerciseRows(buildWeightRoomPlayerExerciseRows(data, player, exerciseLibrary)
     .filter((row) => {
@@ -16959,7 +16960,7 @@ function WeightRoomPlayerPanel({
           {filteredPlayers.map((item) => (
             <button key={item.id} type="button" className={item.id === player.id ? "active" : ""} onClick={() => selectPlayer(item.id)}>
               <PlayerAvatar player={item} size="sm" compact />
-              <span><strong>{item.name}</strong><small>#{item.jerseyNumber} - {item.primaryPosition}</small></span>
+              <span><strong>{item.name}</strong>{item.identityLabel && <small className="player-record-label">{item.identityLabel}</small>}<small>#{item.jerseyNumber} - {item.primaryPosition}</small></span>
             </button>
           ))}
           {!filteredPlayers.length && <CompactEmpty title="No athletes match that search." />}
@@ -16971,7 +16972,7 @@ function WeightRoomPlayerPanel({
           <ChoiceSelect
             value={player.id}
             className="form-choice"
-            options={players.map((item) => ({ value: item.id, label: item.name }))}
+            options={players.map((item) => ({ value: item.id, label: item.name, description: item.identityLabel }))}
             onChange={selectPlayer}
             aria-label="Select athlete"
             mobilePresentation="popover"
@@ -17038,6 +17039,7 @@ function WeightRoomAthleteHeader({ player, onOpenPlayer }: { player: Player; onO
       <PlayerAvatar player={player} size="lg" />
       <div>
         <h2>{player.name}</h2>
+        {player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}
         <small>#{player.jerseyNumber} - {player.primaryPosition} - Class of {player.graduationYear}</small>
       </div>
       <button className="secondary-button" type="button" onClick={() => onOpenPlayer(player.id)}>
@@ -17068,7 +17070,7 @@ function WeightRoomAthleteOverview({ player, profile }: { data: AppData; player:
 
   return (
     <div className="weight-room-athlete-overview">
-      <section className="weight-room-week-summary" aria-label={`${player.name} weight room summary`}>
+      <section className="weight-room-week-summary" aria-label={`${playerSelectionLabel(player)} weight room summary`}>
         <h3>This Week</h3>
         <div className="weight-room-week-summary__metrics">
           <span>
@@ -17335,7 +17337,7 @@ function WeightRoomAthleteExercises({
           aria-label="Exercise category"
         />
       </div>
-      <ScrollablePanel className="weight-room-exercise-progress-scroll" bodyClassName="weight-room-athlete-table weight-room-exercise-box-table" ariaLabel={`${player.name} exercise box score`} direction="horizontal">
+      <ScrollablePanel className="weight-room-exercise-progress-scroll" bodyClassName="weight-room-athlete-table weight-room-exercise-box-table" ariaLabel={`${playerSelectionLabel(player)} exercise box score`} direction="horizontal">
         <div className="weight-room-athlete-table__head" role="row">
           <WeightRoomSortHeader label="Exercise" sortKey="exercise" sort={sort} onSort={onSort} />
           <WeightRoomSortHeader label="Current" sortKey="current" sort={sort} onSort={onSort} />
@@ -18536,7 +18538,7 @@ function WeightRoomWeighInModal({
               <label key={player.id}>
                 <strong className="weight-room-weigh-player">
                   <PlayerAvatar player={player} size="sm" compact />
-                  <span>{player.name}</span>
+                  <span>{playerSelectionLabel(player)}</span>
                 </strong>
                 <span>{last ? `${formatNumber(last, 1)} lb` : "-"}</span>
                 <input inputMode="decimal" value={row?.value ?? ""} onChange={(event) => update(player.id, event.target.value)} />
@@ -19100,7 +19102,7 @@ function GameFieldCommand({
           const player = players.find((item) => item.id === game.positions[position]);
           if (!player) return null;
           const [left, top] = GAME_LIVE_FIELD_POSITION_COORDINATES[position];
-          return <button key={position} type="button" data-position={position} className={`game-field-player ${selectedPlayerId === player.id ? "selected" : ""}`} style={{ left: `${left}%`, top: `${top}%` }} onClick={() => setSelectedPlayerId(player.id)} aria-label={`${position}: ${player.name}`}><b>{position}</b><span>{lastName(player.name)}</span></button>;
+          return <button key={position} type="button" data-position={position} className={`game-field-player ${selectedPlayerId === player.id ? "selected" : ""}`} style={{ left: `${left}%`, top: `${top}%` }} onClick={() => setSelectedPlayerId(player.id)} aria-label={`${position}: ${playerSelectionLabel(player)}`}><b>{position}</b><span>{lastName(player.name)}</span></button>;
         })}
         <button type="button" className="game-field-pitch-ball" onClick={onPitch} aria-label={draftActive ? "Resume pitch scoring" : "Record the next pitch"}><img src="/game-tracking/baseball-center-control-v1.png" alt="" aria-hidden="true" /><strong>{draftActive ? "Resume" : "Pitch"}</strong></button>
         <div className="game-field-command__runners">
@@ -19207,7 +19209,7 @@ function GamePersonnelWorkbench({ game, players, focusedPlayerId, onSave }: { ga
             <b>{index + 1}</b><button type="button" className="game-lineup-player-select" onClick={() => setSelectedPlayerId(playerId)}><strong>{player?.name ?? "Unknown player"}</strong><small>#{player?.jerseyNumber ?? "--"} · {position ?? "Bench / DH"}</small></button>
             <select value={position ?? ""} onClick={(event) => event.stopPropagation()} onChange={(event) => event.target.value ? assignPosition(event.target.value as Position, playerId) : clearPlayerPosition(playerId)} aria-label={`${player?.name ?? "Player"} field position`}><option value="">DH / none</option>{GAME_DEFENSIVE_POSITIONS.map((item) => <option key={item} value={item}>{item}</option>)}</select>
             <div><button type="button" disabled={index === 0} onClick={(event) => { event.stopPropagation(); moveLineup(index, -1); }} aria-label={`Move ${player?.name ?? "player"} up`}><ChevronUp size={14} /></button><button type="button" disabled={index === lineup.length - 1} onClick={(event) => { event.stopPropagation(); moveLineup(index, 1); }} aria-label={`Move ${player?.name ?? "player"} down`}><ChevronDown size={14} /></button></div>
-            {bench.length > 0 && <select className="game-sub-select" value="" onClick={(event) => event.stopPropagation()} onChange={(event) => event.target.value && replaceLineup(index, event.target.value)} aria-label={`Substitute for ${player?.name ?? "player"}`}><option value="">Substitute…</option>{bench.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>}
+            {bench.length > 0 && <select className="game-sub-select" value="" onClick={(event) => event.stopPropagation()} onChange={(event) => event.target.value && replaceLineup(index, event.target.value)} aria-label={`Substitute for ${player?.name ?? "player"}`}><option value="">Substitute…</option>{bench.map((item) => <option key={item.id} value={item.id}>{playerSelectionLabel(item)}</option>)}</select>}
           </article>;
         })}
       </div>
@@ -20081,7 +20083,7 @@ function AnalyticsChartPlayerSelector({ players, selectedIds, onChange }: { play
         {players.map((player) => {
           const selected = selectedIds.includes(player.id);
           return <button key={player.id} type="button" role="option" aria-selected={selected} className={selected ? "active" : ""} onClick={() => onChange(selected ? selectedIds.filter((id) => id !== player.id) : [...selectedIds, player.id])}>
-            <Check size={14} aria-hidden="true" /><span><strong>{player.name}</strong><small>#{player.jerseyNumber}</small></span>
+            <Check size={14} aria-hidden="true" /><span><strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}<small>#{player.jerseyNumber}</small></span>
           </button>;
         })}
       </div>}
@@ -21904,6 +21906,7 @@ function PlayerProfile({
         <div>
           <span>{player.rosterStatus}</span>
           <h2>#{player.jerseyNumber} {player.name}</h2>
+          {player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}
           <small>{positionLine(player)} - {player.graduationYear} - {player.bats}/{player.throws} - {player.height} - {player.weight} lb</small>
           <div className="profile-context-row">
             <TeamSwitcher context={data.teamContext} onSwitch={onTeamSwitch} compact />
@@ -24827,7 +24830,7 @@ function RosterPicker({ title, players, selected, onToggle }: { title: string; p
         {players.filter((player) => !player.archived).map((player) => (
           <button key={player.id} type="button" className={selected.includes(player.id) ? "active" : ""} onClick={() => onToggle(player.id)}>
             <Check size={14} aria-hidden="true" />
-            #{player.jerseyNumber} {player.name}
+            #{player.jerseyNumber} {playerSelectionLabel(player)}
           </button>
         ))}
       </div>
@@ -24860,7 +24863,7 @@ function AttendanceRoster({
               <span>
                 <PlayerAvatar player={player} size="sm" compact />
                 <span>
-                  <b>{player.name}</b>
+                  <b>{playerSelectionLabel(player)}</b>
                   <small>{positionLine(player)} - {player.rosterStatus}</small>
                 </span>
               </span>

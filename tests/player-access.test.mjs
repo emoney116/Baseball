@@ -321,9 +321,12 @@ for (const question of [
     });
     assert.notEqual(answer.status, "failed");
     assert.notEqual(answer.status, "refused");
-    assert.doesNotMatch(JSON.stringify(answer), /PRIVATE|Other Seamon|110/);
+    assert.doesNotMatch(JSON.stringify(answer), /PRIVATE|Other Seamon/);
     for (const tool of answer.toolResults)
-      for (const row of tool.rows ?? []) assert.equal(row.playerId, f.own);
+      for (const row of [...(tool.rows ?? []), ...(tool.totals ? [tool.totals] : [])]) {
+        if (row.playerId !== "team-total") assert.equal(row.playerId, f.own);
+        for (const metric of row.metrics ?? []) assert.notEqual(metric.value, 110);
+      }
     if (question.includes("spray")) {
       assert.ok(answer.visuals?.some((v) => v.type === "spray_chart"));
       assert.equal(answer.visuals[0].playerId, f.own);

@@ -6,6 +6,7 @@ import {
   PlayerLinkError,
 } from "../../lib/playerAccountLinks";
 import { isPlayerAccessMode } from "../../lib/playerCapabilities";
+import { labelExactRoster, playerSelectionLabel } from "../../lib/exactRosterIdentity";
 async function authorized(teamId: string) {
   const {
     data: { user },
@@ -46,22 +47,31 @@ export async function GET(request: NextRequest) {
     const players = ids.length
       ? await db
           .from("players")
-          .select("id,first_name,last_name")
+          .select("id,first_name,last_name,created_at")
           .in("id", ids)
           .eq("active", true)
       : { data: [], error: null };
     if (players.error) throw new PlayerLinkError("Unable to load roster.", 503);
+    const links = ids.length
+      ? await db.from("profile_player_links").select("player_id")
+          .in("player_id", ids).eq("relationship_type", "PLAYER").eq("status", "APPROVED")
+      : { data: [], error: null };
+    if (links.error) throw new PlayerLinkError("Unable to load roster account status.", 503);
+    const labeledPlayers = labelExactRoster(
+      (players.data ?? []).map(p => ({ ...p, name: `${p.first_name} ${p.last_name}`, createdAt: p.created_at })),
+      (links.data ?? []).map(l => l.player_id),
+    );
     return NextResponse.json(
       {
         teamDefault: team.data.player_access_default,
         roster: (memberships.data ?? []).flatMap((m) => {
-          const p = players.data?.find((p) => p.id === m.player_id);
+          const p = labeledPlayers.find((p) => p.id === m.player_id);
           return p
             ? [
                 {
                   playerId: p.id,
                   membershipId: m.id,
-                  name: `${m.jersey_number == null ? "" : `#${m.jersey_number} `}${p.first_name} ${p.last_name}`,
+                  name: `${m.jersey_number == null ? "" : `#${m.jersey_number} `}${playerSelectionLabel(p)}`,
                   override:
                     overrides.data?.find((o) => o.player_id === p.id)
                       ?.access_mode ?? null,

@@ -285,6 +285,7 @@ export interface GameStateSnapshot {
 export interface Player {
   id: ID;
   name: string;
+  identityLabel?: string;
   jerseyNumber: number;
   primaryPosition: Position;
   secondaryPosition?: Position;

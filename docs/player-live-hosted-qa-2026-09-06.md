@@ -59,7 +59,7 @@ This is a material CLU9-38/45/47 foundation finding affecting CLU9-48/49/50.
 No new cross-player permission escalation was observed: the tested mismatch fails
 closed. However, hosted live logging cannot be accepted for the current QA link.
 
-Required decision before further mutation: either preserve exact identities in
+Decision requested at the initial checkpoint: either preserve exact identities in
 identity-sensitive coach selectors, with explicit duplicate disambiguation, or
 establish an explicitly reviewed durable alias mapping and migration plan.
 Do not merge production player records or transfer associations based on names.
@@ -72,6 +72,59 @@ concurrent live writes and phone/iPad live-form acceptance remain unexecuted.
 The prior 497 automated tests and 72 local browser cases remain local evidence,
 not substitutes for these hosted workflows.
 
-Only QA inspection tooling and this report changed after the approved release;
+At that initial checkpoint, only QA inspection tooling and this report changed after the approved release;
 no additional application code or migration was promoted. QA link, team default
 and player overrides remain unchanged. No player live rep or workout set created.
+
+## Follow-Up: Exact Coach Identity Fix
+
+The user authorized continuing with coach/player QA and preserving exact identities.
+The implementation now keeps all persisted player IDs and baseball references in
+the coach repository instead of applying read-only presentation canonicalization
+to a writable working snapshot. Both existing records remain; neither is merged,
+reassigned, renamed, deleted, or newly authorized.
+
+Same-name records receive a display-only `Roster record N` label, sorted by creation
+time and ID. Approved account links receive `Account linked`. These labels are not
+identity keys or authorization evidence. They remain stable across activity counts
+and input ordering for the same roster, but are not persistent alias mappings.
+The coach client reads only RLS-visible approved-link player IDs. Access settings
+and invitation endpoints add the same display context after staff authorization.
+No profile email, raw player UUID, token or credential is added to visible labels.
+
+Roster, Practice and Weight Room selectors retain exact IDs and show the identity
+context on wrapping secondary lines. Mobile Weight Room menus include the same
+context. Existing private/self authorization, invite redemption and live-write
+boundaries are unchanged. No schema migration is required.
+
+### Local Evidence
+
+- 24 added deterministic regressions cover preserved exact identities and
+  references in 16 data collections, stable presentation labels, non-authoritative
+  name/label matching, and no event upserts caused by label refresh.
+- The existing Ask privacy test was made deterministic: it previously matched
+  another player's `110` sample inside arbitrary elapsed-time metadata. It now
+  checks scoped row identities and metric values, including totals, while retaining
+  forbidden private-text checks.
+- Isolated local Playwright fixtures exercise two same-name players in the real
+  coach roster, Practice picker and Weight Room picker at 390x844, 430x932,
+  820x1180 and 1180x820. All 12 view/viewport combinations pass. Screenshots were
+  inspected; the first roster screenshot exposed clipping, which was corrected
+  and rechecked. Exact linked-player selection is retained in the Practice URL.
+- No JavaScript page errors or page-level horizontal overflow observed. These
+  fixtures do not prove hosted authentication or player live-write acceptance.
+- Build, full test suite (521 passing), lint (0 errors, 25 existing warnings),
+  TypeScript and whitespace checks are the release gates for this follow-up.
+
+### Hosted Gate Still Open
+
+The fix must be promoted before repeating the controlled coach/QA-player workflow
+against production. The production account/link, team default and overrides were
+not changed during this local follow-up. No production rep, set, email, identity
+merge or manual SQL was created/executed.
+
+Next: verify that the coach sees the QA account's exact approved roster identity;
+assign that identity to controlled coach-started Practice/workout sessions; test
+View Only, Track & View and Full Player; then exercise correction, duplicate
+requests, session end, downgrade, revoke and cross-player denial. Keep CLU9-48,
+CLU9-49, CLU9-50 and the Player Beta hosted gate In Progress until this passes.
