@@ -1,10 +1,20 @@
 .player-access-settings { padding: 20px 0; border-bottom: 1px solid var(--border, #444); }
 .player-access-settings h2 { display: flex; align-items: center; gap: 8px; font-size: 18px; margin: 0 0 20px; }
 .player-access-settings h3, .player-tracking-form h3 { font-size: 14px; margin: 12px 0; }
-.player-access-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border: 1px solid var(--border, #444); border-radius: 6px; }
-.player-access-modes button { min-width: 0; min-height: 44px; padding: 8px 4px; font: inherit; font-size: 12px; font-weight: 700; color: inherit; background: transparent; border: 0; border-radius: 4px; white-space: normal; }
-.player-access-modes button[aria-pressed=true] { background: var(--brand, #bd285f); color: #fff; }
-.player-access-modes button:focus-visible, .player-access-row select:focus-visible { outline: 2px solid #48a7b5; outline-offset: 2px; }
+.player-access-default-row { display: grid; grid-template-columns: minmax(0, 1fr) 156px; gap: 12px; align-items: center; }
+.player-access-default-row label { font-size: 14px; font-weight: 700; }
+.player-access-default-row select { min-width: 0; width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border, #444); border-radius: 6px; background: var(--surface, #181818); color: inherit; font: inherit; font-size: 13px; }
+.player-access-default-row select:focus-visible, .player-access-row select:focus-visible { outline: 2px solid #48a7b5; outline-offset: 2px; }
+.player-access-settings .player-access-help-button { width: 40px; height: 40px; min-height: 40px; padding: 0; flex: 0 0 40px; border: 0; background: transparent; box-shadow: none; }
+.player-access-help-dialog { width: min(560px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 48px); padding: 0; margin: auto; color: var(--text, #eee); background: var(--surface, #181818); border: 1px solid var(--border, #444); border-radius: 8px; overflow-y: auto; }
+.player-access-help-dialog::backdrop { background: rgb(0 0 0 / 65%); }
+.player-access-help-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: 0; padding: 12px 16px; background: var(--surface, #181818); border-bottom: 1px solid var(--border, #444); }
+.player-access-help-dialog > header h2 { margin: 0; font-size: 18px; }
+.player-access-help-dialog > header button { flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; padding: 0; }
+.player-access-help-content { padding: 0 20px 20px; }
+.player-access-help-content section { border-top: 1px solid var(--border, #444); padding: 8px 0; }
+.player-access-help-content ul { padding-left: 20px; margin: 8px 0; }
+.player-access-help-content li { font-size: 13px; line-height: 1.5; margin: 6px 0; overflow-wrap: anywhere; }
 .player-access-settings p { font-size: 13px; line-height: 1.5; }
 .player-access-settings details { padding: 12px 0; }
 .player-access-settings summary { cursor: pointer; font-size: 14px; min-height: 28px; }

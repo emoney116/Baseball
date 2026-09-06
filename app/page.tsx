@@ -35,6 +35,7 @@ import {
   Save,
   Search,
   Send,
+  Settings,
   Shield,
   SlidersHorizontal,
   Sparkles,
@@ -59,7 +60,7 @@ import { ClubhouseBaseballField } from "./components/ClubhouseBaseballField";
 import { DemoDataQaPanel } from "./components/DemoDataQaPanel";
 import { DensePlayerIdentity } from "./components/DensePlayerIdentity";
 import { PlayerAccountLinksPanel, TeamPlayerClaimsPanel } from "./components/PlayerAccountLinksPanel";
-import { PlayerInvitationsPanel } from "./components/PlayerInvitationsPanel";
+import { PlayerInvitationsPanel, usePlayerInvitationRoster } from "./components/PlayerInvitationsPanel";
 import { PlayerAccessPanel } from "./components/PlayerAccessPanel";
 import { PlayerShell } from "./components/PlayerShell";
 import type { PlayerSession } from "./lib/playerAccess";
@@ -262,7 +263,7 @@ import type {
   ZonePoint,
 } from "./types";
 
-type ViewKey = "home" | "organizations" | "teams" | "following" | "discover" | "teamHome" | "schedule" | "roster" | "practice" | "weights" | "games" | "analytics" | "profile" | "account";
+type ViewKey = "home" | "organizations" | "teams" | "following" | "discover" | "teamHome" | "schedule" | "roster" | "practice" | "weights" | "games" | "analytics" | "profile" | "account" | "teamSettings";
 type PracticeMode = "Hitting" | "Pitching" | "Defense" | "Live BP";
 type PracticeTrackerPlayerFilter = "All" | "Pitchers" | "Hitters" | "Infield" | "Outfield";
 type RosterFilter = "All" | RosterStatus;
@@ -993,6 +994,7 @@ const TEAM_NAV_ITEMS: Array<{ key: ViewKey; label: string; shortLabel: string; i
   { key: "weights", label: "Weight Room", shortLabel: "Weights", icon: Dumbbell },
   { key: "games", label: "Games", shortLabel: "Games", icon: BaseballIcon },
   { key: "analytics", label: "Analytics", shortLabel: "Analytics", icon: BarChart3 },
+  { key: "teamSettings", label: "Team Settings", shortLabel: "Settings", icon: Settings },
 ];
 const MOBILE_NAV_ITEMS: Array<{ key: ViewKey | "more"; label: string; shortLabel: string; icon: AppIcon }> = [
   { key: "home", label: "Home", shortLabel: "Home", icon: Home },
@@ -1007,8 +1009,8 @@ const TEAM_MOBILE_NAV_ITEMS: Array<{ key: ViewKey | "more"; label: string; short
   { key: "games", label: "Games", shortLabel: "Games", icon: BaseballIcon },
   { key: "more", label: "More", shortLabel: "More", icon: MoreHorizontal },
 ];
-const MORE_VIEWS: ViewKey[] = ["organizations", "teams", "roster", "weights", "analytics", "account"];
-const TEAM_CONTEXT_VIEWS = new Set<ViewKey>(["teamHome", "schedule", "roster", "practice", "weights", "games", "analytics", "profile"]);
+const MORE_VIEWS: ViewKey[] = ["organizations", "teams", "roster", "weights", "analytics", "account", "teamSettings"];
+const TEAM_CONTEXT_VIEWS = new Set<ViewKey>(["teamHome", "schedule", "roster", "practice", "weights", "games", "analytics", "profile", "teamSettings"]);
 const CREATE_TEAM_VALUE = "__create_team__";
 const ROUTABLE_VIEWS = new Set<ViewKey>([
   ...GLOBAL_NAV_ITEMS.map((item) => item.key),
@@ -4278,8 +4280,16 @@ export default function MetrolinaBaseballApp() {
           />
         )}
 
+        {view === "teamSettings" && (
+          <div className="page-stack team-settings-page">
+            <SectionHeader title="Team Settings" />
+            {data.teamContext?.currentTeam?.seasonId && <PlayerAccessPanel key={`settings-${data.teamContext.currentTeam.teamId}-${data.teamContext.currentTeam.seasonId}`} teamId={data.teamContext.currentTeam.teamId} seasonId={data.teamContext.currentTeam.seasonId} previewSettings={isLocalDevAuthBypass() ? { teamDefault: "VIEW_ONLY", roster: rosterPlayers.map(p => ({ playerId: p.id, membershipId: `preview-${p.id}`, name: p.name, override: null })) } : undefined} />}
+          </div>
+        )}
+
         {view === "roster" && (
           <RosterView
+            key={`${data.teamContext?.currentTeam?.teamId}-${data.teamContext?.currentTeam?.seasonId}`}
             players={rosterPlayers}
             staffMembers={data.staffMembers ?? []}
             staffTeamMemberships={data.staffTeamMemberships ?? []}
@@ -5627,6 +5637,7 @@ function MobileMoreMenu({
         { view: "roster", label: "Roster", icon: Users },
         { view: "weights", label: "Weight Room", icon: Dumbbell },
         { view: "analytics", label: "Analytics", icon: BarChart3 },
+        { view: "teamSettings", label: "Team Settings", icon: Settings },
         { view: "account", label: "My Profile", icon: User, dividerBefore: true },
       ]
     : [
@@ -8089,6 +8100,10 @@ function RosterView({
   onUpdateStaff: (input: StaffMemberUpdateInput) => Promise<void>;
 }) {
   const [sortConfig, setSortConfig] = useState<{ key: RosterSortKey; direction: SortDirection }>({ key: "number", direction: "asc" });
+  const invitePreview = useMemo(() => isLocalDevAuthBypass() ? { invitations: [], roster: players.map(p => ({ playerId: p.id, membershipId: `preview-${p.id}`, name: p.name, linked: false })) } : undefined, [players]);
+  const invitations = usePlayerInvitationRoster(team?.teamId, team?.seasonId, invitePreview);
+  const [invitePlayerId, setInvitePlayerId] = useState<string>();
+  const invitePlayer = invitations.data?.roster.find(p => p.playerId === invitePlayerId);
   const gradYears = Array.from(new Set(players.map((player) => String(player.graduationYear)))).sort();
   const statusOptions: RosterFilter[] = (() => {
     if (team?.teamType !== "School") return ["All", "Undecided", "Cut"];
@@ -8149,9 +8164,7 @@ function RosterView({
         )}
       </section>
 
-      {section === "Players" && <TeamPlayerClaimsPanel key={team?.teamId} teamId={team?.teamId} />}
-      {section === "Players" && team?.seasonId && <PlayerAccessPanel key={`access-${team.teamId}-${team.seasonId}`} teamId={team.teamId} seasonId={team.seasonId} />}
-      {section === "Players" && team?.seasonId && <PlayerInvitationsPanel key={`${team.teamId}-${team.seasonId}`} teamId={team.teamId} seasonId={team.seasonId} />}
+      {section === "Players" && <TeamPlayerClaimsPanel key={team?.teamId} teamId={team?.teamId} onChanged={() => invitations.reload()} />}
 
       {section === "Staff" ? (
         <StaffRosterView
@@ -8236,6 +8249,7 @@ function RosterView({
               aria-label={`Roster status for ${player.name}`}
             />
             <span className="row-action-group">
+              {invitations.data?.roster.some(p => p.playerId === player.id && !p.linked) && <button className="row-action-button" type="button" onClick={() => setInvitePlayerId(player.id)} aria-label={`Invite ${player.name} by email`} title={`Invite ${player.name} by email`}><Mail size={15} aria-hidden="true" /></button>}
               <button className="row-action-button" type="button" onClick={() => onEditPlayer(player.id)} aria-label={`Edit ${player.name}`}>
                 <Edit3 size={15} aria-hidden="true" />
               </button>
@@ -8259,6 +8273,7 @@ function RosterView({
       </section>
         </>
       )}
+      {invitePlayer && invitations.data && team?.seasonId && <ModalFrame title="Player Invitation" onClose={() => setInvitePlayerId(undefined)} panelClassName="player-invitation-dialog"><PlayerInvitationsPanel key={invitePlayer.membershipId} teamId={team.teamId} seasonId={team.seasonId} player={invitePlayer} data={invitations.data} onChanged={() => invitations.reload()} preview={Boolean(invitePreview)} /></ModalFrame>}
     </div>
   );
 }

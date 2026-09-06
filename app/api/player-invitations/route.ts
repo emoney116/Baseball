@@ -46,12 +46,18 @@ export async function GET(request: NextRequest) {
           .eq("active", true)
       : { data: [], error: null };
     if (playerError) throw new PlayerLinkError("Unable to load roster.", 503);
+    const { data: links, error: linkError } = ids.length
+      ? await db.from("profile_player_links").select("player_id").in("player_id", ids).eq("relationship_type", "PLAYER").eq("status", "APPROVED")
+      : { data: [], error: null };
+    if (linkError) throw new PlayerLinkError("Unable to verify linked players.", 503);
     const roster = (memberships ?? []).flatMap((m) => {
       const p = players?.find((p) => p.id === m.player_id);
       return p
         ? [
             {
               membershipId: m.id,
+              playerId: p.id,
+              linked: Boolean(links?.some(link => link.player_id === p.id)),
               name: `${m.jersey_number !== null ? `#${m.jersey_number} ` : ""}${p.first_name} ${p.last_name}`,
             },
           ]

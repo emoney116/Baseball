@@ -1,11 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
-import { ChevronDown, ShieldCheck } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { CircleHelp, ShieldCheck, X } from "lucide-react";
 import {
   PLAYER_ACCESS_MODES,
   PLAYER_MODE_DETAILS,
-  PLAYER_CAPABILITY_GROUPS,
-  resolvePlayerCapabilities,
+  playerModeCapabilityDetails,
   type PlayerAccessMode,
 } from "../lib/playerCapabilities";
 export type PlayerAccessSettings = {
@@ -31,6 +30,8 @@ export function PlayerAccessPanel({
   );
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const helpDialog = useRef<HTMLDialogElement>(null);
+  const controlId = useId();
   useEffect(() => {
     if (previewSettings) return;
     const controller = new AbortController();
@@ -84,59 +85,55 @@ export function PlayerAccessPanel({
     <section className="player-access-settings" aria-label="Player Access">
       <h2>
         <ShieldCheck size={18} /> Player Access
+        <button
+          className="icon-button player-access-help-button"
+          type="button"
+          aria-label="About player access modes"
+          title="About player access modes"
+          aria-haspopup="dialog"
+          onClick={() => helpDialog.current?.showModal()}
+        >
+          <CircleHelp size={18} />
+        </button>
       </h2>
+      <dialog className="player-access-help-dialog" ref={helpDialog} aria-labelledby={`${controlId}-help-title`}>
+        <header>
+          <h2 id={`${controlId}-help-title`}>Player Access Modes</h2>
+          <button className="icon-button" type="button" aria-label="Close access mode details" title="Close" onClick={() => helpDialog.current?.close()}><X size={18} /></button>
+        </header>
+        <div className="player-access-help-content">
+          <p>Each mode requires an approved player link and applies only within this team. Individual overrides replace the team default.</p>
+          {PLAYER_ACCESS_MODES.map((mode, index) => {
+            const previousMode = PLAYER_ACCESS_MODES[index - 1];
+            const inherited = new Set(previousMode ? playerModeCapabilityDetails(previousMode).map(({ key }) => key) : []);
+            return <section key={mode}>
+              <h3>{PLAYER_MODE_DETAILS[mode].label}</h3>
+              {previousMode && <p>Everything in {PLAYER_MODE_DETAILS[previousMode].label}, plus:</p>}
+              <ul>{playerModeCapabilityDetails(mode).filter(({ key }) => !inherited.has(key)).map(({ key, label }) => <li key={key}>{label}</li>)}</ul>
+            </section>;
+          })}
+          <section>
+            <h3>Not included in any mode</h3>
+            <p>Live Practice entry, hitting/pitching/defense logging and Weight Room workout or set logging are not enabled. Personal body-weight logging is separate from live workout entry.</p>
+            <p>No editing coach-owned records or official Games. No access to private coach notes, private teammate data, staff/admin tools, team stats or Insights, or published lineups. Player-written feedback and check-ins are not enabled.</p>
+          </section>
+        </div>
+      </dialog>
       {error && <p role="alert">{error}</p>}
       {!settings ? (
-        <p role="status">Loading access settings...</p>
+        !error && <p role="status">Loading access settings...</p>
       ) : (
         <>
-          <h3>Default Player Access</h3>
-          <div
-            className="player-access-modes"
-            role="group"
-            aria-label="Default Player Access"
-          >
-            {PLAYER_ACCESS_MODES.map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                aria-pressed={settings.teamDefault === mode}
-                disabled={busy}
-                onClick={() => void save(mode)}
-              >
-                {PLAYER_MODE_DETAILS[mode].label}
-              </button>
-            ))}
+          <div className="player-access-default-row">
+            <label htmlFor={`${controlId}-default`}>Default Player Access</label>
+            <select id={`${controlId}-default`} value={settings.teamDefault} disabled={busy}
+              onChange={(e) => void save(e.target.value as PlayerAccessMode)}>
+              {PLAYER_ACCESS_MODES.map((mode) => <option key={mode} value={mode}>{PLAYER_MODE_DETAILS[mode].label}</option>)}
+            </select>
           </div>
           <p className="muted">
             {PLAYER_MODE_DETAILS[settings.teamDefault].description}
           </p>
-          <details>
-            <summary>
-              What&apos;s included? <ChevronDown size={14} />
-            </summary>
-            {PLAYER_ACCESS_MODES.map((mode) => (
-              <div key={mode}>
-                <h3>{PLAYER_MODE_DETAILS[mode].label}</h3>
-                <p>{PLAYER_MODE_DETAILS[mode].description}</p>
-                <small>
-                  {
-                    Object.entries(
-                      resolvePlayerCapabilities({
-                        approved: true,
-                        teamDefault: mode,
-                      }).capabilities,
-                    ).filter(
-                      ([key, enabled]) =>
-                        enabled &&
-                        !PLAYER_CAPABILITY_GROUPS.denied.includes(key as never),
-                    ).length
-                  }{" "}
-                  permitted capabilities
-                </small>
-              </div>
-            ))}
-          </details>
           <details className="player-access-overrides">
             <summary>
               Player Overrides{" "}
@@ -146,12 +143,9 @@ export function PlayerAccessPanel({
               <div className="player-access-row" key={p.membershipId}>
                 <div>
                   <strong>{p.name}</strong>
-                  <small title={p.playerId}>
-                    Identity {p.playerId.slice(0, 8)}...{p.playerId.slice(-8)}
-                  </small>
                 </div>
                 <select
-                  aria-label={`Access for ${p.name} (${p.playerId})`}
+                  aria-label={`Access for ${p.name}`}
                   value={p.override ?? ""}
                   disabled={busy}
                   onChange={(e) =>

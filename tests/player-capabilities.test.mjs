@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   PLAYER_ACCESS_MODES,
   PLAYER_CAPABILITY_GROUPS,
+  PLAYER_CAPABILITY_LABELS,
+  playerModeCapabilityDetails,
   resolvePlayerCapabilities,
   ownsPlayerEntry,
 } from "../app/lib/playerCapabilities.ts";
@@ -18,6 +20,13 @@ import { executeAnalyticsQuery } from "../app/lib/analyticsQuery.ts";
 import { playerAskContext } from "../app/lib/playerAskScope.ts";
 
 for (const mode of PLAYER_ACCESS_MODES) {
+  test(`${mode}: mode help lists every granted capability and no unavailable grants`, () => {
+    const capabilities = resolvePlayerCapabilities({ approved: true, teamDefault: mode }).capabilities;
+    const details = playerModeCapabilityDetails(mode);
+    assert.deepEqual(details.map(({ key }) => key).sort(), Object.keys(capabilities).filter((key) => capabilities[key]).sort());
+    assert.ok(details.every(({ label }) => label.length > 10 && !label.startsWith("can")));
+    assert.equal(new Set(details.map(({ key }) => key)).size, details.length);
+  });
   test(`${mode}: hard denies and unsupported tracking cannot be granted`, () => {
     const c = resolvePlayerCapabilities({
       approved: true,
@@ -76,6 +85,13 @@ for (const mode of PLAYER_ACCESS_MODES) {
       );
   });
 }
+test("mode help labels cover exactly the supported capability inventory", () => {
+  assert.deepEqual(Object.keys(PLAYER_CAPABILITY_LABELS).sort(), [
+    ...PLAYER_CAPABILITY_GROUPS.view,
+    ...PLAYER_CAPABILITY_GROUPS.track,
+    ...PLAYER_CAPABILITY_GROUPS.full,
+  ].sort());
+});
 test("default is View Only and invalid modes cannot create grants", () => {
   assert.equal(resolvePlayerCapabilities({ approved: true }).mode, "VIEW_ONLY");
   assert.equal(

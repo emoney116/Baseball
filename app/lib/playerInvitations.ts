@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertPlayerInvitationAvailable } from "./playerInvitationAvailability";
 import {
   createInviteToken,
   hashInviteToken,
@@ -48,6 +49,7 @@ export async function createPlayerInvitation(
     .maybeSingle();
   if (playerError || !player)
     throw new PlayerLinkError("That player is unavailable.", 404);
+  await assertPlayerInvitationAvailable(db, { playerId: membership.player_id, teamId: input.teamId, seasonId: input.seasonId, email });
   const token = createInviteToken(),
     expiresAt = inviteExpiresAt(7);
   const { data: invitation, error: insertError } = await db
@@ -84,6 +86,12 @@ export async function changePlayerInvitation(
   input: { id: string; teamId: string; action: "revoke" | "resend" },
 ) {
   await assertPlayerLinkTeamManager(db, actorId, input.teamId);
+  if (input.action === "resend") {
+    const { data: current, error } = await db.from("player_invitations").select(playerInviteFields)
+      .eq("id", input.id).eq("team_id", input.teamId).eq("status", "PENDING").maybeSingle();
+    if (error || !current) throw new PlayerLinkError("Invitation is no longer pending.", 409);
+    await assertPlayerInvitationAvailable(db, { playerId: current.player_id, teamId: current.team_id, seasonId: current.season_id, email: current.invited_email });
+  }
   const token = createInviteToken();
   const patch =
     input.action === "revoke"

@@ -80,6 +80,37 @@ export const PLAYER_CAPABILITY_GROUPS = {
 export type PlayerCapability =
   (typeof PLAYER_CAPABILITY_GROUPS)[keyof typeof PLAYER_CAPABILITY_GROUPS][number];
 export type PlayerCapabilities = Record<PlayerCapability, boolean>;
+type AvailablePlayerCapability = (typeof PLAYER_CAPABILITY_GROUPS)[
+  "view" | "track" | "full"
+][number];
+export const PLAYER_CAPABILITY_LABELS: Record<AvailablePlayerCapability, string> = {
+  canViewOwnProfile: "View their own player profile",
+  canViewOwnMemberships: "View their own team and season memberships",
+  canViewOwnPractice: "View their own Practice history",
+  canViewOwnGames: "View their own Game history and stats",
+  canViewOwnAnalytics: "View their own Analytics",
+  canViewOwnTrends: "View their own development trends",
+  canViewOwnWeightRoom: "View their own Weight Room history",
+  canViewOwnGoals: "View their own goals",
+  canViewCoachFeedback: "Read feedback explicitly shared with the player",
+  canViewTeamSchedule: "View the team schedule",
+  canUseAskClubhouse: "Use Ask Clubhouse with their own permitted data and normal usage limits",
+  canLogBodyWeight: "Log personal body weight",
+  canUpdateOwnBodyWeight: "Edit their own self-entered body weight",
+  canDeleteOwnBodyWeight: "Delete their own self-entered body weight",
+  canCreateGoals: "Create personal goals",
+  canUpdateOwnGoals: "Update their own self-created goals",
+  canDeleteOwnGoals: "Delete their own self-created goals",
+  canViewRoster: "View the team roster, without private teammate data",
+};
+
+export function playerModeCapabilityDetails(mode: PlayerAccessMode) {
+  const { capabilities } = resolvePlayerCapabilities({ approved: true, teamDefault: mode });
+  return (Object.keys(PLAYER_CAPABILITY_LABELS) as AvailablePlayerCapability[])
+    .filter((key) => capabilities[key])
+    .map((key) => ({ key, label: PLAYER_CAPABILITY_LABELS[key] }));
+}
+
 export type EffectivePlayerAccess = {
   mode: PlayerAccessMode;
   teamDefault: PlayerAccessMode;

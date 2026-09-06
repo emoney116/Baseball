@@ -1,205 +1,87 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Mail, RefreshCw, X } from "lucide-react";
-type RosterEntry = { membershipId: string; name: string };
-type Invite = {
-  id: string;
-  membership_id: string;
-  invited_email: string;
-  status: string;
-  expires_at: string;
-};
-export function PlayerInvitationsPanel({
-  teamId,
-  seasonId,
-}: {
-  teamId: string;
-  seasonId: string;
-}) {
-  const [roster, setRoster] = useState<RosterEntry[]>([]);
-  const [emails, setEmails] = useState<Record<string, string>>({}),
-    [selected, setSelected] = useState<string[]>([]),
-    [invites, setInvites] = useState<Invite[]>([]),
-    [busy, setBusy] = useState(false),
-    [message, setMessage] = useState("");
-  const load = useCallback(async () => {
-    const r = await fetch(
-      `/api/player-invitations?teamId=${encodeURIComponent(teamId)}&seasonId=${encodeURIComponent(seasonId)}`,
-    );
+
+export type InvitationRosterEntry = { membershipId: string; playerId: string; name: string; linked: boolean };
+type Invite = { id: string; player_id: string; membership_id: string; invited_email: string; status: string; expires_at: string };
+export type PlayerInvitationData = { roster: InvitationRosterEntry[]; invitations: Invite[] };
+
+export function usePlayerInvitationRoster(teamId?: string, seasonId?: string, previewData?: PlayerInvitationData) {
+  const [data, setData] = useState<PlayerInvitationData>();
+  const [error, setError] = useState("");
+  const load = useCallback(async (signal?: AbortSignal) => {
+    if (!teamId || !seasonId || previewData) return;
+    const r = await fetch(`/api/player-invitations?${new URLSearchParams({ teamId, seasonId })}`, { signal, cache: "no-store" });
     const p = await r.json();
-    if (!r.ok) throw new Error(p.message);
-    setInvites(p.invitations ?? []);
-    setRoster(p.roster ?? []);
-  }, [teamId, seasonId]);
+    if (!r.ok) throw new Error(p.message ?? "Unable to load player invitations.");
+    return p as PlayerInvitationData;
+  }, [teamId, seasonId, previewData]);
   useEffect(() => {
     const controller = new AbortController();
-    fetch(
-      `/api/player-invitations?teamId=${encodeURIComponent(teamId)}&seasonId=${encodeURIComponent(seasonId)}`,
-      { signal: controller.signal },
-    )
-      .then(async (r) => {
-        const p = await r.json();
-        if (!r.ok) throw new Error(p.message);
-        return p;
-      })
-      .then((p) => {
-        setInvites(p.invitations ?? []);
-        setRoster(p.roster ?? []);
-      })
-      .catch((e) => {
-        if (!controller.signal.aborted) setMessage(e.message);
-      });
+    void load(controller.signal).then(p => {
+      if (controller.signal.aborted) return;
+      if (p) setData(p);
+      setError("");
+    }).catch(e => {
+      if (!controller.signal.aborted) setError(e instanceof Error ? e.message : "Unable to load player invitations.");
+    });
     return () => controller.abort();
-  }, [teamId, seasonId]);
+  }, [load]);
+  async function reload() {
+    const p = await load();
+    if (p) setData(p);
+    setError("");
+  }
+  return { data: previewData ?? data, error, reload };
+}
+
+export function PlayerInvitationsPanel({ teamId, seasonId, player, data, onChanged, preview = false }: {
+  teamId: string;
+  seasonId: string;
+  player: InvitationRosterEntry;
+  data: PlayerInvitationData;
+  onChanged: () => Promise<void>;
+  preview?: boolean;
+}) {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const invitations = data.invitations.filter(i => i.player_id === player.playerId);
   async function submit(body: object) {
+    if (preview) return;
     setBusy(true);
     setMessage("");
     try {
       const r = await fetch("/api/player-invitations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ teamId, seasonId, ...body }),
       });
       const p = await r.json();
       if (!r.ok) throw new Error(p.message);
-      if (p.results)
-        setMessage(
-          p.results
-            .map(
-              (v: {
-                membershipId: string;
-                message?: string;
-                email?: { sent: boolean; message?: string };
-              }) =>
-                `${roster.find((r) => r.membershipId === v.membershipId)?.name ?? "Player"}: ${v.message ?? (v.email?.sent ? "Invitation sent" : (v.email?.message ?? "Saved"))}`,
-            )
-            .join("\n"),
-        );
-      else setMessage(p.email?.message ?? "Invitation updated.");
-      await load();
+      const result = p.results?.[0];
+      setMessage(result?.message ?? result?.email?.message ?? (result?.email?.sent ? "Invitation sent." : p.email?.message ?? "Invitation updated."));
+      await onChanged();
     } catch (e) {
-      setMessage(
-        e instanceof Error ? e.message : "Unable to update invitations.",
-      );
-    } finally {
-      setBusy(false);
-    }
+      setMessage(e instanceof Error ? e.message : "Unable to update invitation.");
+    } finally { setBusy(false); }
   }
-  return (
-    <section className="player-invites">
-      <h3>Player Invitations</h3>
-      <label>
-        <input
-          type="checkbox"
-          checked={roster.length > 0 && selected.length === roster.length}
-          onChange={(e) =>
-            setSelected(
-              e.target.checked ? roster.map((p) => p.membershipId) : [],
-            )
-          }
-        />{" "}
-        Select Roster
-      </label>
-      <div className="player-invites__roster">
-        {roster.map((p) => (
-          <div key={p.membershipId} className="player-invites__row">
-            <label>
-              <input
-                type="checkbox"
-                checked={selected.includes(p.membershipId)}
-                onChange={(e) =>
-                  setSelected((s) =>
-                    e.target.checked
-                      ? [...s, p.membershipId]
-                      : s.filter((id) => id !== p.membershipId),
-                  )
-                }
-              />
-              {p.name}
-            </label>
-            <input
-              type="email"
-              aria-label={`${p.name} email`}
-              placeholder="Player email"
-              value={emails[p.membershipId] ?? ""}
-              onChange={(e) =>
-                setEmails((s) => ({ ...s, [p.membershipId]: e.target.value }))
-              }
-            />
-          </div>
-        ))}
-      </div>
-      <button
-        className="primary-button"
-        disabled={
-          busy || !selected.length || selected.some((id) => !emails[id])
-        }
-        onClick={() => {
-          if (
-            window.confirm(
-              `Send ${selected.length} exact-player invitation(s)?`,
-            )
-          )
-            void submit({
-              entries: selected.map((membershipId) => ({
-                membershipId,
-                email: emails[membershipId],
-              })),
-            });
-        }}
-      >
-        <Mail size={16} /> Send Invitations
-      </button>
-      <div>
-        {invites.map((i) => (
-          <div className="player-invites__row" key={i.id}>
-            <span>
-              {roster.find((r) => r.membershipId === i.membership_id)?.name ??
-                "Roster player"}
-              <small>
-                {i.invited_email} ·{" "}
-                {i.status === "PENDING" && new Date(i.expires_at) < new Date()
-                  ? "EXPIRED"
-                  : i.status}
-              </small>
-            </span>
-            {i.status === "PENDING" && (
-              <span>
-                <button
-                  className="icon-button"
-                  title="Resend Invitation"
-                  aria-label="Resend Invitation"
-                  disabled={busy}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        "Send a new invitation email and expire the previous link?",
-                      )
-                    )
-                      void submit({ id: i.id, action: "resend" });
-                  }}
-                >
-                  <RefreshCw size={16} />
-                </button>
-                <button
-                  className="icon-button"
-                  title="Revoke Invitation"
-                  aria-label="Revoke Invitation"
-                  disabled={busy}
-                  onClick={() => void submit({ id: i.id, action: "revoke" })}
-                >
-                  <X size={16} />
-                </button>
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-      {message && (
-        <p role="status" style={{ whiteSpace: "pre-line" }}>
-          {message}
-        </p>
-      )}
-    </section>
-  );
+  return <section className="player-invite-single" aria-label={`Invite ${player.name}`}>
+    <p><strong>{player.name}</strong></p>
+    {player.linked ? <p>This player already has an approved account.</p> :
+      <form onSubmit={e => {
+        e.preventDefault();
+        void submit({ entries: [{ membershipId: player.membershipId, email: email.trim() }] });
+      }}>
+        <label>Player email<input type="email" required maxLength={254} autoComplete="off" value={email} onChange={e => setEmail(e.target.value)} disabled={busy} /></label>
+        <button className="primary-button" type="submit" disabled={preview || busy || !email.trim()}><Mail size={16} aria-hidden="true" />{busy ? "Sending..." : "Send Invitation"}</button>
+      </form>}
+    {invitations.map(i => <div className="player-invite-history-row" key={i.id}>
+      <div><strong>{i.invited_email}</strong><small>{i.status === "PENDING" && new Date(i.expires_at) < new Date() ? "EXPIRED" : i.status}</small></div>
+      {i.status === "PENDING" && <span className="row-action-group">
+        <button className="icon-button" type="button" title="Resend Invitation" aria-label={`Resend invitation to ${i.invited_email}`} disabled={preview || busy || player.linked} onClick={() => void submit({ id: i.id, action: "resend" })}><RefreshCw size={16} /></button>
+        <button className="icon-button" type="button" title="Revoke Invitation" aria-label={`Revoke invitation to ${i.invited_email}`} disabled={preview || busy} onClick={() => void submit({ id: i.id, action: "revoke" })}><X size={16} /></button>
+      </span>}
+    </div>)}
+    {message && <p role="status">{message}</p>}
+  </section>;
 }

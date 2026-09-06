@@ -37046,3 +37046,49 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
 .player-invites__row label { display: flex; align-items: center; gap: 10px; }
 .player-invites__row small { display: block; color: #aaa; overflow-wrap: anywhere; }
 @media (max-width: 430px) { .player-beta { padding: 18px 16px 104px; } .player-beta h1 { font-size: 20px; } }
+
+/* Keep roster management secondary to the player list. */
+.roster-page > .section-header { display: flex; flex-direction: row; align-items: center; gap: 12px; }
+.roster-page > .section-header > div:first-child { min-width: 0; }
+.roster-page > .section-header h2 { font-size: 24px; margin: 0; }
+.roster-page > .section-header .roster-title-actions {
+  display: flex !important;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
+  width: auto;
+  margin-left: auto;
+  gap: 8px;
+}
+.roster-title-actions .icon-button { width: 36px; height: 36px; min-height: 36px; flex: 0 0 36px; padding: 0; }
+.roster-management-disclosure { border-block: 1px solid var(--line); }
+.roster-management-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.roster-management-disclosure > summary::-webkit-details-marker { display: none; }
+.roster-management-disclosure > summary::after { content: "+"; margin-left: auto; font-size: 18px; font-weight: 400; }
+.roster-management-disclosure[open] > summary::after { content: "-"; }
+.roster-management-disclosure > summary:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.roster-management-disclosure > summary > svg { flex: 0 0 16px; }
+.roster-management-count { color: var(--muted); font-size: 12px; font-weight: 400; }
+.roster-management-content { display: grid; gap: 12px; padding: 8px 0 16px; }
+.roster-page .player-invites { border: 0; padding: 0; }
+.team-player-claim-row small { white-space: normal; overflow-wrap: anywhere; }
+.team-settings-page > .section-header { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+.team-settings-page > .section-header h2 { font-size: 24px; }
+.player-invitation-dialog { width: min(480px, calc(100vw - 24px)); }
+.player-invite-single { display: grid; gap: 16px; min-width: 0; }
+.player-invite-single p { margin: 0; overflow-wrap: anywhere; }
+.player-invite-single form, .player-invite-single label { display: grid; gap: 12px; min-width: 0; }
+.player-invite-single input { width: 100%; min-width: 0; min-height: 44px; padding: 10px; font-size: 16px; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; }
+.player-invite-history-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 10px; border-top: 1px solid var(--line); }
+.player-invite-history-row > div { min-width: 0; overflow-wrap: anywhere; }
+.player-invite-history-row small { display: block; color: var(--muted); }

@@ -262,7 +262,7 @@ export function PlayerAccountLinksPanel() {
   );
 }
 
-export function TeamPlayerClaimsPanel({ teamId }: { teamId?: string }) {
+export function TeamPlayerClaimsPanel({ teamId, onChanged }: { teamId?: string; onChanged?: () => Promise<void> }) {
   const [claims, setClaims] = useState<PlayerLink[]>([]);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -313,6 +313,7 @@ export function TeamPlayerClaimsPanel({ teamId }: { teamId?: string }) {
         body: JSON.stringify({ linkId: link.id, action }),
       });
       await load();
+      await onChanged?.();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to update this claim.");
     } finally {
@@ -321,16 +322,21 @@ export function TeamPlayerClaimsPanel({ teamId }: { teamId?: string }) {
   }
 
   return (
-    <section className="panel team-player-claims-panel" aria-label="Player access claims">
-      <div className="panel-heading tight"><div><span>Player Access</span><h2>Player Claims{pending.length ? ` · ${pending.length}` : ""}</h2></div><Users size={18} aria-hidden="true" /></div>
+    <section className="team-player-claims-panel" aria-label="Player access claims">
+      <details className="roster-management-disclosure">
+      <summary><Users size={16} aria-hidden="true" /><span>Player Claims</span><span className="roster-management-count">{pending.length ? `${pending.length} pending` : "No pending claims"}</span></summary>
+      <div className="roster-management-content">
       {pending.length ? <div className="team-player-claims-list">{pending.map((claim) => <ClaimRow key={claim.id} claim={claim} busy={busyId === claim.id} onAction={transition} />)}</div> : <p className="player-link-empty">No pending player claims for this team.</p>}
       {completed.length > 0 && <details className="team-player-claims-history"><summary>Access history ({completed.length})</summary><div className="team-player-claims-list">{completed.map((claim) => <ClaimRow key={claim.id} claim={claim} busy={busyId === claim.id} onAction={transition} />)}</div></details>}
       {message && <p className="player-link-message player-link-message--error">{message}</p>}
+      </div>
+      </details>
     </section>
   );
 }
 
 function ClaimRow({ claim, busy, onAction }: { claim: PlayerLink; busy: boolean; onAction: (link: PlayerLink, action: "approve" | "reject" | "revoke") => Promise<void> }) {
   const context = playerContext(claim.player, claim.teamName, claim.seasonName);
-  return <article className="team-player-claim-row"><div><strong>{context.identity}</strong><small>{context.details}</small><small>Requested by {claim.claimant?.displayName ?? "Clubhouse account"}{claim.claimant?.email ? ` · ${claim.claimant.email}` : ""}</small></div>{claim.status === "PENDING" ? <div className="team-player-claim-actions"><button className="secondary-button" type="button" disabled={busy} onClick={() => void onAction(claim, "reject")}>Reject</button><button className="primary-button" type="button" disabled={busy} onClick={() => void onAction(claim, "approve")}>{busy ? "Saving..." : "Approve"}</button></div> : <div className="team-player-claim-actions"><StatusPill status={claim.status} />{claim.status === "APPROVED" && <button className="secondary-button" type="button" disabled={busy} onClick={() => void onAction(claim, "revoke")}>Revoke</button>}</div>}</article>;
+  const claimant = [...new Set([claim.claimant?.displayName, claim.claimant?.email].filter(Boolean))].join(" · ") || "Clubhouse account";
+  return <article className="team-player-claim-row"><div><strong>{context.identity}</strong><small>{context.details}</small><small>Requested by {claimant}</small></div>{claim.status === "PENDING" ? <div className="team-player-claim-actions"><button className="secondary-button" type="button" disabled={busy} onClick={() => void onAction(claim, "reject")}>Reject</button><button className="primary-button" type="button" disabled={busy} onClick={() => void onAction(claim, "approve")}>{busy ? "Saving..." : "Approve"}</button></div> : <div className="team-player-claim-actions"><StatusPill status={claim.status} />{claim.status === "APPROVED" && <button className="secondary-button" type="button" disabled={busy} onClick={() => void onAction(claim, "revoke")}>Revoke</button>}</div>}</article>;
 }
