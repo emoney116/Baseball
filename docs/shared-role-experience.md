@@ -46,6 +46,11 @@ extend these shared components instead of introducing new player/fan variants.
 
 ## Verification
 
+Final local result: 559 tests passed (553 prior baseline plus six integration
+regressions), production build and TypeScript passed, lint has zero errors and
+25 pre-existing warnings. All 20 responsive cases passed with no browser page
+errors. Screenshots were inspected at phone, iPad, and desktop sizes.
+
 - `tests/shared-player-ui.test.mjs`: shared component integration, scope,
   stale-response guards, development fixture isolation and Workouts source.
 - Existing UI tests now read extracted components rather than assuming that all
