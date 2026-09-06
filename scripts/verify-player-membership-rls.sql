@@ -12,42 +12,33 @@ select
   gen_random_uuid() as unauthorized_player_id,
   gen_random_uuid() as anon_player_id,
   gen_random_uuid() as unauthorized_profile_id,
-  org.id as organization_id,
-  team.id as team_id,
-  season.id as season_id,
-  staff.profile_id as staff_profile_id,
-  staff.staff_membership_id as staff_membership_id
-from public.organizations org
-join public.teams team on team.organization_id = org.id
-join public.seasons season on season.team_id = team.id and season.name = 'Fall 2026'
-join lateral (
-  select ptm.profile_id, ptm.id as staff_membership_id
-  from public.profile_team_memberships ptm
-  join public.profiles profile on profile.id = ptm.profile_id
-  where ptm.team_id = team.id
-    and ptm.active = true
-    and ptm.role in ('OWNER', 'ADMIN', 'HEAD_COACH', 'ASSISTANT_COACH', 'STAFF', 'COACH')
-    and profile.role in ('ADMIN', 'COACH')
-  order by
-    case ptm.role
-      when 'OWNER' then 0
-      when 'ADMIN' then 1
-      when 'HEAD_COACH' then 2
-      else 3
-    end,
-    ptm.created_at
-  limit 1
-) staff on true
-where org.slug = 'metrolina-christian-academy'
-order by case team.name when 'Metrolina Varsity' then 0 when 'Metrolina JV' then 1 else 2 end
-limit 1;
+  gen_random_uuid() as organization_id,
+  gen_random_uuid() as team_id,
+  gen_random_uuid() as season_id,
+  gen_random_uuid() as staff_profile_id,
+  gen_random_uuid() as staff_membership_id;
 
-do $$
-begin
-  if not exists (select 1 from rls_membership_fixture) then
-    raise exception 'No authorized staff/team fixture found for player_team_memberships RLS verification.';
-  end if;
-end $$;
+-- Disposable identities only. The transaction rolls everything back, including
+-- on psql failure/connection close; no existing account or membership is edited.
+insert into auth.users(id,email)
+select staff_profile_id, 'rls-staff-' || staff_profile_id || '@clubhouse9.invalid' from rls_membership_fixture
+union all
+select unauthorized_profile_id, 'rls-outsider-' || unauthorized_profile_id || '@clubhouse9.invalid' from rls_membership_fixture;
+
+insert into public.profiles(id,role)
+select staff_profile_id,'COACH'::public.membership_role from rls_membership_fixture
+union all
+select unauthorized_profile_id,'COACH'::public.membership_role from rls_membership_fixture
+on conflict (id) do update set role=excluded.role;
+
+insert into public.organizations(id,name,slug)
+select organization_id,'Transactional RLS QA','rls-qa-' || organization_id from rls_membership_fixture;
+insert into public.teams(id,organization_id,name)
+select team_id,organization_id,'Transactional RLS QA' from rls_membership_fixture;
+insert into public.seasons(id,organization_id,team_id,name)
+select season_id,organization_id,team_id,'Transactional QA' from rls_membership_fixture;
+insert into public.profile_team_memberships(id,profile_id,team_id,role,active)
+select staff_membership_id,staff_profile_id,team_id,'HEAD_COACH',true from rls_membership_fixture;
 
 grant select on rls_membership_fixture to authenticated, anon;
 
@@ -75,22 +66,6 @@ select
   now(),
   now()
 from rls_membership_fixture;
-
-update public.profile_team_memberships ptm
-set role = 'PLAYER',
-    title = null
-from rls_membership_fixture fixture
-join public.teams team on team.organization_id = fixture.organization_id
-where ptm.profile_id = fixture.staff_profile_id
-  and ptm.team_id = team.id
-  and ptm.active = true;
-
-update public.organization_memberships om
-set role = 'PLAYER'
-from rls_membership_fixture fixture
-where om.profile_id = fixture.staff_profile_id
-  and om.organization_id = fixture.organization_id
-  and om.active = true;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', staff_profile_id::text, true)

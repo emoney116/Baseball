@@ -1,6 +1,14 @@
 name: Supabase Remote Verify
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/verify-*.sql"
+      - "scripts/smoke-remote-supabase.sql"
+      - "scripts/run-supabase-pooler-psql.mjs"
+      - ".github/workflows/supabase-remote-verify.yml"
   workflow_run:
     workflows:
       - Supabase Migrations
