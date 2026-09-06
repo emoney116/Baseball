@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 test("Ask Clubhouse mobile UI uses a full-screen assistant with stacked suggestions", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/page.tsx", "utf8") + readFileSync("app/components/AskClubhouseDrawer.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
 
   assert.match(page, /function AskClubhouseLanding/);
@@ -31,7 +31,7 @@ test("Ask Clubhouse mobile UI uses a full-screen assistant with stacked suggesti
 });
 
 test("Ask Clubhouse UI supports structured answers and deduped setup/error states", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/page.tsx", "utf8") + readFileSync("app/components/AskClubhouseDrawer.tsx", "utf8");
 
   assert.match(page, /type AskClubhouseUiPayload/);
   assert.match(page, /function AskClubhouseRankingAnswer/);
@@ -46,7 +46,7 @@ test("Ask Clubhouse UI supports structured answers and deduped setup/error state
 });
 
 test("Ask Clubhouse keeps launch suggestions on landing and follow-ups on only the latest answer", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/page.tsx", "utf8") + readFileSync("app/components/AskClubhouseDrawer.tsx", "utf8");
 
   assert.match(page, /ASK_CLUBHOUSE_UI_SUGGESTIONS/);
   assert.doesNotMatch(page, /Which teams need my attention\?/);
@@ -59,7 +59,7 @@ test("Ask Clubhouse keeps launch suggestions on landing and follow-ups on only t
 });
 
 test("Ask Clubhouse exposes shared launch surfaces and authorized team scope controls", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/page.tsx", "utf8") + readFileSync("app/components/AskClubhouseDrawer.tsx", "utf8");
 
   assert.match(page, /function AskClubhouseLauncher/);
   assert.match(page, /function AskClubhouseScopeSelector/);
@@ -76,7 +76,7 @@ test("Ask Clubhouse exposes shared launch surfaces and authorized team scope con
 
 test("Ask Clubhouse answer styles include hierarchy and flat text rankings", () => {
   const css = readFileSync("app/globals.css", "utf8");
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/page.tsx", "utf8") + readFileSync("app/components/AskClubhouseDrawer.tsx", "utf8");
 
   assert.match(css, /\.ask-answer-primary\s*\{/);
   assert.match(css, /\.ask-answer-scope\s*\{/);
@@ -96,7 +96,7 @@ test("Ask Clubhouse answer styles include hierarchy and flat text rankings", () 
 });
 
 test("Ask Clubhouse visual answers keep metric strips single-row and suppress redundant tool evidence", () => {
-  const source = readFileSync("app/page.tsx", "utf8");
+  const source = readFileSync("app/page.tsx", "utf8") + readFileSync("app/components/AskClubhouseDrawer.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
 
   assert.match(source, /const metrics = visual\.metrics\?\.slice\(0, 5\) \?\? \[\]/);
@@ -106,7 +106,7 @@ test("Ask Clubhouse visual answers keep metric strips single-row and suppress re
 });
 
 test("Ask Clubhouse mock states are local development only", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/page.tsx", "utf8") + readFileSync("app/components/AskClubhouseDrawer.tsx", "utf8");
 
   assert.match(page, /function readInitialAskClubhouseFixture/);
   assert.match(page, /process\.env\.NODE_ENV === "production"/);

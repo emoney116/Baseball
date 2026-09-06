@@ -79,7 +79,8 @@ test("practice hub opens active tracker modes without setup screen", () => {
   assert.match(page, /team-workspace-header--compact/);
   assert.match(page, /Clubhouse Home/);
   assert.match(page, /"mobile-more-menu__row"/);
-  assert.match(page, /"--bottom-nav-count": mobileNavCount/);
+  assert.match(page, /<ClubhouseBottomNav count=\{mobileNavCount\}/);
+  assert.match(readFileSync("app/components/ClubhouseBottomNav.tsx", "utf8"), /"--bottom-nav-count": count/);
   assert.match(page, /className="mobile-more-menu__avatar"/);
   assert.match(page, /<span>Pinned<\/span>/);
   assert.match(page, /aria-label="Pinned teams"/);

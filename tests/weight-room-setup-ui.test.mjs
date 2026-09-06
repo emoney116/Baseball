@@ -70,7 +70,7 @@ test("active weight room setup keeps exercise saves and preset UI clean", () => 
   assert.match(page, /weight-room-athlete-multi-picker/);
   assert.match(page, /Select All/);
   assert.match(page, /function ScrollablePanel/);
-  assert.match(page, /function useScrollEdges/);
+  assert.match(readFileSync("app/components/useScrollEdges.ts", "utf8"), /function useScrollEdges/);
   assert.match(page, /SCROLL_EDGE_THRESHOLD/);
   assert.match(page, /scroll-cue-panel/);
   assert.match(page, /has-scroll-left/);
@@ -133,7 +133,7 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   const page = readFileSync("app/page.tsx", "utf8");
   const orgManage = readFileSync("app/org/[id]/manage/OrgManageClient.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
-  const choiceSelect = page.match(/function ChoiceSelect[\s\S]*?function TeamSwitcher/)?.[0] ?? "";
+  const choiceSelect = readFileSync("app/components/ChoiceSelect.tsx", "utf8");
   const orgChoiceSelect = orgManage.match(/function ChoiceSelect[\s\S]*?function OrgLogo/)?.[0] ?? "";
 
   assert.match(choiceSelect, /createPortal\(/);
