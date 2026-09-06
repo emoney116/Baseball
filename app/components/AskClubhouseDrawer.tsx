@@ -856,7 +856,7 @@ function parseAskRankingLine(value: string, rank: number): AskClubhouseTextRanki
   const match = value.match(/^(.+?)\s*:\s*([0-9][\d.,%]*(?:\s*[A-Za-z%]+)?)$/);
   if (!match) return undefined;
   // Named metric bullets are not player leaderboard entries.
-  if (/^(?:contact(?: percentage|%)?|hard contact|(?:avg|average|max|maximum) (?:exit velocity|ev|velocity)|strike(?: percentage|%)?|swings?|pitches?|whiffs?|chase(?: percentage|%)?)$/i.test(match[1].trim())) return undefined;
+  if (/^(?:contact(?: percentage|%)?|hard contact|(?:(?:avg|average|max|maximum) )?(?:exit velocity|ev|velocity)|strike(?: percentage|%)?|swings?|pitches?|whiffs?|chase(?: percentage|%)?)$/i.test(match[1].trim())) return undefined;
   return {
     rank,
     initials: getAskInitials(match[1]),

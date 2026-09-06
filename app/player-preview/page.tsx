@@ -79,7 +79,7 @@ export default async function PlayerPreview({ searchParams }: { searchParams: Pr
   };
   const reply: AskClubhouseApiResponse | undefined = params.askFixture ? {
     ok: true, status: "low_sample", conversationId: "local-ask-fixture",
-    answer: "Today in practice, you had **4 tracked swings**:\n\n- **Contact:** 1 of 4 (**25%**)\n- **Hard contact:** 1 of 1 (**100%**)\n- **Average exit velocity:** **84.0 mph**\n\nThe sample is very small: four tracked swings.",
+    answer: "Today in practice, you had **4 tracked swings**:\n\n- **Contact:** 1 of 4 (**25%**)\n- **Hard contact:** 1 of 1 (**100%**)\n- **Exit velocity:** **84.0 mph**\n\nThe sample is very small: four tracked swings.",
     followUps: ["Show me my spray chart."],
     visuals: [{ type: "spray_chart", mode: "spray", title: "My Practice Spray Chart", domain: "hitting", playerId: p.id, query: { mode: "box-score", domain: "hitting", source: "practice", playerIds: [p.id], timeRange: "season" }, sample: "limited", coverage: { label: "Tracked contact", qualifyingEvents: 1, trackedEvents: 1, minimumSample: 10 }, points: [{ id: "local-contact", x: 0.3, y: 0.6 }] }],
     actions: [{ type: "open_analytics", label: "Open Analytics", query: { domain: "hitting", source: "practice", playerIds: [p.id] } }],

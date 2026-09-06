@@ -65,3 +65,21 @@ errors. Screenshots were inspected at phone, iPad, and desktop sizes.
 No database migration, permissions grant, email or production baseball write is
 needed for this change. Player Beta and CLU9-48/49/50 acceptance remain separate
 gates; do not mark them Done based on this UI pass.
+
+## Authenticated Preview Smoke
+
+Preview b041fcf (https://baseball-r4quagd7m-emoney116s-projects.vercel.app)
+was Ready and tested with the existing ordinary QA account in its approved
+Mylo White / Metrolina Varsity / Fall 2026 context. View Only remained in effect.
+Today's Practice question returned 4 swings, 25% contact, 100% hard contact on
+one contacted ball, and 84 mph Avg/Max EV through the shared formatted drawer.
+Conversation history and the clear composer worked. The spray follow-up
+correctly reported missing tracked location points and rendered the shared
+metric strip, not fabricated spray dots. Hosted chart rendering is therefore
+not claimed from this dataset; the synthetic chart matrix passed separately.
+The plain Exit velocity label variant found here is covered by the final local
+browser assertion that metric summaries do not produce player ranking rows.
+
+The execution environment rejected main promotion because its earlier approval
+was exact-SHA scoped. No workaround was attempted. The feature branch is the
+release path; production remains at ff0a0d0 until a new explicit approval.

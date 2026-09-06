@@ -39,6 +39,7 @@ try {
       await dialog.getByText("Today in practice, you had 4 tracked swings:", { exact: true }).waitFor();
       assert.equal(await dialog.getByRole("textbox").inputValue(), "");
       assert.equal((await dialog.innerText()).includes("**"), false);
+      assert.equal(await dialog.locator(".ask-ranking--text").count(), 0);
       assert.equal(await dialog.locator(".ask-visual-card").count(), 1);
       const rect = await dialog.boundingBox();
       assert.ok(rect.x >= -1 && rect.y >= -1 && rect.x + rect.width <= width + 1 && rect.y + rect.height <= height + 1);
