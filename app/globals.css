@@ -27285,6 +27285,33 @@ button.weight-room-athlete-table__row:hover {
   overflow-y: auto;
 }
 
+@media (max-width: 740px) {
+  .modal-panel--practice-start .attendance-roster__head,
+  .modal-panel--practice-start .attendance-row {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .modal-panel--practice-start .attendance-roster__head > span:last-child {
+    display: none;
+  }
+
+  .modal-panel--practice-start .attendance-row b {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .modal-panel--practice-start .attendance-status-grid {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .modal-panel--practice-start .attendance-status-grid button {
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 4px;
+  }
+}
+
 .hitting-context-controls {
   display: flex;
   flex-wrap: wrap;

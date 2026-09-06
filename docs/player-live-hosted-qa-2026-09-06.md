@@ -128,3 +128,87 @@ assign that identity to controlled coach-started Practice/workout sessions; test
 View Only, Track & View and Full Player; then exercise correction, duplicate
 requests, session end, downgrade, revoke and cross-player denial. Keep CLU9-48,
 CLU9-49, CLU9-50 and the Player Beta hosted gate In Progress until this passes.
+
+## Hosted Coach Follow-Up: September 6, 18:30-18:50 UTC
+
+Preview `https://baseball-beqq12204-emoney116s-projects.vercel.app` runs
+`22772dace797f9aee52f2492c4a935b5a046bda1` (successful deployment 6296382583).
+Founder authentication now works. The coach roster and Practice picker show the
+exact QA-linked Mylo record separately from the other same-name record. Selecting
+`Roster record 2 - Account linked` retains player
+`c3dc33d4-3b32-4779-940e-0172951e7498`; no name-based authorization or merge occurred.
+
+An independent ordinary-QA sign-in against the Preview returned 200 for its own
+session and live-entry reads. The approved exact membership remains View Only;
+all six live-entry capabilities are false. No override or team default changed.
+The temporary API session was signed out locally without replacing the founder
+browser session. No passwords or tokens are retained in this report or tooling.
+
+### Controlled Hosted Data Footprint
+
+All actions below used normal authenticated coach UI on the production-backed
+Preview. These were not local fixtures. No SQL or service-role credentials were used.
+
+- Existing demo Practice `67b641b8-ad5b-40a8-9965-dd70ae12e881`,
+  `Clubhouse QA v1 - Tracked Baseball`, was ended at
+  `2026-09-06T18:37:25.048Z`. Its existing baseball events were preserved.
+- Created `fc03ec85-b9a2-4ec7-a147-2ff4c4a519e3`,
+  `Player Live QA - Sep 6 2026`; ended at `2026-09-06T18:43:04.640Z`.
+  Empty Machine station: `c88a853b-ed8f-4e04-bc74-ee1d8a6a6e73`.
+- Created `50fc86eb-b72f-4a10-8327-a5157ff7d0bb`,
+  `Player Live QA - Sep 6 2026 - Active`; ended at `2026-09-06T18:47:07.708Z`.
+  Empty Machine station: `15711a53-a53a-4854-8441-cb5c2db5626c`.
+- Each new QA Practice has 39 attendance rows produced by the standard form:
+  the exact QA player Present and 38 others Absent **inside these QA Practices
+  only**. This did not change roster memberships or global player status.
+- Neither new Practice contains hitting events. No pitching/defense reps, workout
+  sets, Game events, emails, access grants, account links or identity merges were
+  created during this follow-up. A third diagnostic start form was closed unsaved.
+- Both new Practice parents are ended. Their empty station rows still report
+  ACTIVE, but server authorization also checks the ended parent and denies entry.
+
+Cleanup scope is only the two new Practice IDs above and their exact child
+attendance/station rows, after reviewing that no later activity was added. Use
+the authenticated application cleanup path if one exists; otherwise obtain
+approval for a narrowly scoped cleanup mechanism. Do not delete the older demo
+Practice, team-wide attendance, players, memberships or historical baseball data.
+The empty QA artifacts are retained for audit, not silently deleted.
+
+### New Hosted Finding: Future-Dated Start
+
+The coach Start Practice form defaulted to 18:00 local. Starting it before 18:00
+persisted `starts_at=2026-09-06T22:00:00Z` while marking the Practice active.
+Enabling player entry on the first QA station correctly failed with 409 because
+the server requires an already-started Practice. The second attempt to enter
+14:00 through browser automation did not change the native time control, as
+verified in subsequent DOM inspection. Native keyboard entry does work; this
+automation limitation is distinct from the application default-time defect.
+
+Follow-up correction defaults Start Practice to the current local date/minute,
+validates date/time on submit, rejects future and normalized invalid dates, and
+shows an accessible error before creating any Practice or attendance rows.
+Schedule planning and Game creation are unchanged. Server/RLS time, ownership,
+capability and association checks remain unchanged. No migration is needed.
+
+Phone screenshot review also found existing attendance status controls clipped
+offscreen. Inside the Start Practice modal only, narrow layouts now put the four
+status controls below the player with 44px touch targets. This is layout-only;
+the exact player IDs and attendance semantics remain unchanged.
+
+### Validation and Remaining Acceptance
+
+- 15 deterministic date/time tests added; full suite now 536 passing (521 prior).
+- Production build, TypeScript, whitespace and lint gates pass; lint retains
+  25 existing warnings and zero errors.
+- Local-only browser QA covers 390x844, 430x932, 820x1180, 1180x820 and 1440x900:
+  current-time default, future rejection, correction to a valid start, and
+  containment of the error, save action and attendance controls. External
+  requests are blocked in these fixtures. These checks are not hosted write QA.
+- Founder authentication and exact coach identity selection are now verified
+  on the deployed Preview. Live-write acceptance is still incomplete.
+
+Next: publish this focused correction to the same feature Preview, then resume
+controlled Track & View / Full Player Practice and Weight Room writes, duplicate
+requests, coach review/correction, end/downgrade/revoke, isolation and downstream
+Analytics/Ask checks. CLU9-48/49/50 remain In Progress; Player Beta is not ready
+for pilot. Do not promote main or mark hosted acceptance passed from local tests.

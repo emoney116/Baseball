@@ -65,6 +65,7 @@ import { PlayerAccessPanel } from "./components/PlayerAccessPanel";
 import { CoachLiveEntrySettings } from "./components/CoachLiveEntrySettings";
 import { mergeLiveRefresh } from "./lib/liveSyncDelta";
 import { playerSelectionLabel } from "./lib/exactRosterIdentity";
+import { localPracticeStartFields, validatePracticeStart } from "./lib/practiceStart";
 import { PlayerShell } from "./components/PlayerShell";
 import type { PlayerSession } from "./lib/playerAccess";
 import { BaseballField, DonutChart, Heatmap, IdentityAvatar, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
@@ -22085,19 +22086,21 @@ function PlayerProfile({
 }
 
 function StartPracticeModal({ data, onClose, onCreate }: { data: AppData; onClose: () => void; onCreate: (practice: Practice, attendance: PracticeAttendance[]) => void }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const [initialStart] = useState(() => localPracticeStartFields());
+  const today = initialStart.date;
   const availablePlayers = data.players.filter((player) => !player.archived);
   const currentTeam = data.teamContext?.currentTeam;
   const defaultPracticeName = `${shortDate(today)} ${currentTeam?.teamLevel === "JV" ? "JV" : currentTeam?.teamLevel === "Varsity" ? "Varsity" : "Team"} Practice`;
   const [form, setForm] = useState({
     date: today,
-    time: "18:00",
+    time: initialStart.time,
     name: defaultPracticeName,
     type: "Team Practice" as PracticeType,
     location: data.teamContext?.currentTeam?.city && data.teamContext?.currentTeam?.state ? `${data.teamContext.currentTeam.city}, ${data.teamContext.currentTeam.state}` : "",
     notes: "",
   });
   const [preset, setPreset] = useState<PracticeRosterPreset>("All");
+  const [startError, setStartError] = useState<string>();
   const [attendanceStatuses, setAttendanceStatuses] = useState<Record<ID, PracticeAttendanceStatus>>(
     Object.fromEntries(availablePlayers.map((player) => [player.id, "Present" as PracticeAttendanceStatus])),
   );
@@ -22132,10 +22135,16 @@ function StartPracticeModal({ data, onClose, onCreate }: { data: AppData; onClos
   }
 
   function createPractice() {
+    const start = validatePracticeStart(form.date, form.time);
+    if (start.error !== undefined) {
+      setStartError(start.error);
+      return;
+    }
+    if (attending.length === 0) return;
     const selectedPlayers = availablePlayers.filter((player) => attending.includes(player.id));
     const pitchers = selectedPlayers.filter((player) => player.isPitcher).map((player) => player.id);
     const hitters = selectedPlayers.filter((player) => player.isHitter).map((player) => player.id);
-    const startedAt = new Date(`${form.date}T${form.time || "18:00"}:00`).toISOString();
+    const startedAt = start.startedAt;
     const practice: Practice = {
       id: createId("practice"),
       date: form.date,
@@ -22165,8 +22174,8 @@ function StartPracticeModal({ data, onClose, onCreate }: { data: AppData; onClos
     <ModalFrame title="Start Practice" onClose={onClose} panelClassName="modal-panel--practice-start">
       <div className="practice-start-grid">
         <label className="wide"><span>Practice Name</span><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
-        <label><span>Date</span><input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
-        <label><span>Time</span><input type="time" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} /></label>
+        <label><span>Date</span><input type="date" value={form.date} aria-invalid={Boolean(startError)} aria-describedby={startError ? "practice-start-error" : undefined} onChange={(event) => { setForm({ ...form, date: event.target.value }); setStartError(undefined); }} /></label>
+        <label><span>Time</span><input type="time" value={form.time} aria-invalid={Boolean(startError)} aria-describedby={startError ? "practice-start-error" : undefined} onChange={(event) => { setForm({ ...form, time: event.target.value }); setStartError(undefined); }} /></label>
         <div className="form-field"><span>Type</span><ChoiceSelect value={form.type} className="form-choice" options={PRACTICE_TYPES.map((type) => ({ value: type, label: type }))} onChange={(value) => setForm({ ...form, type: value as PracticeType })} aria-label="Practice type" /></div>
         <label><span>Location</span><input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} /></label>
       </div>
@@ -22183,6 +22192,7 @@ function StartPracticeModal({ data, onClose, onCreate }: { data: AppData; onClos
         <button type="button" onClick={clearAttendanceExceptions}>Clear Exceptions</button>
       </section>
       <AttendanceRoster players={availablePlayers} statuses={attendanceStatuses} onStatus={setPlayerAttendance} />
+      {startError && <p id="practice-start-error" className="form-help" role="alert">{startError}</p>}
       <div className="modal-actions practice-start-actions">
         <button className="primary-button stretch-button" type="button" onClick={createPractice} disabled={attending.length === 0}>
           Start Practice
