@@ -230,6 +230,7 @@ export function PlayerShell({
           message: question,
           conversationId: answer?.conversationId,
           uiContext: {
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             playerId: context.playerId,
             viewerPlayerId: context.playerId,
             teamId: context.team.teamId,

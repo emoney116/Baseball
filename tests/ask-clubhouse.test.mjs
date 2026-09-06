@@ -336,6 +336,66 @@ test("Ask Clubhouse returns a structured data-first development diagnosis", () =
   assert.equal(conversationalPlan.diagnosis?.playerId, "p-jacob");
 });
 
+for (const [message, timeZone, instant, expected] of [
+  ["How did I hit in Practice today?", "America/New_York", "2026-09-07T02:00:00Z", "2026-09-06"],
+  ["Show my spray chart yesterday", "America/New_York", "2026-09-07T02:00:00Z", "2026-09-05"],
+  ["How did I hit today?", "UTC", "2026-09-07T02:00:00Z", "2026-09-07"],
+  ["How did I hit yesterday?", "America/New_York", "2028-03-01T18:00:00Z", "2028-02-29"],
+  ["How did I hit today?", "invalid-zone", "2026-09-07T02:00:00Z", "2026-09-07"],
+]) {
+  test(`Ask calendar-day scope: ${message} ${timeZone}`, () => {
+    const plan = composeAskClubhouseQueryPlan(message, {timeZone}, undefined, new Date(instant));
+    assert.equal(plan.scope.timeRange, "custom");
+    assert.deepEqual(plan.scope.customDateRange, {start:expected,end:expected});
+  });
+}
+
+test("explicit today replaces a prior visual's date and event restriction", () => {
+  const plan = composeAskClubhouseQueryPlan("Show that spray chart today", {
+    timeZone:"America/New_York", visualContext:{type:"spray_chart",query:{domain:"hitting",source:"practice",timeRange:"custom",customDateRange:{start:"2026-08-01",end:"2026-08-31"},eventIds:["old-session"]}},
+  }, players[0], new Date("2026-09-07T02:00:00Z"));
+  assert.deepEqual(plan.scope.customDateRange,{start:"2026-09-06",end:"2026-09-06"});
+  assert.equal(plan.scope.eventIds,undefined);
+});
+
+test("Ask today tool evidence excludes older player Practice swings", async () => {
+  const fixture = structuredClone(data);
+  fixture.practices.push(practice("today-practice", "2026-08-20"));
+  fixture.hittingSessions.push(hittingSession("today-hitting", "today-practice", "p-jacob", "Machine"));
+  fixture.hittingEvents.push(
+    hittingEvent("today-1", "today-practice", "today-hitting", "p-jacob", "Ball in play", {pitchType:"Slider",contactResult:"Line drive",contactQuality:"Hard",exitVelocityMph:84}),
+    hittingEvent("today-2", "today-practice", "today-hitting", "p-jacob", "Miss", {pitchType:"Slider"}),
+  );
+  const result = await generateAskClubhouseReply({data:fixture,message:"How did I hit in Practice today?",uiContext:{playerId:"p-jacob",viewerPlayerId:"p-jacob",timeZone:"America/New_York"},now:new Date("2026-08-21T02:00:00Z"),config:getAskClubhouseConfig({})});
+  const rows = result.toolResults.flatMap(r=>r.rows??[]);
+  assert.ok(rows.length);
+  assert.ok(rows.every(r=>r.playerId==="p-jacob"));
+  const metrics=rows.flatMap(r=>r.metrics??[]);
+  assert.equal(metrics.find(m=>m.metricId==="swings")?.value,2);
+  assert.equal(metrics.find(m=>m.metricId==="contactPct")?.value,50);
+  assert.ok(result.toolParams.every(p=>!p.query || p.query.timeRange==="custom"));
+});
+
+for (const message of ["Compare Jacob's fastballs vs sliders today", "Compare Jacob vs LHP and RHP today"]) {
+  test(`Ask comparison retains explicit day: ${message}`, () => {
+    const plan = buildAskClubhouseToolPlan(data, message, {timeZone:"America/New_York"}, getAskClubhouseConfig({}), [], undefined, new Date("2026-09-07T02:00:00Z"));
+    assert.ok(plan.toolRequests.length >= 2);
+    for (const request of plan.toolRequests) {
+      assert.equal(request.query.timeRange, "custom");
+      assert.deepEqual(request.query.customDateRange, {start:"2026-09-06",end:"2026-09-06"});
+    }
+  });
+}
+
+for (const message of ["How has Jacob's hitting improved today?", "How can Jacob hit sliders better today?", "Compare Jacob's hitting today and yesterday"]) {
+  test(`Ask does not silently drop unsupported day scope: ${message}`, () => {
+    const plan = buildAskClubhouseToolPlan(data, message, {timeZone:"America/New_York"}, getAskClubhouseConfig({}), [], undefined, new Date("2026-09-07T02:00:00Z"));
+    assert.equal(plan.status,"needs_clarification");
+    assert.equal(plan.toolRequests.length,0);
+    assert.equal(plan.diagnosis,undefined);
+  });
+}
+
 test("Ask Clubhouse routes each question by intent and bounds web use", () => {
   const internal = classifyAskClubhouseIntent("Who has the highest Practice Contact %?", players);
   const currentRule = classifyAskClubhouseIntent("What is the NFHS balk rule?", players);

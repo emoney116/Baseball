@@ -27,6 +27,7 @@ export interface AskClubhouseClientMessage {
 }
 
 export interface AskClubhouseUiContext {
+  timeZone?: string;
   teamId?: ID;
   seasonId?: ID;
   organizationId?: ID;

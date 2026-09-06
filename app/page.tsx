@@ -4030,6 +4030,7 @@ export default function MetrolinaBaseballApp() {
           conversationId: askConversationId,
           messages: history.map(({ role, content, createdAt }) => ({ role, content, createdAt })),
           uiContext: {
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             teamId: primaryTeam?.teamId,
             seasonId: primaryTeam?.seasonId,
             organizationId: primaryTeam?.organizationId,
@@ -27034,13 +27035,14 @@ function ensureDefenseSession(
 ) {
   const now = new Date().toISOString();
   const drillContext = options?.drillContext ?? defaultDefenseDrillForStation(station);
-  const positionWorked = options?.positionWorked;
+  const sessionPlayer = data.players.find((player) => player.id === playerId);
+  const positionWorked = options?.positionWorked ?? (sessionPlayer ? defaultDefensePositionForPlayer(sessionPlayer, drillContext) : undefined);
   const existing = data.defenseSessions.find((session) => (
     session.practiceId === practice.id
     && session.playerId === playerId
     && session.station === station
     && (session.drillContext ?? defaultDefenseDrillForStation(session.station)) === drillContext
-    && (positionWorked ? session.positionWorked === positionWorked : true)
+    && (positionWorked && session.positionWorked ? session.positionWorked === positionWorked : true)
     && isPracticeSessionReusable(session)
   ));
   if (existing) {

@@ -47,7 +47,7 @@ export interface GenerateAskReplyResult extends AskClubhouseApiResponse {
 export async function generateAskClubhouseReply(input: GenerateAskReplyInput): Promise<GenerateAskReplyResult> {
   const startedAt = input.now?.getTime() ?? Date.now();
   const history = boundConversationHistory(input.history, input.config.contextMessageLimit);
-  const plan = buildAskClubhouseToolPlan(input.data, input.message, input.uiContext, input.config, history, input.knowledgeProvider);
+  const plan = buildAskClubhouseToolPlan(input.data, input.message, input.uiContext, input.config, history, input.knowledgeProvider, input.now);
   let visuals: AskClubhouseVisual[] = [];
   let visualUnavailable = false;
   try {

@@ -212,3 +212,111 @@ controlled Track & View / Full Player Practice and Weight Room writes, duplicate
 requests, coach review/correction, end/downgrade/revoke, isolation and downstream
 Analytics/Ask checks. CLU9-48/49/50 remain In Progress; Player Beta is not ready
 for pilot. Do not promote main or mark hosted acceptance passed from local tests.
+
+## Hosted Live Practice: September 6, 19:05-19:21 UTC
+
+Player Preview `https://baseball-jyv0efa99-emoney116s-projects.vercel.app`
+runs `d2e2c613415bafcf1082e4000bb0306213bc1e8a`; deployment 6296786128
+was successful at 19:02 UTC. The separately authenticated coach used the
+22772da Preview against the same database. All writes below were authorized,
+controlled QA through normal application authentication, not privileged SQL.
+
+### Exact Context and Final State
+
+- Ordinary QA profile: `3ce7cfca-7c54-4c56-961d-3f838e663bed`.
+- Player: `c3dc33d4-3b32-4779-940e-0172951e7498`, #2 Mylo White,
+  roster record 2, account linked. Membership: `b6a0faf1-691a-4ccd-b86b-06316a91aa14`.
+- Team: `113d2159-421c-424d-8fe4-af2d2e9ca1a9`, Metrolina Varsity.
+- Season: `8ff199c0-453e-42ac-83b9-4b735ef84b8b`, Fall 2026.
+- Only this QA override cycled: Team Default / View Only -> Track & View ->
+  View Only -> Full Player -> Team Default / View Only. The final session
+  confirmed all six live-entry capabilities false. Team default stayed View Only.
+- No other player overrides, links, roles or account entitlements changed.
+- The QA Practice below is ended. No workout, Game entry, email or identity
+  merge was created in this pass. Controlled event rows are retained for audit.
+
+### New QA Practice and Events
+
+Practice `9f25f3fd-ea8d-4006-b05d-7d4597a1a4c3`,
+`Player Live QA - Sep 6 - Entry Acceptance`, started at 19:00 UTC and ended
+through coach End Practice / Save Practice Summary at approximately 19:19 UTC.
+The standard form created 39 attendance rows: only the exact QA player Present,
+38 others Absent inside this QA Practice, with no global attendance change.
+
+Coach-owned stations:
+
+| Domain | Station ID |
+| --- | --- |
+| Hitting / Machine | `df6ecb95-9dd6-42cb-9222-62c28bc2a902` |
+| Pitching / Bullpen | `a8c8a7f5-af6d-4310-bf3b-2798a1294f25` |
+| Defense / Infield | `7938a31f-dbdf-44a3-b794-98be766dde76` |
+
+Persisted events, all for the exact QA player:
+
+| ID | Source | Final values |
+| --- | --- | --- |
+| `a3b5f6c2-1137-434a-8a02-2dd0bd7e98be` | PLAYER hitting | Slider, ball in play, hard pull line drive, EV 84 after own correction from 82 |
+| `424ffc96-d307-45f5-ac3c-e66deb77968d` | PLAYER hitting | Slider miss; two identical request retries returned this same event |
+| `bca08658-5f41-43ba-a975-5d8cc96d3483` | PLAYER hitting | Slider foul corrected by coach to miss; player creator retained, coach updater recorded |
+| `b5a53196-9246-4a0f-a02b-8e094f8a2e51` | COACH hitting | Slider miss, coach creator/updater |
+| `7bf48a37-ae6a-44f2-980f-3835330c7a8d` | PLAYER pitching | Slider, called strike, 77 mph, center location, 0-0 count |
+| `7006a361-d9f6-4b8d-8953-c31479b4695f` | PLAYER defense | Clean ground ball, accurate throw, routine; missing station-position context finding below |
+
+Cleanup must be restricted to this Practice and these exact child rows, after
+checking for later additions, using an approved application cleanup path.
+Do not delete other Practices, players, memberships or unrelated baseball data.
+
+### Hosted Checks Passed
+
+- View Only reads configured live stations but has no entry controls; direct write 403.
+- Track & View and Full Player can create own live hitting entries. Pitching
+  and Defense UI submissions also persisted their supported fields.
+- Own correction works. Repeated idempotency request
+  `943652f7-4de4-49bf-8089-b77ea86d972d` returns one event, not duplicates.
+- Downgrade revalidates the open player UI. Forged client mode/capabilities
+  cannot restore permission; direct write remains 403.
+- Full Player access to staff settings returns 403; anonymous live read 401.
+  Guessed other-Mylo context `c7ff92a3-f264-4cbe-b704-e563817beb02` returns 403.
+- Coach can review/correct player events without replacing player creator
+  provenance. Coach-corrected entries no longer appear player-editable.
+- Player cannot edit the coach-owned hitting event, even though hitter is self: 403.
+- Ending the parent Practice rejects a stale Full Player write with 409 and
+  returns the open player UI to ended/read-only history. This is the intended
+  lifecycle response, not a failure merely because one harness expected 403.
+- Canonical Analytics includes live events. Ask reads them too, but its day
+  scope failed the correctness check below and is not yet accepted.
+
+### Correctness Findings and Follow-Up
+
+1. Defense saved a clean/accurate rep but displayed roster LHP instead of the
+   coach station's SS context. New migration
+   `20260906192239_player_live_defense_context.sql` snapshots saved station
+   position/drill on new events and preserves that snapshot on correction.
+   Coach session initialization now persists the existing default worked
+   position. No historical backfill or player-supplied position is accepted.
+   The replacement RPC retains its authorization, ownership, idempotency,
+   SECURITY INVOKER, empty search path and service-role-only execution boundary.
+2. Ask "How did I hit in Practice today?" answered with all 9 season swings
+   and 5 contacts (56%). The correct controlled-day sample is 4 swings,
+   1 contact (25%), 1 hard BIP (100% Hard), Avg EV 84. Date parsing now uses
+   browser time zone and an explicit canonical custom date range. Metric,
+   visual and comparison tool requests retain that range. Unsupported
+   day-specific diagnosis/trend requests clarify instead of silently widening.
+
+Database regressions cover station context, correction after station changes,
+missing metadata and forged fields. Ask regressions cover local midnight,
+yesterday/leap day, invalid time zones, visual follow-ups, actual filtered
+tool evidence, comparison propagation and unsupported-scope clarification.
+
+The new migration is local/feature-only until the normal main migration
+workflow is explicitly authorized. No manual hosted SQL was run. Remaining
+hosted gates include corrected defense persistence after migration, corrected
+Ask answer on the next Preview, Weight Room sets/history, revoke, multi-team,
+multi-player concurrency, and the complete live-entry phone/iPad matrix.
+CLU9-48/49/50 and Player Beta remain In Progress, not pilot-ready.
+
+Final local follow-up validation: 551 tests passing (536 before these context
+fixes), production build and standalone TypeScript pass, lint zero errors with
+25 pre-existing warnings, and `git diff --check` pass. The full database suite
+applies the additive migration chain locally; this is not a claim that the
+new migration has been applied to the hosted database.

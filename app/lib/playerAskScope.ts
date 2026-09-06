@@ -37,6 +37,7 @@ export function playerAskContext(
       403,
     );
   return {
+    timeZone: requested?.timeZone,
     playerId,
     viewerPlayerId: playerId,
     teamId: team.teamId,

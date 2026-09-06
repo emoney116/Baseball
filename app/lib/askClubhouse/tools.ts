@@ -215,6 +215,7 @@ export function buildAskClubhouseToolPlan(
   config: AskClubhouseConfig,
   history: AskClubhouseClientMessage[] = [],
   knowledgeProvider: BaseballKnowledgeProvider = EMPTY_BASEBALL_KNOWLEDGE_PROVIDER,
+  now = new Date(),
 ): AskToolPlan {
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
@@ -352,7 +353,7 @@ export function buildAskClubhouseToolPlan(
   const visualContextPlayer = uiContext?.visualContext?.playerId
     ? data.players.find((player) => player.id === uiContext.visualContext?.playerId)
     : undefined;
-  const queryPlan = composeAskClubhouseQueryPlan(trimmed, uiContext, playerMatch.status === "single" ? playerMatch.player : visualContextPlayer);
+  const queryPlan = composeAskClubhouseQueryPlan(trimmed, uiContext, playerMatch.status === "single" ? playerMatch.player : visualContextPlayer, now);
   if (needsVisualClarification(lower, uiContext, queryPlan.playerId)) {
     const answer = "Do you want a pitch-location heat map or a spray heat map?";
     return {
@@ -388,6 +389,16 @@ export function buildAskClubhouseToolPlan(
   }
 
   const diagnosisRequest = buildDevelopmentDiagnosisRequest(lower, queryPlan, playerMatch);
+  if (queryPlan.scope.customDateRange && (diagnosisRequest || queryPlan.comparison?.dimension === "period" || /\btoday\b.*\byesterday\b|\byesterday\b.*\btoday\b/.test(lower))) {
+    const answer = "I can show your metrics for that day, but day-specific development diagnoses and period comparisons are not supported yet. Would you like the day's metrics or a broader development review?";
+    return {
+      status: "needs_clarification", route: classification.route, requiresWebSearch: false,
+      answer, clarification: answer, toolRequests: [], actions: [],
+      followUps: ["How did I hit in Practice today?", "What should I work on?"],
+      knowledgeStatus: classification.knowledgeStatus, knowledgeItems: classification.knowledgeItems,
+      externalResearchRequired: false, queryPlan,
+    };
+  }
   if (diagnosisRequest === "clarify") {
     const answer = "Do you want me to look at a specific player's tracked data, or give general baseball advice?";
     return {
@@ -432,13 +443,18 @@ export function buildAskClubhouseToolPlan(
   const metricId = queryPlan.metric;
   const mode = needsSituationalMode(lower) || Object.keys(queryPlan.filters).length ? "situational" as const : "box-score" as const;
   const filters = queryPlan.filters;
+  const timeScope = {
+    timeRange: queryPlan.scope.timeRange,
+    customDateRange: queryPlan.scope.customDateRange,
+    eventIds: queryPlan.scope.eventIds,
+  };
 
   if (lower.includes("practice summary") || lower.includes("current practice") || lower.includes("today's practice") || lower.includes("today practice")) {
     const request = analyticsRequest("getPracticeSummary", {
       domain: "development",
       source: "all",
       mode: "box-score",
-      timeRange: "season",
+      ...timeScope,
       developmentView: "overview",
       groupBy: "player",
       filters,
@@ -453,7 +469,7 @@ export function buildAskClubhouseToolPlan(
       domain: "hitting",
       source: "practice",
       mode: "box-score",
-      timeRange: "season",
+      ...timeScope,
       groupBy: "player",
       filters,
       sort: { metricId: "contactPct", direction: "desc" },
@@ -464,7 +480,7 @@ export function buildAskClubhouseToolPlan(
       domain: "hitting",
       source: "games",
       mode: "box-score",
-      timeRange: "season",
+      ...timeScope,
       groupBy: "player",
       filters,
       sort: { metricId: "avg", direction: "desc" },
@@ -511,7 +527,7 @@ export function buildAskClubhouseToolPlan(
         domain: "hitting",
         source,
         mode: "situational",
-        timeRange: queryPlan.scope.timeRange,
+        ...timeScope,
         groupBy: "player",
         filters: handFilters,
         sort: { metricId, direction: "desc" },
@@ -530,7 +546,7 @@ export function buildAskClubhouseToolPlan(
         domain,
         source,
         mode: "situational",
-        timeRange: queryPlan.scope.timeRange,
+        ...timeScope,
         groupBy: "player",
         filters: { ...filters, pitchTypes: [...pitchGroup] },
         sort: { metricId, direction: "desc" },
@@ -544,7 +560,7 @@ export function buildAskClubhouseToolPlan(
       domain,
       source,
       mode,
-      timeRange: "season",
+      ...timeScope,
       groupBy: "player",
       filters,
       sort: defaultAnalyticsSort(domain, source, mode),
@@ -558,7 +574,7 @@ export function buildAskClubhouseToolPlan(
       domain,
       source,
       mode,
-      timeRange: "season",
+      ...timeScope,
       groupBy: "player",
       filters,
       sort: { metricId, direction: "desc" },
@@ -574,7 +590,7 @@ export function buildAskClubhouseToolPlan(
       domain,
       source,
       mode: "situational" as const,
-      timeRange: "season" as const,
+      ...timeScope,
       groupBy: "player" as const,
       filters,
       sort: { metricId, direction: "desc" as const },

@@ -52,6 +52,7 @@ export function composeAskClubhouseQueryPlan(
   message: string,
   uiContext?: AskClubhouseUiContext,
   player?: Player,
+  now = new Date(),
 ): AskClubhouseQueryPlan {
   const lower = message.trim().toLowerCase();
   const visualFollowUp = isVisualFollowUp(lower, uiContext);
@@ -62,6 +63,7 @@ export function composeAskClubhouseQueryPlan(
   const comparison = inferComparison(lower);
   const source = inferSource(lower, resolvedContext, domain, comparison);
   const metric = inferMetric(lower, domain, source);
+  const requestedDay = inferRequestedDay(lower, uiContext?.timeZone, now);
   const pitchTypes = inferPitchTypes(lower);
   const filters: AnalyticsFilters = { ...(resolvedContext?.analytics?.filters ?? {}) };
   if (pitchTypes.length) filters.pitchTypes = pitchTypes;
@@ -112,9 +114,9 @@ export function composeAskClubhouseQueryPlan(
     metric,
     scope: {
       source,
-      timeRange: visualFollowUp ? resolvedContext?.analytics?.timeRange ?? inferTimeRange(lower) : inferTimeRange(lower),
-      customDateRange: visualFollowUp ? resolvedContext?.analytics?.customDateRange : undefined,
-      eventIds: visualFollowUp ? resolvedContext?.analytics?.eventIds : undefined,
+      timeRange: requestedDay ? "custom" : visualFollowUp ? resolvedContext?.analytics?.timeRange ?? inferTimeRange(lower) : inferTimeRange(lower),
+      customDateRange: requestedDay ? { start: requestedDay, end: requestedDay } : visualFollowUp ? resolvedContext?.analytics?.customDateRange : undefined,
+      eventIds: requestedDay ? undefined : visualFollowUp ? resolvedContext?.analytics?.eventIds : undefined,
     },
     filters,
     playerId: player?.id,
@@ -166,6 +168,21 @@ function inferTimeRange(lower: string): AnalyticsQuery["timeRange"] {
   if (/\blast\s+30\s+days?|this month\b/.test(lower)) return "30d";
   if (/\b(custom|between)\b/.test(lower)) return "custom";
   return "season";
+}
+
+function inferRequestedDay(lower: string, timeZone: string | undefined, now: Date) {
+  if (!/\b(today|yesterday)\b/.test(lower)) return undefined;
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat("en-CA", { timeZone: timeZone ?? "UTC", year: "numeric", month: "2-digit", day: "2-digit" });
+  } catch {
+    formatter = new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit" });
+  }
+  const parts = formatter.formatToParts(now);
+  const part = (type: string) => parts.find((p) => p.type === type)!.value;
+  const day = new Date(`${part("year")}-${part("month")}-${part("day")}T12:00:00Z`);
+  if (/\byesterday\b/.test(lower)) day.setUTCDate(day.getUTCDate() - 1);
+  return day.toISOString().slice(0, 10);
 }
 
 function inferMetric(lower: string, domain: AnalyticsQuery["domain"], source: AnalyticsSource): string {

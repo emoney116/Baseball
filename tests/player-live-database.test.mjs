@@ -345,6 +345,30 @@ test("legacy coach rep with null provenance cannot be edited by its hitter", asy
     /Only your/,
   );
 });
+
+test("live defense snapshots coach station position and drill instead of roster position", async () => {
+  await db.exec(`update players set primary_position='LHP' where id='${id(40)}';
+    update practice_sessions set metadata=metadata || '{"positionWorked":"SS","drillContext":"Infield Ground Balls"}'::jsonb where id='${id(83)}'`);
+  const entry=await write("defense");
+  const row=(await db.query("select position_worked,drill_context from defense_events where id=$1",[entry])).rows[0];
+  assert.deepEqual(row,{position_worked:"SS",drill_context:"Infield Ground Balls"});
+});
+
+test("live defense correction retains original position/drill after coach station change", async () => {
+  await db.exec(`update practice_sessions set metadata=metadata || '{"positionWorked":"SS","drillContext":"Infield Ground Balls"}'::jsonb where id='${id(83)}'`);
+  const entry=await write("defense");
+  await db.exec(`update practice_sessions set metadata=metadata || '{"positionWorked":"CF","drillContext":"Outfield Fly Balls"}'::jsonb where id='${id(83)}'`);
+  await write("defense",{operation:"update",entry,payload:{...defaultPayload.defense,outcome:"Great Play"}});
+  const row=(await db.query("select position_worked,drill_context,outcome from defense_events where id=$1",[entry])).rows[0];
+  assert.deepEqual(row,{position_worked:"SS",drill_context:"Infield Ground Balls",outcome:"Great Play"});
+});
+
+test("live defense never invents missing station position or accepts player-supplied context", async () => {
+  const entry=await write("defense");
+  const row=(await db.query("select position_worked,drill_context from defense_events where id=$1",[entry])).rows[0];
+  assert.deepEqual(row,{position_worked:null,drill_context:null});
+  await denied(()=>write("defense",{payload:{...defaultPayload.defense,position_worked:"CF",drill_context:"Injected"}}),/Unsupported|not enabled|not tracked|Field/i);
+});
 test("authenticated players cannot call privileged RPC or mutate session programming", async () => {
   await asAccount(db, id(1), () => denied(() => write(), /permission denied/));
   await asAccount(db, id(1), async () => {
