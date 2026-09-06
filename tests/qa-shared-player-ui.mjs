@@ -29,6 +29,9 @@ try {
       await page.getByRole("button", { name: "Ask Clubhouse", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: "Ask Clubhouse" });
       await dialog.waitFor();
+      const newChatRect = await dialog.getByRole("button", { name: "Start a new Ask Clubhouse chat" }).boundingBox();
+      assert.equal(newChatRect.width, 38);
+      assert.equal(newChatRect.height, 38);
       assert.equal(await dialog.locator(".ask-suggestion-stack button").count(), 4);
       assert.equal(await page.getByRole("navigation", { name: "Player navigation" }).isVisible(), false);
       await dialog.getByRole("textbox", { name: "Ask a question" }).fill("How did I hit in Practice today?");

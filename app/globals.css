@@ -37053,6 +37053,7 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
 .schedule-agenda-row--readonly { cursor: default; }
 .ask-scope-trigger--fixed { grid-template-columns: minmax(0, 1fr); cursor: default; }
 .ask-scope-trigger--fixed strong { white-space: normal; overflow-wrap: anywhere; }
+.analytics-ask-drawer .ask-header__new-button { display: grid; justify-self: start; width: 38px; min-width: 38px; height: 38px; min-height: 38px; padding: 0; }
 .player-beta-context.choice-select { margin-top: 16px; }
 .player-beta label { font-size: 13px; }
 .player-beta select, .player-beta input, .player-invites input[type=email] { display: block; width: 100%; min-width: 0; color: inherit; background: var(--panel-soft); border: 1px solid var(--line-strong); border-radius: 4px; padding: 10px; min-height: 44px; margin-top: 6px; font-size: 16px; }
