@@ -62,6 +62,8 @@ import { DensePlayerIdentity } from "./components/DensePlayerIdentity";
 import { PlayerAccountLinksPanel, TeamPlayerClaimsPanel } from "./components/PlayerAccountLinksPanel";
 import { PlayerInvitationsPanel, usePlayerInvitationRoster } from "./components/PlayerInvitationsPanel";
 import { PlayerAccessPanel } from "./components/PlayerAccessPanel";
+import { CoachLiveEntrySettings } from "./components/CoachLiveEntrySettings";
+import { mergeLiveRefresh } from "./lib/liveSyncDelta";
 import { PlayerShell } from "./components/PlayerShell";
 import type { PlayerSession } from "./lib/playerAccess";
 import { BaseballField, DonutChart, Heatmap, IdentityAvatar, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
@@ -765,6 +767,9 @@ type WeightRoomExercise = {
   performanceDirection?: WorkoutPerformanceDirection;
 };
 type WeightRoomSetDraft = {
+  activeWorkoutId?: ID;
+  workoutStationId?: ID;
+  workoutGroupId?: ID;
   playerId: ID;
   exercise: string;
   kind: ExerciseKind;
@@ -1955,6 +1960,26 @@ export default function MetrolinaBaseballApp() {
       return next;
     });
   }
+
+  useEffect(() => {
+    const team = data?.teamContext?.currentTeam;
+    if (!data || !team || !hydrated || isLocalDevAuthBypass() || (view !== "practice" && view !== "weights") || saveStatus === "saving" || saveStatus === "error") return;
+    let cancelled = false, reading = false;
+    const snapshot = data, sequence = persistSequenceRef.current;
+    const refresh = async () => {
+      if (reading || document.visibilityState !== "visible") return;
+      reading = true;
+      try {
+        const remote = await supabaseAppRepository.load(team.teamId, team.seasonId);
+        // Never replace a coach edit made while this read was in flight.
+        if (!cancelled && sequence === persistSequenceRef.current) setData(current => current === snapshot ? mergeLiveRefresh(current, remote) : current);
+      } catch { /* Keep the current screen and normal save-error handling on read failure. */ }
+      finally { reading = false; }
+    };
+    const timer = window.setInterval(() => void refresh(), 10000);
+    window.addEventListener("focus", refresh);
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", refresh); };
+  }, [data, hydrated, view, saveStatus]);
 
   function persistChange(previous: AppData, next: AppData) {
     const sequence = ++persistSequenceRef.current;
@@ -3323,7 +3348,9 @@ export default function MetrolinaBaseballApp() {
     const rpe = draft?.rpe ?? (Number(weightForm.effort) || undefined);
     const existingSets = data.workoutEntries.filter((entry) => entry.sessionId === existingSession?.id && entry.playerId === player.id && entry.exercise === exercise);
     const setNumber = draft?.setNumber ?? existingSets.length + 1;
+    const existingEntry = draft?.setNumber ? existingSets.find(e => (e.setNumber ?? 1) === setNumber) : undefined;
     const session: WorkoutSession = {
+      ...existingSession,
       id: existingSession?.id ?? createId("ws"),
       playerId: player.id,
       date,
@@ -3336,7 +3363,11 @@ export default function MetrolinaBaseballApp() {
       updatedAt: new Date().toISOString(),
     };
     const entry: WorkoutEntry = {
-      id: createId("we"),
+      ...existingEntry,
+      id: existingEntry?.id ?? createId("we"),
+      activeWorkoutId: existingEntry?.activeWorkoutId ?? draft?.activeWorkoutId,
+      workoutStationId: existingEntry?.workoutStationId ?? draft?.workoutStationId,
+      workoutGroupId: existingEntry?.workoutGroupId ?? draft?.workoutGroupId,
       sessionId: session.id,
       playerId: player.id,
       exercise,
@@ -3349,10 +3380,11 @@ export default function MetrolinaBaseballApp() {
       unit: draft?.unit,
       rpe,
       status: draft?.status ?? "Completed",
-      createdByProfileId: data.teamContext?.profile?.id,
-      entrySource: "COACH",
+      createdByProfileId: existingEntry?.createdByProfileId ?? data.teamContext?.profile?.id,
+      updatedByProfileId: data.teamContext?.profile?.id,
+      entrySource: existingEntry?.entrySource ?? "COACH",
       priorValue: latestExerciseValue(data, player.id, exercise),
-      createdAt: new Date().toISOString(),
+      createdAt: existingEntry?.createdAt ?? new Date().toISOString(),
     };
     commit((current) => {
       const withoutDuplicateSet = draft?.setNumber
@@ -10444,6 +10476,7 @@ function PracticeConsole({
       </section>
 
       <div className="practice-mode-picker-trigger">
+        {practice && !practice.endedAt && currentSession && mode !== "Live BP" && data.teamContext?.currentTeam && <CoachLiveEntrySettings key={currentSession.id} teamId={data.teamContext.currentTeam.teamId} sessionId={currentSession.id} domain={mode === "Hitting" ? "hitting" : mode === "Pitching" ? "pitching" : "defense"} playerName={player.name} preview={isLocalDevAuthBypass()} />}
         <ChoiceSelect
           value={mode}
           options={practiceModeOptions}
@@ -14475,6 +14508,9 @@ function WeightRoomActiveWorkout({
   function saveCell(cell: ActiveWorkoutCell, draft: { weight?: number; reps?: number; value?: number; rpe?: number; unit?: WorkoutEntry["unit"]; status?: WorkoutEntry["status"] }) {
     const station = stations.find((item) => item.name === cell.exercise) ?? createActiveWorkoutStation(makeWeightRoomExercise(cell.exercise), 0);
     onAddEntry({
+      activeWorkoutId: activeWorkout?.id,
+      workoutStationId: activeWorkout ? station.id : undefined,
+      workoutGroupId: activeWorkout ? (data.weightRoomWorkoutGroupMembers ?? []).find(m=>m.workoutId===activeWorkout.id && m.playerId===cell.playerId)?.groupId : undefined,
       playerId: cell.playerId,
       exercise: station.name,
       kind: station.kind,
@@ -14711,6 +14747,7 @@ function WeightRoomActiveWorkout({
       />
 
       <div className="weight-room-active-nav-row">
+        {activeWorkout && workoutStatus === "In Progress" && team && <CoachLiveEntrySettings key={activeWorkout.id} teamId={team.teamId} sessionId={activeWorkout.id} domain="workout" preview={isLocalDevAuthBypass()} />}
         <div className="weight-room-active-tabs" role="tablist" aria-label="Active workout sections">
           {(["Weigh-Ins", "Workout"] as ActiveWorkoutTab[]).map((item) => (
             <button key={item} type="button" className={activeTab === item ? "active" : ""} onClick={() => setActiveTab(item)}>{item}</button>

@@ -21,7 +21,7 @@ export async function fullPlayerDatabase() {
       try {
         await db.exec(sql);
       } catch (error) {
-        throw new Error(`${name}: ${error.message}`);
+        throw new Error(`${name}: ${error.message}`, { cause: error });
       }
     }
     return db;

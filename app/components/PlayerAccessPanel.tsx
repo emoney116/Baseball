@@ -114,7 +114,7 @@ export function PlayerAccessPanel({
           })}
           <section>
             <h3>Not included in any mode</h3>
-            <p>Live Practice entry, hitting/pitching/defense logging and Weight Room workout or set logging are not enabled. Personal body-weight logging is separate from live workout entry.</p>
+            <p>Players cannot create or start Practice or team workouts. Live entry requires an active coach-enabled session and their own assignment. Ending the session makes entry read-only. Live BP and Game entry are not enabled.</p>
             <p>No editing coach-owned records or official Games. No access to private coach notes, private teammate data, staff/admin tools, team stats or Insights, or published lineups. Player-written feedback and check-ins are not enabled.</p>
           </section>
         </div>

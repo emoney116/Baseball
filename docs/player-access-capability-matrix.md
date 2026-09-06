@@ -33,8 +33,10 @@ Missing team defaults fail safely to View Only at the pure resolver. Database/AP
 | canLogBodyWeight, canUpdateOwnBodyWeight, canDeleteOwnBodyWeight | No | Yes | Yes | Own isolated self-created body-weight session only |
 | canCreateGoals, canUpdateOwnGoals, canDeleteOwnGoals | No | Yes | Yes | Own self-created visible goal; completion checkbox is a goal update |
 | canViewRoster | No | No | Yes | Active team/season names, jersey, position and identity ID only; no email, measurements, metadata or detailed stats |
-| canLogPractice, canLogHitting, canLogPitching, canLogDefense | No | No | No | Deferred: events attach to coach-managed Practice/session ownership |
-| canLogWeightRoom | No | No | No | Set/workout logging deferred; existing set `created_by`/`entry_source` is insufficient to authorize the parent workout |
+| canEnterLivePractice, canLogLiveHitting, canLogLivePitching, canLogLiveDefense | No | Yes | Yes | Own assigned, active, coach-enabled Practice stations only; no Live BP |
+| canEnterLiveWeightRoom, canLogWorkoutSets | No | Yes | Yes | Own sets in the active coach-enabled workout and current assigned group station |
+| canLogPractice, canLogHitting, canLogPitching, canLogDefense | No | No | No | Independent personal-session creation remains unavailable; live participation uses explicit capabilities above |
+| canLogWeightRoom | No | No | No | No player creation/start/programming of team workouts; live sets use canLogWorkoutSets |
 | canViewTeamStats, canViewTeamInsights, canViewLineup | No | No | No | Deferred: no reviewed player-safe aggregate/published-lineup contract |
 | canCreateCheckIns, canWriteFeedback, canEditRosterProfile | No | No | No | Deferred: no player-owned workflow/visibility contract |
 | canManageStaff, canManageOrganization, canManageRoster, canImport | Never | Never | Never | Staff administration |
@@ -48,10 +50,10 @@ Outside team modes, authenticated users keep existing own account-name/avatar/th
 
 | Feature | View Only | Track & View | Full Player | Own Data? | Coach Data? | Implemented? | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Practice Hitting | Read | Read | Read | Projected own events | No writes | Read only | Creator alone does not isolate coach-owned Practice/session |
-| Practice Pitching | Read | Read | Read | Projected own events | No writes | Read only | No personal bullpen session ownership contract |
-| Practice Defense | Read | Read | Read | Projected own reps | No writes | Read only | No personal session ownership contract |
-| Weight Room sets | Read | Read | Read | Own sets | No writes | Read only | Reuse existing set audit fields when parent workflow becomes safe |
+| Practice Hitting | Read | Own live reps | Own live reps | Exact assigned hitter and creator | No edits | Yes, CLU9-49 | Active coach-enabled station, attendance, configured optional fields |
+| Practice Pitching | Read | Own live pitches | Own live pitches | Exact assigned pitcher and creator | No edits | Yes, CLU9-49 | Bullpen/flat ground, not paired Live BP |
+| Practice Defense | Read | Own live reps | Own live reps | Exact assigned fielder and creator | No edits | Yes, CLU9-49 | Existing structured outcome/throw/rep fields |
+| Weight Room sets | Read | Own live sets | Own live sets | Exact player, creator, workout, station and set | No edits | Yes, CLU9-50 | Active coach-enabled workout, current assigned group/exercise, prescribed set bounds |
 | Body weight | Read | Create/update/delete self | Create/update/delete self | Exact creator and context | Never replaced | Yes | Isolated workout session; player/date collision returns 409, no upsert |
 | Goals | Visible read | Create/update/delete self | Create/update/delete self | Exact creator and context | Read only if visible | Yes | Title and completion only; no visibility/tag/ownership manipulation |
 | Notes/feedback | Visible read | Visible read | Visible read | Explicit player-visible notes | Private denied | Read only | Existing coach-only default preserved |
@@ -73,6 +75,16 @@ Updates/deletes require matching creator, PLAYER_SELF source, player, team and s
 Raw private-table player RLS remains restrictive. New overrides/audit tables have RLS and no browser grants. Existing coach/admin tables and policies are not relaxed. Team settings API independently authenticates and verifies exact-team manager/org-admin/Super User authority; the settings RPC repeats authority checks and records actor/team/player/old/new modes/time. Changing a default creates no per-player overrides. Restoring Team Default deletes only that explicit override.
 
 ## QA and Release Gate
+
+### Live-Entry Addendum (CLU9-48/49/50)
+
+`20260906143451_player_live_session_entry.sql` adds a default-off workout entry flag, service-only receipt ledger, immutable live-entry identity triggers, `configure_player_live_entry` for coaches, and `write_player_live_entry` for authorized players. Existing raw-table player RLS is not relaxed. Permission, link, assignment and session checks run again inside the transaction; client mode is never authoritative.
+
+Live events retain `entry_source=PLAYER` and the existing creator/verification/idempotency fields. Weight Room sets additionally retain their existing active workout/station/group foreign keys. A newly needed daily history container uses `PLAYER_LIVE`; this is not permission to create a team workout, change program data, or overwrite coach weigh-ins. Same-day history owned by another team is rejected. Canonical readers now preserve source/creator and workout provenance, including same-context prior performance values.
+
+Players may correct/undo their own uncorrected entries only while the exact station remains active and assigned. Staff correction preserves creator/source and records the staff updater, which locks out subsequent player correction. Ending/pausing, disabling entry, downgrade, revoke, or assignment changes deny the next server write. The player screen revalidates every five seconds/on focus; coach training screens refresh remote rows only when no local save is pending. Compatible entries use existing Analytics/Ask/progress, never a parallel engine.
+
+Live BP/player Game entry and full durable offline queue remain deferred. Stable same-payload receipts cover double submission, retry, and undo tombstones. Pending requests stay in the open form, not durable storage across a reload. See `player-live-session-entry.md` for exact scope and release evidence.
 
 Deterministic resolver/service tests and real PostgreSQL (PGlite) full-migration tests cover bundles, inherited defaults, overrides, multi-team, upgrade/downgrade/revoke, provenance, coach-owned denial, direct forged APIs, private payloads, ordinary limits and staff compatibility. Development-only fixture routes exercise coach settings and all three player modes; both fixture routes must 404 in production.
 

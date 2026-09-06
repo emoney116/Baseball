@@ -1,6 +1,7 @@
 "use client";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { liveSyncDelta } from "../lib/liveSyncDelta";
 
 import type {
   AppData,
@@ -252,13 +253,19 @@ export const supabaseAppRepository = {
     const foundation = await loadFoundation(supabase, userData.user, requestedTeam?.teamId, requestedTeam?.seasonId);
     await syncDeletedEvents(supabase, previous, next);
     await syncPlayers(supabase, foundation, next.players, next.playerTeamMemberships);
-    await syncPractices(supabase, foundation, next.practices);
-    await syncAttendance(supabase, next.attendance);
-    await syncPracticeSessions(supabase, next);
+    const liveDelta = liveSyncDelta(previous, next);
+    await syncPractices(supabase, foundation, liveDelta.practices);
+    await syncAttendance(supabase, liveDelta.attendance);
+    await syncPracticeSessions(supabase, liveDelta);
     await syncPracticeSessionContributors(supabase, next);
-    await syncPracticeEvents(supabase, next);
-    await syncActiveWeightRoomSetup(supabase, foundation, next);
-    await syncWorkoutData(supabase, foundation, next);
+    await syncPracticeEvents(supabase, {
+      ...liveDelta,
+      hittingEvents: liveDelta.hittingEvents.map(e=>({...e,updatedByProfileId:userData.user.id})),
+      pitchEvents: liveDelta.pitchEvents.map(e=>({...e,updatedByProfileId:userData.user.id})),
+      defenseEvents: liveDelta.defenseEvents.map(e=>({...e,updatedByProfileId:userData.user.id})),
+    });
+    await syncActiveWeightRoomSetup(supabase, foundation, liveDelta);
+    await syncWorkoutData(supabase, foundation, liveDelta);
     await syncGames(supabase, foundation, next);
     await syncScheduleEvents(supabase, foundation, next);
     await syncNotesAndGoals(supabase, foundation, next);
@@ -1634,6 +1641,16 @@ async function syncPracticeSessions(supabase: SupabaseClient, data: AppData) {
     })),
   ];
   if (rows.length === 0) return;
+  // Live-entry configuration is managed server-side. A coach heartbeat must not reset it.
+  const current = await supabase.from("practice_sessions").select("id,entry_policy,metadata").in("id",rows.map(r=>r.id));
+  if (current.error) throw new PersistenceError("save-failed",current.error.message);
+  for (const row of rows) {
+    const stored=current.data?.find(s=>s.id===row.id);
+    if(stored) {
+      row.entry_policy=stored.entry_policy;
+      row.metadata={...stored.metadata,...row.metadata};
+    }
+  }
   const { error } = await supabase.from("practice_sessions").upsert(rows, { onConflict: "id" });
   if (error) throw new PersistenceError("save-failed", error.message);
 }
@@ -2002,6 +2019,11 @@ async function syncWorkoutData(supabase: SupabaseClient, foundation: Foundation,
       notes: entry.notes ?? null,
       created_by: entry.createdByProfileId ?? null,
       entry_source: entry.entrySource ?? null,
+      updated_by: foundation.teamContext.profile?.id ?? null,
+      active_workout_id: entry.activeWorkoutId ?? null,
+      workout_station_id: entry.workoutStationId ?? null,
+      workout_group_id: entry.workoutGroupId ?? null,
+      idempotency_key: entry.idempotencyKey ?? null,
       prior_value: entry.priorValue ?? null,
       created_at: entry.createdAt,
     })),
@@ -3062,6 +3084,11 @@ function mapWorkoutSession(row: any): WorkoutSession {
 
 function mapWorkoutEntry(row: any, exercise?: any): WorkoutEntry {
   return {
+    activeWorkoutId: row.active_workout_id ?? undefined,
+    workoutStationId: row.workout_station_id ?? undefined,
+    workoutGroupId: row.workout_group_id ?? undefined,
+    idempotencyKey: row.idempotency_key ?? undefined,
+    updatedByProfileId: row.updated_by ?? undefined,
     id: row.id,
     sessionId: row.workout_session_id,
     playerId: row.player_id,

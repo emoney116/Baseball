@@ -25,6 +25,7 @@ import { createClient } from "../lib/supabase/client";
 import type { AskClubhouseApiResponse } from "../lib/askClubhouse/types";
 import { BRAND_ASSETS } from "../lib/branding";
 import { PlayerSelfTracking } from "./PlayerSelfTracking";
+import { PlayerLiveEntry } from "./PlayerLiveEntry";
 import { PLAYER_MODE_DETAILS } from "../lib/playerCapabilities";
 
 type View = "Home" | "Schedule" | "Development" | "Analytics" | "More";
@@ -57,6 +58,7 @@ export function PlayerShell({
   const generation = useRef(0),
     active = useRef(session.context);
   const contextGeneration = useRef(0);
+  const refreshSession = useRef<() => void>(() => {});
   const dialog = useRef<HTMLDialogElement>(null);
   const profileId =
     session.profileId ?? initialSession.data?.teamContext?.profile?.id;
@@ -105,6 +107,7 @@ export function PlayerShell({
         );
       }
     };
+    refreshSession.current = () => void refresh();
     const timer = window.setInterval(() => void refresh(), 30000);
     window.addEventListener("focus", refresh);
     const client = createClient();
@@ -366,6 +369,7 @@ export function PlayerShell({
       ) : (
         data && (
           <>
+            {(view === "Home" || view === "Development") && !preview && <PlayerLiveEntry key={`live-${context.membershipId}`} membershipId={context.membershipId} domain={view === "Home" ? undefined : domain === "development" ? "workout" : domain} onSaved={() => refreshSession.current()} />}
             {(view === "Home" || view === "Development") && <PlayerSelfTracking key={context.membershipId} session={session} preview={preview} onSaved={() => switchContext(context)} />}
             {view === "Home" && (
               <>

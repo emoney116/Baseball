@@ -19,7 +19,7 @@ test("practice architecture supports concurrent sessions and append-only events"
   assert.match(migration, /defense_events_session_id_idx/);
   assert.match(migration, /is_session_staff\(session_id\)/);
 
-  assert.match(repository, /await syncPracticeSessions\(supabase, next\);[\s\S]*await syncPracticeSessionContributors\(supabase, next\);[\s\S]*await syncPracticeEvents\(supabase, next\);/);
+  assert.match(repository, /await syncPracticeSessions\(supabase, liveDelta\);[\s\S]*await syncPracticeSessionContributors\(supabase, next\);[\s\S]*await syncPracticeEvents\(supabase, \{[\s\S]*\.\.\.liveDelta/);
   assert.match(repository, /from\("practice_session_contributors"\)\.upsert\(rows, \{ onConflict: "session_id,profile_id" \}\)/);
   assert.doesNotMatch(repository, /id: contributor\.id,[\s\S]*session_id: contributor\.sessionId/);
   assert.match(repository, /created_by_profile_id: event\.createdByProfileId/);

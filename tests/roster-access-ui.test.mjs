@@ -75,6 +75,6 @@ test("access help opens a named native dialog and explains current live-entry li
   assert.match(access, /helpDialog.current\?\.close\(\)/);
   assert.match(access, /playerModeCapabilityDetails\(mode\)/);
   assert.doesNotMatch(access, /permitted capabilities|What&apos;s included/);
-  assert.match(access, /Live Practice entry/);
-  assert.match(access, /workout or set logging are not enabled/);
+  assert.match(access, /active coach-enabled session/);
+  assert.match(access, /Players cannot create or start/);
 });

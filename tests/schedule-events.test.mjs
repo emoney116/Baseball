@@ -18,7 +18,7 @@ test("unified schedule keeps practice and game records linked without duplicate 
   assert.match(migration, /where se\.practice_id = p\.id/);
   assert.match(migration, /where se\.game_id = g\.id/);
 
-  assert.match(repository, /await syncPractices\(supabase, foundation, next\.practices\);[\s\S]*await syncGames\(supabase, foundation, next\);[\s\S]*await syncScheduleEvents\(supabase, foundation, next\);/);
+  assert.match(repository, /await syncPractices\(supabase, foundation, liveDelta\.practices\);[\s\S]*await syncGames\(supabase, foundation, next\);[\s\S]*await syncScheduleEvents\(supabase, foundation, next\);/);
   assert.match(repository, /function isStandaloneScheduleEvent\(event: ScheduleEvent\)/);
   assert.match(repository, /\.filter\(isStandaloneScheduleEvent\)/);
   assert.match(repository, /const practiceRows = data\.practices\.map/);

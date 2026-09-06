@@ -251,7 +251,7 @@ const pick = (r: Row, keys: string) =>
       .filter((k) => Object.hasOwn(r, k))
       .map((k) => [k, r[k]]),
   );
-const eventAudit = "id,created_at,practice_id,session_id";
+const eventAudit = "id,created_at,practice_id,session_id,entry_source,created_by_profile_id,updated_by_profile_id,verification_status,session_sequence";
 export function safePlayerRow(kind: string, r: Row): Row {
   const fields: Record<string, string> = {
     player:
@@ -268,7 +268,7 @@ export function safePlayerRow(kind: string, r: Row): Row {
     defense: `${eventAudit},player_id,station,event_number,outcome,position_worked,drill_context,rep_type,rep_subtype,result,throw_result,difficulty,location,timing_seconds,error_type`,
     workout:
       "id,player_id,session_date,week_of,day_name,completed,effort_score,body_weight,created_at,updated_at,created_by_profile_id,entry_source",
-    set: "id,workout_session_id,player_id,exercise_id,set_number,weight,reps,sets,value,unit,rpe,status,created_at",
+    set: "id,workout_session_id,player_id,exercise_id,set_number,weight,reps,sets,value,unit,rpe,status,prior_value,created_at,entry_source,created_by,updated_by,active_workout_id,workout_station_id,workout_group_id",
     game: "id,game_date,starts_at,opponent,home_away,location,game_type,result,our_score,opponent_score,inning,half,outs,balls,strikes,created_at,updated_at",
     gameEvent:
       "id,game_id,inning,half,pitcher_id,batter_id,pitch_type,pitch_outcome,ball_in_play_outcome,event_kind,sequence_number,plate_appearance_id,plate_appearance_number,pitch_number,pitch_number_in_plate_appearance,contact_type,rbi,record_status,runner_action,runner_id,runner_base,count_before,count_after,field_location,velocity,location,outs_before,outs_after,our_runs_before,our_runs_after,opponent_runs_before,opponent_runs_after,created_at",

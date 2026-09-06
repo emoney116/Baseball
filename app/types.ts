@@ -701,6 +701,11 @@ export type WorkoutSetStatus = "Completed" | "Modified" | "Skipped";
 export type WorkoutEntrySource = "COACH" | "PLAYER" | "IMPORT" | "DEVICE";
 
 export interface WorkoutEntry {
+  activeWorkoutId?: ID;
+  workoutStationId?: ID;
+  workoutGroupId?: ID;
+  idempotencyKey?: string;
+  updatedByProfileId?: ID;
   id: ID;
   sessionId: ID;
   playerId: ID;

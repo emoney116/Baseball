@@ -65,6 +65,22 @@ The test suite includes known self metrics, own Game/count/RISP and Weight Room 
 
 ## Small Pilot Rollout
 
+### Player Live Entry Gate (CLU9-48/49/50)
+
+These are additional hosted checks, not a declaration that the Player Beta pilot is ready:
+
+- [ ] Promote `20260906143451_player_live_session_entry.sql` through the normal separately authorized migration/deploy workflow; verify deployed SHA and migration history. Never run ad hoc production SQL.
+- [ ] In a controlled QA team/player context, coach starts Practice, selects the exact roster player/station, enables Player Live Entry and selects tracked fields. Check Present/Late attendance. Player cannot start or create the session.
+- [ ] Track & View and Full Player log Hitting/Pitching/Defense, correct/undo their own entry, and see canonical Analytics/Ask changes. View Only direct writes are denied.
+- [ ] Coach starts/configures Weight Room, assigns group/current exercise and enables player entry. Player logs only prescribed own sets; history, volume, prior-baseline progress and coach review agree.
+- [ ] Coach corrects a player entry without rewriting original creator/source. Player can no longer change that corrected entry; coach-owned and other-player records are never writable by the player.
+- [ ] With the entry screen open, end/pause the session, disable entry, move assignment, downgrade, and revoke. Each next request is denied; the screen returns to read-only. No session leaves useful history plus the waiting message.
+- [ ] Repeat/retry the same request; undo and replay the original request. There is one row or the preserved deletion tombstone, never duplication/resurrection.
+- [ ] Simultaneous coach/player work in separate stations remains additive; switch legitimate team contexts without crossing session authorization.
+- [ ] Recheck 390x844, 430x932, 820x1180 and 1180x820 using authenticated hosted accounts. Local visual fixtures are not hosted-auth proof.
+
+No player Live BP or Game scoring/editing is included. Daily workout compliance remains coach/session governed; individual set submission does not falsely mark an entire workout completed. No real player emails, mass access changes, or production training entries are part of implementation QA.
+
 1. Verify candidate SHA, migration dry-run/apply and deployed schema; keep broad invitation actions unused.
 2. Founder/admin and internal player smoke all acceptance paths, including visibility/revoke; record evidence without personal data or tokens.
 3. Obtain explicit approval for 2-5 named recipients. Start with one self-claim and one exact-player invite, ideally a legitimate multi-team/season player.

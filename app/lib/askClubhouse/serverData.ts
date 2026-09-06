@@ -700,6 +700,11 @@ function mapWorkoutSession(row: AnyRow): WorkoutSession {
 
 function mapWorkoutEntry(row: AnyRow, exercise?: AnyRow): WorkoutEntry {
   return {
+    activeWorkoutId: row.active_workout_id ?? undefined,
+    workoutStationId: row.workout_station_id ?? undefined,
+    workoutGroupId: row.workout_group_id ?? undefined,
+    idempotencyKey: row.idempotency_key ?? undefined,
+    updatedByProfileId: row.updated_by ?? undefined,
     id: row.id,
     sessionId: row.workout_session_id,
     playerId: row.player_id,

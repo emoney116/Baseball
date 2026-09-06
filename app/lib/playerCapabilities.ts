@@ -16,7 +16,7 @@ export const PLAYER_MODE_DETAILS: Record<
   TRACK_AND_VIEW: {
     label: "Track & View",
     description:
-      "View development and record personal goals and body weight. Coach records stay protected.",
+      "View development, log personal goals and body weight, and enter assigned live training. Coach records stay protected.",
   },
   FULL_PLAYER: {
     label: "Full Player",
@@ -39,6 +39,12 @@ export const PLAYER_CAPABILITY_GROUPS = {
     "canUseAskClubhouse",
   ],
   track: [
+    "canEnterLivePractice",
+    "canLogLiveHitting",
+    "canLogLivePitching",
+    "canLogLiveDefense",
+    "canEnterLiveWeightRoom",
+    "canLogWorkoutSets",
     "canLogBodyWeight",
     "canUpdateOwnBodyWeight",
     "canDeleteOwnBodyWeight",
@@ -84,6 +90,12 @@ type AvailablePlayerCapability = (typeof PLAYER_CAPABILITY_GROUPS)[
   "view" | "track" | "full"
 ][number];
 export const PLAYER_CAPABILITY_LABELS: Record<AvailablePlayerCapability, string> = {
+  canEnterLivePractice: "Enter assigned stations in an active coach-enabled Practice",
+  canLogLiveHitting: "Log and correct their own live hitting reps",
+  canLogLivePitching: "Log and correct their own live bullpen pitches",
+  canLogLiveDefense: "Log and correct their own live defensive reps",
+  canEnterLiveWeightRoom: "Enter their assigned station in an active coach-enabled workout",
+  canLogWorkoutSets: "Log and correct their own live workout sets",
   canViewOwnProfile: "View their own player profile",
   canViewOwnMemberships: "View their own team and season memberships",
   canViewOwnPractice: "View their own Practice history",

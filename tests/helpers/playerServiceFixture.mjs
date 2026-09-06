@@ -182,6 +182,8 @@ export function playerServiceFixture() {
           predicates.push((r) => vs.includes(r[k]));
           return query;
         },
+        is(k,v) {predicates.push(r=>(r[k]??null)===v);return query;},
+        lte(k,v) {predicates.push(r=>r[k]!=null&&r[k]<=v);return query;},
         order() {
           return query;
         },
