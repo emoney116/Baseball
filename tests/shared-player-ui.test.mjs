@@ -39,14 +39,16 @@ test("player analytics actions retain filters while approved context owns identi
   assert.doesNotMatch(handler, /setSession|action\.playerId|action\.query\.context|action\.query\.playerIds/);
 });
 test("navigation, personal metrics and selectors share the staff components", () => {
-  for (const name of ["ClubhouseBottomNav", "AnalyticsPlayerMetrics", "ChoiceSelect", "ScheduleAgendaRow", "DensePlayerIdentity", "AnalyticsView", "ScheduleView"]) {
+  for (const name of ["ClubhouseBottomNav", "ChoiceSelect", "DensePlayerIdentity", "AnalyticsView", "ScheduleView"]) {
     assert.match(player, new RegExp("<" + name));
     assert.match(staff, new RegExp("<" + name));
   }
   assert.doesNotMatch(player, /className="player-beta-nav"/);
   assert.doesNotMatch(staff, /function ChoiceSelect/);
   assert.match(player, /domain === "development" \? "all" : source/);
-  assert.match(player, /defaultAnalyticsMetricIds\(domain, analyticsSource\)/);
+  assert.match(player, /<PlayerHome/);
+  assert.match(readFileSync("app/lib/playerHome.ts", "utf8"), /executeAnalyticsQuery\(data/);
+  assert.match(readFileSync("app/components/PlayerHome.tsx", "utf8"), /buildScheduleItems\(data\)/);
 });
 test("Ask preview answers require development fixtures and cannot replace hosted answers", () => {
   assert.match(player, /preview && \(!previewReply \|\| process\.env\.NODE_ENV !== "development"\)/);

@@ -414,46 +414,10 @@ export const supabaseAppRepository = {
   },
 
   async toggleTeamPin(input: { teamId: string; seasonId?: string; pin: boolean }) {
-    const supabase = createClient();
-    const { data: userData, error: userError } = await supabase.auth.getUser();
-    if (userError || !userData.user) {
-      throw new PersistenceError("auth-required", "Sign in before pinning teams.");
-    }
-
-    if (!input.pin) {
-      let query = supabase
-        .from("profile_team_pins")
-        .delete()
-        .eq("profile_id", userData.user.id)
-        .eq("team_id", input.teamId);
-      query = input.seasonId ? query.eq("season_id", input.seasonId) : query.is("season_id", null);
-      const { error } = await query;
-      if (error) throw new PersistenceError("save-failed", error.message);
-      return undefined;
-    }
-
-    let existingQuery = supabase
-      .from("profile_team_pins")
-      .select("*")
-      .eq("profile_id", userData.user.id)
-      .eq("team_id", input.teamId)
-      .limit(1);
-    existingQuery = input.seasonId ? existingQuery.eq("season_id", input.seasonId) : existingQuery.is("season_id", null);
-    const { data: existing, error: existingError } = await existingQuery.maybeSingle();
-    if (existingError) throw new PersistenceError("save-failed", existingError.message);
-    if (existing) return mapProfileTeamPin(existing);
-
-    const { data, error } = await supabase
-      .from("profile_team_pins")
-      .insert({
-        profile_id: userData.user.id,
-        team_id: input.teamId,
-        season_id: input.seasonId ?? null,
-      })
-      .select("*")
-      .single();
-    if (error) throw new PersistenceError("save-failed", error.message);
-    return mapProfileTeamPin(data);
+    const response = await fetch("/api/team-pins", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+    const payload = await response.json();
+    if (!response.ok) throw new PersistenceError("save-failed", payload.message ?? "Unable to update pinned team.");
+    return (payload.pin ?? undefined) as ProfileTeamPin | undefined;
   },
 
   async inviteStaff(input: {

@@ -14,9 +14,6 @@ import {
 } from "lucide-react";
 import type { PlayerSession, PlayerContext } from "../lib/playerAccess";
 import type { AnalyticsDomain, AnalyticsSource, AnalyticsQuery } from "../lib/analyticsQuery";
-import type { PitchType } from "../types";
-import { executeAnalyticsQuery } from "../lib/analyticsQuery";
-import { defaultAnalyticsMetricIds } from "../lib/analyticsCatalog";
 import { AnalyticsView, ScheduleView, SectionHeader } from "./TeamWorkspaceViews";
 import { PracticeHistoryTab, WeightRoomRecentWorkouts } from "./TeamTrainingViews";
 import { buildWeightRoomPlayerProfile, WeightRoomAthleteOverview } from "./WeightRoomPlayerViews";
@@ -26,10 +23,9 @@ import { authRepository } from "../data/supabaseRepository";
 import { createClient } from "../lib/supabase/client";
 import type { AskClubhouseAction, AskClubhouseApiResponse } from "../lib/askClubhouse/types";
 import { AskClubhouseDrawer, AskClubhouseFab, ASK_CLUBHOUSE_GENERIC_STAGE, type AskClubhouseChatMessage } from "./AskClubhouseDrawer";
-import { AnalyticsPlayerMetrics } from "./AnalyticsPlayerMetrics";
+import { PlayerHome } from "./PlayerHome";
 import { ClubhouseBottomNav } from "./ClubhouseBottomNav";
 import { ChoiceSelect } from "./ChoiceSelect";
-import { ScheduleAgendaRow } from "./ScheduleAgendaRow";
 import { DensePlayerIdentity } from "./DensePlayerIdentity";
 import { TeamWorkspaceHeader } from "./TeamContextHeader";
 import { PlayerSelfTracking } from "./PlayerSelfTracking";
@@ -83,6 +79,7 @@ export function PlayerShell({
   const [practiceTab, setPracticeTab] = useState<PracticeWorkspaceTab>("Overview");
   const [weightTab, setWeightTab] = useState<"Overview" | "Workouts" | "Progress">("Overview");
   const [selectedGameId, setSelectedGameId] = useState("");
+  const [liveSelection, setLiveSelection] = useState("");
   const askGeneration = useRef(0);
   const askInFlight = useRef(false);
   const [error, setError] = useState(""),
@@ -266,29 +263,6 @@ export function PlayerShell({
   const initialAnalyticsQuery: Partial<AnalyticsQuery> = analyticsRevision > 0 || view === "Practice" || view === "Weight Room" || view === "Games"
     ? { ...askQuery, domain: view === "Weight Room" ? "development" : domain === "development" && view !== "Analytics" ? "hitting" : domain, source: view === "Weight Room" ? "all" : view === "Games" ? "games" : view === "Practice" ? "practice" : analyticsSource, eventIds: view === "Games" && selectedGame ? [selectedGame.id] : eventId ? [eventId] : undefined }
     : { source: typeof window !== "undefined" && new URLSearchParams(window.location.search).has("source") ? undefined : "practice" };
-  const result = useMemo(
-    () =>
-      data && context
-        ? executeAnalyticsQuery(data, {
-            ...askQuery,
-            domain,
-            source: analyticsSource,
-            metrics: defaultAnalyticsMetricIds(domain, analyticsSource),
-            eventIds: eventId ? [eventId] : undefined,
-            mode: "box-score",
-            timeRange: askQuery.timeRange ?? "season",
-            groupBy: "player",
-            playerIds: [context.playerId],
-            filters: { ...askQuery.filters, ...(pitchType ? { pitchTypes: [pitchType as PitchType] } : {}) },
-            context: {
-              teamId: context.team.teamId,
-              seasonId: context.team.seasonId,
-              role: "PLAYER",
-            },
-          })
-        : null,
-    [data, context, domain, analyticsSource, pitchType, eventId, askQuery],
-  );
   function resetAsk() {
     askGeneration.current++;
     askInFlight.current = false;
@@ -374,41 +348,6 @@ export function PlayerShell({
       }
     }
   }
-  const items = data
-    ? [
-        ...data.practices
-          .filter(
-            (p) => !data.scheduleEvents.some((e) => e.practiceId === p.id),
-          )
-          .map((p) => ({
-            id: p.id,
-            title: p.name || "Practice",
-            type: "Practice",
-            date: p.date,
-            location: p.location,
-          })),
-        ...data.games
-          .filter((g) => !data.scheduleEvents.some((e) => e.gameId === g.id))
-          .map((g) => ({
-            id: g.id,
-            title: `${g.homeAway === "Away" ? "at" : "vs"} ${g.opponent}`,
-            type: "Game",
-            date: g.date,
-            location: g.location,
-          })),
-        ...data.scheduleEvents.map((e) => ({
-          id: e.id,
-          title: e.title,
-          type: e.eventType,
-          date: e.startAt,
-          location: e.location,
-        })),
-      ].sort((a, b) => a.date.localeCompare(b.date))
-    : [];
-  const upcoming = items.filter(
-    (i) => i.date.slice(0, 10) >= new Date().toISOString().slice(0, 10),
-  );
-  const renderMetrics = () => result && <AnalyticsPlayerMetrics result={result} row={result.rows[0]} limit={view === "Home" ? 4 : undefined} />;
   return (
     <main className="player-beta">
       {context && <TeamWorkspaceHeader context={{ ...data?.teamContext, currentTeam: context.team, availableTeams: session.contexts.map(c => c.team) }}
@@ -432,13 +371,13 @@ export function PlayerShell({
               <PracticeWorkspaceHeader tab={practiceTab} onTab={setPracticeTab} />
               {practiceTab === "Overview" && <>
                 <PracticeWorkspaceSummary label={activePractice ? "Current Practice" : "Practice"} title={activePractice?.name ?? "No active practice"} detail={activePractice?.location ?? "Waiting on coach to begin Practice session."} />
-                {!preview && <PlayerLiveEntry key={`practice-${context.membershipId}`} membershipId={context.membershipId} excludeWorkout onSaved={() => refreshSession.current()} />}
+                {!preview && <PlayerLiveEntry key={`practice-${context.membershipId}`} membershipId={context.membershipId} initialSelection={liveSelection} excludeWorkout onSaved={() => refreshSession.current()} />}
               </>}
               {practiceTab !== "Metrics" && <PracticeHistoryTab data={data} onOpenPractice={id => { setEventId(id); setDomain("hitting"); setSource("practice"); setAnalyticsRevision(value => value + 1); setPracticeTab("Metrics"); }} />}
             </div>}
             {view === "Weight Room" && session.access?.capabilities.canViewOwnWeightRoom && <div className="page-stack weights-page weight-room-page">
               <WeightRoomWorkspaceHeader team={context.team} tab={weightTab} tabs={["Overview", "Workouts", "Progress"]} onTab={setWeightTab} />
-              {weightTab === "Overview" && !preview && <PlayerLiveEntry key={`workout-${context.membershipId}`} membershipId={context.membershipId} domain="workout" onSaved={() => refreshSession.current()} />}
+              {weightTab === "Overview" && !preview && <PlayerLiveEntry key={`workout-${context.membershipId}`} membershipId={context.membershipId} initialSelection={liveSelection} domain="workout" onSaved={() => refreshSession.current()} />}
               {(weightTab === "Overview" || weightTab === "Progress") && ownPlayer && weightProfile && <WeightRoomAthleteOverview data={data} player={ownPlayer} profile={weightProfile} />}
               {weightTab !== "Progress" && <WeightRoomRecentWorkouts data={data} players={data.players} expanded onReview={row => { setAskQuery({ timeRange: "custom", customDateRange: { start: row.date, end: row.date } }); setAnalyticsRevision(value => value + 1); setWeightTab("Progress"); }} />}
               {weightTab === "Overview" && <PlayerSelfTracking key={context.membershipId} session={session} preview={preview} onSaved={() => switchContext(context)} />}
@@ -447,70 +386,7 @@ export function PlayerShell({
               <SectionHeader title="Game Center" />
               {selectedGame ? <section className="games-layout"><GameLibrary games={data.games} selectedGameId={selectedGame.id} onGame={id => { setSelectedGameId(id); setAnalyticsRevision(value => value + 1); }} /><section className="game-console"><GameScoreRibbon game={selectedGame} teamName={context.team.teamName} /></section></section> : <p>No games available for this player context.</p>}
             </div>}
-            {view === "Home" && !preview && <PlayerLiveEntry key={`live-${context.membershipId}`} membershipId={context.membershipId} onSaved={() => refreshSession.current()} />}
-            {view === "Home" && <PlayerSelfTracking key={context.membershipId} session={session} preview={preview} onSaved={() => switchContext(context)} />}
-            {view === "Home" && (
-              <>
-                <section className="player-beta-section">
-                  <h2>Today & Next</h2>
-                  {upcoming.length ? (
-                    upcoming.slice(0, 3).map((i) => (
-                      <ScheduleAgendaRow key={i.id} title={i.title} time={new Date(i.date.includes("T") ? i.date : `${i.date}T12:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" })} type={i.type} location={i.location} />
-                    ))
-                  ) : (
-                    <p>No upcoming team events.</p>
-                  )}
-                </section>
-                <section className="player-beta-section">
-                  <h2>Quick Access</h2>
-                  <div className="player-beta-development">
-                    {(
-                      [{ view: "Practice", icon: ClipboardList }, { view: "Games", icon: Trophy }, { view: "Weight Room", icon: Dumbbell }, { view: "Analytics", icon: ChartNoAxesCombined }] as const
-                    ).map((item) => (
-                      <button
-                        key={item.view}
-                        onClick={() => navigate(item.view)}
-                      >
-                        <item.icon size={18} />
-                        {item.view}
-                      </button>
-                    ))}
-                  </div>
-                </section>
-                <section className="player-beta-section">
-                  <div className="player-beta-section-title">
-                    <h2>Recent Performance</h2>
-                    <button
-                      className="ghost-button"
-                      onClick={() => navigate("Analytics")}
-                    >
-                      My Analytics
-                    </button>
-                  </div>
-                  <p>{result?.sourceLabel}</p>
-                  {renderMetrics()}
-                </section>
-                <section className="player-beta-section">
-                  <h2>My Goals</h2>
-                  {data.developmentGoals
-                    .filter((g) => !g.completed)
-                    .map((g) => (
-                      <p key={g.id}>{g.title}</p>
-                    ))}
-                  {!data.developmentGoals.some((g) => !g.completed) && (
-                    <p>No current player-visible goals.</p>
-                  )}
-                </section>
-                {data.coachNotes.length > 0 && (
-                  <section className="player-beta-section">
-                    <h2>Coach Feedback</h2>
-                    {data.coachNotes.map((n) => (
-                      <p key={n.id}>{n.text}</p>
-                    ))}
-                  </section>
-                )}
-              </>
-            )}
+            {view === "Home" && <PlayerHome key={context.membershipId} session={session} preview={preview} onNavigate={navigate} onAnalytics={query => { navigate("Analytics"); setDomain(query.domain ?? "hitting"); setSource(query.source ?? "practice"); setAskQuery(query); setEventId(query.eventIds?.[0] ?? ""); setAnalyticsRevision(value => value + 1); }} onEnter={live => { navigate(live.domain === "workout" ? "Weight Room" : "Practice"); setLiveSelection(`${live.id}:${live.domain}`); }} onAsk={prompt => { setAsk(true); void askQuestion(prompt); }} onSaved={() => refreshSession.current()} />}
             {view === "Schedule" && session.access?.capabilities.canViewTeamSchedule && (
               <ScheduleView data={data} onView={next => {
                 navigate(next === "weights" ? "Weight Room" : next === "games" ? "Games" : "Practice");

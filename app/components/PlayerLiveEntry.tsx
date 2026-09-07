@@ -54,18 +54,22 @@ export function PlayerLiveEntry({
   membershipId,
   domain,
   excludeWorkout = false,
+  onEnter,
+  initialSelection = "",
   onSaved,
   transport,
 }: {
   membershipId: string;
   domain?: LiveDomain;
   excludeWorkout?: boolean;
+  onEnter?: (session: PlayerLiveSession) => void;
+  initialSelection?: string;
   onSaved?: () => void;
   transport?: LiveTransport;
 }) {
   const [state, setState] = useState<PlayerLiveState>(),
     [error, setError] = useState(""),
-    [selected, setSelected] = useState(""),
+    [selected, setSelected] = useState(initialSelection),
     [notice, setNotice] = useState("");
   const hadSession = useRef(false);
   const generation = useRef(0),
@@ -138,6 +142,15 @@ export function PlayerLiveEntry({
       throw e;
     }
   }
+  if (onEnter) return <section className="player-home-live" aria-label="Live training">
+    {error && <p role="alert">{error}</p>}
+    {!error && sessions.map(session => <div className="player-home-live-row" key={`${session.id}:${session.domain}:${session.exercise?.id ?? ""}`}>
+      <span className="player-live-badge"><Radio size={14} />Live Now</span>
+      <div><strong>{session.title}</strong><small>{session.station}{session.exercise ? ` · ${session.exercise.name}` : ""}</small></div>
+      <button className="primary-button" onClick={() => onEnter(session)}>{state?.capabilities[liveCapability(session.domain)] ? session.domain === "workout" ? "Continue Workout" : "Enter Practice" : "View Session"}</button>
+    </div>)}
+    {!error && state && !sessions.length && <p className="muted">Waiting on coach to begin a live session.</p>}
+  </section>;
   return (
     <section className="player-live-section" aria-label="Live training">
       {notice && !error && <p role="status">{notice}</p>}

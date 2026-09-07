@@ -24,8 +24,13 @@ try {
       await page.goto(base + "/player-preview?askFixture=1&access=" + mode);
       await page.getByRole("button", { name: "Ask Clubhouse", exact: true }).waitFor();
       await layout();
+      await page.getByRole("heading", { name: "My Performance", exact: true }).waitFor();
+      await page.getByRole("button", { name: "Pin team", exact: true }).click();
+      assert.equal(await page.getByRole("button", { name: "Unpin team", exact: true }).getAttribute("aria-pressed"), "true");
+      await page.getByRole("button", { name: "Unpin team", exact: true }).click();
       assert.equal(await page.locator(".player-self-tracking").count(), mode === "VIEW_ONLY" ? 0 : 1);
-      await page.screenshot({ path: out + "/home-" + mode + "-" + width + ".png" });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({ path: out + "/home-" + mode + "-" + width + ".png", fullPage: true });
       await page.getByRole("button", { name: "Ask Clubhouse", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: "Ask Clubhouse" });
       await dialog.waitFor();

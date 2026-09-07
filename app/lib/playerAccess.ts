@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AppData, TeamOption } from "../types.ts";
 import { PlayerLinkError } from "./playerAccountLinks.ts";
+import { loadOwnTeamPins } from "./teamPins.ts";
 import { resolvePlayerCapabilities, type EffectivePlayerAccess } from "./playerCapabilities.ts";
 import {
   getUserEntitlements,
@@ -175,7 +176,7 @@ export async function loadPlayerAccountHome(db: SupabaseClient, profileId: strin
   const organizations = orgIds.length ? await rows(db.from("organizations").select("id,name,slug,logo_url").in("id", orgIds)) : [];
   const profile = { id: profileId, role: "PLAYER" as const, email: p.email, firstName: p.first_name, lastName: p.last_name, displayName: p.display_name, avatarUrl: p.avatar_url };
   const availableTeams = contexts.map(c => ({ ...c.team, organizationName: organizations.find(o => o.id === c.team.organizationId)?.name ?? "", playerContextId: c.playerId, playerContextName: c.name }));
-  return emptyData({ profile, availableTeams, organizations: organizations.map(o => ({ id: o.id, name: o.name, slug: o.slug, logoUrl: o.logo_url, role: "PLAYER" as const, active: true })) }, profile, undefined);
+  return { ...emptyData({ profile, availableTeams, organizations: organizations.map(o => ({ id: o.id, name: o.name, slug: o.slug, logoUrl: o.logo_url, role: "PLAYER" as const, active: true })) }, profile, undefined), profileTeamPins: await loadOwnTeamPins(db, profileId) };
 }
 
 export function selectPlayerContext(
@@ -327,7 +328,7 @@ async function loadPlayerData(
     rows(
       db
         .from("player_notes")
-        .select("id,player_id,note,created_at,updated_at")
+        .select("id,player_id,note,visibility,created_at,updated_at")
         .eq("player_id", playerId)
         .eq("team_id", team.teamId)
         .eq("season_id", team.seasonId!)
@@ -449,6 +450,7 @@ async function loadPlayerData(
       id: r.id,
       playerId,
       title: r.title,
+      playerVisible: r.player_visible === true,
       tags: [],
       completed: r.completed,
       createdAt: r.created_at,
@@ -458,6 +460,7 @@ async function loadPlayerData(
     })),
     coachNotes: notes.map((r) => ({
       id: r.id,
+      visibility: r.visibility,
       scope: { type: "Player", playerId },
       text: r.note,
       tags: [],
