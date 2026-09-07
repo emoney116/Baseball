@@ -8,6 +8,9 @@ import {
   MoreHorizontal,
   Sparkles,
   LogOut,
+  ClipboardList,
+  Dumbbell,
+  Trophy,
 } from "lucide-react";
 import type { PlayerSession, PlayerContext } from "../lib/playerAccess";
 import type { AnalyticsDomain, AnalyticsSource, AnalyticsQuery } from "../lib/analyticsQuery";
@@ -16,6 +19,8 @@ import { executeAnalyticsQuery } from "../lib/analyticsQuery";
 import { defaultAnalyticsMetricIds } from "../lib/analyticsCatalog";
 import { AnalyticsView, ScheduleView, SectionHeader } from "./TeamWorkspaceViews";
 import { PracticeHistoryTab, WeightRoomRecentWorkouts } from "./TeamTrainingViews";
+import { buildWeightRoomPlayerProfile, WeightRoomAthleteOverview } from "./WeightRoomPlayerViews";
+import { GameLibrary, GameScoreRibbon, PracticeWorkspaceHeader, PracticeWorkspaceSummary, WeightRoomWorkspaceHeader, type PracticeWorkspaceTab } from "./TeamFeatureLayouts";
 import { PlayerAccountLinksPanel } from "./PlayerAccountLinksPanel";
 import { authRepository } from "../data/supabaseRepository";
 import { createClient } from "../lib/supabase/client";
@@ -31,12 +36,13 @@ import { PlayerSelfTracking } from "./PlayerSelfTracking";
 import { PlayerLiveEntry } from "./PlayerLiveEntry";
 import { PLAYER_MODE_DETAILS } from "../lib/playerCapabilities";
 
-type View = "Home" | "Schedule" | "Development" | "Analytics" | "More";
+type View = "Home" | "Schedule" | "Practice" | "Games" | "Weight Room" | "Analytics" | "More";
+const VIEW_ROUTES = { Home: "teamHome", Schedule: "schedule", Practice: "practice", Games: "games", "Weight Room": "weights", Analytics: "analytics", More: "more" } as const;
 const nav = [
   { name: "Home", icon: Home },
   { name: "Schedule", icon: CalendarDays },
-  { name: "Development", icon: Activity },
-  { name: "Analytics", icon: ChartNoAxesCombined },
+  { name: "Practice", icon: ClipboardList },
+  { name: "Games", icon: Trophy },
   { name: "More", icon: MoreHorizontal },
 ] as const;
 const PLAYER_ASK_SUGGESTIONS = [
@@ -60,7 +66,7 @@ export function PlayerShell({
     [view, setView] = useState<View>(() => {
       if (typeof window === "undefined") return "Home";
       const route = new URLSearchParams(window.location.search).get("view");
-      return ({ analytics: "Analytics", schedule: "Schedule", practice: "Development", weights: "Development", more: "More" } as Record<string, View>)[route ?? ""] ?? "Home";
+      return (Object.entries(VIEW_ROUTES).find(([, value]) => value === route)?.[0] as View) ?? "Home";
     });
   const [domain, setDomain] = useState<AnalyticsDomain>("hitting"),
     [source, setSource] = useState<AnalyticsSource>("practice"),
@@ -74,7 +80,9 @@ export function PlayerShell({
   const [askAnalytics, setAskAnalytics] = useState<Partial<AnalyticsQuery>>({});
   const [askAllTeams, setAskAllTeams] = useState(false);
   const [analyticsRevision, setAnalyticsRevision] = useState(0);
-  const [developmentTab, setDevelopmentTab] = useState("Overview");
+  const [practiceTab, setPracticeTab] = useState<PracticeWorkspaceTab>("Overview");
+  const [weightTab, setWeightTab] = useState<"Overview" | "Workouts" | "Progress">("Overview");
+  const [selectedGameId, setSelectedGameId] = useState("");
   const askGeneration = useRef(0);
   const askInFlight = useRef(false);
   const [error, setError] = useState(""),
@@ -235,10 +243,28 @@ export function PlayerShell({
     }
   }
   const { context, data } = session;
+  function navigate(next: View) {
+    setView(next);
+    setEventId("");
+    setAskQuery({});
+    setAnalyticsRevision(0);
+    if (next === "Practice") { setDomain("hitting"); setSource("practice"); setPracticeTab("Overview"); }
+    if (next === "Weight Room") { setDomain("development"); setSource("all"); setWeightTab("Overview"); }
+    if (next === "Games") { setDomain("hitting"); setSource("games"); }
+    const url = new URL(window.location.href);
+    url.searchParams.set("workspace", "player");
+    url.searchParams.set("view", VIEW_ROUTES[next]);
+    for (const key of ["domain", "source", "period", "start", "end", "analyticsWorkspace", "event", "events"]) url.searchParams.delete(key);
+    window.history.replaceState(null, "", url);
+  }
+  const activePractice = data?.practices.find(practice => !practice.endedAt);
+  const ownPlayer = data?.players.find(player => player.id === context?.playerId);
+  const weightProfile = useMemo(() => data && ownPlayer ? buildWeightRoomPlayerProfile(data, ownPlayer) : undefined, [data, ownPlayer]);
+  const selectedGame = data?.games.find(game => game.id === selectedGameId) ?? data?.games[0];
   const analyticsScope = useMemo(() => context ? { playerId: context.playerId } : undefined, [context]);
   const analyticsSource = domain === "development" ? "all" : source;
-  const initialAnalyticsQuery: Partial<AnalyticsQuery> = analyticsRevision > 0 || view === "Development"
-    ? { ...askQuery, domain, source: analyticsSource, eventIds: eventId ? [eventId] : undefined }
+  const initialAnalyticsQuery: Partial<AnalyticsQuery> = analyticsRevision > 0 || view === "Practice" || view === "Weight Room" || view === "Games"
+    ? { ...askQuery, domain: view === "Weight Room" ? "development" : domain === "development" && view !== "Analytics" ? "hitting" : domain, source: view === "Weight Room" ? "all" : view === "Games" ? "games" : view === "Practice" ? "practice" : analyticsSource, eventIds: view === "Games" && selectedGame ? [selectedGame.id] : eventId ? [eventId] : undefined }
     : { source: typeof window !== "undefined" && new URLSearchParams(window.location.search).has("source") ? undefined : "practice" };
   const result = useMemo(
     () =>
@@ -386,7 +412,7 @@ export function PlayerShell({
   return (
     <main className="player-beta">
       {context && <TeamWorkspaceHeader context={{ ...data?.teamContext, currentTeam: context.team, availableTeams: session.contexts.map(c => c.team) }}
-        view={view === "Home" ? "teamHome" : "analytics"}
+        view={VIEW_ROUTES[view] === "more" ? "teamHome" : VIEW_ROUTES[view]}
         onClubhouseHome={() => window.location.assign("/")}
         onSwitch={team => { const next = session.contexts.find(c => c.team.teamId === team.teamId && c.team.seasonId === team.seasonId); if (next) void switchContext(next); }}
       />}
@@ -402,20 +428,25 @@ export function PlayerShell({
       ) : (
         data && (
           <>
-            {view === "Development" && <>
-              <SectionHeader title={domain === "development" ? "Weight Room" : "Practice"} />
-              <nav className="analytics-view-tabs" aria-label="Development sections">
-                {["Overview", "Metrics", "History"].map(tab => <button key={tab} className={developmentTab === tab ? "active" : ""} onClick={() => setDevelopmentTab(tab)}>{tab}</button>)}
-              </nav>
-              <nav className="practice-quick-entry" aria-label="Development domains">
-                {(["hitting", "pitching", "defense", "development"] as const).map(next => <button key={next} className="secondary-button" onClick={() => { setDomain(next); setDevelopmentTab("Overview"); }}><Activity size={16} />{next === "development" ? "Weight Room" : next[0].toUpperCase() + next.slice(1)}</button>)}
-              </nav>
-              {developmentTab === "Overview" && !preview && <PlayerLiveEntry key={`live-${context.membershipId}`} membershipId={context.membershipId} domain={domain === "development" ? "workout" : domain} onSaved={() => refreshSession.current()} />}
-              {developmentTab === "Overview" && <PlayerSelfTracking key={context.membershipId} session={session} preview={preview} onSaved={() => switchContext(context)} />}
-              {developmentTab !== "Metrics" && (domain === "development"
-                ? <WeightRoomRecentWorkouts data={data} players={data.players} expanded onReview={row => { setAskQuery({ timeRange: "custom", customDateRange: { start: row.date, end: row.date } }); setAnalyticsRevision(value => value + 1); setDevelopmentTab("Metrics"); }} />
-                : <PracticeHistoryTab data={data} onOpenPractice={id => { setEventId(id); setSource("practice"); setAnalyticsRevision(value => value + 1); setDevelopmentTab("Metrics"); }} />)}
-            </>}
+            {view === "Practice" && session.access?.capabilities.canViewOwnPractice && <div className="page-stack practice-home">
+              <PracticeWorkspaceHeader tab={practiceTab} onTab={setPracticeTab} />
+              {practiceTab === "Overview" && <>
+                <PracticeWorkspaceSummary label={activePractice ? "Current Practice" : "Practice"} title={activePractice?.name ?? "No active practice"} detail={activePractice?.location ?? "Waiting on coach to begin Practice session."} />
+                {!preview && <PlayerLiveEntry key={`practice-${context.membershipId}`} membershipId={context.membershipId} excludeWorkout onSaved={() => refreshSession.current()} />}
+              </>}
+              {practiceTab !== "Metrics" && <PracticeHistoryTab data={data} onOpenPractice={id => { setEventId(id); setDomain("hitting"); setSource("practice"); setAnalyticsRevision(value => value + 1); setPracticeTab("Metrics"); }} />}
+            </div>}
+            {view === "Weight Room" && session.access?.capabilities.canViewOwnWeightRoom && <div className="page-stack weights-page weight-room-page">
+              <WeightRoomWorkspaceHeader team={context.team} tab={weightTab} tabs={["Overview", "Workouts", "Progress"]} onTab={setWeightTab} />
+              {weightTab === "Overview" && !preview && <PlayerLiveEntry key={`workout-${context.membershipId}`} membershipId={context.membershipId} domain="workout" onSaved={() => refreshSession.current()} />}
+              {(weightTab === "Overview" || weightTab === "Progress") && ownPlayer && weightProfile && <WeightRoomAthleteOverview data={data} player={ownPlayer} profile={weightProfile} />}
+              {weightTab !== "Progress" && <WeightRoomRecentWorkouts data={data} players={data.players} expanded onReview={row => { setAskQuery({ timeRange: "custom", customDateRange: { start: row.date, end: row.date } }); setAnalyticsRevision(value => value + 1); setWeightTab("Progress"); }} />}
+              {weightTab === "Overview" && <PlayerSelfTracking key={context.membershipId} session={session} preview={preview} onSaved={() => switchContext(context)} />}
+            </div>}
+            {view === "Games" && session.access?.capabilities.canViewOwnGames && <div className="page-stack games-page player-games-page">
+              <SectionHeader title="Game Center" />
+              {selectedGame ? <section className="games-layout"><GameLibrary games={data.games} selectedGameId={selectedGame.id} onGame={id => { setSelectedGameId(id); setAnalyticsRevision(value => value + 1); }} /><section className="game-console"><GameScoreRibbon game={selectedGame} teamName={context.team.teamName} /></section></section> : <p>No games available for this player context.</p>}
+            </div>}
             {view === "Home" && !preview && <PlayerLiveEntry key={`live-${context.membershipId}`} membershipId={context.membershipId} onSaved={() => refreshSession.current()} />}
             {view === "Home" && <PlayerSelfTracking key={context.membershipId} session={session} preview={preview} onSaved={() => switchContext(context)} />}
             {view === "Home" && (
@@ -431,24 +462,17 @@ export function PlayerShell({
                   )}
                 </section>
                 <section className="player-beta-section">
-                  <h2>My Development</h2>
+                  <h2>Quick Access</h2>
                   <div className="player-beta-development">
                     {(
-                      ["hitting", "pitching", "defense", "development"] as const
-                    ).map((d) => (
+                      [{ view: "Practice", icon: ClipboardList }, { view: "Games", icon: Trophy }, { view: "Weight Room", icon: Dumbbell }, { view: "Analytics", icon: ChartNoAxesCombined }] as const
+                    ).map((item) => (
                       <button
-                        key={d}
-                        onClick={() => {
-                          setDomain(d);
-                          setEventId("");
-                          setPitchType("");
-                          setView("Development");
-                        }}
+                        key={item.view}
+                        onClick={() => navigate(item.view)}
                       >
-                        <Activity size={18} />
-                        {d === "development"
-                          ? "Weight Room"
-                          : d[0].toUpperCase() + d.slice(1)}
+                        <item.icon size={18} />
+                        {item.view}
                       </button>
                     ))}
                   </div>
@@ -458,7 +482,7 @@ export function PlayerShell({
                     <h2>Recent Performance</h2>
                     <button
                       className="ghost-button"
-                      onClick={() => setView("Analytics")}
+                      onClick={() => navigate("Analytics")}
                     >
                       My Analytics
                     </button>
@@ -489,14 +513,12 @@ export function PlayerShell({
             )}
             {view === "Schedule" && session.access?.capabilities.canViewTeamSchedule && (
               <ScheduleView data={data} onView={next => {
-                setDomain(next === "weights" ? "development" : "hitting");
-                setView("Development");
+                navigate(next === "weights" ? "Weight Room" : next === "games" ? "Games" : "Practice");
               }} onOpenGame={gameId => {
-                setDomain("hitting"); setSource("games"); setEventId(gameId);
-                setAnalyticsRevision(value => value + 1); setView("Analytics");
+                navigate("Games"); setSelectedGameId(gameId);
               }} />
             )}
-            {(view === "Analytics" || (view === "Development" && developmentTab === "Metrics")) && session.access?.capabilities.canViewOwnAnalytics && (
+            {(view === "Analytics" || (view === "Practice" && practiceTab === "Metrics") || (view === "Weight Room" && weightTab === "Progress") || (view === "Games" && selectedGame)) && session.access?.capabilities.canViewOwnAnalytics && (
               <AnalyticsView
                 key={`${context.membershipId}:${view}:${analyticsRevision}`}
                 data={data}
@@ -509,6 +531,10 @@ export function PlayerShell({
             )}
             {view === "More" && (
               <section className="player-beta-section">
+                <div className="player-beta-development">
+                  {session.access?.capabilities.canViewOwnWeightRoom && <button onClick={() => navigate("Weight Room")}><Dumbbell size={18} />Weight Room</button>}
+                  {session.access?.capabilities.canViewOwnAnalytics && <button onClick={() => navigate("Analytics")}><ChartNoAxesCombined size={18} />Analytics</button>}
+                </div>
                 {session.access?.capabilities.canViewRoster && <><h2>Team Roster</h2>{session.teamRoster?.map(p => <div className="player-beta-item" key={p.playerId}><DensePlayerIdentity player={{ name: p.name, jerseyNumber: p.jersey ?? 0 }} showJersey={p.jersey !== undefined} /><span>{p.position}</span></div>)}</>}
                 {!preview && <PlayerAccountLinksPanel />}
               </section>
@@ -562,14 +588,8 @@ export function PlayerShell({
           <button
             key={n.name}
             aria-current={view === n.name ? "page" : undefined}
-            className={view === n.name ? "active" : ""}
-            onClick={() => {
-              setView(n.name);
-              const url = new URL(window.location.href);
-              url.searchParams.set("workspace", "player");
-              url.searchParams.set("view", ({ Home: "teamHome", Schedule: "schedule", Development: domain === "development" ? "weights" : "practice", Analytics: "analytics", More: "more" })[n.name]);
-              window.history.replaceState(null, "", url);
-            }}
+            className={view === n.name || (n.name === "More" && (view === "Weight Room" || view === "Analytics")) ? "active" : ""}
+            onClick={() => navigate(n.name)}
           >
             <n.icon size={20} />
             <span>{n.name}</span>

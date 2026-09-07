@@ -2,7 +2,8 @@
 import { PracticeResultChoices } from "./components/PracticeResultChoices";
 import { displayWorkspaceTeams, OrganizationLogo, organizationSummariesFromContext, OrganizationSummary, roleLabel, teamContextRole, teamOrganizationLogo, teamValue, TeamWorkspaceHeader } from "./components/TeamContextHeader";
 import { ActiveWorkoutCell, ActiveWorkoutStation, buildRecentWeightRoomWorkouts, formatInchesValue, formatSecondsValue, formatWeightRoomSessionMeta, formatWorkoutEntryValue, formatWorkoutEntryValueForStation, optionalNumber, PracticeHistoryTab, practiceTotals, stationAttemptLabel, TRACKING_VELOCITY_MAX_MPH, TRACKING_VELOCITY_MIN_MPH, uniqueStrings, VelocityPickerField, WeightRoomExercise, WeightRoomExerciseCategory, WeightRoomInlineSetCell, weightRoomMeasurementLabel, WeightRoomRecentWorkouts, WeightRoomWorkoutStatus, WeightRoomWorkoutSummary, WorkoutMeasurementType, WorkoutPerformanceDirection, WorkoutTargetStyle } from "./components/TeamTrainingViews";
-import { AnalyticsView, BaseballIcon, buildScheduleItems, calendarDaysForMonth, chartMetricModeLabel, ClockIcon, CompactEmpty, dateKeyFromIso, defaultScheduleVisibility, encodeAnalyticsFilters, formatTime, isoDate, isUpcomingScheduleItem, localDateKey, matchupPrefix, PITCH_LOCATION_BUCKETS, PitchLocationBucket, pitchLocationBucketFromPoint, PitchLocationGridAxis, PracticeChartMetricMode, SCHEDULE_EVENT_ACCENTS, SCHEDULE_EVENT_TYPES, ScheduleItem, ScheduleTypeIcon, ScheduleView, SectionHeader, SegmentedControl, SvgIconProps, todayKey, toLocalIso, ViewKey } from "./components/TeamWorkspaceViews";
+import { AnalyticsView, BaseballIcon, buildScheduleItems, calendarDaysForMonth, chartMetricModeLabel, ClockIcon, CompactEmpty, dateKeyFromIso, defaultScheduleVisibility, encodeAnalyticsFilters, formatTime, isoDate, isUpcomingScheduleItem, matchupPrefix, PITCH_LOCATION_BUCKETS, PitchLocationBucket, pitchLocationBucketFromPoint, PitchLocationGridAxis, PracticeChartMetricMode, SCHEDULE_EVENT_ACCENTS, SCHEDULE_EVENT_TYPES, ScheduleItem, ScheduleTypeIcon, ScheduleView, SectionHeader, SegmentedControl, SvgIconProps, todayKey, toLocalIso, ViewKey } from "./components/TeamWorkspaceViews";
+import { buildWeightRoomPlayerProfile, firstName, formatWorkoutVolume, latestBodyWeight, parseDateKey, previousBodyWeight, shiftDateKey, trendForExercise, weekStart, WeightRoomAthleteOverview, weightRoomDeltaClass, workoutEntryComparableForDisplay } from "./components/WeightRoomPlayerViews";
 
 import type { LucideIcon } from "lucide-react";
 import {
@@ -67,6 +68,7 @@ import { PlayerAccessPanel } from "./components/PlayerAccessPanel";
 import { PlayerAccountLinksPanel, TeamPlayerClaimsPanel } from "./components/PlayerAccountLinksPanel";
 import { PlayerInvitationsPanel, usePlayerInvitationRoster } from "./components/PlayerInvitationsPanel";
 import { PlayerShell } from "./components/PlayerShell";
+import { GameLibrary, GameScoreRibbon, PracticeWorkspaceHeader, PracticeWorkspaceSummary, WeightRoomWorkspaceHeader } from "./components/TeamFeatureLayouts";
 import { SCROLL_EDGE_THRESHOLD, useScrollEdges } from "./components/useScrollEdges";
 import { BaseballField, DonutChart, Heatmap, IdentityAvatar, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
@@ -7607,8 +7609,9 @@ function PracticeHome({
 
   return (
     <div className="page-stack practice-home">
-      <SectionHeader
-        title="Practice"
+      <PracticeWorkspaceHeader
+        tab={tab}
+        onTab={onTab}
         action={
           <div className="practice-title-actions">
             <time>{practice ? fullDate(practice.date) : fullDate(todayKey())}</time>
@@ -7634,25 +7637,14 @@ function PracticeHome({
         }
       />
       {tab === "Overview" && !attendanceKeyOpen && !hittingStartOpen && <AskClubhouseFab onClick={onAsk} />}
-      <nav className="practice-tabs" aria-label="Practice sections">
-        {(["Overview", "Metrics", "History"] as PracticeHubTab[]).map((item) => (
-          <button key={item} type="button" className={tab === item ? "active" : ""} onClick={() => onTab(item)}>
-            {item}
-          </button>
-        ))}
-      </nav>
 
       {tab === "Overview" && (
         <>
-          <section className="practice-summary-strip panel">
-            <div className="practice-summary-strip__identity">
-              <span className="practice-summary-icon"><ClipboardList size={24} aria-hidden="true" /></span>
-              <span>
-                <small>{practice ? "Current Practice" : "Practice"}</small>
-                <strong>{practice ? practice.name : "No active practice"}</strong>
-                <em>{practice ? `${practice.location || "Field"}${practiceTime ? ` - ${practiceTime}` : ""}` : "Start practice to begin today's development work"}</em>
-              </span>
-            </div>
+          <PracticeWorkspaceSummary
+            label={practice ? "Current Practice" : "Practice"}
+            title={practice ? practice.name : "No active practice"}
+            detail={practice ? `${practice.location || "Field"}${practiceTime ? ` - ${practiceTime}` : ""}` : "Start practice to begin today's development work"}
+          >
             <div className="practice-summary-actions" aria-label="Practice quick entry">
               <div className="practice-hitting-quick-start">
                 <PracticeActivityCard mode="Hitting" icon={Swords} title="Hitting" compact onClick={() => setHittingStartOpen((open) => !open)} />
@@ -7678,7 +7670,7 @@ function PracticeHome({
               <PracticeActivityCard mode="Defense" icon={Shield} title="Defense" compact onClick={() => onOpenStation("Defense")} />
               <PracticeActivityCard mode="Live BP" icon={Gauge} title="Live BP" compact onClick={() => onOpenStation("Live BP")} />
             </div>
-          </section>
+          </PracticeWorkspaceSummary>
 
           {practice ? (
             <section className="practice-overview-grid">
@@ -9333,8 +9325,8 @@ function PracticeConsole({
         )}
       </section>
 
+      {practice && !practice.endedAt && currentSession && mode !== "Live BP" && data.teamContext?.currentTeam && <CoachLiveEntrySettings key={currentSession.id} teamId={data.teamContext.currentTeam.teamId} sessionId={currentSession.id} domain={mode === "Hitting" ? "hitting" : mode === "Pitching" ? "pitching" : "defense"} playerName={playerSelectionLabel(player)} preview={isLocalDevAuthBypass()} />}
       <div className="practice-mode-picker-trigger">
-        {practice && !practice.endedAt && currentSession && mode !== "Live BP" && data.teamContext?.currentTeam && <CoachLiveEntrySettings key={currentSession.id} teamId={data.teamContext.currentTeam.teamId} sessionId={currentSession.id} domain={mode === "Hitting" ? "hitting" : mode === "Pitching" ? "pitching" : "defense"} playerName={playerSelectionLabel(player)} preview={isLocalDevAuthBypass()} />}
         <ChoiceSelect
           value={mode}
           options={practiceModeOptions}
@@ -12430,15 +12422,7 @@ function WeightRoomView({
 
   return (
     <div className="page-stack weights-page weight-room-page">
-      <section className="weight-room-shell-header panel">
-        <div className="weight-room-shell-header__identity">
-          {team && <OrganizationLogo name={team.teamName} imageUrl={team.logoUrl} size="lg" />}
-          <span>
-            <h2>Weight Room</h2>
-          </span>
-        </div>
-        <SegmentedControl values={WEIGHT_ROOM_TABS} active={tab} onChange={onTab} />
-        <div className="weight-room-shell-header__actions">
+      <WeightRoomWorkspaceHeader team={team} tab={tab} tabs={WEIGHT_ROOM_TABS} onTab={onTab} action={<>
           <button className="secondary-button" type="button" onClick={() => onWeighInOpen(true)}>
             <Gauge size={16} aria-hidden="true" />
             Log Weigh-Ins
@@ -12447,8 +12431,7 @@ function WeightRoomView({
             {activeWorkoutRunning ? <Play size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}
             {workoutActionLabel}
           </button>
-        </div>
-      </section>
+        </>} />
       {tab === "Overview" && !weighInOpen && <AskClubhouseFab onClick={onAsk} />}
 
       {tab === "Overview" && (
@@ -15584,71 +15567,6 @@ function WeightRoomAthleteTabs({ active, onChange }: { active: WeightRoomAthlete
   );
 }
 
-function WeightRoomAthleteOverview({ player, profile }: { data: AppData; player: Player; profile: ReturnType<typeof buildWeightRoomPlayerProfile> }) {
-  const score = profile.score?.score;
-  const focus = buildWeightRoomAthleteFocus(player, profile);
-  const nextLift = profile.nextLift;
-  const nextLiftDate = nextLift ? dateKeyFromIso(nextLift.startAt) : undefined;
-
-  return (
-    <div className="weight-room-athlete-overview">
-      <section className="weight-room-week-summary" aria-label={`${playerSelectionLabel(player)} weight room summary`}>
-        <h3>This Week</h3>
-        <div className="weight-room-week-summary__metrics">
-          <span>
-            <CalendarDays size={18} aria-hidden="true" />
-            <small>Workouts</small>
-            <strong>{profile.completedWorkoutsThisWeek}</strong>
-            <em>{profile.scheduledWorkoutsThisWeek ? `of ${profile.scheduledWorkoutsThisWeek} scheduled` : "none scheduled"}</em>
-          </span>
-          <span>
-            <Dumbbell size={18} aria-hidden="true" />
-            <small>Total Volume</small>
-            <strong>{formatWorkoutVolume(profile.volume)}</strong>
-            <em className={weightRoomDeltaClass(profile.volumeChangePct)}>{formatWeightRoomTrend(profile.volumeChangePct, "vs last week")}</em>
-          </span>
-          <span>
-            <BarChart3 size={18} aria-hidden="true" />
-            <small>Sets</small>
-            <strong>{profile.sets}</strong>
-            <em>{formatSignedCount(profile.setChange, "vs last week")}</em>
-          </span>
-          <span>
-            <Gauge size={18} aria-hidden="true" />
-            <small>Current Weight</small>
-            <strong>{profile.currentWeight ? `${formatNumber(profile.currentWeight, 1)} lb` : "--"}</strong>
-            <em>{profile.weightChange ? formatSignedWeight(profile.weightChange) : "No change"}</em>
-          </span>
-          <span className="weight-room-week-summary__score">
-            <i style={{ ["--score" as string]: `${Math.max(0, Math.min(100, score ?? 0))}%` }} aria-hidden="true">
-              <strong>{score ?? "--"}</strong>
-            </i>
-            <small>Development Score</small>
-          </span>
-        </div>
-      </section>
-
-      <section className="weight-room-focus-panel">
-        <div>
-          <span>Focus This Week</span>
-          <h3>{focus.title}</h3>
-          <p>{focus.body}</p>
-        </div>
-        {profile.weightTrend.length > 1 && <MiniLineChart values={profile.weightTrend} labels={["Start", "Now"]} />}
-      </section>
-
-      {nextLift && (
-        <section className="weight-room-next-workout">
-          <CalendarDays size={18} aria-hidden="true" />
-          <span>Next Workout</span>
-          <strong>{nextLift.title}</strong>
-          <small>{nextLiftDate ? formatRelativeWorkoutDate(nextLiftDate) : shortDate(nextLift.startAt)}{nextLift.startAt ? ` - ${formatTime(nextLift.startAt)}` : ""}</small>
-        </section>
-      )}
-    </div>
-  );
-}
-
 function WeightRoomAthleteWorkouts({
   data,
   player,
@@ -17330,15 +17248,7 @@ function GamesView({
       {!sessionActive && !scoringPanelOpen && !sessionMenuOpen && !sessionDrawer && <AskClubhouseFab onClick={onAsk} />}
 
       <section className="games-layout">
-        <aside className="panel games-list">
-          {data.games.map((item) => (
-            <button key={item.id} type="button" className={item.id === game?.id ? "active" : ""} onClick={() => { onGame(item.id); setWorkspaceMode("field"); setScoringPanelOpen(false); setSessionActive(true); }}>
-              <span>{shortDate(item.date)}</span>
-              <strong>{matchupPrefix(item.homeAway).replace(".", "")} {item.opponent}</strong>
-              <small>{item.result ? `${item.result} ${item.metrolinaScore}-${item.opponentScore}` : `${item.type} - ${item.location}`}</small>
-            </button>
-          ))}
-        </aside>
+        <GameLibrary games={data.games} selectedGameId={game?.id} onGame={id => { onGame(id); setWorkspaceMode("field"); setScoringPanelOpen(false); setSessionActive(true); }} />
 
         {game && (
           <section className="game-console game-workstation">
@@ -17359,20 +17269,14 @@ function GamesView({
                 <button type="button" role="menuitem" onClick={() => { setSessionActive(false); setSessionMenuOpen(false); }}>Exit to Game Center</button>
               </div>}
             </header>}
-            <header className="game-score-ribbon panel">
-              <div className="game-score-team is-primary"><span>Metrolina</span><strong>{game.metrolinaScore}</strong><small>{game.homeAway}</small></div>
-              <div className="game-inning-state">
-                <span className="game-live-badge">Live</span>
-                <strong>{game.half} {game.inning}</strong>
+            <GameScoreRibbon game={game} teamName={data.teamContext?.currentTeam?.teamName ?? "Metrolina"}>
                 <div className="game-count-lights" aria-label={`${game.balls} balls, ${game.strikes} strikes, ${game.outs} outs`}>
                   <GameStateLights label="B" active={game.balls} total={3} tone="ball" />
                   <GameStateLights label="S" active={game.strikes} total={2} tone="strike" />
                   <GameStateLights label="O" active={game.outs} total={2} tone="out" />
                 </div>
                 <div className="game-ribbon-bases" aria-label={baseLine(game)}>{(["third", "second", "first"] as GameBase[]).map((base) => <i key={base} className={game.runners[base] ? "occupied" : ""} title={`${baseShortLabel(base)} ${game.runners[base] ? "occupied" : "empty"}`} />)}</div>
-              </div>
-              <div className="game-score-team"><span>{game.opponent}</span><strong>{game.opponentScore}</strong><small>{game.location}</small></div>
-            </header>
+            </GameScoreRibbon>
 
             {sessionActive && <GameFieldCommand key={`${game.id}-${workspaceMode}`}
               game={game}
@@ -21410,27 +21314,6 @@ function workoutEntryMatchesResultMode(
   return workoutEntryStationContext(data, entry, exerciseDefinition)?.targetStyle === targetStyle;
 }
 
-function formatWorkoutVolume(value: number) {
-  if (!value) return "--";
-  if (value >= 1000) return `${formatCompactNumber(value)} lbs`;
-  return `${formatNumber(value, 0)} lbs`;
-}
-
-function latestBodyWeight(data: AppData, playerId: ID, throughDate?: string, exactDateOnly = false) {
-  const sessions = data.workoutSessions
-    .filter((session) => session.playerId === playerId && typeof session.bodyWeight === "number")
-    .filter((session) => exactDateOnly ? session.date === throughDate : !throughDate || session.date <= throughDate)
-    .sort((left, right) => right.date.localeCompare(left.date) || right.updatedAt.localeCompare(left.updatedAt));
-  return sessions[0]?.bodyWeight;
-}
-
-function previousBodyWeight(data: AppData, playerId: ID, beforeDate: string) {
-  const sessions = data.workoutSessions
-    .filter((session) => session.playerId === playerId && typeof session.bodyWeight === "number" && session.date < beforeDate)
-    .sort((left, right) => right.date.localeCompare(left.date) || right.updatedAt.localeCompare(left.updatedAt));
-  return sessions[0]?.bodyWeight;
-}
-
 function latestWeeklyBodyWeight(data: AppData, playerId: ID, weekOf: string, throughDate: string) {
   const sessions = data.workoutSessions
     .filter((session) => session.playerId === playerId && typeof session.bodyWeight === "number")
@@ -21495,12 +21378,6 @@ function buildWeightRoomTeamOverview(data: AppData, players: Player[], date: str
   };
 }
 
-function shiftDateKey(dateKey: string, days: number) {
-  const date = parseDateKey(dateKey) ?? new Date(`${dateKey}T12:00:00`);
-  date.setDate(date.getDate() + days);
-  return localDateKey(date);
-}
-
 function isWorkoutEntryImprovement(entry: WorkoutEntry) {
   if (!entry.priorValue) return false;
   const current = entry.weight ?? entry.value ?? entry.reps ?? 0;
@@ -21508,52 +21385,6 @@ function isWorkoutEntryImprovement(entry: WorkoutEntry) {
   if (!current || !prior) return false;
   const timeBased = entry.kind === "Speed" || entry.unit === "sec";
   return timeBased ? current < prior : current > prior;
-}
-
-function buildWeightRoomPlayerProfile(data: AppData, player: Player) {
-  const sessions = data.workoutSessions.filter((session) => session.playerId === player.id).sort((left, right) => right.date.localeCompare(left.date));
-  const entries = data.workoutEntries.filter((entry) => entry.playerId === player.id);
-  const today = todayKey();
-  const week = weekStart(today);
-  const previousWeek = shiftDateKey(week, -7);
-  const sessionsThisWeek = sessions.filter((session) => (session.weekOf || weekStart(session.date)) === week);
-  const sessionsPreviousWeek = sessions.filter((session) => (session.weekOf || weekStart(session.date)) === previousWeek);
-  const sessionIdsThisWeek = new Set(sessionsThisWeek.map((session) => session.id));
-  const sessionIdsPreviousWeek = new Set(sessionsPreviousWeek.map((session) => session.id));
-  const entriesThisWeek = entries.filter((entry) => sessionIdsThisWeek.has(entry.sessionId) && (entry.status ?? "Completed") !== "Skipped");
-  const entriesPreviousWeek = entries.filter((entry) => sessionIdsPreviousWeek.has(entry.sessionId) && (entry.status ?? "Completed") !== "Skipped");
-  const score = buildScoredWeightRoomLeaderboard([player], data.workoutSessions, data.workoutEntries, "This Week", today)[0]
-    ?? buildScoredWeightRoomLeaderboard([player], data.workoutSessions, data.workoutEntries, "This Season", today)[0];
-  const currentWeight = latestBodyWeight(data, player.id);
-  const previousWeight = previousBodyWeight(data, player.id, today);
-  const volume = entriesThisWeek.reduce((sum, entry) => sum + workoutEntryVolume(entry), 0);
-  const previousVolume = entriesPreviousWeek.reduce((sum, entry) => sum + workoutEntryVolume(entry), 0);
-  const setCount = entriesThisWeek.reduce((sum, entry) => sum + Math.max(1, entry.sets ?? 1), 0);
-  const previousSetCount = entriesPreviousWeek.reduce((sum, entry) => sum + Math.max(1, entry.sets ?? 1), 0);
-  const nextLift = buildScheduleItems(data)
-    .filter((item) => item.eventType === "Lift" && item.status !== "Completed" && item.status !== "Cancelled" && isUpcomingScheduleItem(item))
-    .sort((left, right) => Date.parse(left.startAt) - Date.parse(right.startAt))[0];
-  const bodyWeights = sessions
-    .filter((session) => typeof session.bodyWeight === "number")
-    .slice()
-    .reverse()
-    .map((session) => session.bodyWeight ?? 0);
-  const exerciseTrends = uniqueStrings(entries.map((entry) => entry.exercise)).map((exercise) => trendForExercise(entries.filter((entry) => entry.exercise === exercise))).filter((trend) => trend.samples > 1);
-  return {
-    workoutsThisWeek: new Set(sessionsThisWeek.map((session) => session.date)).size,
-    completedWorkoutsThisWeek: new Set(sessionsThisWeek.filter((session) => session.completed).map((session) => session.date)).size,
-    scheduledWorkoutsThisWeek: new Set(sessionsThisWeek.map((session) => session.date)).size,
-    volume,
-    volumeChangePct: previousVolume > 0 ? ((volume - previousVolume) / previousVolume) * 100 : undefined,
-    sets: setCount,
-    setChange: sessionsPreviousWeek.length || previousSetCount ? setCount - previousSetCount : undefined,
-    currentWeight,
-    weightChange: typeof currentWeight === "number" && typeof previousWeight === "number" ? currentWeight - previousWeight : undefined,
-    score,
-    weightTrend: bodyWeights,
-    exerciseTrends,
-    nextLift,
-  };
 }
 
 function buildWeightRoomPlayerExerciseRows(data: AppData, player: Player, exercises: WeightRoomExercise[]) {
@@ -21719,44 +21550,6 @@ function syncWeightRoomAthleteUrl(playerId: ID, tab: WeightRoomAthleteTab) {
   if (nextUrl !== currentUrl) window.history.replaceState({}, "", nextUrl);
 }
 
-function firstName(player: Player) {
-  return player.name.split(" ")[0] ?? player.name;
-}
-
-function buildWeightRoomAthleteFocus(player: Player, profile: ReturnType<typeof buildWeightRoomPlayerProfile>) {
-  if (!profile.sets) {
-    return {
-      title: "Build workout history",
-      body: "Not enough workout history yet to identify a focus area.",
-    };
-  }
-  const trends = profile.exerciseTrends.slice().sort((left, right) => left.changePct - right.changePct);
-  const weakest = trends[0];
-  const strongest = trends[trends.length - 1];
-  if (weakest && weakest.changePct < -1) {
-    return {
-      title: `Stabilize ${weakest.exercise}`,
-      body: `${weakest.exercise} is down ${formatNumber(Math.abs(weakest.changePct), 1)}% across comparable logged sets.`,
-    };
-  }
-  if (weakest && Math.abs(weakest.changePct) <= 1) {
-    return {
-      title: `Move ${weakest.exercise} forward`,
-      body: `${weakest.exercise} has held nearly flat across recent comparable sessions.`,
-    };
-  }
-  if (strongest && strongest.changePct > 1) {
-    return {
-      title: `Keep building ${strongest.exercise}`,
-      body: `${firstName(player)} is trending up ${formatNumber(strongest.changePct, 1)}% on ${strongest.exercise}.`,
-    };
-  }
-  return {
-    title: "Keep logging comparable sets",
-    body: "Consistent weekly workout entries will make the next focus recommendation more specific.",
-  };
-}
-
 function buildWeightRoomProgressInsight(player: Player, rows: ReturnType<typeof buildWeightRoomPlayerProgressRows>, score?: WeightLeaderResult) {
   if (!score && !rows.length) return "Log two comparable workouts, then use the same exercises and units so the system can identify the next lift to push.";
   const improving = rows.filter((row) => typeof row.changePct === "number" && row.changePct > 1);
@@ -21773,41 +21566,12 @@ function buildWeightRoomProgressInsight(player: Player, rows: ReturnType<typeof 
   return "Log another comparable workout so the next recommendation can point to a specific lift, load, and trend.";
 }
 
-function formatWeightRoomTrend(value: number | undefined, suffix: string) {
-  if (typeof value !== "number") return "No prior week";
-  if (Math.abs(value) < 0.05) return "No change";
-  return `${value > 0 ? "+" : ""}${formatNumber(value, 0)}% ${suffix}`;
-}
-
-function formatSignedCount(value: number | undefined, suffix: string) {
-  if (typeof value !== "number") return "No prior week";
-  if (value === 0) return "No change";
-  return `${value > 0 ? "+" : ""}${value} ${suffix}`;
-}
-
-function formatSignedWeight(value: number) {
-  if (Math.abs(value) < 0.05) return "No change";
-  return `${value > 0 ? "+" : ""}${formatNumber(value, 1)} lb`;
-}
-
-function formatRelativeWorkoutDate(date: string) {
-  const today = todayKey();
-  if (date === today) return "Today";
-  if (date === shiftDateKey(today, 1)) return "Tomorrow";
-  return shortDate(date);
-}
-
 function bestWorkoutEntry(entries: WorkoutEntry[]) {
   return entries.slice().sort((left, right) => workoutEntryComparableForDisplay(right) - workoutEntryComparableForDisplay(left))[0];
 }
 
 function workoutEntrySortableValue(entry?: WorkoutEntry) {
   return entry ? workoutEntryComparableForDisplay(entry) : Number.NEGATIVE_INFINITY;
-}
-
-function workoutEntryComparableForDisplay(entry: WorkoutEntry) {
-  if (entry.unit === "sec" && typeof entry.value === "number") return -entry.value;
-  return estimatedOneRepMax(entry.weight, entry.reps) ?? entry.weight ?? entry.value ?? entry.reps ?? 0;
 }
 
 function workoutEntryPercentDelta(current?: WorkoutEntry, baseline?: WorkoutEntry) {
@@ -21902,28 +21666,9 @@ function workoutEntryChangeDisplay(
   };
 }
 
-function weightRoomDeltaClass(value?: number) {
-  if (typeof value !== "number" || Math.abs(value) < 0.05) return "";
-  return value > 0 ? "positive" : "negative";
-}
-
 function workoutSessionTitle(data: AppData, session: WorkoutSession) {
   const lift = (data.scheduleEvents ?? []).find((event) => event.eventType === "Lift" && dateKeyFromIso(event.startAt) === session.date);
   return lift?.title ?? "Team Lift";
-}
-
-function trendForExercise(entries: WorkoutEntry[]) {
-  const sorted = entries.slice().sort((left, right) => left.createdAt.localeCompare(right.createdAt));
-  const first = sorted[0];
-  const latest = sorted[sorted.length - 1];
-  const firstValue = first ? workoutEntryComparableForDisplay(first) : 0;
-  const latestValue = latest ? workoutEntryComparableForDisplay(latest) : 0;
-  const changePct = firstValue ? ((latestValue - firstValue) / Math.abs(firstValue)) * 100 : 0;
-  return {
-    exercise: latest?.exercise ?? first?.exercise ?? "Exercise",
-    samples: sorted.length,
-    changePct,
-  };
 }
 
 function latestExerciseValue(data: AppData, playerId: ID, exercise: string): number | undefined {
@@ -23121,13 +22866,6 @@ function monthCursor(dateKey?: string) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-function parseDateKey(dateKey?: string) {
-  if (!dateKey) return undefined;
-  const [year, month, day] = dateKey.split("-").map(Number);
-  if (!year || !month || !day) return undefined;
-  return new Date(year, month - 1, day);
-}
-
 function formatPickerDate(dateKey?: string) {
   const date = parseDateKey(dateKey);
   if (!date) return "Select date";
@@ -23228,10 +22966,6 @@ function shouldResetScheduleTitle(nextType: ScheduleEventType, currentTitle: str
   return isDefaultScheduleTitle(currentTitle);
 }
 
-function formatCompactNumber(value: number) {
-  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: value >= 1000 ? 1 : 0 }).format(value);
-}
-
 function clampNumber(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
@@ -23253,14 +22987,6 @@ function sortPlayersByRecent(players: Player[], recentIds: ID[]) {
     if (recentA !== recentB) return (recentA === -1 ? 999 : recentA) - (recentB === -1 ? 999 : recentB);
     return a.jerseyNumber - b.jerseyNumber;
   });
-}
-
-function weekStart(dateString: string) {
-  const date = new Date(`${dateString}T12:00:00`);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  date.setDate(diff);
-  return date.toISOString().slice(0, 10);
 }
 
 function weekdayName(dateString: string): WorkoutSession["day"] {

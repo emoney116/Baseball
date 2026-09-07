@@ -54,12 +54,40 @@ try {
       await dialog.waitFor({ state: "detached" });
       assert.equal(await page.getByRole("button", { name: "Ask Clubhouse", exact: true }).evaluate(el => el === document.activeElement), true);
       const nav = page.getByRole("navigation", { name: "Player navigation" });
-      for (const view of ["Schedule", "Development", "Analytics", "More"]) {
+      assert.equal(await nav.getByRole("button", { name: "Development", exact: true }).count(), 0);
+      for (const view of ["Schedule", "Practice", "Games", "More"]) {
         await nav.getByRole("button", { name: view, exact: true }).click();
         await layout();
+        if (view === "Practice") {
+          await page.getByRole("navigation", { name: "Practice sections" }).waitFor();
+          assert.equal(await page.getByRole("button", { name: "Start Practice", exact: true }).count(), 0);
+          assert.equal(await page.getByRole("button", { name: "Weight Room", exact: true }).count(), 0);
+          await page.screenshot({path: out + "/practice-" + mode + "-" + width + ".png"});
+        }
+        if (view === "Games") {
+          await page.getByRole("heading", { name: "Game Center", exact: true }).waitFor();
+          assert.equal(await page.getByRole("button", { name: "Start Game", exact: true }).count(), 0);
+          await page.locator(".game-score-ribbon").waitFor();
+          await page.locator(".games-list button").first().waitFor();
+          assert.equal(await page.locator(".analytics-box-score__row--team").count(), 0);
+          assert.equal(await page.getByRole("button", { name: "Log Pitch", exact: true }).count(), 0);
+          await page.screenshot({path: out + "/games-" + mode + "-" + width + ".png"});
+        }
       }
       assert.equal(await page.getByRole("heading", { name: "Team Roster" }).count(), mode === "FULL_PLAYER" ? 1 : 0);
-      await nav.getByRole("button", { name: "Analytics", exact: true }).click();
+      await page.getByRole("button", { name: "Weight Room", exact: true }).click();
+      await page.getByRole("heading", { name: "Weight Room", exact: true }).waitFor();
+      await page.locator(".weight-room-athlete-overview").waitFor();
+      assert.equal(await page.getByRole("navigation", { name: "Practice sections" }).count(), 0);
+      await layout();
+      await page.screenshot({path: out + "/workout-page-" + mode + "-" + width + ".png"});
+      await page.getByRole("button", { name: "Workouts", exact: true }).click();
+      await page.locator(".weight-room-recent-card").waitFor();
+      await page.getByRole("button", { name: "Progress", exact: true }).click();
+      await page.locator(".analytics-box-score").waitFor();
+      await layout();
+      await nav.getByRole("button", { name: "More", exact: true }).click();
+      await page.getByRole("button", { name: "Analytics", exact: true }).click();
       await page.locator(".analytics-box-score").waitFor();
       assert.equal(await page.locator(".analytics-box-score__row--team").count(), 0);
       await page.screenshot({ path: out + "/analytics-" + mode + "-" + width + ".png" });
@@ -83,6 +111,12 @@ try {
     await page.keyboard.press("Escape");
     await coachDialog.waitFor({ state: "detached" });
     await layout();
+    await page.goto(base + "/?devBypass=1&view=practice");
+    await page.getByRole("button", { name: "Hitting", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Coach BP", exact: true }).click();
+    await page.locator(".coach-live-entry summary").waitFor();
+    assert.equal(await page.locator(".coach-live-entry summary").isVisible(), true);
+    await page.screenshot({path: out + "/coach-live-settings-" + width + ".png"});
     rows.push({ surface: "coach", width, height, passed: true });
   }
   assert.deepEqual(errors, []);

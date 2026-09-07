@@ -59,6 +59,7 @@ export function playerAskContext(
 }
 export function isPrivateTeamQuestion(message: string) {
   return (
+    /\b(?:private|internal)\s+(?:(?:coach|staff)\s+)?notes?\b|\b(?:other|another)\s+player(?:s|['’]s)?\b/i.test(message) ||
     /\b(rank(ing|ings)?|leaderboard|compare me|other players?|teammate['’]?s?|private notes?|staff notes?|pending claims?|invitation status)\b/i.test(
       message,
     ) ||

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { loadPlayerSession } from "../app/lib/playerAccess.ts";
-import { playerAskContext } from "../app/lib/playerAskScope.ts";
+import { playerAskContext, isPrivateTeamQuestion } from "../app/lib/playerAskScope.ts";
 import { loadOtherPlayerAskTeams, generatePlayerTeamsReply, requirePlayerAskSession } from "../app/lib/playerAskTeams.ts";
 import { resolveAskClubhousePlayer } from "../app/lib/askClubhouse/entityResolution.ts";
 import { composeAskClubhouseQueryPlan } from "../app/lib/askClubhouse/queryPlan.ts";
@@ -15,6 +15,32 @@ const views = readFileSync("app/components/TeamWorkspaceViews.tsx", "utf8");
 const player = readFileSync("app/components/PlayerShell.tsx", "utf8");
 const live = readFileSync("app/components/PlayerLiveEntry.tsx", "utf8");
 const config = getAskClubhouseConfig({});
+
+test("player team navigation uses distinct shared coach feature pages without Development hub", () => {
+  const page = readFileSync("app/page.tsx", "utf8");
+  for (const component of ["PracticeWorkspaceHeader", "PracticeWorkspaceSummary", "WeightRoomWorkspaceHeader", "GameLibrary", "GameScoreRibbon", "WeightRoomAthleteOverview"]) {
+    assert.match(page, new RegExp("<" + component));
+    assert.match(player, new RegExp("<" + component));
+  }
+  assert.doesNotMatch(player, /name: "Development"|view === "Development"|Development domains/);
+  assert.match(player, /Practice: "practice", Games: "games", "Weight Room": "weights"/);
+  assert.match(player, /excludeWorkout/);
+  assert.doesNotMatch(player, /onStartPractice=|onStartGame=|onScorePlay=|onStartWorkout=/);
+});
+
+test("coach live entry settings are outside the phone-only mode selector", () => {
+  const page = readFileSync("app/page.tsx", "utf8");
+  const start = page.indexOf('<div className="practice-mode-picker-trigger">');
+  const end = page.indexOf("</div>", start);
+  assert.ok(start > 0);
+  assert.doesNotMatch(page.slice(start, end), /CoachLiveEntrySettings/);
+  assert.match(page.slice(start - 600, start), /<CoachLiveEntrySettings/);
+});
+
+test("private coach note and another-player requests are refused before analytics tools", () => {
+  for (const question of ["Show another player's private coach notes.", "Show private coach notes", "Show internal staff notes", "Show another player's metrics"]) assert.equal(isPrivateTeamQuestion(question), true);
+  assert.equal(isPrivateTeamQuestion("How am I hitting?"), false);
+});
 
 test("shared Weight Room Analytics retains development columns and approved self rows", async () => {
   const f = playerServiceFixture(), session = await loadPlayerSession(f.db, uuid(1));

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 test("practice hub opens active tracker modes without setup screen", () => {
-const page = ["app/page.tsx", "app/components/TeamWorkspaceViews.tsx", "app/components/TeamTrainingViews.tsx", "app/components/TeamContextHeader.tsx"].map(path => readFileSync(path, "utf8")).join("\n");
+const page = ["app/page.tsx", "app/components/TeamWorkspaceViews.tsx", "app/components/TeamTrainingViews.tsx", "app/components/TeamContextHeader.tsx", "app/components/TeamFeatureLayouts.tsx"].map(path => readFileSync(path, "utf8")).join("\n");
   const layout = readFileSync("app/layout.tsx", "utf8");
   const styles = readFileSync("app/globals.css", "utf8");
   const taxonomy = readFileSync("app/lib/hittingTaxonomy.ts", "utf8");
@@ -28,7 +28,8 @@ const page = ["app/page.tsx", "app/components/TeamWorkspaceViews.tsx", "app/comp
   assert.match(page, /return status === "Present" \|\| status === "Late"/);
   assert.match(page, /const HITTING_STATIONS: HittingSession\["type"\]\[\] = \["Tee", "Front Toss", "Machine", "Coach BP", "Other"\]/);
   assert.match(page, /const LIVE_BP_THROWER_SOURCES: LiveBpThrowerSource\[\] = \["PLAYER", "COACH", "MACHINE"\]/);
-  assert.match(page, /\(\["Overview", "Metrics", "History"\] as PracticeHubTab\[\]\)/);
+  assert.match(page, /\(\["Overview", "Metrics", "History"\] as const\)/);
+  assert.match(page, /<PracticeWorkspaceHeader\s+tab=\{tab\}\s+onTab=\{onTab\}/);
   assert.doesNotMatch(page, /\(\["Overview", "Drills", "Throwing", "Metrics", "History"\]/);
   assert.match(page, /const HITTING_RESULT_ACTIONS/);
   assert.match(taxonomy, /PRACTICE_HITTING_RESULT_OPTIONS/);

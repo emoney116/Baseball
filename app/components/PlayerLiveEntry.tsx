@@ -53,11 +53,13 @@ async function decode(r: Response) {
 export function PlayerLiveEntry({
   membershipId,
   domain,
+  excludeWorkout = false,
   onSaved,
   transport,
 }: {
   membershipId: string;
   domain?: LiveDomain;
+  excludeWorkout?: boolean;
   onSaved?: () => void;
   transport?: LiveTransport;
 }) {
@@ -113,7 +115,7 @@ export function PlayerLiveEntry({
     };
   }, [refresh]);
   const sessions = (state?.sessions ?? []).filter(
-    (s) => !domain || s.domain === domain,
+    (s) => (!domain || s.domain === domain) && (!excludeWorkout || s.domain !== "workout"),
   );
   const active =
     sessions.find((s) => `${s.id}:${s.domain}` === selected) ?? sessions[0];
@@ -159,7 +161,7 @@ export function PlayerLiveEntry({
               </div>
             )}
           {!sessions.some((s) => s.domain === "workout") &&
-            (!domain || domain === "workout") && (
+            !excludeWorkout && (!domain || domain === "workout") && (
               <div className="player-live-waiting">
                 <h2>Weight Room</h2>
                 <p>Waiting on coach to begin Weight Room session.</p>

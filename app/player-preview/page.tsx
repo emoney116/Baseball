@@ -65,7 +65,7 @@ export default async function PlayerPreview({ searchParams }: { searchParams: Pr
     ),
     gameEvents: [],
     plateAppearances: [],
-    games: [],
+    games: sampleData.games.map(game => ({ ...game, lineup: [], positions: {}, runners: {}, startingPitcherId: undefined, currentPitcherId: undefined, currentBatterId: undefined })),
     scheduleEvents: [],
   };
   const session: PlayerSession = {
