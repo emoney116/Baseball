@@ -1200,7 +1200,7 @@ export function AnalyticsSprayChart({ result, mode = "heat", onModeChange }: { r
   return (
     <section className="panel analytics-spray-chart" aria-label="Hitting spray chart">
       <div className="analytics-spray-chart__header">
-        <span>Team Spray Chart</span>
+        <span>{result.query.playerIds?.length === 1 ? `${result.rows[0]?.player.name ?? "Player"} Spray Chart` : "Team Spray Chart"}</span>
         <AnalyticsChartModes mode={displayMode} onChange={onModeChange ?? (() => undefined)} />
       </div>
       <ClubhouseBaseballField

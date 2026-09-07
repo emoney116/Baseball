@@ -135,6 +135,10 @@ export async function listPlayerContexts(
         .eq("active", true),
     ),
   ]);
+  const organizationIds = [...new Set(teams.map(t => t.organization_id).filter(Boolean))];
+  const organizations = organizationIds.length
+    ? await rows(db.from("organizations").select("id,name,logo_url").in("id", organizationIds))
+    : [];
   return memberships.flatMap((m) => {
     const p = players.find((p) => p.id === m.player_id),
       t = teams.find((t) => t.id === m.team_id),
@@ -152,8 +156,8 @@ export async function listPlayerContexts(
           teamId: t.id,
           teamName: t.name,
           organizationId: t.organization_id,
-          organizationName: "",
-          logoUrl: t.logo_url,
+          organizationName: organizations.find(o => o.id === t.organization_id)?.name ?? "",
+          logoUrl: t.logo_url ?? organizations.find(o => o.id === t.organization_id)?.logo_url,
           seasonId: s.id,
           seasonName: s.name,
           role: "PLAYER" as const,

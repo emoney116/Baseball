@@ -19,12 +19,14 @@ Date: 2026-09-07. Base: 974204dda642b489a224ae9da627e93c33a7aaed.
 
 ## Automated and visual evidence
 
-- 565 deterministic tests, up from 559. Coverage includes shared surfaces, exact self resolution with same-name players, unapproved sessions, all-approved-team scope, and explicit dates.
+- 567 deterministic tests, up from 559. Coverage includes shared surfaces, exact self resolution with same-name players, unapproved sessions, all-approved-team scope, explicit dates, organization branding, and development metric columns.
 - Existing live-entry service/RLS tests retain ownership, stale-session, downgrade, revoke, retry, analytics ingestion, and no-Game-mutation assertions.
 - `tests/qa-shared-player-ui.mjs`: 20 role/viewport cases, all three player modes plus coach at 390x844, 430x932, 820x1180, 1180x820, and 1440x900. Local network is isolated.
 - `tests/qa-shared-live-logging.mjs`: 56 passing cases at both phone and iPad sizes. Hitting, Pitching, Defense, workout sets, set correction, waiting states, all modes, session end, revoke, and team isolation; no browser runtime errors.
 - Local screenshots and machine-readable results are in ignored `outputs/shared-role-ui` and `outputs/shared-live-logging`.
 
 ## Release and acceptance boundaries
+
+Authenticated Preview acceptance at 16b0f27 verified the ordinary QA player's own box score, rendered spray chart, calendar, Practice history, and workout history. September 6 self-context Ask returned 4 swings, 25% contact, 100% hard contact on one ball in play, and 84 mph average/max EV; its Analytics link preserved that exact date and identity. Hosted QA also found missing organization branding, a personal chart labeled Team, and development columns incorrectly filtered by field-only source logic. Follow-up fixes retain the same authorization and canonical calculations.
 
 No migration, production Auth changes, real player emails, or mass access-mode updates are part of this change. Hosted acceptance must use the existing ordinary QA player and exact approved Metrolina context. Local fixtures are not evidence of hosted persistence. Keep Player Beta and related Linear issues In Progress until remaining authenticated live-session, ownership, and rollout gates pass.

@@ -70,6 +70,7 @@ try {
       await page.getByRole("button", { name: "Analytics source and Workouts", exact: true }).click();
       await page.getByRole("menuitem", { name: "Workouts", exact: true }).click();
       await page.locator(".analytics-table-panel").waitFor();
+      assert.ok(await page.locator(".analytics-box-score__row--head .analytics-box-score__cell").count() > 1);
       await layout();
       await page.screenshot({ path: out + "/weight-room-" + mode + "-" + width + ".png" });
       rows.push({ surface: "player", mode, width, height, passed: true });

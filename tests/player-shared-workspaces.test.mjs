@@ -8,12 +8,20 @@ import { resolveAskClubhousePlayer } from "../app/lib/askClubhouse/entityResolut
 import { composeAskClubhouseQueryPlan } from "../app/lib/askClubhouse/queryPlan.ts";
 import { getAskClubhouseConfig } from "../app/lib/askClubhouse/config.ts";
 import { generateAskClubhouseReply } from "../app/lib/askClubhouse/engine.ts";
+import { executeAnalyticsQuery } from "../app/lib/analyticsQuery.ts";
 import { playerServiceFixture, uuid } from "./helpers/playerServiceFixture.mjs";
 
 const views = readFileSync("app/components/TeamWorkspaceViews.tsx", "utf8");
 const player = readFileSync("app/components/PlayerShell.tsx", "utf8");
 const live = readFileSync("app/components/PlayerLiveEntry.tsx", "utf8");
 const config = getAskClubhouseConfig({});
+
+test("shared Weight Room Analytics retains development columns and approved self rows", async () => {
+  const f = playerServiceFixture(), session = await loadPlayerSession(f.db, uuid(1));
+  const result = executeAnalyticsQuery(session.data, { domain: "development", source: "all", mode: "box-score", timeRange: "season", groupBy: "player", playerIds: [session.context.playerId] });
+  assert.deepEqual(result.columns.map(c => c.metricId), ["weightScore", "workouts", "workoutCompletionPct", "attendancePct", "practiceReps"]);
+  assert.deepEqual(result.rows.map(row => row.player.id), [session.context.playerId]);
+});
 
 test("player uses actual team pages with forced approved self identity and no staff callbacks", () => {
   assert.match(player, /<AnalyticsView/);
@@ -42,6 +50,15 @@ test("I and my resolve exact account link even with same-name records", async ()
 });
 test("unapproved or revoked sessions cannot enter all-team Ask", () => {
   assert.throws(() => requirePlayerAskSession({ mode: "player", contexts: [] }), /approved/);
+});
+test("approved player contexts include only their organization's shared branding", async () => {
+  const f = playerServiceFixture();
+  const orgId = f.tables.teams[0].organization_id;
+  f.tables.organizations = [{ id: orgId, name: "Metrolina Baseball", logo_url: "/brand/metrolina-baseball-alpha.png" }, { id: uuid(999), name: "Unrelated Private Org" }];
+  const session = await loadPlayerSession(f.db, uuid(1));
+  assert.equal(session.context.team.organizationName, "Metrolina Baseball");
+  assert.equal(session.context.team.logoUrl, "/brand/metrolina-baseball-alpha.png");
+  assert.doesNotMatch(JSON.stringify(session.contexts), /Unrelated Private Org/);
 });
 test("All My Teams is built from approved memberships, not client team IDs", async () => {
   const f = playerServiceFixture();

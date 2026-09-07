@@ -876,7 +876,9 @@ function assembleResult(
     .map((metricId) => metricById(metricId))
     .filter((metricItem): metricItem is AnalyticsMetricDefinition => Boolean(metricItem))
     .filter((metricItem) => metricItem.domain === query.domain)
-    .filter((metricItem) => analyticsFieldSources(query).some((source) => metricItem.supportedSources.includes(source)))
+    .filter((metricItem) => query.domain === "development"
+      ? metricItem.supportedSources.includes("all")
+      : analyticsFieldSources(query).some((source) => metricItem.supportedSources.includes(source)))
     .map((metricItem) => ({
       metricId: metricItem.id,
       key: metricItem.key,
