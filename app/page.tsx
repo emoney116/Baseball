@@ -1,23 +1,26 @@
 "use client";
+import { PracticeResultChoices } from "./components/PracticeResultChoices";
+import { displayWorkspaceTeams, OrganizationLogo, organizationSummariesFromContext, OrganizationSummary, roleLabel, teamContextRole, teamOrganizationLogo, teamValue, TeamWorkspaceHeader } from "./components/TeamContextHeader";
+import { ActiveWorkoutCell, ActiveWorkoutStation, buildRecentWeightRoomWorkouts, formatInchesValue, formatSecondsValue, formatWeightRoomSessionMeta, formatWorkoutEntryValue, formatWorkoutEntryValueForStation, optionalNumber, PracticeHistoryTab, practiceTotals, stationAttemptLabel, TRACKING_VELOCITY_MAX_MPH, TRACKING_VELOCITY_MIN_MPH, uniqueStrings, VelocityPickerField, WeightRoomExercise, WeightRoomExerciseCategory, WeightRoomInlineSetCell, weightRoomMeasurementLabel, WeightRoomRecentWorkouts, WeightRoomWorkoutStatus, WeightRoomWorkoutSummary, WorkoutMeasurementType, WorkoutPerformanceDirection, WorkoutTargetStyle } from "./components/TeamTrainingViews";
+import { AnalyticsView, BaseballIcon, buildScheduleItems, calendarDaysForMonth, chartMetricModeLabel, ClockIcon, CompactEmpty, dateKeyFromIso, defaultScheduleVisibility, encodeAnalyticsFilters, formatTime, isoDate, isUpcomingScheduleItem, localDateKey, matchupPrefix, PITCH_LOCATION_BUCKETS, PitchLocationBucket, pitchLocationBucketFromPoint, PitchLocationGridAxis, PracticeChartMetricMode, SCHEDULE_EVENT_ACCENTS, SCHEDULE_EVENT_TYPES, ScheduleItem, ScheduleTypeIcon, ScheduleView, SectionHeader, SegmentedControl, SvgIconProps, todayKey, toLocalIso, ViewKey } from "./components/TeamWorkspaceViews";
 
+import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
   Building2,
   CalendarDays,
   CalendarPlus,
-  ChevronLeft,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   ChevronUp,
   ClipboardList,
-  Columns3,
   Copy,
   Download,
   Dumbbell,
   Edit3,
   Gauge,
-  Handshake,
   Heart,
   Home,
   Info,
@@ -28,90 +31,60 @@ import {
   Moon,
   MoreHorizontal,
   Pause,
-  Plus,
   Pin,
   Play,
+  Plus,
   RefreshCw,
   Save,
   Search,
   Settings,
   Shield,
-  SlidersHorizontal,
   Sparkles,
-  Sun,
   Star,
+  Sun,
   Swords,
-  Trophy,
   Trash2,
   TrendingUp,
+  Trophy,
   Undo2,
   Upload,
   User,
   UserPlus,
   Users,
-  X,
+  X
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import type React from "react";
 import { Children, isValidElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ASK_CLUBHOUSE_ERROR_BODY, ASK_CLUBHOUSE_ERROR_TITLE, ASK_CLUBHOUSE_GENERIC_STAGE, ASK_CLUBHOUSE_SETUP_BODY, ASK_CLUBHOUSE_SETUP_TITLE, ASK_CLUBHOUSE_UI_SUGGESTIONS, AskClubhouseDrawer, AskClubhouseFab, type AskClubhouseChatMessage } from "./components/AskClubhouseDrawer";
+import { ChoiceSelect, type ChoiceOption } from "./components/ChoiceSelect";
 import { ClubhouseBaseballField } from "./components/ClubhouseBaseballField";
+import { ClubhouseBottomNav } from "./components/ClubhouseBottomNav";
+import { CoachLiveEntrySettings } from "./components/CoachLiveEntrySettings";
 import { DemoDataQaPanel } from "./components/DemoDataQaPanel";
 import { DensePlayerIdentity } from "./components/DensePlayerIdentity";
+import { PlayerAccessPanel } from "./components/PlayerAccessPanel";
 import { PlayerAccountLinksPanel, TeamPlayerClaimsPanel } from "./components/PlayerAccountLinksPanel";
 import { PlayerInvitationsPanel, usePlayerInvitationRoster } from "./components/PlayerInvitationsPanel";
-import { PlayerAccessPanel } from "./components/PlayerAccessPanel";
-import { CoachLiveEntrySettings } from "./components/CoachLiveEntrySettings";
-import { mergeLiveRefresh } from "./lib/liveSyncDelta";
-import { playerSelectionLabel } from "./lib/exactRosterIdentity";
-import { localPracticeStartFields, validatePracticeStart } from "./lib/practiceStart";
 import { PlayerShell } from "./components/PlayerShell";
-import { AskClubhouseDrawer, AskClubhouseLauncher, AskClubhouseFab, ASK_CLUBHOUSE_UI_SUGGESTIONS, ASK_CLUBHOUSE_GENERIC_STAGE, ASK_CLUBHOUSE_SETUP_TITLE, ASK_CLUBHOUSE_SETUP_BODY, ASK_CLUBHOUSE_ERROR_TITLE, ASK_CLUBHOUSE_ERROR_BODY, type AskClubhouseChatMessage } from "./components/AskClubhouseDrawer";
-import { ChoiceSelect, type ChoiceOption } from "./components/ChoiceSelect";
-import { useScrollEdges, SCROLL_EDGE_THRESHOLD } from "./components/useScrollEdges";
-import { AnalyticsPlayerMetrics } from "./components/AnalyticsPlayerMetrics";
-import { ClubhouseBottomNav } from "./components/ClubhouseBottomNav";
-import { ScheduleAgendaRow } from "./components/ScheduleAgendaRow";
-import type { PlayerSession } from "./lib/playerAccess";
+import { SCROLL_EDGE_THRESHOLD, useScrollEdges } from "./components/useScrollEdges";
 import { BaseballField, DonutChart, Heatmap, IdentityAvatar, MetricBar, MiniLineChart, PlayerAvatar, StatTile, StrikeZone } from "./components/visuals";
 import { createId, gameRepository, playerRepository, touchRecentPlayers, workoutRepository } from "./data/repository";
 import { authRepository, PersistenceError, supabaseAppRepository, type AuthState } from "./data/supabaseRepository";
-import { APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
-import { applyGameAdjustment, applyRunnerAction, applyScoredPlay, applyTrackedPitch, moveRunnerToDestination, restoreGameSnapshot, snapshotGame, suggestedPlayMovements, validateScoredPlay } from "./lib/gameTracking";
-import { buildTendexMetrics, normalizeTendexPitches, TENDEX_COUNT_BUCKETS, TENDEX_PITCH_TYPES } from "./lib/tendexGameAnalysis";
-import { cityOptionsForState, US_STATE_OPTIONS } from "./lib/locations";
-import { applyDocumentTheme, readStoredTheme, saveStoredTheme, type ThemePreference } from "./lib/themePreference";
 import {
-  analyticsEventSummary,
-  defaultAnalyticsSort,
-  executeAnalyticsQuery,
-  type AnalyticsCell,
-  type AnalyticsColumn,
-  type AnalyticsDevelopmentView,
-  type AnalyticsDomain,
-  type AnalyticsEventOption,
-  type AnalyticsFilterDefinition,
-  type AnalyticsFieldSource,
-  type AnalyticsFilters,
-  type AnalyticsMode,
-  type AnalyticsQuery,
-  type AnalyticsResult,
-  type AnalyticsRow,
-  type AnalyticsSource,
-  type AnalyticsTimeRange,
+  advanceWorkoutGroupStation,
+  copyExercisePresetToStations,
+  copyGroupPresetToWorkout,
+  createBlankWorkoutSetup,
+  createWorkoutGroups,
+  moveWorkoutGroupMember,
+  plannedWorkoutSetCount,
+  setWorkoutGroupStation,
+  type ActiveWorkoutGroupSeed,
+} from "./lib/activeWorkout";
+import {
+  type AnalyticsQuery
 } from "./lib/analyticsQuery";
-import { buildAnalyticsInsights } from "./lib/analyticsInsights";
-import {
-  analyticsPresetColumnIds as catalogPresetColumnIds,
-  analyticsMetricColumnGroup,
-  analyticsPresetsForDomain,
-  analyticsSourcesForDomain,
-  defaultAnalyticsMetricIds,
-  normalizeAnalyticsView,
-  serializeAnalyticsContext,
-  type AnalyticsColumnPreset,
-  type AnalyticsViewId,
-} from "./lib/analyticsCatalog";
 import type {
   AskClubhouseAction,
   AskClubhouseApiResponse,
@@ -119,6 +92,25 @@ import type {
   AskClubhouseTeamScope,
   AskClubhouseVisualContext,
 } from "./lib/askClubhouse/types";
+import { APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
+import { playerSelectionLabel } from "./lib/exactRosterIdentity";
+import { applyGameAdjustment, applyRunnerAction, applyScoredPlay, applyTrackedPitch, moveRunnerToDestination, restoreGameSnapshot, snapshotGame, suggestedPlayMovements, validateScoredPlay } from "./lib/gameTracking";
+import {
+  defaultPracticeHittingPitchMode,
+  isPracticeHardContactEvent,
+  isPracticeHittingPitchTypeAvailable,
+  pitchModeLabel,
+  PRACTICE_HITTING_RESULT_OPTIONS,
+  practiceHittingResultLabel,
+  resolvePracticeHittingPitchMode,
+  resolvePracticeHittingPitchType,
+  type PracticeHittingResultOption,
+} from "./lib/hittingTaxonomy";
+import { mergeLiveRefresh } from "./lib/liveSyncDelta";
+import { cityOptionsForState, US_STATE_OPTIONS } from "./lib/locations";
+import type { PlayerSession } from "./lib/playerAccess";
+import { deriveConcurrentPracticeTotals, nextSessionSequence, touchSessionContributor } from "./lib/practiceConcurrency";
+import { localPracticeStartFields, validatePracticeStart } from "./lib/practiceStart";
 import {
   applyRosterImportPlan,
   buildRosterImportPlan,
@@ -155,29 +147,8 @@ import {
   shortDate,
   trendByPractice,
 } from "./lib/stats";
-import {
-  defaultPracticeHittingPitchMode,
-  isPracticeHittingPitchTypeAvailable,
-  isPracticeHardContactEvent,
-  pitchModeLabel,
-  PRACTICE_HITTING_RESULT_OPTIONS,
-  practiceHittingResultLabel,
-  resolvePracticeHittingPitchMode,
-  resolvePracticeHittingPitchType,
-  type PracticeHittingResultOption,
-} from "./lib/hittingTaxonomy";
-import { deriveConcurrentPracticeTotals, nextSessionSequence, touchSessionContributor } from "./lib/practiceConcurrency";
-import {
-  advanceWorkoutGroupStation,
-  copyExercisePresetToStations,
-  copyGroupPresetToWorkout,
-  createBlankWorkoutSetup,
-  createWorkoutGroups,
-  moveWorkoutGroupMember,
-  plannedWorkoutSetCount,
-  setWorkoutGroupStation,
-  type ActiveWorkoutGroupSeed,
-} from "./lib/activeWorkout";
+import { buildTendexMetrics, normalizeTendexPitches, TENDEX_COUNT_BUCKETS, TENDEX_PITCH_TYPES } from "./lib/tendexGameAnalysis";
+import { applyDocumentTheme, readStoredTheme, saveStoredTheme, type ThemePreference } from "./lib/themePreference";
 import {
   buildWeightRoomLeaderboard as buildScoredWeightRoomLeaderboard,
   buildWeightRoomScoreRows,
@@ -222,12 +193,21 @@ import type {
   HittingSession,
   ID,
   LiveBpThrowerSource,
-  PitchOutcome,
+  WeightRoomExerciseDefinition as PersistedWeightRoomExercise,
+  WeightRoomExercisePreset as PersistedWeightRoomExercisePreset,
+  WeightRoomExercisePresetItem as PersistedWeightRoomExercisePresetItem,
+  WeightRoomGroupPreset as PersistedWeightRoomGroupPreset,
+  WeightRoomGroupPresetGroup as PersistedWeightRoomGroupPresetGroup,
+  WeightRoomGroupPresetMember as PersistedWeightRoomGroupPresetMember,
+  WeightRoomWorkout as PersistedWeightRoomWorkout,
+  WeightRoomWorkoutGroup as PersistedWeightRoomWorkoutGroup,
+  WeightRoomWorkoutGroupMember as PersistedWeightRoomWorkoutGroupMember,
+  WeightRoomWorkoutStation as PersistedWeightRoomWorkoutStation,
   PitchEvent,
-  PitchLocationGridZoneId,
-  PitchLocationZoneId,
-  PitchType,
   PitchingSession,
+  PitchLocationGridZoneId,
+  PitchOutcome,
+  PitchType,
   PlateAppearance,
   Player,
   Position,
@@ -241,9 +221,7 @@ import type {
   PublicDirectoryTeamSummary,
   RosterStatus,
   ScheduleEvent,
-  ScheduleEventStatus,
   ScheduleEventType,
-  ScheduleEventVisibility,
   StaffAccessRole,
   StaffBaseballRole,
   StaffInvitation,
@@ -251,22 +229,10 @@ import type {
   StaffTeamMembership,
   TeamContext,
   TeamOption,
-  WeightRoomExerciseDefinition as PersistedWeightRoomExercise,
-  WeightRoomExercisePreset as PersistedWeightRoomExercisePreset,
-  WeightRoomExercisePresetItem as PersistedWeightRoomExercisePresetItem,
-  WeightRoomGroupPreset as PersistedWeightRoomGroupPreset,
-  WeightRoomGroupPresetGroup as PersistedWeightRoomGroupPresetGroup,
-  WeightRoomGroupPresetMember as PersistedWeightRoomGroupPresetMember,
-  WeightRoomWorkout as PersistedWeightRoomWorkout,
-  WeightRoomWorkoutGroup as PersistedWeightRoomWorkoutGroup,
-  WeightRoomWorkoutGroupMember as PersistedWeightRoomWorkoutGroupMember,
-  WeightRoomWorkoutStation as PersistedWeightRoomWorkoutStation,
   WorkoutEntry,
   WorkoutSession,
-  ZonePoint,
+  ZonePoint
 } from "./types";
-
-type ViewKey = "home" | "organizations" | "teams" | "following" | "discover" | "teamHome" | "schedule" | "roster" | "practice" | "weights" | "games" | "analytics" | "profile" | "account" | "teamSettings";
 type PracticeMode = "Hitting" | "Pitching" | "Defense" | "Live BP";
 type PracticeTrackerPlayerFilter = "All" | "Pitchers" | "Hitters" | "Infield" | "Outfield";
 type RosterFilter = "All" | RosterStatus;
@@ -287,19 +253,14 @@ type LiveBpOutcomeLabel = "K" | "BB" | "HBP" | "1B" | "2B" | "3B" | "HR" | "Out"
 type AppIcon = React.ComponentType<{ size?: number | string; "aria-hidden"?: boolean | "true" | "false"; className?: string }>;
 type WeightRoomTab = "Overview" | "Athletes" | "Exercises" | "Leaderboard" | "WorkoutSession";
 type WeightRoomAthleteTab = "Overview" | "Workouts" | "Exercises" | "Progress";
-type WeightRoomWorkoutStatus = "Idle" | "In Progress" | "Paused" | "Completed";
 type ActiveWorkoutTab = "Weigh-Ins" | "Workout";
 type ActiveWorkoutEntryMode = "Groups" | "Individual";
-type WeightRoomExerciseCategory = "Lower Body" | "Upper Body" | "Power" | "Core" | "Conditioning" | "Speed" | "Mobility" | "Other";
 type WeightRoomExerciseSortKey = "exercise" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "best" | "sets";
 type WeightRoomWorkoutSortKey = "exercise" | "set" | "current" | "previous" | "changeLast" | "start" | "changeStart" | "rpe";
 type WeightRoomLeaderboardSortKey = "rank" | "athlete" | "score" | "workouts" | "progress" | "completion" | "trend";
 type WeightRoomExerciseResultSortKey = "player" | "latest" | "previous" | "change" | "best";
 type WeightRoomLeaderboardFilter = "All Athletes" | "Qualified" | "Improving" | "Needs Attention";
 type WeightRoomSortState<K extends string> = { key: K; direction: SortDirection };
-type WorkoutMeasurementType = "WEIGHT_REPS" | "BODYWEIGHT_REPS" | "REPS_ONLY" | "TIME" | "DISTANCE" | "HEIGHT" | "WEIGHT_ONLY" | "COUNT" | "COMPLETION" | "RPE_ONLY" | "CUSTOM";
-type WorkoutPerformanceDirection = "HIGHER_IS_BETTER" | "LOWER_IS_BETTER";
-type WorkoutTargetStyle = "Standard" | "Max Reps" | "Target Reps" | "Max Time" | "Target Time" | "Best Time" | "Best Distance" | "Max Weight" | "Completion";
 type AskClubhouseLaunchContext = {
   surface: AskClubhouseLaunchSurface;
   analytics?: Partial<AnalyticsQuery>;
@@ -664,21 +625,6 @@ function useBottomNavMenuStyle(
 
   return open ? style : undefined;
 }
-
-type WeightRoomExercise = {
-  name: string;
-  category: WeightRoomExerciseCategory;
-  measurementType: WorkoutMeasurementType;
-  kind: ExerciseKind;
-  unit?: WorkoutEntry["unit"];
-  equipment?: string;
-  active: boolean;
-  targetSets?: number;
-  targetReps?: number;
-  targetValue?: number;
-  defaultTargetStyle?: WorkoutTargetStyle;
-  performanceDirection?: WorkoutPerformanceDirection;
-};
 type WeightRoomSetDraft = {
   activeWorkoutId?: ID;
   workoutStationId?: ID;
@@ -694,14 +640,6 @@ type WeightRoomSetDraft = {
   unit?: WorkoutEntry["unit"];
   rpe?: number;
   status?: WorkoutEntry["status"];
-  notes?: string;
-};
-type ActiveWorkoutStation = WeightRoomExercise & {
-  id: ID;
-  displayOrder: number;
-  targetStyle: WorkoutTargetStyle;
-  performanceDirection: WorkoutPerformanceDirection;
-  targetValue?: number;
   notes?: string;
 };
 
@@ -726,16 +664,8 @@ type WeightRoomSetupPayload = {
   groupPresets: WeightRoomGroupPreset[];
   exerciseDefinitions: WeightRoomExercise[];
 };
-type ActiveWorkoutCell = {
-  playerId: ID;
-  exercise: string;
-  setNumber: number;
-};
-type ScheduleViewMode = "Calendar" | "Week" | "Agenda";
-type ScheduleSource = "practice" | "game" | "lift" | "event";
 type ScheduleDateFieldMode = "desktop" | "native";
 type TimePeriod = "AM" | "PM";
-type ScheduleEventFilter = "All" | ScheduleEventType;
 type PracticeSessionActivityMode = PracticeMode;
 
 type PracticeActiveSessionRow = {
@@ -794,33 +724,6 @@ type DefenseLogDraft = {
   location?: ZonePoint;
   coachNote?: string;
 };
-
-interface ScheduleItem {
-  id: ID;
-  source: ScheduleSource;
-  sourceId: ID;
-  eventType: ScheduleEventType;
-  title: string;
-  startAt: string;
-  endAt?: string;
-  date: string;
-  location?: string;
-  notes?: string;
-  visibility: ScheduleEventVisibility;
-  status: ScheduleEventStatus;
-  accent: string;
-}
-
-interface WeightRoomWorkoutSummary {
-  date: string;
-  title: string;
-  location?: string;
-  startAt?: string;
-  athletes: number;
-  sets: number;
-  volume: number;
-  completed: boolean;
-}
 
 const LOCAL_AUTH_BYPASS_QUERY = "devBypass";
 const LOCAL_AUTH_BYPASS_EMAIL = "local.preview@clubhouse9.dev";
@@ -1070,13 +973,7 @@ const GAME_CONTACT_TYPE_COLOR_VARS: Record<GameContactType, string> = {
   "Pop Up": "var(--contact-type-popup)",
   Bunt: "var(--contact-type-bunt)",
 };
-const TRACKING_VELOCITY_MIN_MPH = 1;
-const TRACKING_VELOCITY_MAX_MPH = 300;
 const DEFAULT_TRACKING_VELOCITY_MPH = 75;
-const TRACKING_VELOCITY_OPTIONS = Array.from(
-  { length: TRACKING_VELOCITY_MAX_MPH - TRACKING_VELOCITY_MIN_MPH + 1 },
-  (_, index) => TRACKING_VELOCITY_MIN_MPH + index,
-);
 const HITTING_STATIONS: HittingSession["type"][] = ["Tee", "Front Toss", "Machine", "Coach BP", "Other"];
 const LIVE_BP_THROWER_SOURCES: LiveBpThrowerSource[] = ["PLAYER", "COACH", "MACHINE"];
 const LIVE_BP_THROWER_LABELS: Record<LiveBpThrowerSource, string> = {
@@ -1095,7 +992,6 @@ const HITTING_RESULT_ACTIONS = PRACTICE_HITTING_RESULT_OPTIONS;
 type HittingSheetStep = "setup" | "result" | "detail";
 type LiveBpPitchSheetStep = "result" | "contact" | "spray";
 type HittingContactDraft = PracticeHittingResultOption;
-type PracticeChartMetricMode = "heat" | "dots" | "percent" | "count" | "average";
 type PitchingDraft = {
   pitchType: PitchType;
   velocity: string;
@@ -1110,66 +1006,6 @@ type PitchLogOptions = {
 };
 const HITTING_CONTACT_CHOICES: HittingContactDraft[] = PRACTICE_HITTING_RESULT_OPTIONS.filter((option) => option.action === "Ball in play");
 const PITCHING_STATIONS: PitchingSession["type"][] = ["Bullpen", "Flat Ground", "Live", "Other"];
-type PitchLocationGridAxis = 1 | 2 | 3 | 4 | 5;
-type PitchLocationBucket = {
-  id: PitchLocationGridZoneId;
-  x: number;
-  y: number;
-  row: PitchLocationGridAxis;
-  column: PitchLocationGridAxis;
-  isZone: boolean;
-  isCorner: boolean;
-};
-const PITCH_LOCATION_BUCKETS: PitchLocationBucket[] = [
-  { id: "pitch_r1c1", x: 0.1, y: 0.1, row: 1, column: 1, isZone: false, isCorner: true },
-  { id: "pitch_r1c2", x: 0.3, y: 0.1, row: 1, column: 2, isZone: false, isCorner: false },
-  { id: "pitch_r1c3", x: 0.5, y: 0.1, row: 1, column: 3, isZone: false, isCorner: false },
-  { id: "pitch_r1c4", x: 0.7, y: 0.1, row: 1, column: 4, isZone: false, isCorner: false },
-  { id: "pitch_r1c5", x: 0.9, y: 0.1, row: 1, column: 5, isZone: false, isCorner: true },
-  { id: "pitch_r2c1", x: 0.1, y: 0.3, row: 2, column: 1, isZone: false, isCorner: false },
-  { id: "pitch_r2c2", x: 0.3, y: 0.3, row: 2, column: 2, isZone: true, isCorner: false },
-  { id: "pitch_r2c3", x: 0.5, y: 0.3, row: 2, column: 3, isZone: true, isCorner: false },
-  { id: "pitch_r2c4", x: 0.7, y: 0.3, row: 2, column: 4, isZone: true, isCorner: false },
-  { id: "pitch_r2c5", x: 0.9, y: 0.3, row: 2, column: 5, isZone: false, isCorner: false },
-  { id: "pitch_r3c1", x: 0.1, y: 0.5, row: 3, column: 1, isZone: false, isCorner: false },
-  { id: "pitch_r3c2", x: 0.3, y: 0.5, row: 3, column: 2, isZone: true, isCorner: false },
-  { id: "pitch_r3c3", x: 0.5, y: 0.5, row: 3, column: 3, isZone: true, isCorner: false },
-  { id: "pitch_r3c4", x: 0.7, y: 0.5, row: 3, column: 4, isZone: true, isCorner: false },
-  { id: "pitch_r3c5", x: 0.9, y: 0.5, row: 3, column: 5, isZone: false, isCorner: false },
-  { id: "pitch_r4c1", x: 0.1, y: 0.7, row: 4, column: 1, isZone: false, isCorner: false },
-  { id: "pitch_r4c2", x: 0.3, y: 0.7, row: 4, column: 2, isZone: true, isCorner: false },
-  { id: "pitch_r4c3", x: 0.5, y: 0.7, row: 4, column: 3, isZone: true, isCorner: false },
-  { id: "pitch_r4c4", x: 0.7, y: 0.7, row: 4, column: 4, isZone: true, isCorner: false },
-  { id: "pitch_r4c5", x: 0.9, y: 0.7, row: 4, column: 5, isZone: false, isCorner: false },
-  { id: "pitch_r5c1", x: 0.1, y: 0.9, row: 5, column: 1, isZone: false, isCorner: true },
-  { id: "pitch_r5c2", x: 0.3, y: 0.9, row: 5, column: 2, isZone: false, isCorner: false },
-  { id: "pitch_r5c3", x: 0.5, y: 0.9, row: 5, column: 3, isZone: false, isCorner: false },
-  { id: "pitch_r5c4", x: 0.7, y: 0.9, row: 5, column: 4, isZone: false, isCorner: false },
-  { id: "pitch_r5c5", x: 0.9, y: 0.9, row: 5, column: 5, isZone: false, isCorner: true },
-];
-const LEGACY_PITCH_LOCATION_ID_MAP: Partial<Record<PitchLocationZoneId, PitchLocationGridZoneId>> = {
-  outside_up_arm: "pitch_r1c2",
-  outside_up_middle: "pitch_r1c3",
-  outside_up_glove: "pitch_r1c4",
-  outside_arm_high: "pitch_r2c1",
-  zone_high_arm: "pitch_r2c2",
-  zone_high_middle: "pitch_r2c3",
-  zone_high_glove: "pitch_r2c4",
-  outside_glove_high: "pitch_r2c5",
-  outside_arm_middle: "pitch_r3c1",
-  zone_middle_arm: "pitch_r3c2",
-  zone_middle_middle: "pitch_r3c3",
-  zone_middle_glove: "pitch_r3c4",
-  outside_glove_middle: "pitch_r3c5",
-  outside_arm_low: "pitch_r4c1",
-  zone_low_arm: "pitch_r4c2",
-  zone_low_middle: "pitch_r4c3",
-  zone_low_glove: "pitch_r4c4",
-  outside_glove_low: "pitch_r4c5",
-  outside_down_arm: "pitch_r5c2",
-  outside_down_middle: "pitch_r5c3",
-  outside_down_glove: "pitch_r5c4",
-};
 const DEFENSE_STATIONS: DefenseStation[] = ["Infield", "Outfield", "Catching", "PFP", "Situational defense", "Team defense"];
 type DefenseDrillOption = {
   value: DefenseDrillContext;
@@ -1205,17 +1041,6 @@ const DEFENSE_DRILLS: DefenseDrillOption[] = [
   { value: "Other", label: "Other", station: "Team defense", positions: ["P", "C", "1B", "2B", "3B", "SS", "INF", "LF", "CF", "RF", "OF", "UTL", "UTIL"], defaultPosition: "SS", defaultRepType: "Other", defaultRepSubtype: "Other", throwRelevant: false },
 ];
 const GAME_TYPES: GameType[] = ["Fall Game", "Scrimmage", "Showcase", "Regular Season", "Tournament", "Other"];
-const SCHEDULE_EVENT_TYPES: ScheduleEventType[] = ["Game", "Practice", "Lift", "Scrimmage", "Tournament", "Other"];
-const SCHEDULE_EVENT_ACCENTS: Record<ScheduleEventType, string> = {
-  Game: "game",
-  Practice: "practice",
-  Lift: "lift",
-  Scrimmage: "scrimmage",
-  Meeting: "meeting",
-  "Team Event": "team-event",
-  Tournament: "tournament",
-  Other: "other",
-};
 const SCHEDULE_HOME_AWAY_OPTIONS: Game["homeAway"][] = ["TBD", "Home", "Away", "Neutral"];
 const BIP_OUTCOMES: GameBallInPlayOutcome[] = ["Single", "Double", "Triple", "Home Run", "Ground Out", "Fly Out", "Line Out", "Pop Out", "Error", "Fielder's Choice", "Sac Fly", "Sac Bunt", "Double Play"];
 type GamePitchEntryDetails = { pitchType: PitchType; velocity?: string; location?: ZonePoint };
@@ -1290,35 +1115,7 @@ function defaultLevelForTeamType(teamType: string) {
   return teamType === "School" ? "Varsity" : "18U";
 }
 
-type SvgIconProps = React.SVGProps<SVGSVGElement> & { size?: number | string };
-
-function BaseballIcon(props: SvgIconProps) {
-  // eslint-disable-next-line react/prop-types
-  const { size = 18, className, ...svgProps } = props;
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      {...svgProps}
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M7.5 4.5c2.2 2.2 3.4 4.7 3.4 7.5s-1.2 5.3-3.4 7.5" />
-      <path d="M16.5 4.5c-2.2 2.2-3.4 4.7-3.4 7.5s1.2 5.3 3.4 7.5" />
-      <path d="M8.2 7.8h2.1M8.8 10.2h2.1M8.8 13.8h2.1M8.2 16.2h2.1" />
-      <path d="M13.7 7.8h2.1M13.1 10.2h2.1M13.1 13.8h2.1M13.7 16.2h2.1" />
-    </svg>
-  );
-}
-
 function ScheduleCalendarIcon(props: SvgIconProps) {
-  // eslint-disable-next-line react/prop-types
   const { size = 18, className, ...svgProps } = props;
   return (
     <svg
@@ -5035,123 +4832,6 @@ function TeamSwitcher({
   );
 }
 
-function TeamWorkspaceHeader({
-  context,
-  view,
-  onSwitch,
-  onClubhouseHome,
-  hasOpenPractice,
-  onStartPractice,
-  onStartGame,
-}: {
-  context?: TeamContext;
-  view: ViewKey;
-  onSwitch: (team: TeamOption) => void | Promise<void>;
-  onClubhouseHome: () => void;
-  hasOpenPractice?: boolean;
-  onStartPractice: () => void;
-  onStartGame: () => void;
-}) {
-  const current = context?.currentTeam;
-  if (!current) return null;
-  const isTeamHome = view === "teamHome";
-  if (!isTeamHome) {
-    return (
-      <section className="team-workspace-header team-workspace-header--compact">
-        <OrganizationLogo name={current.organizationName} logoUrl={teamOrganizationLogo(current, context)} />
-        <div className="team-workspace-header__identity">
-          <span>{current.organizationName}</span>
-        <TeamIdentitySwitcher context={context} current={current} onSwitch={onSwitch} compact />
-          <small>{current.seasonName ?? "Current season"}</small>
-        </div>
-      </section>
-    );
-  }
-  return (
-    <section className="team-workspace-header team-workspace-header--home">
-      <button className="icon-button team-workspace-back" type="button" onClick={onClubhouseHome} aria-label="Back to Clubhouse Home" title="Clubhouse Home">
-        <ChevronLeft size={18} aria-hidden="true" />
-      </button>
-      <OrganizationLogo name={current.organizationName} logoUrl={teamOrganizationLogo(current, context)} />
-      <div className="team-workspace-header__identity">
-        <span>{current.organizationName}</span>
-        <TeamIdentitySwitcher context={context} current={current} onSwitch={onSwitch} />
-        <small>{current.seasonName ?? "Current season"}</small>
-      </div>
-      <div className="team-workspace-header__actions">
-        <button type="button" className="primary-button" onClick={onStartPractice}>
-          {hasOpenPractice ? <ChevronRight size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}
-          {hasOpenPractice ? "Open Practice" : "Practice"}
-        </button>
-        <button type="button" className="secondary-button" onClick={onStartGame}>
-          <Plus size={16} aria-hidden="true" />
-          Game
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function TeamIdentitySwitcher({
-  context,
-  current,
-  onSwitch,
-  compact = false,
-}: {
-  context?: TeamContext;
-  current: TeamOption;
-  onSwitch: (team: TeamOption) => void | Promise<void>;
-  compact?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const organizations = organizationSummariesFromContext(context).filter((organization) => organization.teams.length > 0);
-  const selectedValue = teamValue(current);
-
-  return (
-    <div
-      className={`team-identity-switcher ${compact ? "team-identity-switcher--compact" : ""}`}
-      onBlur={(event) => {
-        const nextFocus = event.relatedTarget instanceof Node ? event.relatedTarget : null;
-        if (!nextFocus || !event.currentTarget.contains(nextFocus)) setOpen(false);
-      }}
-    >
-      <button type="button" className="team-identity-switcher__button" onClick={() => setOpen((value) => !value)} aria-haspopup="dialog" aria-expanded={open}>
-        <strong>{current.teamName}</strong>
-        <ChevronDown size={16} aria-hidden="true" />
-      </button>
-      {open && (
-        <div className="team-identity-switcher__panel">
-          {organizations.map((organization) => (
-            <div className="team-switcher-group" key={organization.id}>
-              <div className="team-switcher-group__heading">
-                <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
-                <strong>{organization.name}</strong>
-              </div>
-              {organization.teams.map((team) => (
-                <button
-                  key={teamValue(team)}
-                  type="button"
-                  className={teamValue(team) === selectedValue ? "active" : ""}
-                  onClick={() => {
-                    setOpen(false);
-                    void onSwitch(team);
-                  }}
-                >
-                  <span>
-                    <strong>{team.teamName}</strong>
-                    <small>{team.seasonName ?? "Current season"} - {teamContextRole(team)}</small>
-                  </span>
-                  {teamValue(team) === selectedValue ? <Check size={15} aria-hidden="true" /> : <ChevronRight size={15} aria-hidden="true" />}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function ProfileMenu({
   context,
   open,
@@ -6582,16 +6262,6 @@ function DiscoverView({
   );
 }
 
-type OrganizationSummary = {
-  id: ID;
-  name: string;
-  slug?: string;
-  teams: TeamOption[];
-  location?: string;
-  logoUrl?: string;
-  role?: string;
-};
-
 function OrganizationCard({
   organization,
   onEnterTeam,
@@ -6955,54 +6625,6 @@ function FollowSummary({
   );
 }
 
-function OrganizationLogo({ name, logoUrl, imageUrl, size = "md" }: { name: string; logoUrl?: string; imageUrl?: string; size?: "sm" | "md" | "lg" }) {
-  const metrolina = /metrolina/i.test(name);
-  const resolvedLogoUrl = logoUrl ?? imageUrl;
-  return (
-    <span className={`organization-logo organization-logo--${size}`} aria-hidden="true">
-      {resolvedLogoUrl ? <img src={resolvedLogoUrl} alt="" /> : metrolina ? <img src="/brand/metrolina-baseball-alpha.png" alt="" /> : initialsFor(name)}
-    </span>
-  );
-}
-
-function organizationSummariesFromContext(context?: TeamContext) {
-  const organizations = new Map<ID, OrganizationSummary>();
-  for (const organization of context?.organizations ?? []) {
-    const location = [organization.city, organization.state].filter(Boolean).join(", ") || undefined;
-    organizations.set(organization.id, {
-      id: organization.id,
-      name: organization.name,
-      slug: organization.slug,
-      teams: [],
-      location,
-      logoUrl: organization.logoUrl,
-      role: organization.role,
-    });
-  }
-  for (const team of displayWorkspaceTeams(context?.availableTeams ?? [])) {
-    if (!team.organizationId) continue;
-    const current = organizations.get(team.organizationId) ?? {
-      id: team.organizationId,
-      name: team.organizationName,
-      teams: [],
-    };
-    current.teams.push(team);
-    organizations.set(team.organizationId, current);
-  }
-  return [...organizations.values()].sort((a, b) => a.name.localeCompare(b.name));
-}
-
-function displayWorkspaceTeams(teams: TeamOption[]) {
-  const visible = teams.filter((team) => !isProgramContainerTeam(team));
-  return visible.length ? visible : teams;
-}
-
-function isProgramContainerTeam(team: TeamOption) {
-  const level = (team.teamLevel ?? "").trim().toLowerCase();
-  const name = team.teamName.trim().toLowerCase();
-  return level === "program" || name === "baseball" || name.endsWith(" baseball program") || name.includes(" program");
-}
-
 function uniquePlayers(players: Player[]) {
   const seen = new Set<ID>();
   return players.filter((player) => {
@@ -7104,298 +6726,6 @@ function HomeDashboard({
         <RecentGamesCard games={recentGames} onView={onView} />
       </section>
     </div>
-  );
-}
-
-function ScheduleView({
-  data,
-  onAddEvent,
-  onView,
-  onOpenGame,
-  onUpdateScheduleEvent,
-}: {
-  data: AppData;
-  onAddEvent: (date?: string) => void;
-  onView: (view: ViewKey) => void;
-  onOpenGame: (gameId: ID) => void;
-  onUpdateScheduleEvent: (event: ScheduleEvent) => void;
-}) {
-  const [mode, setMode] = useState<ScheduleViewMode>(() =>
-    typeof window !== "undefined" && window.matchMedia("(max-width: 720px)").matches ? "Agenda" : "Calendar",
-  );
-  const [cursor, setCursor] = useState(() => new Date());
-  const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
-  const [eventFilter, setEventFilter] = useState<ScheduleEventFilter>("All");
-  const items = useMemo(() => buildScheduleItems(data), [data]);
-  const visibleItems = useMemo(
-    () => eventFilter === "All" ? items : items.filter((item) => item.eventType === eventFilter),
-    [eventFilter, items],
-  );
-  const upcomingItems = visibleItems.filter((item) => isUpcomingScheduleItem(item) && item.status !== "Cancelled").slice(0, 6);
-  const cursorMonthLabel = cursor.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  const selectedVisibleItem = selectedItem && visibleItems.some((item) => item.id === selectedItem.id) ? selectedItem : null;
-  const filterOptions: ChoiceOption[] = useMemo(() => [
-    { value: "All", label: "All Events", icon: <CalendarDays size={15} aria-hidden="true" /> },
-    ...SCHEDULE_EVENT_TYPES.map((type) => ({ value: type, label: type, icon: <ScheduleTypeIcon type={type} /> })),
-  ], []);
-
-  function moveCursor(amount: number) {
-    setCursor((current) => {
-      const next = new Date(current);
-      if (mode === "Week") next.setDate(next.getDate() + amount * 7);
-      else next.setMonth(next.getMonth() + amount);
-      return next;
-    });
-  }
-
-  return (
-    <div className="page-stack schedule-page">
-      <SectionHeader
-        title="Schedule"
-        context={teamContextLine(data.teamContext?.currentTeam)}
-        action={(
-          <button type="button" className="primary-button" onClick={() => onAddEvent()}>
-            <CalendarPlus size={16} aria-hidden="true" />
-            Add Event
-          </button>
-        )}
-      />
-
-      <section className="panel schedule-toolbar">
-        <div className="schedule-toolbar__date">
-          <button type="button" className="icon-button schedule-period-button" onClick={() => moveCursor(-1)} aria-label="Previous period"><ChevronLeft size={17} aria-hidden="true" /></button>
-          <strong>{mode === "Week" ? weekRangeLabel(cursor) : cursorMonthLabel}</strong>
-          <button type="button" className="icon-button schedule-period-button" onClick={() => moveCursor(1)} aria-label="Next period"><ChevronRight size={17} aria-hidden="true" /></button>
-        </div>
-        <div className="schedule-toolbar__controls">
-          <ChoiceSelect
-            value={eventFilter}
-            className="schedule-filter-choice"
-            options={filterOptions}
-            onChange={(value) => {
-              setEventFilter(value as ScheduleEventFilter);
-              setSelectedItem(null);
-            }}
-            aria-label="Filter schedule by event type"
-            mobilePresentation="popover"
-          />
-          <SegmentedControl values={["Calendar", "Week", "Agenda"] as ScheduleViewMode[]} active={mode} onChange={setMode} />
-          <button type="button" className="secondary-button" onClick={() => setCursor(new Date())}>Today</button>
-        </div>
-      </section>
-
-      <section className="schedule-layout">
-        <div className="schedule-main">
-          {mode === "Calendar" && <ScheduleMonthView cursor={cursor} items={visibleItems} onSelect={setSelectedItem} onAddEvent={onAddEvent} />}
-          {mode === "Week" && <ScheduleWeekView cursor={cursor} items={visibleItems} onSelect={setSelectedItem} />}
-          {mode === "Agenda" && <ScheduleAgendaView items={visibleItems} onSelect={setSelectedItem} />}
-        </div>
-        <aside className="schedule-side">
-          <article className="panel schedule-next-card">
-            <div className="panel-heading tight">
-              <div>
-                <span>Next Up</span>
-                <h2>Upcoming</h2>
-              </div>
-              <button type="button" className="text-button" onClick={() => setMode("Agenda")}>Agenda</button>
-            </div>
-            {upcomingItems.length ? upcomingItems.map((item) => (
-              <button key={item.id} type="button" className="schedule-mini-row" onClick={() => setSelectedItem(item)}>
-                <ScheduleTypeIcon type={item.eventType} />
-                <span>
-                  <strong>{item.title}</strong>
-                  <small>{shortDate(item.date)} · {formatTime(item.startAt)}</small>
-                </span>
-              </button>
-            )) : (
-              <CompactEmpty title="No events scheduled yet." />
-            )}
-          </article>
-          <ScheduleDetailCard
-            data={data}
-            item={selectedVisibleItem}
-            onClose={() => setSelectedItem(null)}
-            onView={onView}
-            onOpenGame={onOpenGame}
-            onUpdateScheduleEvent={onUpdateScheduleEvent}
-          />
-        </aside>
-      </section>
-    </div>
-  );
-}
-
-function ScheduleMonthView({
-  cursor,
-  items,
-  onSelect,
-  onAddEvent,
-}: {
-  cursor: Date;
-  items: ScheduleItem[];
-  onSelect: (item: ScheduleItem) => void;
-  onAddEvent: (date?: string) => void;
-}) {
-  const days = calendarDaysForMonth(cursor);
-  const currentMonth = cursor.getMonth();
-  return (
-    <article className="panel schedule-calendar">
-      <div className="schedule-calendar__weekdays">
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => <span key={day}>{day}</span>)}
-      </div>
-      <div className="schedule-calendar__grid">
-        {days.map((date) => {
-          const dateKey = isoDate(date);
-          const dayItems = items.filter((item) => item.date === dateKey);
-          return (
-            <div
-              key={dateKey}
-              className={`schedule-day ${date.getMonth() !== currentMonth ? "schedule-day--muted" : ""} ${isToday(dateKey) ? "schedule-day--today" : ""}`}
-              onDoubleClick={(event) => {
-                if ((event.target as HTMLElement).closest("button")) return;
-                onAddEvent(dateKey);
-              }}
-            >
-              <span className="schedule-day__number">{date.getDate()}</span>
-              <div className="schedule-day__events">
-                {dayItems.slice(0, 3).map((item) => (
-                  <button key={item.id} type="button" className={`schedule-chip schedule-chip--${item.accent}`} onClick={() => onSelect(item)}>
-                    <small>{formatTime(item.startAt)}</small>
-                    <span>{item.title}</span>
-                  </button>
-                ))}
-                {dayItems.length > 3 && <em>+{dayItems.length - 3} more</em>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </article>
-  );
-}
-
-function ScheduleWeekView({ cursor, items, onSelect }: { cursor: Date; items: ScheduleItem[]; onSelect: (item: ScheduleItem) => void }) {
-  const days = weekDates(cursor);
-  return (
-    <article className="panel schedule-week">
-      {days.map((date) => {
-        const dateKey = isoDate(date);
-        const dayItems = items.filter((item) => item.date === dateKey);
-        return (
-          <section key={dateKey} className={`schedule-week-day ${isToday(dateKey) ? "schedule-week-day--today" : ""}`}>
-            <header>
-              <strong>{date.toLocaleDateString("en-US", { weekday: "short" })}</strong>
-              <span>{date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-            </header>
-            <div>
-              {dayItems.length ? dayItems.map((item) => (
-                <button key={item.id} type="button" className={`schedule-week-event schedule-chip--${item.accent}`} onClick={() => onSelect(item)}>
-                  <small>{formatTime(item.startAt)}</small>
-                  <strong>{item.title}</strong>
-                  {item.location && <em>{item.location}</em>}
-                </button>
-              )) : <span className="schedule-week-empty">No events</span>}
-            </div>
-          </section>
-        );
-      })}
-    </article>
-  );
-}
-
-function ScheduleAgendaView({ items, onSelect }: { items: ScheduleItem[]; onSelect: (item: ScheduleItem) => void }) {
-  const upcoming = items.filter((item) => !isPastScheduleItem(item) || item.status !== "Completed").slice(0, 30);
-  const groups = groupScheduleItemsByDate(upcoming.length ? upcoming : items.slice(0, 20));
-  return (
-    <article className="panel schedule-agenda">
-      {groups.length ? groups.map((group) => (
-        <section key={group.date} className="schedule-agenda-group">
-          <h3>{agendaDateLabel(group.date)}</h3>
-          {group.items.map((item) => (
-            <ScheduleAgendaRow key={item.id} title={item.title} time={formatTime(item.startAt)} type={item.eventType} location={item.location} status={item.status} icon={<ScheduleTypeIcon type={item.eventType} />} onSelect={() => onSelect(item)} />
-          ))}
-        </section>
-      )) : (
-        <CompactEmpty title="No events scheduled yet." />
-      )}
-    </article>
-  );
-}
-
-function ScheduleDetailCard({
-  data,
-  item,
-  onClose,
-  onView,
-  onOpenGame,
-  onUpdateScheduleEvent,
-}: {
-  data: AppData;
-  item: ScheduleItem | null;
-  onClose: () => void;
-  onView: (view: ViewKey) => void;
-  onOpenGame: (gameId: ID) => void;
-  onUpdateScheduleEvent: (event: ScheduleEvent) => void;
-}) {
-  if (!item) {
-    return (
-      <article className="panel schedule-detail-card">
-        <CompactEmpty title="Select an event to see details." />
-      </article>
-    );
-  }
-  const genericEvent = item.source === "event" ? (data.scheduleEvents ?? []).find((event) => event.id === item.sourceId) : undefined;
-  return (
-    <article className="panel schedule-detail-card">
-      <button className="icon-button schedule-detail-card__close" type="button" onClick={onClose} aria-label="Close event details">
-        <X size={16} aria-hidden="true" />
-      </button>
-      <div className="schedule-detail-card__top">
-        <ScheduleTypeIcon type={item.eventType} />
-        <span>
-          <small>{item.eventType}</small>
-          <strong>{item.title}</strong>
-        </span>
-        <em className={`schedule-status schedule-status--${item.status.toLowerCase()}`}>{item.status}</em>
-      </div>
-      <div className="schedule-detail-list">
-        <span><CalendarDays size={15} aria-hidden="true" />{fullDate(item.date)}</span>
-        <span><ClockIcon />{formatTime(item.startAt)}{item.endAt ? ` - ${formatTime(item.endAt)}` : ""}</span>
-        {item.location && <span><MapPin size={15} aria-hidden="true" />{item.location}</span>}
-        {item.notes && <p>{item.notes}</p>}
-      </div>
-      <div className="schedule-detail-actions">
-        {item.source === "practice" && <button type="button" className="primary-button" onClick={() => onView("practice")}>Open Practice</button>}
-        {item.source === "game" && <button type="button" className="primary-button" onClick={() => onOpenGame(item.sourceId)}>View Game</button>}
-        {item.source === "lift" && <button type="button" className="primary-button" onClick={() => onView("weights")}>Open Weight Room</button>}
-        {genericEvent && genericEvent.status !== "Cancelled" && (
-          <button type="button" className="secondary-button" onClick={() => onUpdateScheduleEvent({ ...genericEvent, status: "Cancelled", updatedAt: new Date().toISOString() })}>
-            Cancel Event
-          </button>
-        )}
-      </div>
-    </article>
-  );
-}
-
-function ScheduleTypeIcon({ type }: { type: ScheduleEventType }) {
-  const className = `schedule-type-icon schedule-type-icon--${SCHEDULE_EVENT_ACCENTS[type]}`;
-  if (type === "Practice") return <span className={className}><ClipboardList size={16} aria-hidden="true" /></span>;
-  if (type === "Game") return <span className={className}><BaseballIcon size={16} aria-hidden="true" /></span>;
-  if (type === "Lift") return <span className={className}><Dumbbell size={16} aria-hidden="true" /></span>;
-  if (type === "Scrimmage") return <span className={className}><Swords size={16} aria-hidden="true" /></span>;
-  if (type === "Tournament") return <span className={className}><Trophy size={16} aria-hidden="true" /></span>;
-  if (type === "Meeting" || type === "Team Event") return <span className={className}><Handshake size={16} aria-hidden="true" /></span>;
-  if (type === "Other") return <span className={className}><Sparkles size={16} aria-hidden="true" /></span>;
-  return <span className={className}><CalendarDays size={16} aria-hidden="true" /></span>;
-}
-
-function ClockIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" />
-    </svg>
   );
 }
 
@@ -8166,15 +7496,6 @@ function staffTeamLabel(staffMemberId: ID, memberships: StaffTeamMembership[], t
   return teamNames.join(", ") || "Team";
 }
 
-function initialsFor(value: string) {
-  return value
-    .split(/\s|@/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "ST";
-}
-
 function RosterSortButton({
   label,
   sortKey,
@@ -8734,44 +8055,6 @@ function PracticeMetricsTab({
           {!rows.length && <CompactEmpty title={`No ${category.toLowerCase()} metrics yet`} />}
         </div>
       </article>
-    </section>
-  );
-}
-
-function PracticeHistoryTab({ data, onOpenPractice }: { data: AppData; onOpenPractice: (practiceId: ID) => void }) {
-  const [filter, setFilter] = useState<"All" | PracticeType>("All");
-  const filters = ["All", ...uniqueStrings(data.practices.map((practice) => practice.type))] as Array<"All" | PracticeType>;
-  const practices = data.practices.filter((practice) => filter === "All" || practice.type === filter);
-  return (
-    <section className="panel practice-history-panel">
-      <div className="panel-heading tight">
-        <div>
-          <h2>History</h2>
-          <span>Completed practice archive and session totals.</span>
-        </div>
-        <SegmentedControl values={filters} active={filter} onChange={setFilter} />
-      </div>
-      <div className="practice-history-rows">
-        {practices.map((practice) => {
-          const totals = practiceTotals(data, practice.id);
-          const attendance = data.attendance.filter((row) => row.practiceId === practice.id);
-          const active = attendance.filter((row) => row.status !== "Absent");
-          return (
-            <button key={practice.id} type="button" onClick={() => onOpenPractice(practice.id)}>
-              <span>
-                <strong>{shortDate(practice.date)}</strong>
-                <small>{practice.location || "Field"}</small>
-              </span>
-              <em>{active.length || practice.playerIds.length} players</em>
-              <em>{totals.pitches} pitches</em>
-              <em>{totals.swings} swings</em>
-              <em>{totals.defense} defense</em>
-              <ChevronRight size={16} aria-hidden="true" />
-            </button>
-          );
-        })}
-        {!practices.length && <CompactEmpty title="No practices match this filter" />}
-      </div>
     </section>
   );
 }
@@ -10258,13 +9541,7 @@ function PracticeConsole({
                     <span>Pitch Result</span>
                     <small>Choose the outcome.</small>
                   </div>
-                  <div className="practice-hitting-result-grid">
-                    {HITTING_RESULT_ACTIONS.map((result) => (
-                      <button key={result.id} type="button" className={hittingDraft?.id === result.id ? "active" : ""} onClick={() => chooseHittingResult(result)}>
-                        {result.label}
-                      </button>
-                    ))}
-                  </div>
+                  <PracticeResultChoices options={HITTING_RESULT_ACTIONS.map(result => ({ value: result.id, label: result.label }))} value={hittingDraft?.id} onChange={id => { const result = HITTING_RESULT_ACTIONS.find(result => result.id === id); if (result) chooseHittingResult(result); }} />
                 </section>
               )}
 
@@ -11327,13 +10604,7 @@ function PracticeConsole({
 
                 <div className="practice-defense-option-section">
                   <span>Result</span>
-                  <div className="practice-defense-result-grid">
-                    {DEFENSE_RESULTS.map((result) => (
-                      <button key={result} type="button" className={defenseDraft.result === result ? `active ${defenseResultTone(result)}` : defenseResultTone(result)} onClick={() => setDefenseDraft((current) => ({ ...current, result }))}>
-                        {result}
-                      </button>
-                    ))}
-                  </div>
+                  <PracticeResultChoices className="practice-defense-result-grid" options={DEFENSE_RESULTS.map(result => ({ value: result, label: result, tone: defenseResultTone(result) }))} value={defenseDraft.result} onChange={result => setDefenseDraft(current => ({ ...current, result }))} />
                 </div>
 
                 {defenseTracksThrow && (
@@ -12131,95 +11402,6 @@ function DefenseBreakdownCard({
   );
 }
 
-function VelocityPickerField({
-  label,
-  value,
-  onChange,
-  defaultValue,
-  ariaLabel,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  defaultValue: number;
-  ariaLabel: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const [draftValue, setDraftValue] = useState(() => normalizedVelocityValue(value, defaultValue));
-  const selectedRef = useRef<HTMLButtonElement | null>(null);
-  const pointerStartRef = useRef<number | null>(null);
-  const currentValue = normalizedVelocityValue(value, defaultValue);
-
-  useEffect(() => {
-    if (!open) return;
-    window.setTimeout(() => selectedRef.current?.scrollIntoView({ block: "center" }), 0);
-  }, [open, draftValue]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [open]);
-
-  function openPicker() {
-    setDraftValue(normalizedVelocityValue(value, defaultValue));
-    setOpen(true);
-  }
-
-  return (
-    <div className="velocity-picker-field">
-      <button className="velocity-picker-field__trigger" type="button" onClick={openPicker} aria-label={ariaLabel}>
-        <span>{label}</span>
-        <strong>{value.trim() ? currentValue : "--"}</strong>
-        <em>mph</em>
-      </button>
-      {open && (
-        <div className="velocity-picker-field__popover" role="dialog" aria-label={`${label} selector`}>
-          <div className="velocity-picker-field__head">
-            <button type="button" onClick={() => setOpen(false)}>Cancel</button>
-            <strong>{label}</strong>
-            <button type="button" onClick={() => { onChange(String(draftValue)); setOpen(false); }}>Done</button>
-          </div>
-          <div className="velocity-picker-field__wheel" role="listbox" aria-label={`${label} velocity`}>
-            {TRACKING_VELOCITY_OPTIONS.map((option) => (
-              <button
-                key={option}
-                ref={draftValue === option ? selectedRef : undefined}
-                type="button"
-                role="option"
-                aria-selected={draftValue === option}
-                className={draftValue === option ? "active" : ""}
-                onPointerDown={(event) => { pointerStartRef.current = event.clientY; }}
-                onClick={(event) => {
-                  const moved = pointerStartRef.current !== null && Math.abs(event.clientY - pointerStartRef.current) > 8;
-                  pointerStartRef.current = null;
-                  setDraftValue(option);
-                  if (moved) return;
-                  onChange(String(option));
-                  setOpen(false);
-                }}
-              >
-                <span>{option}</span>
-                <em>mph</em>
-              </button>
-            ))}
-          </div>
-          <button className="velocity-picker-field__clear" type="button" onClick={() => { onChange(""); setOpen(false); }}>Clear</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function normalizedVelocityValue(value: string, fallback: number) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(TRACKING_VELOCITY_MIN_MPH, Math.min(TRACKING_VELOCITY_MAX_MPH, Math.round(parsed)));
-}
-
 function PracticeHittingChartCarousel({
   events,
   hitter,
@@ -12556,14 +11738,6 @@ function nextHittingChartMetricMode(mode: PracticeChartMetricMode): PracticeChar
   if (mode === "dots") return "percent";
   if (mode === "percent") return "count";
   return "heat";
-}
-
-function chartMetricModeLabel(mode: PracticeChartMetricMode) {
-  if (mode === "dots") return "Spray";
-  if (mode === "percent") return "%";
-  if (mode === "count") return "#";
-  if (mode === "average") return "AVG";
-  return "Heat";
 }
 
 type HittingPitchLocationBucketStats = {
@@ -12959,27 +12133,6 @@ function isPitchLocationInZone(point?: ZonePoint) {
   if (bucket) return bucket.isZone;
   if (typeof point.isZone === "boolean") return point.isZone;
   return point.x >= 0.22 && point.x <= 0.78 && point.y >= 0.18 && point.y <= 0.82;
-}
-
-function normalizePitchLocationZoneId(zoneId?: PitchLocationZoneId): PitchLocationGridZoneId | undefined {
-  if (!zoneId) return undefined;
-  if (PITCH_LOCATION_BUCKETS.some((bucket) => bucket.id === zoneId)) return zoneId as PitchLocationGridZoneId;
-  return LEGACY_PITCH_LOCATION_ID_MAP[zoneId];
-}
-
-function pitchLocationBucketFromPoint(point?: ZonePoint): PitchLocationBucket | undefined {
-  if (!point) return undefined;
-  if (point.zoneId) {
-    const normalizedId = normalizePitchLocationZoneId(point.zoneId);
-    const exact = PITCH_LOCATION_BUCKETS.find((bucket) => bucket.id === normalizedId);
-    if (exact) return exact;
-  }
-  return PITCH_LOCATION_BUCKETS
-    .map((bucket) => ({
-      bucket,
-      distance: Math.hypot(point.x - bucket.x, point.y - bucket.y),
-    }))
-    .sort((left, right) => left.distance - right.distance)[0]?.bucket;
 }
 
 function makePitchLocationPoint(bucket: PitchLocationBucket, pitcher?: Player): ZonePoint {
@@ -13615,94 +12768,6 @@ function WeightRoomWeighInCard({ data, players, date, onOpen }: { data: AppData;
             <span role="cell">{typeof row.starting === "number" ? formatNumber(row.starting, 1) : "—"}</span>
           </button>
         ))}
-      </div>
-    </article>
-  );
-}
-
-function WeightRoomRecentWorkouts({
-  data,
-  players,
-  activeWorkout,
-  onStart,
-  onReview,
-  onViewAll,
-  expanded = false,
-}: {
-  data: AppData;
-  players: Player[];
-  activeWorkout?: { status: WeightRoomWorkoutStatus; date: string; title: string; eventId?: ID };
-  onStart: (input?: { title?: string; date?: string; location?: string; eventId?: ID }) => void;
-  onReview?: (row: WeightRoomWorkoutSummary) => void;
-  onViewAll?: () => void;
-  expanded?: boolean;
-}) {
-  const allWorkoutRows = buildRecentWeightRoomWorkouts(data, players);
-  const allLiftRows = buildScheduleItems(data)
-    .filter((item) => item.eventType === "Lift" && item.status !== "Cancelled")
-    .sort((left, right) => Date.parse(left.startAt) - Date.parse(right.startAt));
-  const upcomingLifts = allLiftRows.filter((item) => item.status !== "Completed" && isUpcomingScheduleItem(item));
-  const lifts = expanded ? upcomingLifts.slice(0, 5) : upcomingLifts.slice(0, 1);
-  const completedRows = allWorkoutRows.filter((row) => row.completed);
-  const openRows = allWorkoutRows.filter((row) => !row.completed);
-  const workoutRows = expanded
-    ? [...openRows, ...completedRows].slice(0, 8)
-    : completedRows.slice(0, 1);
-  const totalRows = lifts.length + workoutRows.length;
-  const activeRunning = activeWorkout?.status === "In Progress" || activeWorkout?.status === "Paused";
-  const presetNames = new Set((data.weightRoomExercisePresets ?? []).filter((preset) => !preset.archivedAt).map((preset) => preset.name.toLowerCase()));
-  const displayWorkoutTitle = (title: string) => presetNames.has(title.toLowerCase()) ? title : "Team Lift";
-  const labelForLift = (item: ScheduleItem) => {
-    const activeMatch = activeRunning
-      && ((activeWorkout?.eventId && item.source === "event" && item.sourceId === activeWorkout.eventId)
-        || (item.date === activeWorkout?.date && item.title === activeWorkout?.title));
-    const hasStartedData = allWorkoutRows.some((row) => row.date === item.date && row.title === item.title && !row.completed && (row.sets > 0 || row.athletes > 0));
-    if (activeMatch) return activeWorkout?.status === "Paused" ? "Paused" : "Started";
-    if (hasStartedData) return "Started";
-    return "Scheduled";
-  };
-
-  return (
-    <article className="panel weight-room-recent-card">
-      <div className="panel-heading tight">
-        <div>
-          <span>{expanded ? "Workout History" : "Team sessions"}</span>
-          <h2>{totalRows ? "Lifts" : "No workouts yet"}</h2>
-        </div>
-        {!expanded && onViewAll && totalRows > 0 && (
-          <button className="text-button" type="button" onClick={onViewAll}>View All</button>
-        )}
-      </div>
-      <div className="weight-room-workout-list">
-        {lifts.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onStart({ title: item.title, date: item.date, location: item.location, eventId: item.source === "event" ? item.sourceId : undefined })}
-          >
-            <ScheduleTypeIcon type="Lift" />
-            <span>
-              <strong>{displayWorkoutTitle(item.title)}</strong>
-              <small>{formatWeightRoomSessionMeta(item.date, item.startAt)}</small>
-            </span>
-            <em>{labelForLift(item)}</em>
-          </button>
-        ))}
-        {workoutRows.map((row) => (
-          <button
-            key={`${row.date}-${row.title}`}
-            type="button"
-            onClick={() => row.completed && onReview ? onReview(row) : onStart({ title: row.title, date: row.date, location: row.location })}
-          >
-            <ScheduleTypeIcon type="Lift" />
-            <span>
-              <strong>{displayWorkoutTitle(row.title)}</strong>
-              <small>{formatWeightRoomSessionMeta(row.date, row.startAt)}</small>
-            </span>
-            <em>{row.completed ? "Completed" : "Started"}</em>
-          </button>
-        ))}
-        {!totalRows && <CompactEmpty title="Start the first lift to begin tracking." />}
       </div>
     </article>
   );
@@ -15547,119 +14612,6 @@ function WorkoutStationTargetControls({
   );
 }
 
-function WeightRoomInlineSetCell({
-  cell,
-  station,
-  entry,
-  previousEntry,
-  disabled,
-  onSaveCell,
-}: {
-  cell: ActiveWorkoutCell;
-  station: ActiveWorkoutStation;
-  entry?: WorkoutEntry;
-  previousEntry?: WorkoutEntry;
-  disabled: boolean;
-  onSaveCell: (cell: ActiveWorkoutCell, draft: { weight?: number; reps?: number; value?: number; rpe?: number; unit?: WorkoutEntry["unit"]; status?: WorkoutEntry["status"] }) => void;
-}) {
-  const [weight, setWeight] = useState(entry?.weight?.toString() ?? "");
-  const [reps, setReps] = useState(entry?.reps?.toString() ?? "");
-  const [value, setValue] = useState(entry?.value?.toString() ?? "");
-  const isWeightReps = station.measurementType === "WEIGHT_REPS";
-  const isRepsOnly = station.measurementType === "BODYWEIGHT_REPS" || station.measurementType === "REPS_ONLY" || station.measurementType === "COUNT";
-  const isWeightOnly = station.measurementType === "WEIGHT_ONLY";
-  const isCompletion = station.measurementType === "COMPLETION" || station.targetStyle === "Completion";
-
-  function clean(valueToClean: string) {
-    return valueToClean.replace(/[^0-9.]/g, "");
-  }
-
-  function save() {
-    const parsedValue = station.measurementType === "TIME"
-      ? optionalTimeValue(value)
-      : station.measurementType === "DISTANCE" || station.measurementType === "HEIGHT"
-        ? optionalDistanceValue(value)
-        : optionalNumber(value);
-    const draft = {
-      weight: isWeightReps || isWeightOnly ? optionalNumber(weight) : undefined,
-      reps: isWeightReps || isRepsOnly ? optionalNumber(reps) : undefined,
-      value: isCompletion ? 1 : isWeightReps || isWeightOnly || isRepsOnly ? undefined : parsedValue,
-      unit: isWeightReps || isWeightOnly ? "lb" as const : isRepsOnly ? "reps" as const : station.unit,
-      status: "Completed" as const,
-    };
-    if (isCompletion || typeof draft.weight === "number" || typeof draft.reps === "number" || typeof draft.value === "number") {
-      onSaveCell(cell, draft);
-    }
-  }
-
-  function handleKey(event: React.KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter") {
-      event.currentTarget.blur();
-      save();
-    }
-  }
-
-  const previousText = previousEntry ? formatWorkoutEntryValueForStation(previousEntry, station) : undefined;
-  return (
-    <div className={entry ? "weight-room-inline-set-cell complete" : "weight-room-inline-set-cell"} aria-label={`${station.name} ${stationAttemptLabel(station).toLowerCase()} ${cell.setNumber}`}>
-      {isWeightReps ? (
-        <div className="weight-room-inline-set-fields two">
-          <label>
-            <span>lbs</span>
-            <input disabled={disabled} inputMode="decimal" value={weight} placeholder={previousEntry?.weight?.toString() ?? "Weight"} onBlur={save} onKeyDown={handleKey} onChange={(event) => setWeight(clean(event.target.value))} />
-          </label>
-          <label>
-            <span>reps</span>
-            <input disabled={disabled} inputMode="numeric" value={reps} placeholder={station.targetReps ? `${station.targetReps}` : previousEntry?.reps?.toString() ?? "Reps"} onBlur={save} onKeyDown={handleKey} onChange={(event) => setReps(clean(event.target.value))} />
-          </label>
-        </div>
-      ) : isRepsOnly ? (
-        <div className="weight-room-inline-set-fields">
-          <label>
-            <span>reps</span>
-            <input disabled={disabled} inputMode="numeric" value={reps} placeholder={station.targetReps ? `${station.targetReps}` : "Reps"} onBlur={save} onKeyDown={handleKey} onChange={(event) => setReps(clean(event.target.value))} />
-          </label>
-        </div>
-      ) : isWeightOnly ? (
-        <div className="weight-room-inline-set-fields">
-          <label>
-            <span>lbs</span>
-            <input disabled={disabled} inputMode="decimal" value={weight} placeholder={previousEntry?.weight?.toString() ?? "Weight"} onBlur={save} onKeyDown={handleKey} onChange={(event) => setWeight(clean(event.target.value))} />
-          </label>
-        </div>
-      ) : isCompletion ? (
-        <button className="weight-room-completion-cell" type="button" disabled={disabled} onClick={save}>
-          <Check size={15} aria-hidden="true" />
-          Complete
-        </button>
-      ) : station.measurementType === "RPE_ONLY" ? (
-        <div className="weight-room-inline-set-fields">
-          <label>
-            <span>score</span>
-            <input disabled={disabled} inputMode="decimal" value={value} placeholder="1-10" onBlur={save} onKeyDown={handleKey} onChange={(event) => setValue(clean(event.target.value))} />
-          </label>
-        </div>
-      ) : (
-        <div className="weight-room-inline-set-fields">
-          <label>
-            <span>{station.unit ?? weightRoomMeasurementLabel(station)}</span>
-            <input
-              disabled={disabled}
-              inputMode="decimal"
-              value={value}
-              placeholder={previousEntry ? formatWorkoutEntryValueForStation(previousEntry, station) : weightRoomMeasurementLabel(station)}
-              onBlur={save}
-              onKeyDown={handleKey}
-              onChange={(event) => setValue(cleanWorkoutMeasurementDraft(event.target.value, station.measurementType))}
-            />
-          </label>
-        </div>
-      )}
-      <small>{entry ? formatWorkoutEntryValueForStation(entry, station) : previousText && previousText !== "--" ? `Prev ${previousText}` : station.targetReps ? `${station.targetReps} target` : "Enter"}</small>
-    </div>
-  );
-}
-
 function WeightRoomGroupStationTable({
   players,
   group,
@@ -16409,10 +15361,6 @@ function targetStyleOptionsForMeasurement(measurementType: WorkoutMeasurementTyp
   if (measurementType === "REPS_ONLY" || measurementType === "BODYWEIGHT_REPS" || measurementType === "COUNT") return ["Max Reps", "Target Reps", "Completion"];
   if (measurementType === "COMPLETION") return ["Completion"];
   return ["Standard", "Target Reps", "Max Reps", "Max Weight", "Completion"];
-}
-
-function stationAttemptLabel(station: Pick<ActiveWorkoutStation, "targetStyle">) {
-  return ["Best Time", "Best Distance", "Max Weight", "Max Time", "Max Reps"].includes(station.targetStyle) ? "Attempts" : "Sets";
 }
 
 function stationTargetSummary(station: ActiveWorkoutStation) {
@@ -19035,1317 +17983,6 @@ function gameEventMeta(event: GameEvent) {
   return parts.join(" · ") || event.scoringNote || event.situations[0] || "Recorded";
 }
 
-function AnalyticsView({
-  data,
-  onOpenPlayer,
-  onAsk,
-}: {
-  data: AppData;
-  onOpenPlayer: (playerId: ID) => void;
-  onAsk: (analytics: Partial<AnalyticsQuery>) => void;
-}) {
-  const initialState = useMemo(() => readInitialAnalyticsState(), []);
-  const [domain, setDomain] = useState<AnalyticsDomain>(initialState.domain);
-  const [source, setSource] = useState<AnalyticsSource>(initialState.source);
-  const [fieldSources, setFieldSources] = useState<AnalyticsFieldSource[]>(initialState.fieldSources);
-  const mode: AnalyticsMode = "box-score";
-  const [analyticsView, setAnalyticsView] = useState<AnalyticsViewId>(initialState.analyticsView);
-  const [timeRange, setTimeRange] = useState<AnalyticsTimeRange>(initialState.timeRange);
-  const [developmentView, setDevelopmentView] = useState<AnalyticsDevelopmentView>(initialState.developmentView);
-  const [eventIds, setEventIds] = useState<ID[]>(initialState.eventIds);
-  const [customRange, setCustomRange] = useState<{ start?: string; end?: string }>(initialState.customRange);
-  const [filters, setFilters] = useState<AnalyticsFilters>(initialState.filters);
-  const [stagedFilters, setStagedFilters] = useState<AnalyticsFilters>(initialState.filters);
-  const [sort, setSort] = useState<AnalyticsQuery["sort"]>(() => initialState.sort ?? defaultAnalyticsSort(initialState.domain, initialState.source, initialState.mode));
-  const [eventSelectorOpen, setEventSelectorOpen] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [columnsOpen, setColumnsOpen] = useState(false);
-  const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>(() => readInitialAnalyticsDetailPlayerId(data));
-  const [metricIds, setMetricIds] = useState<string[] | undefined>(initialState.metricIds);
-  const [columnPreset, setColumnPreset] = useState<AnalyticsColumnPreset>(initialState.columnPreset);
-  const [analyticsWorkspace, setAnalyticsWorkspace] = useState<"overview" | "charts" | "insights">(initialState.workspace);
-  const [chartSurface, setChartSurface] = useState<"spray" | "location">("spray");
-  const [chartMode, setChartMode] = useState<PracticeChartMetricMode>("heat");
-  const [chartPlayerIds, setChartPlayerIds] = useState<ID[]>([]);
-  const context = useMemo(() => ({
-    teamId: data.teamContext?.currentTeam?.teamId,
-    seasonId: data.teamContext?.currentTeam?.seasonId,
-    organizationId: data.teamContext?.currentTeam?.organizationId,
-    role: data.teamContext?.currentTeam?.role,
-  }), [data.teamContext?.currentTeam]);
-  const query = useMemo<AnalyticsQuery>(() => ({
-    domain,
-    source: domain === "development" ? "all" : source,
-    fieldSources: domain === "development" ? undefined : fieldSources,
-    mode: domain === "development" ? "box-score" : mode,
-    view: analyticsView,
-    timeRange,
-    developmentView,
-    customDateRange: customRange,
-    eventIds,
-    playerIds: analyticsWorkspace === "charts" && chartPlayerIds.length ? chartPlayerIds : undefined,
-    filters,
-    metrics: metricIds ?? defaultAnalyticsMetricIds(domain, domain === "development" ? "all" : source, domain === "development" ? undefined : fieldSources),
-    groupBy: "player",
-    sort,
-    context,
-  }), [analyticsView, analyticsWorkspace, chartPlayerIds, context, customRange, developmentView, domain, eventIds, fieldSources, filters, metricIds, mode, sort, source, timeRange]);
-  const result = useMemo(() => executeAnalyticsQuery(data, query), [data, query]);
-  const serializedAnalyticsContext = useMemo(
-    () => serializeAnalyticsContext(query, result.columns.map((column) => column.metricId)),
-    [query, result.columns],
-  );
-  const selectedDetailRow = detailPlayerId ? result.rows.find((row) => row.player.id === detailPlayerId) : undefined;
-  const activeFilterCount = Object.values(filters).reduce((total, value) => total + (Array.isArray(value) ? value.length : typeof value === "number" ? 1 : 0), 0);
-  const activeFilterSummary = useMemo(
-    () => result.filterDefinitions.flatMap((definition) => {
-      if (definition.type === "range") {
-        if (filters.pitchVelocityMin === undefined && filters.pitchVelocityMax === undefined) return [];
-        const label = filters.pitchVelocityMin !== undefined && filters.pitchVelocityMax !== undefined
-          ? `${filters.pitchVelocityMin}-${filters.pitchVelocityMax} mph`
-          : filters.pitchVelocityMin !== undefined ? `${filters.pitchVelocityMin}+ mph` : `Up to ${filters.pitchVelocityMax} mph`;
-        return [{ id: definition.id, value: "range", label }];
-      }
-      const values = (filters[definition.id] as string[] | undefined) ?? [];
-      return values.map((value) => ({ id: definition.id, value, label: definition.options.find((option) => option.value === value)?.label ?? value }));
-    }),
-    [filters, result.filterDefinitions],
-  );
-  const analyticsFieldSourceOptions = analyticsSourcesForDomain(domain).filter((candidate): candidate is AnalyticsFieldSource => candidate !== "all");
-  const analyticsEventTriggerLabel = eventIds.length
-    ? analyticsEventSummary(eventIds, result.availableEvents)
-    : timeRange === "7d" ? "Last 7 Days" : timeRange === "30d" ? "Last 30 Days" : "All Events";
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    url.searchParams.set("view", "analytics");
-    url.searchParams.set("domain", domain);
-    url.searchParams.set("source", domain === "development" ? "all" : source);
-    if (domain !== "development" && fieldSources.length > 1) url.searchParams.set("sources", fieldSources.join(","));
-    else url.searchParams.delete("sources");
-    url.searchParams.delete("mode");
-    url.searchParams.set("statView", analyticsView);
-    if (analyticsWorkspace !== "overview") url.searchParams.set("workspace", analyticsWorkspace);
-    else url.searchParams.delete("workspace");
-    url.searchParams.delete("insightsDomain");
-    url.searchParams.set("period", timeRange);
-    if (developmentView !== "overview") url.searchParams.set("dev", developmentView);
-    else url.searchParams.delete("dev");
-    if (eventIds.length) url.searchParams.set("events", eventIds.join(","));
-    else url.searchParams.delete("events");
-    if (metricIds?.length) url.searchParams.set("columns", metricIds.join(","));
-    else url.searchParams.delete("columns");
-    if (columnPreset !== "standard") url.searchParams.set("columnPreset", columnPreset);
-    else url.searchParams.delete("columnPreset");
-    if (sort?.metricId) {
-      url.searchParams.set("sort", sort.metricId);
-      url.searchParams.set("dir", sort.direction);
-    } else {
-      url.searchParams.delete("sort");
-      url.searchParams.delete("dir");
-    }
-    const encodedFilters = encodeAnalyticsFilters(filters);
-    if (encodedFilters) url.searchParams.set("filters", encodedFilters);
-    else url.searchParams.delete("filters");
-    if (timeRange === "custom" && customRange.start) url.searchParams.set("start", customRange.start);
-    else url.searchParams.delete("start");
-    if (timeRange === "custom" && customRange.end) url.searchParams.set("end", customRange.end);
-    else url.searchParams.delete("end");
-    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
-    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (nextUrl !== currentUrl) window.history.replaceState({}, "", nextUrl);
-  }, [analyticsView, analyticsWorkspace, columnPreset, customRange.end, customRange.start, developmentView, domain, eventIds, fieldSources, filters, metricIds, sort, source, timeRange]);
-
-  useEffect(() => {
-    const handleAnalyticsPopState = () => {
-      const next = readInitialAnalyticsState();
-      setDomain(next.domain);
-      setSource(next.source);
-      setFieldSources(next.fieldSources);
-      setAnalyticsView(next.analyticsView);
-      setAnalyticsWorkspace(next.workspace);
-      setTimeRange(next.timeRange);
-      setDevelopmentView(next.developmentView);
-      setEventIds(next.eventIds);
-      setCustomRange(next.customRange);
-      setFilters(next.filters);
-      setStagedFilters(next.filters);
-      setSort(next.sort ?? defaultAnalyticsSort(next.domain, next.source, next.mode));
-      setMetricIds(next.metricIds);
-      setColumnPreset(next.columnPreset);
-      setDetailPlayerId(readInitialAnalyticsDetailPlayerId(data));
-      setEventSelectorOpen(false);
-      setFiltersOpen(false);
-      setColumnsOpen(false);
-    };
-    window.addEventListener("popstate", handleAnalyticsPopState);
-    return () => window.removeEventListener("popstate", handleAnalyticsPopState);
-  }, [data]);
-
-  function handleDomain(nextDomain: AnalyticsDomain) {
-    setDomain(nextDomain);
-    const supportedSources = analyticsSourcesForDomain(nextDomain).filter((candidate): candidate is AnalyticsFieldSource => candidate !== "all");
-    const nextFieldSources = nextDomain === "development"
-      ? fieldSources
-      : fieldSources.filter((candidate) => supportedSources.includes(candidate)).length
-        ? normalizeAnalyticsFieldSources(fieldSources.filter((candidate) => supportedSources.includes(candidate)))
-        : [supportedSources[0] ?? "practice"];
-    const nextSource = nextDomain === "development" ? "all" : analyticsSourceFromFieldSources(nextFieldSources);
-    setSource(nextSource);
-    setFieldSources(nextFieldSources);
-    setAnalyticsView(normalizeAnalyticsView(nextDomain, nextSource));
-    if (nextDomain === "development") {
-      setDevelopmentView("weight-room");
-      setAnalyticsWorkspace("overview");
-    }
-    setFilters({});
-    setStagedFilters({});
-    setMetricIds(undefined);
-    setColumnPreset("standard");
-    setSort(defaultAnalyticsSort(nextDomain, nextSource, "box-score"));
-  }
-
-  function openInsightDrill(queryPatch: Partial<AnalyticsQuery>) {
-    const nextDomain = queryPatch.domain ?? domain;
-    const nextFieldSources = queryPatch.fieldSources?.length
-      ? normalizeAnalyticsFieldSources(queryPatch.fieldSources)
-      : fieldSources;
-    setDomain(nextDomain);
-    setSource(queryPatch.source ?? analyticsSourceFromFieldSources(nextFieldSources));
-    setFieldSources(nextFieldSources);
-    setTimeRange(queryPatch.timeRange ?? timeRange);
-    setCustomRange(queryPatch.customDateRange ?? customRange);
-    setEventIds(queryPatch.eventIds ?? eventIds);
-    setFilters(queryPatch.filters ?? filters);
-    setStagedFilters(queryPatch.filters ?? filters);
-    setMetricIds(queryPatch.metrics);
-    setColumnPreset(queryPatch.metrics?.length ? "custom" : "standard");
-    setAnalyticsView(queryPatch.view ?? "overview");
-    setSort(queryPatch.sort ?? defaultAnalyticsSort(nextDomain, queryPatch.source ?? analyticsSourceFromFieldSources(nextFieldSources), "box-score"));
-    setAnalyticsWorkspace("overview");
-    setEventSelectorOpen(false);
-    setFiltersOpen(false);
-    setColumnsOpen(false);
-  }
-
-  function handleFieldSources(nextFieldSources: AnalyticsFieldSource[]) {
-    if (!nextFieldSources.length) return;
-    const normalizedFieldSources = normalizeAnalyticsFieldSources(nextFieldSources);
-    const nextSource = analyticsSourceFromFieldSources(normalizedFieldSources);
-    setSource(nextSource);
-    setFieldSources(normalizedFieldSources);
-    setFilters({});
-    setStagedFilters({});
-    setEventIds([]);
-    setMetricIds(undefined);
-    setColumnPreset("standard");
-    setAnalyticsView(normalizeAnalyticsView(domain, nextSource, analyticsView));
-    setSort(defaultAnalyticsSort(domain, nextSource, "box-score"));
-  }
-
-  function handleFieldSourceToggle(nextFieldSource: AnalyticsFieldSource) {
-    if (domain === "development") {
-      setDomain("hitting");
-      setSource(nextFieldSource);
-      setFieldSources([nextFieldSource]);
-      setDevelopmentView("overview");
-      setFilters({});
-      setStagedFilters({});
-      setEventIds([]);
-      setMetricIds(undefined);
-      setColumnPreset("standard");
-      setAnalyticsView(normalizeAnalyticsView("hitting", nextFieldSource));
-      setSort(defaultAnalyticsSort("hitting", nextFieldSource, "box-score"));
-      setAnalyticsWorkspace("overview");
-      return;
-    }
-    const nextFieldSources = fieldSources.includes(nextFieldSource)
-      ? fieldSources.filter((sourceItem) => sourceItem !== nextFieldSource)
-      : [...fieldSources, nextFieldSource];
-    handleFieldSources(nextFieldSources);
-  }
-
-  function handleSort(metricId: string) {
-    setSort((current) => {
-      if (current?.metricId === metricId) return { metricId, direction: current.direction === "asc" ? "desc" : "asc" };
-      return { metricId, direction: metricId === "player" ? "asc" : "desc" };
-    });
-  }
-
-  function toggleEvent(eventId: ID) {
-    setEventIds((current) => current.includes(eventId) ? current.filter((id) => id !== eventId) : [...current, eventId]);
-  }
-
-  function toggleStagedFilter(definition: AnalyticsFilterDefinition, value: string) {
-    if (definition.type === "range") return;
-    setStagedFilters((current) => {
-      const currentValues = new Set(((current[definition.id] as string[] | undefined) ?? []));
-      if (currentValues.has(value)) currentValues.delete(value);
-      else currentValues.add(value);
-      return {
-        ...current,
-        [definition.id]: [...currentValues],
-      };
-    });
-  }
-
-  function toggleColumn(metricId: string) {
-    setColumnPreset("custom");
-    setMetricIds((current) => {
-      const visibleIds = current ?? result.columns.map((column) => column.metricId);
-      const nextIds = visibleIds.includes(metricId)
-        ? visibleIds.filter((id) => id !== metricId)
-        : [...visibleIds, metricId];
-      return nextIds.length ? nextIds : visibleIds;
-    });
-  }
-
-  function applyColumnPreset(preset: Exclude<AnalyticsColumnPreset, "custom">) {
-    const presetIds = catalogPresetColumnIds(result.availableColumns, preset);
-    setMetricIds(preset === "standard" ? undefined : presetIds.length ? presetIds : undefined);
-    setColumnPreset(preset);
-    setColumnsOpen(false);
-  }
-
-  function removeFilterValue(id: keyof AnalyticsFilters, value: string) {
-    if (id === "pitchVelocityMin") {
-      setFilters((current) => ({ ...current, pitchVelocityMin: undefined, pitchVelocityMax: undefined }));
-      return;
-    }
-    setFilters((current) => ({
-      ...current,
-      [id]: ((current[id] as string[] | undefined) ?? []).filter((item) => item !== value),
-    }));
-  }
-
-  function setStagedFilterValues(definition: AnalyticsFilterDefinition, nextValues: string[]) {
-    setStagedFilters((current) => ({ ...current, [definition.id]: nextValues.length ? nextValues : undefined }));
-  }
-
-  function setStagedVelocityRange(minimum?: number, maximum?: number) {
-    setStagedFilters((current) => ({ ...current, pitchVelocityMin: minimum, pitchVelocityMax: maximum }));
-  }
-
-  function openFilters() {
-    setStagedFilters(cloneAnalyticsFilters(filters));
-    setFiltersOpen(true);
-    setEventSelectorOpen(false);
-    setColumnsOpen(false);
-  }
-
-  function applyStagedFilters() {
-    setFilters(cloneAnalyticsFilters(stagedFilters));
-    setFiltersOpen(false);
-  }
-
-  function writeAnalyticsDetailRoute(playerId: ID | undefined, options: { replace?: boolean } = {}) {
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    if (playerId) url.searchParams.set("detailPlayer", playerId);
-    else url.searchParams.delete("detailPlayer");
-    const nextUrl = `${url.pathname}${url.search}${url.hash}`;
-    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (nextUrl === currentUrl) return;
-    window.history[options.replace ? "replaceState" : "pushState"]({ clubhouse: true, view: "analytics" }, "", nextUrl);
-  }
-
-  function openAnalyticsPlayerDetail(playerId: ID) {
-    setDetailPlayerId(playerId);
-    writeAnalyticsDetailRoute(playerId);
-  }
-
-  function closeAnalyticsPlayerDetail() {
-    setDetailPlayerId(undefined);
-    writeAnalyticsDetailRoute(undefined, { replace: true });
-  }
-
-  return (
-    <div className="page-stack analytics-page">
-      <SectionHeader title="Analytics" action={<AskClubhouseLauncher onClick={() => onAsk({ ...query, ...serializedAnalyticsContext })} />} />
-
-      <section className="analytics-controls" aria-label="Analytics controls">
-        <div className="analytics-primary-navigation">
-          <div className="analytics-domain-tabs">
-            <SegmentedControl
-              values={["hitting", "pitching", "defense"] as AnalyticsDomain[]}
-              active={domain === "development" ? undefined : domain}
-              onChange={handleDomain}
-              disabled={domain === "development"}
-              disabledTitle="Choose a field source to view Hitting, Pitching, or Defense."
-            />
-          </div>
-          <AnalyticsSourceSelector
-            domain={domain}
-            selectedSources={fieldSources}
-            availableSources={analyticsFieldSourceOptions}
-            onToggleSource={handleFieldSourceToggle}
-            onOpenWeightRoom={() => handleDomain("development")}
-          />
-        </div>
-        <nav className="analytics-view-tabs" aria-label="Analytics workspace">
-          {(["overview", "charts", "insights"] as const).map((workspace) => (
-            <button
-              key={workspace}
-              type="button"
-              className={analyticsWorkspace === workspace ? "active" : ""}
-              onClick={() => setAnalyticsWorkspace(workspace)}
-              disabled={domain === "development" && workspace !== "overview"}
-              title={domain === "development" && workspace !== "overview" ? "Workouts uses the team and player development table." : undefined}
-            >
-              {workspace[0].toUpperCase() + workspace.slice(1)}
-            </button>
-          ))}
-        </nav>
-        <div className="analytics-controls__row analytics-controls__row--filters">
-          <div className="analytics-popover-wrap">
-            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
-              setEventSelectorOpen((open) => !open);
-              setFiltersOpen(false);
-              setColumnsOpen(false);
-            }}>
-              {analyticsEventTriggerLabel}
-              <ChevronDown size={14} aria-hidden="true" />
-            </button>
-            {eventSelectorOpen && (
-              <AnalyticsEventSelector
-                events={result.availableEvents}
-                selectedIds={eventIds}
-                timeRange={timeRange}
-                onToggle={toggleEvent}
-                onClear={() => setEventIds([])}
-                onTimeRangeChange={setTimeRange}
-              />
-            )}
-          </div>
-          <div className="analytics-popover-wrap">
-            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => filtersOpen ? setFiltersOpen(false) : openFilters()}>
-              <SlidersHorizontal size={14} aria-hidden="true" />
-              Filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
-            </button>
-            {filtersOpen && (
-              <AnalyticsFilterPanel
-                definitions={result.filterDefinitions}
-                values={stagedFilters}
-                onToggle={toggleStagedFilter}
-                onSetValues={setStagedFilterValues}
-                onVelocityRange={setStagedVelocityRange}
-                onClear={() => setStagedFilters({})}
-                onCancel={() => { setStagedFilters(cloneAnalyticsFilters(filters)); setFiltersOpen(false); }}
-                onApply={applyStagedFilters}
-              />
-            )}
-          </div>
-          <div className="analytics-popover-wrap">
-            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
-              setColumnsOpen((open) => !open);
-              setEventSelectorOpen(false);
-              setFiltersOpen(false);
-            }}>
-              <Columns3 size={14} aria-hidden="true" />
-              {columnPreset === "custom" ? "Columns: Custom" : `Columns: ${columnPreset.split("-").map((word) => `${word[0].toUpperCase()}${word.slice(1)}`).join(" ")}`}
-            </button>
-            {columnsOpen && (
-              <AnalyticsColumnPanel
-                domain={domain}
-                columns={result.availableColumns}
-                selectedIds={metricIds ?? result.columns.map((column) => column.metricId)}
-                activePreset={columnPreset}
-                onToggle={toggleColumn}
-                onPreset={applyColumnPreset}
-                onReset={() => { setMetricIds(undefined); setColumnPreset("standard"); setColumnsOpen(false); }}
-              />
-            )}
-          </div>
-        </div>
-        {activeFilterSummary.length > 0 && (
-          <div className="analytics-active-filter-summary" aria-label="Active analytics filters">
-            {activeFilterSummary.map((chip) => (
-              <button key={`${chip.id}-${chip.value}`} type="button" onClick={() => removeFilterValue(chip.id, chip.value)}>
-                {chip.label}<X size={12} aria-hidden="true" />
-              </button>
-            ))}
-            <button type="button" className="analytics-clear-filter-chip" onClick={() => setFilters({})}>Clear all</button>
-          </div>
-        )}
-      </section>
-
-      {(eventSelectorOpen || filtersOpen || columnsOpen) && (
-        <button
-          type="button"
-          className="analytics-sheet-scrim"
-          aria-label="Close Analytics panel"
-          onClick={() => { setEventSelectorOpen(false); setFiltersOpen(false); setColumnsOpen(false); }}
-        />
-      )}
-
-      {analyticsWorkspace === "overview" && <>
-        <AnalyticsTable
-          result={result}
-          sort={sort}
-          onSort={handleSort}
-          onOpenPlayer={openAnalyticsPlayerDetail}
-          onClearFilters={() => {
-            setFilters({});
-            setEventIds([]);
-          }}
-        />
-        <AnalyticsMetricKey result={result} />
-      </>}
-
-      {analyticsWorkspace === "charts" && (
-        <AnalyticsCharts
-          result={result}
-          surface={chartSurface}
-          mode={chartMode}
-          playerIds={chartPlayerIds}
-          players={data.players}
-          onSurfaceChange={setChartSurface}
-          onModeChange={setChartMode}
-          onPlayerIdsChange={setChartPlayerIds}
-        />
-      )}
-
-      {analyticsWorkspace === "insights" && domain !== "development" && <AnalyticsInsights
-        data={data}
-        query={query}
-        domain={domain}
-        onDrillDown={openInsightDrill}
-        onOpenPlayer={onOpenPlayer}
-      />}
-
-      {selectedDetailRow && (
-        <AnalyticsPlayerDrawer
-          row={selectedDetailRow}
-          result={result}
-          onClose={closeAnalyticsPlayerDetail}
-          onOpenProfile={() => {
-            setDetailPlayerId(undefined);
-            onOpenPlayer(selectedDetailRow.player.id);
-          }}
-          onClearFilters={() => {
-            setFilters({});
-            setEventIds([]);
-          }}
-          onViewAllHitting={() => {
-            setDomain("hitting");
-            setSource("all");
-            setFieldSources(["practice", "live-bp"]);
-            setAnalyticsView("overview");
-            setFilters({});
-            setEventIds([]);
-            setDetailPlayerId(undefined);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-function AnalyticsCharts({
-  result,
-  surface,
-  mode,
-  playerIds,
-  players,
-  onSurfaceChange,
-  onModeChange,
-  onPlayerIdsChange,
-}: {
-  result: AnalyticsResult;
-  surface: "spray" | "location";
-  mode: PracticeChartMetricMode;
-  playerIds: ID[];
-  players: Player[];
-  onSurfaceChange: (surface: "spray" | "location") => void;
-  onModeChange: (mode: PracticeChartMetricMode) => void;
-  onPlayerIdsChange: (playerIds: ID[]) => void;
-}) {
-  const canShowSpray = Boolean(result.sprayChart);
-  const canShowLocation = Boolean(result.pitchLocationChart);
-  const resolvedSurface = surface === "spray" && !canShowSpray ? "location" : surface === "location" && !canShowLocation ? "spray" : surface;
-  const selectedHitter = playerIds.length === 1 ? players.find((player) => player.id === playerIds[0]) : undefined;
-  return (
-    <section className="analytics-chart-workspace" aria-label="Analytics charts">
-      <div className="analytics-chart-workspace__controls">
-        <AnalyticsChartPlayerSelector players={players} selectedIds={playerIds} onChange={onPlayerIdsChange} />
-        <div className="analytics-chart-surface-control" role="group" aria-label="Chart type">
-          {canShowSpray && <button type="button" className={resolvedSurface === "spray" ? "active" : ""} onClick={() => onSurfaceChange("spray")}>Spray Chart</button>}
-          {canShowLocation && <button type="button" className={resolvedSurface === "location" ? "active" : ""} onClick={() => onSurfaceChange("location")}>Location Chart</button>}
-        </div>
-      </div>
-      {resolvedSurface === "spray" && result.sprayChart && <AnalyticsSprayChart result={result} mode={mode} onModeChange={onModeChange} />}
-      {resolvedSurface === "location" && result.pitchLocationChart && <AnalyticsPitchLocationChart result={result} mode={mode} onModeChange={onModeChange} hitter={selectedHitter} />}
-      {!canShowSpray && !canShowLocation && <CompactEmpty title="No charted locations for this analytics context" />}
-    </section>
-  );
-}
-
-function AnalyticsSourceSelector({
-  domain,
-  selectedSources,
-  availableSources,
-  onToggleSource,
-  onOpenWeightRoom,
-}: {
-  domain: AnalyticsDomain;
-  selectedSources: AnalyticsFieldSource[];
-  availableSources: AnalyticsFieldSource[];
-  onToggleSource: (source: AnalyticsFieldSource) => void;
-  onOpenWeightRoom: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const sourceLabels: Record<AnalyticsFieldSource, string> = { games: "Games", practice: "Practice", "live-bp": "Live BP" };
-  const summary = domain === "development"
-    ? "Workouts"
-    : selectedSources.length === 1 ? sourceLabels[selectedSources[0]] : `${selectedSources.length} Sources`;
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOnOutsidePointer);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOnOutsidePointer);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
-  return (
-    <div ref={rootRef} className={`analytics-source-selector analytics-scope-select${open ? " open" : ""}`}>
-      <button type="button" className="choice-select__button" aria-haspopup="menu" aria-expanded={open} aria-label="Analytics source and Workouts" onClick={() => setOpen((current) => !current)}>
-        <strong>{summary}</strong>
-        <ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {open && <div className="analytics-source-selector__menu" role="menu" aria-label="Analytics source and Workouts">
-        <div className="analytics-source-selector__field-sources" role="group" aria-label="Field sources">
-          {availableSources.map((source) => {
-            const selected = domain !== "development" && selectedSources.includes(source);
-            return <label key={source} className={selected ? "active" : ""}>
-              <input type="checkbox" checked={selected} onChange={() => onToggleSource(source)} />
-              <span className="analytics-source-selector__checkbox" aria-hidden="true">{selected && <Check size={13} strokeWidth={3} />}</span>
-              <span>{sourceLabels[source]}</span>
-            </label>;
-          })}
-        </div>
-        <div className="analytics-source-selector__divider" aria-hidden="true" />
-        <button type="button" className={domain === "development" ? "active" : ""} role="menuitem" onClick={() => { setOpen(false); onOpenWeightRoom(); }}>
-          <Dumbbell size={15} aria-hidden="true" />
-          <span>Workouts</span>
-        </button>
-      </div>}
-    </div>
-  );
-}
-
-function AnalyticsChartPlayerSelector({ players, selectedIds, onChange }: { players: Player[]; selectedIds: ID[]; onChange: (playerIds: ID[]) => void }) {
-  const [open, setOpen] = useState(false);
-  const selectedPlayers = players.filter((player) => selectedIds.includes(player.id));
-  const label = selectedPlayers.length === 0 ? "Team" : selectedPlayers.length === 1 ? selectedPlayers[0].name : `${selectedPlayers.length} players`;
-  return (
-    <div className="analytics-chart-player-select">
-      <button type="button" className="secondary-button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="listbox">
-        <Users size={14} aria-hidden="true" /><strong>{label}</strong><ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {open && <div className="analytics-chart-player-select__menu" role="listbox" aria-multiselectable="true" aria-label="Chart players">
-        <button type="button" role="option" aria-selected={selectedIds.length === 0} className={selectedIds.length === 0 ? "active" : ""} onClick={() => onChange([])}><Check size={14} aria-hidden="true" /><span><strong>Team</strong><small>All players</small></span></button>
-        {players.map((player) => {
-          const selected = selectedIds.includes(player.id);
-          return <button key={player.id} type="button" role="option" aria-selected={selected} className={selected ? "active" : ""} onClick={() => onChange(selected ? selectedIds.filter((id) => id !== player.id) : [...selectedIds, player.id])}>
-            <Check size={14} aria-hidden="true" /><span><strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}<small>#{player.jerseyNumber}</small></span>
-          </button>;
-        })}
-      </div>}
-    </div>
-  );
-}
-
-function AnalyticsChartModes({ mode, onChange, includeAverage = false }: { mode: PracticeChartMetricMode; onChange: (mode: PracticeChartMetricMode) => void; includeAverage?: boolean }) {
-  const displayMode = mode === "dots" ? "heat" : mode;
-  const nextMode = displayMode === "heat" ? "count" : displayMode === "count" ? "percent" : displayMode === "percent" && includeAverage ? "average" : "heat";
-  return <button className="analytics-chart-mode-cycle" type="button" onClick={() => onChange(nextMode)} aria-label={`Chart display: ${chartMetricModeLabel(displayMode)}. Activate to change view.`}>{chartMetricModeLabel(displayMode)}</button>;
-}
-
-function AnalyticsSprayChart({ result, mode = "heat", onModeChange }: { result: AnalyticsResult; mode?: PracticeChartMetricMode; onModeChange?: (mode: PracticeChartMetricMode) => void }) {
-  const chart = result.sprayChart;
-  if (!chart) return null;
-  const displayMode = mode === "average" ? "heat" : mode;
-  const hasTrackedLocations = chart.trackedLocations > 0;
-  return (
-    <section className="panel analytics-spray-chart" aria-label="Hitting spray chart">
-      <div className="analytics-spray-chart__header">
-        <span>Team Spray Chart</span>
-        <AnalyticsChartModes mode={displayMode} onChange={onModeChange ?? (() => undefined)} />
-      </div>
-      <ClubhouseBaseballField
-        points={chart.points}
-        mode={hasTrackedLocations ? (displayMode === "dots" ? "spray" : displayMode) : "blank"}
-        size="standard"
-        ariaLabel={`${chart.trackedLocations} tracked hitting locations in the current analytics selection`}
-      />
-    </section>
-  );
-}
-
-function AnalyticsTable({
-  result,
-  sort,
-  onSort,
-  onOpenPlayer,
-  onClearFilters,
-}: {
-  result: AnalyticsResult;
-  sort?: AnalyticsQuery["sort"];
-  onSort: (metricId: string) => void;
-  onOpenPlayer: (playerId: ID) => void;
-  onClearFilters: () => void;
-}) {
-  const gridTemplateColumns = `minmax(132px, 1.35fr) repeat(${result.columns.length}, minmax(64px, 0.72fr))`;
-  const minTableWidth = Math.max(676, 144 + result.columns.length * 64);
-  const rowStyle: React.CSSProperties = { gridTemplateColumns, minWidth: minTableWidth };
-  const hasTrackedData = result.rows.some((row) => row.sampleCount > 0) || Boolean(result.teamTotals?.sampleCount);
-  const visibleRows = hasTrackedData ? result.rows : [];
-  const groupedView = visibleRows.some((row) => row.rowKind === "group");
-  const hasActiveFilters = Boolean(result.query.eventIds?.length) || Object.values(result.query.filters ?? {}).some((value) => (Array.isArray(value) && value.length > 0) || typeof value === "number");
-  return (
-    <section className="panel analytics-table-panel">
-      {!hasTrackedData && (
-        <div className="analytics-no-data">
-          <div>
-            <strong>No tracked data for this selection yet.</strong>
-            <small>{hasActiveFilters ? "Clear filters or choose a wider event range." : "Change source or date range when more events are logged."}</small>
-          </div>
-          {hasActiveFilters && <button type="button" className="text-button" onClick={onClearFilters}>Clear Filters</button>}
-        </div>
-      )}
-      {hasTrackedData && (
-        <>
-          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Box-score grids need keyboard access for horizontal and vertical scrolling. */}
-          <div className="analytics-scroll-panel analytics-box-score" role="region" tabIndex={0} aria-label={`${result.title} box score`}>
-        <div className="analytics-box-score__row analytics-box-score__row--head" role="row" style={rowStyle}>
-          <button type="button" className="analytics-box-score__cell analytics-box-score__cell--player" onClick={() => onSort("player")} role="columnheader">
-            {groupedView ? "Split" : "Player"} {sort?.metricId === "player" ? sortIndicator(sort.direction) : ""}
-          </button>
-          {result.columns.map((column) => (
-            <button
-              key={column.metricId}
-              type="button"
-              className="analytics-box-score__cell analytics-box-score__cell--center"
-              onClick={() => column.sortable && onSort(column.metricId)}
-              title={column.definition}
-              role="columnheader"
-            >
-              {analyticsColumnDisplayLabel(column.label)} {sort?.metricId === column.metricId ? sortIndicator(sort.direction) : ""}
-            </button>
-          ))}
-        </div>
-        {visibleRows.length ? visibleRows.map((row) => (
-          <button key={row.player.id} type="button" className={`analytics-box-score__row${row.rowKind === "group" ? " analytics-box-score__row--group" : ""}`} role="row" style={rowStyle} onClick={() => row.rowKind !== "group" && onOpenPlayer(row.player.id)} aria-label={row.rowKind === "group" ? `${row.groupLabel} analytics split` : `Open ${row.player.name} analytics`}>
-            <span className="analytics-box-score__cell analytics-box-score__cell--player analytics-player-cell" role="cell">
-              {row.rowKind === "group"
-                ? <span><strong>{row.groupLabel}</strong><small>{row.sampleCount} tracked</small></span>
-                : <DensePlayerIdentity player={row.player} />}
-            </span>
-            {result.columns.map((column) => (
-              <AnalyticsCellView key={column.metricId} cell={row.cells[column.metricId]} />
-            ))}
-          </button>
-        )) : (
-          <div className="analytics-empty-table">
-            <strong>No matching data</strong>
-            <small>Change source, date range, events, or clear filters.</small>
-          </div>
-        )}
-        {result.teamTotals && (
-          <div className="analytics-box-score__row analytics-box-score__row--team" role="row" style={rowStyle}>
-            <span className="analytics-box-score__cell analytics-box-score__cell--player analytics-player-cell">
-              <span className="analytics-team-mark">TM</span>
-              <span><strong>TEAM</strong><small>Weighted totals</small></span>
-            </span>
-            {result.columns.map((column) => (
-              <AnalyticsCellView key={column.metricId} cell={result.teamTotals?.cells[column.metricId]} />
-            ))}
-          </div>
-        )}
-          </div>
-        </>
-      )}
-    </section>
-  );
-}
-
-function AnalyticsCellView({ cell }: { cell?: AnalyticsCell }) {
-  const display = cell?.display?.endsWith("%") ? cell.display.slice(0, -1) : cell?.display ?? "—";
-  return (
-    <span className={`analytics-box-score__cell analytics-box-score__cell--center ${cell?.kind === "insufficient-sample" ? "is-low-sample" : ""}`} role="cell">
-      <strong>{display}</strong>
-    </span>
-  );
-}
-
-function AnalyticsInsights({
-  data,
-  query,
-  domain,
-  onDrillDown,
-  onOpenPlayer,
-}: {
-  data: AppData;
-  query: AnalyticsQuery;
-  domain: "hitting" | "pitching" | "defense";
-  onDrillDown: (query: Partial<AnalyticsQuery>) => void;
-  onOpenPlayer: (playerId: ID) => void;
-}) {
-  const [detailSectionId, setDetailSectionId] = useState<string>();
-  const model = useMemo(() => buildAnalyticsInsights(data, query, domain), [data, domain, query]);
-  const detailSection = detailSectionId ? model.sections.find((section) => section.id === detailSectionId) : undefined;
-  const sections = detailSection ? [detailSection] : model.sections;
-  const sectionTitle = `${domain === "hitting" ? "Offense" : domain[0].toUpperCase() + domain.slice(1)} Insights`;
-  const handleRow = (row: { drillQuery?: Partial<AnalyticsQuery> }) => {
-    const playerId = row.drillQuery?.playerIds?.[0];
-    if (playerId) {
-      onOpenPlayer(playerId);
-      return;
-    }
-    if (row.drillQuery) onDrillDown(row.drillQuery);
-  };
-  return (
-    <section className="analytics-insights" aria-label="Team insights">
-      <div className="analytics-insights__head">
-        <h2>{detailSection ? detailSection.detailTitle ?? detailSection.title : sectionTitle}</h2>
-      </div>
-      {detailSection && (
-        <button className="analytics-insights__back" type="button" onClick={() => setDetailSectionId(undefined)}>
-          <ChevronLeft size={15} aria-hidden="true" /> All Insights
-        </button>
-      )}
-      <div className="analytics-insights__sections">
-        {sections.map((section) => (
-          <section key={section.id} className="analytics-insights__section panel">
-            <div className="analytics-insights__section-head">
-              <h3>{section.title}</h3>
-              {!detailSection && section.rows.length > 4 && <button type="button" onClick={() => setDetailSectionId(section.id)}>View All</button>}
-            </div>
-            {section.rows.length ? <>
-              <div className="analytics-insights__labels" aria-hidden="true"><span>Metric</span><span>Team</span></div>
-              <div className="analytics-insights__rows">
-                {(detailSection ? section.rows : section.rows.slice(0, 5)).map((row) => (
-                  <button key={row.id} type="button" className="analytics-insights__row" onClick={() => handleRow(row)}>
-                    <span>{row.label}</span>
-                    <strong>{row.primary.display}</strong>
-                  </button>
-                ))}
-              </div>
-            </> : <p className="analytics-insights__empty">{section.emptyMessage ?? "Not enough data yet."}</p>}
-          </section>
-        ))}
-      </div>
-      {!detailSection && model.takeaways.length > 0 && (
-        <section className="analytics-insights__takeaways" aria-label="Key takeaways">
-          <h3>Key Takeaways</h3>
-          {model.takeaways.map((takeaway) => <p key={takeaway.id} className={`is-${takeaway.tone}`}>{takeaway.text}</p>)}
-        </section>
-      )}
-    </section>
-  );
-}
-
-function AnalyticsMetricKey({ result }: { result: AnalyticsResult }) {
-  if (!result.columns.length) return null;
-  return (
-    <section className="analytics-metric-key" aria-label="Analytics metric key">
-      <strong>Key</strong>
-      <div>
-        {result.columns.map((column) => (
-          <span key={column.metricId}>
-            <b>{analyticsColumnDisplayLabel(column.label)}</b>
-            <em>{analyticsMetricKeyLabel(column)}</em>
-          </span>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function analyticsMetricKeyLabel(column: AnalyticsColumn) {
-  const labels: Record<string, string> = {
-    opportunities: "Opportunities",
-    takes: "Taken Pitches",
-    swings: "Swings",
-    contacts: "Contacts",
-    bip: "Balls In Play",
-    misses: "Whiffs",
-    fouls: "Foul Balls",
-    contactPct: "Contact Percentage",
-    hardPct: "Hard Contact Percentage",
-    swingPct: "Swing Percentage",
-    bipPct: "Balls In Play Percentage",
-    swingMissPct: "Whiff Percentage",
-    foulPct: "Foul Percentage",
-    takePct: "Take Percentage",
-    zoneSwingPct: "In-Zone Swing Percentage",
-    zoneContactPct: "In-Zone Contact Percentage",
-    chasePct: "Chase Percentage",
-    outZoneContactPct: "Out-of-Zone Contact Percentage",
-    avgEv: "Average Exit Velocity",
-    medianEv: "Median Exit Velocity",
-    maxEv: "Maximum Exit Velocity",
-    ev90: "90th Percentile Exit Velocity",
-    ev95: "95th Percentile Exit Velocity",
-    pa: "Plate Appearances",
-    trackedBip: "Tracked Balls In Play",
-    ab: "At Bats",
-    hits: "Hits",
-    singles: "Singles",
-    doubles: "Doubles",
-    triples: "Triples",
-    homeRuns: "Home Runs",
-    walks: "Walks",
-    strikeouts: "Strikeouts",
-    hitByPitch: "Hit By Pitch",
-    outs: "Outs",
-    xbh: "Extra-Base Hits",
-    totalBases: "Total Bases",
-    avg: "Batting Average",
-    obp: "On-Base Percentage",
-    slg: "Slugging Percentage",
-    ops: "On-Base Plus Slugging",
-    iso: "Isolated Power",
-    babip: "Batting Average on Balls In Play",
-    hrPct: "Home Run Percentage",
-    xbhPct: "Extra-Base Hit Percentage",
-    tbPerAb: "Total Bases Per At Bat",
-  };
-  return labels[column.metricId] ?? column.definition?.replace(/\.$/, "") ?? column.label.replace(/%$/, " Percentage");
-}
-
-function AnalyticsEventSelector({
-  events,
-  selectedIds,
-  timeRange,
-  onToggle,
-  onClear,
-  onTimeRangeChange,
-}: {
-  events: AnalyticsEventOption[];
-  selectedIds: ID[];
-  timeRange: AnalyticsTimeRange;
-  onToggle: (eventId: ID) => void;
-  onClear: () => void;
-  onTimeRangeChange: (range: AnalyticsTimeRange) => void;
-}) {
-  const [search, setSearch] = useState("");
-  const today = new Date();
-  const isIncludedByRange = (event: AnalyticsEventOption) => {
-    if (selectedIds.length) return selectedIds.includes(event.id);
-    if (timeRange === "season") return true;
-    const days = timeRange === "7d" ? 7 : timeRange === "30d" ? 30 : undefined;
-    if (!days || !event.date) return false;
-    const cutoff = new Date(today);
-    cutoff.setDate(cutoff.getDate() - days);
-    return new Date(event.date) >= cutoff;
-  };
-  const normalizedSearch = search.trim().toLowerCase();
-  const filteredEvents = normalizedSearch
-    ? events.filter((eventOption) => [eventOption.label, eventOption.meta, eventOption.source].filter(Boolean).join(" ").toLowerCase().includes(normalizedSearch))
-    : events;
-  const groups = groupAnalyticsEvents(filteredEvents);
-  return (
-    <div className="analytics-popover" role="dialog" aria-label="Analytics events">
-      <div className="analytics-popover__head">
-        <strong>Events</strong>
-        <button type="button" className="text-button" onClick={() => { onClear(); onTimeRangeChange("season"); }}>All Events</button>
-      </div>
-      <div className="analytics-event-range-options" role="group" aria-label="Event range">
-        <button type="button" className={timeRange === "season" && !selectedIds.length ? "active" : ""} onClick={() => { onClear(); onTimeRangeChange("season"); }}>All</button>
-        <button type="button" className={timeRange === "7d" && !selectedIds.length ? "active" : ""} onClick={() => { onClear(); onTimeRangeChange("7d"); }}>Last 7</button>
-        <button type="button" className={timeRange === "30d" && !selectedIds.length ? "active" : ""} onClick={() => { onClear(); onTimeRangeChange("30d"); }}>Last 30</button>
-      </div>
-      <label className="analytics-popover-search">
-        <span>Search events</span>
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search games or practices..." />
-      </label>
-      <div className="analytics-popover__body">
-        {groups.length ? groups.map((group) => (
-          <div key={group.label} className="analytics-event-group">
-            <span>{group.label}</span>
-            {group.events.map((eventOption) => (
-              <button key={eventOption.id} type="button" className={isIncludedByRange(eventOption) ? "active" : ""} onClick={() => onToggle(eventOption.id)}>
-                <Check size={13} aria-hidden="true" />
-                <strong>{eventOption.label}</strong>
-                {eventOption.meta && <small>{eventOption.meta}</small>}
-              </button>
-            ))}
-          </div>
-        )) : <CompactEmpty title="No events available for this source" />}
-      </div>
-    </div>
-  );
-}
-
-function AnalyticsColumnPanel({
-  domain,
-  columns,
-  selectedIds,
-  activePreset,
-  onToggle,
-  onPreset,
-  onReset,
-}: {
-  domain: AnalyticsDomain;
-  columns: AnalyticsColumn[];
-  selectedIds: string[];
-  activePreset: AnalyticsColumnPreset;
-  onToggle: (metricId: string) => void;
-  onPreset: (preset: Exclude<AnalyticsColumnPreset, "custom">) => void;
-  onReset: () => void;
-}) {
-  const selected = new Set(selectedIds);
-  const [search, setSearch] = useState("");
-  const normalizedSearch = search.trim().toLowerCase();
-  const matchingColumns = normalizedSearch
-    ? columns.filter((column) => `${column.label} ${column.fullName} ${column.key}`.toLowerCase().includes(normalizedSearch))
-    : columns;
-  const groups = Object.entries(matchingColumns.reduce<Record<string, AnalyticsColumn[]>>((grouped, column) => {
-    (grouped[analyticsColumnGroup(column.metricId)] ??= []).push(column);
-    return grouped;
-  }, {}));
-  return (
-    <div className="analytics-popover analytics-popover--columns" role="dialog" aria-label="Analytics columns">
-      <div className="analytics-popover__head">
-        <strong>Stat View</strong>
-        <button type="button" className="text-button" onClick={onReset}>Default</button>
-      </div>
-      <div className="analytics-column-presets" aria-label="Column presets">
-        {analyticsPresetsForDomain(domain).map((preset) => (
-          <button key={preset} type="button" className={activePreset === preset ? "active" : ""} onClick={() => onPreset(preset)}>
-            {preset[0].toUpperCase() + preset.slice(1)}
-          </button>
-        ))}
-      </div>
-      <div className="analytics-popover__body analytics-column-list">
-        <label className="analytics-column-search">
-          <Search size={14} aria-hidden="true" />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search metrics" aria-label="Search analytics metrics" />
-        </label>
-        {groups.map(([groupLabel, groupColumns]) => (
-          <section key={groupLabel} className="analytics-column-group">
-            <span>{groupLabel}</span>
-            {(groupColumns ?? []).map((column) => (
-              <button key={column.metricId} type="button" className={selected.has(column.metricId) ? "active" : ""} onClick={() => onToggle(column.metricId)} title={column.definition}>
-                <Check size={13} aria-hidden="true" />
-                <span>
-                  <strong>{column.label} - {column.fullName}</strong>
-                </span>
-              </button>
-            ))}
-          </section>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function analyticsColumnGroup(metricId: string) {
-  return analyticsMetricColumnGroup(metricId);
-}
-
-function analyticsColumnDisplayLabel(label: string) {
-  const labels: Record<string, string> = {
-    Opportunities: "Opp",
-    Takes: "Take",
-    Swings: "SW",
-    Contacts: "CT",
-    Contact: "CT",
-    Miss: "WHF",
-    Whiff: "WHF",
-    "Contact %": "CT%",
-    "Contact%": "CT%",
-    "Whiff %": "WHF%",
-    "Whiff%": "WHF%",
-    "Take %": "TK%",
-    "Take%": "TK%",
-    "Swing%": "SW%",
-    "Zone CT%": "ZCT%",
-    "Chase%": "CH%",
-    "Hard %": "HD%",
-    "Hard%": "HD%",
-    "Impact %": "IMP%",
-    "Impact%": "IMP%",
-    "Avg EV": "AEV",
-    "Max EV": "MEV",
-    "Avg Pitch Velo": "AVV",
-    "Max Pitch Velo": "MVV",
-    "Avg Velo": "AVV",
-    "Max Velo": "MVV",
-    Strike: "STR",
-    "Strike%": "STR%",
-    "Zone%": "ZN%",
-    "Position / Station": "Pos",
-    "Acc Throws": "ACC",
-    "Throw Acc.": "ACC%",
-    "Throw%": "ACC%",
-    Clean: "CLN",
-    "Clean%": "CLN%",
-    Great: "GRT",
-    "Weight Room Score": "WGT",
-    Weight: "WGT",
-    Workouts: "WKO",
-    "Workout Completion": "WK%",
-    "Workout%": "WK%",
-    "Attend%": "ATT%",
-    "Practice Reps": "Reps",
-  };
-  return labels[label] ?? label;
-}
-
-function cloneAnalyticsFilters(filters: AnalyticsFilters): AnalyticsFilters {
-  return Object.fromEntries(Object.entries(filters).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value])) as AnalyticsFilters;
-}
-
-function analyticsFilterValueSummary(definition: AnalyticsFilterDefinition, values: AnalyticsFilters) {
-  if (definition.type === "range") {
-    const { pitchVelocityMin: minimum, pitchVelocityMax: maximum } = values;
-    if (minimum === undefined && maximum === undefined) return "Any";
-    if (minimum !== undefined && maximum !== undefined) return `${minimum}-${maximum}`;
-    return minimum !== undefined ? `${minimum}+` : `Up to ${maximum}`;
-  }
-  const selected = (values[definition.id] as string[] | undefined) ?? [];
-  if (!selected.length) return "All";
-  if (definition.type === "pitch-location") {
-    const directTiles = selected.filter((value) => value.startsWith("pitch_r"));
-    if (directTiles.length === selected.length) return directTiles.length === 1 ? "1 tile" : `${directTiles.length} tiles`;
-    if (selected.length === 1) return definition.options.find((option) => option.value === selected[0])?.label ?? selected[0];
-    return `${selected.length} selections`;
-  }
-  if (selected.length === 1) return definition.options.find((option) => option.value === selected[0])?.label ?? selected[0];
-  return `${selected.length} selected`;
-}
-
-function AnalyticsFilterPanel({
-  definitions,
-  values,
-  onToggle,
-  onSetValues,
-  onVelocityRange,
-  onClear,
-  onCancel,
-  onApply,
-}: {
-  definitions: AnalyticsFilterDefinition[];
-  values: AnalyticsFilters;
-  onToggle: (definition: AnalyticsFilterDefinition, value: string) => void;
-  onSetValues: (definition: AnalyticsFilterDefinition, values: string[]) => void;
-  onVelocityRange: (minimum?: number, maximum?: number) => void;
-  onClear: () => void;
-  onCancel: () => void;
-  onApply: () => void;
-}) {
-  const sections = definitions.reduce<Record<string, AnalyticsFilterDefinition[]>>((groups, definition) => {
-    (groups[definition.section] ??= []).push(definition);
-    return groups;
-  }, {});
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => new Set(["Pitch", "Count"]));
-  const activeFilterGroups = definitions.filter((definition) => analyticsFilterValueSummary(definition, values) !== (definition.type === "range" ? "Any" : "All")).length;
-  const sectionEntries = Object.entries(sections).map(([label, sectionDefinitions]) => ({
-    label,
-    definitions: sectionDefinitions,
-    activeCount: sectionDefinitions.filter((definition) => analyticsFilterValueSummary(definition, values) !== (definition.type === "range" ? "Any" : "All")).length,
-  }));
-  return (
-    <div className="analytics-popover analytics-popover--wide analytics-filter-sheet" role="dialog" aria-modal="true" aria-label="Analytics filters">
-      <div className="analytics-filter-sheet__head">
-        <strong>Filters</strong>
-        <button type="button" className="text-button" onClick={onClear} disabled={!activeFilterGroups}>Clear All</button>
-      </div>
-      <div className="analytics-filter-sheet__body">
-        {definitions.length ? sectionEntries.map(({ label: sectionLabel, definitions: sectionDefinitions, activeCount }) => {
-          const isOpen = expandedSections.has(sectionLabel) || activeCount > 0;
-          return (
-          <section key={sectionLabel} className={`analytics-filter-section${isOpen ? " is-open" : ""}`}>
-            <button type="button" className="analytics-filter-section__toggle" onClick={() => setExpandedSections((current) => {
-              const next = new Set(current);
-              if (next.has(sectionLabel)) next.delete(sectionLabel);
-              else next.add(sectionLabel);
-              return next;
-            })} aria-expanded={isOpen}>
-              <span>{sectionLabel === "Game State" ? "Game Situation" : sectionLabel}</span>
-              {activeCount > 0 && <small>{activeCount} active</small>}
-              <ChevronDown size={15} aria-hidden="true" />
-            </button>
-            {isOpen && sectionDefinitions.map((definition) => {
-              const selected = new Set(
-                definition.type === "range" ? [] : ((values[definition.id] as string[] | undefined) ?? []),
-              );
-              const summary = analyticsFilterValueSummary(definition, values);
-              return (
-                <div key={`${definition.domains.join("-")}-${definition.id}`} className="analytics-filter-field">
-                  <div className="analytics-filter-field__head">
-                    <strong>{definition.type === "range" ? `${definition.label} (mph)` : definition.label}</strong>
-                    <span>{summary}</span>
-                  </div>
-                  {definition.type === "range" ? (
-                    <div className="analytics-filter-range">
-                      <label><span>Min</span><input type="number" inputMode="decimal" min="0" value={values.pitchVelocityMin ?? ""} placeholder="Any" onChange={(event) => onVelocityRange(event.target.value ? Number(event.target.value) : undefined, values.pitchVelocityMax)} /></label>
-                      <span>to</span>
-                      <label><span>Max</span><input type="number" inputMode="decimal" min="0" value={values.pitchVelocityMax ?? ""} placeholder="Any" onChange={(event) => onVelocityRange(values.pitchVelocityMin, event.target.value ? Number(event.target.value) : undefined)} /></label>
-                    </div>
-                  ) : definition.type === "pitch-location" ? (
-                    <>
-                      <div className="analytics-zone-state-options analytics-zone-state-options--three">
-                        <button type="button" className={!selected.size ? "active" : ""} onClick={() => onSetValues(definition, [])}>All</button>
-                        {definition.options.slice(0, 2).map((option) => (
-                          <button key={option.value} type="button" className={selected.has(option.value) ? "active" : ""} onClick={() => onToggle(definition, option.value)}>{option.label}</button>
-                        ))}
-                      </div>
-                      <AnalyticsPitchLocationSelector definition={definition} selected={selected} onToggle={onToggle} />
-                    </>
-                  ) : (
-                    <div className={`analytics-filter-options${definition.id === "exactCounts" ? " analytics-filter-options--counts" : ""}${definition.id === "drillTypes" ? " analytics-filter-options--drills" : ""}`}>
-                      {definition.options.map((option) => (
-                        <button key={option.value} type="button" className={selected.has(option.value) ? "active" : ""} onClick={() => onToggle(definition, option.value)}>
-                          {option.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </section>
-        );
-        }) : <CompactEmpty title="No supported filters for this source yet" />}
-      </div>
-      <div className="analytics-filter-sheet__footer">
-        <span>Active Filters <strong>{activeFilterGroups}</strong></span>
-        <div>
-          <button type="button" className="secondary-button" onClick={onCancel}>Cancel</button>
-          <button type="button" className="primary-button" onClick={onApply}>Apply Filters <b>{activeFilterGroups}</b></button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AnalyticsPitchLocationChart({ result, mode, onModeChange, hitter }: { result: AnalyticsResult; mode: PracticeChartMetricMode; onModeChange: (mode: PracticeChartMetricMode) => void; hitter?: Player }) {
-  const chart = result.pitchLocationChart;
-  if (!chart) return null;
-  const bucketStats = chart.points.reduce<Partial<Record<PitchLocationGridZoneId, { count: number; outcomes: number; successes: number; atBats: number; hits: number }>>>((counts, point) => {
-    const bucket = pitchLocationBucketFromPoint(point);
-    if (!bucket) return counts;
-    const stats = (counts[bucket.id] ?? { count: 0, outcomes: 0, successes: 0, atBats: 0, hits: 0 }) as { count: number; outcomes: number; successes: number; atBats: number; hits: number };
-    stats.count += 1;
-    if (point.chartOutcome) {
-      stats.outcomes += 1;
-      if (point.chartOutcome === "hit" || point.chartOutcome === "contact") stats.successes += 1;
-      if (point.chartOutcome === "hit" || point.chartOutcome === "out") {
-        stats.atBats += 1;
-        if (point.chartOutcome === "hit") stats.hits += 1;
-      }
-    }
-    counts[bucket.id] = stats;
-    return counts;
-  }, {});
-  const maxCount = Math.max(1, ...Object.values(bucketStats).map((stats) => stats?.count ?? 0));
-  const batsLeft = hitter?.bats === "L";
-  return <section className="panel analytics-pitch-location-chart" aria-label="Team pitch location chart">
-    <div className="analytics-spray-chart__header">
-      <span>Team Pitch Location</span>
-      <AnalyticsChartModes mode={mode} onChange={onModeChange} includeAverage />
-    </div>
-    <div className={`practice-pitch-location-grid practice-pitch-location-grid--analytics practice-pitch-location-grid--${mode === "dots" ? "dots" : mode} analytics-pitch-location-chart__grid`} role="img" aria-label={`${chart.trackedLocations} tracked pitch locations, catcher view`}>
-      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--up">Up</span>
-      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--down">Down</span>
-      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--left">{batsLeft ? "Away" : "In"}</span>
-      <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--right">{batsLeft ? "In" : "Away"}</span>
-      <div className="practice-pitch-location-grid__stage">
-        <span className="practice-pitch-location-grid__zone" aria-hidden="true" />
-        <span className="practice-pitch-location-grid__plate" aria-hidden="true" />
-        {PITCH_LOCATION_BUCKETS.map((bucket) => {
-          const stats = bucketStats[bucket.id];
-          const count = stats?.count ?? 0;
-          const intensity = count / maxCount;
-          const outcomeRate = stats?.outcomes ? stats.successes / stats.outcomes : undefined;
-          const average = stats?.atBats ? stats.hits / stats.atBats : undefined;
-          const colorScore = mode === "average"
-            ? Math.min(1, (average ?? 0) / 0.5)
-            : outcomeRate ?? intensity;
-          const metric = mode === "average" ? average : chart.metricLabel === "Pitch density" ? (count / Math.max(1, chart.trackedLocations)) : outcomeRate;
-          const metricLabel = mode === "count" && count > 0 ? String(count) : mode === "percent" && metric !== undefined ? `${Math.round(metric * 100)}%` : mode === "average" && average !== undefined ? formatDecimal(average) : undefined;
-          return <span key={bucket.id} className={`practice-pitch-location-grid__bucket ${bucket.isZone ? "practice-pitch-location-grid__bucket--zone" : "practice-pitch-location-grid__bucket--outside"}`} style={{ gridColumn: bucket.column, gridRow: bucket.row, "--pitch-heat-opacity": count ? 0.22 + intensity * 0.62 : 0, "--pitch-heat-color": colorScore >= 0.72 ? "#ef5b5b" : colorScore >= 0.42 ? "#c99245" : "#4b91d1" } as React.CSSProperties}><i className="practice-pitch-location-grid__heat" aria-hidden="true" />{metricLabel && <b className="practice-pitch-location-grid__bucket-metric">{metricLabel}</b>}</span>;
-        })}
-      </div>
-    </div>
-  </section>;
-}
-
-function AnalyticsPitchLocationSelector({
-  definition,
-  selected,
-  onToggle,
-}: {
-  definition: AnalyticsFilterDefinition;
-  selected: Set<string>;
-  onToggle: (definition: AnalyticsFilterDefinition, value: string) => void;
-}) {
-  const pitcherRelative = definition.options.some((option) => option.value === "arm_side");
-  return (
-    <div className="analytics-pitch-location-view" aria-label="Catcher view pitch location selector">
-      <div className="analytics-pitch-location-view__label"><span>Catcher View</span><small>Tap one or more tiles</small></div>
-      <div className="practice-pitch-location-grid practice-pitch-location-grid--entry practice-pitch-location-grid--interactive analytics-pitch-location-grid">
-        <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--up">Up</span>
-        <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--down">Down</span>
-        <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--left">{pitcherRelative ? "Arm" : "In"}</span>
-        <span className="practice-pitch-location-grid__axis practice-pitch-location-grid__axis--right">{pitcherRelative ? "Glove" : "Away"}</span>
-        <div className="practice-pitch-location-grid__stage">
-          <span className="practice-pitch-location-grid__zone" aria-hidden="true" />
-          <span className="practice-pitch-location-grid__plate" aria-hidden="true" />
-          {PITCH_LOCATION_BUCKETS.map((bucket) => {
-            const value = bucket.id;
-            const label = analyticsPitchLocationTileLabel(bucket, pitcherRelative);
-            const isSelected = analyticsPitchLocationBucketSelected(selected, bucket, pitcherRelative);
-            return <button
-              key={bucket.id}
-              type="button"
-              className={`practice-pitch-location-grid__bucket ${bucket.isZone ? "practice-pitch-location-grid__bucket--zone" : "practice-pitch-location-grid__bucket--outside"}${isSelected ? " active" : ""}`}
-              style={{ gridColumn: bucket.column, gridRow: bucket.row } as React.CSSProperties}
-              onClick={() => onToggle(definition, value)}
-              aria-label={label}
-              aria-pressed={isSelected}
-              title={label}
-            />;
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function analyticsPitchLocationBucketSelected(selected: Set<string>, bucket: PitchLocationBucket, pitcherRelative: boolean) {
-  return selected.has(bucket.id) || selected.has(bucket.isZone ? "in_zone" : "out_of_zone") || selected.has(analyticsLocationRegionForBucket(bucket, pitcherRelative));
-}
-
-function analyticsPitchLocationTileLabel(bucket: PitchLocationBucket, pitcherRelative: boolean) {
-  const vertical = bucket.row < 3 ? "Up" : bucket.row > 3 ? "Down" : "Middle";
-  const horizontal = bucket.column < 3 ? (pitcherRelative ? "Arm Side" : "In") : bucket.column > 3 ? (pitcherRelative ? "Glove Side" : "Away") : "Middle";
-  const position = vertical === "Middle" && horizontal === "Middle" ? "Middle" : vertical === "Middle" ? horizontal : horizontal === "Middle" ? vertical : `${vertical} & ${horizontal}`;
-  return `${position}, ${bucket.isZone ? "in-zone" : "out-of-zone"} tile`;
-}
-
-function analyticsLocationRegionForBucket(bucket: PitchLocationBucket, pitcherRelative: boolean) {
-  const vertical = bucket.y < 0.34 ? "up" : bucket.y > 0.66 ? "down" : "middle";
-  const horizontal = bucket.x < 0.34 ? (pitcherRelative ? "arm_side" : "in") : bucket.x > 0.66 ? (pitcherRelative ? "glove_side" : "away") : "middle";
-  if (vertical === "middle" && horizontal === "middle") return "middle";
-  if (vertical === "middle") return horizontal;
-  if (horizontal === "middle") return vertical;
-  return `${vertical}_${pitcherRelative ? "" : "and_"}${horizontal}`.replace("_and_arm", "_arm").replace("_and_glove", "_glove");
-}
-
 
 function AskClubhouseScopeSelector({
   teams,
@@ -20413,214 +18050,6 @@ function AskClubhouseScopeSelector({
       )}
     </div>
   );
-}
-
-
-function AnalyticsPlayerDrawer({
-  row,
-  result,
-  onClose,
-  onOpenProfile,
-  onClearFilters,
-  onViewAllHitting,
-}: {
-  row: AnalyticsRow;
-  result: AnalyticsResult;
-  onClose: () => void;
-  onOpenProfile: () => void;
-  onClearFilters: () => void;
-  onViewAllHitting: () => void;
-}) {
-  return (
-    <div className="analytics-drawer-backdrop" role="presentation">
-      <aside className="analytics-drawer analytics-player-drawer" aria-label={`${row.player.name} analytics detail`}>
-        <div className="analytics-drawer__head">
-          <div className="analytics-player-drawer__identity">
-            <PlayerAvatar player={row.player} size="md" />
-            <span>
-              <small>{result.scopeLabel}</small>
-              <h2>{row.player.name}</h2>
-              <em>#{row.player.jerseyNumber} · {row.player.primaryPosition}{row.player.secondaryPosition ? ` / ${row.player.secondaryPosition}` : ""}</em>
-            </span>
-          </div>
-          <button className="ghost-button" type="button" onClick={onClose} aria-label="Close player analytics">
-            <X size={16} aria-hidden="true" />
-          </button>
-        </div>
-        <AnalyticsPlayerMetrics result={result} row={row} />
-        <div className="analytics-drawer-actions">
-          <button className="secondary-button" type="button" onClick={onClearFilters}>Clear Filters</button>
-          <button className="secondary-button" type="button" onClick={onViewAllHitting}>View All Hitting</button>
-          <button className="primary-button" type="button" onClick={onOpenProfile}>Open Profile</button>
-        </div>
-      </aside>
-    </div>
-  );
-}
-
-function readInitialAnalyticsState(): {
-  domain: AnalyticsDomain;
-  source: AnalyticsSource;
-  fieldSources: AnalyticsFieldSource[];
-  mode: AnalyticsMode;
-  analyticsView: AnalyticsViewId;
-  timeRange: AnalyticsTimeRange;
-  developmentView: AnalyticsDevelopmentView;
-  eventIds: ID[];
-  customRange: { start?: string; end?: string };
-  filters: AnalyticsFilters;
-  sort?: AnalyticsQuery["sort"];
-  metricIds?: string[];
-  columnPreset: AnalyticsColumnPreset;
-  workspace: "overview" | "charts" | "insights";
-} {
-  if (typeof window === "undefined") {
-    return { domain: "hitting", source: "games", fieldSources: ["games"], mode: "box-score", analyticsView: "overview", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {}, filters: {}, columnPreset: "standard", workspace: "overview" };
-  }
-  const params = new URLSearchParams(window.location.search);
-  const domain = parseAnalyticsParam(params.get("domain"), ["hitting", "pitching", "defense", "development"], "hitting");
-  const requestedSource = parseAnalyticsParam(params.get("source"), ["games", "practice", "live-bp", "all"], "games");
-  const supportedSources = analyticsSourcesForDomain(domain);
-  const requestedFieldSources = params.get("sources")?.split(",").filter((source): source is AnalyticsFieldSource => source === "games" || source === "practice" || source === "live-bp") ?? [];
-  const fieldSources = domain === "development"
-    ? []
-    : requestedFieldSources.filter((candidate) => supportedSources.includes(candidate)).length
-      ? [...new Set(requestedFieldSources.filter((candidate) => supportedSources.includes(candidate)))]
-      : analyticsFieldSourcesForSource(domain, supportedSources.includes(requestedSource) ? requestedSource : supportedSources[0]);
-  const source = domain === "development" ? "all" : analyticsSourceFromFieldSources(fieldSources);
-  const mode = parseAnalyticsParam(params.get("mode"), ["box-score", "situational"], "box-score");
-  const analyticsView = normalizeAnalyticsView(domain, domain === "development" ? "all" : source, params.get("statView") ?? undefined);
-  const timeRange = parseAnalyticsParam(params.get("period"), ["7d", "30d", "season", "custom"], "season");
-  const developmentView = parseAnalyticsParam(params.get("dev"), ["overview", "weight-room", "attendance", "trends"], domain === "development" ? "weight-room" : "overview");
-  const requestedMetricIds = params.get("columns")?.split(",").filter(Boolean);
-  const metricIds = isLegacyAnalyticsStandardColumns(requestedMetricIds) ? undefined : requestedMetricIds?.length ? requestedMetricIds : undefined;
-  const columnPreset = parseAnalyticsParam(params.get("columnPreset"), ["standard", "advanced", "approach", "contact", "batted-ball", "baserunning", "command", "efficiency", "velocity", "pitch-mix", "development", "position", "custom"], metricIds?.length ? "custom" : "standard");
-  const requestedWorkspace = parseAnalyticsParam(params.get("workspace"), ["overview", "charts", "insights"], "overview");
-  const workspace = domain === "development" ? "overview" : requestedWorkspace;
-  return {
-    domain,
-    source,
-    fieldSources,
-    mode: domain === "development" ? "box-score" : mode,
-    analyticsView,
-    timeRange,
-    developmentView,
-    eventIds: params.get("events")?.split(",").filter(Boolean) ?? [],
-    metricIds,
-    columnPreset,
-    workspace,
-    filters: parseAnalyticsFilters(params.get("filters")),
-    sort: params.get("sort") ? { metricId: params.get("sort") ?? "player", direction: params.get("dir") === "asc" ? "asc" : "desc" } : undefined,
-    customRange: {
-      start: params.get("start") ?? undefined,
-      end: params.get("end") ?? undefined,
-    },
-  };
-}
-
-function analyticsFieldSourcesForSource(domain: AnalyticsDomain, source: AnalyticsSource): AnalyticsFieldSource[] {
-  if (source !== "all") return [source];
-  if (domain === "pitching") return ["games", "practice", "live-bp"];
-  return domain === "defense" ? ["practice"] : ["practice", "live-bp"];
-}
-
-function normalizeAnalyticsFieldSources(fieldSources: AnalyticsFieldSource[]): AnalyticsFieldSource[] {
-  const requested = new Set(fieldSources);
-  return (["games", "practice", "live-bp"] as AnalyticsFieldSource[]).filter((source) => requested.has(source));
-}
-
-function analyticsSourceFromFieldSources(fieldSources: AnalyticsFieldSource[]): AnalyticsSource {
-  return fieldSources.length === 1 ? fieldSources[0] : "all";
-}
-
-function readInitialAnalyticsDetailPlayerId(data: AppData): ID | undefined {
-  if (typeof window === "undefined") return undefined;
-  const detailPlayerId = new URLSearchParams(window.location.search).get("detailPlayer");
-  return detailPlayerId && data.players.some((player) => player.id === detailPlayerId) ? detailPlayerId : undefined;
-}
-
-function parseAnalyticsParam<T extends string>(value: string | null, allowed: T[], fallback: T): T {
-  return value && allowed.includes(value as T) ? value as T : fallback;
-}
-
-const ANALYTICS_FILTER_PARAM_KEYS: Array<keyof AnalyticsFilters> = [
-  "pitcherHands",
-  "batterHands",
-  "pitchTypes",
-  "exactCounts",
-  "countGroups",
-  "drillTypes",
-  "liveBpThrowerSources",
-  "battedBallTypes",
-  "defenseStations",
-  "defensePositions",
-  "defenseDrills",
-  "defenseRepTypes",
-  "defenseRepSubtypes",
-  "defenseResults",
-  "defenseThrowResults",
-  "pitchLocationRegions",
-  "directions",
-  "gameStates",
-  "innings",
-  "outs",
-  "runnerStates",
-  "opponents",
-  "homeAway",
-  "gamePitchOutcomes",
-  "gameBipOutcomes",
-];
-
-function encodeAnalyticsFilters(filters: AnalyticsFilters): string {
-  const arrays = ANALYTICS_FILTER_PARAM_KEYS
-    .map((key) => {
-      const value = filters[key];
-      if (!Array.isArray(value) || !value.length) return "";
-      return `${key}:${value.map((item) => encodeURIComponent(item)).join("|")}`;
-    })
-    .filter(Boolean)
-    .join(";");
-  const ranges = [
-    filters.pitchVelocityMin !== undefined ? `pitchVelocityMin:${filters.pitchVelocityMin}` : "",
-    filters.pitchVelocityMax !== undefined ? `pitchVelocityMax:${filters.pitchVelocityMax}` : "",
-  ].filter(Boolean).join(";");
-  return [arrays, ranges].filter(Boolean).join(";");
-}
-
-function parseAnalyticsFilters(value: string | null): AnalyticsFilters {
-  if (!value) return {};
-  const parsed: Record<string, string[] | number> = {};
-  for (const segment of value.split(";")) {
-    const [rawKey, rawValues] = segment.split(":");
-    const key = rawKey as keyof AnalyticsFilters;
-    if (!rawKey || !rawValues) continue;
-    if (rawKey === "pitchVelocityMin" || rawKey === "pitchVelocityMax") {
-      const numericValue = Number(rawValues);
-      if (Number.isFinite(numericValue)) parsed[rawKey] = numericValue;
-      continue;
-    }
-    if (!ANALYTICS_FILTER_PARAM_KEYS.includes(key)) continue;
-    const values = rawValues.split("|").map((item) => decodeURIComponent(item)).filter(Boolean);
-    if (values.length) parsed[key] = values;
-  }
-  return parsed as AnalyticsFilters;
-}
-
-function sortIndicator(direction?: "asc" | "desc") {
-  return direction === "asc" ? "↑" : "↓";
-}
-
-
-function groupAnalyticsEvents(events: AnalyticsEventOption[]) {
-  const groups = new Map<string, AnalyticsEventOption[]>();
-  for (const eventOption of events) {
-    const date = eventOption.date ? new Date(`${eventOption.date}T12:00:00`) : undefined;
-    const label = date
-      ? new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(date)
-      : "Sessions";
-    groups.set(label, [...(groups.get(label) ?? []), eventOption]);
-  }
-  return [...groups.entries()].map(([label, groupEvents]) => ({ label, events: groupEvents }));
 }
 
 function PlayerProfile({
@@ -22819,13 +20248,6 @@ function NumberWheelCell({
   );
 }
 
-const LEGACY_ANALYTICS_STANDARD_COLUMNS = ["opportunities", "swings", "contacts", "contactPct", "hardPct", "avgEv", "maxEv"];
-
-function isLegacyAnalyticsStandardColumns(metricIds: string[] | undefined): boolean {
-  return Boolean(metricIds?.length === LEGACY_ANALYTICS_STANDARD_COLUMNS.length
-    && metricIds.every((metricId, index) => metricId === LEGACY_ANALYTICS_STANDARD_COLUMNS[index]));
-}
-
 function ManualNumberCell({
   label,
   value,
@@ -23117,39 +20539,6 @@ function PracticeSummaryModal({
   );
 }
 
-function SectionHeader({
-  className,
-  eyebrow,
-  title,
-  titleAdornment,
-  body,
-  context,
-  action,
-}: {
-  className?: string;
-  eyebrow?: string;
-  title: string;
-  titleAdornment?: React.ReactNode;
-  body?: string;
-  context?: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <section className={`section-header ${className ?? ""}`}>
-      <div>
-        {eyebrow && <span>{eyebrow}</span>}
-        <div className="section-header__title-row">
-          <h2>{title}</h2>
-          {titleAdornment}
-        </div>
-        {context && <small>{context}</small>}
-        {body && <p>{body}</p>}
-      </div>
-      {action}
-    </section>
-  );
-}
-
 function HomeInfoCard({
   icon: Icon,
   title,
@@ -23208,18 +20597,6 @@ function RecentGamesCard({
         )) : <CompactEmpty title="No recent games yet" />}
       </div>
     </article>
-  );
-}
-
-function SegmentedControl<T extends string>({ values, active, onChange, disabled = false, disabledTitle }: { values: T[]; active?: T; onChange: (value: T) => void; disabled?: boolean; disabledTitle?: string }) {
-  return (
-    <div className="segmented-control">
-      {values.map((value) => (
-        <button key={value} type="button" className={value === active ? "active" : ""} onClick={() => onChange(value)} disabled={disabled} title={disabled ? disabledTitle : undefined}>
-          {formatSegment(value)}
-        </button>
-      ))}
-    </div>
   );
 }
 
@@ -23331,10 +20708,6 @@ function PracticeSummaryStrip({ items }: { items: Array<{ label: string; value: 
       ))}
     </div>
   );
-}
-
-function CompactEmpty({ title, action }: { title: string; action?: React.ReactNode }) {
-  return <div className="compact-empty"><span>{title}</span>{action}</div>;
 }
 
 
@@ -23791,17 +21164,6 @@ function weightRoomUnitForType(type: WorkoutMeasurementType): WorkoutEntry["unit
   return undefined;
 }
 
-function weightRoomMeasurementLabel(exercise?: WeightRoomExercise) {
-  if (!exercise) return "Value";
-  if (exercise.measurementType === "TIME") return "Time";
-  if (exercise.measurementType === "DISTANCE") return "Distance";
-  if (exercise.measurementType === "HEIGHT") return "Height";
-  if (exercise.measurementType === "WEIGHT_ONLY") return "Weight";
-  if (exercise.measurementType === "COMPLETION") return "Completion";
-  if (exercise.measurementType === "BODYWEIGHT_REPS" || exercise.measurementType === "REPS_ONLY" || exercise.measurementType === "COUNT") return "Reps";
-  return "Value";
-}
-
 function workoutMeasurementTypeLabel(type: WorkoutMeasurementType) {
   if (type === "WEIGHT_REPS") return "Weight + Reps";
   if (type === "BODYWEIGHT_REPS") return "Bodyweight Reps";
@@ -23814,10 +21176,6 @@ function workoutMeasurementTypeLabel(type: WorkoutMeasurementType) {
   if (type === "COMPLETION") return "Completion";
   if (type === "RPE_ONLY") return "RPE Only";
   return "Custom";
-}
-
-function uniqueStrings(values: string[]) {
-  return [...new Set(values.filter(Boolean))];
 }
 
 function upsertById<T extends { id: ID }>(items: T[], item: T) {
@@ -24006,43 +21364,6 @@ function mergePersistedExerciseDefinitions(existing: PersistedWeightRoomExercise
   return [...byName.values()];
 }
 
-function optionalNumber(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  const parsed = Number(trimmed);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function optionalTimeValue(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  if (trimmed.includes(":")) {
-    const [minutesRaw, secondsRaw = "0"] = trimmed.split(":");
-    const minutes = Number(minutesRaw);
-    const seconds = Number(secondsRaw);
-    if (Number.isFinite(minutes) && Number.isFinite(seconds)) return (minutes * 60) + seconds;
-  }
-  return optionalNumber(trimmed);
-}
-
-function optionalDistanceValue(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return undefined;
-  const feetInches = trimmed.match(/^(\d+)\s*(?:'|ft)\s*(\d+(?:\.\d+)?)?/i);
-  if (feetInches) {
-    const feet = Number(feetInches[1]);
-    const inches = Number(feetInches[2] ?? 0);
-    if (Number.isFinite(feet) && Number.isFinite(inches)) return (feet * 12) + inches;
-  }
-  return optionalNumber(trimmed.replace(/["in\s]/gi, ""));
-}
-
-function cleanWorkoutMeasurementDraft(value: string, measurementType: WorkoutMeasurementType) {
-  if (measurementType === "TIME") return value.replace(/[^0-9:.]/g, "");
-  if (measurementType === "DISTANCE" || measurementType === "HEIGHT") return value.replace(/[^0-9.'"\s]/g, "");
-  return value.replace(/[^0-9.]/g, "");
-}
-
 function entrySessionDate(data: AppData, entry: WorkoutEntry) {
   return data.workoutSessions.find((session) => session.id === entry.sessionId)?.date ?? entry.createdAt.slice(0, 10);
 }
@@ -24087,65 +21408,6 @@ function workoutEntryMatchesResultMode(
 ) {
   if (!targetStyle) return true;
   return workoutEntryStationContext(data, entry, exerciseDefinition)?.targetStyle === targetStyle;
-}
-
-function formatWorkoutEntryValue(entry: WorkoutEntry) {
-  if (typeof entry.weight === "number" && typeof entry.reps === "number") return `${formatNumber(entry.weight, 0)} lb x ${entry.reps}`;
-  if (typeof entry.weight === "number") return `${formatNumber(entry.weight, 0)} lb`;
-  if (typeof entry.value === "number" && entry.unit === "sec") return formatSecondsValue(entry.value);
-  if (typeof entry.value === "number" && entry.unit === "in") return formatInchesValue(entry.value);
-  if (typeof entry.value === "number") return `${formatNumber(entry.value, 1)}${entry.unit ? ` ${entry.unit}` : ""}`;
-  if (typeof entry.reps === "number") return `${entry.reps} reps`;
-  return "--";
-}
-
-function formatWorkoutEntryValueForStation(entry: WorkoutEntry, station?: Pick<ActiveWorkoutStation, "measurementType" | "targetStyle" | "unit">) {
-  if (!station) return formatWorkoutEntryValue(entry);
-  if (station.measurementType === "WEIGHT_REPS") {
-    if (typeof entry.weight === "number" && typeof entry.reps === "number") return `${formatNumber(entry.weight, 0)} lb x ${entry.reps}`;
-    if (typeof entry.weight === "number") return `${formatNumber(entry.weight, 0)} lb`;
-    if (typeof entry.reps === "number") return `${entry.reps} reps`;
-    return "--";
-  }
-  if (station.measurementType === "WEIGHT_ONLY") {
-    const value = entry.weight ?? entry.value;
-    return typeof value === "number" ? `${formatNumber(value, 0)} lb` : "--";
-  }
-  if (station.measurementType === "BODYWEIGHT_REPS" || station.measurementType === "REPS_ONLY" || station.measurementType === "COUNT") {
-    const value = entry.reps ?? entry.value;
-    return typeof value === "number" ? `${formatNumber(value, 0)} reps` : "--";
-  }
-  if (station.measurementType === "TIME") {
-    return typeof entry.value === "number" ? formatSecondsValue(entry.value) : "--";
-  }
-  if (station.measurementType === "DISTANCE" || station.measurementType === "HEIGHT") {
-    return typeof entry.value === "number" ? formatInchesValue(entry.value) : "--";
-  }
-  if (station.measurementType === "COMPLETION" || station.targetStyle === "Completion") {
-    return (entry.status ?? "Completed") === "Skipped" ? "Skipped" : "Completed";
-  }
-  if (station.measurementType === "RPE_ONLY") {
-    return typeof entry.rpe === "number" ? `${formatNumber(entry.rpe, 1)} RPE` : typeof entry.value === "number" ? formatNumber(entry.value, 1) : "--";
-  }
-  return formatWorkoutEntryValue(entry);
-}
-
-function formatSecondsValue(value: number) {
-  if (value >= 60) {
-    const minutes = Math.floor(value / 60);
-    const seconds = Math.round(value % 60).toString().padStart(2, "0");
-    return `${minutes}:${seconds}`;
-  }
-  return `${formatNumber(value, 2)} sec`;
-}
-
-function formatInchesValue(value: number) {
-  if (value >= 24) {
-    const feet = Math.floor(value / 12);
-    const inches = Math.round(value - feet * 12);
-    return `${feet}'${inches}"`;
-  }
-  return `${formatNumber(value, 1)} in`;
 }
 
 function formatWorkoutVolume(value: number) {
@@ -24196,33 +21458,6 @@ function teamLocation(team?: TeamOption) {
   return [team?.city, team?.state].filter(Boolean).join(", ");
 }
 
-function buildRecentWeightRoomWorkouts(data: AppData, players: Player[]): WeightRoomWorkoutSummary[] {
-  const playerIds = new Set(players.map((player) => player.id));
-  const byDate = new Map<string, WorkoutSession[]>();
-  for (const session of data.workoutSessions.filter((item) => playerIds.has(item.playerId))) {
-    const group = byDate.get(session.date) ?? [];
-    group.push(session);
-    byDate.set(session.date, group);
-  }
-  return [...byDate.entries()]
-    .sort(([left], [right]) => right.localeCompare(left))
-    .map(([date, sessions]) => {
-      const sessionIds = new Set(sessions.map((session) => session.id));
-      const entries = data.workoutEntries.filter((entry) => sessionIds.has(entry.sessionId));
-      const liftEvent = (data.scheduleEvents ?? []).find((event) => event.eventType === "Lift" && dateKeyFromIso(event.startAt) === date);
-      return {
-        date,
-        title: liftEvent?.title ?? "Team Lift",
-        location: liftEvent?.location,
-        startAt: liftEvent?.startAt,
-        athletes: new Set(sessions.map((session) => session.playerId)).size,
-        sets: entries.filter((entry) => (entry.status ?? "Completed") !== "Skipped").length,
-        volume: entries.reduce((sum, entry) => sum + workoutEntryVolume(entry), 0),
-        completed: sessions.length > 0 && sessions.every((session) => session.completed),
-      };
-    });
-}
-
 function buildWeightRoomTeamOverview(data: AppData, players: Player[], date: string) {
   const playerIds = new Set(players.map((player) => player.id));
   const week = weekStart(date);
@@ -24258,10 +21493,6 @@ function buildWeightRoomTeamOverview(data: AppData, players: Player[], date: str
     trackedImprovements: improvementEntries.length,
     nextLift,
   };
-}
-
-function formatWeightRoomSessionMeta(date: string, startAt?: string) {
-  return [shortDate(date), startAt ? formatTime(startAt) : undefined].filter(Boolean).join(" - ");
 }
 
 function shiftDateKey(dateKey: string, days: number) {
@@ -24706,19 +21937,6 @@ function buildWeeklyWorkoutRow(data: AppData, player: Player) {
     return { day, completed: Boolean(session?.completed) };
   });
   return { player, days, completion: pct(days.filter((day) => day.completed).length, days.length) };
-}
-
-function practiceTotals(data: AppData, practiceId: ID) {
-  const totals = deriveConcurrentPracticeTotals(data, practiceId);
-  return {
-    pitches: totals.pitches,
-    swings: totals.swings,
-    defense: totals.defense,
-    liveBpPas: data.plateAppearances.filter((appearance) => appearance.practiceId === practiceId).length,
-    hittingSessions: data.hittingSessions.filter((session) => session.practiceId === practiceId).length,
-    pitchingSessions: data.pitchingSessions.filter((session) => session.practiceId === practiceId).length,
-    defenseSessions: data.defenseSessions.filter((session) => session.practiceId === practiceId).length,
-  };
 }
 
 function buildPracticeReviewSessions(data: AppData, practiceId: ID) {
@@ -25898,147 +23116,6 @@ function formatHeightFromInches(value: number) {
   return `${Math.floor(safeValue / 12)}-${safeValue % 12}`;
 }
 
-function buildScheduleItems(data: AppData): ScheduleItem[] {
-  const practiceItems: ScheduleItem[] = data.practices.map((practice) => ({
-    id: `practice-${practice.id}`,
-    source: "practice",
-    sourceId: practice.id,
-    eventType: "Practice",
-    title: practice.name || practice.type,
-    startAt: practice.startedAt,
-    endAt: practice.endedAt,
-    date: practice.date,
-    location: practice.location,
-    notes: practice.notes,
-    visibility: "TEAM_ONLY",
-    status: practice.endedAt ? "Completed" : "Scheduled",
-    accent: SCHEDULE_EVENT_ACCENTS.Practice,
-  }));
-
-  const gameItems: ScheduleItem[] = data.games.map((game) => ({
-    id: `game-${game.id}`,
-    source: "game",
-    sourceId: game.id,
-    eventType: "Game",
-    title: `${matchupPrefix(game.homeAway).replace(".", "")} ${game.opponent}`,
-    startAt: game.startsAt ?? toLocalIso(game.date, "18:00"),
-    date: game.date,
-    location: game.location,
-    notes: game.type,
-    visibility: defaultScheduleVisibility("Game", data.teamContext?.currentTeam),
-    status: game.result ? "Completed" : "Scheduled",
-    accent: SCHEDULE_EVENT_ACCENTS.Game,
-  }));
-
-  const workoutsByDate = new Map<string, WorkoutSession[]>();
-  for (const session of data.workoutSessions) {
-    const dateSessions = workoutsByDate.get(session.date) ?? [];
-    dateSessions.push(session);
-    workoutsByDate.set(session.date, dateSessions);
-  }
-  const liftItems: ScheduleItem[] = [...workoutsByDate.entries()].map(([date, sessions]) => ({
-    id: `lift-${date}`,
-    source: "lift",
-    sourceId: sessions[0]?.id ?? date,
-    eventType: "Lift",
-    title: sessions.length > 1 ? `Team Lift (${sessions.length})` : "Team Lift",
-    startAt: toLocalIso(date, "16:00"),
-    date,
-    location: "Weight Room",
-    visibility: "TEAM_ONLY",
-    status: sessions.every((session) => session.completed) ? "Completed" : "Scheduled",
-    accent: SCHEDULE_EVENT_ACCENTS.Lift,
-  }));
-
-  const genericItems: ScheduleItem[] = (data.scheduleEvents ?? [])
-    .filter((event) => !event.practiceId && !event.gameId && !event.workoutSessionId)
-    .map((event) => ({
-      id: `event-${event.id}`,
-      source: "event",
-      sourceId: event.id,
-      eventType: event.eventType,
-      title: event.title,
-      startAt: event.startAt,
-      endAt: event.endAt,
-      date: dateKeyFromIso(event.startAt),
-      location: event.location,
-      notes: event.notes,
-      visibility: event.visibility,
-      status: event.status,
-      accent: SCHEDULE_EVENT_ACCENTS[event.eventType],
-    }));
-
-  return [...practiceItems, ...gameItems, ...liftItems, ...genericItems].sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
-}
-
-function toLocalIso(date: string, time = "12:00") {
-  const safeTime = time || "12:00";
-  return new Date(`${date}T${safeTime}:00`).toISOString();
-}
-
-function dateKeyFromIso(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
-  return localDateKey(date);
-}
-
-function todayKey() {
-  return localDateKey(new Date());
-}
-
-function isUpcomingScheduleItem(item: ScheduleItem) {
-  return Date.parse(item.startAt) >= Date.parse(`${todayKey()}T00:00:00`);
-}
-
-function isPastScheduleItem(item: ScheduleItem) {
-  return Date.parse(item.startAt) < Date.parse(`${todayKey()}T00:00:00`);
-}
-
-function isoDate(date: Date) {
-  return localDateKey(date);
-}
-
-function localDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function isToday(dateKey: string) {
-  return dateKey === todayKey();
-}
-
-function calendarDaysForMonth(cursor: Date) {
-  const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-  const start = new Date(first);
-  const day = start.getDay();
-  start.setDate(start.getDate() - (day === 0 ? 6 : day - 1));
-  return Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return date;
-  });
-}
-
-function weekDates(cursor: Date) {
-  const start = new Date(cursor);
-  const day = start.getDay();
-  start.setDate(start.getDate() - (day === 0 ? 6 : day - 1));
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return date;
-  });
-}
-
-function weekRangeLabel(cursor: Date) {
-  const days = weekDates(cursor);
-  const first = days[0];
-  const last = days[6];
-  return `${first.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${last.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
-}
-
 function monthCursor(dateKey?: string) {
   const date = parseDateKey(dateKey) ?? new Date();
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -26128,46 +23205,6 @@ function defaultEndTime(startTime: string) {
   return formatMinutesAsTimeValue(startMinutes + 60);
 }
 
-function groupScheduleItemsByDate(items: ScheduleItem[]) {
-  const groups = new Map<string, ScheduleItem[]>();
-  for (const item of items) {
-    const group = groups.get(item.date) ?? [];
-    group.push(item);
-    groups.set(item.date, group);
-  }
-  return [...groups.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([date, groupItems]) => ({
-      date,
-      items: groupItems.sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt)),
-    }));
-}
-
-function agendaDateLabel(date: string) {
-  const today = todayKey();
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowKey = tomorrow.toISOString().slice(0, 10);
-  if (date === today) return "Today";
-  if (date === tomorrowKey) return "Tomorrow";
-  return fullDate(date);
-}
-
-function teamContextLine(team?: TeamOption) {
-  if (!team) return "Current team";
-  return `${team.teamName} - ${team.seasonName ?? "Current season"}`;
-}
-
-function defaultScheduleVisibility(type: ScheduleEventType, team?: TeamOption): ScheduleEventVisibility {
-  void team;
-  if (type === "Game" || type === "Tournament") return "PUBLIC";
-  return "TEAM_ONLY";
-}
-
-function matchupPrefix(homeAway: Game["homeAway"]) {
-  return homeAway === "Away" ? "at" : "vs.";
-}
-
 function defaultScheduleTitle(type: ScheduleEventType, opponent = "", homeAway: Game["homeAway"] = "Home") {
   const trimmedOpponent = opponent.trim();
   if (type === "Practice") return "Practice";
@@ -26199,13 +23236,6 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
-function formatTime(value?: string) {
-  if (!value) return "--";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-}
-
 function formatPracticeStartTime(practice: Practice) {
   return formatTime(practice.startedAt);
 }
@@ -26223,26 +23253,6 @@ function sortPlayersByRecent(players: Player[], recentIds: ID[]) {
     if (recentA !== recentB) return (recentA === -1 ? 999 : recentA) - (recentB === -1 ? 999 : recentB);
     return a.jerseyNumber - b.jerseyNumber;
   });
-}
-
-function formatSegment(value: string) {
-  if (value === "overview") return "Overview";
-  if (value === "box-score") return "Box Score";
-  if (value === "situational") return "Situational";
-  if (value === "all") return "All";
-  if (value === "live-bp") return "Live BP";
-  if (value === "weight-room") return "Weight Room";
-  if (value === "attendance") return "Attendance";
-  if (value === "trends") return "Trends";
-  if (value === "practice") return "Practice";
-  if (value === "games") return "Games";
-  if (value === "pitching") return "Pitching";
-  if (value === "hitting") return "Hitting";
-  if (value === "defense") return "Defense";
-  if (value === "development") return "Development";
-  if (value === "weights") return "Weight Room";
-  if (value === "notes") return "Notes";
-  return value.split(/[-_]/).filter(Boolean).map((segment) => `${segment.slice(0, 1).toUpperCase()}${segment.slice(1)}`).join(" ");
 }
 
 function weekStart(dateString: string) {
@@ -26275,14 +23285,6 @@ function teamLevelFromName(teamName: string) {
   return travel ? travel[1].toUpperCase() : "";
 }
 
-function teamValue(team?: TeamOption) {
-  return team ? `${team.teamId}:${team.seasonId ?? "all"}${team.playerContextId ? `:player:${team.playerContextId}` : ""}` : "";
-}
-
-function teamContextRole(team: TeamOption) {
-  return team.playerContextId ? `Player: ${team.playerContextName ?? "My profile"}` : roleLabel(team.role);
-}
-
 function profileTeamPinMatchesTeam(pin: ProfileTeamPin, team: TeamOption) {
   return pin.teamId === team.teamId && (pin.seasonId ?? "") === (team.seasonId ?? "");
 }
@@ -26298,10 +23300,6 @@ function pinnedTeamsFromContext(context?: TeamContext, pins: ProfileTeamPin[] = 
     .map((pin) => teamsByValue.get(`${pin.teamId}:${pin.seasonId ?? "all"}`))
     .filter((team): team is TeamOption => Boolean(team))
     .slice(0, 3);
-}
-
-function teamOrganizationLogo(team: TeamOption, context?: TeamContext) {
-  return context?.organizations?.find((organization) => organization.id === team.organizationId)?.logoUrl;
 }
 
 function isFollowingTeam(follows: ProfileFollow[] | undefined, teamId: ID) {
@@ -26351,14 +23349,6 @@ function publicTeamSearchText(team: PublicDirectoryTeamSummary) {
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
-}
-
-function roleLabel(role?: string) {
-  return (role ?? "STAFF")
-    .toLowerCase()
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function profileDisplayName(context?: TeamContext) {

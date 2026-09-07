@@ -5,7 +5,7 @@ import test from "node:test";
 test("unified schedule keeps practice and game records linked without duplicate calendar rows", () => {
   const migration = readFileSync("supabase/migrations/20260812213000_unified_team_schedule.sql", "utf8");
   const repository = readFileSync("app/data/supabaseRepository.ts", "utf8");
-  const page = readFileSync("app/page.tsx", "utf8");
+const page = ["app/page.tsx", "app/components/TeamWorkspaceViews.tsx", "app/components/TeamTrainingViews.tsx", "app/components/TeamContextHeader.tsx"].map(path => readFileSync(path, "utf8")).join("\n");
 
   assert.match(migration, /create table if not exists public\.schedule_events/);
   assert.match(migration, /practice_id uuid references public\.practices\(id\) on delete cascade/);

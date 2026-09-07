@@ -20,6 +20,11 @@ export function resolveAskClubhousePlayer(input: ResolvePlayerInput): AskClubhou
 
   const message = input.message.trim().toLowerCase();
   const players = [...new Map(input.data.players.map((player) => [player.id, player])).values()];
+  // The server supplies viewerPlayerId from an approved account link. First-person language takes precedence over name guesses.
+  if (input.uiContext?.viewerPlayerId && isSelfReference(message)) {
+    const self = players.find(player => player.id === input.uiContext?.viewerPlayerId);
+    if (self) return { status: "single", player: self, source: "player_context" };
+  }
   const contextPlayerId = contextPlayerReference(input.uiContext, message);
   const exactMatches = players.filter((player) => hasWordBoundedName(message, player.name));
   if (exactMatches.length === 1) return { status: "single", player: exactMatches[0], source: "full_name" };

@@ -123,6 +123,7 @@ export function PlayerLivePreview() {
         <label>
           Access Mode
           <select
+            aria-label="Access Mode"
             value={mode}
             onChange={(e) => setMode(e.target.value as PlayerAccessMode)}
           >
@@ -136,6 +137,7 @@ export function PlayerLivePreview() {
         <label>
           Domain
           <select
+            aria-label="Domain"
             value={domain}
             onChange={(e) => setDomain(e.target.value as LiveDomain)}
           >
@@ -146,7 +148,7 @@ export function PlayerLivePreview() {
         </label>
         <label>
           Team
-          <select value={team} onChange={(e) => setTeam(e.target.value)}>
+          <select aria-label="Team" value={team} onChange={(e) => setTeam(e.target.value)}>
             <option>A</option>
             <option>B</option>
           </select>

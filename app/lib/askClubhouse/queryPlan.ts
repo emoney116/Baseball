@@ -171,6 +171,14 @@ function inferTimeRange(lower: string): AnalyticsQuery["timeRange"] {
 }
 
 function inferRequestedDay(lower: string, timeZone: string | undefined, now: Date) {
+  const iso = lower.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+  const named = lower.match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?[,]?\s+(20\d{2})\b/);
+  const months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+  const explicit = iso ? `${iso[1]}-${iso[2]}-${iso[3]}` : named ? `${named[3]}-${String(months.indexOf(named[1]) + 1).padStart(2, "0")}-${named[2].padStart(2, "0")}` : undefined;
+  if (explicit) {
+    const parsed = new Date(`${explicit}T12:00:00Z`);
+    if (Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === explicit) return explicit;
+  }
   if (!/\b(today|yesterday)\b/.test(lower)) return undefined;
   let formatter: Intl.DateTimeFormat;
   try {

@@ -60,9 +60,16 @@ try {
       }
       assert.equal(await page.getByRole("heading", { name: "Team Roster" }).count(), mode === "FULL_PLAYER" ? 1 : 0);
       await nav.getByRole("button", { name: "Analytics", exact: true }).click();
-      await page.getByRole("button", { name: "Discipline", exact: true }).click();
-      await page.getByRole("option", { name: "Weight Room", exact: true }).click();
-      await page.getByRole("heading", { name: "Workout History" }).waitFor();
+      await page.locator(".analytics-box-score").waitFor();
+      assert.equal(await page.locator(".analytics-box-score__row--team").count(), 0);
+      await page.screenshot({ path: out + "/analytics-" + mode + "-" + width + ".png" });
+      await page.getByRole("button", { name: "Charts", exact: true }).click();
+      await page.getByRole("region", { name: "Analytics charts" }).waitFor();
+      await page.getByRole("button", { name: "Insights", exact: true }).click();
+      await page.getByRole("region", { name: "My insights" }).waitFor();
+      await page.getByRole("button", { name: "Analytics source and Workouts", exact: true }).click();
+      await page.getByRole("menuitem", { name: "Workouts", exact: true }).click();
+      await page.locator(".analytics-table-panel").waitFor();
       await layout();
       await page.screenshot({ path: out + "/weight-room-" + mode + "-" + width + ".png" });
       rows.push({ surface: "player", mode, width, height, passed: true });

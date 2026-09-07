@@ -19,6 +19,7 @@ import { createClient } from "../../../lib/supabase/server";
 import { hasStaffAccess, loadPlayerSession, listPlayerContexts } from "../../../lib/playerAccess";
 import { PlayerLinkError } from "../../../lib/playerAccountLinks";
 import { playerAskContext, isPrivateTeamQuestion } from "../../../lib/playerAskScope";
+import { generatePlayerTeamsReply, loadOtherPlayerAskTeams, requirePlayerAskSession } from "../../../lib/playerAskTeams";
 
 export async function POST(request: NextRequest) {
   const requestStartedAt = Date.now();
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest) {
     if (!staffViewer && (!playerSession?.data || !playerSession.context)) {
       return json({ok:false,status:"refused",answer:"An approved player link is required to use your development data.",code:"PLAYER_LINK_REQUIRED"},403);
     }
+    const allPlayerTeams = body.uiContext?.playerScope === "all";
     if (playerSession?.context) {
       if (!playerSession.access?.capabilities.canUseAskClubhouse) throw new PlayerLinkError('Ask Clubhouse is unavailable in this context.',403);
       const c = playerSession.context;
@@ -86,8 +88,10 @@ export async function POST(request: NextRequest) {
       }
       body.messages = [];
     }
+    if (playerSession) requirePlayerAskSession(playerSession);
+    const playerAskSessions = playerSession && allPlayerTeams ? await loadOtherPlayerAskTeams(usageSupabase, userData.user.id, playerSession) : playerSession ? [playerSession] : [];
     const { data, scope } = playerSession?.data && playerSession.context ? {
-      data:playerSession.data,scope:{profileId:userData.user.id,selectedTeams:[playerSession.context.team]},
+      data:playerSession.data,scope:{profileId:userData.user.id,selectedTeams:playerAskSessions.map(session => session.context.team)},
     } : await loadAskClubhouseData(
       supabase,
       userData.user,
@@ -188,7 +192,7 @@ export async function POST(request: NextRequest) {
     const provider = config.hasProviderKey
       ? new OpenAIProvider({ apiKey: process.env.OPENAI_API_KEY, model: config.model })
       : undefined;
-    const reply = await generateAskClubhouseReply({
+    const replyInput = {
       data,
       message,
       conversationId,
@@ -197,12 +201,13 @@ export async function POST(request: NextRequest) {
       config,
       provider,
       knowledgeProvider,
-    });
+    };
+    const reply = playerAskSessions.length > 1 ? await generatePlayerTeamsReply(playerAskSessions, replyInput) : await generateAskClubhouseReply(replyInput);
 
     const assistantContent = reply.answer ?? "Ask Clubhouse could not produce an answer for that question.";
     if (playerSession?.context) {
       const contexts=await listPlayerContexts(usageSupabase,userData.user.id);
-      if(!contexts.some(c=>c.linkId===playerSession.context!.linkId && c.membershipId===playerSession.context!.membershipId)) {
+      if(playerAskSessions.some(session => !contexts.some(c=>c.linkId===session.context.linkId && c.membershipId===session.context.membershipId))) {
         await finishAiUsageEvent(usageSupabase,{usageEventId,status:'refused',toolCallCount:0,toolNames:[],toolParams:[],webSearchCount:0,latencyMs:Date.now()-requestStartedAt,errorCode:'PLAYER_ACCESS_REVOKED',quotaOutcome:'not_counted'});
         throw new PlayerLinkError('Your player access has changed. Refresh to continue.',403);
       }

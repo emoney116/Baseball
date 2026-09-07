@@ -52,7 +52,7 @@ test("mobile productization primitives keep phone workflows compact and app-like
 
 test("phase two phone composition keeps live tracking focused on the next rep", () => {
   const css = readFileSync("app/globals.css", "utf8");
-  const page = readFileSync("app/page.tsx", "utf8");
+const page = ["app/page.tsx", "app/components/TeamWorkspaceViews.tsx", "app/components/TeamTrainingViews.tsx", "app/components/TeamContextHeader.tsx"].map(path => readFileSync(path, "utf8")).join("\n");
   const phase2Layer = css.match(/\/\* Mobile productization Phase 2:[\s\S]*$/)?.[0] ?? "";
 
   assert.match(page, /practiceModePickerOpen/);

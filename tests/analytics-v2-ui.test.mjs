@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const page = readFileSync("app/page.tsx", "utf8");
+const page = ["app/page.tsx", "app/components/TeamWorkspaceViews.tsx", "app/components/TeamTrainingViews.tsx", "app/components/TeamContextHeader.tsx"].map(path => readFileSync(path, "utf8")).join("\n");
 const css = readFileSync("app/globals.css", "utf8");
 const catalog = readFileSync("app/lib/analyticsCatalog.ts", "utf8");
 

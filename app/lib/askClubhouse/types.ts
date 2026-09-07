@@ -33,6 +33,7 @@ export interface AskClubhouseUiContext {
   organizationId?: ID;
   playerId?: ID;
   viewerPlayerId?: ID;
+  playerScope?: "current" | "all";
   teamScopes?: AskClubhouseTeamScope[];
   launchSurface?: AskClubhouseLaunchSurface;
   analytics?: Partial<AnalyticsQuery>;

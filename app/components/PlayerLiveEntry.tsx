@@ -3,6 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Pencil, Save, Undo2, Radio, RefreshCw } from "lucide-react";
 import { StrikeZone } from "./visuals";
 import { ClubhouseBaseballField } from "./ClubhouseBaseballField";
+import { ChoiceSelect } from "./ChoiceSelect";
+import { PracticeResultChoices } from "./PracticeResultChoices";
+import { VelocityPickerField, WeightRoomInlineSetCell, type ActiveWorkoutStation } from "./TeamTrainingViews";
 import {
   LIVE_FIELDS,
   LIVE_RESULTS,
@@ -14,7 +17,7 @@ import {
   type PlayerLiveSession,
   type PlayerLiveState,
 } from "../lib/playerLiveModels";
-import type { ZonePoint } from "../types";
+import type { WorkoutEntry, ZonePoint } from "../types";
 
 export type LiveSubmission = {
   membershipId: string;
@@ -275,7 +278,7 @@ function LiveEntryForm({
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   const setValue = (key: string, value: unknown) =>
     setValues((v) => ({ ...v, [key]: value }));
-  async function submit(operation: LiveSubmission["operation"], entry?: Entry) {
+  async function submit(operation: LiveSubmission["operation"], entry?: Entry, draft = values) {
     if (saving.current) return;
     saving.current = true;
     setBusy(true);
@@ -285,8 +288,8 @@ function LiveEntryForm({
         const selectedValues: Record<string, unknown> = {};
         if (operation !== "delete")
           for (const key of [resultKey, ...fields.map((f) => f.key)])
-            if (values[key] != null && values[key] !== "")
-              selectedValues[key] = values[key];
+            if (draft[key] != null && draft[key] !== "")
+              selectedValues[key] = draft[key];
         if (workout) {
           selectedValues.stationId = session.exercise!.id;
           selectedValues.setNumber = entry ? entry.payload.setNumber : nextSet;
@@ -364,20 +367,25 @@ function LiveEntryForm({
             </select>
           </label>
         )}
-        <label>
-          {workout ? "Completion" : "Result"}
-          <select
-            aria-label={workout ? "Completion" : "Result"}
-            value={String(values[resultKey] ?? "")}
-            onChange={(e) => setValue(resultKey, e.target.value)}
-          >
-            <option value="">Select result</option>
-            {LIVE_RESULTS[session.domain].map((r) => (
-              <option key={r}>{r}</option>
-            ))}
-          </select>
-        </label>
-        <div className="player-live-fields">
+        {!workout && <PracticeResultChoices
+          className={session.domain === "defense" ? "practice-defense-result-grid" : "practice-hitting-result-grid"}
+          options={LIVE_RESULTS[session.domain].map(result => ({ value: result, label: result }))}
+          value={String(values[resultKey] ?? "")}
+          onChange={value => setValue(resultKey, value)}
+        />}
+        {workout && session.exercise && nextSet && <div className="weight-room-individual-set-row">
+          <strong>Set {nextSet}</strong>
+          <WeightRoomInlineSetCell
+            key={`${nextSet}:${editing?.id ?? "new"}`}
+            cell={{ playerId: "self", exercise: session.exercise.name, setNumber: nextSet }}
+            entry={editing ? { ...editing.payload, id: editing.id, sessionId: session.id, playerId: "self", exercise: session.exercise.name, kind: "Lift", createdAt: editing.createdAt } as WorkoutEntry : undefined}
+            station={{ id: session.exercise.id, name: session.exercise.name, category: "Other", kind: "Lift", active: true, displayOrder: 0, targetStyle: "Standard", performanceDirection: "HIGHER_IS_BETTER", targetSets: session.exercise.sets, targetReps: session.exercise.reps, measurementType: session.exercise.measurement, unit: session.exercise.unit } as ActiveWorkoutStation}
+            disabled={busy || retry}
+            explicitSave
+            onSaveCell={(_cell, draft) => void submit(editing ? "update" : "create", editing, { ...draft, status: "Completed" })}
+          />
+        </div>}
+        {!workout && <div className="player-live-fields">
           {fields.map((f) => (
             <LiveInput
               key={f.key}
@@ -386,10 +394,10 @@ function LiveEntryForm({
               onChange={(v) => setValue(f.key, v)}
             />
           ))}
-        </div>
+        </div>}
       </fieldset>
       <div className="player-live-actions">
-        <button
+        {(!workout || retry) && <button
           className="primary-button"
           disabled={busy || (!retry && workout && !nextSet)}
           onClick={() => void submit(editing ? "update" : "create", editing)}
@@ -404,7 +412,7 @@ function LiveEntryForm({
                 : workout
                   ? "Save Set"
                   : "Save Rep"}
-        </button>
+        </button>}
         {editing && !retry && (
           <button
             className="ghost-button"
@@ -506,6 +514,12 @@ function LiveInput({
   value: unknown;
   onChange: (value: unknown) => void;
 }) {
+  if (field.key === "velocity" || field.key === "exit_velocity_mph") return <VelocityPickerField
+    label={field.label} ariaLabel={field.label} value={value == null ? "" : String(value)} defaultValue={75}
+    onChange={value => onChange(value === "" ? undefined : Number(value))} />;
+  if (field.options) return <ChoiceSelect label={field.label} value={String(value ?? "")}
+    options={[{ value: "", label: "Not tracked" }, ...field.options.map(value => ({ value, label: value }))]}
+    onChange={onChange} />;
   if (field.kind === "point")
     return (
       <div className="player-live-point">
@@ -562,18 +576,7 @@ function LiveInput({
   return (
     <label>
       {field.label}
-      {field.options ? (
-        <select
-          aria-label={field.label}
-          value={String(value ?? "")}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">Not tracked</option>
-          {field.options.map((o) => (
-            <option key={o}>{o}</option>
-          ))}
-        </select>
-      ) : (
+      {
         <input
           aria-label={field.label}
           inputMode="decimal"
@@ -586,7 +589,7 @@ function LiveInput({
             onChange(e.target.value === "" ? undefined : Number(e.target.value))
           }
         />
-      )}
+      }
     </label>
   );
 }

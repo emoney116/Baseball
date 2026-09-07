@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 test("practice hub opens active tracker modes without setup screen", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+const page = ["app/page.tsx", "app/components/TeamWorkspaceViews.tsx", "app/components/TeamTrainingViews.tsx", "app/components/TeamContextHeader.tsx"].map(path => readFileSync(path, "utf8")).join("\n");
   const layout = readFileSync("app/layout.tsx", "utf8");
   const styles = readFileSync("app/globals.css", "utf8");
   const taxonomy = readFileSync("app/lib/hittingTaxonomy.ts", "utf8");

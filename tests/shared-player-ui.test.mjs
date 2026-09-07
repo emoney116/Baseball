@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 const player = readFileSync("app/components/PlayerShell.tsx", "utf8");
-const staff = readFileSync("app/page.tsx", "utf8");
+const staff = readFileSync("app/page.tsx", "utf8") + readFileSync("app/components/TeamWorkspaceViews.tsx", "utf8") + readFileSync("app/components/TeamTrainingViews.tsx", "utf8");
 const drawer = readFileSync("app/components/AskClubhouseDrawer.tsx", "utf8");
 
 test("staff and player use one Ask renderer rather than independent dialogs", () => {
   for (const source of [staff, player]) {
-    assert.match(source, /import \{ AskClubhouseDrawer/);
+    assert.match(source, /import \{[^}]*AskClubhouseDrawer/);
     assert.match(source, /<AskClubhouseDrawer/);
     assert.doesNotMatch(source, /function AskClubhouseDrawer/);
   }
@@ -39,7 +39,7 @@ test("player analytics actions retain filters while approved context owns identi
   assert.doesNotMatch(handler, /setSession|action\.playerId|action\.query\.context|action\.query\.playerIds/);
 });
 test("navigation, personal metrics and selectors share the staff components", () => {
-  for (const name of ["ClubhouseBottomNav", "AnalyticsPlayerMetrics", "ChoiceSelect", "ScheduleAgendaRow", "DensePlayerIdentity"]) {
+  for (const name of ["ClubhouseBottomNav", "AnalyticsPlayerMetrics", "ChoiceSelect", "ScheduleAgendaRow", "DensePlayerIdentity", "AnalyticsView", "ScheduleView"]) {
     assert.match(player, new RegExp("<" + name));
     assert.match(staff, new RegExp("<" + name));
   }

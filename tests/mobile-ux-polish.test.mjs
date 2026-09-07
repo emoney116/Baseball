@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 test("mobile workspace polish keeps shared controls compact and team aware", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+const page = ["app/page.tsx", "app/components/TeamWorkspaceViews.tsx", "app/components/TeamTrainingViews.tsx", "app/components/TeamContextHeader.tsx"].map(path => readFileSync(path, "utf8")).join("\n");
   const css = readFileSync("app/globals.css", "utf8");
   const visuals = readFileSync("app/components/visuals.tsx", "utf8");
   const repository = readFileSync("app/data/supabaseRepository.ts", "utf8");

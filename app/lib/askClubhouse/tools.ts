@@ -790,6 +790,9 @@ function analyticsRequest(
     parameters: {
       domain: query.domain,
       source: query.source,
+      timeRange: query.timeRange,
+      customDateRange: query.customDateRange,
+      eventIds: query.eventIds,
       metricIds,
       playerId,
       limit: query.limit,
@@ -936,6 +939,7 @@ function analyticsAction(label: string, query: AnalyticsQuery, playerId?: ID): A
       source: query.source,
       mode: query.mode,
       timeRange: query.timeRange,
+      customDateRange: query.customDateRange,
       developmentView: query.developmentView,
       filters: query.filters,
       eventIds: query.eventIds,
