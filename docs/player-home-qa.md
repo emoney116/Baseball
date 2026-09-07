@@ -8,11 +8,13 @@ Home order: Today/Live Now, role-aware Performance, Recent Development, Trends, 
 
 ## Pins
 
-GET/POST /api/team-pins authenticate with getUser. Profile identity comes from the server, never the request body. An exact approved player team/season context may insert its own pin through the server admin client; other callers use the existing authenticated RLS path. Unpin is always constrained by profile/team/season. The existing three-pin database limit remains. Pins do not grant membership or data access. The player global Home loader now includes persisted own pins. No migration or Auth settings change.
+GET/POST /api/team-pins authenticate with getUser. Profile identity comes from the server, never the request body. An exact approved player team/season context may insert its own pin through the server admin client; other callers use the existing authenticated RLS path. Unpin is always constrained by profile/team/season. Pins do not grant membership or data access. The player global Home loader now includes persisted own pins. No Auth settings change.
+
+Hosted QA found that the historical enforce_profile_team_pin_limit trigger also requires staff membership even for server writes. Migration 20260907174500_player_team_pin_membership.sql fixes that check for approved player links with active exact team/season memberships. It preserves staff authorization and all RLS policies, locks the profile during the limit check, and counts all saved pins toward the three-pin limit. No existing rows are modified.
 
 ## Verification
 
-- Full build and automated suite: 579 passing tests (570 baseline + 9).
+- Final full build and automated suite: 586 passing tests (570 baseline + 16), including seven real-database trigger tests after the hosted finding. The complete migration chain applies successfully to the local PostgreSQL-compatible test database.
 - TypeScript: passed.
 - Lint: no errors, 25 existing image warnings.
 - Diff whitespace check: passed.
@@ -22,4 +24,6 @@ GET/POST /api/team-pins authenticate with getUser. Profile identity comes from t
 
 ## Acceptance Boundaries
 
-Local fixture pin toggles verify UI only; hosted persistence must also be checked using the ordinary QA account after Preview deployment. No real player emails, access-mode changes, training writes or main promotion are part of this change. Earlier hosted workout/revoke acceptance gaps remain open; this Home pass does not declare Player Beta pilot-ready.
+Authenticated Preview 10a769d verified Mylo's Home and canonical Analytics drilldown: 64% Contact, 84.0 Avg EV, 20% Hard, 11 swings, 5 BIP. No live-session/start controls appeared after the ended QA Practice. The pin attempt was rejected by the historical trigger and created no pin. Hosted pin persistence is blocked until the new migration is deployed through the normal workflow; no manual production SQL was run.
+
+No real player emails, access-mode changes, training writes or main promotion are part of this change. Earlier hosted workout/revoke acceptance gaps remain open; this Home pass does not declare Player Beta pilot-ready.
