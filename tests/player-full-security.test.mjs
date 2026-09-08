@@ -21,6 +21,14 @@ before(async () => {
   `);
 });
 after(async () => await db?.close());
+test("canonical Team Plan columns retain staff RLS and reject player writes", async () => {
+  const plan = JSON.stringify([{ id: "plan-row", timeLabel: "3:30 PM", activity: "Warm Up", shortDetail: null }]);
+  const denied = await asAccount(db, id(1), () => db.query("update practices set team_plan=$1::jsonb where id=$2 returning id", [plan, id(60)]));
+  assert.equal(denied.rows.length, 0);
+  const allowed = await asAccount(db, id(2), () => db.query("update practices set team_plan=$1::jsonb where id=$2 returning team_plan", [plan, id(60)]));
+  assert.deepEqual(allowed.rows[0].team_plan, JSON.parse(plan));
+  await assert.rejects(db.query("update practices set team_plan='{}'::jsonb where id=$1", [id(60)]));
+});
 for (const table of [
   "players",
   "practices",

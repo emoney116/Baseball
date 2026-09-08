@@ -264,7 +264,7 @@ export function safePlayerRow(kind: string, r: Row): Row {
     membership:
       "id,player_id,team_id,season_id,jersey_number,roster_status,active",
     practice:
-      "id,practice_date,name,practice_type,location,starts_at,ended_at,created_at,updated_at",
+      "id,practice_date,name,practice_type,location,starts_at,ended_at,created_at,updated_at,team_plan,team_plan_revision",
     attendance: "id,practice_id,player_id,role,status,checked_in_at",
     session:
       "id,practice_id,player_id,category,session_type,started_at,ended_at,status",

@@ -66,6 +66,7 @@ import { DemoDataQaPanel } from "./components/DemoDataQaPanel";
 import { DensePlayerIdentity } from "./components/DensePlayerIdentity";
 import { PlayerAccessPanel } from "./components/PlayerAccessPanel";
 import { PlayerAccountLinksPanel, TeamPlayerClaimsPanel } from "./components/PlayerAccountLinksPanel";
+import { PracticeTeamPlan } from "./components/PracticeTeamPlan";
 import { PlayerInvitationsPanel, usePlayerInvitationRoster } from "./components/PlayerInvitationsPanel";
 import { PlayerShell } from "./components/PlayerShell";
 import { GameLibrary, GameScoreRibbon, PracticeWorkspaceHeader, PracticeWorkspaceSummary, WeightRoomWorkspaceHeader } from "./components/TeamFeatureLayouts";
@@ -7746,7 +7747,7 @@ function PracticeHome({
                 </button>
               </article>
 
-              <PracticePlanCard practice={practice} />
+              <PracticeTeamPlan key={practice.id} practice={practice} teamId={data.teamContext?.currentTeam?.teamId} canManage={Boolean(data.teamContext?.currentTeam && ["OWNER", "ADMIN", "HEAD_COACH", "ASSISTANT_COACH", "STAFF", "COACH"].includes(data.teamContext.currentTeam.role))} />
               <PracticeRecentCard data={data} recentPractices={recentPractices} onOpenPractice={onOpenPracticeReview} onOpenHistory={() => onTab("History")} />
             </section>
           ) : (
@@ -7815,46 +7816,6 @@ function PracticeActiveSessionsCard({
           </button>
         ))}
       </div>
-    </article>
-  );
-}
-
-function PracticePlanCard({ practice }: { practice: Practice }) {
-  const baseDate = practice.date;
-  const plan = [
-    { time: "6:00 PM", activity: "Team Warm-Up" },
-    { time: "6:15 PM", activity: "Throwing" },
-    { time: "6:30 PM", activity: "Hitting Groups", tag: "BP" },
-    { time: "7:00 PM", activity: "Defense", tag: "Reps" },
-    { time: "7:30 PM", activity: "Bullpens", tag: "Live" },
-    { time: "7:55 PM", activity: "Team Meeting", tag: "Brief" },
-  ];
-  return (
-    <article className="panel practice-plan-card">
-      <div className="panel-heading tight">
-        <div>
-          <h2>Today&apos;s Plan</h2>
-          <span>{shortDate(baseDate)}</span>
-        </div>
-        <button className="text-button" type="button">
-          Edit Plan
-          <Edit3 size={14} aria-hidden="true" />
-        </button>
-      </div>
-      <div className="practice-plan-list">
-        {plan.map((item, index) => (
-          <div key={`${item.time}-${item.activity}`}>
-            <i className={`practice-plan-dot practice-plan-dot--${index % 4}`} />
-            <time>{item.time}</time>
-            <strong>{item.activity}</strong>
-            {item.tag && <small>{item.tag}</small>}
-          </div>
-        ))}
-      </div>
-      <button className="text-button practice-card-link" type="button">
-        View Full Plan
-        <ChevronRight size={15} aria-hidden="true" />
-      </button>
     </article>
   );
 }

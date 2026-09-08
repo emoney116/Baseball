@@ -490,6 +490,8 @@ export interface PublicDirectoryOrganizationSummary {
 }
 
 export interface Practice {
+  teamPlan?: import("./lib/practicePlan").PracticePlanItem[];
+  teamPlanRevision?: number;
   id: ID;
   date: string;
   name: string;

@@ -2622,6 +2622,8 @@ function mapPractice(row: any, attendanceRows: any[]): Practice {
     id: row.id,
     date: row.practice_date,
     name: row.name,
+    teamPlan: Array.isArray(row.team_plan) ? row.team_plan : [],
+    teamPlanRevision: row.team_plan_revision ?? 0,
     type: row.practice_type,
     location: row.location ?? "",
     notes: row.notes ?? undefined,

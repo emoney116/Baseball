@@ -16,6 +16,7 @@ import type { PlayerSession, PlayerContext } from "../lib/playerAccess";
 import type { AnalyticsDomain, AnalyticsSource, AnalyticsQuery } from "../lib/analyticsQuery";
 import { AnalyticsView, ScheduleView, SectionHeader } from "./TeamWorkspaceViews";
 import { PracticeHistoryTab, WeightRoomRecentWorkouts } from "./TeamTrainingViews";
+import { PracticeTeamPlan } from "./PracticeTeamPlan";
 import { buildWeightRoomPlayerProfile, WeightRoomAthleteOverview } from "./WeightRoomPlayerViews";
 import { GameLibrary, GameScoreRibbon, PracticeWorkspaceHeader, PracticeWorkspaceSummary, WeightRoomWorkspaceHeader, type PracticeWorkspaceTab } from "./TeamFeatureLayouts";
 import { PlayerAccountLinksPanel } from "./PlayerAccountLinksPanel";
@@ -372,6 +373,7 @@ export function PlayerShell({
               {practiceTab === "Overview" && <>
                 <PracticeWorkspaceSummary label={activePractice ? "Current Practice" : "Practice"} title={activePractice?.name ?? "No active practice"} detail={activePractice?.location ?? "Waiting on coach to begin Practice session."} />
                 {!preview && <PlayerLiveEntry key={`practice-${context.membershipId}`} membershipId={context.membershipId} initialSelection={liveSelection} excludeWorkout onSaved={() => refreshSession.current()} />}
+                {(activePractice ?? data.practices[0]) && <PracticeTeamPlan key={(activePractice ?? data.practices[0]).id} practice={activePractice ?? data.practices[0]} />}
               </>}
               {practiceTab !== "Metrics" && <PracticeHistoryTab data={data} onOpenPractice={id => { setEventId(id); setDomain("hitting"); setSource("practice"); setAnalyticsRevision(value => value + 1); setPracticeTab("Metrics"); }} />}
             </div>}

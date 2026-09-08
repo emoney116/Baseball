@@ -28,10 +28,12 @@ export class OpenAIProvider implements AIProvider {
     prompt: string;
     maxOutputTokens: number;
     webSearch?: { enabled: boolean; maxSearches: number };
+    structured?: { name: string; schema: Record<string, unknown>; image?: string };
   }): Promise<AIProviderResult> {
     const webSearchEnabled = Boolean(input.webSearch?.enabled && input.webSearch.maxSearches > 0);
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
+      ...(input.structured ? { signal: AbortSignal.timeout(45000) } : {}),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${this.apiKey}`,
@@ -39,7 +41,8 @@ export class OpenAIProvider implements AIProvider {
       body: JSON.stringify({
         model: this.model,
         instructions: input.system,
-        input: input.prompt,
+        input: input.structured?.image ? [{ role: "user", content: [{ type: "input_text", text: input.prompt }, { type: "input_image", image_url: input.structured.image }] }] : input.prompt,
+        ...(input.structured ? { text: { format: { type: "json_schema", name: input.structured.name, schema: input.structured.schema, strict: true } } } : {}),
         max_output_tokens: input.maxOutputTokens,
         store: false,
         ...(webSearchEnabled ? {
