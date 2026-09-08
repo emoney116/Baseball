@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "../../../lib/supabase/admin";
 import { createClient } from "../../../lib/supabase/server";
+import { ensureTeamCreatorMembership } from "../../../lib/teamCreationMembership";
 
 export async function POST(request: NextRequest) {
   try {
@@ -145,19 +146,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, message: seasonError?.message ?? "Unable to create season." }, { status: 500 });
     }
 
-    const { error: membershipError } = await admin
-      .from("profile_team_memberships")
-      .upsert(
-        {
-          profile_id: authData.user.id,
-          team_id: team.id,
-          season_id: season.id,
-          role: "ADMIN",
-          title: "Admin",
-          active: true,
-        },
-        { onConflict: "profile_id,team_id,season_id" },
-      );
+    const { error: membershipError } = await ensureTeamCreatorMembership(
+      admin, authData.user.id, team.id, season.id,
+    );
     if (membershipError) {
       return NextResponse.json({ ok: false, message: membershipError.message }, { status: 500 });
     }
