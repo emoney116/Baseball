@@ -16,7 +16,7 @@ Status: In Progress, not pilot-ready.
 - Profile: 3ce7cfca-7c54-4c56-961d-3f838e663bed.
 - Exact player: c3dc33d4-3b32-4779-940e-0172951e7498.
 - Team: 113d2159-421c-424d-8fe4-af2d2e9ca1a9; season: 8ff199c0-453e-42ac-83b9-4b735ef84b8b.
-- Link db9dde50-2c71-4e22-8162-b6db81ed6e0e is currently REVOKED. Reapproval is not yet complete.
+- The former link db9dde50-2c71-4e22-8162-b6db81ed6e0e remains in revoked history. A new exact-membership self-claim was submitted from the fixed Preview and coach-approved through the production roster. Player Home then opened with the original exact player/team/season URL and View Only. The account is restored; it is no longer blocked by revocation.
 - Team default and player overrides were not changed during this pass. No new QA workout was created and no emails were sent.
 
 ## Acceptance Findings and Fixes
@@ -28,6 +28,8 @@ Status: In Progress, not pilot-ready.
 
 Automated validation: 591 tests passed, production build passed, TypeScript passed, lint passed with 25 existing warnings and zero errors, and diff check passed. The shared-role fixture suite passed 20 phone/iPad/desktop cases before the subsequent claim-label-only change. Hosted verification of the two fixes remains pending.
 
-Deploy these fixes to Preview and authenticate the internal QA account there. Re-claim the exact roster record 2 through normal coach approval, verify restored View Only, then continue the authorized QA-only workout/mode cycle. Restore approved View Only at the end. Current production still has the old claim labels and resume behavior until separately authorized promotion.
+Feature commit a6b7d8e8bb2b489b571bfd9a1ba64a5bb70a2f0e deployed successfully to https://baseball-286gmh8o2-emoney116s-projects.vercel.app. The internal QA account authenticated there. Discovery and confirmation visibly distinguished roster record 2; the claim stayed Pending until the production coach approved it. Restored Player Home showed View Only and unchanged personal metrics/history.
+
+Next: authenticate a coach on the fixed Preview to verify workout start after completion and continue the authorized QA-only workout/mode cycle. Current authenticated coach tab is production, which still has the old resume behavior. Restore approved View Only at the end. No new migration is required by these fixes. Production promotion has not been requested or performed for this feature commit.
 
 Keep CLU9-46/47/48/49/50 In Progress. Broader invite/multi-team and full hosted acceptance are not certified by these checks.
