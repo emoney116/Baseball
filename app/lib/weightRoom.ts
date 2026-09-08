@@ -1,4 +1,9 @@
-import type { Player, WorkoutEntry, WorkoutSession } from "../types.ts";
+import type { Player, WeightRoomWorkout, WorkoutEntry, WorkoutSession } from "../types.ts";
+
+export function resumableWeightRoomWorkout(workouts: WeightRoomWorkout[], preferredId?: string) {
+  const running = (workout: WeightRoomWorkout) => workout.status === "ACTIVE" || workout.status === "PAUSED";
+  return workouts.find((workout) => workout.id === preferredId && running(workout)) ?? workouts.find(running);
+}
 
 export type WeightRoomWindow = "This Week" | "This Month" | "This Season";
 

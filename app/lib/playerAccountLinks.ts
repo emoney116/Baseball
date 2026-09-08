@@ -1,5 +1,6 @@
 import { getUserEntitlements, hasEntitlement, SUPER_USER_ENTITLEMENT } from "./askClubhouse/entitlements.ts";
 import type { createAdminClient } from "./supabase/admin";
+import { labelExactRoster } from "./exactRosterIdentity.ts";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -27,6 +28,7 @@ export type ClaimTeam = {
 };
 
 export type ClaimRosterPlayer = {
+  identityLabel?: string;
   playerId: string;
   membershipId: string;
   teamId: string;
@@ -60,7 +62,7 @@ type TeamRow = { id: string; organization_id: string; name: string; level?: stri
 type OrganizationRow = { id: string; name: string; visibility?: string | null };
 type SeasonRow = { id: string; team_id: string; name: string; active?: boolean | null };
 type MembershipRow = { id: string; player_id: string; team_id: string; season_id: string; jersey_number?: number | null; active?: boolean | null };
-type PlayerRow = { id: string; organization_id: string; first_name: string; last_name: string; jersey_number?: number | null; graduation_year?: number | null; primary_position?: string | null; active?: boolean | null; updated_at?: string | null };
+type PlayerRow = { id: string; organization_id: string; first_name: string; last_name: string; jersey_number?: number | null; graduation_year?: number | null; primary_position?: string | null; active?: boolean | null; created_at?: string | null; updated_at?: string | null };
 type LinkRow = {
   id: string;
   profile_id: string;
@@ -177,10 +179,14 @@ export async function searchClaimRoster(admin: AdminClient, input: { teamId: str
   const membershipRows = (memberships ?? []) as MembershipRow[];
   const playerIds = membershipRows.map((membership) => membership.player_id);
   const { data: players, error: playerError } = playerIds.length
-    ? await admin.from("players").select("id,organization_id,first_name,last_name,jersey_number,graduation_year,primary_position,active,updated_at").in("id", playerIds).eq("active", true)
+    ? await admin.from("players").select("id,organization_id,first_name,last_name,jersey_number,graduation_year,primary_position,active,created_at,updated_at").in("id", playerIds).eq("active", true)
     : { data: [], error: null };
   if (playerError) throw new PlayerLinkError("Roster search is unavailable.", 500);
   const playerRows = (players ?? []) as PlayerRow[];
+  const identityLabels = new Map(labelExactRoster(playerRows
+    .filter((player) => player.organization_id === target.organizationId)
+    .map((player) => ({ id: player.id, name: `${player.first_name} ${player.last_name}`.trim(), createdAt: player.created_at ?? "" })))
+    .map((player) => [player.id, player.identityLabel]));
   const playerById = new Map(playerRows.map((player) => [player.id, player]));
   const roster = membershipRows.flatMap((membership): ClaimRosterPlayer[] => {
     const player = playerById.get(membership.player_id);
@@ -191,6 +197,7 @@ export async function searchClaimRoster(admin: AdminClient, input: { teamId: str
       teamId: membership.team_id,
       seasonId: membership.season_id,
       name: `${player.first_name} ${player.last_name}`.trim(),
+      identityLabel: identityLabels.get(player.id),
       jerseyNumber: membership.jersey_number ?? player.jersey_number ?? undefined,
       graduationYear: player.graduation_year ?? undefined,
       primaryPosition: player.primary_position ?? undefined,

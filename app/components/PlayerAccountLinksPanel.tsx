@@ -14,6 +14,7 @@ type ClaimTeam = {
 };
 
 type ClaimPlayer = {
+  identityLabel?: string;
   playerId: string;
   membershipId: string;
   teamId: string;
@@ -222,7 +223,7 @@ export function PlayerAccountLinksPanel() {
               const context = playerContext(player, selectedTeam.teamName, selectedTeam.seasonName);
               return (
                 <button className={`player-link-player-option ${selectedPlayer?.membershipId === player.membershipId ? "is-selected" : ""}`} type="button" key={player.membershipId} onClick={() => setSelectedPlayer(player)}>
-                  <span><strong>{context.identity}</strong><small>{context.details}</small></span>
+                  <span><strong>{context.identity}</strong>{player.identityLabel && <small>{player.identityLabel}</small>}<small>{context.details}</small></span>
                   {selectedPlayer?.membershipId === player.membershipId ? <Check size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}
                 </button>
               );
@@ -238,6 +239,7 @@ export function PlayerAccountLinksPanel() {
           <div>
             <span>You&apos;re requesting access to</span>
             <strong>{playerContext(selectedPlayer).identity}</strong>
+            {selectedPlayer.identityLabel && <small>{selectedPlayer.identityLabel}</small>}
             <small>{selectedTeam.teamName} · {selectedTeam.seasonName}</small>
           </div>
           <button className="primary-button" type="button" onClick={() => void submitClaim()} disabled={status === "submitting"}>{status === "submitting" ? "Requesting..." : "Request Access"}</button>

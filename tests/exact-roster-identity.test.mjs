@@ -50,6 +50,18 @@ test('selection labels never expose UUIDs and unique names stay unchanged', () =
   for (const row of rows) assert.ok(!playerSelectionLabel(row).includes(row.id));
   assert.equal(playerSelectionLabel(labelExactRoster([a])[0]), a.name);
 });
+
+test('self-claim discovery labels exact records before filtering and confirms the same label', () => {
+  const service = readFileSync('app/lib/playerAccountLinks.ts', 'utf8');
+  const ui = readFileSync('app/components/PlayerAccountLinksPanel.tsx', 'utf8');
+  assert.match(service, /labelExactRoster\(playerRows/);
+  assert.match(service, /createdAt: player.created_at/);
+  assert.match(service, /identityLabel: identityLabels.get\(player.id\)/);
+  assert.ok(service.indexOf('const identityLabels') < service.indexOf('const needle = text(input.query'));
+  assert.match(ui, /player.identityLabel && <small>\{player.identityLabel\}/);
+  assert.match(ui, /selectedPlayer.identityLabel && <small>\{selectedPlayer.identityLabel\}/);
+  assert.match(ui, /membershipId: selectedPlayer.membershipId/);
+});
 test('name or linked presentation never grants access to the other record', () => {
   const links = [{playerId: a.id, relationshipType: 'PLAYER', status: 'APPROVED'}];
   assert.equal(canProfileAccessPlayerSelf(links, a.id), true);

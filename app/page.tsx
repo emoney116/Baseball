@@ -155,6 +155,7 @@ import {
   buildWeightRoomLeaderboard as buildScoredWeightRoomLeaderboard,
   buildWeightRoomScoreRows,
   estimatedOneRepMax,
+  resumableWeightRoomWorkout,
   WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS,
   WEIGHT_ROOM_MIN_TRACKED_SETS,
   WEIGHT_ROOM_SCORE_COMPONENTS,
@@ -12329,23 +12330,18 @@ function WeightRoomView({
   const teamOverview = buildWeightRoomTeamOverview(data, players, workoutDate);
   const leaderboard = buildScoredWeightRoomLeaderboard(players, data.workoutSessions, data.workoutEntries, "This Season");
   const leaderRows = leaderboard.length ? leaderboard.slice(0, 5) : leader ? [leader] : [];
-  const recentWorkoutRows = buildRecentWeightRoomWorkouts(data, players);
-  const openWorkoutRow = recentWorkoutRows.find((row) => !row.completed);
   const workoutByActiveId = (data.weightRoomWorkouts ?? []).find((workout) => workout.id === activeWorkoutId);
-  const persistedActiveWorkout =
-    (workoutByActiveId && (workoutByActiveId.status === "ACTIVE" || workoutByActiveId.status === "PAUSED") ? workoutByActiveId : undefined)
-    ?? (data.weightRoomWorkouts ?? []).find((workout) => workout.status === "ACTIVE" || workout.status === "PAUSED")
-    ?? (data.weightRoomWorkouts ?? []).find((workout) => workout.title === workoutTitle && workout.date === workoutDate && workout.status !== "COMPLETED" && workout.status !== "CANCELLED");
+  const persistedActiveWorkout = resumableWeightRoomWorkout(data.weightRoomWorkouts ?? [], activeWorkoutId);
   const sessionWorkout = workoutByActiveId ?? persistedActiveWorkout;
   const [reviewWorkoutDate, setReviewWorkoutDate] = useState<string | undefined>();
   const reviewSessionsForDate = reviewWorkoutDate ? data.workoutSessions.filter((session) => session.date === reviewWorkoutDate) : [];
   const reviewEntriesForDate = reviewWorkoutDate ? data.workoutEntries.filter((entry) => entrySessionDate(data, entry) === reviewWorkoutDate) : [];
-  const activeWorkoutRunning = workoutStatus === "In Progress" || workoutStatus === "Paused" || Boolean(openWorkoutRow) || Boolean(persistedActiveWorkout);
+  const activeWorkoutRunning = Boolean(persistedActiveWorkout);
   const activeWorkoutSummary = activeWorkoutRunning ? {
-    status: workoutStatus === "Paused" ? "Paused" as const : "In Progress" as const,
-    date: openWorkoutRow?.date ?? workoutDate,
-    title: openWorkoutRow?.title ?? workoutTitle,
-    eventId: activeEventId,
+    status: persistedActiveWorkout?.status === "PAUSED" ? "Paused" as const : "In Progress" as const,
+    date: persistedActiveWorkout?.date ?? workoutDate,
+    title: persistedActiveWorkout?.title ?? workoutTitle,
+    eventId: persistedActiveWorkout?.scheduleEventId,
   } : undefined;
   const workoutActionLabel = activeWorkoutRunning ? "Resume Workout" : "Start Workout";
 
@@ -12353,7 +12349,7 @@ function WeightRoomView({
     const target = input
       ?? (persistedActiveWorkout
         ? { title: persistedActiveWorkout.title, date: persistedActiveWorkout.date, eventId: persistedActiveWorkout.scheduleEventId }
-        : openWorkoutRow ? { title: openWorkoutRow.title, date: openWorkoutRow.date, location: openWorkoutRow.location } : undefined);
+        : undefined);
     setReviewWorkoutDate(undefined);
     onStartWorkout({
       title: target?.title ?? workoutTitle,
