@@ -3,7 +3,7 @@ import { createClient } from "../../lib/supabase/server";
 import { createAdminClient } from "../../lib/supabase/admin";
 import { PlayerLinkError } from "../../lib/playerAccountLinks";
 import { PLAN_EXTRACTION_INSTRUCTIONS, PLAN_EXTRACTION_SCHEMA, validatePlanExtraction } from "../../lib/practicePlan";
-import { authorizePracticePlan, publishPracticePlan, PLAN_SELECTION } from "../../lib/practicePlanService";
+import { authorizePracticePlan, publishPracticePlan, countRecentPlanImports, PLAN_SELECTION } from "../../lib/practicePlanService";
 import { OpenAIProvider } from "../../lib/askClubhouse/provider";
 import { createAiRequestHash, finishAiUsageEvent, startAiUsageEvent } from "../../lib/askClubhouse/usage";
 import type { AIProviderUsage } from "../../lib/askClubhouse/types";
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       const valid = match[1] === "png" ? bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10])) : match[1] === "jpeg" ? bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 : bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
       if (!valid || bytes.length > 2 * 1024 * 1024) throw new PlayerLinkError("Choose a valid image under 2 MB.");
     }
-    const { count, error: countError } = await db.from("ai_usage_events").select("id", { count: "exact", head: true }).eq("profile_id", actor).contains("safe_tool_names", ["practice_plan_import"]).gte("created_at", new Date(Date.now() - 3600000).toISOString());
+    const { count, error: countError } = await countRecentPlanImports(db, actor, new Date(Date.now() - 3600000).toISOString());
     if (countError) throw new PlayerLinkError("Import accounting is unavailable.", 503);
     if ((count ?? 0) >= 10) throw new PlayerLinkError("Import limit reached. Try again later.", 429);
     const model = process.env.PRACTICE_PLAN_MODEL || "gpt-5-mini";

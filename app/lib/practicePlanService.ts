@@ -3,6 +3,10 @@ import { assertPlayerLinkTeamManager, PlayerLinkError } from "./playerAccountLin
 import { combinePracticePlan, validatePlanItems } from "./practicePlan.ts";
 type Database = ReturnType<typeof createAdminClient>;
 export const PLAN_SELECTION = "id,team_id,season_id,organization_id,team_plan,team_plan_revision";
+export async function countRecentPlanImports(db: Database, actor: string, since: string) {
+  // JSONB containment needs JSON encoding, not the client's PostgreSQL array literal.
+  return db.from("ai_usage_events").select("id", { count: "exact", head: true }).eq("profile_id", actor).contains("safe_tool_names", JSON.stringify(["practice_plan_import"])).gte("created_at", since);
+}
 export async function authorizePracticePlan(db: Database, actor: string, teamId: string, practiceId: string) {
   await assertPlayerLinkTeamManager(db, actor, teamId);
   const { data, error } = await db.from("practices").select(PLAN_SELECTION).eq("id", practiceId).eq("team_id", teamId).single();

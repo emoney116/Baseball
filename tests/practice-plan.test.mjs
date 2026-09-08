@@ -2,12 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { normalizePlanTime, validatePlanExtraction, validatePlanItems, combinePracticePlan, PLAN_EXTRACTION_INSTRUCTIONS, PLAN_EXTRACTION_SCHEMA } from '../app/lib/practicePlan.ts';
-import { authorizePracticePlan, publishPracticePlan } from '../app/lib/practicePlanService.ts';
+import { authorizePracticePlan, publishPracticePlan, countRecentPlanImports } from '../app/lib/practicePlanService.ts';
+import { createClient } from '@supabase/supabase-js';
 import { OpenAIProvider } from '../app/lib/askClubhouse/provider.ts';
 import { loadPlayerSession } from '../app/lib/playerAccess.ts';
 import { playerServiceFixture, uuid } from './helpers/playerServiceFixture.mjs';
 
 const row = (id = 'r1') => ({ id, timeLabel: '3:25 PM', activity: 'Team Meeting', shortDetail: null });
+test('import limit uses JSONB containment over the actual Supabase request encoding', async()=>{
+  let requestUrl;
+  const db=createClient('https://fixture.invalid','fixture-key',{auth:{persistSession:false},global:{fetch:async(url,init)=>{
+    requestUrl=new URL(url); assert.equal(init.method,'HEAD');
+    return new Response(null,{status:200,headers:{'content-range':'0-0/3'}});
+  }}});
+  const result=await countRecentPlanImports(db,'actor','2026-09-08T00:00:00Z');
+  assert.equal(result.error,null);assert.equal(result.count,3);
+  assert.equal(requestUrl.searchParams.get('safe_tool_names'),'cs.["practice_plan_import"]');
+  assert.equal(requestUrl.searchParams.get('profile_id'),'eq.actor');
+  assert.equal(requestUrl.searchParams.get('created_at'),'gte.2026-09-08T00:00:00Z');
+});
 for (const [input, expected] of [['325p','3:25 PM'], ['345/350p','3:45-3:50 PM'], ['3:45–3:50 PM','3:45-3:50 PM'], ['about 4p','~4:00 PM'], ['~4:10','~4:10'], ['3:30','3:30'], ['5p','5:00 PM'], [null,null], ['',null], ['11am-1pm','11:00 AM-1:00 PM']]) {
   test(`time normalization preserves meaning: ${input}`, () => assert.equal(normalizePlanTime(input), expected));
 }
