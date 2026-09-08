@@ -1,6 +1,6 @@
 "use client";
-import type { ReactNode } from "react";
-import { ClipboardList } from "lucide-react";
+import { useId, useRef, useState, type ReactNode } from "react";
+import { ClipboardList, Pencil, X } from "lucide-react";
 import type { Game, ID, TeamOption } from "../types";
 import { shortDate } from "../lib/stats";
 import { OrganizationLogo } from "./TeamContextHeader";
@@ -18,15 +18,38 @@ export function PracticeWorkspaceHeader({ tab, onTab, action }: {
   </>;
 }
 
-export function PracticeWorkspaceSummary({ label, title, detail, children }: {
+export function PracticeWorkspaceSummary({ label, title, detail, children, onRename }: {
   label: string; title: string; detail: string; children?: ReactNode;
+  onRename?: (name: string, expectedName: string) => Promise<void>;
 }) {
-  return <section className="practice-summary-strip panel">
+  const dialog = useRef<HTMLDialogElement>(null);
+  const nameInput = useRef<HTMLInputElement>(null);
+  const headingId = useId();
+  const [draft, setDraft] = useState(title);
+  const [original, setOriginal] = useState(title);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  return <section className={`practice-summary-strip panel${children ? "" : " practice-summary-strip--solo"}`}>
     <div className="practice-summary-strip__identity">
       <span className="practice-summary-icon"><ClipboardList size={24} aria-hidden="true" /></span>
-      <span><small>{label}</small><strong>{title}</strong><em>{detail}</em></span>
+      <div className="practice-summary-copy"><small>{label}</small><div className="practice-name-row"><strong>{title}</strong>
+        {onRename && <button type="button" className="icon-button" aria-label="Edit Practice name" title="Edit Practice name" onClick={() => { setDraft(title); setOriginal(title); setError(""); dialog.current?.showModal(); nameInput.current?.focus(); }}><Pencil size={16} aria-hidden="true" /></button>}
+      </div><em>{detail}</em></div>
     </div>
     {children}
+    {onRename && <dialog ref={dialog} className="plan-dialog practice-name-dialog" aria-labelledby={headingId} onCancel={event => { if (busy) event.preventDefault(); }}>
+      <header><h2 id={headingId}>Edit Practice Name</h2><button type="button" className="icon-button" aria-label="Close name editor" disabled={busy} onClick={() => dialog.current?.close()}><X size={18} aria-hidden="true" /></button></header>
+      <form onSubmit={async event => {
+        event.preventDefault(); if (busy || !draft.trim()) return;
+        setBusy(true); setError("");
+        try { await onRename(draft.trim(), original); dialog.current?.close(); }
+        catch (e) { setError(e instanceof Error ? e.message : "Unable to rename Practice."); }
+        finally { setBusy(false); }
+      }}>
+        <div className="plan-dialog-body"><label className="field"><span>Practice name</span><input ref={nameInput} required maxLength={120} value={draft} disabled={busy} onChange={event => setDraft(event.target.value)} /></label>{error && <p role="alert">{error}</p>}</div>
+        <footer><button type="button" className="secondary-button" disabled={busy} onClick={() => dialog.current?.close()}>Cancel</button><button type="submit" className="primary-button" disabled={busy || !draft.trim()}>{busy ? "Saving..." : "Save"}</button></footer>
+      </form>
+    </dialog>}
   </section>;
 }
 

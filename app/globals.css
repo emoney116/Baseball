@@ -27309,6 +27309,14 @@ button.weight-room-athlete-table__row:hover {
   overflow-y: auto;
 }
 
+.practice-summary-copy { min-width: 0; }
+.practice-summary-strip.practice-summary-strip--solo { grid-template-columns: minmax(0, 1fr); }
+.practice-name-row { display: flex; align-items: center; gap: 8px; }
+.practice-name-row strong { min-width: 0; overflow-wrap: anywhere; flex: 1; }
+.practice-name-row .icon-button { flex: 0 0 36px; width: 36px; height: 36px; }
+.practice-name-dialog { width: min(440px, calc(100vw - 32px)); }
+.practice-name-dialog input { width: 100%; min-width: 0; }
+
 @media (max-width: 740px) {
   .modal-panel--practice-start .attendance-roster__head,
   .modal-panel--practice-start .attendance-row {

@@ -3,9 +3,11 @@ import { useState } from "react";
 import { PracticeTeamPlan, type PlanRequest } from "../components/PracticeTeamPlan";
 import { combinePracticePlan, validatePlanExtraction, type PracticePlanItem } from "../lib/practicePlan";
 import type { Practice } from "../types";
+import { PracticeWorkspaceSummary } from "../components/TeamFeatureLayouts";
 export function PlanPreview() {
   const [items, setItems] = useState<PracticePlanItem[]>([{ id: "existing", timeLabel: "3:00 PM", activity: "Existing Plan", shortDetail: null }]);
   const [revision, setRevision] = useState(0);
+  const [name, setName] = useState("Sep 8 Varsity Practice");
   const request: PlanRequest = async (method, body) => {
     if (method === "GET") return { items, revision };
     if (body?.action === "extract") return validatePlanExtraction({ warnings: ["Approximate time"], items: [
@@ -15,5 +17,5 @@ export function PlanPreview() {
     const next = combinePracticePlan(items, body.items as PracticePlanItem[], body.mode); setItems(next); setRevision(revision + 1); return { items: next, revision: revision + 1 };
   };
   const practice = { id: "fixture", name: "Varsity Practice", date: "2026-09-08", teamPlan: items, teamPlanRevision: revision } as Practice;
-  return <main style={{ maxWidth: 680, margin: "auto", padding: 16 }}><h1>Practice Plan Fixture</h1><PracticeTeamPlan practice={practice} canManage teamId="fixture" request={request} /><h2>Player View</h2><PracticeTeamPlan practice={practice} /></main>;
+  return <main style={{ maxWidth: 680, margin: "auto", padding: 16 }}><h1>Practice Plan Fixture</h1><PracticeWorkspaceSummary label="Current Practice" title={name} detail="Indian Trail, NC - 11:41 AM" onRename={async next => setName(next)} /><PracticeTeamPlan practice={practice} canManage teamId="fixture" request={request} /><h2>Player View</h2><PracticeWorkspaceSummary label="Current Practice" title={name} detail="Indian Trail, NC - 11:41 AM" /><PracticeTeamPlan practice={practice} /></main>;
 }

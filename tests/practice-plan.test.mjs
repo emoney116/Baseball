@@ -72,6 +72,34 @@ function database(role='COACH') {
   const db={from(table){const filters=[];let patch;const result=()=>{const rows=(tables[table]??[]).filter(r=>filters.every(f=>f(r)));if(patch){writes++;rows.forEach(r=>Object.assign(r,patch));}return rows;};const q={select(){return q;},eq(k,v){filters.push(r=>r[k]===v);return q;},in(k,v){filters.push(r=>v.includes(r[k]));return q;},limit(){return q;},order(){return q;},update(value){patch=value;return q;},maybeSingle(){return Promise.resolve({data:result()[0]??null,error:null});},single(){return q.maybeSingle();},then(resolve,reject){return Promise.resolve({data:result(),error:null}).then(resolve,reject);}};return q;}};
   return {db,tables,get writes(){return writes;}};
 }
+
+test('coach renames only the Practice name and retains lifecycle and Team Plan', async () => {
+  const { renamePractice } = await import('../app/lib/practiceName.ts');
+  const f=database(); const practice=f.tables.practices[0]; practice.name='Old'; practice.ended_at='2026-09-08';
+  const before=structuredClone(practice);
+  await renamePractice(f.db,'actor',{teamId:'team',practiceId:'practice',name:'  New Practice  ',expectedName:'Old'});
+  assert.deepEqual(practice,{...before,name:'New Practice'});
+});
+for (const role of ['PLAYER',null]) test(`${role} cannot rename Practice`, async () => {
+  const { renamePractice } = await import('../app/lib/practiceName.ts');
+  const f=database(role); f.tables.practices[0].name='Old';
+  await assert.rejects(renamePractice(f.db,'actor',{teamId:'team',practiceId:'practice',name:'New',expectedName:'Old'}));
+  assert.equal(f.writes,0);
+});
+test('empty, multiline and oversized names cannot rename Practice', async () => {
+  const { renamePractice } = await import('../app/lib/practiceName.ts');
+  for (const name of ['  ','a'.repeat(121),'A\nB']) {
+    const f=database(); await assert.rejects(renamePractice(f.db,'actor',{teamId:'team',practiceId:'practice',name,expectedName:'Old'}));
+    assert.equal(f.writes,0);
+  }
+});
+test('wrong team and stale name cannot overwrite a Practice', async () => {
+  const { renamePractice } = await import('../app/lib/practiceName.ts');
+  const f=database();f.tables.practices[0].name='Latest';
+  await assert.rejects(renamePractice(f.db,'actor',{teamId:'other',practiceId:'practice',name:'New',expectedName:'Latest'}));
+  await assert.rejects(renamePractice(f.db,'actor',{teamId:'team',practiceId:'practice',name:'New',expectedName:'Old'}));
+  assert.equal(f.tables.practices[0].name,'Latest');
+});
 for (const role of ['PLAYER',null]) test(`${role} cannot extract or publish through the shared server authorization`, async()=>{
   const f=database(role); await assert.rejects(()=>authorizePracticePlan(f.db,'actor','team','practice'));
   await assert.rejects(()=>publishPracticePlan(f.db,'actor',{teamId:'team',practiceId:'practice',items:[row()],revision:1,mode:'replace'}));assert.equal(f.writes,0);

@@ -1666,6 +1666,18 @@ export default function MetrolinaBaseballApp() {
     });
   }
 
+  async function renamePracticeName(practiceId: ID, name: string, expectedName: string) {
+    if (isLocalDevAuthBypass()) {
+      commit(current => ({ ...current, practices: current.practices.map(item => item.id === practiceId ? { ...item, name } : item) }));
+      return;
+    }
+    const result = await fetch("/api/practice-name", { method: "PATCH", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ practiceId, teamId: data?.teamContext?.currentTeam?.teamId, name, expectedName }) });
+    const payload = await result.json();
+    if (!result.ok) throw new Error(payload.message ?? "Unable to rename Practice.");
+    persistSequenceRef.current++;
+    setData(current => current ? { ...current, practices: current.practices.map(item => item.id === practiceId ? { ...item, name: payload.name } : item) } : current);
+  }
+
   useEffect(() => {
     const team = data?.teamContext?.currentTeam;
     if (!data || !team || !hydrated || isLocalDevAuthBypass() || (view !== "practice" && view !== "weights") || saveStatus === "saving" || saveStatus === "error") return;
@@ -4080,6 +4092,7 @@ export default function MetrolinaBaseballApp() {
             onOpenPracticeAnalytics={openPracticeAnalytics}
             onOpenAttendance={() => (practice ? writePracticeAttendanceRoute() : openOrStartPractice())}
             onEndPractice={endPractice}
+            onRenamePractice={renamePracticeName}
             onStatus={updatePracticeAttendance}
             onAsk={() => openAskClubhouse("practice")}
           />
@@ -7554,6 +7567,7 @@ function PracticeHome({
   onOpenPracticeAnalytics,
   onOpenAttendance,
   onEndPractice,
+  onRenamePractice,
   onStatus,
   onAsk,
 }: {
@@ -7569,6 +7583,7 @@ function PracticeHome({
   onOpenPracticeAnalytics: (practiceId: ID, category?: PracticeMetricsCategory, playerId?: ID, eventId?: ID) => void;
   onOpenAttendance: () => void;
   onEndPractice: () => void;
+  onRenamePractice: (practiceId: ID, name: string, expectedName: string) => Promise<void>;
   onStatus: (playerId: ID, status: PracticeAttendanceStatus) => void;
   onAsk: () => void;
 }) {
@@ -7643,6 +7658,8 @@ function PracticeHome({
       {tab === "Overview" && (
         <>
           <PracticeWorkspaceSummary
+            key={practice?.id ?? "no-practice"}
+            onRename={practice && data.teamContext?.currentTeam && ["OWNER", "ADMIN", "HEAD_COACH", "ASSISTANT_COACH", "STAFF", "COACH"].includes(data.teamContext.currentTeam.role) ? (name, expectedName) => onRenamePractice(practice.id, name, expectedName) : undefined}
             label={practice ? "Current Practice" : "Practice"}
             title={practice ? practice.name : "No active practice"}
             detail={practice ? `${practice.location || "Field"}${practiceTime ? ` - ${practiceTime}` : ""}` : "Start practice to begin today's development work"}

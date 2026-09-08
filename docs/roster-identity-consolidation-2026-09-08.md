@@ -71,6 +71,15 @@ After promotion: verify migration workflow, migration history, 20 repair audit
 rows, zero matching duplicate groups, preserved event counts, unchanged QA
 association, and one Jacob row in hosted Practice attendance.
 
+Production verified after explicit approval: `f1bac58358686ff4b9bc06236904a7d49d605717`
+is on main; Vercel reports success; the migration is applied; 20 repair audit
+rows exist and duplicate groups are zero. Players decreased 74 to 54,
+memberships 54 to 34, and attendance 335 to 240 (single-slot duplicates).
+Practice sessions (32), pitches (92), swings (131), defensive reps (2), workout
+sessions (7), sets (27), games (7), lineups (24), plate appearances (91) and
+account-link history (4) retained their counts. Hosted Practice visibly shows
+one Jacob Seamon, without duplicate roster labels, and the linked Mylo context.
+
 ## Recovery
 
 Do not delete a canonical player or reverse this migration with cascading
