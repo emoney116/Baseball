@@ -376,6 +376,7 @@ export function PlayerShell({
                 {(activePractice ?? data.practices[0]) && <PracticeTeamPlan key={(activePractice ?? data.practices[0]).id} practice={activePractice ?? data.practices[0]} />}
               </>}
               {practiceTab !== "Metrics" && <PracticeHistoryTab data={data} onOpenPractice={id => { setEventId(id); setDomain("hitting"); setSource("practice"); setAnalyticsRevision(value => value + 1); setPracticeTab("Metrics"); }} />}
+              {practiceTab === "Metrics" && data.practices.filter(practice => practice.id === eventId).map(practice => <PracticeTeamPlan key={practice.id} practice={practice} />)}
             </div>}
             {view === "Weight Room" && session.access?.capabilities.canViewOwnWeightRoom && <div className="page-stack weights-page weight-room-page">
               <WeightRoomWorkspaceHeader team={context.team} tab={weightTab} tabs={["Overview", "Workouts", "Progress"]} onTab={setWeightTab} />

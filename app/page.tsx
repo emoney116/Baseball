@@ -8138,6 +8138,7 @@ function PracticeReview({
 
       {tab === "Summary" ? (
         <section className="practice-review-layout">
+          <PracticeTeamPlan key={practice.id} practice={practice} teamId={data.teamContext?.currentTeam?.teamId} canManage={Boolean(data.teamContext?.currentTeam && ["OWNER", "ADMIN", "HEAD_COACH", "ASSISTANT_COACH", "STAFF", "COACH"].includes(data.teamContext.currentTeam.role))} />
           <article className="panel practice-review-session-list">
             <div className="panel-heading tight">
               <div>

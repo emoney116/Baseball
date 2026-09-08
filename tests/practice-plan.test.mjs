@@ -88,3 +88,10 @@ test('both roles reuse the same view and canonical sync does not overwrite plan 
   const sync=repo.slice(repo.indexOf('async function syncPractices'),repo.indexOf('async function syncPractices')+1800);
   assert.doesNotMatch(sync,/team_plan:/);
 });
+
+test('scheduled and historical Practice review exposes the same plan without starting a session',()=>{
+  const page=readFileSync('app/page.tsx','utf8'),player=readFileSync('app/components/PlayerShell.tsx','utf8');
+  const review=page.slice(page.indexOf('function PracticeReview('),page.indexOf('function PracticeReview(')+14000);
+  assert.match(review,/<PracticeTeamPlan key=\{practice.id\} practice=\{practice\}/);
+  assert.match(player,/practiceTab === "Metrics" && data.practices.filter\(practice => practice.id === eventId\).map\(practice => <PracticeTeamPlan/);
+});
