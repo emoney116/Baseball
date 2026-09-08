@@ -815,6 +815,17 @@ test("Ask Clubhouse visual answers use a player-scoped Analytics query and bound
   assert.equal(chart?.coverage.qualifyingEvents, 2);
 });
 
+test("player identity view keeps the newest created record even when older history is larger", () => {
+  const original = { ...data.players.find((p) => p.id === "p-jacob"), createdAt: "2026-08-11T00:06:34Z", updatedAt: "2030-01-01T00:00:00Z" };
+  const newest = { ...original, id: "p-jacob-newest", createdAt: "2026-08-11T13:12:32Z", updatedAt: "2026-08-11T13:12:32Z" };
+  const view = canonicalizeAppDataPlayerIdentities({ ...data,
+    players: [...data.players.filter((p) => p.id !== original.id), original, newest],
+    playerTeamMemberships: [...data.playerTeamMemberships, { ...data.playerTeamMemberships[0], id: "new-membership", playerId: newest.id }],
+  });
+  assert.equal(view.canonicalIdByPlayerId.get(original.id), newest.id);
+  assert.equal(view.data.hittingEvents.filter((e) => e.hitterId === newest.id).length, 4);
+});
+
 test("Ask Clubhouse recognizes conversational player requests for a spray chart", () => {
   const visualData = {
     ...data,

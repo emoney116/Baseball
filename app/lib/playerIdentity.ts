@@ -98,7 +98,7 @@ export function strongRosterIdentityKey(input: {
   seasonId?: ID | null;
 }): string | undefined {
   const name = normalizePlayerIdentityName(input.name);
-  if (name.length < 3 || !input.graduationYear || !input.jerseyNumber || !input.teamId || !input.seasonId) return undefined;
+  if (name.length < 3 || !input.graduationYear || input.jerseyNumber == null || !input.teamId || !input.seasonId) return undefined;
   return `${input.teamId}:${input.seasonId}:${name}:${input.graduationYear}:${input.jerseyNumber}`;
 }
 
@@ -128,7 +128,8 @@ function buildCanonicalPlayerMap(
   for (const group of groups.values()) {
     if (group.length < 2) continue;
     const canonical = [...group].sort((left, right) => (
-      (referenceCounts.get(right.id) ?? 0) - (referenceCounts.get(left.id) ?? 0)
+      compareTimestamp(right.createdAt, left.createdAt)
+      || (referenceCounts.get(right.id) ?? 0) - (referenceCounts.get(left.id) ?? 0)
       || (membershipCounts.get(right.id) ?? 0) - (membershipCounts.get(left.id) ?? 0)
       || playerCompletenessScore(right) - playerCompletenessScore(left)
       || compareTimestamp(right.updatedAt, left.updatedAt)

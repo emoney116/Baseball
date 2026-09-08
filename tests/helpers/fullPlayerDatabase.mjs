@@ -1,7 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync, readdirSync } from "node:fs";
 
-export async function fullPlayerDatabase() {
+export async function fullPlayerDatabase({ beforeMigration } = {}) {
   const db = new PGlite();
   try {
     await db.exec(`create role anon; create role authenticated; create role service_role bypassrls;
@@ -14,6 +14,7 @@ export async function fullPlayerDatabase() {
     for (const name of readdirSync("supabase/migrations")
       .filter((n) => n.endsWith(".sql"))
       .sort()) {
+      await beforeMigration?.(db, name);
       let sql = readFileSync(`supabase/migrations/${name}`, "utf8");
       // PGlite has PostgreSQL's built-in gen_random_uuid, but not pgcrypto.
       // No application DDL, policies, triggers, or seed statements are changed.

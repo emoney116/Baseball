@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "../../../lib/supabase/admin";
 import { createClient } from "../../../lib/supabase/server";
 import { isUsablePlayerIdentityName, strongRosterIdentityKey } from "../../../lib/playerIdentity.ts";
+import { assertPlayerLinkTeamManager, PlayerLinkError } from "../../../lib/playerAccountLinks.ts";
 
 export const runtime = "nodejs";
 
@@ -42,9 +43,6 @@ type RosterMembershipInput = {
   positionLabels?: string[];
   teamImageUrl?: string;
 };
-
-const STAFF_ROLES = new Set(["OWNER", "ADMIN", "HEAD_COACH", "ASSISTANT_COACH", "STAFF", "COACH"]);
-const STAFF_TITLES = new Set(["PROGRAM ADMIN", "HEAD COACH", "ASSISTANT COACH", "COACH", "STAFF"]);
 
 export async function POST(request: NextRequest) {
   try {
@@ -107,16 +105,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, message: "Roster changes must stay inside one organization." }, { status: 400 });
     }
 
-    const allowedTeamIds = new Set<string>();
     for (const teamId of teamIds) {
-      const team = teamsById.get(teamId);
-      if (team && (await canManageRosterTeam(admin, authData.user.id, team.id, team.organization_id))) {
-        allowedTeamIds.add(team.id);
-      }
-    }
-
-    if (allowedTeamIds.size !== teamIds.length) {
-      return NextResponse.json({ ok: false, message: "You do not have permission to manage this roster." }, { status: 403 });
+      await assertPlayerLinkTeamManager(admin, authData.user.id, teamId);
     }
 
     const seasonIds = [...new Set(membershipInputs.map((membership) => membership.seasonId).filter(Boolean))] as string[];
@@ -191,7 +181,7 @@ export async function POST(request: NextRequest) {
         organization_id: orgIds[0],
         first_name: firstName,
         last_name: lastName,
-        jersey_number: player.jerseyNumber || null,
+        jersey_number: player.jerseyNumber ?? null,
         graduation_year: player.graduationYear ?? null,
         primary_position: player.primaryPosition ?? "UTIL",
         secondary_position: player.secondaryPosition ?? null,
@@ -209,11 +199,6 @@ export async function POST(request: NextRequest) {
       };
     });
 
-    const { error: playerError } = await admin.from("players").upsert(playerRows, { onConflict: "id" });
-    if (playerError) {
-      return NextResponse.json({ ok: false, message: playerError.message }, { status: 500 });
-    }
-
     const submittedPlayerIds = new Set(playerRows.map((player) => player.id).filter(Boolean));
     const membershipRows = membershipInputs
       .filter((membership) => membership.playerId && submittedPlayerIds.has(membership.playerId) && membership.teamId && membership.seasonId)
@@ -226,7 +211,7 @@ export async function POST(request: NextRequest) {
           team_id: team.id,
           season_id: season.id,
           roster_status: membership.rosterStatus ?? "Undecided",
-          jersey_number: membership.jerseyNumber || null,
+          jersey_number: membership.jerseyNumber ?? null,
           roster_role: membership.rosterRole ?? null,
           active: membership.active !== false,
           start_date: membership.startDate ?? null,
@@ -240,58 +225,23 @@ export async function POST(request: NextRequest) {
       })
       .filter((row): row is NonNullable<typeof row> => Boolean(row));
 
-    if (membershipRows.length > 0) {
-      const { error: membershipError } = await admin
-        .from("player_team_memberships")
-        .upsert(membershipRows, { onConflict: "player_id,team_id,season_id" });
-      if (membershipError) {
-        return NextResponse.json({ ok: false, message: membershipError.message }, { status: 500 });
-      }
+    if (membershipRows.length !== membershipInputs.length || membershipRows.length === 0) {
+      return NextResponse.json({ ok: false, message: "Every roster row needs a valid team and season." }, { status: 400 });
+    }
+    const { error: syncError } = await admin.rpc("sync_roster_rows", { player_rows: playerRows, membership_rows: membershipRows });
+    if (syncError) {
+      return NextResponse.json({ ok: false, message: syncError.code === "23505"
+        ? "A matching or merged roster record already exists. Refresh Clubhouse and choose Use Existing."
+        : "Unable to save roster changes. No roster rows were changed." }, { status: syncError.code === "23505" ? 409 : 500 });
     }
 
     return NextResponse.json({ ok: true, players: playerRows.length, memberships: membershipRows.length });
   } catch (error) {
     return NextResponse.json(
       { ok: false, message: error instanceof Error ? error.message : "Unable to save roster changes." },
-      { status: 500 },
+      { status: error instanceof PlayerLinkError ? error.status : 500 },
     );
   }
-}
-
-async function canManageRosterTeam(
-  admin: ReturnType<typeof createAdminClient>,
-  profileId: string,
-  teamId: string,
-  organizationId: string,
-) {
-  const [{ data: profile }, { data: orgMemberships }, { data: teamMemberships }] = await Promise.all([
-    admin.from("profiles").select("role").eq("id", profileId).maybeSingle(),
-    admin
-      .from("organization_memberships")
-      .select("role,active")
-      .eq("profile_id", profileId)
-      .eq("organization_id", organizationId)
-      .eq("active", true),
-    admin
-      .from("profile_team_memberships")
-      .select("role,title,active")
-      .eq("profile_id", profileId)
-      .eq("team_id", teamId)
-      .eq("active", true),
-  ]);
-
-  const orgAllows = (orgMemberships ?? []).some((membership) => ["ADMIN", "COACH"].includes(normalize(membership.role)));
-  if (orgAllows) return true;
-
-  const teamAllows = (teamMemberships ?? []).some((membership) => {
-    const role = normalize(membership.role);
-    const title = normalize(membership.title);
-    return STAFF_ROLES.has(role) || STAFF_TITLES.has(title);
-  });
-  if (teamAllows) return true;
-
-  const profileRole = normalize(profile?.role);
-  return ["ADMIN", "COACH"].includes(profileRole) && (teamMemberships ?? []).length > 0;
 }
 
 function splitName(name: string) {
@@ -300,8 +250,4 @@ function splitName(name: string) {
     firstName: parts[0] ?? "Player",
     lastName: parts.slice(1).join(" ") || "Unknown",
   };
-}
-
-function normalize(value: unknown) {
-  return String(value ?? "").trim().toUpperCase();
 }
