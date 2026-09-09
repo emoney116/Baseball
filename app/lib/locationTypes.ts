@@ -1,4 +1,4 @@
-export type LocationScope = { teamId?: string; organizationId?: string };
+export type LocationScope = { teamId?: string; organizationId?: string; eventLocationId?: string };
 
 export type ClubhouseLocation = {
   id: string;

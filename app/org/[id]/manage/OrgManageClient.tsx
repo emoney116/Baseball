@@ -17,7 +17,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ChangeEvent, type Dispatch, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
-import { cityOptionsForState, US_STATE_OPTIONS } from "../../../lib/locations";
+import { LocationDefaultSettings } from "../../../components/LocationDefaultSettings";
+import { ClubhouseLocationPicker } from "../../../components/ClubhouseLocationPicker";
 import type { OrgRole, OrganizationManageData, OrganizationVisibility } from "../../../lib/organizationManagement";
 
 type TabKey = "general" | "teams" | "staff" | "invites" | "visibility";
@@ -116,6 +117,8 @@ type CropState = {
 };
 
 type AddTeamDraft = {
+  locationId?: string;
+  locationName?: string;
   teamName: string;
   teamType: string;
   teamLevel: string;
@@ -242,6 +245,7 @@ export function OrgManageClient({ initialData }: { initialData: OrganizationMana
           ageGroup: addTeamDraft.teamType === "School" ? undefined : addTeamDraft.teamLevel,
           teamState: addTeamDraft.teamState,
           teamCity: addTeamDraft.teamCity,
+          locationId: addTeamDraft.locationId,
           seasonName: addTeamDraft.seasonName,
         }),
       });
@@ -461,6 +465,7 @@ export function OrgManageClient({ initialData }: { initialData: OrganizationMana
     if (tab === "general") {
       return (
         <GeneralTab
+          organizationId={data.organization.id}
           draft={generalDraft}
           status={status}
           onSubmit={saveGeneral}
@@ -473,6 +478,7 @@ export function OrgManageClient({ initialData }: { initialData: OrganizationMana
     if (tab === "teams") {
       return (
         <TeamsTab
+          organizationId={data.organization.id}
           teams={data.teams}
           draft={addTeamDraft}
           teamDrafts={teamDrafts}
@@ -555,6 +561,7 @@ export function OrgManageClient({ initialData }: { initialData: OrganizationMana
 }
 
 function GeneralTab({
+  organizationId,
   draft,
   status,
   onSubmit,
@@ -562,6 +569,7 @@ function GeneralTab({
   onPickLogo,
   onRemoveLogo,
 }: {
+  organizationId: string;
   draft: { name: string; state: string; city: string; logoUrl: string };
   status: Status;
   onSubmit: (event: FormEvent) => void;
@@ -601,36 +609,14 @@ function GeneralTab({
           <span>Organization Name</span>
           <input value={draft.name} onChange={(event) => onChange((current) => ({ ...current, name: event.target.value }))} />
         </label>
-        <div className="form-field">
-          <span>State</span>
-          <ChoiceSelect
-            aria-label="Organization state"
-            className="form-choice"
-            value={draft.state}
-            options={[{ value: "", label: "Select state" }, ...US_STATE_OPTIONS.map((state) => ({ value: state, label: state }))]}
-            onChange={(state) => onChange((current) => ({ ...current, state, city: "" }))}
-          />
-        </div>
-        <div className="form-field">
-          <span>City</span>
-          <ChoiceSelect
-            aria-label="Organization city"
-            className="form-choice"
-            value={draft.city}
-            disabled={!draft.state}
-            options={[
-              { value: "", label: draft.state ? "Select city" : "Select state first" },
-              ...cityOptionsForState(draft.state).map((city) => ({ value: city, label: city })),
-            ]}
-            onChange={(city) => onChange((current) => ({ ...current, city }))}
-          />
-        </div>
+        <LocationDefaultSettings organizationId={organizationId} />
       </div>
     </form>
   );
 }
 
 function TeamsTab({
+  organizationId,
   teams,
   draft,
   teamDrafts,
@@ -643,6 +629,7 @@ function TeamsTab({
   onRemoveTeam,
   onRestoreTeam,
 }: {
+  organizationId: string;
   teams: OrganizationManageData["teams"];
   draft: AddTeamDraft;
   teamDrafts: Record<string, TeamDraft>;
@@ -667,7 +654,7 @@ function TeamsTab({
             Create Team
           </button>
         </div>
-        <TeamFields draft={draft} onChange={onDraftChange} />
+        <TeamFields organizationId={organizationId} draft={draft} onChange={onDraftChange} />
       </form>
 
       <article className="panel org-manage-panel">
@@ -696,6 +683,8 @@ function TeamsTab({
                 {editing && (
                   <div className="org-team-edit-grid">
                     <TeamFields
+                      organizationId={organizationId}
+                      teamId={team.id}
                       draft={draftValue}
                       onChange={(next) => onTeamDraftChange((current) => ({
                         ...current,
@@ -730,9 +719,13 @@ function TeamsTab({
 }
 
 function TeamFields<T extends AddTeamDraft | TeamDraft>({
+  organizationId,
+  teamId,
   draft,
   onChange,
 }: {
+  organizationId: string;
+  teamId?: string;
   draft: T;
   onChange: (value: SetStateAction<T>) => void;
 }) {
@@ -772,30 +765,7 @@ function TeamFields<T extends AddTeamDraft | TeamDraft>({
           onChange={(seasonName) => onChange((current) => ({ ...current, seasonName }))}
         />
       </div>
-      <div className="form-field">
-        <span>Team State</span>
-        <ChoiceSelect
-          aria-label="Team state"
-          className="form-choice"
-          value={draft.teamState}
-          options={[{ value: "", label: "Optional" }, ...US_STATE_OPTIONS.map((state) => ({ value: state, label: state }))]}
-          onChange={(teamState) => onChange((current) => ({ ...current, teamState, teamCity: "" }))}
-        />
-      </div>
-      <div className="form-field">
-        <span>Team City</span>
-        <ChoiceSelect
-          aria-label="Team city"
-          className="form-choice"
-          value={draft.teamCity}
-          disabled={!draft.teamState}
-          options={[
-            { value: "", label: draft.teamState ? "Optional" : "Select state first" },
-            ...cityOptionsForState(draft.teamState).map((city) => ({ value: city, label: city })),
-          ]}
-          onChange={(teamCity) => onChange((current) => ({ ...current, teamCity }))}
-        />
-      </div>
+      {teamId ? <LocationDefaultSettings teamId={teamId} /> : <ClubhouseLocationPicker scope={{ organizationId }} value={draft.locationName} onChange={location => onChange(current => ({ ...current, locationId: location.id, locationName: location.name }))} />}
     </div>
   );
 }

@@ -85,3 +85,38 @@ migration review; Preview verification; effective Google Cloud quota/restriction
 - Local browser check verified the dialog opens and displays a safe unavailable
   state without authenticated Supabase configuration. This is not hosted acceptance.
 - No production migration or production venue mutation has occurred.
+
+## Completion pass: reload and integration behavior
+
+The address subtitle discrepancy was a source-of-truth mismatch, not hydration:
+formatted Google addresses exist only in the mounted picker's transient response
+state. Reload deliberately discards them. We do not label Google components as
+customer-owned or assume address retention is allowed for 30 days merely because
+coordinates are. The current standard Places terms provide the coordinate cache
+exception, not a general formatted-address retention exception.
+
+Permanent: canonical UUID, independently entered Clubhouse label/metadata,
+historical customer text, authorized associations, and Google Place ID.
+Temporary: Google coordinates in the existing 29-day cache, removed by hourly
+retention cleanup; Google names/address components remain transient UI content.
+User-owned: labels and metadata entered independently, never automatically copied
+from Google. Public organization city/state continues using existing customer
+fields; selecting a Google venue does not silently overwrite those fields.
+
+After reload, rows show customer address/locality when available; otherwise they
+show the saved label plus `Saved Google place`. A stable Open in Maps link uses
+the durable Place ID to reach the exact venue without a Clubhouse Google request.
+This keeps local selection useful without promising a permanent Google address.
+Displaying the exact Google address again requires an intentional provider view,
+not automatic calls for every card. Persistent exact addresses are not claimed.
+
+Organization management and team setup use the shared picker/default controls.
+Start Practice, Start Game, scheduled Practice/Game creation, current Practice
+location editing, and Game menu location editing retain canonical IDs and existing
+raw-label snapshots. Default selection uses only local authenticated API reads.
+Local scope-authorized saved/team venues and account previous venues are deduped
+by durable Place ID and remain available when external search fails.
+
+Geographic fallback details and Census source: [Local city context](location-city-context.md).
+Terms rechecked: https://cloud.google.com/maps-platform/terms/maps-service-terms
+and https://developers.google.com/maps/documentation/places/web-service/policies.

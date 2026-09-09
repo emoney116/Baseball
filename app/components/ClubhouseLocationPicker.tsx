@@ -3,13 +3,13 @@
 import { MapPin, Search, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import type { ClubhouseLocation, LocationScope, LocationSuggestion, ResolvedPlace } from "../lib/locationTypes";
-import { locationSubtitle } from "../lib/locationTypes";
+import { locationSubtitle, locationMapsUrl } from "../lib/locationTypes";
 import { createPlacesPickerSearch } from "../lib/placesPickerSearch";
 import { isLocationPreview, previewLocations } from "../lib/locationPreview";
 import styles from "./ClubhouseLocationPicker.module.css";
 
-export function ClubhouseLocationPicker({ value, scope, onChange, label = "Location" }: {
-  value?: string; scope: LocationScope; label?: string; onChange: (location: ClubhouseLocation) => void;
+export function ClubhouseLocationPicker({ value, scope, onChange, label = "Location", preferDefault = false }: {
+  value?: string; scope: LocationScope; label?: string; preferDefault?: boolean; onChange: (location: ClubhouseLocation) => void;
 }) {
   const titleId = useId();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -23,6 +23,20 @@ export function ClubhouseLocationPicker({ value, scope, onChange, label = "Locat
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const selectedTitle = useRef("");
+  const latest = useRef({ value, onChange });
+  useEffect(() => { latest.current = { value, onChange }; }, [value, onChange]);
+  useEffect(() => {
+    if (!preferDefault || !scope.teamId || isLocationPreview()) return;
+    const abort = new AbortController();
+    void fetch(`/api/locations?${new URLSearchParams({ teamId: scope.teamId })}`, { signal: abort.signal, cache: "no-store" })
+      .then(async response => {
+        if (!response.ok) return;
+        const result = await response.json() as { locations: ClubhouseLocation[]; defaultId: string | null };
+        const location = result.locations.find(row => row.id === result.defaultId);
+        if (!abort.signal.aborted && !latest.current.value && location) latest.current.onChange(location);
+      }).catch(() => { /* A failed default lookup must not block manual selection. */ });
+    return () => abort.abort();
+  }, [preferDefault, scope.teamId]);
   // Provider addresses stay in this mounted picker only, never in persistent venue data.
   const [addressDisplay, setAddressDisplay] = useState<Record<string, string>>({});
   useEffect(() => () => { generation.current++; interaction.current?.close(); }, []);
@@ -115,12 +129,12 @@ export function ClubhouseLocationPicker({ value, scope, onChange, label = "Locat
         {isLocationPreview() && <small role="note">Local preview venues. Google search requires sign-in.</small>}
         {!confirmation ? <>
           <label className={styles.search}><Search size={17} /><input aria-label="Search locations" placeholder="Search school, field, park or address..." maxLength={200} value={query} onChange={event => { setQuery(event.target.value); interaction.current?.search(event.target.value); }} /></label>
-          {["Team Default", "Previous Locations"].map(group => {
-            const rows = saved.filter(row => (row.group === "Team Default" ? "Team Default" : "Previous Locations") === group);
+          {["Team Default", "Team Locations", "Organization Locations", "Recent", "Saved Locations", "Previous Locations"].map(group => {
+            const rows = saved.filter(row => (row.group || "Previous Locations") === group);
             return rows.length ? <section key={group} aria-label={group}><h3>{group}</h3>{rows.map(location => {
               const googleAddress = location.providerPlaceId ? addressDisplay[location.providerPlaceId] : undefined;
-              const subtitle = googleAddress || location.address || locationSubtitle(location);
-              return <button disabled={busy} key={location.id} type="button" className={styles.result} onClick={() => void selectPrevious(location)}><MapPin size={17} /><span><strong>{location.name}</strong>{subtitle && <small>{subtitle}</small>}{googleAddress && <small translate="no">Google Maps</small>}</span></button>;
+              const subtitle = googleAddress || location.address || locationSubtitle(location) || (location.providerPlaceId ? "Saved Google place" : "Saved location");
+              return <div key={location.id}><button disabled={busy} type="button" className={styles.result} onClick={() => void selectPrevious(location)}><MapPin size={17} /><span><strong>{location.name}</strong><small>{subtitle}</small>{googleAddress && <small translate="no">Google Maps</small>}</span></button><a className="text-button" href={locationMapsUrl(location)} target="_blank" rel="noreferrer" aria-label={`Open ${location.name} in Maps`}>Open in Maps</a></div>;
             })}</section> : null;
           })}
           {!!suggestions.length && <section className={styles.provider} aria-label="Google search results"><h3>Search Results</h3>{suggestions.map(suggestion => <button disabled={busy} key={suggestion.providerPlaceId} type="button" className={styles.result} onClick={() => void select(suggestion)}><MapPin size={17} /><span><strong>{suggestion.title}</strong><small>{suggestion.subtitle}</small></span></button>)}<span className={styles.attribution} translate="no">Google Maps</span></section>}

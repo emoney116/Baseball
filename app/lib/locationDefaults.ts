@@ -2,6 +2,7 @@ import type { createAdminClient } from "./supabase/admin";
 import type { LocationScope } from "./locationTypes.ts";
 import type { LocationSearchContext } from "./locationContext.ts";
 import { VENUE_BIAS_RADIUS } from "./locationContext.ts";
+import { cityLocationBias } from "./cityLocationBias.ts";
 import { authorizeLocationScope, readSavedLocations, readPreviousLocations } from "./placesRepository.ts";
 import { PlacesRequestError } from "./placesProtection.ts";
 
@@ -23,7 +24,10 @@ export async function locationConfiguration(admin: Admin, userId: string, scope:
     if (error) throw new PlacesRequestError(503);
     if (data) { context.bias = { latitude: data.latitude, longitude: data.longitude, radius: VENUE_BIAS_RADIUS }; context.source = source!; break; }
   }
-  if (!context.bias && context.city) context.source = "Known city/state";
+  if (!context.bias && context.city) {
+    context.bias = cityLocationBias(context.city, context.state);
+    context.source = context.bias ? "Known city/state (Census center)" : "Known city/state";
+  }
   const recentIds: string[] = [];
   if (verified.teamId) {
     for (const table of ["practices", "games"]) {
@@ -39,7 +43,13 @@ export async function locationConfiguration(admin: Admin, userId: string, scope:
   ranked.sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group));
   const defaults = ranked.filter(row => row.id === defaultId);
   const previous = (await readPreviousLocations(admin, userId)).filter(row => !defaults.some(item => item.id === row.id || (item.providerPlaceId && item.providerPlaceId === row.providerPlaceId)));
-  return { locations: [...defaults, ...previous], defaultId: defaultId ?? null, inherited: !team?.data?.default_location_id, context };
+  const seen = new Set<string>();
+  const available = [...defaults, ...ranked.filter(row => row.id !== defaultId), ...previous].filter(row => {
+    const key = row.providerPlaceId || row.id;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+  return { locations: available, defaultId: defaultId ?? null, inherited: !team?.data?.default_location_id, context };
 }
 
 export async function updateLocationDefault(admin: Admin, userId: string, scope: LocationScope, locationId: string | null) {

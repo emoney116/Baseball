@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     if (!input || typeof input !== "object") throw new PlacesRequestError(400);
     const admin = createAdminClient();
     const userId = data.user.id;
-    const configuration = await locationConfiguration(admin, userId, input);
+    const configuration = await locationConfiguration(admin, userId, input, typeof input.eventLocationId === "string" ? input.eventLocationId : undefined);
     // Scope-derived context wins over untrusted client coordinates.
     input.bias = configuration.context.bias;
     const result = await searchPlaces(input, {

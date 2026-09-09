@@ -27,8 +27,8 @@ export function LocationDefaultSettings({ teamId, organizationId }: { teamId?: s
     } catch { setMessage("Unable to update default location."); }
     finally { setBusy(false); }
   }
-  return <section className="panel"><ClubhouseLocationPicker label={teamId ? "Default Location" : "Organization Location"} scope={{ teamId, organizationId }} value={value} onChange={location => { void update(location); }} />
+  return <div className="location-default-settings"><ClubhouseLocationPicker label={teamId ? "Default Location" : "Organization Location"} scope={{ teamId, organizationId }} value={value} onChange={location => { void update(location); }} />
     {teamId && <label><input type="checkbox" checked={inherited} disabled={busy || inherited} onChange={() => void update(null)} />Organization Default</label>}
     {message && <p role="alert">{message}</p>}
-  </section>;
+  </div>;
 }

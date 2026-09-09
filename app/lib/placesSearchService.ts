@@ -1,7 +1,7 @@
 import type { LocationSearchProvider, LocationScope, ClubhouseLocation, LocationBias } from "./locationTypes.ts";
 import { localLocationMatches } from "./locationTypes.ts";
 import { normalizedPlacesQuery, PlacesRequestError } from "./placesProtection.ts";
-import { contextualLocationQuery, type LocationSearchContext } from "./locationContext.ts";
+import { contextualLocationQuery, rankVenueSuggestions, type LocationSearchContext } from "./locationContext.ts";
 import type { PlacesEvent, PlacesOperation } from "./placesProtection.ts";
 
 export type PlacesSearchInput = LocationScope & { operation: PlacesOperation; query?: string; placeId?: string; sessionToken: string; external?: boolean; bias?: LocationBias };
@@ -53,7 +53,7 @@ export async function searchPlaces(input: PlacesSearchInput, deps: PlacesSearchD
       return { place, receipt: input.sessionToken };
     }
     const query = deps.context ? contextualLocationQuery(input.query!, deps.context) : input.query!;
-    const suggestions = await deps.provider.autocomplete(query, input.sessionToken, signal, deps.context?.bias ?? input.bias);
+    const suggestions = rankVenueSuggestions(await deps.provider.autocomplete(query, input.sessionToken, signal, deps.context?.bias ?? input.bias), query, deps.context);
     await deps.predictions(input.sessionToken, suggestions.map(row => row.providerPlaceId));
     return { saved: localLocationMatches(saved, input.query!).slice(0, 20), suggestions, context: deps.context };
   } catch {
