@@ -62,7 +62,7 @@ before hosted acceptance. No Google map is necessary for V1.
 - [Places policies, storage and attribution](https://developers.google.com/maps/documentation/places/web-service/policies)
 - [Maps service-specific terms, Places section](https://cloud.google.com/maps-platform/terms/maps-service-terms)
 
-## Acceptance remaining
+## Initial acceptance backlog (superseded below)
 
 Organization setup/edit and team default integration; schedule/edit entry points;
 derived recents; authenticated hosted save/reuse; phone/iPad/theme QA; production
@@ -120,3 +120,6 @@ by durable Place ID and remain available when external search fails.
 Geographic fallback details and Census source: [Local city context](location-city-context.md).
 Terms rechecked: https://cloud.google.com/maps-platform/terms/maps-service-terms
 and https://developers.google.com/maps/documentation/places/web-service/policies.
+
+Latest hosted results, request-count evidence, device checks and remaining gates:
+[2026-09-09 hosted acceptance](clu9-54-hosted-acceptance-2026-09-09.md).
