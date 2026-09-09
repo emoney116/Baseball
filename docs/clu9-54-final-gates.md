@@ -97,3 +97,33 @@ Recent Activity shows an existing game field location beside its date. Missing
 locations add nothing. Long names ellipsize without making score cards taller.
 Hosted scores use the existing visibility-filtered public game location, not
 private canonical address details. Mock rows cover venues and no venue.
+
+## Hosted verification and validation
+
+Application commit `8e0494e`, Ready Preview:
+https://baseball-ps2dfango-emoney116s-projects.vercel.app/
+
+Metrolina Christian Academy's existing first-party Indian Trail / NC values were
+saved through General, then verified after a full reload and on View Organization.
+The first attempt exposed an unrelated historical-logo validation failure: General
+was resending the unchanged logo. The fix omits unchanged logo data; it does not
+change image validation or the actual logo. The subsequent save reported Saved.
+No Google selection or provider data was used to populate the locality fields.
+Preview provider reservations remained at 19 Autocomplete / 6 Details throughout
+this locality save/reload test: zero additional Google calls.
+
+After applying the API restriction, one controlled server-side Autocomplete probe
+succeeded with two suggestions and zero Details calls. Only success/counts were
+logged. The secret was not printed or exposed to the browser.
+
+762 tests pass, versus 758 at the start of this pass. Focused locality, geo-context
+and abuse tests pass. `npm run build`, `npm test -- --runInBand`, TypeScript and
+diff checks pass; lint has zero errors and the same 26 existing warnings. Build and
+full tests used the existing clean temporary source copy to avoid the workspace's
+OneDrive-generated-file lock. Hosted builds also passed. Score location rows and
+the independent locality fields were visually checked at phone width without
+horizontal overflow. Existing personal/user venue data was not changed.
+
+Only the quota reduction remains an operational final gate. CLU9-54 remains In
+Progress until those effective limits are addressed; the recommended values above
+are not claimed to be active. No main merge.
