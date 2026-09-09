@@ -62,3 +62,8 @@ test('saved location display remains identifiable after reload without fetching 
   assert.match(picker, /locationMapsUrl\(location\)/);
   assert.doesNotMatch(picker, /localStorage|sessionStorage/);
 });
+test('switching creation modes clears location selected under the previous scope', () => {
+  const page = readFileSync('app/page.tsx', 'utf8');
+  assert.match(page, /if \(mode !== "organization"\) setTeamLocation\(undefined\)/);
+  assert.match(page, /if \(mode !== "existing"\) setTeamLocation\(undefined\)/);
+});

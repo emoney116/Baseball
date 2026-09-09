@@ -5926,10 +5926,10 @@ function TeamCreatorModal({
 
         <div className="modal-body team-creator-body">
           <div className="team-creator-segment" role="tablist" aria-label="Creation type">
-            <button type="button" className={mode === "existing" ? "active" : ""} onClick={() => setMode("existing")}>
+            <button type="button" className={mode === "existing" ? "active" : ""} onClick={() => { if (mode !== "existing") setTeamLocation(undefined); setMode("existing"); }}>
               Add Team
             </button>
-            <button type="button" className={mode === "organization" ? "active" : ""} onClick={() => setMode("organization")}>
+            <button type="button" className={mode === "organization" ? "active" : ""} onClick={() => { if (mode !== "organization") setTeamLocation(undefined); setMode("organization"); }}>
               New Organization
             </button>
           </div>
@@ -6023,7 +6023,7 @@ function TeamCreatorModal({
                     onChange={(seasonName) => setForm((current) => ({ ...current, seasonName }))}
                   />
                 </div>
-                <ClubhouseLocationPicker key={form.organizationId || "new-team"} value={teamLocation?.name} scope={{ organizationId: mode === "existing" ? form.organizationId || undefined : undefined }} onChange={setTeamLocation} />
+                <ClubhouseLocationPicker key={`${mode}-${form.organizationId || "new-team"}`} value={teamLocation?.name} scope={{ organizationId: mode === "existing" ? form.organizationId || undefined : undefined }} onChange={setTeamLocation} />
                 {teamLocationRequired && (
                   <div className="form-field">
                     <VisibilityFieldLabel id="team-visibility-help" />
