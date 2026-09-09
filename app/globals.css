@@ -5385,6 +5385,28 @@ textarea:focus-visible {
 .visibility-help-panel strong { display: block; color: var(--text); }
 
 .global-home { max-width: 1100px; padding-bottom: calc(120px + env(safe-area-inset-bottom)); }
+.global-home .global-home-section-header.section-header,
+.global-home .global-primary-header.section-header {
+  padding-inline: 0;
+  margin-inline: 0;
+}
+.global-home .global-home-welcome {
+  gap: 10px;
+}
+.global-home-welcome > h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.25;
+}
+.global-home-welcome > h3 {
+  margin: 2px 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.global-home-welcome > p {
+  margin: 0;
+}
 .global-team-card {
   display: flex;
   position: relative;

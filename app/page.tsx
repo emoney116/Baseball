@@ -5577,12 +5577,9 @@ function ClubhouseHome({
   return (
     <div className="page-stack global-home">
       <AskClubhouseFab onClick={onAsk} />
-      <SectionHeader
-        title={data.teamContext?.profile?.firstName ? `Welcome back, ${data.teamContext.profile.firstName}` : "Welcome back"}
-        className="global-home-section-header"
-      />
-        <section className="global-section">
-          <SectionHeader title="Up Next" className="global-home-section-header" />
+        <section className="global-section global-home-welcome">
+          <h2>{data.teamContext?.profile?.firstName ? `Welcome back, ${data.teamContext.profile.firstName}` : "Welcome back"}</h2>
+          <h3>Up Next</h3>
           {activity.next ? <button className="global-activity-row" type="button" onClick={() => onOpenActivity(activity.next!)}>
             <CalendarDays size={24} aria-hidden="true" />
             <span><strong>{activity.next.title}</strong>
