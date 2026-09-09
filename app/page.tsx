@@ -1,4 +1,5 @@
 "use client";
+import { ClubhouseLocationPicker } from "./components/ClubhouseLocationPicker";
 import { GlobalTeamCard } from "./components/GlobalTeamCard";
 import { globalCreationCapabilities, globalHomeActivity, homeTeamGroups, type HomeActivity } from "./lib/globalHome";
 import { PracticeResultChoices } from "./components/PracticeResultChoices";
@@ -17974,6 +17975,7 @@ function PlayerProfile({
 }
 
 function StartPracticeModal({ data, onClose, onCreate }: { data: AppData; onClose: () => void; onCreate: (practice: Practice, attendance: PracticeAttendance[]) => void }) {
+  const [locationId, setLocationId] = useState<string>();
   const [initialStart] = useState(() => localPracticeStartFields());
   const today = initialStart.date;
   const availablePlayers = data.players.filter((player) => !player.archived);
@@ -18039,6 +18041,7 @@ function StartPracticeModal({ data, onClose, onCreate }: { data: AppData; onClos
       name: form.name,
       type: form.type,
       location: form.location,
+      locationId,
       notes: form.notes,
       playerIds: attending,
       pitcherIds: pitchers,
@@ -18065,7 +18068,7 @@ function StartPracticeModal({ data, onClose, onCreate }: { data: AppData; onClos
         <label><span>Date</span><input type="date" value={form.date} aria-invalid={Boolean(startError)} aria-describedby={startError ? "practice-start-error" : undefined} onChange={(event) => { setForm({ ...form, date: event.target.value }); setStartError(undefined); }} /></label>
         <label><span>Time</span><input type="time" value={form.time} aria-invalid={Boolean(startError)} aria-describedby={startError ? "practice-start-error" : undefined} onChange={(event) => { setForm({ ...form, time: event.target.value }); setStartError(undefined); }} /></label>
         <div className="form-field"><span>Type</span><ChoiceSelect value={form.type} className="form-choice" options={PRACTICE_TYPES.map((type) => ({ value: type, label: type }))} onChange={(value) => setForm({ ...form, type: value as PracticeType })} aria-label="Practice type" /></div>
-        <label><span>Location</span><input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} /></label>
+        <ClubhouseLocationPicker value={form.location} scope={{ teamId: currentTeam?.teamId }} onChange={location => { setLocationId(location.id); setForm({ ...form, location: location.name }); }} />
       </div>
       <section className="practice-preset-panel">
         <div>
@@ -18091,6 +18094,7 @@ function StartPracticeModal({ data, onClose, onCreate }: { data: AppData; onClos
 }
 
 function StartGameModal({ data, onClose, onCreate }: { data: AppData; onClose: () => void; onCreate: (game: Game) => void }) {
+  const [locationId, setLocationId] = useState<string>();
   const starters = data.players.filter((player) => !player.archived && player.rosterStatus !== "Cut").slice(0, 9).map((player) => player.id);
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({
@@ -18098,7 +18102,7 @@ function StartGameModal({ data, onClose, onCreate }: { data: AppData; onClose: (
     homeAway: "Home" as Game["homeAway"],
     date: today,
     time: "18:00",
-    location: "Metrolina Varsity Field",
+    location: "",
     type: "Fall Game" as GameType,
     startingPitcherId: data.players.find((player) => player.isPitcher)?.id ?? starters[0],
   });
@@ -18111,7 +18115,7 @@ function StartGameModal({ data, onClose, onCreate }: { data: AppData; onClose: (
         <div className="form-field"><span>Home/Away</span><ChoiceSelect value={form.homeAway} className="form-choice" options={["Home", "Away"].map((value) => ({ value, label: value }))} onChange={(value) => setForm({ ...form, homeAway: value as Game["homeAway"] })} aria-label="Home or away" /></div>
         <label><span>Date</span><input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
         <label><span>Time</span><input type="time" value={form.time} onChange={(event) => setForm({ ...form, time: event.target.value })} /></label>
-        <label><span>Location</span><input value={form.location} onChange={(event) => setForm({ ...form, location: event.target.value })} /></label>
+        <ClubhouseLocationPicker value={form.location} scope={{ teamId: data.teamContext?.currentTeam?.teamId }} onChange={location => { setLocationId(location.id); setForm({ ...form, location: location.name }); }} />
         <div className="form-field"><span>Game type</span><ChoiceSelect value={form.type} className="form-choice" options={GAME_TYPES.map((type) => ({ value: type, label: type }))} onChange={(value) => setForm({ ...form, type: value as GameType })} aria-label="Game type" /></div>
         <div className="form-field"><span>Starting pitcher</span><ChoiceSelect value={form.startingPitcherId ?? ""} className="form-choice" options={data.players.filter((player) => player.isPitcher).map((player) => ({ value: player.id, label: player.name }))} onChange={(value) => setForm({ ...form, startingPitcherId: value })} aria-label="Starting pitcher" /></div>
       </div>
@@ -18123,6 +18127,7 @@ function StartGameModal({ data, onClose, onCreate }: { data: AppData; onClose: (
         opponent: form.opponent,
         homeAway: form.homeAway,
         location: form.location,
+        locationId,
         type: form.type,
         metrolinaScore: 0,
         opponentScore: 0,

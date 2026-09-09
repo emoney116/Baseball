@@ -490,6 +490,7 @@ export interface PublicDirectoryOrganizationSummary {
 }
 
 export interface Practice {
+  locationId?: ID;
   teamPlan?: import("./lib/practicePlan").PracticePlanItem[];
   teamPlanRevision?: number;
   id: ID;
@@ -917,6 +918,7 @@ export interface ScheduleEvent {
 }
 
 export interface Game {
+  locationId?: ID;
   id: ID;
   date: string;
   startsAt?: string;
