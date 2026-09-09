@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "../../../lib/supabase/admin";
 import { createClient } from "../../../lib/supabase/server";
 import { ensureTeamCreatorMembership } from "../../../lib/teamCreationMembership";
+import { creationLocation, adoptCreationLocation } from "../../../lib/locationCreation";
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,6 +30,8 @@ export async function POST(request: NextRequest) {
       logoUrl?: string;
       visibility?: string;
       seasonName?: string;
+      locationId?: string;
+      organizationLocationId?: string;
     };
     const organizationId = cleanText(body.organizationId, 80);
     const organizationName = cleanText(body.organizationName, 120);
@@ -48,11 +51,9 @@ export async function POST(request: NextRequest) {
     if (!teamName) {
       return NextResponse.json({ ok: false, message: "Team name is required." }, { status: 400 });
     }
-    if (!organizationId && !organizationName && (!teamCity || !teamState)) {
-      return NextResponse.json({ ok: false, message: "City and state are required for teams without an organization." }, { status: 400 });
-    }
-
     const admin = createAdminClient();
+    await creationLocation(admin, authData.user.id, body.locationId, organizationId || undefined);
+    await creationLocation(admin, authData.user.id, body.organizationLocationId);
     let organization: { id: string; name: string; city?: string | null; state?: string | null; visibility?: string | null } | null = null;
     if (organizationId || organizationName) {
       const organizationResult = organizationId
@@ -151,6 +152,17 @@ export async function POST(request: NextRequest) {
     );
     if (membershipError) {
       return NextResponse.json({ ok: false, message: membershipError.message }, { status: 500 });
+    }
+
+    if (body.organizationLocationId && organization && !organizationId) {
+      const selected = await adoptCreationLocation(admin, authData.user.id, body.organizationLocationId, { organizationId: organization.id });
+      const { error } = await admin.from("organizations").update({ location_id: selected }).eq("id", organization.id);
+      if (error) throw new Error("Team created. Update the organization location in settings.");
+    }
+    if (body.locationId) {
+      const selected = await adoptCreationLocation(admin, authData.user.id, body.locationId, { teamId: team.id, organizationId: organization?.id });
+      const { error } = await admin.from("teams").update({ default_location_id: selected }).eq("id", team.id);
+      if (error) throw new Error("Team created. Update its default location in settings.");
     }
 
     return NextResponse.json({

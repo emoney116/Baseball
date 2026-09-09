@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "../../../lib/supabase/admin";
 import { createClient } from "../../../lib/supabase/server";
+import { creationLocation, adoptCreationLocation } from "../../../lib/locationCreation";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,7 @@ export async function POST(request: NextRequest) {
       state?: string;
       logoUrl?: string;
       visibility?: string;
+      locationId?: string;
     };
     const organizationName = cleanText(body.organizationName, 120);
     const city = cleanText(body.city, 80);
@@ -27,11 +29,8 @@ export async function POST(request: NextRequest) {
     if (!organizationName) {
       return NextResponse.json({ ok: false, message: "Organization name is required." }, { status: 400 });
     }
-    if (!state || !city) {
-      return NextResponse.json({ ok: false, message: "State and city are required." }, { status: 400 });
-    }
-
     const admin = createAdminClient();
+    await creationLocation(admin, authData.user.id, body.locationId);
     const { data: organization, error: organizationError } = await admin
       .from("organizations")
       .insert({
@@ -60,6 +59,12 @@ export async function POST(request: NextRequest) {
     );
     if (membershipError) {
       return NextResponse.json({ ok: false, message: membershipError.message }, { status: 500 });
+    }
+
+    if (body.locationId) {
+      const locationId = await adoptCreationLocation(admin, authData.user.id, body.locationId, { organizationId: organization.id });
+      const { error: locationError } = await admin.from("organizations").update({ location_id: locationId }).eq("id", organization.id);
+      if (locationError) throw new Error("Organization created, but its location could not be attached. Open Organization settings to retry.");
     }
 
     return NextResponse.json({

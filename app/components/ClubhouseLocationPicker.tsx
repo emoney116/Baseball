@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { ClubhouseLocation, LocationScope, LocationSuggestion, ResolvedPlace } from "../lib/locationTypes";
 import { locationSubtitle } from "../lib/locationTypes";
 import { createPlacesPickerSearch } from "../lib/placesPickerSearch";
+import { isLocationPreview, previewLocations, savePreviewLocation } from "../lib/locationPreview";
 import styles from "./ClubhouseLocationPicker.module.css";
 
 export function ClubhouseLocationPicker({ value, scope, onChange, label = "Location" }: {
@@ -19,6 +20,8 @@ export function ClubhouseLocationPicker({ value, scope, onChange, label = "Locat
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [confirmation, setConfirmation] = useState<{ place?: ResolvedPlace; title?: string; receipt?: string } | null>(null);
   const [customerName, setCustomerName] = useState("");
+  const [customerCity, setCustomerCity] = useState("");
+  const [customerState, setCustomerState] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const selectedTitle = useRef("");
@@ -31,13 +34,26 @@ export function ClubhouseLocationPicker({ value, scope, onChange, label = "Locat
   async function open() {
     const version = ++generation.current;
     setMessage(""); setQuery(""); setSaved([]); setSuggestions([]); setConfirmation(null); setCustomerName(""); setBusy(true);
+    setCustomerCity(""); setCustomerState("");
     dialog.current?.setAttribute("closedby", "any");
     dialog.current?.showModal();
     const params = new URLSearchParams();
     if (scope.teamId) params.set("teamId", scope.teamId);
     if (scope.organizationId) params.set("organizationId", scope.organizationId);
     try {
+      if (isLocationPreview()) {
+        const locations = previewLocations();
+        setSaved(locations);
+        interaction.current = createPlacesPickerSearch(scope, locations, result => {
+          if (version !== generation.current) return;
+          if (result.saved) setSaved(result.saved);
+          setMessage(result.message ?? "");
+          setBusy(false);
+        }, async () => Response.json({ message: "No sample venue matches. Enter a venue name, or sign in to use Google search." }));
+        return;
+      }
       const response = await fetch(`/api/locations?${params}`, { cache: "no-store" });
+      if (response.status === 401) { setMessage("Sign in to search and save locations."); return; }
       if (!response.ok) throw new Error();
       const payload = await response.json() as { locations: ClubhouseLocation[] };
       if (version !== generation.current) return;
@@ -66,8 +82,12 @@ export function ClubhouseLocationPicker({ value, scope, onChange, label = "Locat
     const version = generation.current;
     setBusy(true); setMessage("");
     try {
+      if (isLocationPreview()) {
+        onChange(savePreviewLocation(customerName.trim(), customerCity.trim(), customerState.trim()));
+        close(); return;
+      }
       const response = await fetch("/api/locations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-        ...scope, name: customerName.trim(), providerPlaceId: confirmation?.place?.providerPlaceId, receipt: confirmation?.receipt,
+        ...scope, name: customerName.trim(), city: customerCity.trim(), stateRegion: customerState.trim(), providerPlaceId: confirmation?.place?.providerPlaceId, receipt: confirmation?.receipt,
       }) });
       if (!response.ok) throw new Error();
       const result = await response.json() as { location: ClubhouseLocation };
@@ -82,15 +102,20 @@ export function ClubhouseLocationPicker({ value, scope, onChange, label = "Locat
     <dialog className={styles.dialog} ref={dialog} aria-labelledby={titleId} onCancel={event => { event.preventDefault(); close(); }}>
       <header><h2 id={titleId}>Choose Location</h2><button type="button" className="icon-button" aria-label="Close location picker" onClick={close}><X size={18} /></button></header>
       <div className={styles.body}>
+        {isLocationPreview() && <small role="note">Local preview venues. Google search requires sign-in.</small>}
         {!confirmation ? <>
           <label className={styles.search}><Search size={17} /><input aria-label="Search locations" placeholder="Search school, field, park or address..." maxLength={200} value={query} onChange={event => { setQuery(event.target.value); interaction.current?.search(event.target.value); }} /></label>
-          {!!saved.length && <section aria-label="Saved locations"><h3>Saved Locations</h3>{saved.map(location => <button key={location.id} type="button" className={styles.result} onClick={() => { onChange(location); close(); }}><MapPin size={17} /><span><strong>{location.name}</strong>{locationSubtitle(location) && <small>{locationSubtitle(location)}</small>}</span></button>)}</section>}
+          {["Team Default", "Team Locations", "Organization Locations", "Recent", "Saved Locations"].map(group => {
+            const rows = saved.filter(row => (row.group ?? "Saved Locations") === group);
+            return rows.length ? <section key={group} aria-label={group}><h3>{group}</h3>{rows.map(location => <button key={location.id} type="button" className={styles.result} onClick={() => { onChange(location); close(); }}><MapPin size={17} /><span><strong>{location.name}</strong>{locationSubtitle(location) && <small>{locationSubtitle(location)}</small>}</span></button>)}</section> : null;
+          })}
           {!!suggestions.length && <section className={styles.provider} aria-label="Google search results"><h3>Search Results</h3>{suggestions.map(suggestion => <button disabled={busy} key={suggestion.providerPlaceId} type="button" className={styles.result} onClick={() => void select(suggestion)}><MapPin size={17} /><span><strong>{suggestion.title}</strong><small>{suggestion.subtitle}</small></span></button>)}<span className={styles.attribution} translate="no">Google Maps</span></section>}
-          {query.trim().length >= 3 && saved.length > 0 && <button type="button" className="text-button" disabled={busy} onClick={() => interaction.current?.search(query, true)}>Search Google Maps</button>}
+          {!isLocationPreview() && query.trim().length >= 3 && saved.length > 0 && <button type="button" className="text-button" disabled={busy} onClick={() => interaction.current?.search(query, true)}>Search Google Maps</button>}
           <button type="button" className="secondary-button" onClick={() => { setConfirmation({}); setCustomerName(""); }}><Plus size={16} />Enter venue name</button>
         </> : <>
           {confirmation.place && <section className={styles.provider}><strong>{confirmation.title}</strong><p>{confirmation.place.formattedAddress}</p><span className={styles.attribution} translate="no">Google Maps</span>{confirmation.place.attributions.map(item => <a href={item.uri} key={item.uri} target="_blank" rel="noreferrer">{item.name}</a>)}</section>}
           <label className={styles.name}>Your venue label<input aria-label="Your venue label" maxLength={100} value={customerName} onChange={event => setCustomerName(event.target.value)} /></label>
+          <div className={styles.locality}><label className={styles.name}>City (optional)<input aria-label="Your location city" maxLength={80} value={customerCity} onChange={event => setCustomerCity(event.target.value)} /></label><label className={styles.name}>State (optional)<input aria-label="Your location state" maxLength={40} value={customerState} onChange={event => setCustomerState(event.target.value)} /></label></div>
           <button type="button" className="text-button" onClick={() => { setConfirmation(null); setMessage(""); setSuggestions([]); interaction.current?.search(query, true); }}>Back to locations</button>
         </>}
         {busy && <p role="status">Loading...</p>}{message && <p role="alert">{message}</p>}

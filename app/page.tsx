@@ -1,7 +1,9 @@
 "use client";
 import { ClubhouseLocationPicker } from "./components/ClubhouseLocationPicker";
+import { LocationDefaultSettings } from "./components/LocationDefaultSettings";
 import { GlobalTeamCard } from "./components/GlobalTeamCard";
 import { globalCreationCapabilities, globalHomeActivity, homeTeamGroups, type HomeActivity } from "./lib/globalHome";
+import { recentHomeScores, type HomeScore } from "./lib/homeScores";
 import { PracticeResultChoices } from "./components/PracticeResultChoices";
 import { displayWorkspaceTeams, OrganizationLogo, organizationSummariesFromContext, OrganizationSummary, roleLabel, teamContextRole, teamOrganizationLogo, teamValue, TeamWorkspaceHeader } from "./components/TeamContextHeader";
 import { ActiveWorkoutCell, ActiveWorkoutStation, buildRecentWeightRoomWorkouts, formatInchesValue, formatSecondsValue, formatWeightRoomSessionMeta, formatWorkoutEntryValue, formatWorkoutEntryValueForStation, optionalNumber, PracticeHistoryTab, practiceTotals, stationAttemptLabel, TRACKING_VELOCITY_MAX_MPH, TRACKING_VELOCITY_MIN_MPH, uniqueStrings, VelocityPickerField, WeightRoomExercise, WeightRoomExerciseCategory, WeightRoomInlineSetCell, weightRoomMeasurementLabel, WeightRoomRecentWorkouts, WeightRoomWorkoutStatus, WeightRoomWorkoutSummary, WorkoutMeasurementType, WorkoutPerformanceDirection, WorkoutTargetStyle } from "./components/TeamTrainingViews";
@@ -114,7 +116,6 @@ import {
   type PracticeHittingResultOption,
 } from "./lib/hittingTaxonomy";
 import { mergeLiveRefresh } from "./lib/liveSyncDelta";
-import { cityOptionsForState, US_STATE_OPTIONS } from "./lib/locations";
 import type { PlayerSession } from "./lib/playerAccess";
 import { deriveConcurrentPracticeTotals, nextSessionSequence, touchSessionContributor } from "./lib/practiceConcurrency";
 import { localPracticeStartFields, validatePracticeStart } from "./lib/practiceStart";
@@ -803,9 +804,9 @@ async function loadLocalPreviewData() {
   const { localPracticeRepository: localRepo } = await import("./data/repository");
   const data = withLocalPreviewContext(localRepo.load());
   const query = new URLSearchParams(window.location.search);
-  if (query.has("globalFixture")) {
+  if (query.has("globalFixture") || data.teamContext?.profile?.id?.startsWith("global-qa-")) {
     const { globalPreviewFixture } = await import("./lib/globalPreviewFixture");
-    return globalPreviewFixture(data, query.get("globalFixture") === "rich", query.get("globalRole") ?? "coach");
+    return globalPreviewFixture(data, query.get("globalFixture") !== "sparse", query.get("globalRole") ?? data.teamContext?.profile?.id?.replace("global-qa-", "") ?? "coach");
   }
   return data;
 }
@@ -1992,6 +1993,8 @@ export default function MetrolinaBaseballApp() {
   }
 
   async function createTeamForImport(input: {
+    locationId?: string;
+    organizationLocationId?: string;
     organizationId?: string;
     organizationName?: string;
     organizationCity?: string;
@@ -2031,7 +2034,7 @@ export default function MetrolinaBaseballApp() {
     return team;
   }
 
-  async function createOrganization(input: { organizationName: string; city?: string; state?: string; logoUrl?: string; visibility?: string }) {
+  async function createOrganization(input: { organizationName: string; city?: string; state?: string; logoUrl?: string; visibility?: string; locationId?: string }) {
     const organization = await supabaseAppRepository.createOrganization(input);
     setData((current) => {
       if (!current) return current;
@@ -3948,10 +3951,10 @@ export default function MetrolinaBaseballApp() {
 
         {!inTeamContext && (
           <header className="global-home-banner" aria-label="Clubhouse">
-            <div className="global-home-banner-brand">
+            <button className="global-home-banner-brand" type="button" aria-label="Clubhouse Home" onClick={() => goToView("home")}>
               <img className="brand-mark-image" src={BRAND_ASSETS.mark} alt="" width={28} height={28} />
               <span>{APP_NAME}</span>
-            </div>
+            </button>
             <div className="global-home-banner-actions">
             <button className="ghost-button global-notifications-button" type="button" popoverTarget="global-notifications" aria-label="Notifications" title="Notifications"><Bell size={20} aria-hidden="true" /></button>
             <div id="global-notifications" popover="auto" className="global-notifications-panel" role="region" aria-label="Notifications">
@@ -4068,6 +4071,7 @@ export default function MetrolinaBaseballApp() {
         {view === "teamSettings" && (
           <div className="page-stack team-settings-page">
             <SectionHeader title="Team Settings" />
+            {data.teamContext?.currentTeam && data.teamContext.currentTeam.role !== "PLAYER" && <LocationDefaultSettings teamId={data.teamContext.currentTeam.teamId} />}
             {data.teamContext?.currentTeam?.seasonId && <PlayerAccessPanel key={`settings-${data.teamContext.currentTeam.teamId}-${data.teamContext.currentTeam.seasonId}`} teamId={data.teamContext.currentTeam.teamId} seasonId={data.teamContext.currentTeam.seasonId} previewSettings={isLocalDevAuthBypass() ? { teamDefault: "VIEW_ONLY", roster: rosterPlayers.map(p => ({ playerId: p.id, membershipId: `preview-${p.id}`, name: p.name, override: null })) } : undefined} />}
           </div>
         )}
@@ -5533,7 +5537,7 @@ function PinnedTeamShortcuts({
 }
 
 function ClubhouseHome({
-  data, onEnterTeam, onOpenPublicTeam, onOpenManagedOrganization,
+  data, onEnterTeam, onOpenPublicTeam,
   onTogglePublicTeamFollow, onToggleTeamPin, onView, onAsk, onOpenActivity,
 }: {
   data: AppData;
@@ -5547,10 +5551,25 @@ function ClubhouseHome({
   onOpenActivity: (activity: HomeActivity) => void;
 }) {
   const teams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
-  const organizations = organizationSummariesFromContext(data.teamContext);
   const groups = homeTeamGroups(teams, data.profileTeamPins);
   const activity = globalHomeActivity(data);
   const following = followedPublicTeams(data).slice(0, 3);
+  const followed = effectiveFollowedPublicTeams(data);
+  const scoreTeamIds = [...new Set([...teams.map(team => team.teamId), ...followed.map(team => team.id)])].slice(0, 12);
+  const scoreKey = scoreTeamIds.join(",");
+  const [hostedScores, setHostedScores] = useState<HomeScore[]>([]);
+  useEffect(() => {
+    if (isLocalDevAuthBypass() || !scoreKey) return;
+    const controller = new AbortController();
+    fetch(`/api/home-scores?teams=${encodeURIComponent(scoreKey)}`, { signal: controller.signal, cache: "no-store" })
+      .then(response => response.ok ? response.json() : { scores: [] })
+      .then(payload => { if (!controller.signal.aborted) setHostedScores(payload.scores ?? []); })
+      .catch(() => { if (!controller.signal.aborted) setHostedScores([]); });
+    return () => controller.abort();
+  }, [scoreKey]);
+  const current = data.teamContext?.currentTeam;
+  const currentScores: HomeScore[] = current ? data.games.map(game => ({ id: game.id, teamId: current.teamId, teamName: current.teamName, opponent: game.opponent, ourScore: game.metrolinaScore, opponentScore: game.opponentScore, date: game.date, result: game.result ?? "" })) : [];
+  const scores = recentHomeScores([...currentScores, ...hostedScores, ...(isLocalDevAuthBypass() ? data.previewHomeScores ?? [] : [])], scoreTeamIds);
   const renderTeam = (team: TeamOption) => (
     <ManagedTeamCard key={teamValue(team)} team={team} context={data.teamContext}
       pinnedTeams={data.profileTeamPins} onEnterTeam={onEnterTeam} onTogglePinnedTeam={onToggleTeamPin} />
@@ -5558,6 +5577,10 @@ function ClubhouseHome({
   return (
     <div className="page-stack global-home">
       <AskClubhouseFab onClick={onAsk} />
+      <SectionHeader
+        title={data.teamContext?.profile?.firstName ? `Welcome back, ${data.teamContext.profile.firstName}` : "Welcome back"}
+        className="global-home-section-header"
+      />
       {activity.next && (
         <section className="global-section">
           <SectionHeader title="Up Next" className="global-home-section-header" />
@@ -5580,20 +5603,16 @@ function ClubhouseHome({
         {groups.pinned.length > 0 ? <div className="managed-team-grid">{groups.pinned.map(renderTeam)}</div>
           : !teams.length ? <div className="global-empty-state"><Users size={28} aria-hidden="true" /><strong>Find your team</strong><button className="secondary-button" type="button" onClick={() => onView("discover")}>Find Teams</button></div> : null}
       </section>
-      {organizations.length > 0 && (
-        <section className="global-section global-home-organizations">
-          <SectionHeader title="My Organizations" className="global-home-section-header" action={<button className="text-button" type="button" onClick={() => onView("organizations")}>View all</button>} />
-          <div className="organization-grid">{organizations.slice(0, 3).map((organization) => (
-            <OrganizationCard key={organization.id} organization={organization} onEnterTeam={onEnterTeam} onOpenOrganization={onOpenManagedOrganization} />
-          ))}</div>
-        </section>
-      )}
-      {activity.recent.length > 0 && (
+      {scores.length > 0 && (
         <section className="global-section">
           <SectionHeader title="Recent Activity" className="global-home-section-header" />
-          <div className="global-activity-list">{activity.recent.map((item) => (
-            <button key={item.id} className="global-activity-row" type="button" onClick={() => onOpenActivity(item)}>
-              <Check size={20} aria-hidden="true" /><span><strong>{item.title}</strong><small>{item.team.teamName} · {new Date(item.at).toLocaleDateString()}</small></span><ChevronRight size={18} aria-hidden="true" />
+          <div className="global-activity-list">{scores.map((item) => (
+            <button key={item.id} className="global-activity-row" type="button" onClick={() => {
+              const team = teams.find(team => team.teamId === item.teamId);
+              if (team) onOpenActivity({ id: `game-${item.id}`, title: item.opponent, at: item.date, team, view: "games" });
+              else { const publicTeam = followed.find(team => team.id === item.teamId); if (publicTeam) onOpenPublicTeam(publicTeam); }
+            }}>
+              <span className="global-score-result">{item.result}</span><span><strong>{item.teamName} {item.ourScore} - {item.opponentScore}</strong><small>vs {item.opponent} · Final</small></span><ChevronRight size={18} aria-hidden="true" />
             </button>
           ))}</div>
         </section>
@@ -5726,8 +5745,10 @@ function TeamCreatorModal({
   initialOrganizationId?: ID;
   initialMode?: "existing" | "new" | "organization";
   onClose: () => void;
-  onCreateOrganization: (input: { organizationName: string; city?: string; state?: string; logoUrl?: string; visibility?: string }) => Promise<void>;
+  onCreateOrganization: (input: { organizationName: string; city?: string; state?: string; logoUrl?: string; visibility?: string; locationId?: string }) => Promise<void>;
   onCreate: (input: {
+    locationId?: string;
+    organizationLocationId?: string;
     organizationId?: string;
     organizationName?: string;
     organizationCity?: string;
@@ -5748,6 +5769,8 @@ function TeamCreatorModal({
     initialMode === "organization" ? "organization" : "existing";
   const [mode, setMode] = useState<"existing" | "organization">(startingMode);
   const [addFirstTeam, setAddFirstTeam] = useState(initialMode === "new");
+  const [orgLocation, setOrgLocation] = useState<{ id: string; name: string }>();
+  const [teamLocation, setTeamLocation] = useState<{ id: string; name: string }>();
   const [form, setForm] = useState({
     organizationId: initialOrganizationId ?? organizations[0]?.id ?? "",
     organizationName: "",
@@ -5776,13 +5799,6 @@ function TeamCreatorModal({
     }));
   }
 
-  function updateState(scope: "organization" | "team", state: string) {
-    setForm((current) => ({
-      ...current,
-      [scope === "organization" ? "organizationState" : "teamState"]: state,
-      [scope === "organization" ? "organizationCity" : "teamCity"]: "",
-    }));
-  }
 
   function handleLogoFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -5839,19 +5855,9 @@ function TeamCreatorModal({
       setMessage("Organization name is required.");
       return;
     }
-    if (mode === "organization" && (!form.organizationState || !form.organizationCity)) {
-      setStatus("error");
-      setMessage("State and city are required.");
-      return;
-    }
     if (teamMode && !form.teamName.trim()) {
       setStatus("error");
       setMessage("Team name is required.");
-      return;
-    }
-    if (teamMode && mode === "existing" && !form.organizationId && (!form.teamState || !form.teamCity)) {
-      setStatus("error");
-      setMessage("State and city are required for teams without an organization.");
       return;
     }
     if (teamMode && !form.seasonName.trim()) {
@@ -5862,6 +5868,7 @@ function TeamCreatorModal({
     try {
       if (mode === "organization" && !addFirstTeam) {
         await onCreateOrganization({
+          locationId: orgLocation?.id,
           organizationName: form.organizationName,
           city: form.organizationCity,
           state: form.organizationState,
@@ -5870,6 +5877,8 @@ function TeamCreatorModal({
         });
       } else {
         await onCreate({
+          locationId: teamLocation?.id,
+          organizationLocationId: mode === "organization" ? orgLocation?.id : undefined,
           organizationId: mode === "existing" ? form.organizationId : undefined,
           organizationName: mode === "organization" ? form.organizationName : undefined,
           organizationCity: mode === "organization" ? form.organizationCity : undefined,
@@ -5934,7 +5943,7 @@ function TeamCreatorModal({
                     className="form-choice"
                     value={form.organizationId}
                     options={selectedOrganizationOptions}
-                    onChange={(organizationId) => setForm((current) => ({ ...current, organizationId }))}
+                    onChange={(organizationId) => { setTeamLocation(undefined); setForm((current) => ({ ...current, organizationId })); }}
                   />
                 </div>
               </div>
@@ -5951,30 +5960,7 @@ function TeamCreatorModal({
                   <span>Org Name</span>
                   <input value={form.organizationName} onChange={(event) => setForm((current) => ({ ...current, organizationName: event.target.value }))} />
                 </label>
-                <div className="form-field">
-                  <span>State</span>
-                  <ChoiceSelect
-                    aria-label="Organization state"
-                    className="form-choice"
-                    value={form.organizationState}
-                    options={[{ value: "", label: "Select state" }, ...US_STATE_OPTIONS.map((state) => ({ value: state, label: state }))]}
-                    onChange={(state) => updateState("organization", state)}
-                  />
-                </div>
-                <div className="form-field">
-                  <span>City</span>
-                  <ChoiceSelect
-                    aria-label="Organization city"
-                    className="form-choice"
-                    value={form.organizationCity}
-                    disabled={!form.organizationState}
-                    options={[
-                      { value: "", label: form.organizationState ? "Select city" : "Select state first" },
-                      ...cityOptionsForState(form.organizationState).map((city) => ({ value: city, label: city })),
-                    ]}
-                    onChange={(city) => setForm((current) => ({ ...current, organizationCity: city }))}
-                  />
-                </div>
+                <ClubhouseLocationPicker value={orgLocation?.name} scope={{}} onChange={setOrgLocation} />
                 <div className="form-field team-creator-span">
                   <VisibilityFieldLabel id="organization-visibility-help" />
                   <ChoiceSelect
@@ -6035,30 +6021,7 @@ function TeamCreatorModal({
                     onChange={(seasonName) => setForm((current) => ({ ...current, seasonName }))}
                   />
                 </div>
-                <div className="form-field">
-                  <span>{teamLocationRequired ? "State" : "Team State"}</span>
-                  <ChoiceSelect
-                    aria-label="Team state"
-                    className="form-choice"
-                    value={form.teamState}
-                    options={[{ value: "", label: teamLocationRequired ? "Required" : "Optional" }, ...US_STATE_OPTIONS.map((state) => ({ value: state, label: state }))]}
-                    onChange={(state) => updateState("team", state)}
-                  />
-                </div>
-                <div className="form-field">
-                  <span>{teamLocationRequired ? "City" : "Team City"}</span>
-                  <ChoiceSelect
-                    aria-label="Team city"
-                    className="form-choice"
-                    value={form.teamCity}
-                    disabled={!form.teamState}
-                    options={[
-                      { value: "", label: form.teamState ? (teamLocationRequired ? "Required" : "Optional") : "Select state first" },
-                      ...cityOptionsForState(form.teamState).map((city) => ({ value: city, label: city })),
-                    ]}
-                    onChange={(city) => setForm((current) => ({ ...current, teamCity: city }))}
-                  />
-                </div>
+                <ClubhouseLocationPicker key={form.organizationId || "new-team"} value={teamLocation?.name} scope={{ organizationId: mode === "existing" ? form.organizationId || undefined : undefined }} onChange={setTeamLocation} />
                 {teamLocationRequired && (
                   <div className="form-field">
                     <VisibilityFieldLabel id="team-visibility-help" />
@@ -6193,13 +6156,13 @@ function DiscoverView({
   const needle = query.trim().toLowerCase();
   const visibleTeams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
   const organizations = organizationSummariesFromContext(data.teamContext).filter((organization) =>
-    !needle || `${organization.name} ${organization.location ?? ""} ${organization.teams.map((team) => team.teamName).join(" ")}`.toLowerCase().includes(needle),
+    Boolean(needle) && `${organization.name} ${organization.location ?? ""} ${organization.teams.map((team) => team.teamName).join(" ")}`.toLowerCase().includes(needle),
   );
   const teams = visibleTeams.filter((team) =>
-    !needle || `${team.organizationName} ${team.teamName} ${team.seasonName ?? ""}`.toLowerCase().includes(needle),
+    Boolean(needle) && `${team.organizationName} ${team.teamName} ${team.seasonName ?? ""}`.toLowerCase().includes(needle),
   );
   const managedOrganizationKeys = new Set(
-    organizations.flatMap((organization) => [
+    organizationSummariesFromContext(data.teamContext).flatMap((organization) => [
       organization.id,
       organization.slug ?? "",
       organization.name.trim().toLowerCase(),
@@ -6209,9 +6172,10 @@ function DiscoverView({
     const duplicateManagedOrganization = managedOrganizationKeys.has(organization.id) ||
       (organization.slug ? managedOrganizationKeys.has(organization.slug) : false) ||
       managedOrganizationKeys.has(organization.name.trim().toLowerCase());
-    return !duplicateManagedOrganization && (!needle || publicOrganizationSearchText(organization).includes(needle));
+    return !duplicateManagedOrganization && (needle ? publicOrganizationSearchText(organization).includes(needle) : !isFollowingOrganization(data.profileFollows ?? [], organization.id));
   });
-  const publicTeams = (data.publicTeams ?? []).filter((team) => !visibleTeams.some((direct) => direct.teamId === team.id) && (!needle || publicTeamSearchText(team).includes(needle)));
+  const followedIds = new Set(effectiveFollowedPublicTeams(data).map(team => team.id));
+  const publicTeams = (data.publicTeams ?? []).filter((team) => !visibleTeams.some((direct) => direct.teamId === team.id) && (needle ? publicTeamSearchText(team).includes(needle) : !followedIds.has(team.id)));
 
   const hasResults = organizations.length + publicOrganizations.length + teams.length + publicTeams.length > 0;
   return (
@@ -6425,13 +6389,13 @@ function PublicOrganizationMiniRow({
   onOpenOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
 }) {
   return (
-    <div className="team-mini-row team-mini-row--public-organization">
-      <button className="team-mini-row__main team-mini-row__main--with-chevron" type="button" onClick={() => onOpenOrganization(organization)}>
+    <article className="panel organization-card organization-card--compact">
+      <button className="organization-card__top" type="button" onClick={() => onOpenOrganization(organization)}>
         <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
-        <span><strong>{organization.name}</strong><small>{organizationLocation(organization) || `${organization.teams.length} teams`}</small></span>
+        <span><strong>{organization.name}</strong><small>{[organizationLocation(organization), `${organization.teams.length} team${organization.teams.length === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</small></span>
         <ChevronRight size={15} aria-hidden="true" />
       </button>
-    </div>
+    </article>
   );
 }
 
@@ -22840,6 +22804,13 @@ function followedPublicTeams(data: AppData) {
   const follows = data.profileFollows ?? [];
   const followedTeamIds = new Set(follows.map((follow) => follow.teamId).filter((teamId): teamId is ID => Boolean(teamId)));
   return (data.publicTeams ?? []).filter((team) => followedTeamIds.has(team.id) && !managedTeamIds.has(team.id));
+}
+
+function effectiveFollowedPublicTeams(data: AppData) {
+  return (data.publicTeams ?? []).filter(team => isFollowingTeam(data.profileFollows, team.id) || (
+    Boolean(team.organizationId && isFollowingOrganization(data.profileFollows ?? [], team.organizationId)) &&
+    !(data.profileFollowExclusions ?? []).some(exclusion => exclusion.teamId === team.id && exclusion.organizationId === team.organizationId)
+  ));
 }
 
 function followedPublicOrganizations(data: AppData) {

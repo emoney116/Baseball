@@ -1133,6 +1133,7 @@ export interface AppSettings {
 }
 
 export interface AppData {
+  previewHomeScores?: import("./lib/homeScores").HomeScore[];
   teamContext?: TeamContext;
   players: Player[];
   playerTeamMemberships?: PlayerTeamMembership[];

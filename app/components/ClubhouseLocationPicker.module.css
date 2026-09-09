@@ -24,6 +24,7 @@
 .attribution { color: var(--text); font-size: 13px; font-weight: 400; white-space: nowrap; }
 .name { display: grid; gap: 6px; font-size: 13px; }
 .name input { min-height: 44px; width: 100%; font-size: 16px; }
+.locality { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 8px; }
 @media (max-width: 600px) {
   .dialog { margin: auto auto 0; width: calc(100vw - 16px); max-height: calc(100dvh - 24px); border-radius: 8px 8px 0 0; }
   .dialog footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }

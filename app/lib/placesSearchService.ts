@@ -1,6 +1,7 @@
 import type { LocationSearchProvider, LocationScope, ClubhouseLocation, LocationBias } from "./locationTypes.ts";
 import { localLocationMatches } from "./locationTypes.ts";
 import { normalizedPlacesQuery, PlacesRequestError } from "./placesProtection.ts";
+import { contextualLocationQuery, type LocationSearchContext } from "./locationContext.ts";
 import type { PlacesEvent, PlacesOperation } from "./placesProtection.ts";
 
 export type PlacesSearchInput = LocationScope & { operation: PlacesOperation; query?: string; placeId?: string; sessionToken: string; external?: boolean; bias?: LocationBias };
@@ -12,6 +13,8 @@ export interface PlacesSearchDependencies {
   predictions(token: string, ids: string[]): Promise<void>;
   provider: LocationSearchProvider;
   event(operation: PlacesOperation, event: PlacesEvent): void;
+  context?: LocationSearchContext;
+  rememberCoordinates?(place: import("./locationTypes.ts").ResolvedPlace): Promise<void>;
 }
 
 export async function searchPlaces(input: PlacesSearchInput, deps: PlacesSearchDependencies, signal?: AbortSignal) {
@@ -44,10 +47,15 @@ export async function searchPlaces(input: PlacesSearchInput, deps: PlacesSearchD
   }
   deps.event(operation, "attempt");
   try {
-    if (operation === "details") return { place: await deps.provider.getPlace(input.placeId!, input.sessionToken, signal), receipt: input.sessionToken };
-    const suggestions = await deps.provider.autocomplete(input.query!, input.sessionToken, signal, input.bias);
+    if (operation === "details") {
+      const place = await deps.provider.getPlace(input.placeId!, input.sessionToken, signal);
+      await deps.rememberCoordinates?.(place);
+      return { place, receipt: input.sessionToken };
+    }
+    const query = deps.context ? contextualLocationQuery(input.query!, deps.context) : input.query!;
+    const suggestions = await deps.provider.autocomplete(query, input.sessionToken, signal, deps.context?.bias ?? input.bias);
     await deps.predictions(input.sessionToken, suggestions.map(row => row.providerPlaceId));
-    return { saved: localLocationMatches(saved, input.query!).slice(0, 20), suggestions };
+    return { saved: localLocationMatches(saved, input.query!).slice(0, 20), suggestions, context: deps.context };
   } catch {
     deps.event(operation, "provider_error");
     throw new PlacesRequestError(503);

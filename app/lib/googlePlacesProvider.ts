@@ -60,8 +60,9 @@ export function googlePlacesProvider(key: string | undefined, transport: typeof 
     async autocomplete(query, sessionToken, signal, bias?: LocationBias) {
       if (query.trim().length < 3) return [];
       const data = await call("places:autocomplete", { method: "POST", body: JSON.stringify({
-        input: query.trim().slice(0, 200), sessionToken, includedRegionCodes: ["us"], languageCode: "en",
-        ...(bias ? { locationBias: { circle: { center: { latitude: bias.latitude, longitude: bias.longitude }, radius: bias.radius } } } : {}),
+        input: query.trim().slice(0, 200), sessionToken, includedRegionCodes: ["us"], regionCode: "us", languageCode: "en",
+        locationBias: bias ? { circle: { center: { latitude: bias.latitude, longitude: bias.longitude }, radius: bias.radius } }
+          : { rectangle: { low: { latitude: 18, longitude: 170 }, high: { latitude: 72, longitude: -65 } } },
       }) }, GOOGLE_AUTOCOMPLETE_FIELDS, signal);
       return (Array.isArray(data.suggestions) ? data.suggestions : []).slice(0, 5).flatMap((item: { placePrediction?: { placeId?: string; structuredFormat?: { mainText?: { text?: string }; secondaryText?: { text?: string } } } }): LocationSuggestion[] => {
         const prediction = item.placePrediction;

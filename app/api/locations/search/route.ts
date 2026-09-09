@@ -3,6 +3,7 @@ import { createAdminClient } from "../../../lib/supabase/admin";
 import { googlePlacesProvider } from "../../../lib/googlePlacesProvider";
 import { searchPlaces, type PlacesSearchInput } from "../../../lib/placesSearchService";
 import { authorizeLocationScope, readSavedLocations } from "../../../lib/placesRepository";
+import { locationConfiguration } from "../../../lib/locationDefaults";
 import { placesDigest, placesEnvironment, placesIpBucket, placesTelemetry, PlacesRequestError } from "../../../lib/placesProtection";
 
 export const runtime = "nodejs";
@@ -36,11 +37,21 @@ export async function POST(request: Request) {
     if (!input || typeof input !== "object") throw new PlacesRequestError(400);
     const admin = createAdminClient();
     const userId = data.user.id;
+    const configuration = await locationConfiguration(admin, userId, input);
+    // Scope-derived context wins over untrusted client coordinates.
+    input.bias = configuration.context.bias;
     const result = await searchPlaces(input, {
       userId,
       authorize: async scope => { await authorizeLocationScope(admin, userId, scope); },
       saved: (scope, placeId) => readSavedLocations(admin, userId, scope, placeId),
       provider: googlePlacesProvider(process.env.GOOGLE_PLACES_API_KEY),
+      context: configuration.context,
+      rememberCoordinates: async place => {
+        if (place.latitude === null || place.longitude === null) return;
+        const { error: cacheError } = await admin.from("places_coordinate_cache").upsert({ place_id: place.providerPlaceId,
+          latitude: place.latitude, longitude: place.longitude, expires_at: new Date(Date.now() + 29 * 86400000).toISOString() });
+        if (cacheError) throw new PlacesRequestError(503);
+      },
       event: (operation, event) => console.info(JSON.stringify(placesTelemetry(environment, operation, event))),
       reserve: async item => {
         if (!process.env.GOOGLE_PLACES_API_KEY || process.env.GOOGLE_PLACES_DISABLED === "1") throw new PlacesRequestError(503);

@@ -19,6 +19,10 @@ export function globalPreviewFixture(base: AppData, rich: boolean, role: string)
   const profileId = `global-qa-${role}`;
   const publicTeams = Array.from({ length: rich ? 5 : 0 }, (_, index) => ({ id: `global-qa-public-${index}`, name: `Carolina Showcase ${14 + index}U`, organizationId: "global-qa-public-org", organizationName: "Carolina Showcase Baseball", seasonName: "Summer 2027", active: true, visibility: "PUBLIC" as const }));
   const existingFixture = base.teamContext?.profile?.id === profileId;
+  const discoverTeams = rich ? [
+    { id: "global-qa-discover-1", name: "Charlotte Christian Knights", organizationId: "global-qa-discover-org-1", organizationName: "Charlotte Christian School", seasonName: "Fall 2026", active: true, visibility: "PUBLIC" as const },
+    { id: "global-qa-discover-2", name: "Union County 15U", organizationId: "global-qa-discover-org-2", organizationName: "Union County Baseball", seasonName: "Fall 2026", active: true, visibility: "PUBLIC" as const },
+  ] : [];
   return {
     ...base,
     teamContext: {
@@ -27,8 +31,13 @@ export function globalPreviewFixture(base: AppData, rich: boolean, role: string)
       organizations: followerOnly ? [] : [ { id: "global-qa-org-1", name: "Metrolina Christian Academy", city: "Indian Trail", state: "NC", role: roleKey, active: true }, ...(rich ? [{ id: "global-qa-org-2", name: "Charlotte Baseball Club", role: roleKey, active: true }] : []) ],
     },
     profileTeamPins: existingFixture ? base.profileTeamPins : rich ? teams.slice(0, 2).map((team, index) => ({ id: `global-qa-pin-${index}`, profileId, teamId: team.teamId, seasonId: team.seasonId, createdAt: iso(0), updatedAt: iso(0) })) : [],
-    publicTeams,
-    publicOrganizations: rich ? [{ id: "global-qa-public-org", name: "Carolina Showcase Baseball", city: "Matthews", state: "NC", visibility: "PUBLIC", teams: publicTeams }] : [],
+    publicTeams: [...publicTeams, ...discoverTeams],
+    publicOrganizations: rich ? [{ id: "global-qa-public-org", name: "Carolina Showcase Baseball", city: "Matthews", state: "NC", visibility: "PUBLIC", teams: publicTeams }, ...discoverTeams.map(team => ({ id: team.organizationId, name: team.organizationName, city: team.id.endsWith("1") ? "Charlotte" : "Monroe", state: "NC", visibility: "PUBLIC" as const, teams: [team] }))] : [],
+    previewHomeScores: rich ? [
+      { id: "qa-score-1", teamId: teams[0].teamId, teamName: teams[0].teamName, opponent: "Charlotte Christian", ourScore: 7, opponentScore: 4, date: iso(-86400000), result: "W" },
+      { id: "qa-score-2", teamId: teams[1].teamId, teamName: teams[1].teamName, opponent: "Union Academy", ourScore: 3, opponentScore: 5, date: iso(-172800000), result: "L" },
+      { id: "qa-score-3", teamId: publicTeams[0].id, teamName: publicTeams[0].name, opponent: "Charlotte Baseball Club", ourScore: 6, opponentScore: 2, date: iso(-86400000), result: "W" },
+    ] : [],
     profileFollows: rich ? [{ id: "global-qa-follow", profileId, organizationId: "global-qa-public-org", createdAt: iso(0) }] : [],
     profileFollowExclusions: [],
     practices: rich ? [{ id: "global-qa-completed", name: "Varsity Practice", type: "Team Practice", location: "MCA Field", date: iso(-86400000).slice(0, 10), playerIds: [], hitterIds: [], pitcherIds: [], startedAt: iso(-90000000), endedAt: iso(-86400000), createdAt: iso(-90000000), updatedAt: iso(-86400000) }] : [],

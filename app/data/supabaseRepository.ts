@@ -274,6 +274,8 @@ export const supabaseAppRepository = {
   },
 
   async createTeam(input: {
+    locationId?: string;
+    organizationLocationId?: string;
     organizationId?: string;
     organizationName?: string;
     organizationCity?: string;
@@ -305,7 +307,7 @@ export const supabaseAppRepository = {
     return payload.team;
   },
 
-  async createOrganization(input: { organizationName: string; city?: string; state?: string; logoUrl?: string; visibility?: string }): Promise<OrganizationOption> {
+  async createOrganization(input: { organizationName: string; city?: string; state?: string; logoUrl?: string; visibility?: string; locationId?: string }): Promise<OrganizationOption> {
     const response = await fetch("/api/organizations/create", {
       method: "POST",
       credentials: "include",

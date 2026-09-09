@@ -29,15 +29,10 @@ export function globalHomeActivity(data: AppData, now = Date.now()) {
     for (const practice of data.practices) {
       const item = { id: `practice-${practice.id}`, title: practice.name || "Practice", team: direct, location: practice.location, view: "practice" as const };
       if (!practice.endedAt && valid(practice.startedAt)) upcoming.push({ ...item, at: practice.startedAt });
-      if (valid(practice.endedAt)) recent.push({ ...item, title: `${item.title} completed`, at: practice.endedAt });
     }
     for (const game of data.games) {
       if (!game.result && valid(game.startsAt)) upcoming.push({ id: `game-${game.id}`, title: `Game vs ${game.opponent}`, at: game.startsAt, location: game.location, team: direct, view: "games" });
-    }
-    for (const workout of data.weightRoomWorkouts ?? []) {
-      if (workout.teamId && workout.teamId !== direct.teamId) continue;
-      if (workout.seasonId && workout.seasonId !== direct.seasonId) continue;
-      if (workout.status === "COMPLETED" && valid(workout.endedAt)) recent.push({ id: `workout-${workout.id}`, title: `${workout.title} completed`, at: workout.endedAt, team: direct, view: "weights" });
+      if (game.result && Number.isFinite(game.metrolinaScore) && Number.isFinite(game.opponentScore) && valid(game.date)) recent.push({ id: `game-${game.id}`, title: `${game.metrolinaScore} - ${game.opponentScore} vs ${game.opponent}`, at: game.date, team: direct, view: "games" });
     }
   }
   for (const event of data.scheduleEvents ?? []) {

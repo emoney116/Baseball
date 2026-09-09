@@ -14,12 +14,12 @@ test("appearance is a single labeled theme-control row", () => {
   for (const [, rules] of layouts) assert.match(rules, /grid-template-columns: minmax\(0, 1fr\) auto/);
 });
 
-test("profile omits organization cards while Home retains My Organizations", () => {
+test("profile and Home omit organization cards", () => {
   const profile = page.slice(page.indexOf("function AccountProfileView("), page.indexOf("type AvatarCropState"));
   assert.doesNotMatch(profile, /My Organizations|<OrganizationCard|account-teams-card/);
   assert.match(profile, /<PlayerAccountLinksPanel/);
   const home = page.slice(page.indexOf("function ClubhouseHome("), page.indexOf("function OrganizationsView("));
-  assert.match(home, /title="My Organizations"/);
+  assert.doesNotMatch(home, /title="My Organizations"/);
 });
 
 test("account sign out is secondary below identity and team discovery", () => {
