@@ -1,6 +1,6 @@
 # Clubhouse shared locations (CLU9-54)
 
-Implementation in progress. No production migration has been applied yet.
+Implementation in progress. The four additive location migrations were applied September 9, 2026. Existing organization/team/practice/game counts stayed at 8/17/13/7.
 
 ## Ownership and retention
 
@@ -11,10 +11,10 @@ Clubhouse directory. Under the standard non-negotiated Maps Platform terms:
 | --- | --- |
 | Google Place ID | Durable provider identifier; indexed for scoped deduplication |
 | Google title, address, address components, attribution | Transient response/picker display only; no DB, localStorage, analytics or logs |
-| Google latitude/longitude | Transient in V1; not persisted or cached |
+| Google latitude/longitude | Separate private cache, expires after 29 days; expired rows purged hourly |
 | Independently entered Clubhouse name, city/state, address, metadata | Customer-owned, durable |
 | Historical Practice/Game location strings | Preserved unchanged; remain display fallback |
-| Limiter HMACs/reservations/session Place IDs | Private operational metadata; pruned after 48 hours on next reservation |
+| Limiter HMACs/reservations/session Place IDs | Private operational metadata; pruned after 48 hours hourly and on next reservation |
 
 Selecting Use Location does **not** change provider content into customer-owned
 data. Do not prefill permanent customer fields from Google responses. A customer
@@ -23,8 +23,9 @@ display. No background refresh is needed to reuse a saved customer label and Pla
 ID. The Maps link can include that Place ID without calling paid Routes/Details.
 
 Google's service-specific Places exception permits coordinates to be cached for
-up to 30 days, but V1 does not need that cache. Adding one later requires explicit
-expiry, purge and refresh semantics, not a permanent coordinate column. The
+up to 30 days. V1 now uses a separate 29-day cache for geographic bias, with an
+hourly purge at minute 17. Expired coordinates are excluded from reads. Cache refresh
+occurs only after a user-selected Details request, never merely to display a saved label. The
 Address Validation product's different storage rules do not apply to Places.
 
 ## Boundaries
