@@ -2,6 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { liveSyncDelta } from "../lib/liveSyncDelta";
+import { staffDataChanged } from "../lib/staffSyncChanges";
 
 import type {
   AppData,
@@ -269,7 +270,7 @@ export const supabaseAppRepository = {
     await syncGames(supabase, foundation, next);
     await syncScheduleEvents(supabase, foundation, next);
     await syncNotesAndGoals(supabase, foundation, next);
-    await syncStaffData(foundation, next);
+    if (staffDataChanged(previous, next)) await syncStaffData(foundation, next);
     await syncRosterImports(supabase, foundation, next.rosterImports ?? []);
   },
 
