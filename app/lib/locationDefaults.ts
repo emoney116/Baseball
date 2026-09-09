@@ -2,7 +2,7 @@ import type { createAdminClient } from "./supabase/admin";
 import type { LocationScope } from "./locationTypes.ts";
 import type { LocationSearchContext } from "./locationContext.ts";
 import { VENUE_BIAS_RADIUS } from "./locationContext.ts";
-import { authorizeLocationScope, readSavedLocations } from "./placesRepository.ts";
+import { authorizeLocationScope, readSavedLocations, readPreviousLocations } from "./placesRepository.ts";
 import { PlacesRequestError } from "./placesProtection.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
@@ -37,7 +37,9 @@ export async function locationConfiguration(admin: Admin, userId: string, scope:
     : recentIds.includes(row.id) ? "Recent" as const : row.teamId ? "Team Locations" as const : row.organizationId ? "Organization Locations" as const : "Saved Locations" as const }));
   const order = ["Team Default", "Team Locations", "Organization Locations", "Recent", "Saved Locations"];
   ranked.sort((a, b) => order.indexOf(a.group) - order.indexOf(b.group));
-  return { locations: ranked, defaultId: defaultId ?? null, inherited: !team?.data?.default_location_id, context };
+  const defaults = ranked.filter(row => row.id === defaultId);
+  const previous = (await readPreviousLocations(admin, userId)).filter(row => !defaults.some(item => item.id === row.id || (item.providerPlaceId && item.providerPlaceId === row.providerPlaceId)));
+  return { locations: [...defaults, ...previous], defaultId: defaultId ?? null, inherited: !team?.data?.default_location_id, context };
 }
 
 export async function updateLocationDefault(admin: Admin, userId: string, scope: LocationScope, locationId: string | null) {

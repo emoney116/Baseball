@@ -11,7 +11,7 @@ export type ClubhouseLocation = {
   teamId?: string;
   organizationId?: string;
   createdByProfileId: string;
-  group?: "Team Default" | "Team Locations" | "Organization Locations" | "Recent" | "Saved Locations";
+  group?: "Team Default" | "Team Locations" | "Organization Locations" | "Recent" | "Saved Locations" | "Previous Locations";
 };
 
 // Provider content is transient. Never serialize this into AppData or saved venues.

@@ -5581,19 +5581,17 @@ function ClubhouseHome({
         title={data.teamContext?.profile?.firstName ? `Welcome back, ${data.teamContext.profile.firstName}` : "Welcome back"}
         className="global-home-section-header"
       />
-      {activity.next && (
         <section className="global-section">
           <SectionHeader title="Up Next" className="global-home-section-header" />
-          <button className="global-activity-row" type="button" onClick={() => onOpenActivity(activity.next!)}>
+          {activity.next ? <button className="global-activity-row" type="button" onClick={() => onOpenActivity(activity.next!)}>
             <CalendarDays size={24} aria-hidden="true" />
             <span><strong>{activity.next.title}</strong>
               <small>{activity.next.team.teamName} · {new Date(activity.next.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small>
               {activity.next.location && <small>{activity.next.location}</small>}
             </span>
             <ChevronRight size={18} aria-hidden="true" />
-          </button>
+          </button> : <p className="muted-copy">Nothing on your schedule.</p>}
         </section>
-      )}
       <section className="global-section">
         <SectionHeader title="My Teams" className="global-home-section-header" action={
           <div className="section-header-actions global-home-section-actions">
@@ -5603,9 +5601,9 @@ function ClubhouseHome({
         {groups.pinned.length > 0 ? <div className="managed-team-grid">{groups.pinned.map(renderTeam)}</div>
           : !teams.length ? <div className="global-empty-state"><Users size={28} aria-hidden="true" /><strong>Find your team</strong><button className="secondary-button" type="button" onClick={() => onView("discover")}>Find Teams</button></div> : null}
       </section>
-      {scores.length > 0 && (
         <section className="global-section">
           <SectionHeader title="Recent Activity" className="global-home-section-header" />
+          {!scores.length && <p className="muted-copy">No recent game scores.</p>}
           <div className="global-activity-list">{scores.map((item) => (
             <button key={item.id} className="global-activity-row" type="button" onClick={() => {
               const team = teams.find(team => team.teamId === item.teamId);
@@ -5616,7 +5614,6 @@ function ClubhouseHome({
             </button>
           ))}</div>
         </section>
-      )}
       {following.length > 0 && (
         <section className="global-section">
           <SectionHeader title="Following" className="global-home-section-header" action={<button className="text-button" type="button" onClick={() => onView("following")}>View all</button>} />

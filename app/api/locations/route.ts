@@ -2,7 +2,7 @@ import { createClient } from "../../lib/supabase/server";
 import { createAdminClient } from "../../lib/supabase/admin";
 import { locationConfiguration, updateLocationDefault } from "../../lib/locationDefaults";
 import { PlacesRequestError } from "../../lib/placesProtection";
-import { saveClubhouseLocation } from "../../lib/locationSave";
+import { saveClubhouseLocation, reuseClubhouseLocation } from "../../lib/locationSave";
 
 // This route deliberately has no Google provider, limiter or credential dependency.
 export async function GET(request: Request) {
@@ -48,7 +48,9 @@ export async function POST(request: Request) {
     if (body.length > 2048) throw new PlacesRequestError(413);
     const input = JSON.parse(body);
     if (!input || typeof input !== "object") throw new PlacesRequestError(400);
-    return Response.json({ location: await saveClubhouseLocation(createAdminClient(), data.user.id, input) }, { headers });
+    return Response.json({ location: input.action === "reuse"
+      ? await reuseClubhouseLocation(createAdminClient(), data.user.id, input)
+      : await saveClubhouseLocation(createAdminClient(), data.user.id, input) }, { headers });
   } catch (error) {
     const safe = error instanceof PlacesRequestError ? error : new PlacesRequestError(503);
     return Response.json({ message: safe.message }, { headers, status: safe.status });

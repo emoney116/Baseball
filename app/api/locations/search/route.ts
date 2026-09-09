@@ -2,7 +2,7 @@ import { createClient } from "../../../lib/supabase/server";
 import { createAdminClient } from "../../../lib/supabase/admin";
 import { googlePlacesProvider } from "../../../lib/googlePlacesProvider";
 import { searchPlaces, type PlacesSearchInput } from "../../../lib/placesSearchService";
-import { authorizeLocationScope, readSavedLocations } from "../../../lib/placesRepository";
+import { authorizeLocationScope } from "../../../lib/placesRepository";
 import { locationConfiguration } from "../../../lib/locationDefaults";
 import { placesDigest, placesEnvironment, placesIpBucket, placesTelemetry, PlacesRequestError } from "../../../lib/placesProtection";
 
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     const result = await searchPlaces(input, {
       userId,
       authorize: async scope => { await authorizeLocationScope(admin, userId, scope); },
-      saved: (scope, placeId) => readSavedLocations(admin, userId, scope, placeId),
+      saved: async (_scope, placeId) => configuration.locations.filter(location => !placeId || location.providerPlaceId === placeId),
       provider: googlePlacesProvider(process.env.GOOGLE_PLACES_API_KEY),
       context: configuration.context,
       rememberCoordinates: async place => {

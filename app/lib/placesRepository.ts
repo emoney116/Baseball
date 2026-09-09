@@ -4,6 +4,23 @@ import { assertPlayerLinkTeamManager, PlayerLinkError } from "./playerAccountLin
 import { PlacesRequestError } from "./placesProtection.ts";
 
 type Admin = ReturnType<typeof createAdminClient>;
+
+export async function readPreviousLocations(admin: Admin, userId: string): Promise<ClubhouseLocation[]> {
+  const { data, error } = await admin.from("clubhouse_locations")
+    .select("id,name,city,state_region,country_code,address,provider_place_id,team_id,organization_id,created_by_profile_id")
+    .eq("created_by_profile_id", userId).order("created_at", { ascending: false }).limit(100);
+  if (error) throw new PlacesRequestError(503);
+  const seen = new Set<string>();
+  return (data ?? []).filter(row => {
+    const key = row.provider_place_id || row.id;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  }).map(row => ({ id: row.id, name: row.name, city: row.city ?? undefined,
+    stateRegion: row.state_region ?? undefined, countryCode: row.country_code ?? undefined,
+    address: row.address ?? undefined, providerPlaceId: row.provider_place_id ?? undefined,
+    teamId: row.team_id ?? undefined, organizationId: row.organization_id ?? undefined,
+    createdByProfileId: row.created_by_profile_id, group: "Previous Locations" }));
+}
 export async function authorizeLocationScope(admin: Admin, userId: string, scope: LocationScope) {
   for (const id of [scope.teamId, scope.organizationId]) {
     if (id !== undefined && (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id))) throw new PlacesRequestError(400);

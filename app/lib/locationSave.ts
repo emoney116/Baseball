@@ -18,6 +18,29 @@ export function customerLocationFields(input: LocationSaveInput) {
     country_code: text(input.countryCode, 2), address: text(input.address, 200) };
 }
 
+export async function reuseClubhouseLocation(admin: ReturnType<typeof createAdminClient>, userId: string, input: LocationScope & { locationId: string }) {
+  const scope = await authorizeLocationScope(admin, userId, input);
+  if (typeof input.locationId !== "string" || !/^[a-f0-9-]{36}$/i.test(input.locationId)) throw new PlacesRequestError(400);
+  const { data: source, error } = await admin.from("clubhouse_locations").select("*").eq("id", input.locationId).maybeSingle();
+  if (error) throw new PlacesRequestError(503);
+  const target = await readSavedLocations(admin, userId, scope, source?.provider_place_id ?? undefined);
+  const existing = target.find(row => row.id === input.locationId);
+  if (existing) return existing;
+  if (!source || source.created_by_profile_id !== userId) throw new PlacesRequestError(403);
+  const samePlace = source.provider_place_id && target.find(row => row.providerPlaceId === source.provider_place_id);
+  if (samePlace) return samePlace;
+  const { data, error: insertError } = await admin.from("clubhouse_locations").insert({
+    ...customerLocationFields({ name: source.name, city: source.city, stateRegion: source.state_region, countryCode: source.country_code, address: source.address }),
+    organization_id: scope.organizationId ?? null, team_id: scope.teamId ?? null,
+    created_by_profile_id: userId, provider_place_id: source.provider_place_id,
+  }).select("id").single();
+  if (insertError && insertError.code !== "23505") throw new PlacesRequestError(503);
+  const refreshed = await readSavedLocations(admin, userId, scope, source.provider_place_id ?? undefined);
+  const result = refreshed.find(row => row.id === data?.id || (source.provider_place_id && row.providerPlaceId === source.provider_place_id));
+  if (!result) throw new PlacesRequestError(503);
+  return result;
+}
+
 export async function saveClubhouseLocation(admin: ReturnType<typeof createAdminClient>, userId: string, input: LocationSaveInput) {
   const scope = await authorizeLocationScope(admin, userId, input);
   const fields = customerLocationFields(input);
