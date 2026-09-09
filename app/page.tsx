@@ -6078,11 +6078,7 @@ function FollowingView({
   const followedTeams = followedPublicTeams(data);
   const followedOrganizations = followedPublicOrganizations(data);
   return (
-    <div className="page-stack global-home">
-      <SectionHeader
-        className="global-primary-header"
-        title="Following"
-      />
+    <div className="page-stack global-home" role="region" aria-label="Following">
       {followedTeams.length || followedOrganizations.length ? (
         <>
           {followedTeams.length > 0 && (
@@ -6173,8 +6169,7 @@ function DiscoverView({
 
   const hasResults = organizations.length + publicOrganizations.length + teams.length + publicTeams.length > 0;
   return (
-    <div className="page-stack global-home">
-      <SectionHeader className="global-primary-header" title="Discover" />
+    <div className="page-stack global-home" role="region" aria-label="Discover">
       <label className="global-discover-search">
         <Search size={17} aria-hidden="true" />
         <input aria-label="Search teams or organizations" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search teams or organizations..." />
