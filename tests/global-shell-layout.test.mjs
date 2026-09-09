@@ -58,6 +58,14 @@ test("followed organization rows retain intrinsic height inside scroll lists", (
   assert.match(list, /align-content: start/);
 });
 
+test("global header has a circular create button and dismissible empty notifications popover", () => {
+  const banner = page.slice(page.indexOf('<header className="global-home-banner"'), page.indexOf('</header>', page.indexOf('<header className="global-home-banner"')));
+  assert.ok(banner.indexOf('popoverTarget="global-notifications"') < banner.indexOf('className="primary-button global-create-button"'));
+  assert.match(banner, /id="global-notifications" popover="auto"/);
+  assert.match(banner, /No new notifications/);
+  assert.match(css, /\.global-home-banner-actions \.global-create-button \{ border-radius: 50%; \}/);
+});
+
 test("team cards use concise season and relationship metadata", () => {
   const managed = page.slice(page.indexOf("function ManagedTeamCard("), page.indexOf("function PublicOrganizationFollowCard("));
   assert.match(managed, /const metadata = \[team.seasonName/);

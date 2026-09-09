@@ -18,7 +18,10 @@ No migrations, permission APIs, RLS, or team-workspace redesign.
   approximately 64px tall with 44px pin/follow targets; long names wrap safely.
 - Organizations are secondary. Following and Search have no page-level creation action.
 - Profile has compact identity/edit, compact appearance, and secondary Sign Out.
-- No notification bell: the current code has no notification destination/system.
+- Per subsequent user request, the header has a notification bell with an empty
+  "No new notifications" popover. This is not connected to a notification backend.
+  Bell, create, and profile use matching 32px visuals within 44px touch targets.
+  Local browser verified opening and Escape dismissal without overflow.
 - No Current/Past filter because the current model does not reliably classify it.
 
 ## Activity scope

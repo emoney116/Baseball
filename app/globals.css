@@ -5423,15 +5423,26 @@ textarea:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 52px;
-  padding: 0 4px 10px;
+  min-height: 44px;
+  padding: 0 4px 4px;
   border-bottom: 1px solid var(--line);
-  margin-bottom: 18px;
+  margin-bottom: 8px;
 }
 
-.global-home-banner-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.global-home-banner-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .global-home-banner-actions .global-create-button,
 .global-home-banner-actions .global-home-banner-profile { width: 44px; height: 44px; min-width: 44px; padding: 0; }
+.global-home-banner-actions .global-create-button { border-radius: 50%; }
+.global-home-banner-actions .global-create-button,
+.global-home-banner-actions .global-notifications-button { position: relative; background: transparent; border: 0; box-shadow: none; }
+.global-home-banner-actions .global-create-button::before,
+.global-home-banner-actions .global-notifications-button::before { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: var(--panel); border: 1px solid var(--line); }
+.global-home-banner-actions .global-create-button::before { background: var(--burgundy); border-color: var(--burgundy); }
+.global-home-banner-actions .global-create-button svg,
+.global-home-banner-actions .global-notifications-button svg { position: relative; }
+.global-home-banner-actions .global-notifications-button { display: grid; place-items: center; width: 44px; height: 44px; min-width: 44px; padding: 0; border-radius: 50%; }
+.global-notifications-panel { position: fixed; inset: 78px 16px auto auto; margin: 0; width: min(300px, calc(100vw - 32px)); padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); box-shadow: 0 8px 24px #0003; }
+.global-notifications-panel p { margin: 12px 0 0; color: var(--muted); font-size: 14px; }
 
 .global-home-banner-brand {
   display: flex;

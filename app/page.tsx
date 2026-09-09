@@ -10,6 +10,7 @@ import { buildWeightRoomPlayerProfile, firstName, formatWorkoutVolume, latestBod
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3,
+  Bell,
   Building2,
   CalendarDays,
   CalendarPlus,
@@ -3950,6 +3951,11 @@ export default function MetrolinaBaseballApp() {
               <span>{APP_NAME}</span>
             </div>
             <div className="global-home-banner-actions">
+            <button className="ghost-button global-notifications-button" type="button" popoverTarget="global-notifications" aria-label="Notifications" title="Notifications"><Bell size={20} aria-hidden="true" /></button>
+            <div id="global-notifications" popover="auto" className="global-notifications-panel" role="region" aria-label="Notifications">
+              <strong>Notifications</strong>
+              <p>No new notifications</p>
+            </div>
             {globalCreationCapabilities(data.teamContext).canCreateTeam && <button className="primary-button global-create-button" type="button" onClick={() => openTeamCreator(undefined, "existing")} aria-label="New team or organization" title="New Team/Org"><Plus size={18} aria-hidden="true" /></button>}
             <button className="global-home-banner-profile" type="button" onClick={() => goToView("account")} aria-label="Open profile" title="Profile">
               <IdentityAvatar id={data.teamContext?.profile?.id} name={profileDisplayName(data.teamContext)} src={data.teamContext?.profile?.avatarUrl} size="sm" />
