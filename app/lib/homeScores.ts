@@ -1,4 +1,4 @@
-export type HomeScore = { id: string; teamId: string; teamName: string; opponent: string; ourScore: number; opponentScore: number; date: string; result: string };
+export type HomeScore = { id: string; teamId: string; teamName: string; opponent: string; ourScore: number; opponentScore: number; date: string; result: string; location?: string };
 
 export function recentHomeScores(scores: HomeScore[], allowedTeamIds: string[], now = Date.now()) {
   const allowed = new Set(allowedTeamIds);

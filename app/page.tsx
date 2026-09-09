@@ -1,5 +1,6 @@
 "use client";
 import { ClubhouseLocationPicker } from "./components/ClubhouseLocationPicker";
+import { PublicLocalityFields } from "./components/PublicLocalityFields";
 import { LocationDefaultSettings } from "./components/LocationDefaultSettings";
 import { GlobalTeamCard } from "./components/GlobalTeamCard";
 import { globalCreationCapabilities, globalHomeActivity, homeTeamGroups, type HomeActivity } from "./lib/globalHome";
@@ -5569,7 +5570,7 @@ function ClubhouseHome({
     return () => controller.abort();
   }, [scoreKey]);
   const current = data.teamContext?.currentTeam;
-  const currentScores: HomeScore[] = current ? data.games.map(game => ({ id: game.id, teamId: current.teamId, teamName: current.teamName, opponent: game.opponent, ourScore: game.metrolinaScore, opponentScore: game.opponentScore, date: game.date, result: game.result ?? "" })) : [];
+  const currentScores: HomeScore[] = current ? data.games.map(game => ({ id: game.id, teamId: current.teamId, teamName: current.teamName, opponent: game.opponent, ourScore: game.metrolinaScore, opponentScore: game.opponentScore, date: game.date, result: game.result ?? "", location: game.location })) : [];
   const scores = recentHomeScores([...currentScores, ...hostedScores, ...(isLocalDevAuthBypass() ? data.previewHomeScores ?? [] : [])], scoreTeamIds);
   const renderTeam = (team: TeamOption) => (
     <ManagedTeamCard key={teamValue(team)} team={team} context={data.teamContext}
@@ -5613,7 +5614,7 @@ function ClubhouseHome({
                 <span className="global-score-team"><OrganizationLogo name={item.teamName} logoUrl={teams.find(team => team.teamId === item.teamId)?.logoUrl ?? followed.find(team => team.id === item.teamId)?.logoUrl} /><strong>{item.teamName}</strong></span>
                 <span className="global-score-tally">{item.ourScore} - {item.opponentScore}</span>
                 <span className="global-score-team global-score-team--opponent"><OrganizationLogo name={item.opponent} /><strong>{item.opponent}</strong></span>
-                <small className="global-score-meta">{new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}<span>Final</span></small>
+                <small className="global-score-meta"><span className="global-score-date-location"><time>{new Date(item.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</time>{item.location?.trim() && <span title={item.location}>{item.location}</span>}</span><span>Final</span></small>
               </span>
               <ChevronRight size={16} aria-hidden="true" />
             </button>
@@ -5963,6 +5964,7 @@ function TeamCreatorModal({
                   <input value={form.organizationName} onChange={(event) => setForm((current) => ({ ...current, organizationName: event.target.value }))} />
                 </label>
                 <ClubhouseLocationPicker value={orgLocation?.name} scope={{}} onChange={setOrgLocation} />
+                <PublicLocalityFields city={form.organizationCity} state={form.organizationState} onChange={value => setForm(current => ({ ...current, organizationCity: value.city, organizationState: value.state }))} />
                 <div className="form-field team-creator-span">
                   <VisibilityFieldLabel id="organization-visibility-help" />
                   <ChoiceSelect
@@ -6024,6 +6026,7 @@ function TeamCreatorModal({
                   />
                 </div>
                 <ClubhouseLocationPicker key={`${mode}-${form.organizationId || "new-team"}`} value={teamLocation?.name} scope={{ organizationId: mode === "existing" ? form.organizationId || undefined : undefined }} onChange={setTeamLocation} />
+                <PublicLocalityFields city={form.teamCity} state={form.teamState} onChange={value => setForm(current => ({ ...current, teamCity: value.city, teamState: value.state }))} />
                 {teamLocationRequired && (
                   <div className="form-field">
                     <VisibilityFieldLabel id="team-visibility-help" />

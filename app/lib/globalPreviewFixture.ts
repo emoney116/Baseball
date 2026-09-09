@@ -34,9 +34,9 @@ export function globalPreviewFixture(base: AppData, rich: boolean, role: string)
     publicTeams: [...publicTeams, ...discoverTeams],
     publicOrganizations: rich ? [{ id: "global-qa-public-org", name: "Carolina Showcase Baseball", city: "Matthews", state: "NC", visibility: "PUBLIC", teams: publicTeams }, ...discoverTeams.map(team => ({ id: team.organizationId, name: team.organizationName, city: team.id.endsWith("1") ? "Charlotte" : "Monroe", state: "NC", visibility: "PUBLIC" as const, teams: [team] }))] : [],
     previewHomeScores: rich ? [
-      { id: "qa-score-1", teamId: teams[0].teamId, teamName: teams[0].teamName, opponent: "Charlotte Christian", ourScore: 7, opponentScore: 4, date: iso(-86400000), result: "W" },
+      { id: "qa-score-1", teamId: teams[0].teamId, teamName: teams[0].teamName, opponent: "Charlotte Christian", ourScore: 7, opponentScore: 4, date: iso(-86400000), result: "W", location: "Charlotte Christian School" },
       { id: "qa-score-2", teamId: teams[1].teamId, teamName: teams[1].teamName, opponent: "Union Academy", ourScore: 3, opponentScore: 5, date: iso(-172800000), result: "L" },
-      { id: "qa-score-3", teamId: publicTeams[0].id, teamName: publicTeams[0].name, opponent: "Charlotte Baseball Club", ourScore: 6, opponentScore: 2, date: iso(-86400000), result: "W" },
+      { id: "qa-score-3", teamId: publicTeams[0].id, teamName: publicTeams[0].name, opponent: "Charlotte Baseball Club", ourScore: 6, opponentScore: 2, date: iso(-86400000), result: "W", location: "Optimist Park" },
     ] : [],
     profileFollows: rich ? [{ id: "global-qa-follow", profileId, organizationId: "global-qa-public-org", createdAt: iso(0) }] : [],
     profileFollowExclusions: [],

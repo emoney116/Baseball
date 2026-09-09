@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   for (const id of ids) {
     const team = await getPublicTeamDirectory(id);
     if (!team) continue;
-    for (const game of team.games) scores.push({ id: game.id, teamId: id, teamName: team.name, opponent: game.opponent, ourScore: game.ourScore, opponentScore: game.opponentScore, date: game.gameDate, result: game.result ?? "" });
+    for (const game of team.games) scores.push({ id: game.id, teamId: id, teamName: team.name, opponent: game.opponent, ourScore: game.ourScore, opponentScore: game.opponentScore, date: game.gameDate, result: game.result ?? "", location: game.location });
   }
   return Response.json({ scores: recentHomeScores(scores, ids) }, { headers });
 }

@@ -18,6 +18,7 @@ import {
 import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type ChangeEvent, type Dispatch, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import { LocationDefaultSettings } from "../../../components/LocationDefaultSettings";
+import { PublicLocalityFields } from "../../../components/PublicLocalityFields";
 import { ClubhouseLocationPicker } from "../../../components/ClubhouseLocationPicker";
 import type { OrgRole, OrganizationManageData, OrganizationVisibility } from "../../../lib/organizationManagement";
 
@@ -610,6 +611,7 @@ function GeneralTab({
           <input value={draft.name} onChange={(event) => onChange((current) => ({ ...current, name: event.target.value }))} />
         </label>
         <LocationDefaultSettings organizationId={organizationId} />
+        <PublicLocalityFields city={draft.city} state={draft.state} onChange={value => onChange(current => ({ ...current, ...value }))} />
       </div>
     </form>
   );
@@ -766,6 +768,7 @@ function TeamFields<T extends AddTeamDraft | TeamDraft>({
         />
       </div>
       {teamId ? <LocationDefaultSettings teamId={teamId} /> : <ClubhouseLocationPicker scope={{ organizationId }} value={draft.locationName} onChange={location => onChange(current => ({ ...current, locationId: location.id, locationName: location.name }))} />}
+      <PublicLocalityFields city={draft.teamCity} state={draft.teamState} onChange={value => onChange(current => ({ ...current, teamCity: value.city, teamState: value.state }))} />
     </div>
   );
 }
