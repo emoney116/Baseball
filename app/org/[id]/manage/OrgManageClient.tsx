@@ -211,7 +211,7 @@ export function OrgManageClient({ initialData }: { initialData: OrganizationMana
         name: generalDraft.name,
         city: generalDraft.city,
         state: generalDraft.state,
-        logoUrl: generalDraft.logoUrl || null,
+        ...(generalDraft.logoUrl !== (data.organization.logoUrl ?? "") ? { logoUrl: generalDraft.logoUrl || null } : {}),
       });
     } catch (error) {
       setStatus("error");

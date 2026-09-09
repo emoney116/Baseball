@@ -22,6 +22,11 @@ test('creation and management bind locality to existing first-party fields', () 
   assert.match(manage, /city: draft.teamCity/);
 });
 
+test('city/state-only saves do not resubmit an unchanged historical logo', () => {
+  const manage = readFileSync('app/org/[id]/manage/OrgManageClient.tsx', 'utf8');
+  assert.match(manage, /generalDraft.logoUrl !== \(data.organization.logoUrl \?\? ""\)/);
+});
+
 test('score filtering preserves optional field location without inventing one', () => {
   const game = { id: 'a', teamId: 'team', teamName: 'Team', opponent: 'Opponent', ourScore: 7, opponentScore: 4, date: '2026-09-09', result: 'W' };
   assert.equal(recentHomeScores([{ ...game, location: 'MCA Field' }], ['team'])[0].location, 'MCA Field');
