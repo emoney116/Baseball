@@ -1,0 +1,35 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { homeTeamGroups, globalHomeActivity, globalCreationCapabilities } from "../app/lib/globalHome.ts";
+const now = Date.parse("2026-09-09T12:00:00Z");
+const team = { teamId: "a", seasonId: "fall", active: true, teamName: "Varsity", organizationName: "MCA", role: "COACH" };
+const pin = { teamId: "a", seasonId: "fall" };
+const data = (extra = {}) => ({ teamContext: { profile: { id: "me" }, currentTeam: team, availableTeams: [team] }, practices: [], games: [], scheduleEvents: [], ...extra });
+const event = (extra = {}) => ({ id: "e", teamId: "a", seasonId: "fall", title: "Practice", startAt: "2026-09-09T14:00:00Z", visibility: "TEAM_ONLY", status: "Scheduled", ...extra });
+
+test("pins split Home without dropping complete My Teams input", () => {
+  const teams = [team, { ...team, teamId: "b" }];
+  const groups = homeTeamGroups(teams, [pin]);
+  assert.deepEqual(groups.pinned, [team]); assert.equal(groups.remaining[0].teamId, "b"); assert.equal(teams.length, 2);
+});
+test("unpin restores Home My Teams", () => { assert.equal(homeTeamGroups([team], []).remaining.length, 1); });
+test("pins match exact season", () => { assert.equal(homeTeamGroups([team], [{ ...pin, seasonId: "spring" }]).pinned.length, 0); });
+test("approved player contexts resolve existing canonical pins", () => { assert.equal(homeTeamGroups([{ ...team, playerContextId: "p" }], [pin]).pinned.length, 1); });
+test("foreign public pins never introduce a direct team", () => { assert.equal(homeTeamGroups([team], [{ teamId: "public" }]).pinned.length, 0); });
+test("inactive direct context is not pinned", () => { assert.equal(homeTeamGroups([{ ...team, active: false }], [pin]).pinned.length, 0); });
+test("multiple pin state survives serialization", () => { const teams = [team, { ...team, teamId: "b" }]; assert.equal(homeTeamGroups(teams, JSON.parse(JSON.stringify([pin, { ...pin, teamId: "b" }]))).pinned.length, 2); });
+test("sparse Home has no invented activity", () => { assert.deepEqual(globalHomeActivity(data(), now), { next: undefined, recent: [] }); });
+test("Up Next uses a real scheduled team event", () => { assert.equal(globalHomeActivity(data({ scheduleEvents: [event()] }), now).next.title, "Practice"); });
+for (const status of ["Completed", "Cancelled", "Postponed"]) test(`Up Next excludes ${status}`, () => { assert.equal(globalHomeActivity(data({ scheduleEvents: [event({ status })] }), now).next, undefined); });
+test("private schedule detail is never surfaced globally", () => { assert.equal(globalHomeActivity(data({ scheduleEvents: [event({ visibility: "PRIVATE" })] }), now).next, undefined); });
+test("foreign team and season events are excluded", () => { assert.equal(globalHomeActivity(data({ scheduleEvents: [event({ teamId: "foreign" }), event({ seasonId: "spring" })] }), now).next, undefined); });
+test("date-only games do not invent start times", () => { assert.equal(globalHomeActivity(data({ games: [{ id: "g", date: "2026-09-10", opponent: "Other" }] }), now).next, undefined); });
+test("invalid times and elapsed events do not appear Up Next", () => { assert.equal(globalHomeActivity(data({ scheduleEvents: [event({ startAt: "bad" }), event({ startAt: "2020-01-01" })] }), now).next, undefined); });
+test("all available schedule contexts compete chronologically", () => { const d = data({ scheduleEvents: [event(), event({ id: "other", teamId: "b", startAt: "2026-09-09T13:00:00Z" })] }); d.teamContext.availableTeams.push({ ...team, teamId: "b" }); assert.equal(globalHomeActivity(d, now).next.team.teamId, "b"); });
+test("unapproved current context cannot surface team practice data", () => { const d = data({ practices: [{ id: "p", startedAt: "2026-09-09T13:00:00Z" }] }); d.teamContext.availableTeams = []; assert.equal(globalHomeActivity(d, now).next, undefined); });
+test("completed practices form recent activity, not recently opened teams", () => { assert.equal(globalHomeActivity(data({ practices: [{ id: "p", name: "Hitting", endedAt: "2026-09-08T13:00:00Z" }] }), now).recent[0].title, "Hitting completed"); });
+test("recent activity excludes future and stale completions", () => { assert.equal(globalHomeActivity(data({ practices: [{ id: "p", endedAt: "2020-01-01" }, { id: "q", endedAt: "2027-01-01" }] }), now).recent.length, 0); });
+test("linked schedule entries replace duplicate practice previews", () => { const d = data({ practices: [{ id: "p", name: "Old time", startedAt: "2026-09-09T13:00:00Z" }], scheduleEvents: [event({ practiceId: "p" })] }); assert.equal(globalHomeActivity(d, now).next.id, "schedule-e"); });
+for (const role of ["COACH", "PLAYER", "PARENT", "FAN", "SUPER_USER"]) test(`global creation entry points preserve ${role} behavior`, () => { assert.deepEqual(globalCreationCapabilities({ profile: { id: "me", role } }), { canCreateTeam: role !== "PLAYER", canCreateOrganization: role !== "PLAYER" }); });
+test("player account with legitimate staff context retains create entry points", () => { assert.equal(globalCreationCapabilities({ profile: { id: "me", role: "PLAYER" }, availableTeams: [team] }).canCreateTeam, true); });
+test("anonymous global creation controls are absent", () => { assert.equal(globalCreationCapabilities().canCreateTeam, false); });

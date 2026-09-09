@@ -5353,7 +5353,119 @@ textarea:focus-visible {
 }
 
 .global-home {
-  gap: 18px;
+  gap: 14px;
+}
+
+.global-home { max-width: 1100px; }
+.global-team-card {
+  display: flex;
+  position: relative;
+  align-items: center;
+  min-width: 0;
+  min-height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.global-team-card__main {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 62px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.global-team-card:has(.global-team-card__action) .global-team-card__main { grid-template-columns: 40px minmax(0, 1fr) 44px 18px; }
+.global-team-card:has(.global-team-card__action) .global-team-card__main > svg { grid-column: 4; }
+.global-team-card__main > span { min-width: 0; }
+.global-team-card__main strong, .global-team-card__main small { display: block; overflow-wrap: anywhere; }
+.global-team-card__main strong { font-size: 14px; line-height: 1.3; }
+.global-team-card__main small { color: var(--muted); font-size: 12px; line-height: 1.4; margin-top: 3px; }
+.global-team-card__main .organization-logo { width: 40px; height: 40px; min-width: 40px; }
+.global-team-card__action { position: absolute; right: 38px; top: 50%; transform: translateY(-50%); }
+.global-team-card__action button { width: 44px; height: 44px; min-width: 44px; border-radius: 8px; }
+.global-home .global-create-button { min-width: 44px; min-height: 44px; border-radius: 8px; }
+.global-home .section-header .global-create-button { width: 44px; max-width: 44px; flex: 0 0 44px; padding: 0; }
+.global-home .section-header-actions { display: flex; flex: 0 0 auto; width: auto; align-items: center; gap: 8px; }
+.global-home .organization-card { align-content: start; padding: 10px; gap: 8px; }
+.global-home .organization-grid, .global-home .followed-organization-grid { align-items: start; }
+.global-home .team-chip-row { align-items: center; align-content: start; }
+.global-home .team-chip-row button { flex: 0 1 auto; height: auto; min-height: 32px; border-radius: 8px; overflow-wrap: anywhere; }
+.global-home .follow-heart { min-width: 44px; width: 44px; height: 44px; }
+.global-home .organization-team-row { grid-template-columns: minmax(0, 1fr) 44px; min-height: 52px; padding-top: 4px; padding-bottom: 4px; }
+.global-home-organizations .organization-card { padding: 10px; }
+.global-home-organizations .organization-open-button { display: none; }
+.global-empty-state { display: grid; justify-items: center; gap: 16px; padding: 40px 16px; text-align: center; }
+.global-empty-state > svg { color: var(--burgundy); }
+.global-empty-state p { margin: 0; color: var(--muted); max-width: 32ch; }
+.global-empty-state button { min-height: 44px; }
+.global-activity-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) 18px; align-items: center; gap: 10px; padding: 10px; width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); text-align: left; cursor: pointer; }
+.global-activity-row strong, .global-activity-row small { display: block; overflow-wrap: anywhere; }
+.global-activity-row small { color: var(--muted); margin-top: 4px; }
+.global-activity-list { display: grid; gap: 8px; }
+.account-grid .global-profile-identity { grid-template-columns: 48px minmax(0, 1fr); min-height: 0; align-items: center; padding: 10px; }
+.global-profile-identity .account-avatar { width: 48px; height: 48px; min-width: 48px; min-height: 48px; }
+.global-profile-identity .account-profile-main { gap: 2px; }
+.global-profile-identity .profile-line p { margin: 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.global-profile-identity .profile-save-row:empty { display: none; }
+.global-sign-out { padding: 12px 0; }
+.global-sign-out button { min-height: 44px; }
+
+.global-home-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 4px 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
+}
+
+.global-home-banner-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.global-home-banner-actions .global-create-button,
+.global-home-banner-actions .global-home-banner-profile { width: 44px; height: 44px; min-width: 44px; padding: 0; }
+
+.global-home-banner-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.global-home-banner-brand img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.global-home-banner-profile {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.global-home-banner-profile:focus-visible {
+  outline: 2px solid var(--burgundy);
+  outline-offset: 2px;
 }
 
 .global-title-row {
@@ -5643,6 +5755,8 @@ textarea:focus-visible {
   max-height: 176px;
   overflow: auto;
   display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
   gap: 6px;
   padding-right: 2px;
 }
@@ -32430,16 +32544,6 @@ textarea:focus,
   align-items: center;
 }
 
-.account-appearance-setting > div {
-  display: grid;
-  gap: 3px;
-}
-
-.account-appearance-setting small {
-  color: var(--muted);
-  font-weight: 750;
-}
-
 @media (max-width: 720px) {
   .segmented-control,
   .practice-filter-tabs,
@@ -32499,22 +32603,23 @@ textarea:focus,
   }
 
   .account-appearance-setting {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
   }
 
   .account-appearance-setting .segmented-control {
     display: grid;
-    grid-template-columns: repeat(2, minmax(78px, 1fr));
+    grid-template-columns: repeat(2, minmax(60px, 1fr));
     width: fit-content;
-    min-width: 168px;
+    min-width: 132px;
     max-width: 100%;
-    justify-self: start;
+    justify-self: end;
     overflow: hidden;
   }
 
   .account-appearance-setting .segmented-control button {
     flex: initial;
-    min-width: 78px;
+    min-width: 60px;
     min-height: 34px;
     padding-inline: 10px;
   }
@@ -36990,6 +37095,35 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
   display: grid;
   gap: 2px;
   min-width: 0;
+}
+
+.account-profile-header.section-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.account-profile-header > div:first-child {
+  min-width: 0;
+}
+
+.account-profile-header .section-header__title-row {
+  flex-wrap: nowrap;
+}
+
+.account-profile-header .profile-affiliation-avatars {
+  overflow: hidden;
+}
+
+.account-profile-header .profile-header-actions {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.account-profile-header .profile-header-actions button {
+  white-space: nowrap;
 }
 
 .player-link-confirmation small {

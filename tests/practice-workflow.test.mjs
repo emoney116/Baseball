@@ -73,7 +73,7 @@ const page = ["app/page.tsx", "app/components/TeamWorkspaceViews.tsx", "app/comp
   assert.match(layout, /export const viewport/);
   assert.match(layout, /width: "device-width"/);
   assert.match(layout, /viewportFit: "cover"/);
-  assert.match(page, /const showMobilePinned = !inTeamContext && pinnedTeams\.length > 0/);
+  assert.match(page, /const showMobilePinned = false/);
   assert.match(page, /\{ key: "teamHome", label: "Team Home", shortLabel: "Home"/);
   assert.match(page, /aria-label=\{label\}/);
   assert.match(page, /aria-current=\{view === key \? "page" : undefined\}/);
@@ -86,7 +86,7 @@ const page = ["app/page.tsx", "app/components/TeamWorkspaceViews.tsx", "app/comp
   assert.match(page, /<span>Pinned<\/span>/);
   assert.match(page, /aria-label="Pinned teams"/);
   assert.match(page, /onTheme=\{setThemePreference\}/);
-  assert.match(page, /<h2>Appearance<\/h2>/);
+  assert.match(page, /<strong>Appearance<\/strong>/);
   assert.match(page, /Log Swing/);
   assert.doesNotMatch(page, /What happened\?/);
   assert.doesNotMatch(page, /Foul and Miss save immediately/);

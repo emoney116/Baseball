@@ -1,4 +1,6 @@
 "use client";
+import { GlobalTeamCard } from "./components/GlobalTeamCard";
+import { globalCreationCapabilities, globalHomeActivity, homeTeamGroups, type HomeActivity } from "./lib/globalHome";
 import { PracticeResultChoices } from "./components/PracticeResultChoices";
 import { displayWorkspaceTeams, OrganizationLogo, organizationSummariesFromContext, OrganizationSummary, roleLabel, teamContextRole, teamOrganizationLogo, teamValue, TeamWorkspaceHeader } from "./components/TeamContextHeader";
 import { ActiveWorkoutCell, ActiveWorkoutStation, buildRecentWeightRoomWorkouts, formatInchesValue, formatSecondsValue, formatWeightRoomSessionMeta, formatWorkoutEntryValue, formatWorkoutEntryValueForStation, optionalNumber, PracticeHistoryTab, practiceTotals, stationAttemptLabel, TRACKING_VELOCITY_MAX_MPH, TRACKING_VELOCITY_MIN_MPH, uniqueStrings, VelocityPickerField, WeightRoomExercise, WeightRoomExerciseCategory, WeightRoomInlineSetCell, weightRoomMeasurementLabel, WeightRoomRecentWorkouts, WeightRoomWorkoutStatus, WeightRoomWorkoutSummary, WorkoutMeasurementType, WorkoutPerformanceDirection, WorkoutTargetStyle } from "./components/TeamTrainingViews";
@@ -25,7 +27,6 @@ import {
   Heart,
   Home,
   Info,
-  Lock,
   LogOut,
   Mail,
   MapPin,
@@ -797,7 +798,13 @@ function withLocalPreviewContext(data: AppData): AppData {
 
 async function loadLocalPreviewData() {
   const { localPracticeRepository: localRepo } = await import("./data/repository");
-  return withLocalPreviewContext(localRepo.load());
+  const data = withLocalPreviewContext(localRepo.load());
+  const query = new URLSearchParams(window.location.search);
+  if (query.has("globalFixture")) {
+    const { globalPreviewFixture } = await import("./lib/globalPreviewFixture");
+    return globalPreviewFixture(data, query.get("globalFixture") === "rich", query.get("globalRole") ?? "coach");
+  }
+  return data;
 }
 
 async function saveLocalPreviewData(data: AppData) {
@@ -841,6 +848,7 @@ const ROUTABLE_VIEWS = new Set<ViewKey>([
   ...GLOBAL_NAV_ITEMS.map((item) => item.key),
   ...TEAM_NAV_ITEMS.map((item) => item.key),
   "organizations",
+  "teams",
   "profile",
   "account",
 ]);
@@ -2238,10 +2246,6 @@ export default function MetrolinaBaseballApp() {
     window.location.href = `/org/${organization.slug ?? organization.id}`;
   }
 
-  function openOrganizationManagement(organization: OrganizationSummary) {
-    window.location.href = `/org/${organization.slug ?? organization.id}/manage`;
-  }
-
   function openPublicTeam(team: PublicDirectoryTeamSummary) {
     window.location.href = `/team/${team.id}`;
   }
@@ -2303,14 +2307,18 @@ export default function MetrolinaBaseballApp() {
     setSaveStatus("saving");
     setSaveError(null);
     try {
-      const result = await supabaseAppRepository.toggleTeamPin({ teamId: team.teamId, seasonId: team.seasonId, pin: shouldPin });
+      const result = isLocalDevAuthBypass()
+        ? shouldPin ? { id: crypto.randomUUID(), profileId: data!.teamContext!.profile!.id, teamId: team.teamId, seasonId: team.seasonId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : undefined
+        : await supabaseAppRepository.toggleTeamPin({ teamId: team.teamId, seasonId: team.seasonId, pin: shouldPin });
       setData((current) => {
         if (!current) return current;
         const remaining = (current.profileTeamPins ?? []).filter((pin) => !profileTeamPinMatchesTeam(pin, team));
-        return {
+        const next = {
           ...current,
           profileTeamPins: shouldPin && result ? [result, ...remaining] : remaining,
         };
+        if (isLocalDevAuthBypass()) void saveLocalPreviewData(next);
+        return next;
       });
       setSaveStatus("saved");
     } catch (error) {
@@ -3855,7 +3863,7 @@ export default function MetrolinaBaseballApp() {
   const inTeamContext = searchInTeamContext;
   const sidebarItems = inTeamContext ? TEAM_NAV_ITEMS : GLOBAL_NAV_ITEMS;
   const mobileItems = inTeamContext ? TEAM_MOBILE_NAV_ITEMS : MOBILE_NAV_ITEMS;
-  const showMobilePinned = !inTeamContext && pinnedTeams.length > 0;
+  const showMobilePinned = false;
   const mobileNavCount = mobileItems.length + (showMobilePinned ? 1 : 0);
   const mobilePrimaryItems = mobileItems.filter((item) => item.key !== "more") as Array<{ key: ViewKey; label: string; shortLabel: string; icon: AppIcon }>;
   const mobileMoreItem = mobileItems.find((item) => item.key === "more");
@@ -3935,6 +3943,21 @@ export default function MetrolinaBaseballApp() {
 
         <SyncStatusBanner status={saveStatus} error={saveError} />
 
+        {!inTeamContext && (
+          <header className="global-home-banner" aria-label="Clubhouse">
+            <div className="global-home-banner-brand">
+              <img className="brand-mark-image" src={BRAND_ASSETS.mark} alt="" width={28} height={28} />
+              <span>{APP_NAME}</span>
+            </div>
+            <div className="global-home-banner-actions">
+            {globalCreationCapabilities(data.teamContext).canCreateTeam && <button className="primary-button global-create-button" type="button" onClick={() => openTeamCreator(undefined, "existing")} aria-label="New team or organization" title="New Team/Org"><Plus size={18} aria-hidden="true" /></button>}
+            <button className="global-home-banner-profile" type="button" onClick={() => goToView("account")} aria-label="Open profile" title="Profile">
+              <IdentityAvatar id={data.teamContext?.profile?.id} name={profileDisplayName(data.teamContext)} src={data.teamContext?.profile?.avatarUrl} size="sm" />
+            </button>
+            </div>
+          </header>
+        )}
+
         {inTeamContext && (
           <TeamWorkspaceHeader
             context={data.teamContext}
@@ -3956,8 +3979,14 @@ export default function MetrolinaBaseballApp() {
               onTogglePublicTeamFollow={togglePublicTeamFollow}
               onToggleTeamPin={toggleTeamPin}
               onView={goToView}
-              onCreateTeam={() => openTeamCreator(undefined, "existing")}
               onAsk={() => openAskClubhouse("clubhouse_home")}
+              onOpenActivity={(activity) => {
+                const query = new URLSearchParams({ team: activity.team.teamId, view: activity.view });
+                if (activity.team.seasonId) query.set("season", activity.team.seasonId);
+                if (activity.team.playerContextId) { query.set("player", activity.team.playerContextId); query.set("workspace", "player"); }
+                if (isLocalDevAuthBypass()) query.set("devBypass", "1");
+                window.location.assign(`/?${query}`);
+              }}
             />
         )}
 
@@ -3985,7 +4014,7 @@ export default function MetrolinaBaseballApp() {
             onOpenPublicOrganization={openPublicOrganization}
             onTogglePublicTeamFollow={togglePublicTeamFollow}
             onTogglePublicOrganizationFollow={togglePublicOrganizationFollow}
-            onCreateTeam={() => openTeamCreator(undefined, "existing")}
+            onFindTeams={() => goToView("discover")}
           />
         )}
 
@@ -3996,7 +4025,6 @@ export default function MetrolinaBaseballApp() {
             onOpenPublicTeam={openPublicTeam}
             onOpenPublicOrganization={openPublicOrganization}
             onTogglePublicTeamFollow={togglePublicTeamFollow}
-            onCreateTeam={() => openTeamCreator(undefined, "existing")}
           />
         )}
 
@@ -4293,9 +4321,6 @@ export default function MetrolinaBaseballApp() {
           <AccountProfileView
             context={data.teamContext}
             theme={data.settings.theme}
-            onEnterTeam={enterTeam}
-            onManageOrganization={openOrganizationManagement}
-            onCreateOrganization={() => openTeamCreator(undefined, "organization")}
             onSignOut={signOut}
             onSave={saveAccountProfile}
             onTheme={setThemePreference}
@@ -5059,18 +5084,12 @@ function MobilePinnedMenu({
 function AccountProfileView({
   context,
   theme,
-  onEnterTeam,
-  onManageOrganization,
-  onCreateOrganization,
   onSignOut,
   onSave,
   onTheme,
 }: {
   context?: TeamContext;
   theme: ThemePreference;
-  onEnterTeam: (team: TeamOption) => void | Promise<void>;
-  onManageOrganization: (organization: OrganizationSummary) => void;
-  onCreateOrganization: () => void;
   onSignOut: () => void | Promise<void>;
   onSave: (input: { firstName?: string; lastName?: string; displayName?: string; avatarUrl?: string }) => Promise<void>;
   onTheme: (theme: ThemePreference) => void;
@@ -5193,24 +5212,17 @@ function AccountProfileView({
     <div className="page-stack">
       <SectionHeader
         title="My Profile"
+        className="account-profile-header"
         titleAdornment={<ProfileAffiliationAvatars context={context} />}
-        action={
-          <div className="profile-header-actions">
-            <button className="secondary-button" type="button" onClick={() => void onSignOut()}>
-              <LogOut size={16} aria-hidden="true" />
-              Sign Out
-            </button>
-          </div>
-        }
       />
       <section className="account-grid">
-        <article className="panel account-card account-card--editable">
+        <article className="panel account-card account-card--editable global-profile-identity">
           <IdentityAvatar
             as="label"
             id={profile?.id ?? emailValue}
             name={displayValue}
             src={avatarUrl}
-            size="xl"
+            size="sm"
             className="account-avatar account-avatar--editable"
             ariaLabel="Change profile photo"
             decorative={false}
@@ -5218,7 +5230,7 @@ function AccountProfileView({
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} />
           </IdentityAvatar>
           <div className="account-profile-main">
-            <div className="profile-line">
+            {(editingDisplayName || editingName) && <div className="profile-line">
               <span>Name</span>
               {editingName ? (
                 <div className="profile-name-editor">
@@ -5248,9 +5260,9 @@ function AccountProfileView({
                   )}
                 </div>
               )}
-            </div>
+            </div>}
             <div className="profile-line">
-              <span>Display name</span>
+              {editingDisplayName && <span>Display name</span>}
               <div className="profile-display-row">
                 {editingDisplayName ? (
                   <input
@@ -5273,14 +5285,13 @@ function AccountProfileView({
                     {status === "saving" ? "Saving..." : "Save"}
                   </button>
                 ) : (
-                  <button className="icon-button profile-edit-button" type="button" aria-label="Edit display name" onClick={() => setEditingDisplayName(true)}>
+                  <button className="icon-button profile-edit-button" type="button" aria-label="Edit profile name" onClick={() => { setEditingDisplayName(true); setEditingName(true); }}>
                     <Edit3 size={13} aria-hidden="true" />
                   </button>
                 )}
               </div>
             </div>
             <div className="profile-line">
-              <span>Email</span>
               <p>{emailValue}</p>
             </div>
           </div>
@@ -5289,40 +5300,16 @@ function AccountProfileView({
           </div>
         </article>
         <article className="panel account-settings-card">
-          <div className="panel-heading tight">
-            <div>
-              <span>Settings</span>
-              <h2>Appearance</h2>
-            </div>
-          </div>
           <div className="account-appearance-setting">
-            <div>
-              <strong>Theme</strong>
-              <small>Used everywhere you sign in on this device.</small>
-            </div>
+            <strong>Appearance</strong>
             <SegmentedControl values={["light", "dark"] as ThemePreference[]} active={theme} onChange={onTheme} />
-          </div>
-        </article>
-        <article className="panel account-teams-card">
-          <div className="panel-heading tight">
-            <div><h2>Your Organizations</h2></div>
-            <button className="icon-button account-create-button" type="button" onClick={onCreateOrganization} aria-label="Create organization">
-              <Plus size={16} aria-hidden="true" />
-            </button>
-          </div>
-          <div className="organization-team-grid organization-team-grid--summary">
-            {organizationSummariesFromContext(context).length ? organizationSummariesFromContext(context).map((organization) => (
-              <ManagedOrganizationTeamCard
-                key={organization.id}
-                organization={organization}
-                onEnterTeam={onEnterTeam}
-                onOpenOrganization={onManageOrganization}
-              />
-            )) : <CompactEmpty title="No organizations yet" />}
           </div>
         </article>
         <PlayerAccountLinksPanel />
         <DemoDataQaPanel />
+        <div className="global-sign-out">
+          <button className="secondary-button" type="button" onClick={() => void onSignOut()}><LogOut size={16} aria-hidden="true" />Sign Out</button>
+        </div>
       </section>
       {cropState && (
         <AvatarCropModal
@@ -5538,15 +5525,8 @@ function PinnedTeamShortcuts({
 }
 
 function ClubhouseHome({
-  data,
-  onEnterTeam,
-  onOpenPublicTeam,
-  onOpenManagedOrganization,
-  onTogglePublicTeamFollow,
-  onToggleTeamPin,
-  onView,
-  onCreateTeam,
-  onAsk,
+  data, onEnterTeam, onOpenPublicTeam, onOpenManagedOrganization,
+  onTogglePublicTeamFollow, onToggleTeamPin, onView, onAsk, onOpenActivity,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
@@ -5555,98 +5535,67 @@ function ClubhouseHome({
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onToggleTeamPin: (team: TeamOption) => void | Promise<void>;
   onView: (view: ViewKey) => void;
-  onCreateTeam: () => void;
   onAsk: () => void;
+  onOpenActivity: (activity: HomeActivity) => void;
 }) {
   const teams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
   const organizations = organizationSummariesFromContext(data.teamContext);
-  const recentTeam = teams.find((team) => teamValue(team) === teamValue(data.teamContext?.currentTeam)) ?? teams[0];
-
+  const groups = homeTeamGroups(teams, data.profileTeamPins);
+  const activity = globalHomeActivity(data);
+  const following = followedPublicTeams(data).slice(0, 3);
+  const renderTeam = (team: TeamOption) => (
+    <ManagedTeamCard key={teamValue(team)} team={team} context={data.teamContext}
+      pinnedTeams={data.profileTeamPins} onEnterTeam={onEnterTeam} onTogglePinnedTeam={onToggleTeamPin} />
+  );
   return (
     <div className="page-stack global-home">
       <AskClubhouseFab onClick={onAsk} />
-
+      {activity.next && (
+        <section className="global-section">
+          <SectionHeader title="Up Next" className="global-home-section-header" />
+          <button className="global-activity-row" type="button" onClick={() => onOpenActivity(activity.next!)}>
+            <CalendarDays size={24} aria-hidden="true" />
+            <span><strong>{activity.next.title}</strong>
+              <small>{activity.next.team.teamName} · {new Date(activity.next.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small>
+              {activity.next.location && <small>{activity.next.location}</small>}
+            </span>
+            <ChevronRight size={18} aria-hidden="true" />
+          </button>
+        </section>
+      )}
       <section className="global-section">
-        <SectionHeader
-          className="global-home-section-header"
-          title="My Organizations"
-          action={
-            <div className="section-header-actions global-home-section-actions">
-              <button className="text-button" type="button" onClick={() => onView("organizations")}>View all</button>
-              <button className="primary-button global-create-button global-home-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
-                <Plus size={14} aria-hidden="true" />
-              </button>
-            </div>
-          }
-        />
-        <div className="organization-grid">
-          {organizations.length ? organizations.map((organization) => (
-            <OrganizationCard
-              key={organization.id}
-              organization={organization}
-              onEnterTeam={onEnterTeam}
-              onOpenOrganization={onOpenManagedOrganization}
-            />
-          )) : <CompactEmpty title="No organizations yet" />}
-        </div>
-      </section>
-
-      <section className="global-section">
-        <SectionHeader
-          className="global-home-section-header"
-          title="My Teams"
-          action={
-            <div className="section-header-actions global-home-section-actions">
-              <button className="text-button" type="button" onClick={() => onView("following")}>View all</button>
-              <button className="primary-button global-create-button global-home-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
-                <Plus size={14} aria-hidden="true" />
-              </button>
-            </div>
-          }
-        />
-        <div className="managed-team-grid">
-          {teams.length ? teams.slice(0, 6).map((team) => (
-            <ManagedTeamCard
-              key={teamValue(team)}
-              team={team}
-              context={data.teamContext}
-              pinnedTeams={data.profileTeamPins}
-              onEnterTeam={onEnterTeam}
-              onTogglePinnedTeam={onToggleTeamPin}
-            />
-          )) : <CompactEmpty title="No teams yet" />}
-        </div>
-      </section>
-
-      <section className="global-two-column global-home-secondary">
-        <article className="home-inline-section">
-          <div className="home-inline-section__heading">
-            <div><h2>Following</h2></div>
-            <button className="text-button" type="button" onClick={() => onView("following")}>Manage</button>
+        <SectionHeader title="My Teams" className="global-home-section-header" action={
+          <div className="section-header-actions global-home-section-actions">
+            <button className="text-button" type="button" onClick={() => onView("teams")}>View all</button>
           </div>
-          <FollowSummary
-            data={data}
-            onOpenPublicTeam={onOpenPublicTeam}
-            onTogglePublicTeamFollow={onTogglePublicTeamFollow}
-          />
-        </article>
-        <article className="home-inline-section">
-          <div className="home-inline-section__heading">
-            <div><h2>Recent</h2></div>
-            <button className="text-button" type="button" onClick={() => onView("discover")}>Search</button>
-          </div>
-          {recentTeam ? (
-            <button className="recent-team-row" type="button" onClick={() => void onEnterTeam(recentTeam)}>
-              <OrganizationLogo name={recentTeam.organizationName} />
-              <span>
-                <strong>{recentTeam.teamName}</strong>
-                <small>{recentTeam.seasonName ?? "Current season"} - {roleLabel(recentTeam.role)}</small>
-              </span>
-              <ChevronRight size={16} aria-hidden="true" />
+        } />
+        {groups.pinned.length > 0 ? <div className="managed-team-grid">{groups.pinned.map(renderTeam)}</div>
+          : !teams.length ? <div className="global-empty-state"><Users size={28} aria-hidden="true" /><strong>Find your team</strong><button className="secondary-button" type="button" onClick={() => onView("discover")}>Find Teams</button></div> : null}
+      </section>
+      {organizations.length > 0 && (
+        <section className="global-section global-home-organizations">
+          <SectionHeader title="My Organizations" className="global-home-section-header" action={<button className="text-button" type="button" onClick={() => onView("organizations")}>View all</button>} />
+          <div className="organization-grid">{organizations.slice(0, 3).map((organization) => (
+            <OrganizationCard key={organization.id} organization={organization} onEnterTeam={onEnterTeam} onOpenOrganization={onOpenManagedOrganization} />
+          ))}</div>
+        </section>
+      )}
+      {activity.recent.length > 0 && (
+        <section className="global-section">
+          <SectionHeader title="Recent Activity" className="global-home-section-header" />
+          <div className="global-activity-list">{activity.recent.map((item) => (
+            <button key={item.id} className="global-activity-row" type="button" onClick={() => onOpenActivity(item)}>
+              <Check size={20} aria-hidden="true" /><span><strong>{item.title}</strong><small>{item.team.teamName} · {new Date(item.at).toLocaleDateString()}</small></span><ChevronRight size={18} aria-hidden="true" />
             </button>
-          ) : <CompactEmpty title="No recent teams" />}
-        </article>
-      </section>
+          ))}</div>
+        </section>
+      )}
+      {following.length > 0 && (
+        <section className="global-section">
+          <SectionHeader title="Following" className="global-home-section-header" action={<button className="text-button" type="button" onClick={() => onView("following")}>View all</button>} />
+          <div className="followed-team-grid">{following.map((team) => <PublicTeamFollowCard key={team.id} team={team} followed onOpenTeam={onOpenPublicTeam} onToggleFollow={onTogglePublicTeamFollow} />)}</div>
+        </section>
+      )}
     </div>
   );
 }
@@ -5667,7 +5616,7 @@ function OrganizationsView({
         className="global-primary-header"
         title="Organizations"
         action={
-          <button className="primary-button global-create-button" type="button" onClick={() => onCreateTeam(undefined, "organization")} aria-label="New team or organization" title="New Team/Org">
+          globalCreationCapabilities(data.teamContext).canCreateOrganization && <button className="primary-button global-create-button" type="button" onClick={() => onCreateTeam(undefined, "organization")} aria-label="New team or organization" title="New Team/Org">
             <Plus size={16} aria-hidden="true" />
           </button>
         }
@@ -5702,8 +5651,9 @@ function MyTeamsView({
     <div className="page-stack global-home">
       <SectionHeader
         title="My Teams"
+        className="global-primary-header"
         action={
-          <button className="primary-button global-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
+          globalCreationCapabilities(data.teamContext).canCreateTeam && <button className="primary-button global-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
             <Plus size={16} aria-hidden="true" />
           </button>
         }
@@ -6118,14 +6068,14 @@ function FollowingView({
   onOpenPublicOrganization,
   onTogglePublicTeamFollow,
   onTogglePublicOrganizationFollow,
-  onCreateTeam,
+  onFindTeams,
 }: {
   data: AppData;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
   onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
   onTogglePublicOrganizationFollow: (organization: PublicDirectoryOrganizationSummary) => void | Promise<void>;
-  onCreateTeam: () => void;
+  onFindTeams: () => void;
 }) {
   const followedTeams = followedPublicTeams(data);
   const followedOrganizations = followedPublicOrganizations(data);
@@ -6134,11 +6084,6 @@ function FollowingView({
       <SectionHeader
         className="global-primary-header"
         title="Following"
-        action={
-          <button className="primary-button global-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
-            <Plus size={16} aria-hidden="true" />
-          </button>
-        }
       />
       {followedTeams.length || followedOrganizations.length ? (
         <>
@@ -6179,7 +6124,12 @@ function FollowingView({
           )}
         </>
       ) : (
-        <CompactEmpty title="No followed teams yet" action={<span className="muted-copy">Public team discovery is ready for visibility-controlled teams.</span>} />
+        <div className="global-empty-state">
+          <Star size={36} aria-hidden="true" />
+          <strong>Follow teams you care about</strong>
+          <p>Keep up with schedules and scores from teams you follow.</p>
+          <button className="primary-button" type="button" onClick={onFindTeams}>Find Teams</button>
+        </div>
       )}
     </div>
   );
@@ -6191,14 +6141,12 @@ function DiscoverView({
   onOpenPublicTeam,
   onOpenPublicOrganization,
   onTogglePublicTeamFollow,
-  onCreateTeam,
 }: {
   data: AppData;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
   onOpenPublicOrganization: (organization: PublicDirectoryOrganizationSummary) => void;
   onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
-  onCreateTeam: () => void;
 }) {
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
@@ -6222,59 +6170,31 @@ function DiscoverView({
       managedOrganizationKeys.has(organization.name.trim().toLowerCase());
     return !duplicateManagedOrganization && (!needle || publicOrganizationSearchText(organization).includes(needle));
   });
-  const publicTeams = (data.publicTeams ?? []).filter((team) => !needle || publicTeamSearchText(team).includes(needle));
+  const publicTeams = (data.publicTeams ?? []).filter((team) => !visibleTeams.some((direct) => direct.teamId === team.id) && (!needle || publicTeamSearchText(team).includes(needle)));
 
+  const hasResults = organizations.length + publicOrganizations.length + teams.length + publicTeams.length > 0;
   return (
     <div className="page-stack global-home">
-      <SectionHeader
-        className="global-primary-header"
-        title="Discover"
-        action={
-          <button className="primary-button global-create-button" type="button" onClick={onCreateTeam} aria-label="New team or organization" title="New Team/Org">
-            <Plus size={16} aria-hidden="true" />
-          </button>
-        }
-      />
+      <SectionHeader className="global-primary-header" title="Discover" />
       <label className="global-discover-search">
         <Search size={17} aria-hidden="true" />
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search teams or organizations..." />
+        <input aria-label="Search teams or organizations" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search teams or organizations..." />
       </label>
-      <section className="discover-grid discover-grid--two">
-        <article className="panel compact-panel">
-          <div className="panel-heading tight"><div><h2>Organizations</h2></div></div>
-          <div className="compact-list">
-            {organizations.length ? organizations.map((organization) => (
-              <OrganizationMiniRow key={organization.id} organization={organization} onEnterTeam={onEnterTeam} />
-            )) : null}
-            {publicOrganizations.length ? publicOrganizations.map((organization) => (
-              <PublicOrganizationMiniRow
-                key={organization.id}
-                organization={organization}
-                onOpenOrganization={onOpenPublicOrganization}
-              />
-            )) : null}
-            {!organizations.length && !publicOrganizations.length && <CompactEmpty title="No organizations found" />}
-          </div>
-        </article>
-        <article className="panel compact-panel">
-          <div className="panel-heading tight"><div><h2>Teams</h2></div></div>
-          <div className="compact-list">
-            {teams.length ? teams.map((team) => (
-              <TeamMiniRow key={teamValue(team)} team={team} onEnterTeam={onEnterTeam} />
-            )) : null}
-            {publicTeams.length ? publicTeams.map((team) => (
-              <PublicTeamMiniRow
-                key={team.id}
-                team={team}
-                followed={isFollowingTeam(data.profileFollows ?? [], team.id)}
-                onOpenTeam={onOpenPublicTeam}
-                onToggleFollow={onTogglePublicTeamFollow}
-              />
-            )) : null}
-            {!teams.length && !publicTeams.length && <CompactEmpty title="No teams found" />}
-          </div>
-        </article>
-      </section>
+      {!hasResults && <p className="muted-copy" role="status">No teams or organizations found.</p>}
+      {(organizations.length > 0 || publicOrganizations.length > 0) && <section className="global-section">
+        <SectionHeader title="Organizations" className="global-home-section-header" />
+        <div className="organization-grid">
+          {organizations.map((organization) => <OrganizationCard key={organization.id} organization={organization} onEnterTeam={onEnterTeam} />)}
+          {publicOrganizations.map((organization) => <PublicOrganizationMiniRow key={organization.id} organization={organization} onOpenOrganization={onOpenPublicOrganization} />)}
+        </div>
+      </section>}
+      {(teams.length > 0 || publicTeams.length > 0) && <section className="global-section">
+        <SectionHeader title="Teams" className="global-home-section-header" />
+        <div className="managed-team-grid">
+          {teams.map((team) => <TeamMiniRow key={teamValue(team)} team={team} onEnterTeam={onEnterTeam} />)}
+          {publicTeams.map((team) => <PublicTeamMiniRow key={team.id} team={team} followed={isFollowingTeam(data.profileFollows ?? [], team.id)} onOpenTeam={onOpenPublicTeam} onToggleFollow={onTogglePublicTeamFollow} />)}
+        </div>
+      </section>}
     </div>
   );
 }
@@ -6316,7 +6236,7 @@ function OrganizationCard({
         <div className="team-chip-row">
           {visibleChips.map((team) => (
             <button key={teamValue(team)} type="button" onClick={() => void onEnterTeam(team)}>
-              {team.teamLevel ?? shortTeamName(team.teamName)}
+              {team.teamLevel && !["other", "program"].includes(team.teamLevel.toLowerCase()) && organization.teams.filter((item) => item.teamLevel === team.teamLevel).length === 1 ? team.teamLevel : team.teamName.replace(/^Metrolina\s+/i, "")}
             </button>
           ))}
           {extraTeams > 0 && <span>+{extraTeams} more</span>}
@@ -6353,92 +6273,16 @@ function ManagedTeamCard({
   onTogglePinnedTeam?: (team: TeamOption) => void | Promise<void>;
 }) {
   const pinned = isPinnedTeam(pinnedTeams, team);
-  const metadata = [team.organizationName, team.seasonName ?? "Current season", teamContextRole(team)].filter(Boolean).join(" - ");
-  return (
-    <article className="panel managed-team-card">
-      <button className="managed-team-card__main" type="button" onClick={() => void onEnterTeam(team)}>
-        <OrganizationLogo name={team.organizationName} logoUrl={team.logoUrl ?? teamOrganizationLogo(team, context)} />
-        <span>
-          <strong>{team.teamName}</strong>
-          <small>{metadata}</small>
-        </span>
-      </button>
-      {onTogglePinnedTeam && (
-        <button
-          className={`pin-team-button${pinned ? " pin-team-button--active" : ""}`}
-          type="button"
-          aria-label={pinned ? `Unpin ${team.teamName}` : `Pin ${team.teamName}`}
-          title={pinned ? "Pinned to sidebar" : "Pin to sidebar"}
-          onClick={() => void onTogglePinnedTeam(team)}
-        >
-          <Pin size={14} aria-hidden="true" />
-        </button>
-      )}
-      <ChevronRight className="managed-team-card__chevron" size={18} aria-hidden="true" />
-    </article>
-  );
+  const metadata = [team.seasonName ?? "Current season", team.playerContextId ? "Player" : roleLabel(team.role)].join(" · ");
+  return <GlobalTeamCard name={team.teamName} subtitle={metadata}
+    logo={<OrganizationLogo name={team.organizationName} logoUrl={team.logoUrl ?? teamOrganizationLogo(team, context)} />}
+    onOpen={() => void onEnterTeam(team)}
+    action={onTogglePinnedTeam && <button className={`pin-team-button${pinned ? " pin-team-button--active" : ""}`}
+      type="button" aria-label={`${pinned ? "Unpin" : "Pin"} ${team.teamName}`} aria-pressed={pinned}
+      title={pinned ? "Unpin from Home" : "Pin to Home"} onClick={() => void onTogglePinnedTeam(team)}><Pin size={16} aria-hidden="true" /></button>}
+  />;
 }
 
-function ManagedOrganizationTeamCard({
-  organization,
-  onEnterTeam,
-  onOpenOrganization,
-  pinnedTeams,
-  onTogglePinnedTeam,
-}: {
-  organization: OrganizationSummary;
-  onEnterTeam: (team: TeamOption) => void | Promise<void>;
-  onOpenOrganization?: (organization: OrganizationSummary) => void;
-  pinnedTeams?: ProfileTeamPin[];
-  onTogglePinnedTeam?: (team: TeamOption) => void | Promise<void>;
-}) {
-  return (
-    <article className="panel organization-team-card">
-      <div className="organization-team-card__header organization-team-card__header--actionable">
-        <button
-          className="organization-team-card__main"
-          type="button"
-          onClick={() => onOpenOrganization ? onOpenOrganization(organization) : organization.teams[0] && void onEnterTeam(organization.teams[0])}
-        >
-          <OrganizationLogo name={organization.name} logoUrl={organization.logoUrl} />
-          <span>
-            <strong>{organization.name}</strong>
-            <small>{organization.teams.length} team{organization.teams.length === 1 ? "" : "s"}</small>
-          </span>
-        </button>
-        <span className="follow-heart follow-heart--locked" aria-label="Managed organization">
-          <Lock size={13} aria-hidden="true" />
-        </span>
-      </div>
-      <div className="organization-team-card__list">
-        {organization.teams.length ? organization.teams.map((team) => (
-          <div key={teamValue(team)} className="organization-team-row organization-team-row--managed">
-            <button className="organization-team-row__main" type="button" onClick={() => void onEnterTeam(team)}>
-              <span>
-                <strong>{team.teamName}</strong>
-                <small>{team.seasonName ?? "Current season"}</small>
-              </span>
-            </button>
-            {onTogglePinnedTeam && (
-              <button
-                className={`pin-team-button${isPinnedTeam(pinnedTeams, team) ? " pin-team-button--active" : ""}`}
-                type="button"
-                aria-label={isPinnedTeam(pinnedTeams, team) ? `Unpin ${team.teamName}` : `Pin ${team.teamName}`}
-                title={isPinnedTeam(pinnedTeams, team) ? "Pinned to sidebar" : "Pin to sidebar"}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void onTogglePinnedTeam(team);
-                }}
-              >
-                <Pin size={14} aria-hidden="true" />
-              </button>
-            )}
-          </div>
-        )) : <CompactEmpty title="No teams yet" />}
-      </div>
-    </article>
-  );
-}
 
 function PublicOrganizationFollowCard({
   organization,
@@ -6510,35 +6354,14 @@ function PublicTeamFollowCard({
   onOpenTeam: (team: PublicDirectoryTeamSummary) => void;
   onToggleFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
 }) {
-  const metadata = [team.organizationName, team.seasonName ?? "Current season"].filter(Boolean).join(" - ");
-  return (
-    <article className="panel public-follow-team-card">
-      <button className="public-follow-team-card__main" type="button" onClick={() => onOpenTeam(team)}>
-        <OrganizationLogo name={team.organizationName} logoUrl={team.logoUrl} />
-        <span>
-          <strong>{team.name}</strong>
-          <small>{metadata}</small>
-        </span>
-      </button>
-      <FollowButton
-        followed={followed}
-        label={followed ? `Unfollow ${team.name}` : `Follow ${team.name}`}
-        onClick={() => void onToggleFollow(team)}
-      />
-    </article>
-  );
+  const metadata = team.seasonName ?? "Current season";
+  return <GlobalTeamCard name={team.name} subtitle={metadata}
+    logo={<OrganizationLogo name={team.organizationName} logoUrl={team.logoUrl} />}
+    onOpen={() => onOpenTeam(team)}
+    action={<FollowButton followed={followed} label={followed ? `Unfollow ${team.name}` : `Follow ${team.name}`} onClick={() => void onToggleFollow(team)} />}
+  />;
 }
 
-function OrganizationMiniRow({ organization, onEnterTeam }: { organization: OrganizationSummary; onEnterTeam: (team: TeamOption) => void | Promise<void> }) {
-  const subtitle = organization.location || `${organization.teams.length} team${organization.teams.length === 1 ? "" : "s"}`;
-  return (
-    <button className="team-mini-row" type="button" onClick={() => organization.teams[0] && void onEnterTeam(organization.teams[0])}>
-      <OrganizationLogo name={organization.name} />
-      <span><strong>{organization.name}</strong><small>{subtitle}</small></span>
-      <ChevronRight size={15} aria-hidden="true" />
-    </button>
-  );
-}
 
 function TeamMiniRow({
   team,
@@ -6547,13 +6370,7 @@ function TeamMiniRow({
   team: TeamOption;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
 }) {
-  return (
-    <button className="team-mini-row" type="button" onClick={() => void onEnterTeam(team)}>
-      <OrganizationLogo name={team.organizationName} />
-      <span><strong>{team.teamName}</strong><small>{team.seasonName ?? "Current season"} - {team.organizationName}</small></span>
-      <ChevronRight size={15} aria-hidden="true" />
-    </button>
-  );
+  return <ManagedTeamCard team={team} onEnterTeam={onEnterTeam} />;
 }
 
 function PublicOrganizationMiniRow({
@@ -6585,19 +6402,7 @@ function PublicTeamMiniRow({
   onOpenTeam: (team: PublicDirectoryTeamSummary) => void;
   onToggleFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
 }) {
-  return (
-    <div className="team-mini-row team-mini-row--follow">
-      <button className="team-mini-row__main" type="button" onClick={() => onOpenTeam(team)}>
-        <OrganizationLogo name={team.organizationName} />
-        <span><strong>{team.name}</strong><small>{team.seasonName ?? team.organizationName}</small></span>
-      </button>
-      <FollowButton
-        followed={followed}
-        label={followed ? `Unfollow ${team.name}` : `Follow ${team.name}`}
-        onClick={() => void onToggleFollow(team)}
-      />
-    </div>
-  );
+  return <PublicTeamFollowCard team={team} followed={followed} onOpenTeam={onOpenTeam} onToggleFollow={onToggleFollow} />;
 }
 
 function FollowButton({
@@ -6616,31 +6421,6 @@ function FollowButton({
   );
 }
 
-function FollowSummary({
-  data,
-  onOpenPublicTeam,
-  onTogglePublicTeamFollow,
-}: {
-  data: AppData;
-  onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
-  onTogglePublicTeamFollow: (team: PublicDirectoryTeamSummary) => void | Promise<void>;
-}) {
-  const teams = followedPublicTeams(data);
-  if (!teams.length) return <CompactEmpty title="No followed teams yet" />;
-  return (
-    <div className="followed-team-grid followed-team-grid--summary">
-      {teams.slice(0, 3).map((team) => (
-        <PublicTeamFollowCard
-          key={team.id}
-          team={team}
-          followed={isFollowingTeam(data.profileFollows ?? [], team.id)}
-          onOpenTeam={onOpenPublicTeam}
-          onToggleFollow={onTogglePublicTeamFollow}
-        />
-      ))}
-    </div>
-  );
-}
 
 function uniquePlayers(players: Player[]) {
   const seen = new Set<ID>();
@@ -22996,11 +22776,7 @@ function isPinnedTeam(pins: ProfileTeamPin[] | undefined, team: TeamOption) {
 
 function pinnedTeamsFromContext(context?: TeamContext, pins: ProfileTeamPin[] = []) {
   const teams = displayWorkspaceTeams(context?.availableTeams ?? []);
-  const teamsByValue = new Map(teams.map((team) => [teamValue(team), team]));
-  return pins
-    .map((pin) => teamsByValue.get(`${pin.teamId}:${pin.seasonId ?? "all"}`))
-    .filter((team): team is TeamOption => Boolean(team))
-    .slice(0, 3);
+  return homeTeamGroups(teams, pins).pinned.slice(0, 3);
 }
 
 function isFollowingTeam(follows: ProfileFollow[] | undefined, teamId: ID) {

@@ -33,5 +33,4 @@
 .player-tracking-form input[type=checkbox] { width: 20px; height: 20px; }
 .player-self-tracking .player-access-row { grid-template-columns: minmax(0, 1fr) 44px; }
 .player-self-tracking .text-button { white-space: normal; overflow-wrap: anywhere; text-align: left; }
-[data-account-kind=player] .global-create-button, [data-account-kind=player] .account-create-button { display: none; }
 @media (min-width: 700px) { .player-access-settings { max-width: 760px; } .player-access-row { grid-template-columns: minmax(0, 1fr) 190px; } }
