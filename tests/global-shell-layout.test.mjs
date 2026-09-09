@@ -6,7 +6,7 @@ const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8"
 const css = fs.readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 
 test("appearance is a single labeled theme-control row", () => {
-  const setting = page.slice(page.indexOf('<article className="panel account-settings-card">'), page.indexOf("<PlayerAccountLinksPanel />"));
+  const setting = page.slice(page.indexOf('<article className="panel account-settings-card">'), page.indexOf("<PlayerAccountLinksPanel"));
   assert.match(setting, /<strong>Appearance<\/strong>\s*<SegmentedControl/);
   assert.doesNotMatch(setting, /Used everywhere|<strong>Theme|panel-heading/);
   const layouts = [...css.matchAll(/\.account-appearance-setting \{([^}]+)\}/g)];
@@ -53,7 +53,7 @@ test("Home shows only pinned teams under one My Teams heading and creation lives
 });
 
 test("followed organization rows retain intrinsic height inside scroll lists", () => {
-  const list = css.match(/\.organization-team-card__list \{[^}]+\}/)?.[0] ?? "";
+  const list = css.match(/^\.organization-team-card__list \{[^}]+\}/m)?.[0] ?? "";
   assert.match(list, /grid-auto-rows: max-content/);
   assert.match(list, /align-content: start/);
 });
@@ -72,4 +72,29 @@ test("team cards use concise season and relationship metadata", () => {
   assert.match(managed, /team.playerContextId \? "Player" : roleLabel\(team.role\)/);
   const publicCard = page.slice(page.indexOf("function PublicTeamFollowCard("), page.indexOf("function OrganizationMiniRow("));
   assert.match(publicCard, /const metadata = team.seasonName \?\? "Current season"/);
+});
+
+test("organization previews cap compact chips and Search omits them", () => {
+  assert.match(page, /chipLabel\(team\)\.length <= 18\)\.slice\(0, 3\)/);
+  assert.match(page, /previewChips=\{false\}/);
+  assert.match(page, /\+\{extraTeams\} more/);
+  assert.match(css, /\.global-home \{[^}]*padding-bottom: calc\(120px \+ env\(safe-area-inset-bottom\)\)/);
+});
+
+test("creation fields align without nested dropdown padding and explain visibility", () => {
+  assert.match(css, /\.team-creator-modal \.form-choice \{ padding: 0/);
+  assert.match(css, /grid-template-columns: 96px minmax\(0, 1fr\)/);
+  assert.match(page, /<span>Org Name<\/span>/);
+  assert.match(page, /<span>Org Photo<\/span>/);
+  assert.match(page, /aria-label="About visibility"/);
+  assert.match(page, /<VisibilityFieldLabel id="organization-visibility-help"/);
+  assert.match(page, /bottom: window.innerHeight - rect.top \+ 8/);
+});
+
+test("local preview database notice does not replace normal production errors", () => {
+  const links = fs.readFileSync(new URL("../app/components/PlayerAccountLinksPanel.tsx", import.meta.url), "utf8");
+  assert.match(links, /localPreview = false/);
+  assert.match(links, /localPreview && message\.startsWith\("Supabase is not configured"\)/);
+  assert.match(links, /className="global-dev-notice"/);
+  assert.match(page, /<PlayerAccountLinksPanel localPreview=\{isLocalDevAuthBypass\(\)\}/);
 });

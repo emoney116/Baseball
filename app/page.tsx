@@ -19,6 +19,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  CircleHelp,
   ClipboardList,
   Copy,
   Download,
@@ -3954,7 +3955,7 @@ export default function MetrolinaBaseballApp() {
             <button className="ghost-button global-notifications-button" type="button" popoverTarget="global-notifications" aria-label="Notifications" title="Notifications"><Bell size={20} aria-hidden="true" /></button>
             <div id="global-notifications" popover="auto" className="global-notifications-panel" role="region" aria-label="Notifications">
               <strong>Notifications</strong>
-              <p>No new notifications</p>
+              <div className="global-notifications-empty"><Bell size={24} aria-hidden="true" /><div><p>No new notifications</p><small>You&apos;re all caught up</small></div></div>
             </div>
             {globalCreationCapabilities(data.teamContext).canCreateTeam && <button className="primary-button global-create-button" type="button" onClick={() => openTeamCreator(undefined, "existing")} aria-label="New team or organization" title="New Team/Org"><Plus size={18} aria-hidden="true" /></button>}
             <button className="global-home-banner-profile" type="button" onClick={() => goToView("account")} aria-label="Open profile" title="Profile">
@@ -5311,7 +5312,7 @@ function AccountProfileView({
             <SegmentedControl values={["light", "dark"] as ThemePreference[]} active={theme} onChange={onTheme} />
           </div>
         </article>
-        <PlayerAccountLinksPanel />
+        <PlayerAccountLinksPanel localPreview={isLocalDevAuthBypass()} />
         <DemoDataQaPanel />
         <div className="global-sign-out">
           <button className="secondary-button" type="button" onClick={() => void onSignOut()}><LogOut size={16} aria-hidden="true" />Sign Out</button>
@@ -5680,6 +5681,38 @@ function MyTeamsView({
   );
 }
 
+function VisibilityFieldLabel({ id }: { id: string }) {
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLSpanElement>(null);
+  const [position, setPosition] = useState({ left: 16, bottom: 0, maxHeight: 320 });
+  const positionHelp = useCallback(() => {
+    const button = buttonRef.current;
+    if (!button) return;
+    const rect = button.getBoundingClientRect();
+    const width = Math.min(320, window.innerWidth - 32);
+    setPosition({
+      left: Math.max(16, Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - 16)),
+      bottom: window.innerHeight - rect.top + 8,
+      maxHeight: Math.max(60, rect.top - 24),
+    });
+  }, []);
+  useEffect(() => {
+    const reposition = () => { if (panelRef.current?.matches(":popover-open")) positionHelp(); };
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+    return () => { window.removeEventListener("resize", reposition); window.removeEventListener("scroll", reposition, true); };
+  }, [positionHelp]);
+  return <span className="visibility-field-label">Visibility
+    <button ref={buttonRef} type="button" className="visibility-help-button" popoverTarget={id} onClick={positionHelp} aria-label="About visibility" title="About visibility"><CircleHelp size={16} aria-hidden="true" /></button>
+    <span ref={panelRef} id={id} popover="auto" className="visibility-help-panel" role="note" style={position}>
+      <strong>Visibility</strong>
+      <span><strong>Public</strong> Discoverable on Clubhouse.</span>
+      <span><strong>Unlisted</strong> Accessible by direct link, not listed in discovery.</span>
+      <span><strong>Private</strong> Members only.</span>
+    </span>
+  </span>;
+}
+
 function TeamCreatorModal({
   organizations,
   initialOrganizationId,
@@ -5907,13 +5940,14 @@ function TeamCreatorModal({
             ) : (
               <>
                 <div className="organization-logo-field">
+                  <span>Org Photo</span>
                   <button className="organization-logo-picker" type="button" onClick={() => logoInputRef.current?.click()} aria-label="Choose organization logo">
                     {organizationLogoUrl ? <img src={organizationLogoUrl} alt="" /> : <Upload size={18} aria-hidden="true" />}
                   </button>
                   <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoFile} />
                 </div>
                 <label className="form-field team-creator-span">
-                  <span>Organization Name</span>
+                  <span>Org Name</span>
                   <input value={form.organizationName} onChange={(event) => setForm((current) => ({ ...current, organizationName: event.target.value }))} />
                 </label>
                 <div className="form-field">
@@ -5941,7 +5975,7 @@ function TeamCreatorModal({
                   />
                 </div>
                 <div className="form-field team-creator-span">
-                  <span>Visibility</span>
+                  <VisibilityFieldLabel id="organization-visibility-help" />
                   <ChoiceSelect
                     aria-label="Organization visibility"
                     className="form-choice"
@@ -6026,7 +6060,7 @@ function TeamCreatorModal({
                 </div>
                 {teamLocationRequired && (
                   <div className="form-field">
-                    <span>Visibility</span>
+                    <VisibilityFieldLabel id="team-visibility-help" />
                     <ChoiceSelect
                       aria-label="Team visibility"
                       className="form-choice"
@@ -6190,7 +6224,7 @@ function DiscoverView({
       {(organizations.length > 0 || publicOrganizations.length > 0) && <section className="global-section">
         <SectionHeader title="Organizations" className="global-home-section-header" />
         <div className="organization-grid">
-          {organizations.map((organization) => <OrganizationCard key={organization.id} organization={organization} onEnterTeam={onEnterTeam} />)}
+          {organizations.map((organization) => <OrganizationCard key={organization.id} organization={organization} onEnterTeam={onEnterTeam} previewChips={false} />)}
           {publicOrganizations.map((organization) => <PublicOrganizationMiniRow key={organization.id} organization={organization} onOpenOrganization={onOpenPublicOrganization} />)}
         </div>
       </section>}
@@ -6211,15 +6245,18 @@ function OrganizationCard({
   onOpenOrganization,
   onCreateTeam,
   expanded = false,
+  previewChips = true,
 }: {
   organization: OrganizationSummary;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenOrganization?: (organization: OrganizationSummary) => void;
   onCreateTeam?: (organizationId?: ID) => void;
   expanded?: boolean;
+  previewChips?: boolean;
 }) {
   const firstTeam = organization.teams[0];
-  const visibleChips = organization.teams.slice(0, expanded ? 6 : 3);
+  const chipLabel = (team: TeamOption) => team.teamLevel && !["other", "program"].includes(team.teamLevel.toLowerCase()) && organization.teams.filter((item) => item.teamLevel === team.teamLevel).length === 1 ? team.teamLevel : team.teamName.replace(/^Metrolina\s+/i, "");
+  const visibleChips = organization.teams.filter((team) => chipLabel(team).length <= 18).slice(0, 3);
   const extraTeams = Math.max(organization.teams.length - visibleChips.length, 0);
   return (
     <article className={`panel organization-card organization-card--compact ${expanded ? "organization-card--expanded" : ""}`}>
@@ -6238,18 +6275,18 @@ function OrganizationCard({
         </span>
         <ChevronRight size={16} aria-hidden="true" />
       </button>
-      {visibleChips.length ? (
+      {previewChips && (organization.teams.length ? (
         <div className="team-chip-row">
           {visibleChips.map((team) => (
             <button key={teamValue(team)} type="button" onClick={() => void onEnterTeam(team)}>
-              {team.teamLevel && !["other", "program"].includes(team.teamLevel.toLowerCase()) && organization.teams.filter((item) => item.teamLevel === team.teamLevel).length === 1 ? team.teamLevel : team.teamName.replace(/^Metrolina\s+/i, "")}
+              {chipLabel(team)}
             </button>
           ))}
           {extraTeams > 0 && <span>+{extraTeams} more</span>}
         </div>
       ) : (
         <div className="team-chip-row"><span>No teams yet</span></div>
-      )}
+      ))}
       {onOpenOrganization && (
         <button className="text-button organization-open-button" type="button" onClick={() => onOpenOrganization(organization)}>
           Open Organization

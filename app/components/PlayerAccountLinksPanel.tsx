@@ -56,7 +56,7 @@ function StatusPill({ status }: { status: PlayerLink["status"] }) {
   return <span className={`player-link-status player-link-status--${status.toLowerCase()}`}>{label}</span>;
 }
 
-export function PlayerAccountLinksPanel() {
+export function PlayerAccountLinksPanel({ localPreview = false }: { localPreview?: boolean } = {}) {
   const [links, setLinks] = useState<PlayerLink[]>([]);
   const [teams, setTeams] = useState<ClaimTeam[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<ClaimTeam | null>(null);
@@ -259,7 +259,9 @@ export function PlayerAccountLinksPanel() {
           })}
         </div>
       )}
-      {message && <p className={`player-link-message player-link-message--${status}`}>{message}</p>}
+      {message && (localPreview && message.startsWith("Supabase is not configured")
+        ? <p className="global-dev-notice" role="note"><strong>Local preview</strong> Team lookup is unavailable without a database connection.</p>
+        : <p className={`player-link-message player-link-message--${status}`}>{message}</p>)}
     </article>
   );
 }
