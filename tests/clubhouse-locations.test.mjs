@@ -27,7 +27,7 @@ test("canonical location migration preserves history and enforces attachment sco
     await db.query("insert into profiles values($1)", [owner]);
     const historic = randomUUID();
     await db.query("insert into practices values($1,$2,$3,'Original historical text')", [historic, team, org]);
-    await db.exec(readFileSync(new URL("../supabase/migrations/20260909171415_clubhouse_locations.sql", import.meta.url), "utf8"));
+    await db.exec(readFileSync(new URL("../supabase/migrations/20260909182524_clubhouse_locations.sql", import.meta.url), "utf8"));
     await t.test("old raw locations unchanged", async () => {
       const row = (await db.query("select location,location_id from practices where id=$1", [historic])).rows[0];
       assert.deepEqual(row, { location: "Original historical text", location_id: null });

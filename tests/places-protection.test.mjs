@@ -62,7 +62,7 @@ test("database budgets are atomic, service-only, rolling and bounded", async t =
   const db = new PGlite();
   try {
     await db.exec("create role anon; create role authenticated; create role service_role;");
-    await db.exec(readFileSync(new URL("../supabase/migrations/20260909183000_places_cost_protection.sql", import.meta.url), "utf8"));
+    await db.exec(readFileSync(new URL("../supabase/migrations/20260909182528_places_cost_protection.sql", import.meta.url), "utf8"));
     const reserve = async (options = {}) => {
       const { rows } = await db.query("select reserve_places_request($1,$2,$3,$4,$5,$6,$7) result", [
         options.user ?? user, options.ip ?? hash, options.query ?? randomUUID().replaceAll("-", "").repeat(2),
