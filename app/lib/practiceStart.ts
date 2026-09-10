@@ -1,3 +1,11 @@
+export function currentStartedPractice<T extends { id: string; startedAt?: string; endedAt?: string }>(
+  practices: readonly T[], now = new Date(),
+): T | undefined {
+  return practices.filter((practice) => !practice.endedAt && practice.startedAt &&
+    Number.isFinite(Date.parse(practice.startedAt)) && Date.parse(practice.startedAt) <= now.getTime())
+    .sort((a, b) => Date.parse(b.startedAt!) - Date.parse(a.startedAt!))[0];
+}
+
 export function localPracticeStartFields(now = new Date()) {
   const pad = (value: number) => String(value).padStart(2, "0");
   return {

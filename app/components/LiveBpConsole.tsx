@@ -30,7 +30,7 @@ import { VelocityPickerField } from "./TeamTrainingViews";
 import { ChoiceSelect } from "./ChoiceSelect";
 import { ClubhouseBaseballField } from "./ClubhouseBaseballField";
 import { DensePlayerIdentity } from "./DensePlayerIdentity";
-import { densePlayerIdentityLabel } from "../lib/densePlayerIdentity";
+import { densePlayerIdentityLabel, formatDensePlayerIdentity } from "../lib/densePlayerIdentity";
 import { CLUBHOUSE_FIELD_POSITION_COORDINATES } from "../lib/baseballFieldLayout";
 import { LiveBpSetup } from "./LiveBpSetup";
 import { LiveBpDefensePresets } from "./LiveBpDefensePresets";
@@ -144,6 +144,7 @@ export function LiveBpConsole({
     move?: BpRunnerMove;
   } | null>(null);
   const [fieldRetry, setFieldRetry] = useState(false);
+  const [undoOpen, setUndoOpen] = useState(false);
   const onSavedRef = useRef(onSaved);
   useEffect(() => {
     onSavedRef.current = onSaved;
@@ -406,13 +407,8 @@ export function LiveBpConsole({
       lock.current = false;
     }
   }
-  async function undoPitch() {
-    if (
-      window.confirm(
-        "Undo the last pitch and delete its linked stats? Count, outs, and runners will return to before that pitch, including any later runner moves or corrections. The current matchup stays selected.",
-      )
-    )
-      await fieldAction("undo");
+  function undoPitch() {
+    setUndoOpen(true);
   }
   const bip = stage === "bip";
   const ended = !active || Boolean(round?.ended_at);
@@ -716,10 +712,10 @@ export function LiveBpConsole({
                       }
                     }}
                   >
-                    {densePlayerIdentityLabel(
+                    {formatDensePlayerIdentity(
                       players.find((p) => p.id === settings.hitterId) ??
                         players[0],
-                    )}
+                    ).replace(/(^| )(\S)\. /, "$1$2 ")}
                   </button>
                 </div>
               </div>
@@ -950,7 +946,7 @@ export function LiveBpConsole({
                         {[
                           ["Ball", "Ball"],
                           ["Called Strike", "Called Strike"],
-                          ["Whiff", "Whiff"],
+                          ["Whiff", "Swing & Miss"],
                           ["Foul", "Foul"],
                           ["Ball in play", "In Play"],
                           ["HBP", "HBP"],
@@ -1199,6 +1195,20 @@ export function LiveBpConsole({
                 {notice || (lastPitch ? `Last: ${lastPitch}` : "")}
               </p>
             </footer>
+          )}
+          {undoOpen && sheet(
+            "Undo last pitch?",
+            () => { if (!busy) setUndoOpen(false); },
+            <>
+              <p>Remove the last pitch and its linked stats? Count, outs, and runners will return to before that pitch, including later runner moves or corrections. The current matchup stays selected.</p>
+              <div className="modal-actions">
+                <button type="button" disabled={busy} onClick={() => setUndoOpen(false)}>Cancel</button>
+                <button type="button" className="primary-button" disabled={busy || fieldRetry} onClick={() => {
+                  setUndoOpen(false);
+                  void fieldAction("undo");
+                }}><Undo2 size={16} /> Undo Pitch</button>
+              </div>
+            </>,
           )}
           {chartsOpen &&
             sheet(

@@ -1,6 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { localPracticeStartFields, validatePracticeStart } from '../app/lib/practiceStart.ts';
+import { currentStartedPractice, localPracticeStartFields, validatePracticeStart } from '../app/lib/practiceStart.ts';
+
+test('Future scheduled practices cannot replace an underway practice on reload', () => {
+  const now = new Date('2026-09-10T17:00:00Z');
+  const underway = { id: 'underway', startedAt: '2026-09-10T16:00:00Z' };
+  const future = { id: 'future', startedAt: '2026-09-10T22:00:00Z' };
+  const older = { id: 'older', startedAt: '2026-09-08T16:00:00Z' };
+  const completed = { id: 'completed', startedAt: '2026-09-10T16:30:00Z', endedAt: now.toISOString() };
+  const rows = [future, older, underway, completed];
+  assert.equal(currentStartedPractice(rows, now), underway);
+  assert.deepEqual(rows, [future, older, underway, completed]);
+  assert.equal(currentStartedPractice([future, completed, {id:'missing'}, {id:'invalid',startedAt:'bad'}], now), undefined);
+  assert.equal(currentStartedPractice([future], new Date(future.startedAt)), future);
+});
 
 test('Start Practice defaults to the current local minute, not 6 PM', () => {
   const now = new Date(2026, 8, 6, 14, 37, 25);

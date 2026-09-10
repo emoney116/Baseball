@@ -2,6 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { liveSyncDelta } from "../lib/liveSyncDelta";
+import { currentStartedPractice } from "../lib/practiceStart";
 import { liveBpPitchContactQuality } from "../lib/liveBp";
 import { staffDataChanged } from "../lib/staffSyncChanges";
 
@@ -1140,7 +1141,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     developmentGoals: goalsRows.map(mapDevelopmentGoal),
     rosterImports,
     settings: {
-      activePracticeId: practices.find((practice) => !practice.endedAt)?.id,
+      activePracticeId: currentStartedPractice(practices)?.id,
       theme: "dark",
       rosterSeason: foundation.seasonName,
       recentPlayerIds: players.slice(0, 8).map((player) => player.id),
