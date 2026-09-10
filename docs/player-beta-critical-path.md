@@ -49,7 +49,7 @@ Do not run a blanket migration push: four previously accepted location migration
 
 ## Outstanding Acceptance
 
-Not pilot-ready yet. Authenticated allowed-path hosted Practice/Weight Room and Personal save/reload, concurrent three-player entry, hosted downgrade/revoke/end checks, and complete shared Home/Analytics/Ask device/theme checks remain. No issue should be marked Done based only on fixtures or direct database tests. Personal Workouts and Live BP have the explicit safe limitations described above.
+The initial local-only checkpoint above is superseded by the hosted acceptance record in `player-beta-hosted-acceptance-2026-09-09.md`. Personal Workouts and Live BP retain the explicit safe limitations described above. Production rollout is separate from Preview acceptance; do not invite the pilot onto an older production build.
 
 ## Repeatable Commands
 
