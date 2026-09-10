@@ -74,7 +74,11 @@ export type BpContext = {
   jobSuccess?: boolean;
   runnerOutcomes?: Record<string, string>;
   runnerReasons?: Record<string, string>;
-  fieldingSequence?: { position: BpPosition; playerId: string }[];
+  fieldingSequence?: {
+    position: BpPosition;
+    playerId: string | null;
+    tracked: boolean;
+  }[];
   battedBallType?: string;
 };
 export type BpRound = {
@@ -119,6 +123,30 @@ export const initialBpState = (): BpState => ({
   job: "",
   pa: 1,
 });
+
+export const BP_BATTER_OUT_RESULTS = ["Out", "Sac Bunt", "Sac Fly"];
+export function bpBatterResults(
+  battedBall: string | undefined,
+  settings: BpSettings,
+  state: BpState,
+) {
+  if (!battedBall) return [];
+  const results = [
+    ["Single", "1B"],
+    ["Double", "2B"],
+    ["Triple", "3B"],
+    ["Home Run", "HR"],
+    ["Out", "Out"],
+    ["Reached on Error", "Error"],
+    ["Fielders Choice", "FC"],
+  ];
+  if (settings.mode === "GAME" && state.outs < 2 && state.runners.length) {
+    if (battedBall === "Bunt") results.push(["Sac Bunt", "SAC Bunt"]);
+    else if (["Fly ball", "Line drive", "Pop up"].includes(battedBall))
+      results.push(["Sac Fly", "SAC Fly"]);
+  }
+  return results.map(([value, label]) => ({ value, label }));
+}
 export const bpTracksCount = (
   settings: Pick<BpSettings, "mode" | "countTracking">,
 ) => settings.countTracking ?? settings.mode !== "FREE";
@@ -410,9 +438,18 @@ export function buildBpPitch(
         "Home Run",
         "Reached on Error",
         "Fielders Choice",
+        "Sac Bunt",
+        "Sac Fly",
       ].includes(draft.result),
     "Choose a batter result.",
   );
+  if (bip && ["Sac Bunt", "Sac Fly"].includes(draft.result ?? ""))
+    bpAssert(
+      bpBatterResults(draft.battedBall, settings, before).some(
+        (option) => option.value === draft.result,
+      ),
+      "A sacrifice requires eligible contact, a runner, and fewer than two outs.",
+    );
   bpAssert(
     !bip || settings.mode !== "GAME" || draft.result,
     "Choose the batter result before updating runners.",
@@ -449,7 +486,7 @@ export function buildBpPitch(
       }
       defaults.batter = "1";
     } else
-      defaults.batter = ["Out", "Strikeout"].includes(result)
+      defaults.batter = [...BP_BATTER_OUT_RESULTS, "Strikeout"].includes(result)
         ? "out"
         : ["Single", "Reached on Error", "Fielders Choice"].includes(result)
           ? "1"
@@ -476,6 +513,20 @@ export function buildBpPitch(
       );
       runnerOutcomes[key] = value;
     }
+    if (result === "Sac Bunt")
+      bpAssert(
+        before.runners.some(
+          (base) =>
+            runnerOutcomes[base] === "score" ||
+            Number(runnerOutcomes[base]) > base,
+        ) && !before.runners.some((base) => runnerOutcomes[base] === "out"),
+        "A sacrifice bunt must advance a runner without another runner being put out.",
+      );
+    if (result === "Sac Fly")
+      bpAssert(
+        before.runners.some((base) => runnerOutcomes[base] === "score"),
+        "Record the scoring runner for the sacrifice fly.",
+      );
     after.runners = [];
     const runnerIds: Partial<Record<number, string>> = {};
     for (const [key, value] of Object.entries(runnerOutcomes)) {
@@ -535,13 +586,11 @@ export function buildBpPitch(
       bip &&
         Array.isArray(draft.fieldingSequence) &&
         draft.fieldingSequence.length <= 20 &&
-        (!draft.fieldingSequence.length ||
-          draft.fieldingSequence[0] === draft.position) &&
-        draft.fieldingSequence.every(
-          (position) =>
-            BP_POSITIONS.includes(position) &&
-            bpPositionTracked(settings, position) &&
-            settings.alignment[position],
+        (!draft.position ||
+          !draft.fieldingSequence.length ||
+          draft.fieldingSequence.includes(draft.position)) &&
+        draft.fieldingSequence.every((position) =>
+          BP_POSITIONS.includes(position),
         ),
       "Check the fielding sequence.",
     );
@@ -584,7 +633,10 @@ export function buildBpPitch(
       ? {
           fieldingSequence: draft.fieldingSequence.map((position) => ({
             position,
-            playerId: settings.alignment[position]!,
+            playerId: settings.alignment[position] ?? null,
+            tracked:
+              bpPositionTracked(settings, position) &&
+              Boolean(settings.alignment[position]),
           })),
         }
       : {}),

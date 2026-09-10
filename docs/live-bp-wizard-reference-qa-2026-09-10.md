@@ -71,7 +71,7 @@ do not appear on every normal pitch.
 ## Boundaries
 
 Fielding possession sequences and runner reasons are stored as Live BP
-provenance. The explicitly graded primary fielder gets the existing defensive
+provenance. The explicitly selected graded fielder gets the existing defensive
 rep; receiver taps do **not** fabricate assists, putouts, or extra graded reps.
 This is not a full official-game throw-chain scorer. Redo was not added.
 Hard-ground-ball choices map to the existing Ground ball analytics category;
@@ -79,3 +79,22 @@ the precise label remains in Live BP provenance. Bunt also remains in provenance
 without inventing a ground/fly trajectory or optional contact-quality grade.
 No official Game, lineup, plate-appearance, or score mutation path is used.
 Native iPhone touch/keyboard field testing remains separate from browser QA.
+
+## Follow-up polish
+
+- Retained the Log Pitch wizard. Batted-ball choices use three columns and two
+  rows at tested phone sizes, with two columns on narrower screens.
+- Batter results appear after contact selection. 1B, 2B, 3B, and HR share the
+  first row; Out, Error, FC, and eligible sacrifice choices follow below.
+- Sacrifice choices require eligible contact, runners, and fewer than two outs;
+  advancement/scoring remains explicit. References: [MLB sacrifice bunt](https://www.mlb.com/glossary/standard-stats/sacrifice-bunt)
+  and [MLB sacrifice fly](https://www.mlb.com/glossary/standard-stats/sacrifice-fly).
+- All nine defensive positions can participate in a possession sequence, even
+  without an assigned/tracked player. A tracked receiver can be selected for
+  the defensive grade; anonymous positions receive no player stats.
+- Runner action, destination, and safe/out controls use inline labels. Movement
+  reasons use two columns, filtered to the selected safe/out outcome.
+- Full build and suite: **870 passed**. Targeted suite: **60 passed**.
+  TypeScript and affected-file ESLint passed. Browser checks passed at 390,
+  446, and 1024px, including LF to tracked 2B with a throwing error and an
+  unchanged wizard height. Native phone testing remains the next acceptance step.

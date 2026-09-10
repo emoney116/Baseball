@@ -18,16 +18,18 @@ export function BpSegments({
   options,
   onChange,
   inline = false,
+  className = "",
 }: {
   label: string;
   value: string;
   options: readonly { value: string; label: string }[];
   onChange: (v: string) => void;
   inline?: boolean;
+  className?: string;
 }) {
   return (
     <div
-      className={`${styles.segmentGroup} ${inline ? styles.inlineSegments : ""}`}
+      className={`${styles.segmentGroup} ${inline ? styles.inlineSegments : ""} ${className}`}
     >
       <span>{label}</span>
       <div className={styles.segments} role="group" aria-label={label}>

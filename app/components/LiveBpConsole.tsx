@@ -12,6 +12,7 @@ import {
 import type { Player, ZonePoint } from "../types";
 import {
   BP_POSITIONS,
+  bpBatterResults,
   buildBpPitch,
   initialBpSettings,
   initialBpState,
@@ -848,6 +849,7 @@ export function LiveBpConsole({
                           <>
                             <BpSegments
                               label="Batted ball"
+                              className={styles.contactGrid}
                               value={draft.battedBall ?? ""}
                               options={[
                                 "Ground ball",
@@ -857,26 +859,42 @@ export function LiveBpConsole({
                                 "Bunt",
                                 "Pop up",
                               ].map((v) => ({ value: v, label: v }))}
-                              onChange={(v) => edit("battedBall", v)}
+                              onChange={(v) => {
+                                if (v !== draft.battedBall)
+                                  setDraft({
+                                    ...draft,
+                                    battedBall: v,
+                                    result: undefined,
+                                    runnerOutcomes: undefined,
+                                    runnerReasons: undefined,
+                                  });
+                              }}
                             />
-                            <BpSegments
-                              label={
-                                settings.mode === "GAME"
-                                  ? "Batter result"
-                                  : "Batter result (optional)"
-                              }
-                              value={draft.result ?? ""}
-                              options={[
-                                ["Out", "Out"],
-                                ["Single", "1B"],
-                                ["Double", "2B"],
-                                ["Triple", "3B"],
-                                ["Home Run", "HR"],
-                                ["Reached on Error", "Error"],
-                                ["Fielders Choice", "FC"],
-                              ].map(([value, label]) => ({ value, label }))}
-                              onChange={(v) => edit("result", v)}
-                            />
+                            {draft.battedBall && (
+                              <BpSegments
+                                className={styles.batterResultGrid}
+                                label={
+                                  settings.mode === "GAME"
+                                    ? "Batter result"
+                                    : "Batter result (optional)"
+                                }
+                                value={draft.result ?? ""}
+                                options={bpBatterResults(
+                                  draft.battedBall,
+                                  settings,
+                                  state,
+                                )}
+                                onChange={(v) => {
+                                  if (v !== draft.result)
+                                    setDraft({
+                                      ...draft,
+                                      result: v,
+                                      runnerOutcomes: undefined,
+                                      runnerReasons: undefined,
+                                    });
+                                }}
+                              />
+                            )}
                             <details className={styles.optional}>
                               <summary>Contact quality (optional)</summary>
                               <BpSegments

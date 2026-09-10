@@ -1,8 +1,9 @@
 import { useRef, useState, type PointerEvent } from "react";
-import { Undo2 } from "lucide-react";
+import { Eraser, Undo2 } from "lucide-react";
 import type { Player } from "../types";
 import {
   BP_POSITIONS,
+  BP_BATTER_OUT_RESULTS,
   BP_PLAY_RUNNER_REASONS,
   bpPositionTracked,
   type BpSettings,
@@ -67,7 +68,7 @@ export function LiveBpPlayResolution({
         ? "score"
         : base
           ? String(base)
-          : draft.result === "Out"
+          : BP_BATTER_OUT_RESULTS.includes(draft.result ?? "")
             ? "out"
             : draft.result === "Double"
               ? "2"
@@ -80,8 +81,38 @@ export function LiveBpPlayResolution({
     if (sequence.length >= 20 || sequence.at(-1) === position) return;
     onChange({
       ...draft,
-      position: sequence[0] ?? position,
+      position:
+        draft.position ??
+        (bpPositionTracked(settings, position) && settings.alignment[position]
+          ? position
+          : undefined),
       fieldingSequence: [...sequence, position],
+    });
+  }
+  function gradeFielder(position: BpPosition | undefined) {
+    if (position === draft.position) return;
+    onChange({
+      ...draft,
+      position,
+      defenseResult: undefined,
+      errorType: undefined,
+      throwResult: undefined,
+    });
+  }
+  function undoFielder() {
+    const next = sequence.slice(0, -1);
+    const keepGrade = draft.position && next.includes(draft.position);
+    onChange({
+      ...draft,
+      fieldingSequence: next,
+      ...(!keepGrade
+        ? {
+            position: undefined,
+            defenseResult: undefined,
+            errorType: undefined,
+            throwResult: undefined,
+          }
+        : {}),
     });
   }
   function start(event: PointerEvent<HTMLButtonElement>) {
@@ -141,7 +172,7 @@ export function LiveBpPlayResolution({
       ? "score"
       : runner
         ? String(runner)
-        : draft.result === "Out"
+        : BP_BATTER_OUT_RESULTS.includes(draft.result ?? "")
           ? "out"
           : draft.result === "Double"
             ? "2"
@@ -164,9 +195,7 @@ export function LiveBpPlayResolution({
         label="Play resolution"
         value={view}
         options={[
-          ...(settings.defense !== "OFF"
-            ? [{ value: "defense", label: "Defense" }]
-            : []),
+          { value: "defense", label: "Defense" },
           ...(settings.mode === "GAME"
             ? [{ value: "runners", label: "Runners" }]
             : []),
@@ -204,18 +233,21 @@ export function LiveBpPlayResolution({
           ariaLabel="Resolve ball in play"
         />
         {view === "defense"
-          ? BP_POSITIONS.filter(
-              (p) => settings.alignment[p] && bpPositionTracked(settings, p),
-            ).map((position) => {
+          ? BP_POSITIONS.map((position) => {
               const [x, y] = CLUBHOUSE_FIELD_POSITION_COORDINATES[position];
               return (
                 <button
                   key={position}
                   type="button"
-                  className={styles.resolutionPosition}
+                  className={`${styles.resolutionPosition} ${styles.resolutionFielder}`}
+                  data-tracked={
+                    Boolean(settings.alignment[position]) &&
+                    bpPositionTracked(settings, position)
+                  }
                   style={{ left: `${x}%`, top: `${y}%` }}
                   aria-pressed={sequence.includes(position)}
                   aria-label={`Fielder ${position}`}
+                  title={`${position}${settings.alignment[position] ? ` - ${liveBpFieldLabel(settings, players, position)}` : ""}`}
                   data-position={position}
                   onPointerDown={start}
                   onPointerMove={move}
@@ -228,7 +260,11 @@ export function LiveBpPlayResolution({
                     if (!moved.current) selectFielder(position);
                   }}
                 >
-                  {position} · {liveBpFieldLabel(settings, players, position)}
+                  {position}
+                  {settings.alignment[position] &&
+                  bpPositionTracked(settings, position)
+                    ? ` · ${liveBpFieldLabel(settings, players, position)}`
+                    : ""}
                 </button>
               );
             })
@@ -310,29 +346,46 @@ export function LiveBpPlayResolution({
       {view === "defense" && (
         <>
           <div className={styles.fieldSequence} aria-label="Fielding sequence">
-            <span>
-              {sequence.length ? sequence.join(" → ") : "No defensive rep"}
-            </span>
+            <div className={styles.sequencePlayers}>
+              {sequence.length
+                ? sequence.map((position, index) => (
+                    <span key={`${position}-${index}`}>
+                      {index > 0 && " → "}
+                      <button
+                        type="button"
+                        disabled={
+                          !bpPositionTracked(settings, position) ||
+                          !settings.alignment[position]
+                        }
+                        aria-pressed={draft.position === position}
+                        aria-label={`Grade ${position} ${liveBpFieldLabel(settings, players, position)}`}
+                        title={`Grade ${position} ${liveBpFieldLabel(settings, players, position)}`}
+                        onClick={() => gradeFielder(position)}
+                      >
+                        {position}
+                      </button>
+                    </span>
+                  ))
+                : "No defensive rep"}
+            </div>
+            {draft.position && (
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Clear defensive grade"
+                title="Clear defensive grade"
+                onClick={() => gradeFielder(undefined)}
+              >
+                <Eraser size={16} />
+              </button>
+            )}
             {sequence.length > 0 && (
               <button
                 type="button"
                 className="icon-button"
                 aria-label="Undo last fielder"
                 title="Undo last fielder"
-                onClick={() =>
-                  onChange({
-                    ...draft,
-                    position: sequence.length > 1 ? sequence[0] : undefined,
-                    fieldingSequence: sequence.slice(0, -1),
-                    ...(sequence.length === 1
-                      ? {
-                          defenseResult: undefined,
-                          errorType: undefined,
-                          throwResult: undefined,
-                        }
-                      : {}),
-                  })
-                }
+                onClick={undoFielder}
               >
                 <Undo2 size={16} />
               </button>
@@ -341,7 +394,7 @@ export function LiveBpPlayResolution({
           {draft.position && (
             <div className={styles.inputs}>
               <ChoiceSelect
-                label="Fielding result"
+                label={`${draft.position} fielding result`}
                 value={draft.defenseResult ?? ""}
                 options={[
                   { value: "", label: "Select result" },

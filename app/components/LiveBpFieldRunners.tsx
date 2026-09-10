@@ -137,9 +137,10 @@ export function LiveBpFieldRunners({
           <fieldset className={styles.setup} disabled={disabled}>
             <BpSegments
               label="Action"
+              inline
               value={action}
               options={[
-                { value: "move", label: "Move / safe / out" },
+                { value: "move", label: "Move runner" },
                 { value: "substitute", label: "Pinch runner" },
               ]}
               onChange={setAction}
@@ -164,6 +165,7 @@ export function LiveBpFieldRunners({
               <>
                 <BpSegments
                   label="Destination"
+                  inline
                   value={String(pending.to)}
                   options={BASES.filter(
                     (b) =>
@@ -180,6 +182,7 @@ export function LiveBpFieldRunners({
                 />
                 <BpSegments
                   label="Runner result"
+                  inline
                   value={outcome}
                   options={[
                     { value: "safe", label: "Safe" },
@@ -192,13 +195,21 @@ export function LiveBpFieldRunners({
                 />
                 <BpSegments
                   label="Movement reason"
+                  className={styles.reasonGrid}
                   value={reason}
                   options={[
                     ...BP_RUNNER_REASONS.filter(
                       (value) =>
                         value !== "Pinch runner" &&
-                        (outcome === "out" ||
-                          !["Picked off", "Caught stealing"].includes(value)),
+                        (outcome === "out"
+                          ? [
+                              "Picked off",
+                              "Caught stealing",
+                              "On throw",
+                              "Tag up",
+                              "Other",
+                            ].includes(value)
+                          : !["Picked off", "Caught stealing"].includes(value)),
                     ).map((value) => ({ value, label: value })),
                   ]}
                   onChange={setReason}

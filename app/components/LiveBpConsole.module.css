@@ -730,6 +730,52 @@
   font-size: 12px;
   border-radius: 6px;
 }
+.contactGrid .segments {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.contactGrid .segments button {
+  min-height: 48px;
+  padding: 6px;
+}
+.batterResultGrid .segments {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+.batterResultGrid .segments button {
+  grid-column: span 3;
+  min-width: 0;
+}
+.batterResultGrid .segments button:nth-child(n + 5) {
+  grid-column: span 4;
+}
+.batterResultGrid .segments:has(button:nth-child(8)) button:nth-child(n + 5) {
+  grid-column: span 3;
+}
+.reasonGrid .segments {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.reasonGrid .segments button {
+  text-align: left;
+  padding: 8px 12px;
+  min-height: 40px;
+}
+.resolutionPosition.resolutionFielder {
+  width: 21%;
+  min-height: 32px;
+  padding: 3px;
+}
+.resolutionPosition.resolutionFielder[data-tracked="false"] {
+  width: 32px;
+  background: #14231cd9;
+  border-color: #ffffff50;
+}
+@media (max-width: 359px) {
+  .contactGrid .segments {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .steps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -959,6 +1005,28 @@
 .fieldSequence > span {
   overflow-wrap: anywhere;
   min-width: 0;
+}
+.sequencePlayers {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.sequencePlayers button {
+  min-width: 28px;
+  min-height: 32px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px;
+}
+.sequencePlayers button[aria-pressed="true"] {
+  background: var(--brand-soft);
+  border-color: var(--brand-primary);
 }
 .fieldSequence button {
   margin-left: auto;

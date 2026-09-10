@@ -6,6 +6,7 @@ import { id, asAccount } from "./helpers/playerDatabase.mjs";
 import { buildBpRunnerMove } from "../app/lib/liveBpRunnerMove.ts";
 import {
   buildBpPitch,
+  bpBatterResults,
   initialBpSettings,
   initialBpState,
   validateBpSettings,
@@ -18,6 +19,125 @@ import {
 } from "../app/lib/liveBp.ts";
 
 const settings = (patch = {}) => ({ ...initialBpSettings(id(40)), ...patch });
+test("contact drives ordered batter results and eligible sacrifices", () => {
+  const s = settings({ mode: "GAME" });
+  const state = { ...initialBpState(), runners: [2] };
+  assert.deepEqual(bpBatterResults(undefined, s, state), []);
+  assert.deepEqual(
+    bpBatterResults("Bunt", s, state)
+      .slice(0, 4)
+      .map((o) => o.label),
+    ["1B", "2B", "3B", "HR"],
+  );
+  assert.ok(
+    bpBatterResults("Bunt", s, state).some((o) => o.value === "Sac Bunt"),
+  );
+  assert.ok(
+    bpBatterResults("Fly ball", s, state).some((o) => o.value === "Sac Fly"),
+  );
+  for (const contact of ["Bunt", "Fly ball"])
+    for (const situation of [initialBpState(), { ...state, outs: 2 }])
+      assert.equal(
+        bpBatterResults(contact, s, situation).some((o) =>
+          o.value.startsWith("Sac"),
+        ),
+        false,
+      );
+});
+test("sacrifices count batter outs and require explicit runner advancement", () => {
+  const s = settings({ mode: "GAME" });
+  const state = { ...initialBpState(), runners: [2], runnerIds: { 2: id(42) } };
+  const draft = {
+    outcome: "Ball in play",
+    battedBall: "Bunt",
+    result: "Sac Bunt",
+    runnerOutcomes: { 2: "3" },
+  };
+  const saved = buildBpPitch(s, state, draft);
+  assert.equal(saved.stateAfter.outs, 1);
+  assert.deepEqual(saved.stateAfter.runnerIds, { 3: id(42) });
+  assert.equal(saved.context.result, "Sac Bunt");
+  assert.throws(
+    () => buildBpPitch(s, state, { ...draft, runnerOutcomes: {} }),
+    /advance/,
+  );
+  assert.throws(() => buildBpPitch(s, { ...state, outs: 2 }, draft), /fewer/);
+  assert.throws(
+    () => buildBpPitch(s, state, { ...draft, battedBall: "Ground ball" }),
+    /eligible/,
+  );
+  const fly = {
+    ...draft,
+    battedBall: "Fly ball",
+    result: "Sac Fly",
+    runnerOutcomes: { 2: "score" },
+  };
+  assert.equal(buildBpPitch(s, state, fly).stateAfter.outs, 1);
+  assert.throws(
+    () => buildBpPitch(s, state, { ...fly, runnerOutcomes: {} }),
+    /scoring runner/,
+  );
+});
+test("untracked and unknown positions can precede the explicitly graded receiver", async () => {
+  const s = settings({
+    mode: "GAME",
+    defense: "SELECTED",
+    positions: ["2B"],
+    alignment: { "2B": id(42), RF: id(41) },
+  });
+  const r = await start(s);
+  const draft = {
+    outcome: "Ball in play",
+    battedBall: "Fly ball",
+    result: "Out",
+    fieldingSequence: ["LF", "RF", "2B"],
+    position: "2B",
+    defenseResult: "Error",
+    errorType: "Throwing",
+    throwResult: "Inaccurate",
+  };
+  const saved = buildBpPitch(s, r.state, draft);
+  assert.deepEqual(saved.context.fieldingSequence, [
+    { position: "LF", playerId: null, tracked: false },
+    { position: "RF", playerId: id(41), tracked: false },
+    { position: "2B", playerId: id(42), tracked: true },
+  ]);
+  assert.equal(saved.defense.player_id, id(42));
+  const next = await pitch(r, draft);
+  assert.deepEqual(
+    (
+      await db.query(
+        "select player_id,error_type,throw_result from defense_events",
+      )
+    ).rows,
+    [{ player_id: id(42), error_type: "Throwing", throw_result: "Inaccurate" }],
+  );
+  assert.throws(
+    () => buildBpPitch(s, r.state, { ...draft, position: "LF" }),
+    /not enabled/,
+  );
+  assert.throws(
+    () =>
+      buildBpPitch(s, r.state, {
+        ...draft,
+        fieldingSequence: ["not a position"],
+      }),
+    /sequence/,
+  );
+  assert.equal(
+    buildBpPitch(s, r.state, {
+      ...draft,
+      position: undefined,
+      defenseResult: undefined,
+    }).defense,
+    undefined,
+  );
+  await call("undo", next, {}, randomUUID());
+  assert.equal(
+    (await db.query("select count(*)::int n from defense_events")).rows[0].n,
+    0,
+  );
+});
 test("richer BIP choices preserve provenance and canonical analytics taxonomy", () => {
   const s = settings({ source: "PLAYER", pitcherId: id(41) });
   const hard = buildBpPitch(s, initialBpState(), {
@@ -348,8 +468,8 @@ test("field sequence and runner reasons persist as provenance without invented d
   const context = (await db.query("select live_bp_context from hitting_events"))
     .rows[0].live_bp_context;
   assert.deepEqual(context.fieldingSequence, [
-    { position: "SS", playerId: id(42) },
-    { position: "P", playerId: id(41) },
+    { position: "SS", playerId: id(42), tracked: true },
+    { position: "P", playerId: id(41), tracked: true },
   ]);
   assert.equal(context.runnerReasons[2], "On throwing error");
   assert.deepEqual(next.state.runnerIds, { 3: id(42) });
