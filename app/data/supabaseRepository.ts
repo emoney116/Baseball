@@ -444,9 +444,10 @@ export const supabaseAppRepository = {
       ok?: boolean;
       message?: string;
       invitation?: StaffInvitation;
+      staffMemberId?: string;
       email?: { sent: boolean; message?: string; reason?: string };
     };
-    if (!response.ok || !payload.invitation) {
+    if (!response.ok || (!payload.invitation && !payload.staffMemberId)) {
       throw new PersistenceError("save-failed", payload.message ?? "Unable to invite staff.");
     }
     return payload;
@@ -494,6 +495,9 @@ export const supabaseAppRepository = {
 
   async updateStaffMember(input: {
     staffMemberId: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
     memberships: Array<{
       teamId: string;
       seasonId?: string;

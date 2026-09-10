@@ -69,5 +69,7 @@ test("staff invitation migration keeps tokens hashed and authorization server-si
   assert.match(memberRoute, /profile-staff-/);
   assert.match(memberRoute, /materializeProfileStaffMember/);
   assert.match(memberRoute, /UUID_PATTERN/);
-  assert.doesNotMatch(memberRoute, /body\.email|body\.firstName|body\.lastName|body\.displayName/);
+  assert.match(memberRoute, /Linked account emails must be changed by the account owner/);
+  assert.match(memberRoute, /status: "REVOKED"/);
+  assert.match(memberRoute, /invitation_id: null/);
 });

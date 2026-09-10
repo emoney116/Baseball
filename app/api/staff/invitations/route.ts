@@ -28,6 +28,17 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json().catch(() => ({}))) as InviteStaffBody;
     const teams = Array.isArray(body.teams) ? body.teams.filter((team) => team.teamId) : [];
+    if (body.sendInvite === false) {
+      const { data: staffMemberId, error } = await supabase.rpc("create_staff_without_invitation", {
+        staff_first_name: body.firstName ?? "", staff_last_name: body.lastName ?? "",
+        staff_email: body.email ?? "", staff_role: body.staffRole ?? "Assistant Coach",
+        staff_access_role: body.accessRole ?? "COACH",
+        staff_team_ids: teams.map((team) => team.teamId),
+        staff_season_ids: teams.map((team) => team.seasonId ?? null),
+      });
+      if (error || !staffMemberId) return NextResponse.json({ ok: false, message: error?.message ?? "Unable to add staff." }, { status: 400 });
+      return NextResponse.json({ ok: true, staffMemberId, email: { sent: false, reason: "deferred", message: "Staff added. No invitation was sent." } });
+    }
     if (!body.email || teams.length === 0) {
       return NextResponse.json({ ok: false, message: "Enter an email and choose at least one team." }, { status: 400 });
     }
@@ -54,10 +65,6 @@ export async function POST(request: NextRequest) {
     const invitation = await readInvitationSummary(admin, invitationId);
     if (!invitation) {
       return NextResponse.json({ ok: false, message: "Invitation was created but could not be loaded." }, { status: 500 });
-    }
-
-    if (body.sendInvite === false) {
-      return NextResponse.json({ ok: true, invitation, email: { sent: false, reason: "deferred", message: "Staff added. No invitation was sent." } });
     }
 
     const inviteLink = buildInviteUrl(request, token);

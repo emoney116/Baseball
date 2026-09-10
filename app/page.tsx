@@ -2124,6 +2124,18 @@ export default function MetrolinaBaseballApp() {
   async function updateStaffMember(input: StaffMemberUpdateInput) {
     setStaffActionMessage("");
     await supabaseAppRepository.updateStaffMember(input);
+    if (input.sendInvite && input.email) {
+      const primary = input.memberships[0];
+      const result = await supabaseAppRepository.inviteStaff({
+        sendInvite: true, email: input.email, firstName: input.firstName, lastName: input.lastName,
+        staffRole: primary.baseballRole, accessRole: primary.accessRole,
+        teams: input.memberships.map(({ teamId, seasonId }) => ({ teamId, seasonId })),
+      });
+      if (!result.email?.sent) {
+        await reloadCurrentTeam();
+        throw new Error(result.email?.message ?? "Staff saved, but the invitation could not be sent. Use Send invite to retry.");
+      }
+    }
     await reloadCurrentTeam();
     setStaffActionMessage("Staff updated.");
   }
@@ -7173,24 +7185,17 @@ function StaffRosterView({
               <span className={`staff-access-badge staff-access-badge--${membership.accessRole.toLowerCase()}`}>{membership.accessRole === "ADMIN" ? "Admin" : "Coach"}</span>
               <span className={`staff-status-badge staff-status-badge--${status.toLowerCase().replace(/\s+/g, "-")}`}>{status}</span>
               <span className="staff-actions-cell">
+                <button className="row-action-button tooltip-trigger" type="button" onClick={() => member && setEditingStaffId(member.id)} disabled={!member} aria-label={`Edit ${member?.displayName ?? "staff member"}`} data-tooltip="Edit staff">
+                  <Edit3 size={15} aria-hidden="true" />
+                </button>
                 {status === "Active" || status === "No Account" ? (
                   <>
                     {status === "No Account" && (
-                      <button className="secondary-button staff-invite-inline" type="button" onClick={onInviteStaff}>
+                      <button className="secondary-button staff-invite-inline" type="button" onClick={() => member && setEditingStaffId(member.id)}>
                         <Mail size={14} aria-hidden="true" />
-                        Add Email
+                        {member?.email ? "Send Invite" : "Add Email"}
                       </button>
                     )}
-                    <button
-                      className="row-action-button tooltip-trigger"
-                      type="button"
-                      onClick={() => member && setEditingStaffId(member.id)}
-                      disabled={!member}
-                      aria-label={`Edit ${member?.displayName ?? "staff member"}`}
-                      data-tooltip="Edit staff"
-                    >
-                      <Edit3 size={15} aria-hidden="true" />
-                    </button>
                     <button
                       className="row-action-button row-action-button--danger tooltip-trigger"
                       type="button"
@@ -18689,6 +18694,10 @@ type ManualRosterRow = {
 
 type StaffMemberUpdateInput = {
   staffMemberId: ID;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  sendInvite?: boolean;
   memberships: Array<{
     teamId: ID;
     seasonId?: ID;
@@ -18735,8 +18744,8 @@ function InviteStaffModal({
     const assignedTeams = selectedTeams
       .map((key) => uniqueTeams.find((team) => teamSelectionKey(team) === key))
       .filter((team): team is TeamOption => Boolean(team));
-    if (!email.trim() || assignedTeams.length === 0) {
-      setMessage("Enter an email and choose at least one team.");
+    if ((sendInvite && !email.trim()) || (!sendInvite && !firstName.trim() && !lastName.trim()) || assignedTeams.length === 0) {
+      setMessage("Enter a name, choose a team, and include an email when sending an invitation.");
       return;
     }
     setBusy(true);
@@ -18783,7 +18792,7 @@ function InviteStaffModal({
       <form className="staff-invite-form" onSubmit={(event) => void submitInvite(event)}>
         <div className="staff-invite-grid">
           <label className="form-field">
-            <span>Email</span>
+            <span>Email (optional)</span>
             <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="coach@example.com" autoComplete="email" />
           </label>
           <label className="form-field">
@@ -18853,7 +18862,7 @@ function InviteStaffModal({
 
         <div className="modal-actions">
           <button className="secondary-button" type="button" onClick={onClose}>Close</button>
-          <button className="primary-button" type="submit" disabled={busy || !email.trim() || selectedTeams.length === 0}>
+          <button className="primary-button" type="submit" disabled={busy || (sendInvite ? !email.trim() : !firstName.trim() && !lastName.trim()) || selectedTeams.length === 0}>
             {busy ? "Saving..." : sendInvite ? "Add & Send Invite" : "Add Staff"}
           </button>
         </div>
@@ -18875,6 +18884,10 @@ function EditStaffModal({
   onClose: () => void;
   onSave: (input: StaffMemberUpdateInput) => Promise<void>;
 }) {
+  const [firstName, setFirstName] = useState(member.firstName ?? member.displayName);
+  const [lastName, setLastName] = useState(member.lastName ?? "");
+  const [email, setEmail] = useState(member.email ?? "");
+  const [sendInvite, setSendInvite] = useState(false);
   const primaryMembership = memberships[0];
   const [staffRole, setStaffRole] = useState<StaffBaseballRole>(primaryMembership?.baseballRole ?? "Assistant Coach");
   const [accessRole, setAccessRole] = useState<StaffAccessRole>(primaryMembership?.accessRole ?? "COACH");
@@ -18906,6 +18919,9 @@ function EditStaffModal({
     try {
       await onSave({
         staffMemberId: member.id,
+        firstName: firstName.trim(), lastName: lastName.trim(),
+        email: member.profileId ? undefined : email.trim(),
+        sendInvite: !member.profileId && sendInvite,
         memberships: assignedTeams.map((team) => ({
           teamId: team.teamId,
           seasonId: team.seasonId,
@@ -18932,6 +18948,9 @@ function EditStaffModal({
         </div>
 
         <div className="staff-invite-grid staff-edit-grid">
+          <label className="form-field"><span>First name</span><input value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label>
+          <label className="form-field"><span>Last name</span><input value={lastName} onChange={(event) => setLastName(event.target.value)} /></label>
+          <label className="form-field"><span>{member.profileId ? "Account email" : "Email (optional)"}</span><input type="email" value={email} disabled={Boolean(member.profileId)} onChange={(event) => setEmail(event.target.value)} /></label>
           <div className="form-field">
             <span>Staff role</span>
             <ChoiceSelect
@@ -18974,11 +18993,12 @@ function EditStaffModal({
           })}
         </section>
 
+        {!member.profileId && <label className="checkbox-field"><input type="checkbox" checked={sendInvite} onChange={(event) => setSendInvite(event.target.checked)} /><span>Send invitation now</span></label>}
         {message && <p className="staff-invite-message">{message}</p>}
         <div className="modal-actions">
           <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
-          <button className="primary-button" type="submit" disabled={busy || selectedTeams.length === 0}>
-            {busy ? "Saving..." : "Save Staff"}
+          <button className="primary-button" type="submit" disabled={busy || selectedTeams.length === 0 || (!firstName.trim() && !lastName.trim()) || (sendInvite && !email.trim())}>
+            {busy ? "Saving..." : sendInvite ? "Save & Send Invite" : "Save Staff"}
           </button>
         </div>
       </form>

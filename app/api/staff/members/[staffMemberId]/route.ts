@@ -27,6 +27,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const body = (await request.json().catch(() => ({}))) as {
       memberships?: StaffMembershipInput[];
+      firstName?: string;
+      lastName?: string;
+      email?: string;
     };
     const requestedMemberships = normalizeRequestedMemberships(body.memberships ?? []);
     if (requestedMemberships.length === 0) {
@@ -45,7 +48,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const { data: staffMember, error: staffError } = await admin
       .from("staff_members")
-      .select("id,organization_id,profile_id,email,display_name")
+      .select("id,organization_id,profile_id,email,display_name,first_name,last_name")
       .eq("id", resolvedStaffMemberId)
       .maybeSingle();
     if (staffError) return NextResponse.json({ ok: false, message: staffError.message }, { status: 500 });
@@ -97,9 +100,41 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
+    const identity: { first_name?: string | null; last_name?: string | null; display_name?: string; email?: string | null } = {};
+    if (body.firstName !== undefined || body.lastName !== undefined) {
+      const first = typeof body.firstName === "string" ? body.firstName.trim() : staffMember.first_name ?? "";
+      const last = typeof body.lastName === "string" ? body.lastName.trim() : staffMember.last_name ?? "";
+      if (!`${first} ${last}`.trim()) return NextResponse.json({ ok: false, message: "Enter a staff name." }, { status: 400 });
+      identity.first_name = first || null;
+      identity.last_name = last || null;
+      identity.display_name = `${first} ${last}`.trim();
+    }
+    if (body.email !== undefined) {
+      const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+      if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return NextResponse.json({ ok: false, message: "Enter a valid email." }, { status: 400 });
+      if (staffMember.profile_id && email !== (staffMember.email ?? "").toLowerCase()) {
+        return NextResponse.json({ ok: false, message: "Linked account emails must be changed by the account owner." }, { status: 400 });
+      }
+      if (email && email !== (staffMember.email ?? "").toLowerCase()) {
+        const { data: duplicate, error } = await admin.from("staff_members").select("id").eq("organization_id", staffMember.organization_id).eq("email", email).neq("id", resolvedStaffMemberId).maybeSingle();
+        if (error) return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+        if (duplicate) return NextResponse.json({ ok: false, message: "That email belongs to another staff member." }, { status: 409 });
+      }
+      identity.email = email || null;
+    }
+    for (const requested of requestedMemberships) {
+      if (!requested.seasonId) continue;
+      const { data: season, error } = await admin.from("seasons").select("id").eq("id", requested.seasonId).eq("team_id", requested.teamId).maybeSingle();
+      if (error || !season) return NextResponse.json({ ok: false, message: "Season does not belong to the selected team." }, { status: 400 });
+    }
+    // Old links must not restore stale email, role, or team assignments after an edit.
+    const { error: revokeError } = await admin.from("team_invitations").update({ status: "REVOKED", updated_at: new Date().toISOString() }).eq("staff_member_id", resolvedStaffMemberId).in("status", ["PENDING", "EXPIRED"]);
+    if (revokeError) return NextResponse.json({ ok: false, message: revokeError.message }, { status: 500 });
+
     const { error: updateStaffError } = await admin
       .from("staff_members")
       .update({
+        ...identity,
         active: true,
         updated_at: new Date().toISOString(),
       })
@@ -112,6 +147,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       );
       const row = {
         staff_member_id: resolvedStaffMemberId,
+        ...(!staffMember.profile_id ? { invitation_id: null } : {}),
         profile_id: staffMember.profile_id ?? null,
         team_id: requested.teamId,
         season_id: requested.seasonId ?? null,

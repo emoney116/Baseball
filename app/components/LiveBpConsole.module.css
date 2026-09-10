@@ -411,6 +411,22 @@
   font-size: 10px;
   border-radius: 3px;
 }
+.console .fieldViewToggle .segments button[aria-pressed="true"] {
+  background: var(--brand-primary);
+  color: #fff;
+}
+.console :global(.practice-hitting-live-charts .practice-pitch-location-grid) {
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  padding: 34px 48px 36px;
+}
+.console :global(.practice-hitting-live-charts .practice-pitch-location-grid__stage) {
+  width: min(260px, 100%);
+  height: auto;
+  aspect-ratio: 1;
+  min-height: 0;
+}
 .fieldViewToggle .segmentGroup > span {
   display: none;
 }
@@ -478,7 +494,7 @@
   padding: 4px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #202020;
+  background: var(--panel-strong);
   box-shadow: 0 8px 24px #0006;
 }
 .correctionMenu button {
@@ -493,7 +509,7 @@
 }
 .correctionMenu button:hover:not(:disabled),
 .correctionMenu button:focus-visible {
-  background: #ffffff12;
+  background: var(--panel-soft);
 }
 .gameSituation > button {
   display: grid;

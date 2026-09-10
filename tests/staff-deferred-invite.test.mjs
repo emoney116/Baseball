@@ -25,6 +25,9 @@ for (const sendInvite of [false, true, undefined]) {
     assert.equal(result.status, 200);
     assert.equal(sent, sendInvite === false ? 0 : 1);
     assert.equal(result.body.email.sent, sendInvite !== false);
-    if (sendInvite === false) assert.equal(result.body.invitation.inviteLink, undefined);
+    if (sendInvite === false) {
+      assert.equal(result.body.invitation, undefined);
+      assert.equal(result.body.staffMemberId, 'invite-id');
+    }
   });
 }
