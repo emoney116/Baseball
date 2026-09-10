@@ -15,7 +15,9 @@
 - In Play continues through EV/spray, then batted-ball and batter result.
 - Add an enabled defense event, runner outcome, and job result when relevant.
 - Save; confirm feedback before the next pitch.
-- Switch hitter with the name-row arrows; switch pitcher through the source.
+- Tap the hitter or pitcher name to choose a different participant.
+- In Defensive Alignment, use Track stats for the selected position; Done saves.
+- Green position dots mean tracking On; red means Off. Coach/Machine P stays Off.
 - Use the situation strip to change count, outs, runners, or job.
 - Tap the spray chart to cycle Spray / % / # / Heat.
 - If a save fails, keep the draft open and retry. Do not re-enter a duplicate.

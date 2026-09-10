@@ -10,9 +10,30 @@ import {
   validateBpSettings,
   bpTracksCount,
   withBpPitcherAlignment,
+  bpPositionTracked,
+  toggleBpPosition,
 } from "../app/lib/liveBp.ts";
 
 const settings = (patch = {}) => ({ ...initialBpSettings(id(40)), ...patch });
+test("position tracking toggles preserve assignments and exclude non-player P", () => {
+  const all = settings({
+    source: "COACH",
+    defense: "ALL",
+    alignment: { CF: id(42) },
+  });
+  assert.equal(bpPositionTracked(all, "P"), false);
+  assert.equal(bpPositionTracked(all, "CF"), true);
+  const off = toggleBpPosition(all, "CF");
+  assert.equal(bpPositionTracked(off, "CF"), false);
+  assert.equal(bpPositionTracked(off, "SS"), true);
+  assert.deepEqual(off.alignment, all.alignment);
+  assert.equal(bpPositionTracked(toggleBpPosition(off, "CF"), "CF"), true);
+  assert.equal(
+    bpPositionTracked(toggleBpPosition(settings(), "CF"), "CF"),
+    true,
+  );
+  assert.equal(bpPositionTracked(toggleBpPosition(all, "P"), "P"), false);
+});
 test("pitcher alignment follows source without overwriting other defenders", () => {
   const s = withBpPitcherAlignment(
     settings({

@@ -54,7 +54,7 @@
 }
 .matchup {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) 20px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
   border-bottom: 1px solid var(--line);
@@ -111,7 +111,7 @@
 }
 .rotation {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 28px;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
 }
 .rotation small {
@@ -129,7 +129,10 @@
 }
 .rotation > .participantName {
   width: 100%;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -137,6 +140,15 @@
   text-align: center;
   font-size: 13px;
   font-weight: 800;
+}
+.sourceButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sourceButton > svg,
+.participantName > svg {
+  flex: none;
 }
 .participantList {
   display: grid;
@@ -531,7 +543,8 @@
   min-height: 48px;
   border-bottom: 1px solid var(--line);
 }
-.switches input {
+.switches input,
+.positionTracking input {
   appearance: none;
   width: 44px;
   height: 26px;
@@ -544,7 +557,8 @@
   cursor: pointer;
   position: relative;
 }
-.switches input:before {
+.switches input:before,
+.positionTracking input:before {
   content: "";
   width: 18px;
   height: 18px;
@@ -557,7 +571,8 @@
 .switches input:checked {
   background: var(--brand-primary);
 }
-.switches input:checked:before {
+.switches input:checked:before,
+.positionTracking input:checked:before {
   left: 21px;
   background: white;
 }
@@ -659,7 +674,7 @@
   background: var(--brand-primary);
   color: white;
 }
-.alignmentField > button[data-tracked="true"]::after {
+.alignmentField > button[data-tracked]::after {
   content: "";
   position: absolute;
   width: 8px;
@@ -668,12 +683,59 @@
   top: -1px;
   border: 2px solid var(--panel);
   border-radius: 50%;
-  background: var(--brand-primary);
+  background: #df4a5a;
+}
+.alignmentField > button[data-tracked="true"]::after {
+  background: #38a669;
+}
+.positionTracking {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+}
+.positionTracking label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 12px;
+}
+.positionTracking input {
+  background: #df4a5a;
+}
+.positionTracking input:checked {
+  background: #38a669;
+}
+.positionTracking input:disabled {
+  cursor: default;
 }
 .fieldTracking {
   position: absolute;
   left: 8px;
   top: 8px;
+  z-index: 2;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.fieldTracking summary {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+.fieldTracking summary::-webkit-details-marker {
+  display: none;
+}
+.fieldTracking[open] {
+  padding: 0 8px 8px;
+  max-width: calc(100% - 16px);
+}
+.fieldTracking:not([open]) > div {
+  display: none;
 }
 .fieldTracking button {
   display: flex;

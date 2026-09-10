@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  ChevronLeft,
   ChevronRight,
   Check,
   BarChart3,
@@ -18,6 +17,7 @@ import {
   initialBpSettings,
   initialBpState,
   bpTracksCount,
+  bpPositionTracked,
   withBpPitcherAlignment,
   type BpState,
   type BpDraft,
@@ -386,11 +386,6 @@ export function LiveBpConsole({
     update("hitterId", id);
     setStage("pitch");
   }
-  function rotate(direction: number) {
-    const index = hitters.findIndex((p) => p.id === settings.hitterId);
-    const next = hitters[(index + direction + hitters.length) % hitters.length];
-    if (next) changeHitter(next.id);
-  }
   function flow(content: ReactNode) {
     const next = stage === "details" || (bip && !contactFinished);
     return sheet(
@@ -528,13 +523,6 @@ export function LiveBpConsole({
                 <div className={styles.rotation}>
                   <button
                     type="button"
-                    aria-label="Previous hitter"
-                    onClick={() => rotate(-1)}
-                  >
-                    <ChevronLeft size={18} />
-                  </button>
-                  <button
-                    type="button"
                     className={styles.participantName}
                     aria-label="Hitter"
                     title={
@@ -551,13 +539,6 @@ export function LiveBpConsole({
                       players.find((p) => p.id === settings.hitterId) ??
                         players[0],
                     )}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Next hitter"
-                    onClick={() => rotate(1)}
-                  >
-                    <ChevronRight size={18} />
                   </button>
                 </div>
               </div>
@@ -868,20 +849,46 @@ export function LiveBpConsole({
                       showEmptyState={false}
                       ariaLabel="Defensive alignment"
                     />
-                    <div className={styles.fieldTracking}>
-                      <button
-                        type="button"
-                        onClick={() => setup(2)}
-                        aria-label="Change defense tracking"
+                    <details
+                      className={styles.fieldTracking}
+                      onPointerEnter={(event) => {
+                        if (event.pointerType === "mouse")
+                          event.currentTarget.open = true;
+                      }}
+                      onPointerLeave={(event) => {
+                        if (
+                          event.pointerType === "mouse" &&
+                          !event.currentTarget.contains(document.activeElement)
+                        )
+                          event.currentTarget.open = false;
+                      }}
+                    >
+                      <summary
+                        aria-label="Defense tracking settings"
+                        title="Defense tracking"
                       >
-                        <Settings size={14} /> Defense:{" "}
-                        {settings.defense === "OFF"
-                          ? "Off"
-                          : settings.defense === "ALL"
-                            ? "All"
-                            : "Selected"}
-                      </button>
-                    </div>
+                        <Settings size={16} />
+                      </summary>
+                      <BpSegments
+                        label="Defense tracking"
+                        value={settings.defense}
+                        options={[
+                          { value: "OFF", label: "Off" },
+                          { value: "ALL", label: "All" },
+                          { value: "SELECTED", label: "Selected" },
+                        ]}
+                        onChange={(value) => {
+                          if (!busy && !uncertain)
+                            saveSetup(
+                              {
+                                ...settings,
+                                defense: value as BpSettings["defense"],
+                              },
+                              state,
+                            );
+                        }}
+                      />
+                    </details>
                     {BP_POSITIONS.map((position) => {
                       const [left, top] =
                         CLUBHOUSE_FIELD_POSITION_COORDINATES[position];
@@ -890,10 +897,7 @@ export function LiveBpConsole({
                           key={position}
                           type="button"
                           style={{ left: `${left}%`, top: `${top}%` }}
-                          data-tracked={
-                            settings.defense !== "OFF" &&
-                            positions.includes(position)
-                          }
+                          data-tracked={bpPositionTracked(settings, position)}
                           aria-label={
                             position === "P"
                               ? `Change pitcher: ${settings.source === "PLAYER" ? roster.find((p) => p.value === settings.pitcherId)?.label : settings.source === "COACH" ? settings.coachName : "Machine"}`
@@ -980,23 +984,16 @@ export function LiveBpConsole({
                     );
                   }}
                 />
-                <div
-                  className={`practice-hitting-stats-scope ${styles.analyticsPlayers}`}
-                  aria-label="Analytics players"
-                >
-                  {players
-                    .filter((p) => !p.archived)
-                    .map((p) => (
-                      <button
-                        type="button"
-                        key={p.id}
-                        className={chartPlayer === p.id ? "active" : ""}
-                        onClick={() => setChartPlayer(p.id)}
-                      >
-                        {densePlayerIdentityLabel(p)}
-                      </button>
-                    ))}
-                </div>
+                <ChoiceSelect
+                  label="Analytics player"
+                  value={chartPlayer || settings.hitterId}
+                  options={roster.filter(
+                    (p) =>
+                      !players.find((player) => player.id === p.value)
+                        ?.archived,
+                  )}
+                  onChange={setChartPlayer}
+                />
                 <section className={styles.charts}>
                   {charts(chartPlayer || settings.hitterId, chartSide)}
                 </section>

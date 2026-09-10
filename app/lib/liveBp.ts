@@ -185,6 +185,31 @@ export function withBpPitcherAlignment(settings: BpSettings): BpSettings {
   return { ...settings, alignment };
 }
 
+export function bpPositionTracked(settings: BpSettings, position: BpPosition) {
+  return (
+    !(position === "P" && settings.source !== "PLAYER") &&
+    (settings.defense === "ALL" ||
+      (settings.defense === "SELECTED" &&
+        settings.positions.includes(position)))
+  );
+}
+
+export function toggleBpPosition(
+  settings: BpSettings,
+  position: BpPosition,
+): BpSettings {
+  if (position === "P" && settings.source !== "PLAYER") return settings;
+  const enabled = BP_POSITIONS.filter((p) => bpPositionTracked(settings, p));
+  const positions = enabled.includes(position)
+    ? enabled.filter((p) => p !== position)
+    : [...enabled, position];
+  return {
+    ...settings,
+    defense: positions.length ? "SELECTED" : "OFF",
+    positions,
+  };
+}
+
 export function validateBpState(s: BpState) {
   bpAssert(
     s &&

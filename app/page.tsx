@@ -9148,8 +9148,8 @@ function PracticeConsole({
                 { label: "Pitches", value: pitchStats.totalPitches }, { label: "Strike %", value: formatPct(pitchStats.strikePct) },
                 { label: "Avg Velo", value: formatOptionalMph(pitchStats.avgVelocity) }, { label: "Zone %", value: formatPct(pitchStats.zonePct) }
               ]} />}
-              {side === "pitching" && <PracticePitchLocationGrid pitches={pitches} pitcher={selected} mode="analytics" />}
-              <PracticeHittingChartCarousel key={view ?? "all"} events={hits} hitter={selected} showSpray={view !== "location"} showPitchLocation={side === "hitting" && view !== "spray"} />
+              <PracticeHittingChartCarousel key={`${side}-${view ?? "all"}`} events={hits} hitter={selected} showSpray={view !== "location"} showPitchLocation={view !== "spray"}
+                pitchLocationChart={side === "pitching" ? (filters) => <PracticePitchLocationGrid pitches={pitches.filter((pitch) => !filters.length || filters.includes(pitch.pitchType))} pitcher={selected} mode="analytics" /> : undefined} />
             </>;
           }}
           sheet={(title, close, children) => <ModalFrame title={title} onClose={close} panelClassName="live-bp-sheet">{isValidElement<{children: React.ReactNode}>(children) && children.type === Fragment ? children.props.children : children}</ModalFrame>}
@@ -11208,11 +11208,13 @@ function PracticeHittingChartCarousel({
   hitter,
   showSpray,
   showPitchLocation,
+  pitchLocationChart,
 }: {
   events: HittingEvent[];
   hitter: Player;
   showSpray: boolean;
   showPitchLocation: boolean;
+  pitchLocationChart?: (filters: PitchType[]) => React.ReactNode;
 }) {
   const [sprayMode, setSprayMode] = useState<PracticeChartMetricMode>("dots");
   const [pitchLocationMode, setPitchLocationMode] = useState<PracticeChartMetricMode>("heat");
@@ -11350,12 +11352,12 @@ function PracticeHittingChartCarousel({
         )}
         {showPitchLocation && (
           <div className="practice-hitting-live-charts__panel" data-chart-view="location">
-            <PracticeHittingPitchLocationGrid
+            {pitchLocationChart ? pitchLocationChart(pitchFilters) : <PracticeHittingPitchLocationGrid
               events={pitchLocationEvents}
               hitter={hitter}
               mode={pitchLocationMode}
               onModeCycle={() => setPitchLocationMode((mode) => nextHittingChartMetricMode(mode))}
-            />
+            />}
           </div>
         )}
       </div>

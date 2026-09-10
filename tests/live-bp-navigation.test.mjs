@@ -27,8 +27,12 @@ test("Live BP is embedded inside the shared Practice tracker, with compact entry
   assert.doesNotMatch(header, /CoachLiveEntrySettings/);
   const source = fs.readFileSync("app/components/LiveBpConsole.tsx", "utf8");
   assert.match(source, /styles.matchup/);
-  assert.match(source, /aria-label="Previous hitter"/);
-  assert.match(source, /aria-label="Next hitter"/);
+  assert.doesNotMatch(
+    source,
+    /aria-label="Previous hitter"|aria-label="Next hitter"/,
+  );
+  assert.match(source, /label="Analytics player"/);
+  assert.match(source, /aria-label="Defense tracking settings"/);
   assert.doesNotMatch(source, /entryOpen/);
   assert.match(source, /setStage\("bip"\)/);
   assert.match(source, /<LiveBpSetup/);

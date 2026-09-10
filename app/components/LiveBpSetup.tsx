@@ -5,6 +5,8 @@ import type { Player } from "../types";
 import {
   BP_POSITIONS,
   bpTracksCount,
+  bpPositionTracked,
+  toggleBpPosition,
   withBpPitcherAlignment,
   validateBpSettings,
   validateBpState,
@@ -88,10 +90,7 @@ export function LiveBpSetup({
   return sheet(
     alignment ? "Defensive Alignment" : "Live BP Setup",
     () => {
-      if (!busy) {
-        if (alignment) setAlignment(false);
-        else onClose();
-      }
+      if (!busy) onClose();
     },
     <>
       <fieldset disabled={busy} className={styles.setup}>
@@ -113,6 +112,7 @@ export function LiveBpSetup({
                     style={{ left: `${left}%`, top: `${top}%` }}
                     aria-label={`Assign ${p}`}
                     aria-pressed={position === p}
+                    data-tracked={bpPositionTracked(draft, p)}
                     onClick={() => setPosition(p)}
                   >
                     {p}
@@ -124,7 +124,25 @@ export function LiveBpSetup({
               className={styles.assignmentRoster}
               aria-label={`Players at ${position}`}
             >
-              <h3>{position}</h3>
+              <div className={styles.positionTracking}>
+                <h3>{position}</h3>
+                <label>
+                  Track stats
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    aria-label={`Track ${position} stats`}
+                    checked={bpPositionTracked(draft, position)}
+                    disabled={position === "P" && draft.source !== "PLAYER"}
+                    onChange={() =>
+                      setDraft((s) => ({
+                        ...toggleBpPosition(s, position),
+                        countTracking: s.countTracking,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
               {position === "P" ? (
                 <p>
                   {draft.source === "PLAYER"
