@@ -11066,7 +11066,11 @@ button.analytics-box-score__row:hover {
 
 .ask-visual-card__field {
   border-radius: 7px;
-  max-height: 260px;
+  width: min(100%, 360px);
+  height: auto;
+  max-height: none;
+  aspect-ratio: 1;
+  margin-inline: auto;
 }
 
 .ask-visual-card .strike-zone {

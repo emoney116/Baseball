@@ -2,6 +2,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+test("Ask spray charts keep square geometry on phones and tablets", () => {
+  const css = readFileSync("app/globals.css", "utf8");
+  const rule = css.match(/\.ask-visual-card__field\s*\{([^}]+)\}/)?.[1];
+  assert.match(rule, /width: min\(100%, 360px\)/);
+  assert.match(rule, /aspect-ratio: 1/);
+  assert.match(rule, /max-height: none/);
+});
+
 test("Ask Clubhouse mobile UI uses a full-screen assistant with stacked suggestions", () => {
   const page = readFileSync("app/page.tsx", "utf8") + readFileSync("app/components/AskClubhouseDrawer.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
