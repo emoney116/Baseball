@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, Settings2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import type { Player, ZonePoint } from "../types";
 import {
   BP_POSITIONS,
@@ -44,12 +44,18 @@ export function LiveBpConsole({
   onExit,
   onSaved,
   pitchLocationControl,
+  initialHitterId,
+  initialPitcherId,
+  initialSource,
 }: {
   practiceId: string;
   players: Player[];
   active: boolean;
   onExit: () => void;
   onSaved: () => void;
+  initialHitterId?: string;
+  initialPitcherId?: string;
+  initialSource?: BpSettings["source"];
   pitchLocationControl: (
     point: ZonePoint | undefined,
     onSelect: (point: ZonePoint) => void,
@@ -57,14 +63,15 @@ export function LiveBpConsole({
   ) => ReactNode;
 }) {
   const [round, setRound] = useState<BpRound | null>(null),
-    [settings, setSettings] = useState(() =>
-      initialBpSettings(players[0]?.id ?? ""),
-    );
+    [settings, setSettings] = useState<BpSettings>(() => ({
+      ...initialBpSettings(initialHitterId || players[0]?.id || ""),
+      source: initialSource ?? "MACHINE",
+      pitcherId: initialPitcherId,
+    }));
   const [state, setState] = useState(initialBpState),
     [draft, setDraft] = useState<BpDraft>({ outcome: "" });
   const [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
-    [config, setConfig] = useState(true),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [uncertain, setUncertain] = useState(false);
@@ -95,7 +102,6 @@ export function LiveBpConsole({
           setNotice("Hitter or pitch source changed. Start a new pitch.");
         }
         adopt(r);
-        setConfig(false);
       }
       setError("");
     } catch (e) {
@@ -114,7 +120,6 @@ export function LiveBpConsole({
         const saved = payload.rounds.find((r: BpRound) => !r.ended_at);
         if (saved) {
           adopt(saved);
-          setConfig(false);
         }
       })
       .catch((error) => {
@@ -130,6 +135,8 @@ export function LiveBpConsole({
   }, [url]);
   const roster = players.map((p) => ({ value: p.id, label: p.name }));
   function update<K extends keyof BpSettings>(key: K, value: BpSettings[K]) {
+    if (["hitterId", "pitcherId", "source"].includes(key))
+      setDraft({ outcome: "" });
     setSettings((s) => ({ ...s, [key]: value }));
   }
   function edit<K extends keyof BpDraft>(key: K, value: BpDraft[K]) {
@@ -150,14 +157,43 @@ export function LiveBpConsole({
         pending.current = { id: crypto.randomUUID(), draft: { ...draft } };
       }
       startId.current ??= crypto.randomUUID();
+      let savedRound = round;
+      if (
+        operation === "pitch" &&
+        (!savedRound ||
+          JSON.stringify(savedRound.settings) !== JSON.stringify(settings) ||
+          JSON.stringify(savedRound.state) !== JSON.stringify(state))
+      ) {
+        const setup = await fetch(url, {
+          method: "POST",
+          signal: AbortSignal.timeout(15000),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            operation: savedRound ? "configure" : "start",
+            roundId: savedRound?.id ?? startId.current,
+            version: savedRound?.version ?? 0,
+            settings,
+            state,
+          }),
+        });
+        const result = await setup.json();
+        if (!setup.ok) {
+          if (setup.status < 500) pending.current = null;
+          if (result.ended && round)
+            setRound({ ...round, ended_at: new Date().toISOString() });
+          throw new Error(result.message ?? "Unable to save settings.");
+        }
+        savedRound = result.round;
+        setRound(savedRound);
+      }
       const res = await fetch(url, {
         method: "POST",
         signal: AbortSignal.timeout(15000),
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           operation,
-          roundId: round?.id ?? startId.current,
-          version: round?.version ?? 0,
+          roundId: savedRound?.id ?? startId.current,
+          version: savedRound?.version ?? 0,
           settings: nextSettings,
           state,
           requestId: pending.current?.id,
@@ -179,7 +215,6 @@ export function LiveBpConsole({
       )
         setDraft({ outcome: "" });
       adopt(p.round);
-      setConfig(false);
       if (operation === "pitch") {
         const pitchType = draft.pitchType;
         pending.current = null;
@@ -241,7 +276,7 @@ export function LiveBpConsole({
         </button>
         <div className={styles.title}>
           <h2>Live BP</h2>
-          {round && !config && (
+          {
             <p>
               <strong>
                 {roster.find((p) => p.value === settings.hitterId)?.label}
@@ -256,19 +291,8 @@ export function LiveBpConsole({
                     : "Coach"}
               </span>
             </p>
-          )}
+          }
         </div>
-        <button
-          className="icon-button"
-          title="Live BP settings"
-          disabled={busy || uncertain || ended}
-          onClick={() => {
-            if (config && round) adopt(round);
-            setConfig((v) => (round ? !v : true));
-          }}
-        >
-          <Settings2 size={20} />
-        </button>
       </header>
       {loading ? (
         <p role="status">Loading Live BP...</p>
@@ -294,7 +318,7 @@ export function LiveBpConsole({
                 disabled={busy || uncertain}
                 className={styles.fields}
               >
-                {config ? (
+                {
                   <>
                     <div className={styles.grid}>
                       <ChoiceSelect
@@ -361,7 +385,7 @@ export function LiveBpConsole({
                         />
                       )}
                     </div>
-                    <div className={styles.toggles}>
+                    <div className={`${styles.toggles} ${styles.tracking}`}>
                       {(["velocity", "location", "ev", "spray"] as const).map(
                         (key, i) => (
                           <label key={key}>
@@ -372,9 +396,9 @@ export function LiveBpConsole({
                             />
                             {
                               [
-                                "Pitch velocity",
-                                "Pitch location",
-                                "Exit velocity",
+                                "Velo",
+                                "Location",
+                                "EV",
                                 "Spray",
                               ][i]
                             }
@@ -500,334 +524,266 @@ export function LiveBpConsole({
                         )}
                       </div>
                     )}
-                    <button
-                      className="primary-button"
-                      onClick={() => void write(round ? "configure" : "start")}
-                    >
-                      {round ? "Apply Settings" : "Start Live BP"}
-                    </button>
                   </>
-                ) : (
-                  round && (
-                    <>
-                      <div className={styles.grid}>
-                        <ChoiceSelect
-                          label="Hitter"
-                          value={settings.hitterId}
-                          options={roster.filter(
-                            (p) =>
-                              settings.source !== "PLAYER" ||
-                              p.value !== settings.pitcherId,
-                          )}
-                          onChange={(v) =>
-                            void write("configure", {
-                              ...settings,
-                              hitterId: v,
-                            })
+                }
+                {
+                  <>
+                    <div className={styles.situation}>
+                      <strong>
+                        {settings.mode === "FREE"
+                          ? "Free BP"
+                          : `${state.balls}-${state.strikes}`}
+                      </strong>
+                      {settings.mode === "GAME" && (
+                        <>
+                          <span>{state.outs} out</span>
+                          <span>
+                            {state.runners.length
+                              ? state.runners.map((b) => `${b}B`).join(", ")
+                              : "Bases empty"}
+                          </span>
+                          <span>{state.job}</span>
+                        </>
+                      )}
+                    </div>
+                    <div className={styles.grid}>
+                      {settings.velocity &&
+                        number("velocity", "Pitch velocity (mph)")}
+                    </div>
+                    <div className={styles.outcomes}>
+                      {[
+                        "Ball",
+                        "Called Strike",
+                        "Whiff",
+                        "Foul",
+                        "Ball in play",
+                        "HBP",
+                      ].map((v) => (
+                        <button
+                          key={v}
+                          aria-pressed={draft.outcome === v}
+                          className={
+                            draft.outcome === v
+                              ? "primary-button"
+                              : "secondary-button"
                           }
-                        />
-                        {settings.source === "PLAYER" ? (
-                          <ChoiceSelect
-                            label="Pitcher"
-                            value={settings.pitcherId ?? ""}
-                            options={roster.filter(
-                              (p) => p.value !== settings.hitterId,
-                            )}
-                            onChange={(v) =>
-                              void write("configure", {
-                                ...settings,
-                                pitcherId: v,
-                              })
-                            }
-                          />
-                        ) : (
-                          <strong className={styles.source}>
-                            {settings.source === "MACHINE"
-                              ? "Machine"
-                              : "Coach"}{" "}
-                            pitching
-                          </strong>
-                        )}
-                      </div>
-                      <div className={styles.situation}>
-                        <strong>
-                          {settings.mode === "FREE"
-                            ? "Free BP"
-                            : `${state.balls}-${state.strikes}`}
-                        </strong>
-                        {settings.mode === "GAME" && (
-                          <>
-                            <span>{state.outs} out</span>
-                            <span>
-                              {state.runners.length
-                                ? state.runners.map((b) => `${b}B`).join(", ")
-                                : "Bases empty"}
-                            </span>
-                            <span>{state.job}</span>
-                          </>
-                        )}
-                      </div>
-                      <div className={styles.grid}>
-                        {settings.pitchMode !== "OFF" && (
-                          <Select
-                            label="Pitch type"
-                            value={
-                              settings.pitchMode === "ONE"
-                                ? (settings.pitchType ?? "")
-                                : (draft.pitchType ?? settings.pitchType ?? "")
-                            }
-                            values={TENDEX_PITCH_TYPES}
-                            onChange={(v) =>
-                              settings.pitchMode === "ONE"
-                                ? void write("configure", {
-                                    ...settings,
-                                    pitchType: v as BpSettings["pitchType"],
-                                  })
-                                : edit("pitchType", v as BpDraft["pitchType"])
-                            }
-                          />
-                        )}
-                        {settings.velocity &&
-                          number("velocity", "Pitch velocity (mph)")}
-                      </div>
-                      <div className={styles.outcomes}>
-                        {[
-                          "Ball",
-                          "Called Strike",
-                          "Whiff",
-                          "Foul",
-                          "Ball in play",
-                          "HBP",
-                        ].map((v) => (
-                          <button
-                            key={v}
-                            aria-pressed={draft.outcome === v}
-                            className={
-                              draft.outcome === v
-                                ? "primary-button"
-                                : "secondary-button"
-                            }
-                            onClick={() => edit("outcome", v)}
-                          >
-                            {v === "Whiff"
-                              ? "Swing + Miss"
-                              : v === "Ball"
-                                ? "Take: Ball"
-                                : v === "Called Strike"
-                                  ? "Take: Strike"
-                                  : v}
-                          </button>
-                        ))}
-                      </div>
-                      <div className={styles.entry}>
-                        {settings.location && (
-                          <section>
-                            <h3>Pitch Location</h3>
-                            {pitchLocationControl(
-                              draft.location,
-                              (p) => edit("location", p),
-                              settings.hitterId,
-                            )}
-                          </section>
-                        )}
-                        {bip && (
-                          <section className={styles.bip}>
-                            <h3>Ball in Play</h3>
+                          onClick={() => edit("outcome", v)}
+                        >
+                          {v === "Whiff"
+                            ? "Swing + Miss"
+                            : v === "Ball"
+                              ? "Take: Ball"
+                              : v === "Called Strike"
+                                ? "Take: Strike"
+                                : v}
+                        </button>
+                      ))}
+                    </div>
+                    <div className={styles.entry}>
+                      {settings.location && (
+                        <section>
+                          <h3>Pitch Location</h3>
+                          {pitchLocationControl(
+                            draft.location,
+                            (p) => edit("location", p),
+                            settings.hitterId,
+                          )}
+                        </section>
+                      )}
+                      {bip && (
+                        <section className={styles.bip}>
+                          <h3>Ball in Play</h3>
+                          <div className={styles.grid}>
+                            {settings.ev && number("ev", "Exit velocity (mph)")}
+                            <Select
+                              label="Batted-ball type"
+                              value={draft.battedBall ?? ""}
+                              values={[
+                                "Ground ball",
+                                "Line drive",
+                                "Fly ball",
+                                "Pop up",
+                              ]}
+                              onChange={(v) => edit("battedBall", v)}
+                            />
+                            <Select
+                              label="Contact quality (optional)"
+                              value={draft.contactQuality ?? ""}
+                              values={[
+                                "Poor",
+                                "Weak",
+                                "Solid",
+                                "Hard",
+                                "Barrel",
+                              ]}
+                              onChange={(v) => edit("contactQuality", v)}
+                            />
+                            <Select
+                              label="Batter result"
+                              value={draft.result ?? ""}
+                              values={[
+                                "Out",
+                                "Single",
+                                "Double",
+                                "Triple",
+                                "Home Run",
+                                "Reached on Error",
+                                "Fielders Choice",
+                              ]}
+                              onChange={(v) => edit("result", v)}
+                            />
+                          </div>
+                          {settings.spray && (
+                            <ClubhouseBaseballField
+                              activePoint={draft.spray}
+                              onSelect={(p) => edit("spray", p)}
+                              ariaLabel="Live BP spray location"
+                            />
+                          )}
+                          {settings.defense !== "OFF" && (
+                            <>
+                              <ChoiceSelect
+                                label="Fielder"
+                                value={draft.position ?? ""}
+                                options={[
+                                  { value: "", label: "No defensive rep" },
+                                  ...positions
+                                    .filter((p) => settings.alignment[p])
+                                    .map((p) => ({
+                                      value: p,
+                                      label: `${p} - ${roster.find((r) => r.value === settings.alignment[p])?.label ?? ""}`,
+                                    })),
+                                ]}
+                                onChange={(v) =>
+                                  edit(
+                                    "position",
+                                    v ? (v as BpDraft["position"]) : undefined,
+                                  )
+                                }
+                              />
+                              {draft.position && (
+                                <div className={styles.grid}>
+                                  <Select
+                                    label="Defense result"
+                                    value={draft.defenseResult ?? ""}
+                                    values={[
+                                      "Clean",
+                                      "Missed Rep",
+                                      "Error",
+                                      "Great Play",
+                                    ]}
+                                    onChange={(v) => edit("defenseResult", v)}
+                                  />
+                                  <Select
+                                    label="Throw"
+                                    value={draft.throwResult ?? "No Throw"}
+                                    values={[
+                                      "No Throw",
+                                      "Accurate",
+                                      "Inaccurate",
+                                    ]}
+                                    onChange={(v) => edit("throwResult", v)}
+                                  />
+                                  {draft.defenseResult === "Error" && (
+                                    <Select
+                                      label="Error type"
+                                      value={draft.errorType ?? ""}
+                                      values={[
+                                        "Fielding",
+                                        "Throwing",
+                                        "Decision",
+                                      ]}
+                                      onChange={(v) => edit("errorType", v)}
+                                    />
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          )}
+                          {settings.mode === "GAME" && (
                             <div className={styles.grid}>
-                              {settings.ev &&
-                                number("ev", "Exit velocity (mph)")}
-                              <Select
-                                label="Batted-ball type"
-                                value={draft.battedBall ?? ""}
-                                values={[
-                                  "Ground ball",
-                                  "Line drive",
-                                  "Fly ball",
-                                  "Pop up",
+                              <ChoiceSelect
+                                label="Batter finishes"
+                                value={draft.runnerOutcomes?.batter ?? ""}
+                                options={[
+                                  { value: "", label: "From batter result" },
+                                  { value: "out", label: "Out" },
+                                  ...["1", "2", "3"].map((value) => ({
+                                    value,
+                                    label: `To ${value}B`,
+                                  })),
+                                  { value: "score", label: "Scores" },
                                 ]}
-                                onChange={(v) => edit("battedBall", v)}
+                                onChange={(v) => {
+                                  const next = { ...draft.runnerOutcomes };
+                                  if (v) next.batter = v;
+                                  else delete next.batter;
+                                  edit("runnerOutcomes", next);
+                                }}
                               />
-                              <Select
-                                label="Contact quality (optional)"
-                                value={draft.contactQuality ?? ""}
-                                values={[
-                                  "Poor",
-                                  "Weak",
-                                  "Solid",
-                                  "Hard",
-                                  "Barrel",
-                                ]}
-                                onChange={(v) => edit("contactQuality", v)}
-                              />
-                              <Select
-                                label="Batter result"
-                                value={draft.result ?? ""}
-                                values={[
-                                  "Out",
-                                  "Single",
-                                  "Double",
-                                  "Triple",
-                                  "Home Run",
-                                  "Reached on Error",
-                                  "Fielders Choice",
-                                ]}
-                                onChange={(v) => edit("result", v)}
-                              />
-                            </div>
-                            {settings.spray && (
-                              <ClubhouseBaseballField
-                                activePoint={draft.spray}
-                                onSelect={(p) => edit("spray", p)}
-                                ariaLabel="Live BP spray location"
-                              />
-                            )}
-                            {settings.defense !== "OFF" && (
-                              <>
+                              {state.runners.map((b) => (
                                 <ChoiceSelect
-                                  label="Fielder"
-                                  value={draft.position ?? ""}
+                                  key={b}
+                                  label={`Runner ${b}B`}
+                                  value={draft.runnerOutcomes?.[b] ?? "hold"}
                                   options={[
-                                    { value: "", label: "No defensive rep" },
-                                    ...positions
-                                      .filter((p) => settings.alignment[p])
-                                      .map((p) => ({
-                                        value: p,
-                                        label: `${p} - ${roster.find((r) => r.value === settings.alignment[p])?.label ?? ""}`,
-                                      })),
-                                  ]}
-                                  onChange={(v) =>
-                                    edit(
-                                      "position",
-                                      v
-                                        ? (v as BpDraft["position"])
-                                        : undefined,
-                                    )
-                                  }
-                                />
-                                {draft.position && (
-                                  <div className={styles.grid}>
-                                    <Select
-                                      label="Defense result"
-                                      value={draft.defenseResult ?? ""}
-                                      values={[
-                                        "Clean",
-                                        "Missed Rep",
-                                        "Error",
-                                        "Great Play",
-                                      ]}
-                                      onChange={(v) => edit("defenseResult", v)}
-                                    />
-                                    <Select
-                                      label="Throw"
-                                      value={draft.throwResult ?? "No Throw"}
-                                      values={[
-                                        "No Throw",
-                                        "Accurate",
-                                        "Inaccurate",
-                                      ]}
-                                      onChange={(v) => edit("throwResult", v)}
-                                    />
-                                    {draft.defenseResult === "Error" && (
-                                      <Select
-                                        label="Error type"
-                                        value={draft.errorType ?? ""}
-                                        values={[
-                                          "Fielding",
-                                          "Throwing",
-                                          "Decision",
-                                        ]}
-                                        onChange={(v) => edit("errorType", v)}
-                                      />
-                                    )}
-                                  </div>
-                                )}
-                              </>
-                            )}
-                            {settings.mode === "GAME" && (
-                              <div className={styles.grid}>
-                                <ChoiceSelect
-                                  label="Batter finishes"
-                                  value={draft.runnerOutcomes?.batter ?? ""}
-                                  options={[
-                                    { value: "", label: "From batter result" },
-                                    { value: "out", label: "Out" },
+                                    { value: "hold", label: "Holds" },
                                     ...["1", "2", "3"].map((value) => ({
                                       value,
                                       label: `To ${value}B`,
                                     })),
                                     { value: "score", label: "Scores" },
+                                    { value: "out", label: "Out" },
                                   ]}
-                                  onChange={(v) => {
-                                    const next = { ...draft.runnerOutcomes };
-                                    if (v) next.batter = v;
-                                    else delete next.batter;
-                                    edit("runnerOutcomes", next);
-                                  }}
+                                  onChange={(v) =>
+                                    edit("runnerOutcomes", {
+                                      ...draft.runnerOutcomes,
+                                      [b]: v,
+                                    })
+                                  }
                                 />
-                                {state.runners.map((b) => (
-                                  <ChoiceSelect
-                                    key={b}
-                                    label={`Runner ${b}B`}
-                                    value={draft.runnerOutcomes?.[b] ?? "hold"}
-                                    options={[
-                                      { value: "hold", label: "Holds" },
-                                      ...["1", "2", "3"].map((value) => ({
-                                        value,
-                                        label: `To ${value}B`,
-                                      })),
-                                      { value: "score", label: "Scores" },
-                                      { value: "out", label: "Out" },
-                                    ]}
-                                    onChange={(v) =>
-                                      edit("runnerOutcomes", {
-                                        ...draft.runnerOutcomes,
-                                        [b]: v,
-                                      })
-                                    }
-                                  />
-                                ))}
-                                {state.job && (
-                                  <ChoiceSelect
-                                    label="Job result"
-                                    value={
-                                      draft.jobSuccess === undefined
-                                        ? ""
-                                        : String(draft.jobSuccess)
-                                    }
-                                    options={[
-                                      { value: "true", label: "Job Done" },
-                                      { value: "false", label: "Job Not Done" },
-                                    ]}
-                                    onChange={(v) =>
-                                      edit("jobSuccess", v === "true")
-                                    }
-                                  />
-                                )}
-                              </div>
-                            )}
-                          </section>
-                        )}
-                      </div>
-                      {settings.mode === "GAME" && state.job && nonBipPaEnd && (
-                        <ChoiceSelect
-                          label="Job result"
-                          value={
-                            draft.jobSuccess === undefined
-                              ? ""
-                              : String(draft.jobSuccess)
-                          }
-                          options={[
-                            { value: "true", label: "Job Done" },
-                            { value: "false", label: "Job Not Done" },
-                          ]}
-                          onChange={(v) => edit("jobSuccess", v === "true")}
-                        />
+                              ))}
+                              {state.job && (
+                                <ChoiceSelect
+                                  label="Job result"
+                                  value={
+                                    draft.jobSuccess === undefined
+                                      ? ""
+                                      : String(draft.jobSuccess)
+                                  }
+                                  options={[
+                                    { value: "true", label: "Job Done" },
+                                    { value: "false", label: "Job Not Done" },
+                                  ]}
+                                  onChange={(v) =>
+                                    edit("jobSuccess", v === "true")
+                                  }
+                                />
+                              )}
+                            </div>
+                          )}
+                        </section>
                       )}
-                    </>
-                  )
-                )}
+                    </div>
+                    {settings.mode === "GAME" && state.job && nonBipPaEnd && (
+                      <ChoiceSelect
+                        label="Job result"
+                        value={
+                          draft.jobSuccess === undefined
+                            ? ""
+                            : String(draft.jobSuccess)
+                        }
+                        options={[
+                          { value: "true", label: "Job Done" },
+                          { value: "false", label: "Job Not Done" },
+                        ]}
+                        onChange={(v) => edit("jobSuccess", v === "true")}
+                      />
+                    )}
+                  </>
+                }
               </fieldset>
-              {!config && round && (
+              {
                 <footer className={styles.footer}>
                   <button
                     className="secondary-button"
@@ -846,11 +802,7 @@ export function LiveBpConsole({
                             1) %
                             eligible.length
                         ];
-                      if (next)
-                        void write("configure", {
-                          ...settings,
-                          hitterId: next.value,
-                        });
+                      if (next) update("hitterId", next.value);
                     }}
                   >
                     Next Hitter <ArrowRight size={16} />
@@ -868,8 +820,8 @@ export function LiveBpConsole({
                         : "Save Pitch"}
                   </button>
                 </footer>
-              )}
-              {!config && round && (
+              }
+              {round && (
                 <button
                   className="ghost-button"
                   disabled={busy || uncertain}

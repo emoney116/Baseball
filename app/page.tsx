@@ -4164,6 +4164,7 @@ export default function MetrolinaBaseballApp() {
 
         {view === "practice" && practice && practiceTrackingOpen && practiceMode === "Live BP" && (
           <LiveBpConsole key={practice.id} practiceId={practice.id} players={data.players} active={Boolean(practice.startedAt) && !practice.endedAt}
+            initialHitterId={liveBpHitterId || practicePlayerId} initialPitcherId={liveBpPitcherId} initialSource={liveBpThrowerSource}
             pitchLocationControl={(point, onSelect, hitterId) => <PracticeHittingPitchLocationGrid events={[]} hitter={data.players.find(p => p.id === hitterId)} activePoint={point} onSelect={onSelect} />}
             onExit={() => writePracticeHubRoute("Overview", { replace: true })}
             onSaved={() => { void refreshGlobalData(); }} />
@@ -8684,11 +8685,6 @@ function PracticeConsole({
   function changeMode(nextMode: PracticeMode) {
     setPracticeModePickerOpen(false);
     onMode(nextMode);
-    if (nextMode === "Live BP") {
-      onPitchingStation("Live BP");
-      onHittingStation("Live BP");
-      if (liveBpPitcher) onSelectPlayer(liveBpPitcher.id);
-    }
   }
 
   function selectSession(row: PracticeActiveSessionRow) {

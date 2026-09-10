@@ -76,6 +76,23 @@
   height: 18px;
   accent-color: var(--accent);
 }
+.tracking {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.tracking label {
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 11px;
+  background: var(--panel-soft);
+}
+.tracking label:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel-soft));
+}
 .source {
   align-self: center;
   font-size: 14px;
