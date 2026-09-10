@@ -26,6 +26,13 @@ export const BP_POSITIONS = [
   "RF",
 ] as const;
 export type BpPosition = (typeof BP_POSITIONS)[number];
+export type BpDefensePreset = {
+  id: string;
+  name: string;
+  alignment: Partial<Record<BpPosition, string>>;
+  defense: "OFF" | "ALL" | "SELECTED";
+  positions: BpPosition[];
+};
 export type BpSettings = {
   mode: "FREE" | "AB" | "GAME";
   source: "MACHINE" | "COACH" | "PLAYER";
@@ -42,6 +49,7 @@ export type BpSettings = {
   defense: "OFF" | "ALL" | "SELECTED";
   positions: BpPosition[];
   alignment: Partial<Record<BpPosition, string>>;
+  defensePresets?: BpDefensePreset[];
 };
 export type BpState = {
   balls: number;
@@ -168,6 +176,38 @@ export function validateBpSettings(s: BpSettings) {
     "Invalid count tracking setting.",
   );
   const assigned = Object.values(s.alignment).filter(Boolean);
+  if (s.defensePresets !== undefined) {
+    bpAssert(
+      Array.isArray(s.defensePresets) && s.defensePresets.length <= 12,
+      "Save up to 12 defensive presets.",
+    );
+    for (const preset of s.defensePresets) {
+      bpAssert(
+        typeof preset.id === "string" &&
+          preset.id.length <= 80 &&
+          typeof preset.name === "string" &&
+          preset.name.trim().length > 0 &&
+          preset.name.length <= 40,
+        "Name each defensive preset (up to 40 characters).",
+      );
+      bpAssert(
+        ["OFF", "ALL", "SELECTED"].includes(preset.defense) &&
+          Array.isArray(preset.positions) &&
+          preset.positions.every((p) => BP_POSITIONS.includes(p)),
+        "Choose preset tracking positions.",
+      );
+      bpAssert(
+        preset.alignment &&
+          Object.entries(preset.alignment).every(
+            ([p, id]) =>
+              BP_POSITIONS.includes(p as BpPosition) &&
+              typeof id === "string" &&
+              id.length <= 80,
+          ),
+        "Invalid preset alignment.",
+      );
+    }
+  }
   bpAssert(
     new Set(assigned).size === assigned.length,
     "Assign each fielder to one position.",

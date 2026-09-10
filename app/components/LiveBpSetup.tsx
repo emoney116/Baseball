@@ -18,6 +18,7 @@ import { TENDEX_PITCH_TYPES } from "../lib/tendexGameAnalysis";
 import { densePlayerIdentityLabel } from "../lib/densePlayerIdentity";
 import { CLUBHOUSE_FIELD_POSITION_COORDINATES } from "../lib/baseballFieldLayout";
 import { ChoiceSelect } from "./ChoiceSelect";
+import { liveBpFieldLabel } from "../lib/liveBpFieldLabel";
 import { ClubhouseBaseballField } from "./ClubhouseBaseballField";
 import { BpBases, BpCount, BpSegments, type BpSheet } from "./LiveBpControls";
 import styles from "./LiveBpConsole.module.css";
@@ -115,7 +116,7 @@ export function LiveBpSetup({
                     data-tracked={bpPositionTracked(draft, p)}
                     onClick={() => setPosition(p)}
                   >
-                    {p}
+                    <span title={liveBpFieldLabel(draft, players, p)}>{liveBpFieldLabel(draft, players, p)}</span>
                   </button>
                 );
               })}

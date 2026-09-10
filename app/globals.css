@@ -159,6 +159,11 @@
   --mobile-practice-mode-nav-space: calc(158px + env(safe-area-inset-bottom));
 }
 
+.ops-shell:has(.ops-main--practice-tracking) > .bottom-nav,
+.ops-shell:has(.game-session-active) > .bottom-nav {
+  display: none;
+}
+
 [data-theme="light"] {
   color-scheme: light;
   --canvas: #f4f2ef;

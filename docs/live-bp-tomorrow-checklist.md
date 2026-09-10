@@ -7,6 +7,9 @@
 - If Defense is enabled, confirm selected positions and field assignments.
 - The field's Defense control switches Off / All / Selected without clearing assignments.
 - P follows the matchup pitcher. Tap P to change the pitcher/source, not a separate fielder.
+- Field gear > Defense Presets: save current alignment/tracking as Team 1 or Team 2.
+  Load swaps defense only; hitter and pitcher stay unchanged. Presets belong to this
+  Live BP session, survive reloads, and allow free individual reassignment afterward.
 
 ## During
 - Log Pitch opens the same step-by-step sheet used by Practice tools.
@@ -19,6 +22,8 @@
 - In Defensive Alignment, use Track stats for the selected position; Done saves.
 - Green position dots mean tracking On; red means Off. Coach/Machine P stays Off.
 - Use the situation strip to change count, outs, runners, or job.
+- Reset outs and Clear bases are separate controls. Job setup remains in Setup.
+- Ask Clubhouse is available inside Live BP Analytics with the current player and session context.
 - Tap the spray chart to cycle Spray / % / # / Heat.
 - If a save fails, keep the draft open and retry. Do not re-enter a duplicate.
 

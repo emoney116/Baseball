@@ -123,6 +123,28 @@ test("atomic count-off save retains round concurrency state but no fake event co
   assert.equal(pe.count_before, null);
   assert.equal(pe.count_after, null);
 });
+
+test("defensive presets persist atomically with settings without logging an event", async () => {
+  const preset = {
+    id: "team1",
+    name: "Team 1",
+    alignment: { SS: id(42) },
+    defense: "SELECTED",
+    positions: ["SS"],
+  };
+  let r = await start();
+  r = await call("configure", r, {
+    settings: { ...r.settings, defensePresets: [preset] },
+    state: r.state,
+  });
+  assert.deepEqual(r.settings.defensePresets, [preset]);
+  assert.equal(
+    (await db.query("select count(*)::int n from hitting_events")).rows[0].n,
+    0,
+  );
+  r = await pitch(r);
+  assert.deepEqual(r.settings.defensePresets, [preset]);
+});
 test("named coach is durable thrower context, never roster pitcher evidence", () => {
   const saved = JSON.parse(
     JSON.stringify(settings({ source: "COACH", coachName: "QA Coach" })),

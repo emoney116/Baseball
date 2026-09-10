@@ -9,6 +9,9 @@ import {
   ArrowLeft,
   ArrowRight,
   Plus,
+  RotateCcw,
+  Eraser,
+  LayoutList,
 } from "lucide-react";
 import type { Player, ZonePoint } from "../types";
 import {
@@ -32,6 +35,9 @@ import { DensePlayerIdentity } from "./DensePlayerIdentity";
 import { densePlayerIdentityLabel } from "../lib/densePlayerIdentity";
 import { CLUBHOUSE_FIELD_POSITION_COORDINATES } from "../lib/baseballFieldLayout";
 import { LiveBpSetup } from "./LiveBpSetup";
+import { LiveBpDefensePresets } from "./LiveBpDefensePresets";
+import { AskClubhouseLauncher } from "./AskClubhouseDrawer";
+import { liveBpFieldLabel } from "../lib/liveBpFieldLabel";
 import { BpBases, BpCount, BpSegments, type BpSheet } from "./LiveBpControls";
 import styles from "./LiveBpConsole.module.css";
 
@@ -49,8 +55,10 @@ export function LiveBpConsole({
   charts,
   sheet,
   createPlayer,
+  onAsk,
 }: {
   practiceId: string;
+  onAsk: (playerId: string, side: "hitting" | "pitching") => void;
   players: Player[];
   active: boolean;
   onExit: () => void;
@@ -95,6 +103,7 @@ export function LiveBpConsole({
   const [state, setState] = useState(initialBpState),
     [draft, setDraft] = useState<BpDraft>({ outcome: "" });
   const [loading, setLoading] = useState(true),
+    [presetsOpen, setPresetsOpen] = useState(false),
     [optionsOpen, setOptionsOpen] = useState(false),
     [chartsOpen, setChartsOpen] = useState(false),
     [chartSide, setChartSide] = useState<"hitting" | "pitching">("hitting"),
@@ -571,7 +580,6 @@ export function LiveBpConsole({
               </div>
             </div>
             <div className={styles.statusRow}>
-              <span className={styles.live}>LIVE</span>
               {trackedCount && (
                 <BpCount
                   balls={state.balls}
@@ -580,6 +588,27 @@ export function LiveBpConsole({
                     if (!uncertain) setState((s) => ({ ...s, balls, strikes }));
                   }}
                 />
+              )}
+              {settings.mode === "GAME" && (
+                <div className={styles.outsControl}>
+                  <button
+                    type="button"
+                    aria-label="Edit outs and situation"
+                    title="Edit situation"
+                    onClick={() => setup(2)}
+                  >
+                    <strong>{state.outs}</strong> Outs
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Reset outs"
+                    title="Reset outs"
+                    disabled={!state.outs || busy || uncertain}
+                    onClick={() => saveSetup(settings, { ...state, outs: 0 })}
+                  >
+                    <RotateCcw size={14} />
+                  </button>
+                </div>
               )}
               <button
                 type="button"
@@ -759,17 +788,24 @@ export function LiveBpConsole({
                     <div className={styles.gameSituation}>
                       <button
                         type="button"
-                        aria-label="Edit situation"
+                        aria-label="Edit bases"
+                        title="Edit bases"
                         onClick={() => setup(2)}
                       >
-                        <strong>
-                          {state.outs} OUT{state.outs === 1 ? "" : "S"}
-                        </strong>
-                        <span>
-                          {state.job ? `JOB · ${state.job}` : "Edit situation"}
-                        </span>
+                        <span aria-hidden="true">Bases</span>
                       </button>
                       <BpBases runners={state.runners} />
+                      <button
+                        type="button"
+                        aria-label="Clear bases"
+                        title="Clear bases"
+                        disabled={!state.runners.length || busy || uncertain}
+                        onClick={() =>
+                          saveSetup(settings, { ...state, runners: [] })
+                        }
+                      >
+                        <Eraser size={16} />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -888,6 +924,16 @@ export function LiveBpConsole({
                             );
                         }}
                       />
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => {
+                          if (!busy && !uncertain) setPresetsOpen(true);
+                        }}
+                      >
+                        <LayoutList size={16} />
+                        Defense Presets
+                      </button>
                     </details>
                     {BP_POSITIONS.map((position) => {
                       const [left, top] =
@@ -914,7 +960,15 @@ export function LiveBpConsole({
                             setOptionsOpen(true);
                           }}
                         >
-                          {position}
+                          <span
+                            title={liveBpFieldLabel(
+                              settings,
+                              players,
+                              position,
+                            )}
+                          >
+                            {liveBpFieldLabel(settings, players, position)}
+                          </span>
                         </button>
                       );
                     })}
@@ -968,6 +1022,13 @@ export function LiveBpConsole({
               "Live BP Analytics",
               () => setChartsOpen(false),
               <>
+                <AskClubhouseLauncher
+                  compact
+                  onClick={() => {
+                    setChartsOpen(false);
+                    onAsk(chartPlayer || settings.hitterId, chartSide);
+                  }}
+                />
                 <BpSegments
                   label="Analytics"
                   value={chartSide}
@@ -1020,6 +1081,19 @@ export function LiveBpConsole({
                     }
                   : undefined
               }
+            />
+          )}
+          {presetsOpen && (
+            <LiveBpDefensePresets
+              settings={settings}
+              playerIds={players.filter((p) => !p.archived).map((p) => p.id)}
+              busy={busy || uncertain}
+              error={error}
+              onSave={(next) => saveSetup(next, state)}
+              onClose={() => {
+                if (!busy) setPresetsOpen(false);
+              }}
+              sheet={sheet}
             />
           )}
           {participantPicker &&

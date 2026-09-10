@@ -4167,6 +4167,7 @@ export default function MetrolinaBaseballApp() {
         {view === "practice" && practicePlayer && practiceTrackingOpen && (
           <PracticeConsole
             data={data}
+            onAskLiveBp={(playerId, side) => openAskClubhouse("practice", {domain:side, source:"live-bp", mode:"box-score", timeRange:"season", groupBy:"player", playerIds:[playerId], eventIds: [...data.hittingSessions, ...data.pitchingSessions].filter((session)=>session.practiceId===practice?.id && session.type==="Live BP").map((session)=>session.id)})}
             practice={practice}
             mode={practiceMode}
             player={practicePlayer}
@@ -8170,6 +8171,7 @@ function PracticeAttendanceDrilldown({
 }
 
 function PracticeConsole({
+  onAskLiveBp,
   data,
   practice,
   mode,
@@ -8236,6 +8238,7 @@ function PracticeConsole({
   onEndPractice,
   onStartPractice,
 }: {
+  onAskLiveBp: (playerId: string, side: "hitting" | "pitching") => void;
   data: AppData;
   practice?: Practice;
   mode: PracticeMode;
@@ -9154,7 +9157,7 @@ function PracticeConsole({
           }}
           sheet={(title, close, children) => <ModalFrame title={title} onClose={close} panelClassName="live-bp-sheet">{isValidElement<{children: React.ReactNode}>(children) && children.type === Fragment ? children.props.children : children}</ModalFrame>}
           pitchLocationControl={(point, onSelect, hitterId) => <PracticeHittingPitchLocationGrid events={[]} hitter={data.players.find(p => p.id === hitterId)} activePoint={point} onSelect={onSelect} />}
-          onExit={onExitTracking} onSaved={onLiveBpSaved} />
+          onExit={onExitTracking} onSaved={onLiveBpSaved} onAsk={onAskLiveBp} />
       ) : mode === "Hitting" ? (
         <>
           <section className="practice-hitting-shell">
