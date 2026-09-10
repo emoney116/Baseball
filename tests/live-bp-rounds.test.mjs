@@ -18,6 +18,24 @@ import {
 } from "../app/lib/liveBp.ts";
 
 const settings = (patch = {}) => ({ ...initialBpSettings(id(40)), ...patch });
+test("richer BIP choices preserve provenance and canonical analytics taxonomy", () => {
+  const s = settings({ source: "PLAYER", pitcherId: id(41) });
+  const hard = buildBpPitch(s, initialBpState(), {
+    outcome: "Ball in play",
+    battedBall: "Hard ground ball",
+  });
+  assert.equal(hard.hitting.contact_result, "Ground ball");
+  assert.equal(hard.pitching.batted_ball, "Ground ball");
+  assert.equal(hard.context.battedBallType, "Hard ground ball");
+  assert.equal(hard.hitting.contact_quality, undefined);
+  const bunt = buildBpPitch(s, initialBpState(), {
+    outcome: "Ball in play",
+    battedBall: "Bunt",
+  });
+  assert.equal(bunt.context.battedBallType, "Bunt");
+  assert.equal(bunt.hitting.contact_result, undefined);
+  assert.equal(bunt.pitching.batted_ball, undefined);
+});
 test("position tracking toggles preserve assignments and exclude non-player P", () => {
   const all = settings({
     source: "COACH",

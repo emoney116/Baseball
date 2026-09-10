@@ -235,6 +235,13 @@ export function LiveBpPlayResolution({
           : [0, ...state.runners].map((base) => {
               const result = outcomeFor(base);
               if (result === "out" || result === "score") return null;
+              const occupants = [0, ...state.runners].filter(
+                (other) => outcomeFor(other) === result,
+              );
+              const visibleRunner = occupants.includes(runner)
+                ? runner
+                : occupants[0];
+              if (base !== visibleRunner) return null;
               const [x, y] = baseCoords[Number(result) || base];
               const name = players.find(
                 (p) =>
@@ -264,8 +271,14 @@ export function LiveBpPlayResolution({
                   }}
                   title={name}
                 >
-                  {base === 0 ? "Batter" : `${base}B`} ·{" "}
-                  {name?.split(" ").slice(1).join(" ") || name || "Runner"}
+                  {occupants.length > 1 ? (
+                    `${occupants.length} runners at ${result}B`
+                  ) : (
+                    <>
+                      {base === 0 ? "Batter" : `${base}B`} ·{" "}
+                      {name?.split(" ").slice(1).join(" ") || name || "Runner"}
+                    </>
+                  )}
                 </button>
               );
             })}

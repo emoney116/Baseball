@@ -522,7 +522,8 @@ export function LiveBpConsole({
       (bip && (!contactFinished || (!playResolution && needsPlayResolution)));
     const canFinish = Boolean(
       draft.outcome &&
-      (draft.outcome !== "Ball in play" || (bip && draft.result)),
+      (draft.outcome !== "Ball in play" ||
+        (bip && (settings.mode !== "GAME" || draft.result))),
     );
     const stepIndex = steps.findIndex((step) => step.id === wizardStep);
     return sheet(
@@ -566,7 +567,11 @@ export function LiveBpConsole({
               key={label}
               type="button"
               aria-current={wizardStep === id ? "step" : undefined}
-              disabled={busy || uncertain || (id === 4 && !draft.result)}
+              disabled={
+                busy ||
+                uncertain ||
+                (id === 4 && settings.mode === "GAME" && !draft.result)
+              }
               onClick={() => goToWizardStep(id)}
             >
               {label}
@@ -583,7 +588,12 @@ export function LiveBpConsole({
               type="button"
               className="primary-button"
               disabled={
-                busy || (!uncertain && bip && contactFinished && !draft.result)
+                busy ||
+                (!uncertain &&
+                  bip &&
+                  contactFinished &&
+                  settings.mode === "GAME" &&
+                  !draft.result)
               }
               onClick={
                 uncertain
@@ -850,7 +860,11 @@ export function LiveBpConsole({
                               onChange={(v) => edit("battedBall", v)}
                             />
                             <BpSegments
-                              label="Batter result"
+                              label={
+                                settings.mode === "GAME"
+                                  ? "Batter result"
+                                  : "Batter result (optional)"
+                              }
                               value={draft.result ?? ""}
                               options={[
                                 ["Out", "Out"],

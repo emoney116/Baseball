@@ -47,7 +47,7 @@ do not appear on every normal pitch.
 
 ## Executed verification
 
-- Production build and full suite: **866 passed**. Targeted suite: **56 passed**.
+- Production build and full suite: **867 passed**. Targeted suite: **57 passed**.
 - TypeScript passed; lint has zero errors (existing page image warnings remain).
 - Browser: 390x844, 446x912, and 1024x900. Wizard height remained 820px across
   Pitch, Outcome, Contact, Result, and Field. Standard content, including a
@@ -62,6 +62,11 @@ do not appear on every normal pitch.
   safe pickoff, third outs, sequence/reason provenance, atomic undo for all three
   pitch sources, and rollback if a linked deletion fails.
 - Hosted substitution-scope migration applied and the installed guard verified.
+- Hosted isolated Practice `d7653a51-667b-4e3d-9533-f8614ae31441`: Machine,
+  Coach, and Player all passed sequence/reason readback, substitutions,
+  non-roster rejection, safe pickoff, third-out clearing, atomic undo and retries.
+  All generated canonical stats were removed through undo; the QA Practice was
+  completed. The user's active Practice was not used for saved test pitches.
 
 ## Boundaries
 
@@ -69,5 +74,8 @@ Fielding possession sequences and runner reasons are stored as Live BP
 provenance. The explicitly graded primary fielder gets the existing defensive
 rep; receiver taps do **not** fabricate assists, putouts, or extra graded reps.
 This is not a full official-game throw-chain scorer. Redo was not added.
+Hard-ground-ball choices map to the existing Ground ball analytics category;
+the precise label remains in Live BP provenance. Bunt also remains in provenance
+without inventing a ground/fly trajectory or optional contact-quality grade.
 No official Game, lineup, plate-appearance, or score mutation path is used.
 Native iPhone touch/keyboard field testing remains separate from browser QA.

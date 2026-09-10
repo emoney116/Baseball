@@ -75,6 +75,7 @@ export type BpContext = {
   runnerOutcomes?: Record<string, string>;
   runnerReasons?: Record<string, string>;
   fieldingSequence?: { position: BpPosition; playerId: string }[];
+  battedBallType?: string;
 };
 export type BpRound = {
   id: string;
@@ -569,6 +570,7 @@ export function buildBpPitch(
     before: trackedCount ? before : beforeSituation,
     after: trackedCount ? after : afterSituation,
     result,
+    ...(bip && draft.battedBall ? { battedBallType: draft.battedBall } : {}),
     ...(settings.mode === "GAME" && ended
       ? {
           runnerOutcomes,
@@ -587,6 +589,13 @@ export function buildBpPitch(
         }
       : {}),
   };
+  // Preserve the richer choice in provenance without adding unsupported analytics categories.
+  const contactType =
+    !bip || draft.battedBall === "Bunt"
+      ? undefined
+      : draft.battedBall === "Hard ground ball"
+        ? "Ground ball"
+        : draft.battedBall;
   const zone = location
     ? location.x >= 0.22 &&
       location.x <= 0.78 &&
@@ -606,7 +615,7 @@ export function buildBpPitch(
     pitch_location: location,
     exit_velocity_mph: ev,
     field_location: spray,
-    contact_result: bip ? draft.battedBall : undefined,
+    contact_result: contactType,
     contact_quality: bip ? draft.contactQuality : undefined,
     is_live_bp: true,
   };
@@ -624,7 +633,7 @@ export function buildBpPitch(
           is_whiff: draft.outcome === "Whiff",
           is_called_strike: draft.outcome === "Called Strike",
           is_ball_in_play: bip,
-          batted_ball: bip ? draft.battedBall : undefined,
+          batted_ball: contactType,
           contact_quality: bip
             ? liveBpPitchContactQuality(draft.contactQuality)
             : undefined,
@@ -678,15 +687,16 @@ export function buildBpPitch(
       result: draft.defenseResult,
       error_type: draft.defenseResult === "Error" ? draft.errorType : undefined,
       throw_result: draft.throwResult,
-      rep_type: ["Ground ball", "Hard ground ball", "Bunt"].includes(
-        draft.battedBall ?? "",
-      )
-        ? "Ground Ball"
-        : draft.battedBall === "Line drive"
-          ? "Line Drive"
-          : draft.battedBall
-            ? "Fly Ball"
-            : "Other",
+      rep_type:
+        draft.battedBall === "Bunt"
+          ? "Other"
+          : ["Ground ball", "Hard ground ball"].includes(draft.battedBall ?? "")
+            ? "Ground Ball"
+            : draft.battedBall === "Line drive"
+              ? "Line Drive"
+              : draft.battedBall
+                ? "Fly Ball"
+                : "Other",
       location: spray,
     };
   }
