@@ -23,7 +23,8 @@
 - Green position dots mean tracking On; red means Off. Coach/Machine P stays Off.
 - Use the adjustment menu above Log Pitch to reset or set count/outs and add runners.
 - Occupied bases support an optional roster player; unnamed runners remain supported.
-- Field has a compact top-right Runners / Defense toggle. Tap a runner or drag it to an empty later base or home, then confirm the movement reason.
+- Field has a compact Runners / Defense toggle at the right of the chart toolbar, outside the field. The toolbar stays 32px tall across Field / Spray / Pitch Map.
+- Defense uses the shared canonical position coordinates. Tap a runner or drag it to an empty later base or home, then confirm the movement reason.
 - Runner movements stay in Practice history, not official Game statistics. Job setup remains in Setup.
 - Ask Clubhouse is available inside Live BP Analytics with the current player and session context.
 - Tap the spray chart to cycle Spray / % / # / Heat.

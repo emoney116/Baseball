@@ -13,6 +13,17 @@ test("Live BP uses a numeric count and one shared correction control", () => {
     /<BpCount|aria-label="Reset outs"|aria-label="Clear bases"/,
   );
   assert.match(console, /<LiveBpCorrections/);
+  assert.equal((console.match(/<LiveBpCorrections/g) ?? []).length, 1);
+  assert.match(console, /className=\{styles.fieldToolbar\}/);
+  assert.match(console, /CLUBHOUSE_FIELD_POSITION_COORDINATES\[position\]/);
+  const css = fs.readFileSync(
+    "app/components/LiveBpConsole.module.css",
+    "utf8",
+  );
+  assert.match(
+    css,
+    /\.fieldToolbar,\s*\.console :global\(\.practice-hitting-live-charts__head\)\s*\{[^}]*height: 32px/,
+  );
   const corrections = fs.readFileSync(
     "app/components/LiveBpCorrections.tsx",
     "utf8",

@@ -333,12 +333,45 @@
 }
 .fieldViewToggle {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 1px;
+  right: 0;
   z-index: 5;
   background: #171b16;
   border-radius: 5px;
   padding: 1px;
+}
+.fieldPanel {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  max-width: 480px;
+  margin-inline: auto;
+}
+.fieldToolbar,
+.console :global(.practice-hitting-live-charts__head) {
+  position: relative;
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+}
+.fieldToolbar .fieldTracking {
+  top: 0;
+  left: 0;
+  z-index: 6;
+}
+.fieldToolbar .fieldTracking summary {
+  width: 30px;
+  height: 30px;
+}
+.console
+  :global(.practice-hitting-chart-filter .practice-pitching-filter-pill) {
+  height: 28px;
+  min-height: 28px;
+  padding: 4px 7px;
+}
+.console
+  :global(.practice-hitting-chart-filter .practice-pitching-filter-pill span) {
+  display: none;
 }
 .console .fieldViewToggle .segments {
   display: grid;
