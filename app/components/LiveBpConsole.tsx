@@ -18,6 +18,7 @@ import {
   initialBpSettings,
   initialBpState,
   bpTracksCount,
+  withBpPitcherAlignment,
   type BpState,
   type BpDraft,
   type BpRound,
@@ -29,7 +30,7 @@ import { ChoiceSelect } from "./ChoiceSelect";
 import { ClubhouseBaseballField } from "./ClubhouseBaseballField";
 import { DensePlayerIdentity } from "./DensePlayerIdentity";
 import { densePlayerIdentityLabel } from "../lib/densePlayerIdentity";
-import { GAME_FIELD_POSITION_COORDINATES } from "../lib/baseballFieldLayout";
+import { CLUBHOUSE_FIELD_POSITION_COORDINATES } from "../lib/baseballFieldLayout";
 import { LiveBpSetup } from "./LiveBpSetup";
 import { BpBases, BpCount, BpSegments, type BpSheet } from "./LiveBpControls";
 import styles from "./LiveBpConsole.module.css";
@@ -85,11 +86,11 @@ export function LiveBpConsole({
           ?.id ??
         players.find((p) => p.id !== hitterId && p.isPitcher)?.id ??
         players.find((p) => p.id !== hitterId)?.id;
-      return {
+      return withBpPitcherAlignment({
         ...initialBpSettings(hitterId),
         source: initialSource ?? "MACHINE",
         pitcherId,
-      };
+      });
     });
   const [state, setState] = useState(initialBpState),
     [draft, setDraft] = useState<BpDraft>({ outcome: "" });
@@ -141,7 +142,7 @@ export function LiveBpConsole({
   const url = `/api/live-bp?practiceId=${encodeURIComponent(practiceId)}`;
   function adopt(r: BpRound) {
     setRound(r);
-    setSettings(r.settings);
+    setSettings(withBpPitcherAlignment(r.settings));
     setState(r.state);
   }
   async function reload() {
@@ -203,7 +204,7 @@ export function LiveBpConsole({
     if (uncertain || busy) return;
     if (["hitterId", "pitcherId", "source", "coachName"].includes(key))
       setDraft({ outcome: "" });
-    setSettings((s) => ({ ...s, [key]: value }));
+    setSettings((s) => withBpPitcherAlignment({ ...s, [key]: value }));
   }
   function edit<K extends keyof BpDraft>(key: K, value: BpDraft[K]) {
     if (!uncertain && !busy) setDraft((d) => ({ ...d, [key]: value }));
@@ -350,6 +351,7 @@ export function LiveBpConsole({
     setOptionsOpen(true);
   }
   function saveSetup(next: BpSettings, nextState: BpState) {
+    next = withBpPitcherAlignment(next);
     const changed =
       next.source !== settings.source ||
       next.pitcherId !== settings.pitcherId ||
@@ -574,7 +576,9 @@ export function LiveBpConsole({
                   }}
                 >
                   {settings.source === "PLAYER" && pitcher ? (
-                    <DensePlayerIdentity player={pitcher} />
+                    <DensePlayerIdentity
+                      player={{ ...pitcher, identityLabel: undefined }}
+                    />
                   ) : (
                     <strong>
                       {settings.source === "MACHINE"
@@ -861,20 +865,46 @@ export function LiveBpConsole({
                     <ClubhouseBaseballField
                       coordinateSpace="game"
                       showLabels={false}
+                      showEmptyState={false}
+                      ariaLabel="Defensive alignment"
                     />
-                    {(settings.defense === "OFF"
-                      ? BP_POSITIONS
-                      : positions
-                    ).map((position) => {
+                    <div className={styles.fieldTracking}>
+                      <button
+                        type="button"
+                        onClick={() => setup(2)}
+                        aria-label="Change defense tracking"
+                      >
+                        <Settings size={14} /> Defense:{" "}
+                        {settings.defense === "OFF"
+                          ? "Off"
+                          : settings.defense === "ALL"
+                            ? "All"
+                            : "Selected"}
+                      </button>
+                    </div>
+                    {BP_POSITIONS.map((position) => {
                       const [left, top] =
-                        GAME_FIELD_POSITION_COORDINATES[position];
+                        CLUBHOUSE_FIELD_POSITION_COORDINATES[position];
                       return (
                         <button
                           key={position}
                           type="button"
                           style={{ left: `${left}%`, top: `${top}%` }}
-                          aria-label={`Change ${position}: ${roster.find((p) => p.value === settings.alignment[position])?.label ?? "Unassigned"}`}
+                          data-tracked={
+                            settings.defense !== "OFF" &&
+                            positions.includes(position)
+                          }
+                          aria-label={
+                            position === "P"
+                              ? `Change pitcher: ${settings.source === "PLAYER" ? roster.find((p) => p.value === settings.pitcherId)?.label : settings.source === "COACH" ? settings.coachName : "Machine"}`
+                              : `Change ${position}: ${roster.find((p) => p.value === settings.alignment[position])?.label ?? "Unassigned"}`
+                          }
                           onClick={() => {
+                            if (uncertain || busy) return;
+                            if (position === "P") {
+                              setParticipantPicker("pitcher");
+                              return;
+                            }
                             setAlignmentPosition(position);
                             setSetupStep(2);
                             setOptionsOpen(true);

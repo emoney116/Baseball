@@ -9,6 +9,7 @@ import {
   buildBpPitch,
   validateBpSettings,
   validateBpState,
+  withBpPitcherAlignment,
   type BpRound,
 } from "../../lib/liveBp";
 
@@ -79,7 +80,10 @@ export async function POST(request: Request) {
       if (body.operation === "start" || body.operation === "configure") {
         validateBpSettings(body.settings);
         validateBpState(body.state);
-        payload = { settings: body.settings, state: body.state };
+        payload = {
+          settings: withBpPitcherAlignment(body.settings),
+          state: body.state,
+        };
       } else if (body.operation === "pitch") {
         if (!/^[0-9a-f-]{36}$/i.test(body.requestId))
           throw new Error("Invalid pitch request.");

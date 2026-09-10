@@ -32,3 +32,15 @@ export const GAME_LIVE_FIELD_POSITION_COORDINATES: Record<
   "1B": [70, 75],
   "3B": [30, 75],
 };
+// Position centers on the uncropped, square canonical spray-field asset.
+export const CLUBHOUSE_FIELD_POSITION_COORDINATES = {
+  P: [50, 67.5],
+  C: [50, 94],
+  "1B": [72, 67],
+  "2B": [64, 53],
+  "3B": [28, 67],
+  SS: [36, 53],
+  LF: [25, 34],
+  CF: [50, 20],
+  RF: [75, 34],
+} as const;

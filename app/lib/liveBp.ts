@@ -173,6 +173,18 @@ export function validateBpSettings(s: BpSettings) {
     "Assign each fielder to one position.",
   );
 }
+export function withBpPitcherAlignment(settings: BpSettings): BpSettings {
+  const alignment = { ...settings.alignment };
+  delete alignment.P;
+  if (settings.source === "PLAYER" && settings.pitcherId) {
+    for (const position of BP_POSITIONS)
+      if (alignment[position] === settings.pitcherId)
+        delete alignment[position];
+    alignment.P = settings.pitcherId;
+  }
+  return { ...settings, alignment };
+}
+
 export function validateBpState(s: BpState) {
   bpAssert(
     s &&

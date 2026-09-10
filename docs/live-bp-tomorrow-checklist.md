@@ -5,6 +5,8 @@
 - Open Setup: confirm hitter, Machine / named Coach / Player pitcher.
 - Confirm mode, pitch type, tracking switches, and Count On/Off.
 - If Defense is enabled, confirm selected positions and field assignments.
+- The field's Defense control switches Off / All / Selected without clearing assignments.
+- P follows the matchup pitcher. Tap P to change the pitcher/source, not a separate fielder.
 
 ## During
 - Log Pitch opens the same step-by-step sheet used by Practice tools.
@@ -15,6 +17,7 @@
 - Save; confirm feedback before the next pitch.
 - Switch hitter with the name-row arrows; switch pitcher through the source.
 - Use the situation strip to change count, outs, runners, or job.
+- Tap the spray chart to cycle Spray / % / # / Heat.
 - If a save fails, keep the draft open and retry. Do not re-enter a duplicate.
 
 ## After

@@ -9,9 +9,47 @@ import {
   initialBpState,
   validateBpSettings,
   bpTracksCount,
+  withBpPitcherAlignment,
 } from "../app/lib/liveBp.ts";
 
 const settings = (patch = {}) => ({ ...initialBpSettings(id(40)), ...patch });
+test("pitcher alignment follows source without overwriting other defenders", () => {
+  const s = withBpPitcherAlignment(
+    settings({
+      source: "PLAYER",
+      pitcherId: id(41),
+      alignment: { P: id(43), SS: id(41), CF: id(42) },
+    }),
+  );
+  assert.deepEqual(s.alignment, { P: id(41), CF: id(42) });
+  const changed = withBpPitcherAlignment({ ...s, pitcherId: id(43) });
+  assert.deepEqual(changed.alignment, { P: id(43), CF: id(42) });
+  for (const source of ["COACH", "MACHINE"]) {
+    const nonPlayer = withBpPitcherAlignment({ ...changed, source });
+    assert.deepEqual(nonPlayer.alignment, { CF: id(42) });
+    assert.equal(
+      buildBpPitch(nonPlayer, initialBpState(), { outcome: "Ball" }).pitching,
+      undefined,
+    );
+  }
+});
+test("derived player pitcher can receive atomic P defense evidence", async () => {
+  const s = withBpPitcherAlignment(
+    settings({ source: "PLAYER", pitcherId: id(41), defense: "ALL" }),
+  );
+  const r = await start(s);
+  await pitch(r, {
+    outcome: "Ball in play",
+    position: "P",
+    defenseResult: "Clean",
+  });
+  const defense = (
+    await db.query("select player_id,position_worked from defense_events")
+  ).rows;
+  assert.equal(defense.length, 1);
+  assert.equal(defense[0].player_id, id(41));
+  assert.equal(defense[0].position_worked, "P");
+});
 for (const mode of ["FREE", "AB", "GAME"])
   test(`${mode}: count tracking override omits untracked count without losing situation`, () => {
     assert.equal(bpTracksCount(settings({ mode })), mode !== "FREE");

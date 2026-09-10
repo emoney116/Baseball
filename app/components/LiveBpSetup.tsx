@@ -5,6 +5,7 @@ import type { Player } from "../types";
 import {
   BP_POSITIONS,
   bpTracksCount,
+  withBpPitcherAlignment,
   validateBpSettings,
   validateBpState,
   type BpSettings,
@@ -13,7 +14,7 @@ import {
 } from "../lib/liveBp";
 import { TENDEX_PITCH_TYPES } from "../lib/tendexGameAnalysis";
 import { densePlayerIdentityLabel } from "../lib/densePlayerIdentity";
-import { GAME_FIELD_POSITION_COORDINATES } from "../lib/baseballFieldLayout";
+import { CLUBHOUSE_FIELD_POSITION_COORDINATES } from "../lib/baseballFieldLayout";
 import { ChoiceSelect } from "./ChoiceSelect";
 import { ClubhouseBaseballField } from "./ClubhouseBaseballField";
 import { BpBases, BpCount, BpSegments, type BpSheet } from "./LiveBpControls";
@@ -58,7 +59,10 @@ export function LiveBpSetup({
   const positions =
     draft.defense === "SELECTED" ? draft.positions : BP_POSITIONS;
   function update<K extends keyof BpSettings>(key: K, value: BpSettings[K]) {
-    setDraft((s) => ({ ...s, [key]: value }));
+    setDraft((s) => ({
+      ...withBpPitcherAlignment({ ...s, [key]: value }),
+      countTracking: key === "countTracking" ? Boolean(value) : s.countTracking,
+    }));
   }
   function save() {
     try {
@@ -71,6 +75,7 @@ export function LiveBpSetup({
     }
   }
   function assign(id: string) {
+    if (position === "P") return;
     const next = { ...draft.alignment };
     for (const p of BP_POSITIONS) if (next[p] === id) delete next[p];
     if (id) next[position] = id;
@@ -96,9 +101,11 @@ export function LiveBpSetup({
               <ClubhouseBaseballField
                 coordinateSpace="game"
                 showLabels={false}
+                showEmptyState={false}
+                ariaLabel="Defensive alignment"
               />
-              {positions.map((p) => {
-                const [left, top] = GAME_FIELD_POSITION_COORDINATES[p];
+              {BP_POSITIONS.map((p) => {
+                const [left, top] = CLUBHOUSE_FIELD_POSITION_COORDINATES[p];
                 return (
                   <button
                     key={p}
@@ -118,9 +125,24 @@ export function LiveBpSetup({
               aria-label={`Players at ${position}`}
             >
               <h3>{position}</h3>
-              <div role="listbox" aria-label={`Player at ${position}`}>
-                {[{ value: "", label: "Unassigned" }, ...roster].map(
-                  (player) => (
+              {position === "P" ? (
+                <p>
+                  {draft.source === "PLAYER"
+                    ? roster.find((p) => p.value === draft.pitcherId)?.label
+                    : draft.source === "COACH"
+                      ? draft.coachName
+                      : "Machine"}
+                </p>
+              ) : (
+                <div role="listbox" aria-label={`Player at ${position}`}>
+                  {[
+                    { value: "", label: "Unassigned" },
+                    ...roster.filter(
+                      (p) =>
+                        draft.source !== "PLAYER" ||
+                        p.value !== draft.pitcherId,
+                    ),
+                  ].map((player) => (
                     <button
                       key={player.value}
                       type="button"
@@ -132,9 +154,9 @@ export function LiveBpSetup({
                     >
                       {player.label}
                     </button>
-                  ),
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
           </>
         ) : (

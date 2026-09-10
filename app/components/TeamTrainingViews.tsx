@@ -205,6 +205,7 @@ export function VelocityPickerField({
 }
 
 export function normalizedVelocityValue(value: string, fallback: number) {
+  if (!value.trim()) return fallback;
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(TRACKING_VELOCITY_MIN_MPH, Math.min(TRACKING_VELOCITY_MAX_MPH, Math.round(parsed)));

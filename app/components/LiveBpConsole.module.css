@@ -25,6 +25,17 @@
   display: grid;
   gap: 10px;
   min-width: 0;
+  align-content: start;
+}
+.console :global(.live-bp-sheet .modal-body) {
+  align-content: start;
+}
+.console :global(.practice-hitting-sheet__flow) {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  height: 32px;
+  align-self: start;
 }
 .fields:disabled {
   opacity: 0.75;
@@ -647,6 +658,65 @@
   border-color: var(--brand-primary);
   background: var(--brand-primary);
   color: white;
+}
+.alignmentField > button[data-tracked="true"]::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  right: -1px;
+  top: -1px;
+  border: 2px solid var(--panel);
+  border-radius: 50%;
+  background: var(--brand-primary);
+}
+.fieldTracking {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+}
+.fieldTracking button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 11px;
+}
+.console :global(.practice-hitting-live-charts) {
+  width: 100%;
+  max-width: 480px;
+  margin-inline: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.console :global(.practice-hitting-live-charts .practice-spray-field) {
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  aspect-ratio: 1;
+}
+.console :global(.clubhouse-baseball-field__label) {
+  transform: translate(-50%, -50%);
+}
+.console :global(.clubhouse-baseball-field__label--lf) {
+  left: 25%;
+  top: 34%;
+}
+.console :global(.clubhouse-baseball-field__label--cf) {
+  left: 50%;
+  top: 20%;
+}
+.console :global(.clubhouse-baseball-field__label--rf) {
+  left: 75%;
+  right: auto;
+  top: 34%;
 }
 .alignmentList {
   display: grid;
