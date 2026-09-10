@@ -5039,7 +5039,22 @@ textarea:focus-visible {
   width: min(560px, calc(100vw - 28px));
 }
 
+.modal-backdrop.avatar-crop-backdrop {
+  height: 100dvh;
+  bottom: auto;
+}
+
+.avatar-crop-body {
+  min-width: 0;
+  grid-auto-rows: max-content;
+}
+
+.avatar-crop-modal .modal-title > div {
+  min-width: 0;
+}
+
 .avatar-crop-modal .modal-title p {
+  overflow-wrap: anywhere;
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 12px;

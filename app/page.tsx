@@ -5402,43 +5402,47 @@ function AvatarCropModal({
             <X size={17} aria-hidden="true" />
           </button>
         </div>
-        <div
-          className="avatar-crop-stage"
-          onPointerDown={(event) => {
-            event.currentTarget.setPointerCapture(event.pointerId);
-            dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, originX: state.offsetX, originY: state.offsetY };
-          }}
-          onPointerMove={(event) => moveCrop(event.clientX, event.clientY)}
-          onPointerUp={(event) => {
-            if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
-          }}
-          onPointerCancel={() => {
-            dragRef.current = null;
-          }}
-        >
-          <img src={state.sourceUrl} alt="" style={previewStyle} draggable={false} />
-          <div className="avatar-crop-mask" aria-hidden="true" />
+        <div className="modal-body avatar-crop-body">
+          <div
+            className="avatar-crop-stage"
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId);
+              dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, originX: state.offsetX, originY: state.offsetY };
+            }}
+            onPointerMove={(event) => moveCrop(event.clientX, event.clientY)}
+            onPointerUp={(event) => {
+              if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
+            }}
+            onPointerCancel={() => {
+              dragRef.current = null;
+            }}
+          >
+            <img src={state.sourceUrl} alt="" style={previewStyle} draggable={false} />
+            <div className="avatar-crop-mask" aria-hidden="true" />
+          </div>
+          <div className="avatar-crop-controls">
+            <label>
+              <span>Zoom</span>
+              <input
+                type="range"
+                min="1"
+                max="2.8"
+                step="0.01"
+                value={state.zoom}
+                onChange={(event) => onChange((current) => current ? { ...current, zoom: Number(event.target.value) } : current)}
+              />
+            </label>
+          </div>
+          {state.message && <span className="profile-save-message profile-save-message--error">{state.message}</span>}
         </div>
-        <div className="avatar-crop-controls">
-          <label>
-            <span>Zoom</span>
-            <input
-              type="range"
-              min="1"
-              max="2.8"
-              step="0.01"
-              value={state.zoom}
-              onChange={(event) => onChange((current) => current ? { ...current, zoom: Number(event.target.value) } : current)}
-            />
-          </label>
-        </div>
-        {state.message && <span className="profile-save-message profile-save-message--error">{state.message}</span>}
-        <div className="modal-actions">
-          <button className="secondary-button" type="button" onClick={onPickDifferent}>Choose Different</button>
-          <button className="secondary-button" type="button" onClick={onCancel}>Cancel</button>
-          <button className="primary-button" type="button" onClick={onApply} disabled={state.status === "saving"}>
-            {state.status === "saving" ? "Cropping..." : "Use Photo"}
-          </button>
+        <div className="modal-footer-slot">
+          <div className="modal-actions">
+            <button className="secondary-button" type="button" onClick={onPickDifferent}>Choose Different</button>
+            <button className="secondary-button" type="button" onClick={onCancel}>Cancel</button>
+            <button className="primary-button" type="button" onClick={onApply} disabled={state.status === "saving"}>
+              {state.status === "saving" ? "Cropping..." : "Use Photo"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
