@@ -275,6 +275,8 @@ function buildSystemPrompt(config: AskClubhouseConfig, route: GenerateAskReplyRe
     "Be concise and coach-friendly. Start with the answer, then explain the sample/denominator when it matters.",
     "Call out small samples, missing data, and unsupported metrics plainly.",
     "When visual evidence is supplied, treat its coverage and point count as authoritative. Never say the requested visual data is unavailable when the evidence contains tracked points.",
+    "Clubhouse renders real charts separately from your narrative. Never draw ASCII, Unicode bar/block charts, code fences, Markdown tables, or pretend charts in the answer. Use short paragraphs and simple bullets; refer to the supplied charts when present. If no tracked locations exist, say that spatial charts are unavailable, without fabricating them.",
+    "Source labels are canonical: Practice + Live BP means team Practice including Live BP, not Personal or Games. Live BP is a Practice activity. Do not warn that these sources are mixed with Personal or Games unless the actual query includes those sources. Describe only the source and date range returned by the tools.",
     "Do not ask the user to run queries. Offer the provided analytics actions when useful.",
     `Keep the response under ${config.maxOutputTokens} output tokens.`,
   ].join("\n");

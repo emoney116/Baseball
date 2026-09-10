@@ -788,7 +788,12 @@ export function stripAskMarkdownInline(value: string | undefined): string {
 }
 
 function parseAskClubhouseTextAnswer(content: string): AskClubhouseTextAnswerBlocks {
-  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  // Older generated answers may contain text charts; retain numbers without block glyphs.
+  const lines = content.replace(/\r\n/g, "\n")
+    .replace(/`{2,3}(?:text)?/g, "")
+    .replace(/[\u2580-\u259f]+/g, "")
+    .replace(/\*\*/g, "")
+    .split("\n");
   const paragraphs: string[] = [];
   const bullets: string[] = [];
   const ranking: AskClubhouseTextRankingRow[] = [];

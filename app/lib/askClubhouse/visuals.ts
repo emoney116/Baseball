@@ -40,28 +40,25 @@ export function buildAskClubhouseVisuals(input: {
 
   const baseQuery = input.plan.toolRequests.find((request) => request.name !== "getDataCoverage")?.query
     ?? analyticsQueryFromPlan(input.plan.queryPlan);
-  const inherited = input.uiContext?.analytics;
   const query: AnalyticsQuery = {
     ...baseQuery,
-    eventIds: baseQuery.eventIds ?? inherited?.eventIds,
-    filters: { ...(inherited?.filters ?? {}), ...(baseQuery.filters ?? {}) },
     playerIds: playerId ? [playerId] : undefined,
   };
-  if (!requestedTypes.some((type) => isSupportedVisualQuery(query, type, playerId))) return [];
+  if (!requestedTypes.some((type) => isSupportedVisualQuery(query, type))) return [];
 
   const result = executeAnalyticsQuery(input.data, query);
-  const row = playerId ? result.rows.find((item) => item.player.id === playerId) : undefined;
+  const row = playerId ? result.rows.find((item) => item.player.id === playerId) : result.teamTotals;
   const minimumSample = input.plan.queryPlan.minimumSample;
   const state = sampleState(row?.sampleCount ?? 0, minimumSample);
   const visuals: AskClubhouseVisual[] = [];
 
   if (row && row.sampleCount > 0 && shouldIncludeMetricSummary(input.message, requestedTypes[0])) {
-    const metrics = summaryMetrics(result, row.player.id, query.domain);
+    const metrics = summaryMetrics(result, playerId, query.domain);
     if (metrics.length) {
       visuals.push({
         type: "metric_summary",
         mode: "dots",
-        title: `${row.player.name}'s results`,
+        title: playerId ? `${row.player.name}'s results` : "Team results",
         domain: query.domain,
         playerId,
         query: serializableVisualQuery(query),
@@ -141,7 +138,7 @@ export function isAskClubhouseVisual(value: unknown): value is AskClubhouseVisua
 }
 
 function shouldRenderVisual(message: string, context?: AskClubhouseVisualContext) {
-  return /\b(show|chart|map|heat|spray|location|where (?:am|is)|how (?:am|is) .+\b(hitting|pitching|locating)|percentages?|counts?)\b/i.test(message)
+  return /\b(show|charts?|map|heat|spray|location|how did .+\b(hit|hitting|pitch|pitching|bp)|where (?:am|is)|how (?:am|is) .+\b(hitting|pitching|locating)|percentages?|counts?)\b/i.test(message)
     || Boolean(context && /\b(only|same|that|those|percent|count|heat|spray|location|down|up|away|in|how did (?:he|she|they)|how (?:is|are) (?:he|she|they) doing)\b/i.test(message));
 }
 
@@ -172,6 +169,9 @@ function selectVisualTypes(
   if (!primary) return [];
   const lower = message.toLowerCase();
   const isExplicitSpatialRequest = /\b(spray|location|where|heat|chart|map)\b/.test(lower);
+  if (domain === "hitting" && !context && !/\b(spray|location|where|heat|map)\b/.test(lower) && /\b(team|our|bp|charts?)\b/.test(lower)) {
+    return ["spray_chart", "pitch_location"] as AskClubhouseVisualType[];
+  }
   if (domain === "hitting" && primary === "pitch_location" && filters?.pitchTypes?.length && !isExplicitSpatialRequest && !context) {
     return ["pitch_location", "spray_chart"] as AskClubhouseVisualType[];
   }
@@ -196,8 +196,8 @@ function shouldIncludeMetricSummary(message: string, type: AskClubhouseVisualTyp
   return type !== "metric_summary" && /\b(how|show|results|hitting|pitching|locating|performance|chart|map)\b/i.test(message);
 }
 
-function summaryMetrics(result: AnalyticsResult, playerId: ID, domain: AnalyticsQuery["domain"]): AskClubhouseVisualMetric[] {
-  const row = result.rows.find((item) => item.player.id === playerId);
+function summaryMetrics(result: AnalyticsResult, playerId: ID | undefined, domain: AnalyticsQuery["domain"]): AskClubhouseVisualMetric[] {
+  const row = playerId ? result.rows.find((item) => item.player.id === playerId) : result.teamTotals;
   if (!row) return [];
   const ids = domain === "pitching"
     ? ["pitches", "strikePct", "avgPitchVelo", "maxPitchVelo", "cswPct"]
@@ -226,8 +226,8 @@ function serializableVisualQuery(query: AnalyticsQuery): AskClubhouseVisual["que
   };
 }
 
-function isSupportedVisualQuery(query: AnalyticsQuery, type: AskClubhouseVisualType, playerId?: ID) {
-  if (!playerId || query.domain === "defense" || query.domain === "development") return false;
+function isSupportedVisualQuery(query: AnalyticsQuery, type: AskClubhouseVisualType) {
+  if (query.domain === "defense" || query.domain === "development") return false;
   if (type === "spray_chart") return query.domain === "hitting";
   return type === "pitch_location" && (query.domain === "hitting" || query.domain === "pitching");
 }

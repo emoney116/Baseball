@@ -857,6 +857,8 @@ test("Ask Clubhouse gives the provider compact, authoritative visual coverage", 
     async generate(input) {
       const prompt = JSON.parse(input.prompt);
       const spray = prompt.visualEvidence.find((visual) => visual.type === "spray_chart");
+      assert.match(input.system, /Never draw ASCII/);
+      assert.match(input.system, /Practice \+ Live BP means team Practice including Live BP, not Personal or Games/);
       assert.equal(spray.pointCount, 2);
       assert.equal(spray.coverage.trackedEvents, 2);
       return { text: "Jacob has two tracked balls in play.", usage: { model: config.model } };
@@ -935,6 +937,22 @@ test("Ask Clubhouse performance visuals add both location and spray evidence whe
   assert.ok(visuals.some((visual) => visual.type === "metric_summary"));
   assert.ok(visuals.some((visual) => visual.type === "pitch_location"));
   assert.ok(visuals.some((visual) => visual.type === "spray_chart"));
+});
+
+test("Team BP summaries render canonical metrics and spatial charts without a player selection", () => {
+  const visualData = {...data, hittingEvents: data.hittingEvents.map((event) => ({
+    ...event, pitchLocation: {x: 0.5, y: 0.5},
+    fieldLocation: event.action === "Ball in play" ? {x: 0.4, y: 0.4} : undefined,
+  }))};
+  const message = "How did our team hit during BP in practice this season?";
+  const plan = buildAskClubhouseToolPlan(visualData, message, undefined, getAskClubhouseConfig({}));
+  const visuals = buildAskClubhouseVisuals({data: visualData, message, plan,
+    uiContext: {analytics: {domain: "hitting", source: "practice", eventIds: ["stale-empty-practice"]}}});
+  assert.ok(visuals.some(v => v.type === "metric_summary" && v.title === "Team results"));
+  assert.ok(visuals.some(v => v.type === "spray_chart"));
+  assert.ok(visuals.some(v => v.type === "pitch_location"));
+  assert.ok(visuals.every(v => !v.playerId && !v.query.eventIds?.includes("stale-empty-practice")));
+  assert.deepEqual(buildAskClubhouseVisuals({data: {...visualData, hittingEvents: []}, message, plan}), []);
 });
 
 test("Ask Clubhouse rejects visual descriptors with unsupported filters", () => {
