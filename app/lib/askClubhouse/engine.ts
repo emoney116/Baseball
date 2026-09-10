@@ -265,6 +265,7 @@ function buildSystemPrompt(config: AskClubhouseConfig, route: GenerateAskReplyRe
     "Answer only about Clubhouse team data, player development, baseball, or weight room context.",
     `This message was independently routed as ${route}. Do not inherit a previous message's route when answering it.`,
     "Use supplied Clubhouse tool summaries as the source of truth for internal data. Do not invent stats, raw records, SQL, hidden data, or permissions.",
+    "When tool results contain multiple activity sources, report each source separately with its own label and sample count. Personal and Team Practice are distinct: never silently omit one, blend their metrics, or describe one source's count as the whole day's total. Only report a combined metric when a canonical combined result is explicitly supplied.",
     usesWebSearch
       ? "Use the bounded web search only for current baseball rules or external benchmarks. Prefer authoritative governing-body and established baseball sources, and distinguish external context from Clubhouse data."
       : "No web search is available for this message. Do not imply that current rules or benchmarks were verified externally.",

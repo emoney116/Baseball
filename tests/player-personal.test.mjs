@@ -132,6 +132,27 @@ test("Ask explicitly distinguishes Personal and team Practice source", () => {
   assert.equal(composeAskClubhouseQueryPlan("How did I hit in team Practice today?", { analytics: { source: "personal" } }).scope.source, "practice");
 });
 
+test("Ask provider receives source-separated samples and explicit reporting instructions", async () => {
+  const f = playerServiceFixture();
+  f.tables.player_personal_sessions = [{ id: id(99), team_id: id(20), season_id: id(30), player_id: id(40), membership_id: id(50), created_by_profile_id: id(1), domain: "hitting", started_at: "2026-09-04T12:00:00Z" }];
+  f.tables.hitting_events.push({ id: id(98), personal_session_id: id(99), hitter_id: id(40), created_by_profile_id: id(1), action: "Ball in play", exit_velocity_mph: 84, created_at: "2026-09-04T12:00:00Z" });
+  const session = await loadPlayerSession(f.db, id(1));
+  let called = false;
+  await generateAskClubhouseReply({ data: session.data, message: "How did I hit today?", now: new Date("2026-09-04T16:00:00Z"), config: { ...getAskClubhouseConfig({}), hasProviderKey: true }, uiContext: playerAskContext(session.context, { timeZone: "America/New_York" }), provider: {
+    model: "test",
+    async generate(input) {
+      called = true;
+      assert.match(input.system, /report each source separately with its own label and sample count/);
+      assert.match(input.system, /never silently omit one/);
+      const sources = JSON.parse(input.prompt).boundedToolResults.map(result => result.query?.source);
+      assert.ok(sources.includes("personal"));
+      assert.ok(sources.includes("practice"));
+      return { text: "Team Practice and Personal samples are separate.", model: "test", usage: {} };
+    },
+  } });
+  assert.equal(called, true);
+});
+
 test("personal server service ignores forged actor and validates current policy before RPC", async () => {
   const f = playerServiceFixture();
   const rpc = [];
