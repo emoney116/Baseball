@@ -21,8 +21,10 @@
 - Tap the hitter or pitcher name to choose a different participant.
 - In Defensive Alignment, use Track stats for the selected position; Done saves.
 - Green position dots mean tracking On; red means Off. Coach/Machine P stays Off.
-- Use the situation strip to change count, outs, runners, or job.
-- Reset outs and Clear bases are separate controls. Job setup remains in Setup.
+- Use the adjustment menu above Log Pitch to reset or set count/outs and add runners.
+- Occupied bases support an optional roster player; unnamed runners remain supported.
+- Field has a compact top-right Runners / Defense toggle. Tap a runner or drag it to an empty later base or home, then confirm the movement reason.
+- Runner movements stay in Practice history, not official Game statistics. Job setup remains in Setup.
 - Ask Clubhouse is available inside Live BP Analytics with the current player and session context.
 - Tap the spray chart to cycle Spray / % / # / Heat.
 - If a save fails, keep the draft open and retry. Do not re-enter a duplicate.
@@ -39,4 +41,10 @@ when the drill does not require them. Pitch Type Off is also supported.
 The minimum loop is Log Pitch, result, Save. Disabled dimensions are untracked,
 not zero-valued measurements. Keep the correct hitter and source selected.
 
-Undo is not offered: linked pitch/hitter/defense records must never be partly deleted.
+Undo last pitch removes its linked hitting, pitching, and defense records atomically.
+It restores count, outs, runner identities, and situation from before that pitch,
+including reversing later runner movements or manual situation corrections. The
+current matchup stays selected. Confirmation is required. A failed/uncertain
+request must be retried using Retry field update, not recreated as a new request.
+The backend keeps private receipts so duplicate undo requests and late retries of
+deleted pitches cannot delete another pitch or recreate removed statistics.

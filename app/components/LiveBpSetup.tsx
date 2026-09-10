@@ -8,6 +8,7 @@ import {
   bpPositionTracked,
   toggleBpPosition,
   withBpPitcherAlignment,
+  withBpRunners,
   validateBpSettings,
   validateBpState,
   type BpSettings,
@@ -116,7 +117,9 @@ export function LiveBpSetup({
                     data-tracked={bpPositionTracked(draft, p)}
                     onClick={() => setPosition(p)}
                   >
-                    <span title={liveBpFieldLabel(draft, players, p)}>{liveBpFieldLabel(draft, players, p)}</span>
+                    <span title={liveBpFieldLabel(draft, players, p)}>
+                      {liveBpFieldLabel(draft, players, p)}
+                    </span>
                   </button>
                 );
               })}
@@ -406,7 +409,7 @@ export function LiveBpSetup({
                     <BpBases
                       runners={situation.runners}
                       onChange={(runners) =>
-                        setSituation((s) => ({ ...s, runners }))
+                        setSituation((s) => withBpRunners(s, runners))
                       }
                     />
                     <BpSegments

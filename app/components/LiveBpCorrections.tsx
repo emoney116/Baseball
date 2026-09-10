@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
-import type { BpState } from "../lib/liveBp";
+import { withBpRunners, type BpState } from "../lib/liveBp";
+import type { Player } from "../types";
+import { ChoiceSelect } from "./ChoiceSelect";
+import { densePlayerIdentityLabel } from "../lib/densePlayerIdentity";
 import { BpBases, BpSegments, type BpSheet } from "./LiveBpControls";
 import styles from "./LiveBpConsole.module.css";
 
@@ -11,6 +14,8 @@ export function LiveBpCorrections({
   disabled,
   onSave,
   sheet,
+  players,
+  onUndo,
 }: {
   state: BpState;
   trackedCount: boolean;
@@ -18,6 +23,8 @@ export function LiveBpCorrections({
   disabled: boolean;
   onSave: (state: BpState) => void;
   sheet: BpSheet;
+  players: Player[];
+  onUndo: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<BpState | null>(null);
@@ -78,10 +85,13 @@ export function LiveBpCorrections({
         >
           <button
             type="button"
-            disabled
-            title="Undo requires reversing all linked pitch stats"
+            disabled={disabled}
+            onClick={() => {
+              setOpen(false);
+              onUndo();
+            }}
           >
-            Undo last pitch (unavailable)
+            Undo last pitch
           </button>
           {trackedCount && (
             <button
@@ -104,7 +114,7 @@ export function LiveBpCorrections({
               <button
                 type="button"
                 disabled={disabled || !state.runners.length}
-                onClick={() => save({ ...state, runners: [] })}
+                onClick={() => save(withBpRunners(state, []))}
               >
                 Clear bases
               </button>
@@ -147,9 +157,38 @@ export function LiveBpCorrections({
             {game && (
               <BpBases
                 runners={edit.runners}
-                onChange={(runners) => setEdit({ ...edit, runners })}
+                onChange={(runners) => setEdit(withBpRunners(edit, runners))}
               />
             )}
+            {game &&
+              [...edit.runners].sort().map((base) => (
+                <ChoiceSelect
+                  key={base}
+                  label={`${base}B runner (optional)`}
+                  value={edit.runnerIds?.[base] ?? ""}
+                  options={[
+                    { value: "", label: "Unnamed runner" },
+                    ...players
+                      .filter(
+                        (p) =>
+                          !p.archived &&
+                          !Object.entries(edit.runnerIds ?? {}).some(
+                            ([b, id]) => Number(b) !== base && id === p.id,
+                          ),
+                      )
+                      .map((p) => ({
+                        value: p.id,
+                        label: densePlayerIdentityLabel(p),
+                      })),
+                  ]}
+                  onChange={(value) => {
+                    const runnerIds = { ...edit.runnerIds };
+                    if (value) runnerIds[base] = value;
+                    else delete runnerIds[base];
+                    setEdit({ ...edit, runnerIds });
+                  }}
+                />
+              ))}
             <button
               type="button"
               className="primary-button"

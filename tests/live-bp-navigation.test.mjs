@@ -28,7 +28,7 @@ test("Live BP uses a numeric count and one shared correction control", () => {
   }
   assert.match(corrections, /balls: 0, strikes: 0/);
   assert.match(corrections, /outs: 0/);
-  assert.match(corrections, /runners: \[\]/);
+  assert.match(corrections, /withBpRunners\(state, \[\]\)/);
   assert.match(corrections, /event.key === "Escape"/);
 });
 

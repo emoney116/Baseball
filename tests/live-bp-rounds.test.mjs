@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { fullPlayerDatabase } from "./helpers/fullPlayerDatabase.mjs";
 import { id, asAccount } from "./helpers/playerDatabase.mjs";
+import { buildBpRunnerMove } from "../app/lib/liveBpRunnerMove.ts";
 import {
   buildBpPitch,
   initialBpSettings,
@@ -12,6 +13,8 @@ import {
   withBpPitcherAlignment,
   bpPositionTracked,
   toggleBpPosition,
+  validateBpState,
+  withBpRunners,
 } from "../app/lib/liveBp.ts";
 
 const settings = (patch = {}) => ({ ...initialBpSettings(id(40)), ...patch });
@@ -33,6 +36,186 @@ test("position tracking toggles preserve assignments and exclude non-player P", 
     true,
   );
   assert.equal(bpPositionTracked(toggleBpPosition(all, "P"), "P"), false);
+});
+
+test("named runners follow walks, advances, home runs and third outs", () => {
+  const s = settings({ mode: "GAME" });
+  const state = {
+    ...initialBpState(),
+    balls: 3,
+    runners: [1],
+    runnerIds: { 1: id(42) },
+  };
+  const after = buildBpPitch(s, state, { outcome: "Ball" }).stateAfter;
+  assert.deepEqual(after.runnerIds, { 1: id(40), 2: id(42) });
+  const move = buildBpRunnerMove(s, after, {
+    from: 2,
+    to: 3,
+    reason: "Stolen base",
+  });
+  assert.deepEqual(move.stateAfter.runnerIds, { 1: id(40), 3: id(42) });
+  assert.equal(move.movement.runnerId, id(42));
+  assert.deepEqual(
+    buildBpPitch(s, state, { outcome: "Ball in play", result: "Home Run" })
+      .stateAfter.runnerIds,
+    {},
+  );
+  assert.deepEqual(
+    buildBpPitch(s, { ...state, strikes: 2, outs: 2 }, { outcome: "Whiff" })
+      .stateAfter.runnerIds,
+    {},
+  );
+  assert.deepEqual(withBpRunners(state, []).runnerIds, {});
+  assert.throws(() => validateBpState({ ...state, runnerIds: { 2: id(42) } }));
+  assert.throws(() =>
+    validateBpState({
+      ...state,
+      runners: [1, 2],
+      runnerIds: { 1: id(42), 2: id(42) },
+    }),
+  );
+  assert.throws(() =>
+    buildBpRunnerMove(s, after, { from: 1, to: 2, reason: "Wild pitch" }),
+  );
+  assert.throws(() =>
+    buildBpRunnerMove(s, after, { from: 2, to: 1, reason: "Wild pitch" }),
+  );
+});
+
+for (const source of ["MACHINE", "COACH", "PLAYER"])
+  test(`undo ${source} removes all linked stats and restores exact situation`, async () => {
+    const state = {
+      ...initialBpState(),
+      balls: 2,
+      strikes: 1,
+      outs: 1,
+      runners: [2],
+      runnerIds: { 2: id(42) },
+    };
+    const r = await start(
+      settings({
+        mode: "GAME",
+        source,
+        pitcherId: id(41),
+        defense: "ALL",
+        alignment: { SS: id(42) },
+      }),
+      state,
+    );
+    const pitched = await pitch(r, {
+      outcome: "Ball in play",
+      result: "Out",
+      position: "SS",
+      defenseResult: "Clean",
+      runnerOutcomes: { 2: "3" },
+      ev: 90,
+    });
+    const undone = await call("undo", pitched, {}, randomUUID());
+    assert.deepEqual(undone.state, state);
+    assert.equal(undone.version, pitched.version + 1);
+    for (const table of ["hitting_events", "pitch_events", "defense_events"])
+      assert.equal(
+        (await db.query(`select count(*)::int n from ${table}`)).rows[0].n,
+        0,
+      );
+  });
+
+test("undo retries never remove another pitch, and pitch retries cannot resurrect deleted stats", async () => {
+  const r = await start();
+  const pitchId = randomUUID(),
+    undoId = randomUUID();
+  const p = await pitch(r, { outcome: "Ball" }, pitchId);
+  const undone = await call("undo", p, {}, undoId);
+  const second = await pitch(undone);
+  assert.deepEqual(await call("undo", p, {}, undoId), second);
+  assert.deepEqual(await call("pitch", r, {}, pitchId), second);
+  assert.equal(
+    (await db.query("select count(*)::int n from hitting_events")).rows[0].n,
+    1,
+  );
+  await denied(() => call("undo", p, {}, randomUUID()), /changed/i);
+  await call("undo", second, {}, randomUUID());
+  const latest = (await db.query("select to_jsonb(r) r from live_bp_rounds r"))
+    .rows[0].r;
+  await denied(() => call("undo", latest, {}, randomUUID()), /No pitch/i);
+});
+
+test("runner movement is idempotent and undo rolls back subsequent movements", async () => {
+  const r = await start(settings({ mode: "GAME" }), {
+    ...initialBpState(),
+    runners: [1],
+    runnerIds: { 1: id(42) },
+  });
+  const p = await pitch(r, { outcome: "Ball" });
+  const moveId = randomUUID();
+  const payload = buildBpRunnerMove(p.settings, p.state, {
+    from: 1,
+    to: 2,
+    reason: "Wild pitch",
+  });
+  const moved = await call("runner", p, payload, moveId);
+  assert.deepEqual(moved.state.runnerIds, { 2: id(42) });
+  assert.deepEqual(await call("runner", p, {}, moveId), moved);
+  assert.equal(
+    (await db.query("select count(*)::int n from hitting_events")).rows[0].n,
+    1,
+  );
+  const undone = await call("undo", moved, {}, randomUUID());
+  assert.deepEqual(undone.state, r.state);
+  assert.equal(
+    (
+      await db.query(
+        "select undone from clubhouse_private.live_bp_actions where id=$1",
+        [moveId],
+      )
+    ).rows[0].undone,
+    true,
+  );
+  assert.deepEqual(await call("runner", p, {}, moveId), undone);
+});
+
+test("failed linked deletion rolls the entire undo back", async () => {
+  const r = await start(
+    settings({
+      source: "PLAYER",
+      pitcherId: id(41),
+      defense: "ALL",
+      alignment: { SS: id(42) },
+    }),
+  );
+  const p = await pitch(r, {
+    outcome: "Ball in play",
+    result: "Out",
+    position: "SS",
+    defenseResult: "Clean",
+  });
+  await db.exec(`create function public.fail_bp_delete() returns trigger language plpgsql as $$ begin raise exception 'forced failure'; end; $$;
+    create trigger fail_bp_delete before delete on public.hitting_events for each row execute function public.fail_bp_delete();`);
+  await denied(() => call("undo", p, {}, randomUUID()), /forced failure/i);
+  for (const table of ["hitting_events", "pitch_events", "defense_events"])
+    assert.equal(
+      (await db.query(`select count(*)::int n from ${table}`)).rows[0].n,
+      1,
+    );
+  assert.equal(
+    (await db.query("select version from live_bp_rounds")).rows[0].version,
+    p.version,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from clubhouse_private.live_bp_actions where undone",
+      )
+    ).rows[0].n,
+    0,
+  );
+});
+
+test("undo rechecks coach authority and ended practice", async () => {
+  const p = await pitch(await start());
+  await denied(() => call("undo", p, {}, randomUUID(), id(2)), /authority/i);
+  await db.exec("update practices set ended_at=now()");
+  await denied(() => call("undo", p, {}, randomUUID()), /running/i);
 });
 test("pitcher alignment follows source without overwriting other defenders", () => {
   const s = withBpPitcherAlignment(

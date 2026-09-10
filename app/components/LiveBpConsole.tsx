@@ -36,8 +36,10 @@ import { LiveBpSetup } from "./LiveBpSetup";
 import { LiveBpDefensePresets } from "./LiveBpDefensePresets";
 import { AskClubhouseLauncher } from "./AskClubhouseDrawer";
 import { liveBpFieldLabel } from "../lib/liveBpFieldLabel";
-import { BpBases, BpSegments, type BpSheet } from "./LiveBpControls";
+import { BpSegments, type BpSheet } from "./LiveBpControls";
 import { LiveBpCorrections } from "./LiveBpCorrections";
+import { LiveBpFieldRunners } from "./LiveBpFieldRunners";
+import type { BpRunnerMove } from "../lib/liveBpRunnerMove";
 import styles from "./LiveBpConsole.module.css";
 
 export function LiveBpConsole({
@@ -113,6 +115,7 @@ export function LiveBpConsole({
     [quickView, setQuickView] = useState<"defense" | "spray" | "location">(
       "defense",
     ),
+    [fieldView, setFieldView] = useState("runners"),
     [alignmentPosition, setAlignmentPosition] = useState<BpDraft["position"]>(),
     [participantPicker, setParticipantPicker] = useState<
       "hitter" | "pitcher" | null
@@ -134,6 +137,13 @@ export function LiveBpConsole({
     pending = useRef<{ id: string; draft: BpDraft } | null>(null),
     startId = useRef<string | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fieldRequest = useRef<{
+    operation: "undo" | "runner";
+    id: string;
+    version: number;
+    move?: BpRunnerMove;
+  } | null>(null);
+  const [fieldRetry, setFieldRetry] = useState(false);
   const onSavedRef = useRef(onSaved);
   useEffect(() => {
     onSavedRef.current = onSaved;
@@ -336,6 +346,70 @@ export function LiveBpConsole({
       setBusy(false);
     }
   }
+  async function fieldAction(
+    operation: "undo" | "runner",
+    move?: BpRunnerMove,
+  ) {
+    if (!round || lock.current || uncertain) return;
+    if (!fieldRequest.current)
+      fieldRequest.current = {
+        operation,
+        id: crypto.randomUUID(),
+        version: round.version,
+        move,
+      };
+    lock.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const request = fieldRequest.current;
+      const res = await fetch(url, {
+        method: "POST",
+        signal: AbortSignal.timeout(15000),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operation: request.operation,
+          roundId: round.id,
+          requestId: request.id,
+          version: request.version,
+          move: request.move,
+        }),
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        if (res.status < 500) fieldRequest.current = null;
+        throw new Error(result.message ?? "Unable to update the field.");
+      }
+      adopt(result.round);
+      fieldRequest.current = null;
+      setDraft({ outcome: "" });
+      setLastPitch("");
+      setNotice(
+        operation === "undo"
+          ? "Last pitch and linked stats removed"
+          : "Runner movement saved",
+      );
+      onSaved();
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Connection interrupted. Retry to confirm the field update.",
+      );
+    } finally {
+      setFieldRetry(Boolean(fieldRequest.current));
+      setBusy(false);
+      lock.current = false;
+    }
+  }
+  async function undoPitch() {
+    if (
+      window.confirm(
+        "Undo the last pitch and delete its linked stats? Count, outs, and runners will return to before that pitch, including any later runner moves or corrections. The current matchup stays selected.",
+      )
+    )
+      await fieldAction("undo");
+  }
   const bip = stage === "bip";
   const ended = !active || Boolean(round?.ended_at);
   const trackedCount = bpTracksCount(settings);
@@ -524,7 +598,11 @@ export function LiveBpConsole({
         </div>
       ) : (
         <>
-          <fieldset disabled={busy} className={styles.fields} ref={fields}>
+          <fieldset
+            disabled={busy || fieldRetry}
+            className={styles.fields}
+            ref={fields}
+          >
             <div className={styles.matchup}>
               <div className={styles.athlete}>
                 <span>Hitter</span>
@@ -579,19 +657,40 @@ export function LiveBpConsole({
               </div>
             </div>
             <div className={styles.statusRow}>
-              {trackedCount && (
-                <strong
-                  className={styles.numericCount}
-                  aria-label={`Count ${state.balls}-${state.strikes}`}
-                >
-                  {state.balls}-{state.strikes}
-                </strong>
-              )}
-              {settings.mode === "GAME" && (
-                <span className={styles.outsControl}>
-                  <strong>{state.outs}</strong> Outs
-                </span>
-              )}
+              <div className={styles.scoreboard}>
+                {trackedCount && (
+                  <div
+                    className={styles.numericCount}
+                    aria-label={`Count ${state.balls}-${state.strikes}`}
+                  >
+                    <span>Count</span>
+                    <strong>
+                      {state.balls}-{state.strikes}
+                    </strong>
+                  </div>
+                )}
+                {settings.mode === "GAME" && (
+                  <div
+                    className={styles.outsControl}
+                    aria-label={`${state.outs} Outs`}
+                  >
+                    <span>Outs</span>
+                    <strong>{state.outs}</strong>
+                  </div>
+                )}
+              </div>
+              <div className={styles.toolbarCorrections}>
+                <LiveBpCorrections
+                  players={players}
+                  state={state}
+                  trackedCount={trackedCount}
+                  game={settings.mode === "GAME"}
+                  disabled={busy || uncertain}
+                  onUndo={() => void undoPitch()}
+                  onSave={(next) => saveSetup(settings, next)}
+                  sheet={sheet}
+                />
+              </div>
               <button
                 type="button"
                 className={styles.status}
@@ -765,24 +864,6 @@ export function LiveBpConsole({
               )
             ) : (
               <>
-                <div className={styles.situation}>
-                  <div className={styles.gameSituation}>
-                    {settings.mode === "GAME" && (
-                      <>
-                        <span>Bases</span>
-                        <BpBases runners={state.runners} />
-                      </>
-                    )}
-                    <LiveBpCorrections
-                      state={state}
-                      trackedCount={trackedCount}
-                      game={settings.mode === "GAME"}
-                      disabled={busy || uncertain}
-                      onSave={(next) => saveSetup(settings, next)}
-                      sheet={sheet}
-                    />
-                  </div>
-                </div>
                 {stage === "result" &&
                   flow(
                     <section className={styles.result}>
@@ -844,7 +925,7 @@ export function LiveBpConsole({
                       onClick={() => setQuickView(view as typeof quickView)}
                     >
                       {view === "defense"
-                        ? "Defense"
+                        ? "Field"
                         : view === "spray"
                           ? "Spray"
                           : "Pitch Map"}
@@ -859,93 +940,132 @@ export function LiveBpConsole({
                       showEmptyState={false}
                       ariaLabel="Defensive alignment"
                     />
-                    <details
-                      className={styles.fieldTracking}
-                      onPointerEnter={(event) => {
-                        if (event.pointerType === "mouse")
-                          event.currentTarget.open = true;
-                      }}
-                      onPointerLeave={(event) => {
-                        if (
-                          event.pointerType === "mouse" &&
-                          !event.currentTarget.contains(document.activeElement)
-                        )
-                          event.currentTarget.open = false;
-                      }}
-                    >
-                      <summary
-                        aria-label="Defense tracking settings"
-                        title="Defense tracking"
-                      >
-                        <Settings size={16} />
-                      </summary>
-                      <BpSegments
-                        label="Defense tracking"
-                        value={settings.defense}
-                        options={[
-                          { value: "OFF", label: "Off" },
-                          { value: "ALL", label: "All" },
-                          { value: "SELECTED", label: "Selected" },
-                        ]}
-                        onChange={(value) => {
-                          if (!busy && !uncertain)
-                            saveSetup(
-                              {
-                                ...settings,
-                                defense: value as BpSettings["defense"],
-                              },
-                              state,
-                            );
-                        }}
+                    {settings.mode === "GAME" && (
+                      <div className={styles.fieldViewToggle}>
+                        <BpSegments
+                          label="Field view"
+                          value={fieldView}
+                          options={[
+                            { value: "runners", label: "Runners" },
+                            { value: "defense", label: "Defense" },
+                          ]}
+                          onChange={setFieldView}
+                        />
+                      </div>
+                    )}
+                    {settings.mode === "GAME" && fieldView === "runners" && (
+                      <LiveBpFieldRunners
+                        state={state}
+                        players={players}
+                        sheet={sheet}
+                        disabled={busy || uncertain}
+                        onMove={(move) => void fieldAction("runner", move)}
                       />
-                      <button
-                        type="button"
-                        className="text-button"
-                        onClick={() => {
-                          if (!busy && !uncertain) setPresetsOpen(true);
+                    )}
+                    {(settings.mode !== "GAME" || fieldView === "defense") && (
+                      <details
+                        className={styles.fieldTracking}
+                        onPointerEnter={(event) => {
+                          if (event.pointerType === "mouse")
+                            event.currentTarget.open = true;
+                        }}
+                        onPointerLeave={(event) => {
+                          if (
+                            event.pointerType === "mouse" &&
+                            !event.currentTarget.contains(
+                              document.activeElement,
+                            )
+                          )
+                            event.currentTarget.open = false;
                         }}
                       >
-                        <LayoutList size={16} />
-                        Defense Presets
-                      </button>
-                    </details>
-                    {BP_POSITIONS.map((position) => {
-                      const [left, top] =
-                        CLUBHOUSE_FIELD_POSITION_COORDINATES[position];
-                      return (
+                        <summary
+                          aria-label="Defense tracking settings"
+                          title="Defense tracking"
+                        >
+                          <Settings size={16} />
+                        </summary>
+                        <BpSegments
+                          label="Defense tracking"
+                          value={settings.defense}
+                          options={[
+                            { value: "OFF", label: "Off" },
+                            { value: "ALL", label: "All" },
+                            { value: "SELECTED", label: "Selected" },
+                          ]}
+                          onChange={(value) => {
+                            if (!busy && !uncertain)
+                              saveSetup(
+                                {
+                                  ...settings,
+                                  defense: value as BpSettings["defense"],
+                                },
+                                state,
+                              );
+                          }}
+                        />
                         <button
-                          key={position}
                           type="button"
-                          style={{ left: `${left}%`, top: `${top}%` }}
-                          data-tracked={bpPositionTracked(settings, position)}
-                          aria-label={
-                            position === "P"
-                              ? `Change pitcher: ${settings.source === "PLAYER" ? roster.find((p) => p.value === settings.pitcherId)?.label : settings.source === "COACH" ? settings.coachName : "Machine"}`
-                              : `Change ${position}: ${roster.find((p) => p.value === settings.alignment[position])?.label ?? "Unassigned"}`
-                          }
+                          className="text-button"
                           onClick={() => {
-                            if (uncertain || busy) return;
-                            if (position === "P") {
-                              setParticipantPicker("pitcher");
-                              return;
-                            }
-                            setAlignmentPosition(position);
-                            setSetupStep(2);
-                            setOptionsOpen(true);
+                            if (!busy && !uncertain) setPresetsOpen(true);
                           }}
                         >
-                          <span
-                            title={liveBpFieldLabel(
-                              settings,
-                              players,
-                              position,
-                            )}
-                          >
-                            {liveBpFieldLabel(settings, players, position)}
-                          </span>
+                          <LayoutList size={16} />
+                          Defense Presets
                         </button>
-                      );
-                    })}
+                      </details>
+                    )}
+                    {(settings.mode !== "GAME" || fieldView === "defense") &&
+                      BP_POSITIONS.map((position) => {
+                        const [left, top] =
+                          position === "1B"
+                            ? [82, 57]
+                            : position === "3B"
+                              ? [18, 57]
+                              : position === "SS"
+                                ? [33, 43]
+                                : position === "2B"
+                                  ? [67, 43]
+                                  : position === "C"
+                                    ? [34, 92]
+                                    : CLUBHOUSE_FIELD_POSITION_COORDINATES[
+                                        position
+                                      ];
+                        return (
+                          <button
+                            key={position}
+                            type="button"
+                            style={{ left: `${left}%`, top: `${top}%` }}
+                            data-tracked={bpPositionTracked(settings, position)}
+                            aria-label={
+                              position === "P"
+                                ? `Change pitcher: ${settings.source === "PLAYER" ? roster.find((p) => p.value === settings.pitcherId)?.label : settings.source === "COACH" ? settings.coachName : "Machine"}`
+                                : `Change ${position}: ${roster.find((p) => p.value === settings.alignment[position])?.label ?? "Unassigned"}`
+                            }
+                            onClick={() => {
+                              if (uncertain || busy) return;
+                              if (position === "P") {
+                                setParticipantPicker("pitcher");
+                                return;
+                              }
+                              setAlignmentPosition(position);
+                              setSetupStep(2);
+                              setOptionsOpen(true);
+                            }}
+                          >
+                            <span
+                              title={liveBpFieldLabel(
+                                settings,
+                                players,
+                                position,
+                              )}
+                            >
+                              {liveBpFieldLabel(settings, players, position)}
+                            </span>
+                          </button>
+                        );
+                      })}
                   </div>
                 ) : (
                   charts(
@@ -970,6 +1090,19 @@ export function LiveBpConsole({
                 }}
               />,
             )}
+          {fieldRetry && (
+            <button
+              type="button"
+              className="primary-button"
+              disabled={busy}
+              onClick={() => {
+                const request = fieldRequest.current;
+                if (request) void fieldAction(request.operation);
+              }}
+            >
+              Retry field update
+            </button>
+          )}
           {stage === "pitch" && (
             <footer className={styles.footer}>
               {error && (

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "../../lib/supabase/server";
 import { createAdminClient } from "../../lib/supabase/admin";
+import { buildBpRunnerMove } from "../../lib/liveBpRunnerMove";
 import {
   assertPlayerLinkTeamManager,
   PlayerLinkError,
@@ -71,7 +72,9 @@ export async function POST(request: Request) {
       throw new PlayerLinkError("Live BP request is too large.");
     const body = JSON.parse(text);
     if (
-      !["start", "configure", "pitch", "end"].includes(body.operation) ||
+      !["start", "configure", "pitch", "end", "undo", "runner"].includes(
+        body.operation,
+      ) ||
       !/^[0-9a-f-]{36}$/i.test(body.roundId)
     )
       throw new PlayerLinkError("Choose a Live BP round.");
@@ -84,7 +87,10 @@ export async function POST(request: Request) {
           settings: withBpPitcherAlignment(body.settings),
           state: body.state,
         };
-      } else if (body.operation === "pitch") {
+      } else if (body.operation === "undo") {
+        if (!/^[0-9a-f-]{36}$/i.test(body.requestId))
+          throw new Error("Invalid undo request.");
+      } else if (body.operation === "pitch" || body.operation === "runner") {
         if (!/^[0-9a-f-]{36}$/i.test(body.requestId))
           throw new Error("Invalid pitch request.");
         const read = await db
@@ -109,9 +115,14 @@ export async function POST(request: Request) {
             "Unable to verify this pitch. Retry shortly.",
             503,
           );
-        payload = prior.data
-          ? {}
-          : buildBpPitch(round.settings, round.state, body.draft);
+        payload =
+          round.version !== body.version
+            ? {}
+            : body.operation === "runner"
+              ? buildBpRunnerMove(round.settings, round.state, body.move)
+              : prior.data
+                ? {}
+                : buildBpPitch(round.settings, round.state, body.draft);
       }
     } catch (error) {
       if (error instanceof PlayerLinkError) throw error;
@@ -137,9 +148,11 @@ export async function POST(request: Request) {
       throw new PlayerLinkError(
         error.code === "42501"
           ? "Your roster or coach access changed. Reload before continuing."
-          : error.code === "PT409" || error.code === "40001"
-            ? "This round changed elsewhere. Reload before continuing."
-            : "Unable to save this pitch. Your draft is still available.",
+          : error.code === "P0002"
+            ? "No pitch to undo."
+            : error.code === "PT409" || error.code === "40001"
+              ? "This round changed elsewhere. Reload before continuing."
+              : "Unable to save this pitch. Your draft is still available.",
         error.code === "42501" ? 403 : 409,
       );
     return NextResponse.json(

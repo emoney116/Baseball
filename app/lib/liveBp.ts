@@ -56,6 +56,7 @@ export type BpState = {
   strikes: number;
   outs: number;
   runners: number[];
+  runnerIds?: Partial<Record<number, string>>;
   job: string;
   pa: number;
 };
@@ -250,6 +251,22 @@ export function toggleBpPosition(
   };
 }
 
+export function withBpRunners(state: BpState, runners: number[]): BpState {
+  return {
+    ...state,
+    runners,
+    ...(state.runnerIds
+      ? {
+          runnerIds: Object.fromEntries(
+            Object.entries(state.runnerIds).filter(([base]) =>
+              runners.includes(Number(base)),
+            ),
+          ),
+        }
+      : {}),
+  };
+}
+
 export function validateBpState(s: BpState) {
   bpAssert(
     s &&
@@ -270,6 +287,23 @@ export function validateBpState(s: BpState) {
       new Set(s.runners).size === s.runners.length,
     "Check runners and outs.",
   );
+  if (s.runnerIds !== undefined) {
+    bpAssert(
+      s.runnerIds !== null &&
+        typeof s.runnerIds === "object" &&
+        !Array.isArray(s.runnerIds) &&
+        Object.entries(s.runnerIds).every(
+          ([base, player]) =>
+            ["1", "2", "3"].includes(base) &&
+            s.runners.includes(Number(base)) &&
+            typeof player === "string" &&
+            /^[0-9a-f-]{36}$/i.test(player),
+        ) &&
+        new Set(Object.values(s.runnerIds)).size ===
+          Object.values(s.runnerIds).length,
+      "Choose a different runner for each occupied base.",
+    );
+  }
   bpAssert(
     typeof s.job === "string" &&
       s.job.length <= 80 &&
@@ -426,6 +460,7 @@ export function buildBpPitch(
       runnerOutcomes[key] = value;
     }
     after.runners = [];
+    const runnerIds: Partial<Record<number, string>> = {};
     for (const [key, value] of Object.entries(runnerOutcomes)) {
       if (value === "out") after.outs++;
       const dest =
@@ -436,16 +471,26 @@ export function buildBpPitch(
           "Two runners cannot finish on the same base.",
         );
         after.runners.push(dest);
+        const playerId =
+          key === "batter"
+            ? settings.hitterId
+            : before.runnerIds?.[Number(key)];
+        if (playerId && !Object.values(runnerIds).includes(playerId))
+          runnerIds[dest] = playerId;
       }
     }
+    if (before.runnerIds || Object.keys(runnerIds).length)
+      after.runnerIds = runnerIds;
     if (after.outs >= 3) {
       after.outs = 0;
       after.runners = [];
+      if (after.runnerIds) after.runnerIds = {};
     }
   }
   if (settings.mode !== "GAME") {
     after.outs = 0;
     after.runners = [];
+    if (after.runnerIds) after.runnerIds = {};
     after.job = "";
   }
   if (draft.jobSuccess !== undefined)
@@ -453,12 +498,14 @@ export function buildBpPitch(
   const beforeSituation = {
     outs: before.outs,
     runners: before.runners,
+    ...(before.runnerIds ? { runnerIds: before.runnerIds } : {}),
     job: before.job,
     pa: before.pa,
   };
   const afterSituation = {
     outs: after.outs,
     runners: after.runners,
+    ...(after.runnerIds ? { runnerIds: after.runnerIds } : {}),
     job: after.job,
     pa: after.pa,
   };
