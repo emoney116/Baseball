@@ -116,6 +116,17 @@ test("own canonical Analytics separates Personal from Practice and default All",
   const team = await generateAskClubhouseReply({ data: session.data, message: "How did I hit in team Practice today?", now: new Date("2026-09-04T16:00:00Z"), config: getAskClubhouseConfig({}), uiContext: playerAskContext(session.context, {}) });
   assert.ok(team.toolResults.every(r => r.query?.source !== "personal"));
 });
+test("Ask bullpen self-summary includes Personal evidence without contaminating explicit team requests", async () => {
+  const f = playerServiceFixture();
+  f.tables.player_personal_sessions = [{ id: id(99), team_id: id(20), season_id: id(30), player_id: id(40), membership_id: id(50), created_by_profile_id: id(1), domain: "pitching", started_at: "2026-09-04T12:00:00Z" }];
+  f.tables.pitch_events.push({ id: id(98), personal_session_id: id(99), pitcher_id: id(40), created_by_profile_id: id(1), outcome: "Called Strike", pitch_type: "4-Seam", velocity: 80, created_at: "2026-09-04T12:00:00Z" });
+  const session = await loadPlayerSession(f.db, id(1));
+  for (const [message, includePersonal] of [["How did my bullpen go?", true], ["How did my team Practice bullpen go?", false], ["How did my bullpen go in Practice?", false]]) {
+    const reply = await generateAskClubhouseReply({ data: session.data, message, config: getAskClubhouseConfig({}), uiContext: playerAskContext(session.context, {}) });
+    assert.equal(reply.toolResults.some(r => r.query?.source === "personal"), includePersonal, message);
+    if (includePersonal) assert.ok(reply.toolResults.some(r => r.query?.source === "personal" && JSON.stringify(r).includes('80')));
+  }
+});
 test("Ask explicitly distinguishes Personal and team Practice source", () => {
   assert.equal(composeAskClubhouseQueryPlan("How did I hit in my personal session today?").scope.source, "personal");
   assert.equal(composeAskClubhouseQueryPlan("How did I hit in team Practice today?", { analytics: { source: "personal" } }).scope.source, "practice");

@@ -588,7 +588,7 @@ export function buildAskClubhouseToolPlan(
   }
 
   // A self-summary can include Personal, but keep its evidence separate from team Practice.
-  if (uiContext?.viewerPlayerId && /\bhow did i\b/.test(lower)
+  if (uiContext?.viewerPlayerId && /\bhow did (?:i\b|my (?:bullpen|hitting|pitching|defense|session)\b)/.test(lower)
     && !/\b(practice|team|game|live|personal|own session)\b/.test(lower)
     && (domain === "hitting" || domain === "pitching" || domain === "defense")
     && data.personalSessions?.some(session => session.domain === domain)) {
