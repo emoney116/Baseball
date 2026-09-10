@@ -19,6 +19,15 @@
   margin: 0;
   font-size: 22px;
 }
+.title {
+  flex: 1;
+  min-width: 0;
+}
+.title p {
+  font-size: 12px;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
 .fields {
   flex: 1;
   min-height: 0;

@@ -69,6 +69,7 @@ export function LiveBpConsole({
     [notice, setNotice] = useState(""),
     [uncertain, setUncertain] = useState(false);
   const lock = useRef(false),
+    fields = useRef<HTMLFieldSetElement>(null),
     pending = useRef<{ id: string; draft: BpDraft } | null>(null),
     startId = useRef<string | null>(null);
   const url = `/api/live-bp?practiceId=${encodeURIComponent(practiceId)}`;
@@ -84,6 +85,15 @@ export function LiveBpConsole({
       if (!res.ok) throw new Error(p.message);
       const r = p.rounds.find((r: BpRound) => !r.ended_at);
       if (r) {
+        if (
+          round &&
+          (r.settings.hitterId !== round.settings.hitterId ||
+            r.settings.pitcherId !== round.settings.pitcherId ||
+            r.settings.source !== round.settings.source)
+        ) {
+          setDraft({ outcome: "" });
+          setNotice("Hitter or pitch source changed. Start a new pitch.");
+        }
         adopt(r);
         setConfig(false);
       }
@@ -174,6 +184,7 @@ export function LiveBpConsole({
         const pitchType = draft.pitchType;
         pending.current = null;
         setDraft({ outcome: "", pitchType });
+        requestAnimationFrame(() => fields.current?.scrollTo({ top: 0 }));
         setNotice("Pitch saved");
       }
       if (operation === "end") {
@@ -182,9 +193,12 @@ export function LiveBpConsole({
       onSaved();
     } catch (e) {
       setError(
-        e instanceof Error
+        e instanceof Error &&
+          !["TimeoutError", "AbortError", "TypeError"].includes(e.name)
           ? e.message
-          : "Connection interrupted. Retry this pitch.",
+          : pending.current
+            ? "Connection interrupted. Your pitch is retained. Retry to confirm the save."
+            : "Connection interrupted. Please try again.",
       );
     } finally {
       lock.current = false;
@@ -225,7 +239,25 @@ export function LiveBpConsole({
         >
           <ArrowLeft size={20} />
         </button>
-        <h2>Live BP</h2>
+        <div className={styles.title}>
+          <h2>Live BP</h2>
+          {round && !config && (
+            <p>
+              <strong>
+                {roster.find((p) => p.value === settings.hitterId)?.label}
+              </strong>
+              <span>
+                {" "}
+                ·{" "}
+                {settings.source === "PLAYER"
+                  ? roster.find((p) => p.value === settings.pitcherId)?.label
+                  : settings.source === "MACHINE"
+                    ? "Machine"
+                    : "Coach"}
+              </span>
+            </p>
+          )}
+        </div>
         <button
           className="icon-button"
           title="Live BP settings"
@@ -257,7 +289,11 @@ export function LiveBpConsole({
             <p role="status">Practice or Live BP has ended.</p>
           ) : (
             <>
-              <fieldset disabled={busy || uncertain} className={styles.fields}>
+              <fieldset
+                ref={fields}
+                disabled={busy || uncertain}
+                className={styles.fields}
+              >
                 {config ? (
                   <>
                     <div className={styles.grid}>

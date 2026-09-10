@@ -280,7 +280,7 @@ test("double submit and uncertain retry create one linked event", async () => {
 test("stale concurrent writer is rejected without overwriting state", async () => {
   const r = await start();
   await pitch(r);
-  await denied(() => pitch(r));
+  await denied(() => pitch(r), (error) => error.code === "PT409");
   assert.equal(
     (await db.query("select count(*)::int n from hitting_events")).rows[0].n,
     1,
@@ -330,9 +330,22 @@ test("round end denies writes and preserves prior evidence", async () => {
   );
 });
 test("coach-assessed contact quality survives linked hitter and pitcher readback", async () => {
-  const r = await start(settings({source:'PLAYER',pitcherId:id(41)}));
-  await pitch(r,{outcome:'Ball in play',battedBall:'Line drive',contactQuality:'Hard'});
-  for (const table of ['hitting_events','pitch_events']) assert.equal((await db.query(`select contact_quality from ${table}`)).rows[0].contact_quality,'Hard');
+  const r = await start(settings({ source: "PLAYER", pitcherId: id(41) }));
+  await pitch(r, {
+    outcome: "Ball in play",
+    battedBall: "Line drive",
+    contactQuality: "Hard",
+  });
+  assert.equal(
+    (await db.query("select contact_quality from hitting_events")).rows[0]
+      .contact_quality,
+    "Hard",
+  );
+  assert.equal(
+    (await db.query("select contact_quality from pitch_events")).rows[0]
+      .contact_quality,
+    "Hard contact",
+  );
 });
 test("player endpoint and direct mutation cannot bypass linked-save boundary", async () => {
   const r = await start();

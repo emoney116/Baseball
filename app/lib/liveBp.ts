@@ -1,4 +1,16 @@
-import type { ZonePoint, PitchType } from "../types.ts";
+import type { ZonePoint, PitchType, ContactQuality } from "../types.ts";
+
+export function liveBpPitchContactQuality(
+  value?: string,
+): ContactQuality | undefined {
+  if (["Hard", "Barrel", "Hard contact"].includes(value ?? ""))
+    return "Hard contact";
+  if (["Solid", "Medium contact"].includes(value ?? ""))
+    return "Medium contact";
+  if (["Poor", "Weak", "Weak contact"].includes(value ?? ""))
+    return "Weak contact";
+  return undefined;
+}
 import { TENDEX_PITCH_TYPES } from "./tendexGameAnalysis.ts";
 import { advancePitchCount } from "./pitchCount.ts";
 
@@ -390,7 +402,9 @@ export function buildBpPitch(
           is_called_strike: draft.outcome === "Called Strike",
           is_ball_in_play: bip,
           batted_ball: bip ? draft.battedBall : undefined,
-          contact_quality: bip ? draft.contactQuality : undefined,
+          contact_quality: bip
+            ? liveBpPitchContactQuality(draft.contactQuality)
+            : undefined,
           count_before:
             settings.mode === "FREE"
               ? undefined

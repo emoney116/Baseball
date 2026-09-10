@@ -133,7 +133,7 @@ export async function POST(request: Request) {
       throw new PlayerLinkError(
         error.code === "42501"
           ? "Your roster or coach access changed. Reload before continuing."
-          : error.code === "40001"
+          : error.code === "PT409" || error.code === "40001"
             ? "This round changed elsewhere. Reload before continuing."
             : "Unable to save this pitch. Your draft is still available.",
         error.code === "42501" ? 403 : 409,

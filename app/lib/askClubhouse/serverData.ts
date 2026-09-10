@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { liveBpPitchContactQuality } from "../liveBp.ts";
 import type {
   AppData,
   AppProfile,
@@ -601,7 +602,7 @@ function mapPitchEvent(row: AnyRow): PitchEvent {
     isCalledStrike: row.is_called_strike ?? undefined,
     isBallInPlay: row.is_ball_in_play ?? undefined,
     battedBall: row.batted_ball as BattedBallType | undefined,
-    contactQuality: row.contact_quality ?? undefined,
+    contactQuality: row.live_bp_round_id ? liveBpPitchContactQuality(row.contact_quality) : row.contact_quality ?? undefined,
     velocity: toNumber(row.velocity),
     qualityRating: row.quality_rating ?? undefined,
     missedIntendedLocation: row.missed_intended_location ?? undefined,

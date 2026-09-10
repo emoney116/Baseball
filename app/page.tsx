@@ -21958,7 +21958,7 @@ function buildActivePracticeSessions(data: AppData, practiceId: ID, nowMs = Date
         const lastActiveAt = practiceSessionLastActivityAt(data, session.id) ?? session.updatedAt ?? session.startedAt;
         return {
           id: `def-${session.id}`,
-          mode: "Defense" as const,
+          mode: events.some((event) => event.liveBpRoundId) ? "Live BP" as const : "Defense" as const,
           sessionId: session.id,
           title: session.drillContext ?? session.title ?? `${session.station} Defense`,
           station: session.station,

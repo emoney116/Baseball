@@ -2,6 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { liveSyncDelta } from "../lib/liveSyncDelta";
+import { liveBpPitchContactQuality } from "../lib/liveBp";
 import { staffDataChanged } from "../lib/staffSyncChanges";
 
 import type {
@@ -2773,7 +2774,7 @@ function mapPitchEvent(row: any): PitchEvent {
     isCalledStrike: row.is_called_strike ?? undefined,
     isBallInPlay: row.is_ball_in_play ?? undefined,
     battedBall: row.batted_ball ?? undefined,
-    contactQuality: row.contact_quality ?? undefined,
+    contactQuality: row.live_bp_round_id ? liveBpPitchContactQuality(row.contact_quality) : row.contact_quality ?? undefined,
     velocity: toNumber(row.velocity),
     qualityRating: row.quality_rating ?? undefined,
     missedIntendedLocation: row.missed_intended_location ?? undefined,
