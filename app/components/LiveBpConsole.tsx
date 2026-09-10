@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  Plus,
+  MoreHorizontal,
+  X,
+  BarChart3,
+} from "lucide-react";
 import type { Player, ZonePoint } from "../types";
 import {
   BP_POSITIONS,
@@ -15,6 +23,7 @@ import {
 import { TENDEX_PITCH_TYPES } from "../lib/tendexGameAnalysis";
 import { ChoiceSelect } from "./ChoiceSelect";
 import { ClubhouseBaseballField } from "./ClubhouseBaseballField";
+import { PlayerAvatar } from "./visuals";
 import styles from "./LiveBpConsole.module.css";
 
 function Select({
@@ -47,6 +56,8 @@ export function LiveBpConsole({
   initialHitterId,
   initialPitcherId,
   initialSource,
+  coaches = [],
+  charts,
 }: {
   practiceId: string;
   players: Player[];
@@ -56,6 +67,8 @@ export function LiveBpConsole({
   initialHitterId?: string;
   initialPitcherId?: string;
   initialSource?: BpSettings["source"];
+  coaches?: string[];
+  charts: (hitterId: string) => ReactNode;
   pitchLocationControl: (
     point: ZonePoint | undefined,
     onSelect: (point: ZonePoint) => void,
@@ -82,6 +95,9 @@ export function LiveBpConsole({
   const [state, setState] = useState(initialBpState),
     [draft, setDraft] = useState<BpDraft>({ outcome: "" });
   const [loading, setLoading] = useState(true),
+    [optionsOpen, setOptionsOpen] = useState(false),
+    [entryOpen, setEntryOpen] = useState(false),
+    [chartsOpen, setChartsOpen] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -145,8 +161,19 @@ export function LiveBpConsole({
     return () => controller.abort();
   }, [url]);
   const roster = players.map((p) => ({ value: p.id, label: p.name }));
+  const hitters = players.filter(
+    (p) => settings.source !== "PLAYER" || p.id !== settings.pitcherId,
+  );
+  const coachNames = [
+    ...new Set([...coaches, settings.coachName ?? ""].filter(Boolean)),
+  ];
+  function rotateHitter(direction: number) {
+    const index = hitters.findIndex((p) => p.id === settings.hitterId);
+    const next = hitters[(index + direction + hitters.length) % hitters.length];
+    if (next) update("hitterId", next.id);
+  }
   function update<K extends keyof BpSettings>(key: K, value: BpSettings[K]) {
-    if (["hitterId", "pitcherId", "source"].includes(key))
+    if (["hitterId", "pitcherId", "source", "coachName"].includes(key))
       setDraft({ outcome: "" });
     setSettings((s) => ({ ...s, [key]: value }));
   }
@@ -232,6 +259,7 @@ export function LiveBpConsole({
         setDraft({ outcome: "", pitchType });
         requestAnimationFrame(() => fields.current?.scrollTo({ top: 0 }));
         setNotice("Pitch saved");
+        setEntryOpen(false);
       }
       if (operation === "end") {
         setNotice("Live BP ended");
@@ -276,35 +304,7 @@ export function LiveBpConsole({
     </label>
   );
   return (
-    <div className={styles.console}>
-      <header className={styles.header}>
-        <button
-          className="icon-button"
-          title="Back to Practice"
-          onClick={onExit}
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <div className={styles.title}>
-          <h2>Live BP</h2>
-          {
-            <p>
-              <strong>
-                {roster.find((p) => p.value === settings.hitterId)?.label}
-              </strong>
-              <span>
-                {" "}
-                ·{" "}
-                {settings.source === "PLAYER"
-                  ? roster.find((p) => p.value === settings.pitcherId)?.label
-                  : settings.source === "MACHINE"
-                    ? "Machine"
-                    : "Coach"}
-              </span>
-            </p>
-          }
-        </div>
-      </header>
+    <section className={`practice-hitting-shell ${styles.console}`}>
       {loading ? (
         <p role="status">Loading Live BP...</p>
       ) : (
@@ -321,15 +321,163 @@ export function LiveBpConsole({
             </div>
           )}
           {ended ? (
-            <p role="status">Practice or Live BP has ended.</p>
+            <div>
+              <p role="status">Practice or Live BP has ended.</p>
+              <button className="secondary-button" onClick={onExit}>
+                Practice Home
+              </button>
+            </div>
           ) : (
             <>
               <fieldset
                 ref={fields}
                 disabled={busy || uncertain}
-                className={styles.fields}
+                className={`practice-hitting-stage panel ${styles.fields}`}
               >
-                {
+                <div
+                  className={`practice-hitting-player-row ${styles.playerRow}`}
+                >
+                  <button
+                    className="practice-hitting-nav-button"
+                    aria-label="Previous hitter"
+                    onClick={() => rotateHitter(-1)}
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                  <ChoiceSelect
+                    aria-label="Hitter"
+                    className={styles.hitter}
+                    mobilePresentation="popover"
+                    value={settings.hitterId}
+                    options={hitters.map((p) => ({
+                      value: p.id,
+                      label: p.name,
+                      icon: <PlayerAvatar player={p} size="lg" compact />,
+                    }))}
+                    onChange={(v) => update("hitterId", v)}
+                  />
+                  <button
+                    className="practice-hitting-nav-button practice-hitting-nav-button--stats"
+                    aria-label="Show Live BP charts"
+                    aria-expanded={chartsOpen}
+                    onClick={() => setChartsOpen((v) => !v)}
+                  >
+                    <BarChart3 size={18} />
+                  </button>
+                  <button
+                    className="practice-hitting-nav-button"
+                    aria-label="Next hitter"
+                    onClick={() => rotateHitter(1)}
+                  >
+                    <ChevronRight size={20} />
+                  </button>
+                </div>
+                <ChoiceSelect
+                  aria-label="Pitch source"
+                  className="practice-hitting-session-select practice-session-select"
+                  mobilePresentation="popover"
+                  value={
+                    settings.source === "PLAYER"
+                      ? `PLAYER:${settings.pitcherId}`
+                      : settings.source === "COACH" && settings.coachName
+                        ? `COACH:${settings.coachName}`
+                        : settings.source
+                  }
+                  options={[
+                    { value: "MACHINE", label: "Machine" },
+                    ...coachNames.map((name) => ({
+                      value: `COACH:${name}`,
+                      label: `Coach ${name}`,
+                    })),
+                    { value: "COACH", label: "Other coach" },
+                    ...players
+                      .filter((p) => p.id !== settings.hitterId)
+                      .map((p) => ({
+                        value: `PLAYER:${p.id}`,
+                        label: p.name,
+                        description: "Player pitcher",
+                      })),
+                  ]}
+                  onChange={(v) => {
+                    setDraft({ outcome: "" });
+                    setSettings((s) => ({
+                      ...s,
+                      source: v.startsWith("PLAYER:")
+                        ? "PLAYER"
+                        : v.startsWith("COACH")
+                          ? "COACH"
+                          : "MACHINE",
+                      pitcherId: v.startsWith("PLAYER:")
+                        ? v.slice(7)
+                        : undefined,
+                      coachName: v.startsWith("COACH:")
+                        ? v.slice(6)
+                        : undefined,
+                    }));
+                  }}
+                />
+                {settings.source === "COACH" && (
+                  <label>
+                    Coach name
+                    <input
+                      maxLength={80}
+                      value={settings.coachName ?? ""}
+                      onChange={(e) =>
+                        update("coachName", e.target.value || undefined)
+                      }
+                    />
+                  </label>
+                )}
+                <div className="practice-hitting-entry-bar">
+                  <button
+                    className="primary-button practice-hitting-log-trigger"
+                    aria-expanded={entryOpen}
+                    onClick={() => setEntryOpen(true)}
+                  >
+                    <Plus size={20} />
+                    Log Pitch
+                  </button>
+                  <div className="practice-hitting-quick-controls">
+                    {(["ev", "velocity", "spray", "location"] as const).map(
+                      (key, i) => (
+                        <button
+                          key={key}
+                          type="button"
+                          aria-pressed={settings[key]}
+                          onClick={() => update(key, !settings[key])}
+                        >
+                          {["EV", "Velo", "Spray", "Loc"][i]}{" "}
+                          <strong>{settings[key] ? "On" : "Off"}</strong>
+                        </button>
+                      ),
+                    )}
+                    <button
+                      type="button"
+                      aria-expanded={optionsOpen}
+                      onClick={() => setOptionsOpen((v) => !v)}
+                    >
+                      Pitch{" "}
+                      <strong>
+                        {settings.pitchMode === "OFF"
+                          ? "Off"
+                          : settings.pitchMode === "ONE"
+                            ? "Single"
+                            : "Multi"}
+                      </strong>
+                    </button>
+                  </div>
+                  <button
+                    className="secondary-button practice-hitting-more-trigger"
+                    title="Live BP options"
+                    aria-label="Live BP options"
+                    aria-expanded={optionsOpen}
+                    onClick={() => setOptionsOpen((v) => !v)}
+                  >
+                    <MoreHorizontal size={20} />
+                  </button>
+                </div>
+                {chartsOpen && charts(settings.hitterId)}
+                {optionsOpen && (
                   <>
                     <div className={styles.grid}>
                       <ChoiceSelect
@@ -344,35 +492,6 @@ export function LiveBpConsole({
                           update("mode", v as BpSettings["mode"])
                         }
                       />
-                      <ChoiceSelect
-                        label="Pitch source"
-                        value={settings.source}
-                        options={["MACHINE", "COACH", "PLAYER"].map(
-                          (value) => ({
-                            value,
-                            label: value[0] + value.slice(1).toLowerCase(),
-                          }),
-                        )}
-                        onChange={(v) =>
-                          update("source", v as BpSettings["source"])
-                        }
-                      />
-                      <ChoiceSelect
-                        label="Hitter"
-                        value={settings.hitterId}
-                        options={roster}
-                        onChange={(v) => update("hitterId", v)}
-                      />
-                      {settings.source === "PLAYER" && (
-                        <ChoiceSelect
-                          label="Pitcher"
-                          value={settings.pitcherId ?? ""}
-                          options={roster.filter(
-                            (p) => p.value !== settings.hitterId,
-                          )}
-                          onChange={(v) => update("pitcherId", v)}
-                        />
-                      )}
                       <ChoiceSelect
                         label="Pitch type tracking"
                         value={settings.pitchMode}
@@ -394,20 +513,6 @@ export function LiveBpConsole({
                             update("pitchType", v as BpSettings["pitchType"])
                           }
                         />
-                      )}
-                    </div>
-                    <div className={`${styles.toggles} ${styles.tracking}`}>
-                      {(["velocity", "location", "ev", "spray"] as const).map(
-                        (key, i) => (
-                          <label key={key}>
-                            <input
-                              type="checkbox"
-                              checked={settings[key]}
-                              onChange={(e) => update(key, e.target.checked)}
-                            />
-                            {["Velo", "Location", "EV", "Spray"][i]}
-                          </label>
-                        ),
                       )}
                     </div>
                     <ChoiceSelect
@@ -529,14 +634,34 @@ export function LiveBpConsole({
                       </div>
                     )}
                   </>
-                }
-                {
+                )}
+                {entryOpen && (
                   <>
+                    <div className={styles.header}>
+                      <h3>Log Pitch</h3>
+                      <button
+                        className="icon-button"
+                        aria-label="Close pitch entry"
+                        onClick={() => setEntryOpen(false)}
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                    {settings.pitchMode !== "OFF" && (
+                      <Select
+                        label="Pitch type for this pitch"
+                        value={settings.pitchMode === "ONE" ? settings.pitchType ?? "" : draft.pitchType ?? settings.pitchType ?? ""}
+                        values={TENDEX_PITCH_TYPES}
+                        onChange={(v) =>
+                          settings.pitchMode === "ONE"
+                            ? update("pitchType", v as BpSettings["pitchType"])
+                            : edit("pitchType", v as BpDraft["pitchType"])
+                        }
+                      />
+                    )}
                     {settings.mode !== "FREE" && (
                       <div className={styles.situation}>
-                        <strong>
-                          {`${state.balls}-${state.strikes}`}
-                        </strong>
+                        <strong>{`${state.balls}-${state.strikes}`}</strong>
                         {settings.mode === "GAME" && (
                           <>
                             <span>{state.outs} out</span>
@@ -787,31 +912,16 @@ export function LiveBpConsole({
                       />
                     )}
                   </>
-                }
+                )}
               </fieldset>
-              {
+              {entryOpen && (
                 <footer className={styles.footer}>
                   <button
                     className="secondary-button"
                     disabled={busy || uncertain}
-                    onClick={() => {
-                      const eligible = roster.filter(
-                        (p) =>
-                          settings.source !== "PLAYER" ||
-                          p.value !== settings.pitcherId,
-                      );
-                      const next =
-                        eligible[
-                          (eligible.findIndex(
-                            (p) => p.value === settings.hitterId,
-                          ) +
-                            1) %
-                            eligible.length
-                        ];
-                      if (next) update("hitterId", next.value);
-                    }}
+                    onClick={() => setEntryOpen(false)}
                   >
-                    Next Hitter <ArrowRight size={16} />
+                    <X size={16} /> Close
                   </button>
                   <button
                     className="primary-button"
@@ -826,8 +936,8 @@ export function LiveBpConsole({
                         : "Save Pitch"}
                   </button>
                 </footer>
-              }
-              {round && (
+              )}
+              {round && optionsOpen && (
                 <button
                   className="ghost-button"
                   disabled={busy || uncertain}
@@ -843,6 +953,6 @@ export function LiveBpConsole({
           </p>
         </>
       )}
-    </div>
+    </section>
   );
 }

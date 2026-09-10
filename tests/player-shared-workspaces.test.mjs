@@ -28,13 +28,19 @@ test("player team navigation uses distinct shared coach feature pages without De
   assert.doesNotMatch(player, /onStartPractice=|onStartGame=|onScorePlay=|onStartWorkout=/);
 });
 
-test("coach live entry settings are outside the phone-only mode selector", () => {
+test("coach live entry settings remain available under each tracker's More options", () => {
   const page = readFileSync("app/page.tsx", "utf8");
   const start = page.indexOf('<div className="practice-mode-picker-trigger">');
   const end = page.indexOf("</div>", start);
   assert.ok(start > 0);
   assert.doesNotMatch(page.slice(start, end), /CoachLiveEntrySettings/);
-  assert.match(page.slice(start - 600, start), /<CoachLiveEntrySettings/);
+  assert.doesNotMatch(page.slice(start - 600, start), /<CoachLiveEntrySettings/);
+  for (const mode of ["Hitting", "Pitching", "Defense"]) {
+    const options = page.indexOf(`<ModalFrame title="${mode} Options"`);
+    assert.ok(options > start);
+    assert.match(page.slice(options, options + 800), /<CoachLiveEntrySettings/);
+    assert.match(page.slice(options, options + 800), new RegExp(`domain="${mode.toLowerCase()}"`));
+  }
 });
 
 test("private coach note and another-player requests are refused before analytics tools", () => {

@@ -6,13 +6,33 @@
   max-width: 1100px;
   margin: 0 auto;
   width: 100%;
-  height: calc(100dvh - 110px);
   padding-bottom: 0;
 }
 .header {
   display: flex;
   align-items: center;
   gap: 12px;
+  justify-content: space-between;
+}
+.header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.playerRow {
+  grid-template-columns: 32px minmax(0, 1fr) 32px 32px;
+}
+.hitter {
+  min-width: 0;
+}
+.hitter :global(.choice-select__button) {
+  border: 0;
+  background: transparent;
+  padding: 0 4px;
+  font-size: 18px;
+  font-weight: 800;
+}
+.hitter :global(.choice-select__button) > span {
+  min-width: 0;
 }
 .header h2 {
   flex: 1;
@@ -29,16 +49,46 @@
   overflow-wrap: anywhere;
 }
 .fields {
-  flex: 1;
   min-height: 0;
-  overflow-y: auto;
   align-content: start;
-  border: 0;
-  padding: 0;
+  padding: 12px;
   margin: 0;
   min-width: 0;
   display: grid;
-  gap: 16px;
+  gap: 12px;
+}
+.console .fields :global(.practice-hitting-entry-bar) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 6px;
+}
+.console .fields :global(.practice-hitting-quick-controls) {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+  order: 2;
+}
+.console .fields :global(.practice-hitting-quick-controls) button {
+  min-width: 0;
+  min-height: 34px;
+  padding: 5px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.console .fields :global(.practice-hitting-quick-controls) strong {
+  font-size: 10px;
+}
+.hitter :global(.player-avatar--lg) {
+  --size: 32px;
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
+}
+.hitter :global(.choice-select__button) strong {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
 }
 .grid {
   display: grid;
@@ -166,10 +216,5 @@
     max-width: 620px;
     width: 100%;
     justify-self: center;
-  }
-}
-@media (min-width: 1200px) {
-  .console {
-    height: calc(100dvh - 40px);
   }
 }

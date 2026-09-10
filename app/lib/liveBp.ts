@@ -31,6 +31,7 @@ export type BpSettings = {
   source: "MACHINE" | "COACH" | "PLAYER";
   hitterId: string;
   pitcherId?: string;
+  coachName?: string;
   pitchMode: "OFF" | "ONE" | "MULTI";
   pitchType?: PitchType;
   velocity: boolean;
@@ -52,6 +53,7 @@ export type BpState = {
 export type BpContext = {
   source: "Live BP";
   thrower: BpSettings["source"];
+  coachName?: string;
   mode: BpSettings["mode"];
   before: BpState;
   after: BpState;
@@ -112,6 +114,13 @@ export function bpAssert(
   if (!condition) throw new Error(message);
 }
 export function validateBpSettings(s: BpSettings) {
+  bpAssert(
+    s?.coachName === undefined ||
+      (typeof s.coachName === "string" &&
+        s.coachName.trim().length > 0 &&
+        s.coachName.length <= 80),
+    "Enter a coach name of up to 80 characters.",
+  );
   bpAssert(
     s &&
       ["FREE", "AB", "GAME"].includes(s.mode) &&
@@ -353,6 +362,9 @@ export function buildBpPitch(
   const context: BpContext = {
     source: "Live BP",
     thrower: settings.source,
+    ...(settings.source === "COACH" && settings.coachName
+      ? { coachName: settings.coachName.trim() }
+      : {}),
     mode: settings.mode,
     before,
     after,

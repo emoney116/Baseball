@@ -4162,14 +4162,7 @@ export default function MetrolinaBaseballApp() {
           />
         )}
 
-        {view === "practice" && practice && practiceTrackingOpen && practiceMode === "Live BP" && (
-          <LiveBpConsole key={practice.id} practiceId={practice.id} players={data.players} active={Boolean(practice.startedAt) && !practice.endedAt}
-            initialHitterId={data.players.some(p => p.id === liveBpHitterId) ? liveBpHitterId : practicePlayerId} initialPitcherId={liveBpPitcherId} initialSource={liveBpThrowerSource}
-            pitchLocationControl={(point, onSelect, hitterId) => <PracticeHittingPitchLocationGrid events={[]} hitter={data.players.find(p => p.id === hitterId)} activePoint={point} onSelect={onSelect} />}
-            onExit={() => writePracticeHubRoute("Overview", { replace: true })}
-            onSaved={() => { void refreshGlobalData(); }} />
-        )}
-        {view === "practice" && practicePlayer && practiceTrackingOpen && practiceMode !== "Live BP" && (
+        {view === "practice" && practicePlayer && practiceTrackingOpen && (
           <PracticeConsole
             data={data}
             practice={practice}
@@ -4245,6 +4238,7 @@ export default function MetrolinaBaseballApp() {
             onLiveBpHitter={selectLiveBpHitter}
             onLiveBpThrowerSource={changeLiveBpThrowerSource}
             onLogLiveBpPitch={logLiveBpPitch}
+            onLiveBpSaved={() => { void refreshGlobalData(); }}
             onCompleteLiveBpPa={completeLiveBpPa}
             onNextLiveBpHitter={advanceLiveBpHitter}
             onLogDefense={logDefense}
@@ -8222,6 +8216,7 @@ function PracticeConsole({
   onLiveBpHitter,
   onLiveBpThrowerSource,
   onLogLiveBpPitch,
+  onLiveBpSaved,
   onCompleteLiveBpPa,
   onNextLiveBpHitter,
   onLogDefense,
@@ -8313,6 +8308,7 @@ function PracticeConsole({
   onLiveBpHitter: (playerId: ID) => void;
   onLiveBpThrowerSource: (source: LiveBpThrowerSource) => void;
   onLogLiveBpPitch: (outcome: PitchOutcome, battedBall?: BattedBallType) => void;
+  onLiveBpSaved: () => void;
   onCompleteLiveBpPa: (outcome: LiveBpOutcomeLabel) => void;
   onNextLiveBpHitter: () => void;
   onLogDefense: (draft: DefenseLogDraft) => void;
@@ -8673,7 +8669,7 @@ function PracticeConsole({
   }, [pitchingLivePitchFilterOpen]);
 
   useEffect(() => {
-    if (!practiceId || practiceEndedAt || !currentSession?.id) return;
+    if (mode === "Live BP" || !practiceId || practiceEndedAt || !currentSession?.id) return;
     onSessionHeartbeatRef.current(mode, currentSession.id);
     const heartbeat = window.setInterval(() => {
       setActivityClock(Date.now());
@@ -9080,7 +9076,7 @@ function PracticeConsole({
               <span className="practice-action-label-full">Practice Home</span>
               <span className="practice-action-label-short">Home</span>
             </button>
-            {mode !== "Hitting" && mode !== "Pitching" && (
+            {mode !== "Hitting" && mode !== "Pitching" && mode !== "Live BP" && (
               <button className="ghost-button" type="button" onClick={onUndo}>
                 <Undo2 size={16} aria-hidden="true" />
                 <span className="practice-action-label-full">Undo Last</span>
@@ -9100,7 +9096,6 @@ function PracticeConsole({
         )}
       </section>
 
-      {practice && !practice.endedAt && currentSession && mode !== "Live BP" && data.teamContext?.currentTeam && <CoachLiveEntrySettings key={currentSession.id} teamId={data.teamContext.currentTeam.teamId} sessionId={currentSession.id} domain={mode === "Hitting" ? "hitting" : mode === "Pitching" ? "pitching" : "defense"} playerName={playerSelectionLabel(player)} preview={isLocalDevAuthBypass()} />}
       <div className="practice-mode-picker-trigger">
         <ChoiceSelect
           value={mode}
@@ -9124,7 +9119,14 @@ function PracticeConsole({
         ))}
       </nav>
 
-      {mode === "Hitting" ? (
+      {mode === "Live BP" && practice ? (
+        <LiveBpConsole key={practice.id} practiceId={practice.id} players={data.players} active={Boolean(practice.startedAt) && !practice.endedAt}
+          initialHitterId={liveBpHitter?.id ?? player.id} initialPitcherId={liveBpPitcher?.id} initialSource={liveBpThrowerSource}
+          coaches={(data.staffMembers ?? []).filter(member => member.active && (data.staffTeamMemberships ?? []).some(link => link.active && link.staffMemberId === member.id && link.teamId === data.teamContext?.currentTeam?.teamId)).map(member => member.displayName)}
+          charts={hitterId => <PracticeHittingChartCarousel events={data.hittingEvents.filter(event => event.practiceId === practice.id && event.hitterId === hitterId && event.liveBpRoundId)} hitter={data.players.find(p => p.id === hitterId) ?? player} showSpray showPitchLocation />}
+          pitchLocationControl={(point, onSelect, hitterId) => <PracticeHittingPitchLocationGrid events={[]} hitter={data.players.find(p => p.id === hitterId)} activePoint={point} onSelect={onSelect} />}
+          onExit={onExitTracking} onSaved={onLiveBpSaved} />
+      ) : mode === "Hitting" ? (
         <>
           <section className="practice-hitting-shell">
             <main className="practice-hitting-stage panel">
@@ -9353,6 +9355,7 @@ function PracticeConsole({
 
           {hittingOptionsOpen && (
             <ModalFrame title="Hitting Options" onClose={() => setHittingOptionsOpen(false)} panelClassName="practice-hitting-more-sheet">
+              {practice && !practice.endedAt && currentSession && data.teamContext?.currentTeam && <CoachLiveEntrySettings key={currentSession.id} teamId={data.teamContext.currentTeam.teamId} sessionId={currentSession.id} domain="hitting" playerName={player.name} preview={isLocalDevAuthBypass()} />}
               <div className="practice-hitting-more-list">
                 <button type="button" onClick={() => { setHittingOptionsOpen(false); setHittingSettingsOpen(true); }}>
                   <Gauge size={17} aria-hidden="true" />
@@ -9902,6 +9905,7 @@ function PracticeConsole({
 
           {pitchingOptionsOpen && (
             <ModalFrame title="Pitching Options" onClose={() => setPitchingOptionsOpen(false)} panelClassName="practice-hitting-more-sheet">
+              {practice && !practice.endedAt && currentSession && data.teamContext?.currentTeam && <CoachLiveEntrySettings key={currentSession.id} teamId={data.teamContext.currentTeam.teamId} sessionId={currentSession.id} domain="pitching" playerName={player.name} preview={isLocalDevAuthBypass()} />}
               <div className="practice-hitting-more-list">
                 <button type="button" onClick={() => { setPitchingOptionsOpen(false); setPitchingSettingsOpen(true); }}>
                   <Gauge size={17} aria-hidden="true" />
@@ -10420,6 +10424,7 @@ function PracticeConsole({
 
           {defenseOptionsOpen && (
             <ModalFrame title="Defense Options" onClose={() => setDefenseOptionsOpen(false)} panelClassName="practice-hitting-more-sheet">
+              {practice && !practice.endedAt && currentSession && data.teamContext?.currentTeam && <CoachLiveEntrySettings key={currentSession.id} teamId={data.teamContext.currentTeam.teamId} sessionId={currentSession.id} domain="defense" playerName={player.name} preview={isLocalDevAuthBypass()} />}
               <div className="practice-hitting-more-list">
                 <button type="button" onClick={() => { setDefenseOptionsOpen(false); setDefenseSettingsOpen(true); }}>
                   <Gauge size={17} aria-hidden="true" />

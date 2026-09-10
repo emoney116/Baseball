@@ -11,6 +11,25 @@ import {
 } from "../app/lib/liveBp.ts";
 
 const settings = (patch = {}) => ({ ...initialBpSettings(id(40)), ...patch });
+test("named coach is durable thrower context, never roster pitcher evidence", () => {
+  const saved = JSON.parse(
+    JSON.stringify(settings({ source: "COACH", coachName: "QA Coach" })),
+  );
+  const pitch = buildBpPitch(saved, initialBpState(), { outcome: "Whiff" });
+  assert.equal(pitch.context.coachName, "QA Coach");
+  assert.equal(pitch.pitching, undefined);
+  assert.equal(
+    buildBpPitch(
+      settings({ source: "MACHINE", coachName: "QA Coach" }),
+      initialBpState(),
+      { outcome: "Whiff" },
+    ).context.coachName,
+    undefined,
+  );
+  assert.throws(() =>
+    validateBpSettings(settings({ coachName: "x".repeat(81) })),
+  );
+});
 for (const source of ["MACHINE", "COACH", "PLAYER"])
   test(`${source}: exact hitter / pitcher evidence`, () => {
     const p = buildBpPitch(
@@ -280,7 +299,10 @@ test("double submit and uncertain retry create one linked event", async () => {
 test("stale concurrent writer is rejected without overwriting state", async () => {
   const r = await start();
   await pitch(r);
-  await denied(() => pitch(r), (error) => error.code === "PT409");
+  await denied(
+    () => pitch(r),
+    (error) => error.code === "PT409",
+  );
   assert.equal(
     (await db.query("select count(*)::int n from hitting_events")).rows[0].n,
     1,
