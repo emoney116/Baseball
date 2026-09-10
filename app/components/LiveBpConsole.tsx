@@ -63,11 +63,22 @@ export function LiveBpConsole({
   ) => ReactNode;
 }) {
   const [round, setRound] = useState<BpRound | null>(null),
-    [settings, setSettings] = useState<BpSettings>(() => ({
-      ...initialBpSettings(initialHitterId || players[0]?.id || ""),
-      source: initialSource ?? "MACHINE",
-      pitcherId: initialPitcherId,
-    }));
+    [settings, setSettings] = useState<BpSettings>(() => {
+      const hitterId =
+        players.find((p) => p.id === initialHitterId)?.id ??
+        players[0]?.id ??
+        "";
+      const pitcherId =
+        players.find((p) => p.id === initialPitcherId && p.id !== hitterId)
+          ?.id ??
+        players.find((p) => p.id !== hitterId && p.isPitcher)?.id ??
+        players.find((p) => p.id !== hitterId)?.id;
+      return {
+        ...initialBpSettings(hitterId),
+        source: initialSource ?? "MACHINE",
+        pitcherId,
+      };
+    });
   const [state, setState] = useState(initialBpState),
     [draft, setDraft] = useState<BpDraft>({ outcome: "" });
   const [loading, setLoading] = useState(true),
@@ -394,14 +405,7 @@ export function LiveBpConsole({
                               checked={settings[key]}
                               onChange={(e) => update(key, e.target.checked)}
                             />
-                            {
-                              [
-                                "Velo",
-                                "Location",
-                                "EV",
-                                "Spray",
-                              ][i]
-                            }
+                            {["Velo", "Location", "EV", "Spray"][i]}
                           </label>
                         ),
                       )}
@@ -528,28 +532,30 @@ export function LiveBpConsole({
                 }
                 {
                   <>
-                    <div className={styles.situation}>
-                      <strong>
-                        {settings.mode === "FREE"
-                          ? "Free BP"
-                          : `${state.balls}-${state.strikes}`}
-                      </strong>
-                      {settings.mode === "GAME" && (
-                        <>
-                          <span>{state.outs} out</span>
-                          <span>
-                            {state.runners.length
-                              ? state.runners.map((b) => `${b}B`).join(", ")
-                              : "Bases empty"}
-                          </span>
-                          <span>{state.job}</span>
-                        </>
-                      )}
-                    </div>
-                    <div className={styles.grid}>
-                      {settings.velocity &&
-                        number("velocity", "Pitch velocity (mph)")}
-                    </div>
+                    {settings.mode !== "FREE" && (
+                      <div className={styles.situation}>
+                        <strong>
+                          {`${state.balls}-${state.strikes}`}
+                        </strong>
+                        {settings.mode === "GAME" && (
+                          <>
+                            <span>{state.outs} out</span>
+                            <span>
+                              {state.runners.length
+                                ? state.runners.map((b) => `${b}B`).join(", ")
+                                : "Bases empty"}
+                            </span>
+                            <span>{state.job}</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {settings.velocity && (
+                      <div className={styles.grid}>
+                        {settings.velocity &&
+                          number("velocity", "Pitch velocity (mph)")}
+                      </div>
+                    )}
                     <div className={styles.outcomes}>
                       {[
                         "Ball",
