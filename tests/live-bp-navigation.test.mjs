@@ -2,6 +2,36 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
+test("Live BP uses a numeric count and one shared correction control", () => {
+  const console = fs.readFileSync("app/components/LiveBpConsole.tsx", "utf8");
+  assert.match(
+    console,
+    /aria-label=\{`Count \$\{state.balls\}-\$\{state.strikes\}`\}/,
+  );
+  assert.doesNotMatch(
+    console,
+    /<BpCount|aria-label="Reset outs"|aria-label="Clear bases"/,
+  );
+  assert.match(console, /<LiveBpCorrections/);
+  const corrections = fs.readFileSync(
+    "app/components/LiveBpCorrections.tsx",
+    "utf8",
+  );
+  for (const label of [
+    "Reset count",
+    "Reset outs",
+    "Clear bases",
+    "Add or remove runners",
+    "Set count / outs",
+  ]) {
+    assert.ok(corrections.includes(label));
+  }
+  assert.match(corrections, /balls: 0, strikes: 0/);
+  assert.match(corrections, /outs: 0/);
+  assert.match(corrections, /runners: \[\]/);
+  assert.match(corrections, /event.key === "Escape"/);
+});
+
 test("Live BP is embedded inside the shared Practice tracker, with compact entry controls", () => {
   const page = fs.readFileSync("app/page.tsx", "utf8");
   assert.equal(

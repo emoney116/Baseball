@@ -145,6 +145,36 @@ test("defensive presets persist atomically with settings without logging an even
   r = await pitch(r);
   assert.deepEqual(r.settings.defensePresets, [preset]);
 });
+test("situation corrections persist without adding or changing linked pitches", async () => {
+  let r = await start(
+    settings({ mode: "GAME", source: "PLAYER", pitcherId: id(41) }),
+  );
+  r = await pitch(r);
+  const before = (await db.query("select * from hitting_events")).rows;
+  for (const change of [
+    { balls: 2, strikes: 1, outs: 2, runners: [1, 3] },
+    { balls: 0, strikes: 0 },
+    { outs: 0 },
+    { runners: [] },
+  ]) {
+    const next = { ...r.state, ...change };
+    r = await call("configure", r, { settings: r.settings, state: next });
+    assert.deepEqual(r.state, next);
+  }
+  assert.deepEqual(
+    (await db.query("select * from hitting_events")).rows,
+    before,
+  );
+  assert.equal(
+    (await db.query("select count(*)::int n from pitch_events")).rows[0].n,
+    1,
+  );
+  assert.equal(
+    (await db.query("select count(*)::int n from defense_events")).rows[0].n,
+    0,
+  );
+});
+
 test("named coach is durable thrower context, never roster pitcher evidence", () => {
   const saved = JSON.parse(
     JSON.stringify(settings({ source: "COACH", coachName: "QA Coach" })),

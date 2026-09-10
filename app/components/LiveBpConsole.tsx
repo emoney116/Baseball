@@ -9,8 +9,6 @@ import {
   ArrowLeft,
   ArrowRight,
   Plus,
-  RotateCcw,
-  Eraser,
   LayoutList,
 } from "lucide-react";
 import type { Player, ZonePoint } from "../types";
@@ -38,7 +36,8 @@ import { LiveBpSetup } from "./LiveBpSetup";
 import { LiveBpDefensePresets } from "./LiveBpDefensePresets";
 import { AskClubhouseLauncher } from "./AskClubhouseDrawer";
 import { liveBpFieldLabel } from "../lib/liveBpFieldLabel";
-import { BpBases, BpCount, BpSegments, type BpSheet } from "./LiveBpControls";
+import { BpBases, BpSegments, type BpSheet } from "./LiveBpControls";
+import { LiveBpCorrections } from "./LiveBpCorrections";
 import styles from "./LiveBpConsole.module.css";
 
 export function LiveBpConsole({
@@ -581,34 +580,17 @@ export function LiveBpConsole({
             </div>
             <div className={styles.statusRow}>
               {trackedCount && (
-                <BpCount
-                  balls={state.balls}
-                  strikes={state.strikes}
-                  onChange={(balls, strikes) => {
-                    if (!uncertain) setState((s) => ({ ...s, balls, strikes }));
-                  }}
-                />
+                <strong
+                  className={styles.numericCount}
+                  aria-label={`Count ${state.balls}-${state.strikes}`}
+                >
+                  {state.balls}-{state.strikes}
+                </strong>
               )}
               {settings.mode === "GAME" && (
-                <div className={styles.outsControl}>
-                  <button
-                    type="button"
-                    aria-label="Edit outs and situation"
-                    title="Edit situation"
-                    onClick={() => setup(2)}
-                  >
-                    <strong>{state.outs}</strong> Outs
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Reset outs"
-                    title="Reset outs"
-                    disabled={!state.outs || busy || uncertain}
-                    onClick={() => saveSetup(settings, { ...state, outs: 0 })}
-                  >
-                    <RotateCcw size={14} />
-                  </button>
-                </div>
+                <span className={styles.outsControl}>
+                  <strong>{state.outs}</strong> Outs
+                </span>
               )}
               <button
                 type="button"
@@ -784,30 +766,22 @@ export function LiveBpConsole({
             ) : (
               <>
                 <div className={styles.situation}>
-                  {settings.mode === "GAME" && (
-                    <div className={styles.gameSituation}>
-                      <button
-                        type="button"
-                        aria-label="Edit bases"
-                        title="Edit bases"
-                        onClick={() => setup(2)}
-                      >
-                        <span aria-hidden="true">Bases</span>
-                      </button>
-                      <BpBases runners={state.runners} />
-                      <button
-                        type="button"
-                        aria-label="Clear bases"
-                        title="Clear bases"
-                        disabled={!state.runners.length || busy || uncertain}
-                        onClick={() =>
-                          saveSetup(settings, { ...state, runners: [] })
-                        }
-                      >
-                        <Eraser size={16} />
-                      </button>
-                    </div>
-                  )}
+                  <div className={styles.gameSituation}>
+                    {settings.mode === "GAME" && (
+                      <>
+                        <span>Bases</span>
+                        <BpBases runners={state.runners} />
+                      </>
+                    )}
+                    <LiveBpCorrections
+                      state={state}
+                      trackedCount={trackedCount}
+                      game={settings.mode === "GAME"}
+                      disabled={busy || uncertain}
+                      onSave={(next) => saveSetup(settings, next)}
+                      sheet={sheet}
+                    />
+                  </div>
                 </div>
                 {stage === "result" &&
                   flow(
