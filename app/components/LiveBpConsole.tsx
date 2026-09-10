@@ -416,18 +416,20 @@ export function LiveBpConsole({
                     }));
                   }}
                 />
-                {settings.source === "COACH" && (
-                  <label>
-                    Coach name
-                    <input
-                      maxLength={80}
-                      value={settings.coachName ?? ""}
-                      onChange={(e) =>
-                        update("coachName", e.target.value || undefined)
-                      }
-                    />
-                  </label>
-                )}
+                {settings.source === "COACH" &&
+                  (!coaches.includes(settings.coachName ?? "") ||
+                    optionsOpen) && (
+                    <label>
+                      Coach name
+                      <input
+                        maxLength={80}
+                        value={settings.coachName ?? ""}
+                        onChange={(e) =>
+                          update("coachName", e.target.value || undefined)
+                        }
+                      />
+                    </label>
+                  )}
                 <div className="practice-hitting-entry-bar">
                   <button
                     className="primary-button practice-hitting-log-trigger"
@@ -650,7 +652,11 @@ export function LiveBpConsole({
                     {settings.pitchMode !== "OFF" && (
                       <Select
                         label="Pitch type for this pitch"
-                        value={settings.pitchMode === "ONE" ? settings.pitchType ?? "" : draft.pitchType ?? settings.pitchType ?? ""}
+                        value={
+                          settings.pitchMode === "ONE"
+                            ? (settings.pitchType ?? "")
+                            : (draft.pitchType ?? settings.pitchType ?? "")
+                        }
                         values={TENDEX_PITCH_TYPES}
                         onChange={(v) =>
                           settings.pitchMode === "ONE"

@@ -12,6 +12,8 @@ test("Live BP is embedded inside the shared Practice tracker, with compact entry
   );
   const tracker = page.slice(page.indexOf("function PracticeConsole("));
   assert.match(tracker, /<LiveBpConsole/);
+  assert.match(page, /nextMode === "Hitting" && hittingStation === "Live BP" \? "Tee"/);
+  assert.match(page, /nextMode === "Pitching" && pitchingStation === "Live BP" \? "Bullpen"/);
   const header = tracker.slice(
     tracker.indexOf("practice-tracker-header"),
     tracker.indexOf("practice-mode-picker-trigger"),

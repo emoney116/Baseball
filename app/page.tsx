@@ -4191,12 +4191,16 @@ export default function MetrolinaBaseballApp() {
             liveBpCount={liveBpCount}
             liveBpPaNumber={liveBpPaNumber}
             onMode={(nextMode) => {
+              const nextHittingStation = nextMode === "Live BP" ? "Live BP" : nextMode === "Hitting" && hittingStation === "Live BP" ? "Tee" : hittingStation;
+              const nextPitchingStation = nextMode === "Live BP" ? "Live BP" : nextMode === "Pitching" && pitchingStation === "Live BP" ? "Bullpen" : pitchingStation;
               setPracticeMode(nextMode);
+              setHittingStation(nextHittingStation);
+              setPitchingStation(nextPitchingStation);
               writePracticeTrackingRoute(nextMode, {
                 replace: true,
                 playerId: practicePlayerId,
-                hittingStation,
-                pitchingStation: nextMode === "Live BP" ? "Live BP" : pitchingStation,
+                hittingStation: nextHittingStation,
+                pitchingStation: nextPitchingStation,
                 defenseStation,
                 liveBpSource: liveBpThrowerSource,
                 liveBpPitcherId,

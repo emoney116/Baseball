@@ -85,10 +85,17 @@
   height: 32px;
   font-size: 11px;
 }
-.hitter :global(.choice-select__button) strong {
+.console .hitter :global(.choice-select__button) strong {
+  font-size: 20px;
+  flex: 0 1 auto;
+  text-align: center;
   white-space: normal;
   overflow-wrap: anywhere;
   line-height: 1.15;
+}
+.console .hitter :global(.choice-select__button) {
+  justify-content: center;
+  gap: 8px;
 }
 .grid {
   display: grid;

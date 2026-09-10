@@ -135,3 +135,37 @@ No known blocker/major remains for the coach Preview workflow. Deferred:
 atomic Undo/corrections, expanded player Live BP entry, native-device keyboard
 smoke test, and minor spacing polish. Production promotion requires a separate
 authorized merge; it was deliberately not performed in this pass.
+
+## Shared Practice Tracker Follow-Up
+
+Live BP now renders inside PracticeConsole, under the same Practice header,
+mode selector and team navigation as Hitting/Pitching. There is no separate
+Live BP page or Start screen. It reuses PlayerAvatar, ChoiceSelect, tracker
+controls, the hitting chart carousel, catcher grid and canonical Game field.
+Hitter arrows and a single Machine/named coach/roster player source picker
+stay visible. Log Pitch opens entry; charts and detailed settings are optional.
+
+The top Player Live Entry bar is removed from Hitting, Pitching and Defense.
+Its existing controls remain available inside each tracker's More options.
+Permissions and session authorization are unchanged. Live BP does not invoke
+the legacy Practice session heartbeat or unsafe generic Undo.
+
+Coach names are optional, length-validated round/event JSON context only.
+They do not create roster identities, staff relationships or pitcher metrics.
+Existing JSON persistence requires no migration.
+
+Automated validation: 838 tests pass (including named-coach attribution,
+shared tracker embedding and relocated access controls), production build and
+TypeScript pass; lint remains at 26 existing warnings, zero errors.
+
+Hosted follow-up on the isolated QA team/practice: selected Coach QA Coach,
+saved a called strike, reloaded, and confirmed the name in the saved round
+and hitting context. One named-coach hitting event, zero linked pitcher events.
+Previous/next hitter, chart disclosure and Hitting/Live BP mode switching work.
+The top-level Player Live Entry bar is absent. Browser-emulated 390x844,
+446x912, 820x1180 and 1180x820 have no horizontal page overflow; entry and
+canonical charts render. No browser runtime errors observed.
+
+Returning from Live BP now restores valid Tee/Bullpen stations for ordinary
+Hitting/Pitching, rather than leaving the unsupported Live BP station selected.
+No new migrations, official Game writes, roster changes or main merge.
