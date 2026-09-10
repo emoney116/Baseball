@@ -73,6 +73,8 @@ export type BpContext = {
   result: string;
   jobSuccess?: boolean;
   runnerOutcomes?: Record<string, string>;
+  runnerReasons?: Record<string, string>;
+  fieldingSequence?: { position: BpPosition; playerId: string }[];
 };
 export type BpRound = {
   id: string;
@@ -97,8 +99,17 @@ export type BpDraft = {
   errorType?: string;
   throwResult?: string;
   runnerOutcomes?: Record<string, string>;
+  runnerReasons?: Record<string, string>;
+  fieldingSequence?: BpPosition[];
   jobSuccess?: boolean;
 };
+export const BP_PLAY_RUNNER_REASONS = [
+  "On last play",
+  "On throwing error",
+  "On fielding error",
+  "Tag up",
+  "Other",
+] as const;
 export const initialBpState = (): BpState => ({
   balls: 0,
   strikes: 0,
@@ -377,9 +388,14 @@ export function buildBpPitch(
   bpAssert(
     !bip ||
       !draft.battedBall ||
-      ["Ground ball", "Line drive", "Fly ball", "Pop up"].includes(
-        draft.battedBall,
-      ),
+      [
+        "Ground ball",
+        "Hard ground ball",
+        "Line drive",
+        "Fly ball",
+        "Bunt",
+        "Pop up",
+      ].includes(draft.battedBall),
     "Choose a batted-ball type.",
   );
   bpAssert(
@@ -495,6 +511,39 @@ export function buildBpPitch(
   }
   if (draft.jobSuccess !== undefined)
     bpAssert(typeof draft.jobSuccess === "boolean", "Choose the job result.");
+  if (draft.runnerReasons !== undefined) {
+    bpAssert(
+      bip &&
+        settings.mode === "GAME" &&
+        draft.runnerReasons !== null &&
+        typeof draft.runnerReasons === "object" &&
+        !Array.isArray(draft.runnerReasons),
+      "Check runner reasons.",
+    );
+    for (const [key, reason] of Object.entries(draft.runnerReasons))
+      bpAssert(
+        Object.hasOwn(runnerOutcomes, key) &&
+          BP_PLAY_RUNNER_REASONS.includes(
+            reason as (typeof BP_PLAY_RUNNER_REASONS)[number],
+          ),
+        "Choose a runner movement reason.",
+      );
+  }
+  if (draft.fieldingSequence !== undefined)
+    bpAssert(
+      bip &&
+        Array.isArray(draft.fieldingSequence) &&
+        draft.fieldingSequence.length <= 20 &&
+        (!draft.fieldingSequence.length ||
+          draft.fieldingSequence[0] === draft.position) &&
+        draft.fieldingSequence.every(
+          (position) =>
+            BP_POSITIONS.includes(position) &&
+            bpPositionTracked(settings, position) &&
+            settings.alignment[position],
+        ),
+      "Check the fielding sequence.",
+    );
   const beforeSituation = {
     outs: before.outs,
     runners: before.runners,
@@ -523,7 +572,18 @@ export function buildBpPitch(
     ...(settings.mode === "GAME" && ended
       ? {
           runnerOutcomes,
+          ...(draft.runnerReasons
+            ? { runnerReasons: draft.runnerReasons }
+            : {}),
           jobSuccess: before.job ? draft.jobSuccess : undefined,
+        }
+      : {}),
+    ...(draft.fieldingSequence?.length
+      ? {
+          fieldingSequence: draft.fieldingSequence.map((position) => ({
+            position,
+            playerId: settings.alignment[position]!,
+          })),
         }
       : {}),
   };
@@ -618,14 +678,15 @@ export function buildBpPitch(
       result: draft.defenseResult,
       error_type: draft.defenseResult === "Error" ? draft.errorType : undefined,
       throw_result: draft.throwResult,
-      rep_type:
-        draft.battedBall === "Ground ball"
-          ? "Ground Ball"
-          : draft.battedBall === "Line drive"
-            ? "Line Drive"
-            : draft.battedBall
-              ? "Fly Ball"
-              : "Other",
+      rep_type: ["Ground ball", "Hard ground ball", "Bunt"].includes(
+        draft.battedBall ?? "",
+      )
+        ? "Ground Ball"
+        : draft.battedBall === "Line drive"
+          ? "Line Drive"
+          : draft.battedBall
+            ? "Fly Ball"
+            : "Other",
       location: spray,
     };
   }

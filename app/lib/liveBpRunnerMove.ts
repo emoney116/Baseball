@@ -14,11 +14,17 @@ export const BP_RUNNER_REASONS = [
   "On error",
   "Tag up",
   "Other",
+  "Pickoff attempt",
+  "Picked off",
+  "Caught stealing",
+  "Pinch runner",
 ] as const;
 export type BpRunnerMove = {
   from: number;
   to: number;
   reason: (typeof BP_RUNNER_REASONS)[number];
+  outcome?: "safe" | "out";
+  replacementRunnerId?: string;
 };
 export function buildBpRunnerMove(
   settings: BpSettings,
@@ -31,9 +37,22 @@ export function buildBpRunnerMove(
     !move ||
     !state.runners.includes(move.from) ||
     !Number.isInteger(move.to) ||
-    move.to <= move.from ||
+    move.to < move.from ||
     move.to > 4 ||
-    state.runners.includes(move.to) ||
+    (move.to !== move.from && state.runners.includes(move.to)) ||
+    (move.outcome !== undefined && !["safe", "out"].includes(move.outcome)) ||
+    (move.replacementRunnerId !== undefined &&
+      (!/^[0-9a-f-]{36}$/i.test(move.replacementRunnerId) ||
+        move.reason !== "Pinch runner" ||
+        move.to !== move.from ||
+        move.outcome === "out" ||
+        Object.entries(state.runnerIds ?? {}).some(
+          ([base, id]) =>
+            Number(base) !== move.from && id === move.replacementRunnerId,
+        ))) ||
+    (move.reason === "Pinch runner" && !move.replacementRunnerId) ||
+    (["Picked off", "Caught stealing"].includes(move.reason) &&
+      move.outcome !== "out") ||
     !BP_RUNNER_REASONS.includes(move.reason)
   )
     throw new Error(
@@ -43,12 +62,22 @@ export function buildBpRunnerMove(
     state,
     state.runners.filter((b) => b !== move.from),
   );
-  if (move.to < 4) {
+  if (move.outcome === "out") {
+    next.outs++;
+    if (next.outs >= 3) {
+      next.outs = 0;
+      next.runners = [];
+      next.runnerIds = {};
+      next.balls = 0;
+      next.strikes = 0;
+      next.pa++;
+    }
+  } else if (move.to < 4) {
     next.runners = [...next.runners, move.to].sort();
-    if (state.runnerIds?.[move.from])
+    if (move.replacementRunnerId || state.runnerIds?.[move.from])
       next.runnerIds = {
         ...next.runnerIds,
-        [move.to]: state.runnerIds[move.from],
+        [move.to]: move.replacementRunnerId ?? state.runnerIds?.[move.from],
       };
   }
   return {

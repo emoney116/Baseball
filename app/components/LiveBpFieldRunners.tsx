@@ -3,7 +3,7 @@ import type { Player } from "../types";
 import type { BpState } from "../lib/liveBp";
 import { BP_RUNNER_REASONS, type BpRunnerMove } from "../lib/liveBpRunnerMove";
 import { ChoiceSelect } from "./ChoiceSelect";
-import type { BpSheet } from "./LiveBpControls";
+import { BpSegments, type BpSheet } from "./LiveBpControls";
 import styles from "./LiveBpConsole.module.css";
 
 const BASES = [
@@ -35,10 +35,16 @@ export function LiveBpFieldRunners({
     null,
   );
   const [reason, setReason] = useState("");
+  const [outcome, setOutcome] = useState("safe");
+  const [action, setAction] = useState("move");
+  const [replacement, setReplacement] = useState("");
   function propose(from: number, to: number) {
-    if (to <= from || state.runners.includes(to)) return;
+    if (to < from || (to !== from && state.runners.includes(to))) return;
     setPending({ from, to });
     setReason("");
+    setOutcome("safe");
+    setAction("move");
+    setReplacement("");
   }
   return (
     <div ref={root} className={styles.fieldRunners}>
@@ -102,10 +108,7 @@ export function LiveBpFieldRunners({
                 moved.current = false;
                 return;
               }
-              const to = BASES.find(
-                (b) => b.base > base && !state.runners.includes(b.base),
-              );
-              if (to) propose(base, to.base);
+              propose(base, base);
             }}
           >
             <span>{label}</span>
@@ -129,44 +132,103 @@ export function LiveBpFieldRunners({
       )}
       {pending &&
         sheet(
-          "Move runner",
+          "Runner actions",
           () => setPending(null),
           <fieldset className={styles.setup} disabled={disabled}>
-            <ChoiceSelect
-              label="Destination"
-              value={String(pending.to)}
-              options={BASES.filter(
-                (b) => b.base > pending.from && !state.runners.includes(b.base),
-              ).map((b) => ({
-                value: String(b.base),
-                label: b.base === 4 ? "Home" : `${b.base}B`,
-              }))}
-              onChange={(value) =>
-                setPending({ ...pending, to: Number(value) })
-              }
-            />
-            <ChoiceSelect
-              label="Movement reason"
-              value={reason}
+            <BpSegments
+              label="Action"
+              value={action}
               options={[
-                { value: "", label: "Select reason" },
-                ...BP_RUNNER_REASONS.map((value) => ({ value, label: value })),
+                { value: "move", label: "Move / safe / out" },
+                { value: "substitute", label: "Pinch runner" },
               ]}
-              onChange={setReason}
+              onChange={setAction}
             />
+            {action === "substitute" ? (
+              <ChoiceSelect
+                label="Pinch runner"
+                value={replacement}
+                options={[
+                  { value: "", label: "Select player" },
+                  ...players
+                    .filter(
+                      (p) =>
+                        !p.archived &&
+                        !Object.values(state.runnerIds ?? {}).includes(p.id),
+                    )
+                    .map((p) => ({ value: p.id, label: p.name })),
+                ]}
+                onChange={setReplacement}
+              />
+            ) : (
+              <>
+                <BpSegments
+                  label="Destination"
+                  value={String(pending.to)}
+                  options={BASES.filter(
+                    (b) =>
+                      b.base === pending.from ||
+                      (b.base > pending.from &&
+                        !state.runners.includes(b.base)),
+                  ).map((b) => ({
+                    value: String(b.base),
+                    label: b.base === 4 ? "Home" : `${b.base}B`,
+                  }))}
+                  onChange={(value) =>
+                    setPending({ ...pending, to: Number(value) })
+                  }
+                />
+                <BpSegments
+                  label="Runner result"
+                  value={outcome}
+                  options={[
+                    { value: "safe", label: "Safe" },
+                    { value: "out", label: "Out" },
+                  ]}
+                  onChange={(value) => {
+                    setOutcome(value);
+                    setReason("");
+                  }}
+                />
+                <BpSegments
+                  label="Movement reason"
+                  value={reason}
+                  options={[
+                    ...BP_RUNNER_REASONS.filter(
+                      (value) =>
+                        value !== "Pinch runner" &&
+                        (outcome === "out" ||
+                          !["Picked off", "Caught stealing"].includes(value)),
+                    ).map((value) => ({ value, label: value })),
+                  ]}
+                  onChange={setReason}
+                />
+              </>
+            )}
             <button
               className="primary-button"
               type="button"
-              disabled={!reason}
+              disabled={action === "substitute" ? !replacement : !reason}
               onClick={() => {
-                onMove({
-                  ...pending,
-                  reason: reason as BpRunnerMove["reason"],
-                });
+                onMove(
+                  action === "substitute"
+                    ? {
+                        from: pending.from,
+                        to: pending.from,
+                        reason: "Pinch runner",
+                        replacementRunnerId: replacement,
+                        outcome: "safe",
+                      }
+                    : {
+                        ...pending,
+                        reason: reason as BpRunnerMove["reason"],
+                        outcome: outcome as "safe" | "out",
+                      },
+                );
                 setPending(null);
               }}
             >
-              Confirm advance
+              Confirm runner action
             </button>
           </fieldset>,
         )}

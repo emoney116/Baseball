@@ -9155,7 +9155,7 @@ function PracticeConsole({
                 pitchLocationChart={side === "pitching" ? (filters) => <PracticePitchLocationGrid pitches={pitches.filter((pitch) => !filters.length || filters.includes(pitch.pitchType))} pitcher={selected} mode="analytics" /> : undefined} />
             </>;
           }}
-          sheet={(title, close, children) => <ModalFrame title={title} onClose={close} panelClassName="live-bp-sheet">{isValidElement<{children: React.ReactNode}>(children) && children.type === Fragment ? children.props.children : children}</ModalFrame>}
+          sheet={(title, close, children, options) => <ModalFrame title={title} onClose={close} onBack={options?.onBack} panelClassName={`live-bp-sheet ${options?.panelClassName ?? ""}`}>{isValidElement<{children: React.ReactNode}>(children) && children.type === Fragment ? children.props.children : children}</ModalFrame>}
           pitchLocationControl={(point, onSelect, hitterId) => <PracticeHittingPitchLocationGrid events={[]} hitter={data.players.find(p => p.id === hitterId)} activePoint={point} onSelect={onSelect} />}
           onExit={onExitTracking} onSaved={onLiveBpSaved} onAsk={onAskLiveBp} />
       ) : mode === "Hitting" ? (
@@ -20492,7 +20492,7 @@ function ScrollablePanel({
   );
 }
 
-function ModalFrame({ title, onClose, children, panelClassName = "" }: { title: string; onClose: () => void; children: React.ReactNode; panelClassName?: string }) {
+function ModalFrame({ title, onClose, onBack, children, panelClassName = "" }: { title: string; onClose: () => void; onBack?: () => void; children: React.ReactNode; panelClassName?: string }) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const titleRef = useRef<HTMLDivElement | null>(null);
   const footerRef = useRef<HTMLDivElement | null>(null);
@@ -20567,6 +20567,7 @@ function ModalFrame({ title, onClose, children, panelClassName = "" }: { title: 
         style={panelStyle}
       >
         <div ref={titleRef} className="modal-title">
+          {onBack && <button className="ghost-button" type="button" onClick={onBack} aria-label="Previous pitch step"><ChevronLeft size={18} aria-hidden="true" /></button>}
           <h2>{title}</h2>
           <button className="ghost-button" type="button" onClick={onClose} aria-label="Close dialog"><X size={18} aria-hidden="true" /></button>
         </div>

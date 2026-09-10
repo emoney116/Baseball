@@ -217,6 +217,152 @@ test("undo rechecks coach authority and ended practice", async () => {
   await db.exec("update practices set ended_at=now()");
   await denied(() => call("undo", p, {}, randomUUID()), /running/i);
 });
+
+test("same-base safe, pickoff outs, and third-out reset preserve runner identity", () => {
+  const s = settings({ mode: "GAME" });
+  const state = {
+    ...initialBpState(),
+    balls: 2,
+    strikes: 1,
+    outs: 1,
+    runners: [1, 2],
+    runnerIds: { 1: id(40), 2: id(42) },
+  };
+  const safe = buildBpRunnerMove(s, state, {
+    from: 2,
+    to: 2,
+    outcome: "safe",
+    reason: "Pickoff attempt",
+  });
+  assert.deepEqual(safe.stateAfter, state);
+  const out = buildBpRunnerMove(s, state, {
+    from: 2,
+    to: 2,
+    outcome: "out",
+    reason: "Picked off",
+  });
+  assert.equal(out.stateAfter.outs, 2);
+  assert.deepEqual(out.stateAfter.runnerIds, { 1: id(40) });
+  assert.equal(out.stateAfter.balls, 2);
+  const third = buildBpRunnerMove(s, out.stateAfter, {
+    from: 1,
+    to: 2,
+    outcome: "out",
+    reason: "Caught stealing",
+  });
+  assert.deepEqual(third.stateAfter, {
+    ...initialBpState(),
+    runnerIds: {},
+    pa: 2,
+  });
+  assert.throws(() =>
+    buildBpRunnerMove(s, state, {
+      from: 2,
+      to: 2,
+      outcome: "safe",
+      reason: "Picked off",
+    }),
+  );
+});
+
+test("pinch runners are roster scoped, idempotent, and reverted with their pitch", async () => {
+  const state = { ...initialBpState(), runners: [2], runnerIds: { 2: id(42) } };
+  let r = await pitch(await start(settings({ mode: "GAME" }), state), {
+    outcome: "Ball",
+  });
+  const move = {
+    from: 2,
+    to: 2,
+    reason: "Pinch runner",
+    replacementRunnerId: id(41),
+    outcome: "safe",
+  };
+  const request = randomUUID();
+  const payload = buildBpRunnerMove(r.settings, r.state, move);
+  const next = await call("runner", r, payload, request);
+  assert.deepEqual(next.state.runnerIds, { 2: id(41) });
+  assert.equal((await call("runner", r, {}, request)).version, next.version);
+  assert.equal(
+    (await db.query("select count(*)::int n from hitting_events")).rows[0].n,
+    1,
+  );
+  await denied(() =>
+    call(
+      "runner",
+      next,
+      buildBpRunnerMove(next.settings, next.state, {
+        ...move,
+        replacementRunnerId: id(99),
+      }),
+      randomUUID(),
+    ),
+  );
+  const restored = await call("undo", next, {}, randomUUID());
+  assert.deepEqual(restored.state, state);
+  assert.equal(
+    (await db.query("select count(*)::int n from hitting_events")).rows[0].n,
+    0,
+  );
+});
+
+test("field sequence and runner reasons persist as provenance without invented defensive credits", async () => {
+  const r = await start(
+    settings({
+      mode: "GAME",
+      source: "PLAYER",
+      pitcherId: id(41),
+      defense: "ALL",
+      alignment: { SS: id(42), P: id(41) },
+    }),
+    { ...initialBpState(), runners: [2], runnerIds: { 2: id(42) } },
+  );
+  const draft = {
+    outcome: "Ball in play",
+    result: "Out",
+    battedBall: "Bunt",
+    position: "SS",
+    defenseResult: "Clean",
+    fieldingSequence: ["SS", "P"],
+    runnerOutcomes: { 2: "3" },
+    runnerReasons: { 2: "On throwing error" },
+  };
+  const next = await pitch(r, draft);
+  const context = (await db.query("select live_bp_context from hitting_events"))
+    .rows[0].live_bp_context;
+  assert.deepEqual(context.fieldingSequence, [
+    { position: "SS", playerId: id(42) },
+    { position: "P", playerId: id(41) },
+  ]);
+  assert.equal(context.runnerReasons[2], "On throwing error");
+  assert.deepEqual(next.state.runnerIds, { 3: id(42) });
+  assert.equal(next.state.outs, 1);
+  assert.equal(context.jobSuccess, undefined);
+  assert.equal(
+    (await db.query("select count(*)::int n from defense_events")).rows[0].n,
+    1,
+  );
+  assert.throws(() =>
+    buildBpPitch(r.settings, r.state, { ...draft, fieldingSequence: ["CF"] }),
+  );
+  assert.throws(() =>
+    buildBpPitch(r.settings, r.state, {
+      ...draft,
+      runnerReasons: { 1: "On last play" },
+    }),
+  );
+  assert.throws(() =>
+    buildBpPitch(r.settings, r.state, {
+      ...draft,
+      runnerReasons: { 2: "not valid" },
+    }),
+  );
+  await call("undo", next, {}, randomUUID());
+  for (const table of ["hitting_events", "pitch_events", "defense_events"])
+    assert.equal(
+      (await db.query(`select count(*)::int n from ${table}`)).rows[0].n,
+      0,
+    );
+});
 test("pitcher alignment follows source without overwriting other defenders", () => {
   const s = withBpPitcherAlignment(
     settings({

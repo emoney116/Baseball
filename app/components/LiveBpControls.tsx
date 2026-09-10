@@ -10,6 +10,7 @@ export type BpSheet = (
   title: string,
   close: () => void,
   children: ReactNode,
+  options?: { onBack?: () => void; panelClassName?: string },
 ) => ReactNode;
 export function BpSegments({
   label,

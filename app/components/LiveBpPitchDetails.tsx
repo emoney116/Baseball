@@ -3,6 +3,7 @@ import type { BpDraft, BpSettings } from "../lib/liveBp";
 import type { ZonePoint } from "../types";
 import { TENDEX_PITCH_TYPES } from "../lib/tendexGameAnalysis";
 import { VelocityPickerField } from "./TeamTrainingViews";
+import { ChoiceSelect } from "./ChoiceSelect";
 import styles from "./LiveBpConsole.module.css";
 
 export function LiveBpPitchDetails({
@@ -22,24 +23,15 @@ export function LiveBpPitchDetails({
 }) {
   return (
     <section className="practice-hitting-sheet__step">
-      {settings.pitchMode !== "OFF" && (
-        <div className="practice-hitting-inline-pitch" aria-label="Pitch type">
-          {TENDEX_PITCH_TYPES.map((value) => (
-            <button
-              key={value}
-              type="button"
-              className={
-                (draft.pitchType ?? settings.pitchType) === value
-                  ? "active"
-                  : ""
-              }
-              aria-pressed={(draft.pitchType ?? settings.pitchType) === value}
-              onClick={() => onChange({ ...draft, pitchType: value })}
-            >
-              {value}
-            </button>
-          ))}
-        </div>
+      {settings.pitchMode === "MULTI" && (
+        <ChoiceSelect
+          label="Pitch type"
+          value={draft.pitchType ?? settings.pitchType ?? "4-Seam"}
+          options={TENDEX_PITCH_TYPES.map((value) => ({ value, label: value }))}
+          onChange={(value) =>
+            onChange({ ...draft, pitchType: value as BpDraft["pitchType"] })
+          }
+        />
       )}
       {settings.velocity && (
         <VelocityPickerField

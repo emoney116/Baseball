@@ -2,6 +2,30 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
+test("Live BP retains Log Pitch wizard, clickable steps, and scoped fixed-height layout", () => {
+  const source = fs.readFileSync("app/components/LiveBpConsole.tsx", "utf8");
+  assert.match(source, /"Log Pitch"/);
+  assert.match(source, /aria-label="Pitch log steps"/);
+  assert.match(source, /onClick=\{\(\) => goToWizardStep\(id\)\}/);
+  assert.match(source, /panelClassName: "live-bp-wizard"/);
+  assert.match(source, /<LiveBpPlayResolution/);
+  assert.match(source, /Job result \(optional\)/);
+  assert.match(source, /Contact quality \(optional\)/);
+  assert.doesNotMatch(source, /quickOutcomes|chooseResult\(value, true\)/);
+  const details = fs.readFileSync("app/components/LiveBpPitchDetails.tsx", "utf8");
+  assert.match(details, /settings.pitchMode === "MULTI"/);
+  assert.match(details, /<ChoiceSelect/);
+  const css = fs.readFileSync("app/components/LiveBpConsole.module.css", "utf8");
+  assert.match(css, /height: min\(820px, calc\(100dvh - 24px\)\)/);
+  assert.match(css, /\.inlineSegments \.segments \{[^}]*flex-wrap: nowrap/);
+  const field = fs.readFileSync("app/components/LiveBpPlayResolution.tsx", "utf8");
+  assert.match(field, /CLUBHOUSE_FIELD_POSITION_COORDINATES\[position\]/);
+  assert.match(field, /onPointerUp=\{finish\}/);
+  assert.match(field, /aria-label="Runner decision"/);
+  assert.match(field, /aria-label="Fielding sequence"/);
+  assert.doesNotMatch(field, /label="Fielder \(optional\)"/);
+});
+
 test("loading a defense preset closes the sheet only after a successful write", () => {
   const sheet = fs.readFileSync(
     "app/components/LiveBpDefensePresets.tsx",

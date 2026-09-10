@@ -290,6 +290,7 @@ export function LiveBpSetup({
                 {draft.pitchMode !== "OFF" && (
                   <ChoiceSelect
                     label="Default pitch"
+                    disabled={draft.pitchMode !== "ONE"}
                     value={draft.pitchType ?? "4-Seam"}
                     options={TENDEX_PITCH_TYPES.map((value) => ({
                       value,
