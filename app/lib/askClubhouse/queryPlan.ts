@@ -157,6 +157,7 @@ function inferDomain(lower: string, uiContext?: AskClubhouseUiContext): Analytic
 function inferSource(lower: string, uiContext: AskClubhouseUiContext | undefined, domain: AnalyticsQuery["domain"], comparison?: AskClubhouseQueryComparison): AnalyticsSource {
   if (domain === "development") return "all";
   if (comparison?.dimension === "source") return "all";
+  if (/\b(personal|my own session)\b/.test(lower)) return "personal";
   if (/\b(live bp|live-bp|livebp)\b/.test(lower)) return "live-bp";
   if (/\b(practice|cage|machine|tee|front toss|coach bp)\b/.test(lower)) return "practice";
   if (/\b(game|games|batting average|avg|slg|slug|babip)\b/.test(lower)) return "games";

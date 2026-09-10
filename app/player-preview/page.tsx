@@ -5,7 +5,7 @@ import type { PlayerSession } from "../lib/playerAccess";
 import { isPlayerAccessMode, resolvePlayerCapabilities } from "../lib/playerCapabilities";
 import type { AskClubhouseApiResponse } from "../lib/askClubhouse/types";
 export const dynamic = "force-dynamic";
-export default async function PlayerPreview({ searchParams }: { searchParams: Promise<{ access?: string; askFixture?: string }> }) {
+export default async function PlayerPreview({ searchParams }: { searchParams: Promise<{ access?: string; tracking?: string; askFixture?: string }> }) {
   if (process.env.NODE_ENV !== "development") notFound();
   const params = await searchParams;
   const p = {
@@ -74,7 +74,7 @@ export default async function PlayerPreview({ searchParams }: { searchParams: Pr
     context,
     data,
     profileId: "demo-profile",
-    access: resolvePlayerCapabilities({ approved: true, teamDefault: isPlayerAccessMode(params.access) ? params.access : "VIEW_ONLY" }),
+    access: resolvePlayerCapabilities({ approved: true, teamDefault: isPlayerAccessMode(params.access) ? params.access : "VIEW_ONLY", trackingPolicy: params.tracking }),
     teamRoster: sampleData.players.slice(0, 8).map(p => ({ playerId: p.id, name: p.name, jersey: p.jerseyNumber, position: p.primaryPosition })),
   };
   const reply: AskClubhouseApiResponse | undefined = params.askFixture ? {

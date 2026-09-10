@@ -117,6 +117,7 @@ test("override wins; clearing override restores the team default without link re
       approved: true,
       teamDefault: "TRACK_AND_VIEW",
       override: null,
+      trackingPolicy: "PERSONAL_AND_LIVE",
     }).capabilities.canLogBodyWeight,
     true,
   );
@@ -151,6 +152,7 @@ test("ownership requires creator AND explicit self provenance; legacy own-player
 test("same player in two teams resolves different access on every selection", async () => {
   const f = playerServiceFixture();
   f.tables.teams[0].player_access_default = "TRACK_AND_VIEW";
+  f.tables.teams[0].player_tracking_policy = "PERSONAL_AND_LIVE";
   f.tables.teams.push({
     ...f.tables.teams[0],
     id: uuid(21),

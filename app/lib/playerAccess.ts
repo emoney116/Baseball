@@ -235,11 +235,11 @@ export async function loadPlayerSession(
 
 export async function loadContextPlayerAccess(db: SupabaseClient, context: PlayerContext) {
   const [teams, overrides] = await Promise.all([
-    rows(db.from("teams").select("player_access_default").eq("id", context.team.teamId).eq("active", true)),
+    rows(db.from("teams").select("player_access_default,player_tracking_policy").eq("id", context.team.teamId).eq("active", true)),
     rows(db.from("player_access_overrides").select("access_mode").eq("team_id", context.team.teamId).eq("player_id", context.playerId), "player_id"),
   ]);
   if (!teams.length) throw new PlayerLinkError("Team unavailable.", 403);
-  return resolvePlayerCapabilities({ approved: true, teamDefault: teams[0].player_access_default, override: overrides[0]?.access_mode });
+  return resolvePlayerCapabilities({ approved: true, teamDefault: teams[0].player_access_default, override: overrides[0]?.access_mode, trackingPolicy: teams[0].player_tracking_policy });
 }
 
 async function loadSafeTeamRoster(db: SupabaseClient, context: PlayerContext) {
@@ -256,7 +256,7 @@ const pick = (r: Row, keys: string) =>
       .filter((k) => Object.hasOwn(r, k))
       .map((k) => [k, r[k]]),
   );
-const eventAudit = "id,created_at,practice_id,session_id,entry_source,created_by_profile_id,updated_by_profile_id,verification_status,session_sequence";
+const eventAudit = "id,created_at,practice_id,session_id,personal_session_id,entry_source,created_by_profile_id,updated_by_profile_id,verification_status,session_sequence";
 export function safePlayerRow(kind: string, r: Row): Row {
   const fields: Record<string, string> = {
     player:
@@ -376,6 +376,12 @@ async function loadPlayerData(
   const exerciseIds = [
     ...new Set(sets.map((r) => r.exercise_id).filter(Boolean)),
   ];
+  const personal = await rows(scoped("player_personal_sessions").eq("player_id", playerId).eq("created_by_profile_id", profileId));
+  if (personal.length) {
+    for (const [table, key, collection] of [["hitting_events", "hitter_id", hitting], ["pitch_events", "pitcher_id", pitches], ["defense_events", "player_id", defense]] as const) {
+      collection.push(...await rows(db.from(table).select("*").in("personal_session_id", personal.map(s => s.id)).eq(key, playerId).eq("created_by_profile_id", profileId)));
+    }
+  }
   const exercises = exerciseIds.length
     ? await rows(
         db.from("exercises").select("id,name,kind,unit").in("id", exerciseIds),
@@ -389,6 +395,7 @@ async function loadPlayerData(
   const result = emptyData(teamContext, teamContext.profile, team);
   return {
     ...result,
+    personalSessions: personal.map(s => ({ id: s.id, domain: s.domain, startedAt: s.started_at, endedAt: s.ended_at ?? undefined })),
     players: player.map((r) =>
       mapPlayer(
         safePlayerRow("player", r),
@@ -413,12 +420,12 @@ async function loadPlayerData(
     defenseSessions: sessions
       .filter((r) => r.category === "defense")
       .map((r) => mapDefenseSession(safePlayerRow("session", r))),
-    pitchEvents: pitches.map((r) => mapPitchEvent(safePlayerRow("pitch", r))),
+    pitchEvents: pitches.map((r) => ({ ...mapPitchEvent(safePlayerRow("pitch", r)), personalSessionId: r.personal_session_id ?? undefined })),
     hittingEvents: hitting.map((r) =>
-      mapHittingEvent(safePlayerRow("hitting", r)),
+      ({ ...mapHittingEvent(safePlayerRow("hitting", r)), personalSessionId: r.personal_session_id ?? undefined }),
     ),
     defenseEvents: defense.map((r) =>
-      mapDefenseEvent(safePlayerRow("defense", r)),
+      ({ ...mapDefenseEvent(safePlayerRow("defense", r)), personalSessionId: r.personal_session_id ?? undefined }),
     ),
     games: gameRows.map((r) => mapGame(safePlayerRow("game", r), [])),
     gameEvents: events.map((r) => {

@@ -5,7 +5,7 @@ import {
   assertPlayerLinkTeamManager,
   PlayerLinkError,
 } from "../../lib/playerAccountLinks";
-import { isPlayerAccessMode } from "../../lib/playerCapabilities";
+import { isPlayerAccessMode, isPlayerTrackingPolicy } from "../../lib/playerCapabilities";
 import { labelExactRoster, playerSelectionLabel } from "../../lib/exactRosterIdentity";
 async function authorized(teamId: string) {
   const {
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const [team, overrides, memberships] = await Promise.all([
       db
         .from("teams")
-        .select("player_access_default")
+        .select("player_access_default,player_tracking_policy")
         .eq("id", teamId)
         .single(),
       db
@@ -64,6 +64,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         teamDefault: team.data.player_access_default,
+        trackingPolicy: team.data.player_tracking_policy,
         roster: (memberships.data ?? []).flatMap((m) => {
           const p = labeledPlayers.find((p) => p.id === m.player_id);
           return p
@@ -89,6 +90,12 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
+    if (body && typeof body.teamId === "string" && isPlayerTrackingPolicy(body.trackingPolicy) && body.mode === undefined && body.playerId == null) {
+      const { db, user } = await authorized(body.teamId);
+      const { error } = await db.rpc("set_player_tracking_policy", { actor: user.id, target_team: body.teamId, new_policy: body.trackingPolicy });
+      if (error) throw new PlayerLinkError("Unable to change team tracking policy.", 403);
+      return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+    }
     if (
       !body ||
       typeof body.teamId !== "string" ||

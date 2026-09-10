@@ -1116,7 +1116,7 @@ export function AnalyticsSourceSelector({
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const sourceLabels: Record<AnalyticsFieldSource, string> = { games: "Games", practice: "Practice", "live-bp": "Live BP" };
+  const sourceLabels: Record<AnalyticsFieldSource, string> = { games: "Games", practice: "Practice", "live-bp": "Live BP", personal: "Personal" };
   const summary = domain === "development"
     ? "Workouts"
     : selectedSources.length === 1 ? sourceLabels[selectedSources[0]] : `${selectedSources.length} Sources`;
@@ -1934,9 +1934,9 @@ export function readInitialAnalyticsState(): {
   }
   const params = new URLSearchParams(window.location.search);
   const domain = parseAnalyticsParam(params.get("domain"), ["hitting", "pitching", "defense", "development"], "hitting");
-  const requestedSource = parseAnalyticsParam(params.get("source"), ["games", "practice", "live-bp", "all"], "games");
+  const requestedSource = parseAnalyticsParam(params.get("source"), ["games", "practice", "live-bp", "personal", "all"], "games");
   const supportedSources = analyticsSourcesForDomain(domain);
-  const requestedFieldSources = params.get("sources")?.split(",").filter((source): source is AnalyticsFieldSource => source === "games" || source === "practice" || source === "live-bp") ?? [];
+  const requestedFieldSources = params.get("sources")?.split(",").filter((source): source is AnalyticsFieldSource => source === "games" || source === "practice" || source === "live-bp" || source === "personal") ?? [];
   const fieldSources = domain === "development"
     ? []
     : requestedFieldSources.filter((candidate) => supportedSources.includes(candidate)).length
@@ -1981,7 +1981,7 @@ export function analyticsFieldSourcesForSource(domain: AnalyticsDomain, source: 
 
 export function normalizeAnalyticsFieldSources(fieldSources: AnalyticsFieldSource[]): AnalyticsFieldSource[] {
   const requested = new Set(fieldSources);
-  return (["games", "practice", "live-bp"] as AnalyticsFieldSource[]).filter((source) => requested.has(source));
+  return (["games", "practice", "live-bp", "personal"] as AnalyticsFieldSource[]).filter((source) => requested.has(source));
 }
 
 export function analyticsSourceFromFieldSources(fieldSources: AnalyticsFieldSource[]): AnalyticsSource {
@@ -2327,6 +2327,7 @@ export function formatSegment(value: string) {
   if (value === "situational") return "Situational";
   if (value === "all") return "All";
   if (value === "live-bp") return "Live BP";
+  if (value === "personal") return "Personal";
   if (value === "weight-room") return "Weight Room";
   if (value === "attendance") return "Attendance";
   if (value === "trends") return "Trends";

@@ -10,7 +10,7 @@ import {
 import assert from "node:assert/strict";
 const cli = process.argv[2];
 if (!cli) throw new Error("Pass the installed agent-browser CLI path.");
-const base = "http://localhost:3110",
+const base = process.env.QA_BASE_URL ?? "http://localhost:3110",
   out = "outputs/clu948";
 mkdirSync(out, { recursive: true });
 const results = [];
@@ -84,15 +84,11 @@ try {
         );
         if (mode !== "VIEW_ONLY") {
           if (domain !== "workout")
-            browser(
-              "select",
-              '[aria-label="Result"]',
-              domain === "hitting"
-                ? "Miss"
-                : domain === "pitching"
-                  ? "Whiff"
-                  : "Clean",
-            );
+            button(domain === "hitting" ? "Miss" : domain === "pitching" ? "Whiff" : "Clean");
+          if (domain === "workout") {
+            browser("fill", ".weight-room-inline-set-fields label:nth-child(1) input", "185");
+            browser("fill", ".weight-room-inline-set-fields label:nth-child(2) input", "5");
+          }
           button(domain === "workout" ? "Save Set" : "Save Rep");
           until(
             `document.querySelector('.player-live-message')?.textContent.includes('saved')`,

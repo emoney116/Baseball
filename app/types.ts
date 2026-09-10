@@ -547,6 +547,7 @@ interface PracticeSessionAudit {
 }
 
 interface PracticeEventAudit {
+  personalSessionId?: ID;
   createdByProfileId?: ID;
   updatedByProfileId?: ID;
   entrySource?: PracticeEntrySource;
@@ -1133,6 +1134,7 @@ export interface AppSettings {
 }
 
 export interface AppData {
+  personalSessions?: Array<{ id: ID; domain: "hitting" | "pitching" | "defense"; startedAt: string; endedAt?: string }>;
   previewHomeScores?: import("./lib/homeScores").HomeScore[];
   teamContext?: TeamContext;
   players: Player[];

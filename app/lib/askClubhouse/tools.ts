@@ -138,6 +138,8 @@ export function classifyAskClubhouseIntent(
     && !/\b(my|our|this|team|player|practice|game|clubhouse)\b/i.test(trimmed);
   const contextualTeamReference = /\b(?:our|my|this) team'?s?\b/i.test(trimmed);
   const personalDataReference = /\b(?:my|our|this)\s+(?:hitting|pitching|defense|performance|data|results|stats|spray chart|heat ?map|pitch location|breaking balls?|fastballs?|sliders?|contact|velocity)\b/i.test(trimmed)
+    || /\bhow did i\b.*\b(?:hit|pitch|do|perform)\b/i.test(trimmed)
+    || /\bmy (?:personal|own) (?:hitting |pitching |defense )?session\b/i.test(trimmed)
     || /\b(?:am|do|have) i\b.*\b(?:improv\w*|perform\w*|hitt?\w*|pitch\w*|contact|breaking balls?|fastballs?|sliders?)\b/i.test(trimmed)
     || /\bwhat should i work on\b/i.test(trimmed);
   const explicitTeamData = (!definitionQuestion && TEAM_DATA_PATTERN.test(trimmed))
@@ -583,6 +585,19 @@ export function buildAskClubhouseToolPlan(
     }, primaryMetricsFor(domain, source, metricId));
     requests.push(request);
     actions.push(analyticsAction(`Open ${domainLabel(domain)} analytics`, request.query));
+  }
+
+  // A self-summary can include Personal, but keep its evidence separate from team Practice.
+  if (uiContext?.viewerPlayerId && /\bhow did i\b/.test(lower)
+    && !/\b(practice|team|game|live|personal|own session)\b/.test(lower)
+    && (domain === "hitting" || domain === "pitching" || domain === "defense")
+    && data.personalSessions?.some(session => session.domain === domain)) {
+    const personal = analyticsRequest(playerToolName(domain), {
+      domain, source: "personal", mode, ...timeScope, groupBy: "player", filters,
+      sort: defaultAnalyticsSort(domain, "personal", mode), limit: config.toolResultLimit, context,
+    }, primaryMetricsFor(domain, "personal", metricId), uiContext.viewerPlayerId);
+    requests.push(personal);
+    actions.push(analyticsAction("Open Personal analytics", personal.query, uiContext.viewerPlayerId));
   }
 
   if (needsPitchTypeCoverage(lower)) {

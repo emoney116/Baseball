@@ -32,7 +32,7 @@ export type LiveTransport = {
   load: () => Promise<PlayerLiveState>;
   save: (body: LiveSubmission) => Promise<{ id: string }>;
 };
-class LiveHttpError extends Error {
+export class LiveHttpError extends Error {
   constructor(
     message: string,
     readonly status: number,
@@ -235,7 +235,7 @@ export function PlayerLiveEntry({
   );
 }
 
-function LiveEntryForm({
+export function LiveEntryForm({
   session,
   membershipId,
   entries,

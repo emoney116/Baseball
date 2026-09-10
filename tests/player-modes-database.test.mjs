@@ -19,7 +19,7 @@ before(async () => {
 beforeEach(async () => {
   await db.exec(`delete from workout_sessions where player_id in ('${id(40)}','${id(41)}'); delete from development_goals where player_id in ('${id(40)}','${id(41)}');
     delete from player_access_overrides where team_id in ('${id(20)}','${id(21)}'); delete from player_access_audit where team_id in ('${id(20)}','${id(21)}');
-    update teams set player_access_default='VIEW_ONLY' where id in ('${id(20)}','${id(21)}');
+    update teams set player_access_default='VIEW_ONLY',player_tracking_policy='PERSONAL_AND_LIVE' where id in ('${id(20)}','${id(21)}');
     delete from profile_player_links where profile_id='${id(1)}';
     insert into profile_player_links(id,profile_id,player_id,claim_player_team_membership_id,claim_team_id,claim_season_id) values('${id(70)}','${id(1)}','${id(40)}','${id(50)}','${id(20)}','${id(30)}');
     update profile_player_links set status='APPROVED',approved_by_profile_id='${id(2)}' where id='${id(70)}';`);

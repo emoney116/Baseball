@@ -4,6 +4,15 @@ export const PLAYER_ACCESS_MODES = [
   "FULL_PLAYER",
 ] as const;
 export type PlayerAccessMode = (typeof PLAYER_ACCESS_MODES)[number];
+export const PLAYER_TRACKING_POLICIES = ["LIVE_ONLY", "PERSONAL_AND_LIVE"] as const;
+export type PlayerTrackingPolicy = (typeof PLAYER_TRACKING_POLICIES)[number];
+export const PLAYER_TRACKING_LABELS: Record<PlayerTrackingPolicy, string> = {
+  LIVE_ONLY: "Live Sessions Only",
+  PERSONAL_AND_LIVE: "Personal + Live Sessions",
+};
+export function isPlayerTrackingPolicy(value: unknown): value is PlayerTrackingPolicy {
+  return PLAYER_TRACKING_POLICIES.some(policy => policy === value);
+}
 export const PLAYER_MODE_DETAILS: Record<
   PlayerAccessMode,
   { label: string; description: string }
@@ -16,12 +25,12 @@ export const PLAYER_MODE_DETAILS: Record<
   TRACK_AND_VIEW: {
     label: "Track & View",
     description:
-      "View development, log personal goals and body weight, and enter assigned live training. Coach records stay protected.",
+      "View development and enter assigned live training. Personal sessions require the team's tracking permission.",
   },
   FULL_PLAYER: {
     label: "Full Player",
     description:
-      "Personal tracking plus the team roster. Staff tools and private teammate data stay protected.",
+      "Track & View plus the team roster. Personal sessions still follow the team's tracking policy.",
   },
 };
 export const PLAYER_CAPABILITY_GROUPS = {
@@ -53,7 +62,13 @@ export const PLAYER_CAPABILITY_GROUPS = {
     "canDeleteOwnGoals",
   ],
   full: ["canViewRoster"],
+  personal: [
+    "canStartPersonalHittingSession", "canStartPersonalPitchingSession",
+    "canStartPersonalDefenseSession", "canLogPersonalHitting",
+    "canLogPersonalPitching", "canLogPersonalDefense",
+  ],
   unavailable: [
+    "canStartPersonalWorkout", "canLogPersonalWeightRoom",
     "canLogPractice",
     "canLogHitting",
     "canLogPitching",
@@ -127,6 +142,7 @@ export type EffectivePlayerAccess = {
   mode: PlayerAccessMode;
   teamDefault: PlayerAccessMode;
   override: PlayerAccessMode | null;
+  trackingPolicy: PlayerTrackingPolicy;
   capabilities: PlayerCapabilities;
 };
 export function isPlayerAccessMode(value: unknown): value is PlayerAccessMode {
@@ -136,6 +152,7 @@ export function resolvePlayerCapabilities(input: {
   approved: boolean;
   teamDefault?: unknown;
   override?: unknown;
+  trackingPolicy?: unknown;
   organizationDenied?: readonly PlayerCapability[];
   entitlementDenied?: readonly PlayerCapability[];
 }): EffectivePlayerAccess {
@@ -144,6 +161,7 @@ export function resolvePlayerCapabilities(input: {
     : "VIEW_ONLY";
   const override = isPlayerAccessMode(input.override) ? input.override : null;
   const mode = override ?? teamDefault;
+  const trackingPolicy = isPlayerTrackingPolicy(input.trackingPolicy) ? input.trackingPolicy : "LIVE_ONLY";
   const grants: Record<PlayerAccessMode, readonly PlayerCapability[]> = {
     VIEW_ONLY: PLAYER_CAPABILITY_GROUPS.view,
     TRACK_AND_VIEW: [
@@ -161,16 +179,17 @@ export function resolvePlayerCapabilities(input: {
     ...PLAYER_CAPABILITY_GROUPS.unavailable,
     ...(input.organizationDenied ?? []),
     ...(input.entitlementDenied ?? []),
+    ...(trackingPolicy === "LIVE_ONLY" ? ["canLogBodyWeight", "canUpdateOwnBodyWeight", "canDeleteOwnBodyWeight"] as const : []),
   ]);
   const capabilities = Object.fromEntries(
     Object.values(PLAYER_CAPABILITY_GROUPS)
       .flat()
       .map((key) => [
         key,
-        input.approved && grants[mode].includes(key) && !denied.has(key),
+        input.approved && (grants[mode].includes(key) || (mode !== "VIEW_ONLY" && trackingPolicy === "PERSONAL_AND_LIVE" && (PLAYER_CAPABILITY_GROUPS.personal as readonly string[]).includes(key))) && !denied.has(key),
       ]),
   ) as PlayerCapabilities;
-  return { mode, teamDefault, override, capabilities };
+  return { mode, teamDefault, override, trackingPolicy, capabilities };
 }
 export function ownsPlayerEntry(
   row: { createdByProfileId?: string; entrySource?: string },

@@ -255,6 +255,7 @@ function confidenceFor(sample: number): DiagnosisConfidence {
 }
 
 function isSourceEvent(data: AppData, event: HittingEvent, source: AnalyticsSource): boolean {
+  if (source === "personal" || event.personalSessionId) return source === "personal" && Boolean(event.personalSessionId);
   if (source === "games") return false;
   const session = data.hittingSessions.find((item) => item.id === event.sessionId);
   const live = Boolean(event.isLiveBp || session?.type === "Live BP");
@@ -264,6 +265,7 @@ function isSourceEvent(data: AppData, event: HittingEvent, source: AnalyticsSour
 }
 
 function isPitchSourceEvent(data: AppData, event: PitchEvent, source: AnalyticsSource): boolean {
+  if (source === "personal" || event.personalSessionId) return source === "personal" && Boolean(event.personalSessionId);
   if (source === "games") return false;
   const session = data.pitchingSessions.find((item) => item.id === event.sessionId);
   const live = session?.type === "Live BP";

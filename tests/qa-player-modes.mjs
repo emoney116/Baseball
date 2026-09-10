@@ -1,13 +1,19 @@
 // Run against synthetic development fixtures only, using the installed agent-browser CLI.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, openSync, closeSync, readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 const cli = process.argv[2];
 if (!cli) throw new Error('Pass the installed agent-browser/bin/agent-browser.js path.');
-const base = 'http://localhost:3110';
+const base = process.env.QA_BASE_URL ?? 'http://localhost:3110';
 const out = 'outputs/clu947';
 mkdirSync(out, { recursive: true });
-function browser(...args) { return execFileSync(process.execPath, [cli, '--session', 'clu947', ...args], {encoding:'utf8',timeout:45000}).trim(); }
+let sequence=0;
+function browser(...args) {
+  const path=`${out}/command-${sequence++}.log`, fd=openSync(path,'w');
+  try { execFileSync(process.execPath, [cli, '--session', 'clu947', ...args], {stdio:['ignore',fd,fd],timeout:45000}); }
+  finally { closeSync(fd); }
+  return readFileSync(path,'utf8').trim();
+}
 const evaluate = code => JSON.parse(browser('eval', code));
 const rows=[];
 for(const [width,height] of [[390,844],[430,932],[820,1180],[1180,820],[1440,900]]) {
@@ -15,10 +21,12 @@ for(const [width,height] of [[390,844],[430,932],[820,1180],[1180,820],[1440,900
   browser('open',`${base}/player-access-preview`);
   browser('click','.player-access-overrides summary');
   browser('snapshot');
-  for(const label of ['View Only','Track & View','Full Player']) {
-    browser('find','role','button','click','--name',label,'--exact');
-    assert.equal(evaluate("document.querySelector('.player-access-modes [aria-pressed=true]').textContent"),label);
+  for(const mode of ['VIEW_ONLY','TRACK_AND_VIEW','FULL_PLAYER']) {
+    browser('select','select[id$="-default"]',mode);
+    assert.equal(evaluate("document.querySelector('select[id$=\"-default\"]').value"),mode);
   }
+  browser('select','select[id$="-tracking"]','PERSONAL_AND_LIVE');
+  assert.equal(evaluate("document.querySelector('select[id$=\"-tracking\"]').value"),'PERSONAL_AND_LIVE');
   const selector='.player-access-row:nth-of-type(1) select';
   browser('select',selector,'VIEW_ONLY');
   assert.equal(evaluate("document.querySelector('.player-access-row select').value"),'VIEW_ONLY');
@@ -29,12 +37,13 @@ for(const [width,height] of [[390,844],[430,932],[820,1180],[1180,820],[1440,900
   browser('screenshot',`${out}/coach-${width}.png`);
   rows.push({surface:'coach',width,height,passed:true});
   for(const mode of ['VIEW_ONLY','TRACK_AND_VIEW','FULL_PLAYER']) {
-    browser('open',`${base}/player-preview?access=${mode}`);
+    browser('open',`${base}/player-preview?access=${mode}&tracking=PERSONAL_AND_LIVE`);
     browser('snapshot');
     const state=evaluate("({width:innerWidth,height:innerHeight,scroll:document.documentElement.scrollWidth,tracking:!!document.querySelector('.player-self-tracking'),ask:!!document.querySelector('[aria-label=\"Ask Clubhouse\"]'),staff:!!document.querySelector('[aria-label=\"Player Access\"]')})");
     assert.equal(state.width,width);assert.ok(state.scroll<=width);assert.equal(state.tracking,mode!=='VIEW_ONLY');assert.equal(state.ask,true);assert.equal(state.staff,false);
     browser('screenshot',`${out}/${mode.toLowerCase()}-${width}.png`);
     if(mode!=='VIEW_ONLY') {
+      browser('find','role','button','click','--name','Weight Room','--exact');browser('snapshot');
       browser('find','role','button','click','--name','Body Weight','--exact');browser('snapshot');
       browser('fill','input[type=number]','182.5');
       assert.equal(evaluate("document.querySelector('input[type=number]').value"),'182.5');

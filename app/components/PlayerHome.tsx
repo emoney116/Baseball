@@ -44,13 +44,17 @@ export function PlayerHome({ session, preview, onNavigate, onAnalytics, onEnter,
   const metrics = playerHomePerformance(data, player.id, domain, query);
   const upcoming = buildScheduleItems(data).filter(item => item.status !== "Completed" && item.status !== "Cancelled" && item.date >= homeDateRange(now, 1).start).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
   const weight = buildWeightRoomPlayerProfile(data, player);
-  const recent = data.practices.flatMap(practice => domains.flatMap(d => {
+  const recent = [...(data.personalSessions ?? []).flatMap(personal => {
+    const metric = HOME_METRICS[personal.domain].find(m => m.source !== "games")!;
+    const summary = playerHomeMetric(data, player.id, personal.domain, { ...metric, source: "personal" }, { eventIds: [personal.id] });
+    return [{ id: personal.id, date: personal.startedAt.slice(0, 10), title: `Personal ${personal.domain === "pitching" ? "Bullpen" : personal.domain === "hitting" ? "Hitting" : "Defense"}`, detail: `${personal.endedAt ? "Completed" : "In progress"} · ${summary.label} ${summary.cell?.display ?? "--"}`, query: summary.query }];
+  }), ...data.practices.flatMap(practice => domains.flatMap(d => {
     const count = d === "hitting" ? data.hittingEvents.filter(e => e.practiceId === practice.id && e.hitterId === player.id).length : d === "pitching" ? data.pitchEvents.filter(e => e.practiceId === practice.id && e.pitcherId === player.id).length : data.defenseEvents.filter(e => e.practiceId === practice.id && e.playerId === player.id).length;
     if (!count) return [];
     const metric = HOME_METRICS[d].find(m => m.source !== "games")!;
     const summary = playerHomeMetric(data, player.id, d, { ...metric, source: "practice" }, { eventIds: [practice.id] });
     return [{ id: `${practice.id}:${d}`, date: practice.date, title: `${d[0].toUpperCase()}${d.slice(1)} · ${practice.name || "Practice"}`, detail: `${count} ${d === "hitting" ? "tracked events" : d === "pitching" ? "pitches" : "reps"} · ${summary.label} ${summary.cell?.display ?? "--"}`, query: summary.query }];
-  })).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+  }))].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
   const trends = HOME_METRICS[domain].filter(m => m.source !== "games").slice(0, 3).map(m => ({
     before: playerHomeMetric(data, player.id, domain, m, { timeRange: "custom", customDateRange: homeDateRange(now, 14, 14) }),
     after: playerHomeMetric(data, player.id, domain, m, { timeRange: "custom", customDateRange: homeDateRange(now, 14) }),

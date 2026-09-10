@@ -44,7 +44,7 @@ import {
 } from "./analyticsCatalog.ts";
 
 export type AnalyticsDomain = "hitting" | "pitching" | "defense" | "development";
-export type AnalyticsSource = "all" | "games" | "practice" | "live-bp";
+export type AnalyticsSource = "all" | "games" | "practice" | "live-bp" | "personal";
 export type AnalyticsFieldSource = Exclude<AnalyticsSource, "all">;
 export type AnalyticsMode = "box-score" | "situational";
 export type AnalyticsTimeRange = "7d" | "30d" | "season" | "custom";
@@ -435,7 +435,7 @@ function buildHittingResult(
 ): AnalyticsResult {
   const sources = analyticsFieldSources(query);
   const includesGames = sources.includes("games");
-  const includesTrackedSwings = sources.some((source) => source === "practice" || source === "live-bp");
+  const includesTrackedSwings = sources.some((source) => source === "practice" || source === "live-bp" || source === "personal");
   const trackedEvents = includesTrackedSwings ? filterHittingEvents(data, query, today) : [];
   const gameEvents = includesGames ? filterGameEvents(data, query, today) : [];
   const trackedMetricIds = ["opportunities", "swings", "contacts", "contactPct", "hardPct", "avgEv", "maxEv", "takes", "bip", "misses", "fouls", "swingPct", "bipPct", "swingMissPct", "foulPct", "takePct", "zoneSwingPct", "zoneContactPct", "chasePct", "outZoneContactPct", "hard", "barrelPct", "softPct", "lineDrivePct", "groundBallPct", "flyBallPct", "popUpPct", "groundBalls", "lineDrives", "flyBalls", "popUps", "gbFbRatio", "airPct", "pullPct", "middlePct", "oppoPct", "medianEv", "ev90", "ev95", "evSamples"];
@@ -592,7 +592,7 @@ function buildPitchingResult(
   today?: string,
 ): AnalyticsResult {
   const sources = analyticsFieldSources(query);
-  const practiceEvents = sources.some((source) => source === "practice" || source === "live-bp") ? filterPitchEvents(data, query, today) : [];
+  const practiceEvents = sources.some((source) => source === "practice" || source === "live-bp" || source === "personal") ? filterPitchEvents(data, query, today) : [];
   const gameEvents = sources.includes("games") ? filterGameEvents(data, query, today) : [];
   const rows = currentRosterPlayers(data)
     .filter((player) => player.isPitcher || practiceEvents.some((event) => event.pitcherId === player.id) || gameEvents.some((event) => event.pitcherId === player.id))
@@ -1574,6 +1574,12 @@ function filterHittingEvents(data: AppData, query: AnalyticsQuery, today?: strin
     const session = sessions.get(event.sessionId);
     const isLive = event.isLiveBp || session?.type === "Live BP";
     const sources = analyticsFieldSources(query);
+    if (event.personalSessionId) {
+      const personal = data.personalSessions?.find(s => s.id === event.personalSessionId && s.domain === "hitting");
+      return sources.includes("personal") && Boolean(personal && dateInRange(personal.startedAt.slice(0, 10), dateRange))
+        && (!query.playerIds?.length || query.playerIds.includes(event.hitterId))
+        && (!query.eventIds?.length || query.eventIds.includes(event.personalSessionId)) && hittingEventMatchesFilters(data, event, query.filters);
+    }
     if (isLive && !sources.includes("live-bp")) return false;
     if (!isLive && !sources.includes("practice")) return false;
     if (isLive && query.filters?.liveBpThrowerSources?.length && !query.filters.liveBpThrowerSources.includes(liveBpThrowerSource(session))) return false;
@@ -1592,6 +1598,12 @@ function filterPitchEvents(data: AppData, query: AnalyticsQuery, today?: string)
     const session = sessions.get(event.sessionId);
     const isLive = session?.type === "Live BP";
     const sources = analyticsFieldSources(query);
+    if (event.personalSessionId) {
+      const personal = data.personalSessions?.find(s => s.id === event.personalSessionId && s.domain === "pitching");
+      return sources.includes("personal") && Boolean(personal && dateInRange(personal.startedAt.slice(0, 10), dateRange))
+        && (!query.playerIds?.length || query.playerIds.includes(event.pitcherId))
+        && (!query.eventIds?.length || query.eventIds.includes(event.personalSessionId)) && pitchEventMatchesFilters(data, event, query.filters);
+    }
     if (isLive && !sources.includes("live-bp")) return false;
     if (!isLive && !sources.includes("practice")) return false;
     if (isLive && query.filters?.liveBpThrowerSources?.length && !query.filters.liveBpThrowerSources.includes(liveBpThrowerSource(session))) return false;
@@ -1606,8 +1618,12 @@ function filterDefenseEvents(data: AppData, query: AnalyticsQuery, today?: strin
   const dateRange = resolveDateRange(data, query, today);
   return data.defenseEvents.filter((event) => {
     const practice = data.practices.find((item) => item.id === event.practiceId);
-    if (!practice || !dateInRange(practice.date, dateRange)) return false;
-    if (query.eventIds?.length && !query.eventIds.includes(practice.id) && !query.eventIds.includes(event.sessionId)) return false;
+    const personal = event.personalSessionId ? data.personalSessions?.find(s => s.id === event.personalSessionId && s.domain === "defense") : undefined;
+    if (event.personalSessionId ? !analyticsFieldSources(query).includes("personal") : !analyticsFieldSources(query).includes("practice")) return false;
+    if (query.playerIds?.length && !query.playerIds.includes(event.playerId)) return false;
+    const date = personal?.startedAt.slice(0, 10) ?? practice?.date;
+    if (!date || !dateInRange(date, dateRange)) return false;
+    if (query.eventIds?.length && !query.eventIds.includes(personal?.id ?? practice!.id) && !query.eventIds.includes(event.sessionId)) return false;
     if (query.filters?.defenseStations?.length && !query.filters.defenseStations.includes(event.station)) return false;
     if (query.filters?.defensePositions?.length && !query.filters.defensePositions.includes(defenseEventPosition(event, ""))) return false;
     if (query.filters?.defenseDrills?.length && !query.filters.defenseDrills.includes(defenseEventDrillContext(event) as DefenseDrillContext)) return false;
@@ -1820,6 +1836,7 @@ function buildEventOptions(data: AppData, domain: AnalyticsDomain, sources: Anal
     : [];
   return [
     ...(sources.includes("games") ? gameOptions : []),
+    ...(sources.includes("personal") ? (data.personalSessions ?? []).filter(s => s.domain === domain).map(s => ({ id: s.id, label: `${shortDate(s.startedAt.slice(0, 10))} Personal ${s.domain === "pitching" ? "Bullpen" : s.domain}`, date: s.startedAt.slice(0, 10), source: "personal" as const })) : []),
     ...(sources.includes("practice") ? [...practiceOptions, ...hittingSessionOptions, ...defenseSessionOptions] : []),
     ...(sources.includes("live-bp") ? liveOptions : []),
   ]
@@ -1962,9 +1979,9 @@ function sumDecimalRates(
 }
 
 function normalizeAnalyticsFieldSources(sources: AnalyticsFieldSource[]): AnalyticsFieldSource[] {
-  const supported = new Set<AnalyticsFieldSource>(["games", "practice", "live-bp"]);
+  const supported = new Set<AnalyticsFieldSource>(["games", "practice", "live-bp", "personal"]);
   const requested = new Set(sources.filter((source) => supported.has(source)));
-  const normalized = (["games", "practice", "live-bp"] as AnalyticsFieldSource[]).filter((source) => requested.has(source));
+  const normalized = (["games", "practice", "live-bp", "personal"] as AnalyticsFieldSource[]).filter((source) => requested.has(source));
   return normalized.length ? normalized : ["practice"];
 }
 
@@ -2208,6 +2225,7 @@ const sourceLabels: Record<AnalyticsSource, string> = {
   games: "Games",
   practice: "Practice",
   "live-bp": "Live BP",
+  personal: "Personal",
 };
 
 const hitOutcomes = new Set<GameBallInPlayOutcome>(["Single", "Double", "Triple", "Home Run"]);

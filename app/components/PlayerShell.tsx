@@ -31,15 +31,16 @@ import { DensePlayerIdentity } from "./DensePlayerIdentity";
 import { TeamWorkspaceHeader } from "./TeamContextHeader";
 import { PlayerSelfTracking } from "./PlayerSelfTracking";
 import { PlayerLiveEntry } from "./PlayerLiveEntry";
+import { PlayerPersonalSessions } from "./PlayerPersonalSessions";
 import { PLAYER_MODE_DETAILS } from "../lib/playerCapabilities";
 
 type View = "Home" | "Schedule" | "Practice" | "Games" | "Weight Room" | "Analytics" | "More";
 const VIEW_ROUTES = { Home: "teamHome", Schedule: "schedule", Practice: "practice", Games: "games", "Weight Room": "weights", Analytics: "analytics", More: "more" } as const;
 const nav = [
   { name: "Home", icon: Home },
-  { name: "Schedule", icon: CalendarDays },
   { name: "Practice", icon: ClipboardList },
   { name: "Games", icon: Trophy },
+  { name: "Weight Room", icon: Dumbbell },
   { name: "More", icon: MoreHorizontal },
 ] as const;
 const PLAYER_ASK_SUGGESTIONS = [
@@ -373,6 +374,7 @@ export function PlayerShell({
               {practiceTab === "Overview" && <>
                 <PracticeWorkspaceSummary label={activePractice ? "Current Practice" : "Practice"} title={activePractice?.name ?? "No active practice"} detail={activePractice?.location ?? "Waiting on coach to begin Practice session."} />
                 {!preview && <PlayerLiveEntry key={`practice-${context.membershipId}`} membershipId={context.membershipId} initialSelection={liveSelection} excludeWorkout onSaved={() => refreshSession.current()} />}
+                {!preview && <PlayerPersonalSessions key={`personal-${context.membershipId}`} membershipId={context.membershipId} onSaved={() => refreshSession.current()} />}
                 {(activePractice ?? data.practices[0]) && <PracticeTeamPlan key={(activePractice ?? data.practices[0]).id} practice={activePractice ?? data.practices[0]} />}
               </>}
               {practiceTab !== "Metrics" && <PracticeHistoryTab data={data} onOpenPractice={id => { setEventId(id); setDomain("hitting"); setSource("practice"); setAnalyticsRevision(value => value + 1); setPracticeTab("Metrics"); }} />}
@@ -411,6 +413,7 @@ export function PlayerShell({
             {view === "More" && (
               <section className="player-beta-section">
                 <div className="player-beta-development">
+                  {session.access?.capabilities.canViewTeamSchedule && <button onClick={() => navigate("Schedule")}><CalendarDays size={18} />Schedule</button>}
                   {session.access?.capabilities.canViewOwnWeightRoom && <button onClick={() => navigate("Weight Room")}><Dumbbell size={18} />Weight Room</button>}
                   {session.access?.capabilities.canViewOwnAnalytics && <button onClick={() => navigate("Analytics")}><ChartNoAxesCombined size={18} />Analytics</button>}
                 </div>
@@ -467,7 +470,7 @@ export function PlayerShell({
           <button
             key={n.name}
             aria-current={view === n.name ? "page" : undefined}
-            className={view === n.name || (n.name === "More" && (view === "Weight Room" || view === "Analytics")) ? "active" : ""}
+            className={view === n.name || (n.name === "More" && (view === "Schedule" || view === "Analytics")) ? "active" : ""}
             onClick={() => navigate(n.name)}
           >
             <n.icon size={20} />

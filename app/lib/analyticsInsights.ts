@@ -278,7 +278,7 @@ function gameQuery(base: AnalyticsQuery, domain: AnalyticsDomain): AnalyticsQuer
   return { ...base, domain, source: "games", fieldSources: [...GAME_SOURCES], mode: "box-score", groupBy: "player", filters: base.filters ?? {} };
 }
 
-function selectedSources(query: AnalyticsQuery): Array<"games" | "practice" | "live-bp"> {
+function selectedSources(query: AnalyticsQuery): Array<"games" | "practice" | "live-bp" | "personal"> {
   if (query.fieldSources?.length) return query.fieldSources;
   if (query.source !== "all") return [query.source];
   return query.domain === "pitching" ? ["games", "practice", "live-bp"] : query.domain === "defense" ? ["practice"] : ["practice", "live-bp"];

@@ -870,7 +870,7 @@ test("count and pitch-type views group the same bounded query output", () => {
 });
 
 test("catalog hides irrelevant sources and views and serializes the active context", () => {
-  assert.deepEqual(analyticsSourcesForDomain("defense"), ["practice", "all"]);
+  assert.deepEqual(analyticsSourcesForDomain("defense"), ["practice", "personal", "all"]);
   assert.equal(analyticsViewsFor("hitting", "practice").some((view) => view.id === "game-state"), false);
   assert.equal(analyticsViewsFor("hitting", "games").some((view) => view.id === "game-state"), true);
   assert.deepEqual(defaultAnalyticsMetricIds("hitting", "games").slice(0, 4), ["pa", "ab", "hits", "avg"]);

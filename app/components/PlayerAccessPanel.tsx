@@ -6,9 +6,11 @@ import {
   PLAYER_MODE_DETAILS,
   playerModeCapabilityDetails,
   type PlayerAccessMode,
+  PLAYER_TRACKING_POLICIES, PLAYER_TRACKING_LABELS, type PlayerTrackingPolicy,
 } from "../lib/playerCapabilities";
 export type PlayerAccessSettings = {
   teamDefault: PlayerAccessMode;
+  trackingPolicy?: PlayerTrackingPolicy;
   roster: Array<{
     playerId: string;
     membershipId: string;
@@ -81,6 +83,18 @@ export function PlayerAccessPanel({
       setBusy(false);
     }
   }
+  async function saveTracking(trackingPolicy: PlayerTrackingPolicy) {
+    setBusy(true); setError("");
+    try {
+      if (!previewSettings) {
+        const response = await fetch("/api/player-access", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teamId, trackingPolicy }) });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.message);
+      }
+      setSettings(current => current && { ...current, trackingPolicy });
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to save tracking policy."); }
+    finally { setBusy(false); }
+  }
   return (
     <section className="player-access-settings" aria-label="Player Access">
       <h2>
@@ -114,7 +128,8 @@ export function PlayerAccessPanel({
           })}
           <section>
             <h3>Not included in any mode</h3>
-            <p>Players cannot create or start Practice or team workouts. Live entry requires an active coach-enabled session and their own assignment. Ending the session makes entry read-only. Live BP and Game entry are not enabled.</p>
+            <p>Players cannot create or start team Practice or team workouts. Live entry requires an active coach-enabled session and their own assignment. Ending the session makes entry read-only. Live BP and Game entry are not enabled.</p>
+            <p>Player Tracking is separate from access mode. Personal + Live Sessions permits own Hitting, Bullpen and Defense sessions, plus isolated body-weight entries. Personal workouts are not enabled. View Only remains read-only under either policy.</p>
             <p>No editing coach-owned records or official Games. No access to private coach notes, private teammate data, staff/admin tools, team stats or Insights, or published lineups. Player-written feedback and check-ins are not enabled.</p>
           </section>
         </div>
@@ -168,6 +183,13 @@ export function PlayerAccessPanel({
               <p>No active players in this season.</p>
             )}
           </details>
+          <h2>Player Tracking</h2>
+          <div className="player-access-default-row">
+            <label htmlFor={`${controlId}-tracking`}>Tracking Policy</label>
+            <select id={`${controlId}-tracking`} value={settings.trackingPolicy ?? "LIVE_ONLY"} disabled={busy} onChange={e => void saveTracking(e.target.value as PlayerTrackingPolicy)}>
+              {PLAYER_TRACKING_POLICIES.map(policy => <option key={policy} value={policy}>{PLAYER_TRACKING_LABELS[policy]}</option>)}
+            </select>
+          </div>
         </>
       )}
     </section>
