@@ -137,6 +137,7 @@ export function LiveBpConsole({
     pending = useRef<{ id: string; draft: BpDraft } | null>(null),
     startId = useRef<string | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fieldSettings = useRef<HTMLDetailsElement>(null);
   const fieldRequest = useRef<{
     operation: "undo" | "runner";
     id: string;
@@ -331,6 +332,7 @@ export function LiveBpConsole({
           refreshTimer.current = null;
           onSavedRef.current();
         }, 10000);
+      return true;
     } catch (e) {
       setError(
         e instanceof Error &&
@@ -950,6 +952,7 @@ export function LiveBpConsole({
                       )}
                       {
                         <details
+                          ref={fieldSettings}
                           className={styles.fieldTracking}
                           onPointerEnter={(event) => {
                             if (event.pointerType === "mouse")
@@ -1196,6 +1199,15 @@ export function LiveBpConsole({
               busy={busy || uncertain}
               error={error}
               onSave={(next) => saveSetup(next, state)}
+              onLoad={async (next) => {
+                if (busy || uncertain) return;
+                if (await write(round ? "configure" : "start", next, state)) {
+                  setPresetsOpen(false);
+                  setQuickView("defense");
+                  setFieldView("defense");
+                  if (fieldSettings.current) fieldSettings.current.open = false;
+                }
+              }}
               onClose={() => {
                 if (!busy) setPresetsOpen(false);
               }}

@@ -2,6 +2,22 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
+test("loading a defense preset closes the sheet only after a successful write", () => {
+  const sheet = fs.readFileSync(
+    "app/components/LiveBpDefensePresets.tsx",
+    "utf8",
+  );
+  assert.match(
+    sheet,
+    /onLoad\(applyDefensePreset\(settings, preset, playerIds\)\)/,
+  );
+  const source = fs.readFileSync("app/components/LiveBpConsole.tsx", "utf8");
+  assert.match(
+    source,
+    /onLoad=\{async \(next\) => \{[\s\S]*?if \(await write\([\s\S]*?setPresetsOpen\(false\);\s*setQuickView\("defense"\);\s*setFieldView\("defense"\);/,
+  );
+});
+
 test("Live BP uses a numeric count and one shared correction control", () => {
   const console = fs.readFileSync("app/components/LiveBpConsole.tsx", "utf8");
   assert.match(

@@ -15,6 +15,7 @@ export function LiveBpDefensePresets({
   busy,
   error,
   onSave,
+  onLoad,
   onClose,
   sheet,
 }: {
@@ -23,6 +24,7 @@ export function LiveBpDefensePresets({
   busy: boolean;
   error: string;
   onSave: (settings: BpSettings) => void;
+  onLoad: (settings: BpSettings) => void;
   onClose: () => void;
   sheet: BpSheet;
 }) {
@@ -74,7 +76,7 @@ export function LiveBpDefensePresets({
               aria-label={`Load ${preset.name}`}
               title={`Load ${preset.name}`}
               onClick={() =>
-                onSave(applyDefensePreset(settings, preset, playerIds))
+                onLoad(applyDefensePreset(settings, preset, playerIds))
               }
             >
               <Download size={18} />
