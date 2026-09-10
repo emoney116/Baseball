@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Check, Settings2 } from "lucide-react";
-import type { Player } from "../types";
+import type { Player, ZonePoint } from "../types";
 import {
   BP_POSITIONS,
   buildBpPitch,
@@ -15,7 +15,6 @@ import {
 import { TENDEX_PITCH_TYPES } from "../lib/tendexGameAnalysis";
 import { ChoiceSelect } from "./ChoiceSelect";
 import { ClubhouseBaseballField } from "./ClubhouseBaseballField";
-import { StrikeZone } from "./visuals";
 import styles from "./LiveBpConsole.module.css";
 
 function Select({
@@ -44,12 +43,18 @@ export function LiveBpConsole({
   active,
   onExit,
   onSaved,
+  pitchLocationControl,
 }: {
   practiceId: string;
   players: Player[];
   active: boolean;
   onExit: () => void;
   onSaved: () => void;
+  pitchLocationControl: (
+    point: ZonePoint | undefined,
+    onSelect: (point: ZonePoint) => void,
+    hitterId: string,
+  ) => ReactNode;
 }) {
   const [round, setRound] = useState<BpRound | null>(null),
     [settings, setSettings] = useState(() =>
@@ -189,6 +194,10 @@ export function LiveBpConsole({
   }
   const bip = draft.outcome === "Ball in play",
     ended = !active || Boolean(round?.ended_at);
+  const nonBipPaEnd =
+    draft.outcome === "HBP" ||
+    (draft.outcome === "Ball" && state.balls === 3) ||
+    (["Called Strike", "Whiff"].includes(draft.outcome) && state.strikes === 2);
   const positions =
     settings.defense === "ALL" ? BP_POSITIONS : settings.positions;
   const number = (key: "velocity" | "ev", label: string) => (
@@ -578,11 +587,11 @@ export function LiveBpConsole({
                         {settings.location && (
                           <section>
                             <h3>Pitch Location</h3>
-                            <StrikeZone
-                              activePoint={draft.location}
-                              onSelect={(p) => edit("location", p)}
-                              compact
-                            />
+                            {pitchLocationControl(
+                              draft.location,
+                              (p) => edit("location", p),
+                              settings.hitterId,
+                            )}
                           </section>
                         )}
                         {bip && (
@@ -601,6 +610,18 @@ export function LiveBpConsole({
                                   "Pop up",
                                 ]}
                                 onChange={(v) => edit("battedBall", v)}
+                              />
+                              <Select
+                                label="Contact quality (optional)"
+                                value={draft.contactQuality ?? ""}
+                                values={[
+                                  "Poor",
+                                  "Weak",
+                                  "Solid",
+                                  "Hard",
+                                  "Barrel",
+                                ]}
+                                onChange={(v) => edit("contactQuality", v)}
                               />
                               <Select
                                 label="Batter result"
@@ -688,6 +709,25 @@ export function LiveBpConsole({
                             )}
                             {settings.mode === "GAME" && (
                               <div className={styles.grid}>
+                                <ChoiceSelect
+                                  label="Batter finishes"
+                                  value={draft.runnerOutcomes?.batter ?? ""}
+                                  options={[
+                                    { value: "", label: "From batter result" },
+                                    { value: "out", label: "Out" },
+                                    ...["1", "2", "3"].map((value) => ({
+                                      value,
+                                      label: `To ${value}B`,
+                                    })),
+                                    { value: "score", label: "Scores" },
+                                  ]}
+                                  onChange={(v) => {
+                                    const next = { ...draft.runnerOutcomes };
+                                    if (v) next.batter = v;
+                                    else delete next.batter;
+                                    edit("runnerOutcomes", next);
+                                  }}
+                                />
                                 {state.runners.map((b) => (
                                   <ChoiceSelect
                                     key={b}
@@ -732,6 +772,21 @@ export function LiveBpConsole({
                           </section>
                         )}
                       </div>
+                      {settings.mode === "GAME" && state.job && nonBipPaEnd && (
+                        <ChoiceSelect
+                          label="Job result"
+                          value={
+                            draft.jobSuccess === undefined
+                              ? ""
+                              : String(draft.jobSuccess)
+                          }
+                          options={[
+                            { value: "true", label: "Job Done" },
+                            { value: "false", label: "Job Not Done" },
+                          ]}
+                          onChange={(v) => edit("jobSuccess", v === "true")}
+                        />
+                      )}
                     </>
                   )
                 )}

@@ -63,6 +63,7 @@ export type BpDraft = {
   ev?: number;
   spray?: ZonePoint;
   battedBall?: string;
+  contactQuality?: string;
   result?: string;
   position?: BpPosition;
   defenseResult?: string;
@@ -224,6 +225,14 @@ export function buildBpPitch(
   const spray = bip && settings.spray ? point(draft.spray) : undefined;
   bpAssert(
     !bip ||
+      !draft.contactQuality ||
+      ["Poor", "Weak", "Solid", "Hard", "Barrel"].includes(
+        draft.contactQuality,
+      ),
+    "Choose contact quality.",
+  );
+  bpAssert(
+    !bip ||
       !draft.battedBall ||
       ["Ground ball", "Line drive", "Fly ball", "Pop up"].includes(
         draft.battedBall,
@@ -259,6 +268,9 @@ export function buildBpPitch(
   };
   const runnerOutcomes: Record<string, string> = {};
   let result = bip ? (draft.result ?? "Ball in play") : draft.outcome;
+  if (settings.mode !== "FREE")
+    result =
+      count.balls >= 4 ? "Walk" : count.strikes >= 3 ? "Strikeout" : result;
   if (settings.mode === "GAME" && ended) {
     result =
       count.balls >= 4 ? "Walk" : count.strikes >= 3 ? "Strikeout" : result;
@@ -276,7 +288,7 @@ export function buildBpPitch(
     } else
       defaults.batter = ["Out", "Strikeout"].includes(result)
         ? "out"
-        : result === "Single"
+        : ["Single", "Reached on Error", "Fielders Choice"].includes(result)
           ? "1"
           : result === "Double"
             ? "2"
@@ -360,6 +372,7 @@ export function buildBpPitch(
     exit_velocity_mph: ev,
     field_location: spray,
     contact_result: bip ? draft.battedBall : undefined,
+    contact_quality: bip ? draft.contactQuality : undefined,
     is_live_bp: true,
   };
   const pitching =
@@ -377,6 +390,7 @@ export function buildBpPitch(
           is_called_strike: draft.outcome === "Called Strike",
           is_ball_in_play: bip,
           batted_ball: bip ? draft.battedBall : undefined,
+          contact_quality: bip ? draft.contactQuality : undefined,
           count_before:
             settings.mode === "FREE"
               ? undefined
@@ -420,12 +434,23 @@ export function buildBpPitch(
       position_worked: draft.position,
       station: ["LF", "CF", "RF"].includes(draft.position)
         ? "Outfield"
-        : "Infield",
+        : draft.position === "C"
+          ? "Catching"
+          : draft.position === "P"
+            ? "PFP"
+            : "Infield",
       outcome: draft.defenseResult,
       result: draft.defenseResult,
       error_type: draft.defenseResult === "Error" ? draft.errorType : undefined,
       throw_result: draft.throwResult,
-      rep_type: draft.battedBall === "Ground ball" ? "Ground Ball" : "Fly Ball",
+      rep_type:
+        draft.battedBall === "Ground ball"
+          ? "Ground Ball"
+          : draft.battedBall === "Line drive"
+            ? "Line Drive"
+            : draft.battedBall
+              ? "Fly Ball"
+              : "Other",
       location: spray,
     };
   }

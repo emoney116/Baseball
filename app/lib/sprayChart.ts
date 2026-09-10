@@ -1,4 +1,10 @@
-import type { Handedness, ZonePoint } from "../types";
+import type { Direction, Handedness, ZonePoint } from "../types";
+
+export function practiceDirectionForPoint(point: ZonePoint, bats?: string): Direction {
+  if (point.x >= 0.42 && point.x <= 0.58) return "Middle";
+  const leftSide = point.x < 0.42;
+  return bats === "L" ? (leftSide ? "Opposite" : "Pull") : (leftSide ? "Pull" : "Opposite");
+}
 
 export type SprayFieldPoint = {
   x: number;

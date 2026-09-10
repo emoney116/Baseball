@@ -22,7 +22,7 @@ import type {
   ZonePoint,
 } from "../types.ts";
 import { isPracticeHardContactEvent } from "./hittingTaxonomy.ts";
-import { legacyGamePointToCanonical } from "./sprayChart.ts";
+import { legacyGamePointToCanonical, practiceDirectionForPoint } from "./sprayChart.ts";
 import {
   calculateDefenseStats,
   defenseEventDrillContext,
@@ -1569,7 +1569,8 @@ function buildInsights(query: AnalyticsQuery, rows: AnalyticsRow[]): AnalyticsIn
 function filterHittingEvents(data: AppData, query: AnalyticsQuery, today?: string): HittingEvent[] {
   const dateRange = resolveDateRange(data, query, today);
   const sessions = new Map(data.hittingSessions.map((session) => [session.id, session]));
-  return data.hittingEvents.filter((event) => {
+  return data.hittingEvents.map(event => event.liveBpRoundId && event.fieldLocation && !event.direction
+    ? {...event, direction: practiceDirectionForPoint(event.fieldLocation, data.players.find(p => p.id === event.hitterId)?.bats)} : event).filter((event) => {
     const practice = data.practices.find((item) => item.id === event.practiceId);
     const session = sessions.get(event.sessionId);
     const isLive = event.isLiveBp || session?.type === "Live BP";

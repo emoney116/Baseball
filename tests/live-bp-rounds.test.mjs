@@ -329,6 +329,11 @@ test("round end denies writes and preserves prior evidence", async () => {
     1,
   );
 });
+test("coach-assessed contact quality survives linked hitter and pitcher readback", async () => {
+  const r = await start(settings({source:'PLAYER',pitcherId:id(41)}));
+  await pitch(r,{outcome:'Ball in play',battedBall:'Line drive',contactQuality:'Hard'});
+  for (const table of ['hitting_events','pitch_events']) assert.equal((await db.query(`select contact_quality from ${table}`)).rows[0].contact_quality,'Hard');
+});
 test("player endpoint and direct mutation cannot bypass linked-save boundary", async () => {
   const r = await start();
   await denied(() => call("pitch", r, {}, randomUUID(), id(2)));

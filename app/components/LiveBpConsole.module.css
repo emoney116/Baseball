@@ -108,12 +108,15 @@
   align-content: start;
 }
 .footer {
-  position: sticky;
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(1100px, calc(100vw - 24px));
   bottom: calc(78px + env(safe-area-inset-bottom));
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  background: var(--bg);
+  background: var(--bg, var(--surface));
   padding: 10px 0;
   z-index: 5;
 }
@@ -135,7 +138,10 @@
     width: 100%;
     justify-self: center;
   }
+}
+@media (min-width: 1200px) {
   .footer {
     bottom: 12px;
+    width: min(1000px, calc(100vw - 200px));
   }
 }

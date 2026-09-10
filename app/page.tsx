@@ -1,5 +1,6 @@
 "use client";
 import { LiveBpConsole } from "./components/LiveBpConsole";
+import { practiceDirectionForPoint } from "./lib/sprayChart";
 import { ClubhouseLocationPicker } from "./components/ClubhouseLocationPicker";
 import { PublicLocalityFields } from "./components/PublicLocalityFields";
 import { LocationDefaultSettings } from "./components/LocationDefaultSettings";
@@ -4163,6 +4164,7 @@ export default function MetrolinaBaseballApp() {
 
         {view === "practice" && practice && practiceTrackingOpen && practiceMode === "Live BP" && (
           <LiveBpConsole key={practice.id} practiceId={practice.id} players={data.players} active={Boolean(practice.startedAt) && !practice.endedAt}
+            pitchLocationControl={(point, onSelect, hitterId) => <PracticeHittingPitchLocationGrid events={[]} hitter={data.players.find(p => p.id === hitterId)} activePoint={point} onSelect={onSelect} />}
             onExit={() => writePracticeHubRoute("Overview", { replace: true })}
             onSaved={() => { void refreshGlobalData(); }} />
         )}
@@ -21544,10 +21546,7 @@ function hittingStationUsesPitchType(station: HittingSession["type"]) {
 }
 
 function deriveHitDirectionFromFieldLocation(point: ZonePoint, bats?: Player["bats"]): Direction {
-  if (point.x >= 0.42 && point.x <= 0.58) return "Middle";
-  const leftSide = point.x < 0.42;
-  if (bats === "L") return leftSide ? "Opposite" : "Pull";
-  return leftSide ? "Pull" : "Opposite";
+  return practiceDirectionForPoint(point, bats);
 }
 
 function normalizeHittingStation(station?: string): HittingSession["type"] {
@@ -21851,6 +21850,8 @@ function isPracticeSessionReusable(session: { status?: string }) {
 }
 
 function isPracticeSessionLive(data: AppData, sessionId: ID, nowMs = Date.now()) {
+  const linked = [...data.hittingEvents, ...data.pitchEvents, ...data.defenseEvents].some(e => e.sessionId === sessionId && e.liveBpRoundId);
+  if (linked && [...data.hittingSessions, ...data.pitchingSessions, ...data.defenseSessions].find(s => s.id === sessionId)?.endedAt) return false;
   const lastActivityAt = practiceSessionLastActivityAt(data, sessionId);
   return Boolean(lastActivityAt && nowMs - Date.parse(lastActivityAt) <= PRACTICE_ACTIVE_SESSION_GRACE_MS);
 }
