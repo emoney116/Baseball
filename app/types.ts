@@ -547,6 +547,8 @@ interface PracticeSessionAudit {
 }
 
 interface PracticeEventAudit {
+  liveBpRoundId?: ID;
+  liveBpContext?: import("./lib/liveBp").BpContext;
   personalSessionId?: ID;
   createdByProfileId?: ID;
   updatedByProfileId?: ID;

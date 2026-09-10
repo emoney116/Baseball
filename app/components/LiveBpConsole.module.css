@@ -1,0 +1,141 @@
+.console {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+  padding-bottom: 100px;
+}
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.header h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 22px;
+}
+.fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.console label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  min-width: 0;
+}
+.console input:not([type="checkbox"]) {
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: inherit;
+  border-radius: 6px;
+}
+.toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.toggles label {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+.toggles input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+.source {
+  align-self: center;
+  font-size: 14px;
+}
+.situation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  padding: 8px 0;
+}
+.situation strong {
+  font-size: 24px;
+}
+.outcomes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.outcomes button {
+  min-height: 48px;
+  padding: 8px;
+  white-space: normal;
+}
+.entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+.entry section {
+  min-width: 0;
+}
+.entry h3 {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+.entry > section:first-child:not(.bip) {
+  max-width: 330px;
+  width: 100%;
+  justify-self: center;
+}
+.bip {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.footer {
+  position: sticky;
+  bottom: calc(78px + env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  background: var(--bg);
+  padding: 10px 0;
+  z-index: 5;
+}
+.footer button {
+  min-height: 48px;
+}
+.notice {
+  min-height: 20px;
+  margin: 0;
+  font-size: 13px;
+}
+@media (min-width: 760px) {
+  .entry {
+    grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
+  }
+  .entry .bip:only-child {
+    grid-column: 1 / -1;
+    max-width: 620px;
+    width: 100%;
+    justify-self: center;
+  }
+  .footer {
+    bottom: 12px;
+  }
+}

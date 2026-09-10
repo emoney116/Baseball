@@ -386,7 +386,7 @@ test("game defense source does not reuse practice defensive reps", () => {
 
   assert.equal(row(result, "p-jacob").cells.reps.display, "—");
   assert.equal(result.teamTotals.cells.reps.display, "—");
-  assert.equal(result.warnings.some((warning) => warning.includes("future tracking gaps")), true);
+  assert.equal(result.warnings.some((warning) => warning.includes("Game defensive box score stats are not available")), true);
 });
 
 test("game hitting source exposes the expanded completed-plate-appearance catalog", () => {
@@ -870,7 +870,7 @@ test("count and pitch-type views group the same bounded query output", () => {
 });
 
 test("catalog hides irrelevant sources and views and serializes the active context", () => {
-  assert.deepEqual(analyticsSourcesForDomain("defense"), ["practice", "personal", "all"]);
+  assert.deepEqual(analyticsSourcesForDomain("defense"), ["practice", "live-bp", "personal", "all"]);
   assert.equal(analyticsViewsFor("hitting", "practice").some((view) => view.id === "game-state"), false);
   assert.equal(analyticsViewsFor("hitting", "games").some((view) => view.id === "game-state"), true);
   assert.deepEqual(defaultAnalyticsMetricIds("hitting", "games").slice(0, 4), ["pa", "ab", "hits", "avg"]);
@@ -884,6 +884,29 @@ test("catalog hides irrelevant sources and views and serializes the active conte
 
   const mixedContext = serializeAnalyticsContext({ ...analyticsQuery, source: "all", fieldSources: ["games", "practice"] }, ["opportunities", "hits"]);
   assert.deepEqual(mixedContext.fieldSources, ["games", "practice"]);
+});
+
+test("linked Live BP defense is selectable and separate from cage Practice", () => {
+  const data = {...baseData, defenseSessions:[defenseSession('bp-defense','practice-aug-19','p-jacob','Infield')], defenseEvents:[
+    defenseEvent('bp-rep','practice-aug-19','bp-defense','p-jacob',{liveBpRoundId:'round-1',result:'Great Play',outcome:'Great Play'}),
+  ]};
+  const live=executeAnalyticsQuery(data,query('defense','live-bp'));
+  assert.equal(live.teamTotals.cells.reps.value,1);
+  assert.equal(live.teamTotals.cells.greatPlays.value,1);
+  assert.equal(live.teamTotals.cells.accurateThrows.value,1);
+  const practiceOnly=executeAnalyticsQuery(data,query('defense','practice'));
+  assert.notEqual(practiceOnly.teamTotals.cells.reps.value,1);
+  assert.ok(live.availableEvents.some(e=>e.id==='bp-defense'));
+});
+test("Machine hitter count and RISP filters use durable round context without pitcher evidence", () => {
+  const context={source:'Live BP',thrower:'MACHINE',mode:'GAME',before:{balls:1,strikes:1,outs:1,runners:[2],job:'Move Runner',pa:1},after:{balls:0,strikes:0,outs:2,runners:[3],job:'Move Runner',pa:2},result:'Out',jobSuccess:true};
+  const data={...baseData,pitchEvents:[],hittingEvents:[hittingEvent('bp-hit','practice-aug-19','live-hitting-1','p-jacob','Ball in play',{isLiveBp:true,liveBpRoundId:'round-1',liveBpContext:context,exitVelocityMph:88,contactResult:'Line drive',fieldLocation:{x:.5,y:.4}})]};
+  const result=executeAnalyticsQuery(data,{...query('hitting','live-bp'),filters:{exactCounts:['1-1'],outs:['1'],runnerStates:['risp']}});
+  assert.equal(result.teamTotals.cells.swings.value,1);assert.equal(result.teamTotals.cells.avgEv.value,88);
+  const empty=executeAnalyticsQuery(data,{...query('hitting','live-bp'),filters:{outs:['0']}});
+  assert.notEqual(empty.teamTotals.cells.swings.value,1);
+  const pitching=executeAnalyticsQuery(data,query('pitching','live-bp'));
+  assert.notEqual(pitching.teamTotals.cells.pitches.value,1);
 });
 
 function query(domain, source) {

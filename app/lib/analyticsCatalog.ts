@@ -438,7 +438,7 @@ export function analyticsViewsFor(domain: AnalyticsDomain, source: AnalyticsSour
 
 export function analyticsSourcesForDomain(domain: AnalyticsDomain): AnalyticsSource[] {
   if (domain === "development") return ["all"];
-  if (domain === "defense") return ["practice", "personal", "all"];
+  if (domain === "defense") return ["practice", "live-bp", "personal", "all"];
   return ["games", "practice", "live-bp", "personal", "all"];
 }
 
@@ -515,6 +515,7 @@ function view(
   capability: AnalyticsViewCapability,
   description: string,
 ): AnalyticsViewDefinition {
+  if (domains.includes("defense") && sources.includes("practice")) sources = [...sources, "live-bp"];
   return { id, label, domains, sources: sources.includes("practice") ? [...sources, "personal"] : sources, groupBy, capability, description };
 }
 
@@ -527,6 +528,7 @@ function metric(
   definition: string,
   minimumSample?: number,
 ): AnalyticsMetricDefinition {
+  if (domain === "defense" && supportedSources.includes("practice")) supportedSources = [...supportedSources, "live-bp"];
   if (supportedSources.includes("practice")) supportedSources = [...supportedSources, "personal"];
   return {
     id,
@@ -558,6 +560,7 @@ function filter(
   capabilityNote?: string,
   dynamicOptions?: AnalyticsFilterDefinition["dynamicOptions"],
 ): AnalyticsFilterDefinition {
+  if (domains.includes("defense") && supportedSources.includes("practice")) supportedSources = [...supportedSources, "live-bp"];
   if (supportedSources.includes("practice") && !["drillTypes", "pitcherHands", "batterHands"].includes(id)) supportedSources = [...supportedSources, "personal"];
   return { id, label, section, domains, supportedSources, options, type, availability, capabilityNote, dynamicOptions };
 }

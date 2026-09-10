@@ -635,8 +635,8 @@ function buildDefenseResult(
   sourceLabel: string,
   today?: string,
 ): AnalyticsResult {
-  if (query.source === "games" || query.source === "live-bp") {
-    warnings.push("Defense V1 is currently powered by practice defensive reps. Game and Live BP defensive box score stats are documented as future tracking gaps.");
+  if (query.source === "games") {
+    warnings.push("Game defensive box score stats are not available. Practice and Live BP use tracked defensive reps.");
     const rows = currentRosterPlayers(data).map((player) => defenseRow(player, []));
     const teamTotals = defenseTeamRow(data, []);
     return assembleResult("Team Defense", data, query, sourceLabel, rows, teamTotals, ["positionWorked", "reps", "cleanReps", "errors", "fieldingErrors", "throwingErrors", "decisionErrors", "missedReps", "errorPct", "cleanPct", "throwAcc", "throws", "accurateThrows", "inaccurateThrows", "greatPlays"], warnings, availableEvents, filterDefinitions, scopeLabel);
@@ -1619,7 +1619,7 @@ function filterDefenseEvents(data: AppData, query: AnalyticsQuery, today?: strin
   return data.defenseEvents.filter((event) => {
     const practice = data.practices.find((item) => item.id === event.practiceId);
     const personal = event.personalSessionId ? data.personalSessions?.find(s => s.id === event.personalSessionId && s.domain === "defense") : undefined;
-    if (event.personalSessionId ? !analyticsFieldSources(query).includes("personal") : !analyticsFieldSources(query).includes("practice")) return false;
+    if (!analyticsFieldSources(query).includes(event.personalSessionId ? "personal" : event.liveBpRoundId ? "live-bp" : "practice")) return false;
     if (query.playerIds?.length && !query.playerIds.includes(event.playerId)) return false;
     const date = personal?.startedAt.slice(0, 10) ?? practice?.date;
     if (!date || !dateInRange(date, dateRange)) return false;
@@ -1690,6 +1690,7 @@ function filterGameEvents(data: AppData, query: AnalyticsQuery, today?: string):
 
 function hittingEventMatchesFilters(data: AppData, event: HittingEvent, filters?: AnalyticsFilters): boolean {
   if (!filters) return true;
+  if (!liveBpSituationMatches(event.liveBpContext, filters)) return false;
   if (filters.pitchTypes?.length && (!event.pitchType || !filters.pitchTypes.includes(event.pitchType))) return false;
   if (filters.battedBallTypes?.length && (!event.contactResult || !filters.battedBallTypes.includes(event.contactResult))) return false;
   if (filters.drillTypes?.length) {
@@ -1716,6 +1717,7 @@ function liveBpThrowerSource(session?: { liveBpThrowerSource?: LiveBpThrowerSour
 
 function pitchEventMatchesFilters(data: AppData, event: PitchEvent, filters?: AnalyticsFilters): boolean {
   if (!filters) return true;
+  if (!liveBpSituationMatches(event.liveBpContext, filters)) return false;
   if (filters.pitchTypes?.length && !filters.pitchTypes.includes(event.pitchType)) return false;
   if (filters.batterHands?.length) {
     const batter = data.players.find((player) => player.id === event.hitterId);
@@ -1726,6 +1728,14 @@ function pitchEventMatchesFilters(data: AppData, event: PitchEvent, filters?: An
   if (!velocityMatches(event.velocity, filters.pitchVelocityMin, filters.pitchVelocityMax)) return false;
   if (filters.pitchLocationRegions?.length && !filters.pitchLocationRegions.some((region) => pitchLocationMatches(event.location, region, { pitcherRelative: true, pitcherThrows: data.players.find((player) => player.id === event.pitcherId)?.throws }))) return false;
   return true;
+}
+
+function liveBpSituationMatches(context: HittingEvent["liveBpContext"], filters: AnalyticsFilters): boolean {
+  if (!filters.outs?.length && !filters.runnerStates?.length) return true;
+  if (!context || context.mode !== "GAME") return false;
+  if (filters.outs?.length && !filters.outs.includes(String(context.before.outs))) return false;
+  const bases = context.before.runners;
+  return !filters.runnerStates?.length || filters.runnerStates.some(s => s === "bases-empty" ? bases.length === 0 : s === "runners-on" ? bases.length > 0 : bases.some(b => b > 1));
 }
 
 function velocityMatches(value: number | undefined, minimum?: number, maximum?: number): boolean {
@@ -1825,6 +1835,7 @@ function buildEventOptions(data: AppData, domain: AnalyticsDomain, sources: Anal
   const liveOptions = [
     ...data.hittingSessions.filter((session) => session.type === "Live BP").map((session) => sessionEventOption(data, session.id, session.practiceId, "Live BP - Hitting")),
     ...data.pitchingSessions.filter((session) => session.type === "Live BP").map((session) => sessionEventOption(data, session.id, session.practiceId, "Live BP - Pitching")),
+    ...(domain === "defense" ? data.defenseSessions.filter(session => data.defenseEvents.some(e => e.sessionId === session.id && e.liveBpRoundId)).map(session => sessionEventOption(data, session.id, session.practiceId, "Live BP - Defense")) : []),
   ];
   const hittingSessionOptions = domain === "hitting"
     ? data.hittingSessions
@@ -1832,7 +1843,7 @@ function buildEventOptions(data: AppData, domain: AnalyticsDomain, sources: Anal
       .map((session) => sessionEventOption(data, session.id, session.practiceId, `${session.type} Hitting`, "practice"))
     : [];
   const defenseSessionOptions = domain === "defense"
-    ? data.defenseSessions.map((session) => sessionEventOption(data, session.id, session.practiceId, `${session.drillContext ?? session.station} Defense`, "practice"))
+    ? data.defenseSessions.filter(session => !data.defenseEvents.some(e => e.sessionId === session.id && e.liveBpRoundId)).map((session) => sessionEventOption(data, session.id, session.practiceId, `${session.drillContext ?? session.station} Defense`, "practice"))
     : [];
   return [
     ...(sources.includes("games") ? gameOptions : []),
@@ -2141,6 +2152,7 @@ function countLabel(count: { balls: number; strikes: number }): string {
 }
 
 function hittingEventCount(data: AppData, event: HittingEvent): { balls: number; strikes: number } | undefined {
+  if (event.liveBpContext) return event.liveBpContext.mode === "FREE" ? undefined : event.liveBpContext.before;
   if (!event.plateAppearanceId) return undefined;
   const linked = data.pitchEvents
     .filter((pitch) => pitch.plateAppearanceId === event.plateAppearanceId)

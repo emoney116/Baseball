@@ -1354,9 +1354,9 @@ async function loadStaffData(
 }
 
 async function syncDeletedEvents(supabase: SupabaseClient, previous: AppData, next: AppData) {
-  await deleteMissing(supabase, "hitting_events", previous.hittingEvents, next.hittingEvents);
-  await deleteMissing(supabase, "pitch_events", previous.pitchEvents, next.pitchEvents);
-  await deleteMissing(supabase, "defense_events", previous.defenseEvents, next.defenseEvents);
+  await deleteMissing(supabase, "hitting_events", previous.hittingEvents.filter(e => !e.liveBpRoundId), next.hittingEvents);
+  await deleteMissing(supabase, "pitch_events", previous.pitchEvents.filter(e => !e.liveBpRoundId), next.pitchEvents);
+  await deleteMissing(supabase, "defense_events", previous.defenseEvents.filter(e => !e.liveBpRoundId), next.defenseEvents);
   await deleteMissing(supabase, "workout_sets", previous.workoutEntries, next.workoutEntries);
   await deleteMissing(supabase, "weight_room_workout_group_members", previous.weightRoomWorkoutGroupMembers ?? [], next.weightRoomWorkoutGroupMembers ?? [], isMissingActiveWeightRoomTables);
   await deleteMissing(supabase, "weight_room_workout_groups", previous.weightRoomWorkoutGroups ?? [], next.weightRoomWorkoutGroups ?? [], isMissingActiveWeightRoomTables);
@@ -1645,9 +1645,10 @@ async function syncPracticeSessionContributors(supabase: SupabaseClient, data: A
 }
 
 async function syncPracticeEvents(supabase: SupabaseClient, data: AppData) {
-  await upsertRows(supabase, "pitch_events", data.pitchEvents.map(mapPitchEventToRow));
-  await upsertHittingEvents(supabase, data.hittingEvents);
-  await upsertDefenseEvents(supabase, data.defenseEvents);
+  // Linked Live BP records are written atomically by the server, never by bulk sync.
+  await upsertRows(supabase, "pitch_events", data.pitchEvents.filter(e => !e.liveBpRoundId).map(mapPitchEventToRow));
+  await upsertHittingEvents(supabase, data.hittingEvents.filter(e => !e.liveBpRoundId));
+  await upsertDefenseEvents(supabase, data.defenseEvents.filter(e => !e.liveBpRoundId));
 }
 
 async function upsertHittingEvents(supabase: SupabaseClient, events: HittingEvent[]) {
@@ -2753,6 +2754,8 @@ function mapDefenseSession(row: any): DefenseSession {
 
 function mapPitchEvent(row: any): PitchEvent {
   return {
+    liveBpRoundId: row.live_bp_round_id ?? undefined,
+    liveBpContext: row.live_bp_context ?? undefined,
     id: row.id,
     practiceId: row.practice_id,
     sessionId: row.session_id,
@@ -2792,6 +2795,8 @@ function mapPitchEvent(row: any): PitchEvent {
 
 function mapHittingEvent(row: any): HittingEvent {
   return {
+    liveBpRoundId: row.live_bp_round_id ?? undefined,
+    liveBpContext: row.live_bp_context ?? undefined,
     id: row.id,
     practiceId: row.practice_id,
     sessionId: row.session_id,
@@ -2821,6 +2826,8 @@ function mapHittingEvent(row: any): HittingEvent {
 
 function mapDefenseEvent(row: any): DefenseEvent {
   return {
+    liveBpRoundId: row.live_bp_round_id ?? undefined,
+    liveBpContext: row.live_bp_context ?? undefined,
     id: row.id,
     practiceId: row.practice_id,
     sessionId: row.session_id,

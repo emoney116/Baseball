@@ -1,3 +1,4 @@
+import { advancePitchCount } from "./pitchCount.ts";
 import type {
   Game,
   GameBallInPlayOutcome,
@@ -59,12 +60,7 @@ export function isMetrolinaBatting(game: Game) {
 
 export function applyTrackedPitch(game: Game, outcome: GamePitchOutcome, ballInPlayOutcome?: GameBallInPlayOutcome): Game {
   let next: Game = { ...game, runners: { ...game.runners } };
-  let balls = game.balls;
-  let strikes = game.strikes;
-
-  if (outcome === "Ball") balls += 1;
-  if (outcome === "Called Strike" || outcome === "Swinging Strike") strikes += 1;
-  if (outcome === "Foul" && strikes < 2) strikes += 1;
+  const { balls, strikes } = advancePitchCount(game, outcome);
 
   if (outcome === "HBP") return finishPlateAppearance(forceRunnerToFirst(next));
   if (balls >= 4) return finishPlateAppearance(forceRunnerToFirst({ ...next, balls }));

@@ -1,4 +1,5 @@
 "use client";
+import { LiveBpConsole } from "./components/LiveBpConsole";
 import { ClubhouseLocationPicker } from "./components/ClubhouseLocationPicker";
 import { PublicLocalityFields } from "./components/PublicLocalityFields";
 import { LocationDefaultSettings } from "./components/LocationDefaultSettings";
@@ -4160,7 +4161,12 @@ export default function MetrolinaBaseballApp() {
           />
         )}
 
-        {view === "practice" && practicePlayer && practiceTrackingOpen && (
+        {view === "practice" && practice && practiceTrackingOpen && practiceMode === "Live BP" && (
+          <LiveBpConsole key={practice.id} practiceId={practice.id} players={data.players} active={Boolean(practice.startedAt) && !practice.endedAt}
+            onExit={() => writePracticeHubRoute("Overview", { replace: true })}
+            onSaved={() => { void refreshGlobalData(); }} />
+        )}
+        {view === "practice" && practicePlayer && practiceTrackingOpen && practiceMode !== "Live BP" && (
           <PracticeConsole
             data={data}
             practice={practice}

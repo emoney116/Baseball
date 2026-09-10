@@ -582,6 +582,8 @@ function mapDefenseSession(row: AnyRow): DefenseSession {
 
 function mapPitchEvent(row: AnyRow): PitchEvent {
   return {
+    liveBpRoundId: row.live_bp_round_id ?? undefined,
+    liveBpContext: row.live_bp_context ?? undefined,
     id: row.id,
     practiceId: row.practice_id,
     sessionId: row.session_id,
@@ -589,7 +591,7 @@ function mapPitchEvent(row: AnyRow): PitchEvent {
     hitterId: row.hitter_id ?? undefined,
     plateAppearanceId: row.plate_appearance_id ?? undefined,
     pitchNumber: row.pitch_number,
-    pitchType: normalizePitchType(row.pitch_type) ?? "4-Seam",
+    pitchType: row.live_bp_round_id && !row.pitch_type ? "" as PitchType : normalizePitchType(row.pitch_type) ?? "4-Seam",
     outcome: (row.outcome ?? "Ball") as PitchOutcome,
     isStrike: Boolean(row.is_strike),
     isSwing: Boolean(row.is_swing),
@@ -621,6 +623,8 @@ function mapPitchEvent(row: AnyRow): PitchEvent {
 
 function mapHittingEvent(row: AnyRow) {
   return {
+    liveBpRoundId: row.live_bp_round_id ?? undefined,
+    liveBpContext: row.live_bp_context ?? undefined,
     id: row.id,
     practiceId: row.practice_id,
     sessionId: row.session_id,
@@ -650,6 +654,8 @@ function mapHittingEvent(row: AnyRow) {
 
 function mapDefenseEvent(row: AnyRow): DefenseEvent {
   return {
+    liveBpRoundId: row.live_bp_round_id ?? undefined,
+    liveBpContext: row.live_bp_context ?? undefined,
     id: row.id,
     practiceId: row.practice_id,
     sessionId: row.session_id,

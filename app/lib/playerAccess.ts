@@ -256,7 +256,7 @@ const pick = (r: Row, keys: string) =>
       .filter((k) => Object.hasOwn(r, k))
       .map((k) => [k, r[k]]),
   );
-const eventAudit = "id,created_at,practice_id,session_id,personal_session_id,entry_source,created_by_profile_id,updated_by_profile_id,verification_status,session_sequence";
+const eventAudit = "id,created_at,practice_id,session_id,personal_session_id,live_bp_round_id,live_bp_context,entry_source,created_by_profile_id,updated_by_profile_id,verification_status,session_sequence";
 export function safePlayerRow(kind: string, r: Row): Row {
   const fields: Record<string, string> = {
     player:
