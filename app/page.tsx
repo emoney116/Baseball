@@ -2080,6 +2080,7 @@ export default function MetrolinaBaseballApp() {
   }
 
   async function inviteStaff(input: {
+    sendInvite?: boolean;
     email: string;
     firstName?: string;
     lastName?: string;
@@ -5374,7 +5375,29 @@ function AvatarCropModal({
   onPickDifferent: () => void;
   onApply: () => void;
 }) {
+  const backdropRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; originX: number; originY: number } | null>(null);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    function syncViewport() {
+      const backdrop = backdropRef.current;
+      if (!backdrop) return;
+      // Safari's visible area can move independently of its layout viewport.
+      backdrop.style.height = `${viewport?.height ?? window.innerHeight}px`;
+      backdrop.style.width = `${viewport?.width ?? window.innerWidth}px`;
+      backdrop.style.top = `${viewport?.offsetTop ?? 0}px`;
+      backdrop.style.left = `${viewport?.offsetLeft ?? 0}px`;
+    }
+    syncViewport();
+    viewport?.addEventListener("resize", syncViewport);
+    viewport?.addEventListener("scroll", syncViewport);
+    window.addEventListener("resize", syncViewport);
+    return () => {
+      viewport?.removeEventListener("resize", syncViewport);
+      viewport?.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+    };
+  }, []);
   const previewStyle = {
     transform: `translate(calc(-50% + ${state.offsetX}px), calc(-50% + ${state.offsetY}px)) scale(${state.zoom})`,
   };
@@ -5390,8 +5413,9 @@ function AvatarCropModal({
     } : current);
   }
 
-  return (
-    <div className="modal-backdrop avatar-crop-backdrop" role="dialog" aria-modal="true" aria-label="Crop profile photo">
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div ref={backdropRef} className="modal-backdrop avatar-crop-backdrop" role="dialog" aria-modal="true" aria-label="Crop profile photo">
       <div className="modal-panel avatar-crop-modal">
         <div className="modal-title">
           <div>
@@ -5445,7 +5469,8 @@ function AvatarCropModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -6897,7 +6922,7 @@ function RosterView({
               <UserPlus size={16} aria-hidden="true" />
             </button>
             {section === "Staff" && (
-              <button className="icon-button" type="button" onClick={onInviteStaff} aria-label="Invite staff" title="Invite Staff">
+              <button className="icon-button" type="button" onClick={onInviteStaff} aria-label="Add staff" title="Add Staff">
                 <Mail size={16} aria-hidden="true" />
               </button>
             )}
@@ -7200,8 +7225,8 @@ function StaffRosterView({
                       const result = await onResendInvite(invitation.id);
                       setMessage(result.email?.sent ? "Invite resent." : result.email?.message ?? "Invite link refreshed. Copy the link if email is not configured.");
                     })}
-                    aria-label={`Resend invite for ${member?.displayName ?? invitation.email}`}
-                    data-tooltip="Resend invite"
+                    aria-label={`Send invite for ${member?.displayName ?? invitation.email}`}
+                    data-tooltip="Send invite"
                   >
                     <RefreshCw size={15} aria-hidden="true" />
                   </button>
@@ -7235,7 +7260,7 @@ function StaffRosterView({
         }) : (
           <CompactEmpty
             title="No staff listed yet"
-            action={<button className="primary-button" type="button" onClick={onInviteStaff}><Mail size={16} aria-hidden="true" />Invite Staff</button>}
+            action={<button className="primary-button" type="button" onClick={onInviteStaff}><Plus size={16} aria-hidden="true" />Add Staff</button>}
           />
         )}
       </section>
@@ -18682,6 +18707,7 @@ function InviteStaffModal({
   currentTeam?: TeamOption;
   onClose: () => void;
   onInvite: (input: {
+    sendInvite?: boolean;
     email: string;
     firstName?: string;
     lastName?: string;
@@ -18699,6 +18725,7 @@ function InviteStaffModal({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [inviteLink, setInviteLink] = useState("");
+  const [sendInvite, setSendInvite] = useState(false);
   const uniqueTeams = teams.filter((team, index, list) => list.findIndex((item) => teamSelectionKey(item) === teamSelectionKey(team)) === index);
 
   async function submitInvite(event: React.FormEvent<HTMLFormElement>) {
@@ -18715,6 +18742,7 @@ function InviteStaffModal({
     setBusy(true);
     try {
       const result = await onInvite({
+        sendInvite,
         email: email.trim(),
         firstName: firstName.trim() || undefined,
         lastName: lastName.trim() || undefined,
@@ -18723,6 +18751,10 @@ function InviteStaffModal({
         teams: assignedTeams.map((team) => ({ teamId: team.teamId, seasonId: team.seasonId })),
       });
       const link = result.invitation?.inviteLink ?? "";
+      if (!sendInvite) {
+        onClose();
+        return;
+      }
       setInviteLink(link);
       setMessage(result.email?.sent ? "Invite sent." : result.email?.message ?? "Invite created. Copy the link to send it manually.");
     } catch (error) {
@@ -18747,7 +18779,7 @@ function InviteStaffModal({
   }
 
   return (
-    <ModalFrame title="Invite Staff" onClose={onClose} panelClassName="modal-panel--staff">
+    <ModalFrame title="Add Staff" onClose={onClose} panelClassName="modal-panel--staff">
       <form className="staff-invite-form" onSubmit={(event) => void submitInvite(event)}>
         <div className="staff-invite-grid">
           <label className="form-field">
@@ -18804,6 +18836,10 @@ function InviteStaffModal({
           })}
         </section>
 
+        <label className="checkbox-field">
+          <input type="checkbox" checked={sendInvite} onChange={(event) => setSendInvite(event.target.checked)} />
+          <span>Send invitation now</span>
+        </label>
         {message && <p className="staff-invite-message">{message}</p>}
         {inviteLink && (
           <div className="staff-invite-link">
@@ -18818,7 +18854,7 @@ function InviteStaffModal({
         <div className="modal-actions">
           <button className="secondary-button" type="button" onClick={onClose}>Close</button>
           <button className="primary-button" type="submit" disabled={busy || !email.trim() || selectedTeams.length === 0}>
-            {busy ? "Creating..." : "Send Invite"}
+            {busy ? "Saving..." : sendInvite ? "Add & Send Invite" : "Add Staff"}
           </button>
         </div>
       </form>

@@ -426,6 +426,7 @@ export const supabaseAppRepository = {
   },
 
   async inviteStaff(input: {
+    sendInvite?: boolean;
     email: string;
     firstName?: string;
     lastName?: string;

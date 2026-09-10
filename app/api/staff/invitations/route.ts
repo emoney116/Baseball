@@ -8,6 +8,7 @@ import { readInvitationSummary } from "./_utils";
 export const runtime = "nodejs";
 
 type InviteStaffBody = {
+  sendInvite?: boolean;
   email?: string;
   firstName?: string;
   lastName?: string;
@@ -53,6 +54,10 @@ export async function POST(request: NextRequest) {
     const invitation = await readInvitationSummary(admin, invitationId);
     if (!invitation) {
       return NextResponse.json({ ok: false, message: "Invitation was created but could not be loaded." }, { status: 500 });
+    }
+
+    if (body.sendInvite === false) {
+      return NextResponse.json({ ok: true, invitation, email: { sent: false, reason: "deferred", message: "Staff added. No invitation was sent." } });
     }
 
     const inviteLink = buildInviteUrl(request, token);

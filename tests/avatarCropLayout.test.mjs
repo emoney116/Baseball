@@ -8,6 +8,11 @@ test('avatar crop keeps actions outside its scrollable body', () => {
   assert.match(modal, /className="modal-body avatar-crop-body"/);
   assert.match(modal, /<\/div>\s*<div className="modal-footer-slot">\s*<div className="modal-actions">/);
   assert.match(modal, /onClick=\{onApply\}/);
+  assert.match(modal, /return createPortal\(/);
+  assert.match(modal, /document\.body/);
+  assert.match(modal, /viewport\?\.height \?\? window\.innerHeight/);
+  assert.match(modal, /viewport\?\.addEventListener\("resize", syncViewport\)/);
+  assert.match(modal, /viewport\?\.addEventListener\("scroll", syncViewport\)/);
   const css = readFileSync(new URL('../app/globals.css', import.meta.url), 'utf8');
   assert.match(css, /\.modal-backdrop\.avatar-crop-backdrop\s*\{[^}]*height: 100dvh;[^}]*bottom: auto;/);
 });
