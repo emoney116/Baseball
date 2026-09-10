@@ -63,13 +63,15 @@ import {
   X
 } from "lucide-react";
 import type React from "react";
-import { Children, isValidElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Children, Fragment, isValidElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ASK_CLUBHOUSE_ERROR_BODY, ASK_CLUBHOUSE_ERROR_TITLE, ASK_CLUBHOUSE_GENERIC_STAGE, ASK_CLUBHOUSE_SETUP_BODY, ASK_CLUBHOUSE_SETUP_TITLE, ASK_CLUBHOUSE_UI_SUGGESTIONS, AskClubhouseDrawer, AskClubhouseFab, type AskClubhouseChatMessage } from "./components/AskClubhouseDrawer";
 import { ChoiceSelect, type ChoiceOption } from "./components/ChoiceSelect";
 import { ClubhouseBaseballField } from "./components/ClubhouseBaseballField";
 import { ClubhouseBottomNav } from "./components/ClubhouseBottomNav";
 import { CoachLiveEntrySettings } from "./components/CoachLiveEntrySettings";
+import { BaseDiamond, BASE_DIAMOND_BASES, GameStateLights } from "./components/BaseballSituation";
+import { GAME_DEFENSIVE_POSITIONS, GAME_FIELD_POSITION_COORDINATES, GAME_LIVE_FIELD_POSITION_COORDINATES } from "./lib/baseballFieldLayout";
 import { DemoDataQaPanel } from "./components/DemoDataQaPanel";
 import { DensePlayerIdentity } from "./components/DensePlayerIdentity";
 import { PlayerAccessPanel } from "./components/PlayerAccessPanel";
@@ -4243,6 +4245,7 @@ export default function MetrolinaBaseballApp() {
             onLiveBpThrowerSource={changeLiveBpThrowerSource}
             onLogLiveBpPitch={logLiveBpPitch}
             onLiveBpSaved={() => { void refreshGlobalData(); }}
+            createLiveBpPlayer={(onCreated, onClose) => <PlayerEditorModal onClose={onClose} onSave={player => { commit(current => playerRepository.upsert(current, player)); onCreated(player); }} />}
             onCompleteLiveBpPa={completeLiveBpPa}
             onNextLiveBpHitter={advanceLiveBpHitter}
             onLogDefense={logDefense}
@@ -8221,6 +8224,7 @@ function PracticeConsole({
   onLiveBpThrowerSource,
   onLogLiveBpPitch,
   onLiveBpSaved,
+  createLiveBpPlayer,
   onCompleteLiveBpPa,
   onNextLiveBpHitter,
   onLogDefense,
@@ -8313,6 +8317,7 @@ function PracticeConsole({
   onLiveBpThrowerSource: (source: LiveBpThrowerSource) => void;
   onLogLiveBpPitch: (outcome: PitchOutcome, battedBall?: BattedBallType) => void;
   onLiveBpSaved: () => void;
+  createLiveBpPlayer: (onCreated: (player: Player) => void, onClose: () => void) => React.ReactNode;
   onCompleteLiveBpPa: (outcome: LiveBpOutcomeLabel) => void;
   onNextLiveBpHitter: () => void;
   onLogDefense: (draft: DefenseLogDraft) => void;
@@ -9126,8 +9131,28 @@ function PracticeConsole({
       {mode === "Live BP" && practice ? (
         <LiveBpConsole key={practice.id} practiceId={practice.id} players={data.players} active={Boolean(practice.startedAt) && !practice.endedAt}
           initialHitterId={liveBpHitter?.id ?? player.id} initialPitcherId={liveBpPitcher?.id} initialSource={liveBpThrowerSource}
+          createPlayer={createLiveBpPlayer}
           coaches={(data.staffMembers ?? []).filter(member => member.active && (data.staffTeamMemberships ?? []).some(link => link.active && link.staffMemberId === member.id && link.teamId === data.teamContext?.currentTeam?.teamId)).map(member => member.displayName)}
-          charts={hitterId => <PracticeHittingChartCarousel events={data.hittingEvents.filter(event => event.practiceId === practice.id && event.hitterId === hitterId && event.liveBpRoundId)} hitter={data.players.find(p => p.id === hitterId) ?? player} showSpray showPitchLocation />}
+          charts={(playerId, side = "hitting", view) => {
+            const selected = data.players.find(p => p.id === playerId) ?? player;
+            const pitches = data.pitchEvents.filter(event => event.practiceId === practice.id && event.pitcherId === playerId && event.liveBpRoundId);
+            const pitchIds = new Set(pitches.map(event => event.id));
+            const hits = data.hittingEvents.filter(event => event.practiceId === practice.id && event.liveBpRoundId && (side === "hitting" ? event.hitterId === playerId : pitchIds.has(event.id)));
+            const hitStats = calculateHittingStats(hits);
+            const pitchStats = calculatePitchingStats(pitches);
+            return <>
+              {!view && <PracticeSummaryStrip items={side === "hitting" ? [
+                { label: "Swings", value: hitStats.totalSwings }, { label: "Contact", value: formatPct(hitStats.contactPct) },
+                { label: "Avg EV", value: formatOptionalMph(hitStats.avgExitVelocity) }, { label: "Max EV", value: formatOptionalMph(hitStats.maxExitVelocity) }
+              ] : [
+                { label: "Pitches", value: pitchStats.totalPitches }, { label: "Strike %", value: formatPct(pitchStats.strikePct) },
+                { label: "Avg Velo", value: formatOptionalMph(pitchStats.avgVelocity) }, { label: "Zone %", value: formatPct(pitchStats.zonePct) }
+              ]} />}
+              {side === "pitching" && <PracticePitchLocationGrid pitches={pitches} pitcher={selected} mode="analytics" />}
+              <PracticeHittingChartCarousel key={view ?? "all"} events={hits} hitter={selected} showSpray={view !== "location"} showPitchLocation={side === "hitting" && view !== "spray"} />
+            </>;
+          }}
+          sheet={(title, close, children) => <ModalFrame title={title} onClose={close} panelClassName="live-bp-sheet">{isValidElement<{children: React.ReactNode}>(children) && children.type === Fragment ? children.props.children : children}</ModalFrame>}
           pitchLocationControl={(point, onSelect, hitterId) => <PracticeHittingPitchLocationGrid events={[]} hitter={data.players.find(p => p.id === hitterId)} activePoint={point} onSelect={onSelect} />}
           onExit={onExitTracking} onSaved={onLiveBpSaved} />
       ) : mode === "Hitting" ? (
@@ -17245,14 +17270,6 @@ function GamesView({
   );
 }
 
-const GAME_DEFENSIVE_POSITIONS: Position[] = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"];
-const GAME_FIELD_POSITION_COORDINATES: Record<string, [number, number]> = {
-  P: [50, 76], C: [50, 94], "1B": [67, 75], "2B": [63, 61], "3B": [33, 75], SS: [37, 61], LF: [25, 34], CF: [50, 20], RF: [75, 34],
-};
-const GAME_LIVE_FIELD_POSITION_COORDINATES: Record<string, [number, number]> = {
-  ...GAME_FIELD_POSITION_COORDINATES,
-  P: [73, 82], C: [27, 89], "1B": [70, 75], "3B": [30, 75],
-};
 
 function GameFieldCommand({
   game,
@@ -17435,14 +17452,6 @@ function GamePlaysWorkbench({ events, players, onUndo, canUndo }: { events: Game
   </section>;
 }
 
-function GameStateLights({ label, active, total, tone }: { label: string; active: number; total: number; tone: "ball" | "strike" | "out" }) {
-  return (
-    <span className={`game-state-lights game-state-lights--${tone}`}>
-      <strong>{label}</strong>
-      {Array.from({ length: total }, (_, index) => <i key={index} className={index < active ? "active" : ""} />)}
-    </span>
-  );
-}
 
 function GameLiveIntelligence({ game, events, allEvents, players, focusedPlayerId }: { game: Game; events: GameEvent[]; allEvents: GameEvent[]; players: Player[]; focusedPlayerId?: ID }) {
   const [view, setView] = useState<"overview" | "advanced" | "locations" | "spray">("overview");
@@ -17585,11 +17594,7 @@ function GameBaseDiamond({
   const [draggingBase, setDraggingBase] = useState<GameBase>();
   const [pendingMove, setPendingMove] = useState<{ from: GameBase; to: GameBase | "home" }>();
   const [pendingHomeReason, setPendingHomeReason] = useState<GameRunnerMovement["reason"]>();
-  const bases: Array<{ base: GameBase; label: string }> = [
-    { base: "second", label: "2B" },
-    { base: "third", label: "3B" },
-    { base: "first", label: "1B" },
-  ];
+  const bases = BASE_DIAMOND_BASES;
   function moveRunner(from: GameBase | undefined, to: GameBase | "home") {
     if (!from || from === to || (to !== "home" && game.runners[to])) return;
     setPendingMove({ from, to });
@@ -17597,8 +17602,7 @@ function GameBaseDiamond({
     setDraggingBase(undefined);
   }
   return (
-    <div className={`game-base-diamond ${draggingBase ? "is-dragging" : ""}`}>
-      <span className="game-base-diamond__line" aria-hidden="true" />
+    <BaseDiamond className={draggingBase ? "is-dragging" : ""}>
       {bases.map(({ base, label }) => {
         const runner = players.find((player) => player.id === game.runners[base]);
         return (
@@ -17643,7 +17647,7 @@ function GameBaseDiamond({
         <div>{(["On hit", "On throw", "On error", "Wild pitch", "Passed ball", "Stolen base", "Defensive indifference", "Tag up", "Other"] as GameRunnerMovement["reason"][]).map((reason) => <button key={reason} type="button" className={pendingHomeReason === reason ? "active" : ""} onClick={() => setPendingHomeReason(reason)}>{reason}</button>)}</div>
         <div className="game-runner-reason__actions"><button type="button" className="text-button" onClick={() => { setPendingMove(undefined); setPendingHomeReason(undefined); }}>Cancel</button><button type="button" className="primary-button" disabled={!pendingHomeReason} onClick={() => { if (!pendingHomeReason) return; onMoveRunner({ from: pendingMove.from, to: pendingMove.to, reason: pendingHomeReason }); setPendingMove(undefined); setPendingHomeReason(undefined); onSelectBase(undefined); }}>{pendingMove.to === "home" ? "Confirm run" : "Confirm advance"}</button></div>
       </div>}
-    </div>
+    </BaseDiamond>
   );
 }
 

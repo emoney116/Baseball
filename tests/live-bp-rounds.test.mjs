@@ -8,9 +8,62 @@ import {
   initialBpSettings,
   initialBpState,
   validateBpSettings,
+  bpTracksCount,
 } from "../app/lib/liveBp.ts";
 
 const settings = (patch = {}) => ({ ...initialBpSettings(id(40)), ...patch });
+for (const mode of ["FREE", "AB", "GAME"])
+  test(`${mode}: count tracking override omits untracked count without losing situation`, () => {
+    assert.equal(bpTracksCount(settings({ mode })), mode !== "FREE");
+    const p = buildBpPitch(
+      settings({
+        mode,
+        countTracking: false,
+        source: "PLAYER",
+        pitcherId: id(41),
+      }),
+      { ...initialBpState(), balls: 3, strikes: 2 },
+      { outcome: "Ball" },
+    );
+    assert.equal(p.context.countTracked, false);
+    assert.equal("balls" in p.context.before, false);
+    assert.equal("strikes" in p.context.after, false);
+    assert.equal(p.context.before.pa, 1);
+    assert.equal(p.context.after.pa, 1);
+    assert.equal(p.pitching.count_before, undefined);
+    assert.equal(p.pitching.count_after, undefined);
+    assert.equal(p.stateBefore.balls, 3);
+    assert.equal(p.stateAfter.balls, 0);
+    const tracked = buildBpPitch(
+      settings({ mode, countTracking: true }),
+      initialBpState(),
+      { outcome: "Ball" },
+    );
+    assert.equal(tracked.context.after.balls, 1);
+  });
+
+test("atomic count-off save retains round concurrency state but no fake event count", async () => {
+  const r = await start(
+    settings({
+      mode: "AB",
+      countTracking: false,
+      source: "PLAYER",
+      pitcherId: id(41),
+    }),
+  );
+  const next = await pitch(r, { outcome: "Ball" });
+  assert.equal(next.state.balls, 0);
+  assert.equal(next.version, r.version + 1);
+  const hit = (await db.query("select live_bp_context from hitting_events"))
+    .rows[0];
+  assert.equal(hit.live_bp_context.countTracked, false);
+  assert.equal("balls" in hit.live_bp_context.before, false);
+  const pe = (
+    await db.query("select count_before,count_after from pitch_events")
+  ).rows[0];
+  assert.equal(pe.count_before, null);
+  assert.equal(pe.count_after, null);
+});
 test("named coach is durable thrower context, never roster pitcher evidence", () => {
   const saved = JSON.parse(
     JSON.stringify(settings({ source: "COACH", coachName: "QA Coach" })),

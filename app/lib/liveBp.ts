@@ -38,6 +38,7 @@ export type BpSettings = {
   location: boolean;
   ev: boolean;
   spray: boolean;
+  countTracking?: boolean;
   defense: "OFF" | "ALL" | "SELECTED";
   positions: BpPosition[];
   alignment: Partial<Record<BpPosition, string>>;
@@ -55,8 +56,11 @@ export type BpContext = {
   thrower: BpSettings["source"];
   coachName?: string;
   mode: BpSettings["mode"];
-  before: BpState;
-  after: BpState;
+  countTracked?: boolean;
+  before: Omit<BpState, "balls" | "strikes"> &
+    Partial<Pick<BpState, "balls" | "strikes">>;
+  after: Omit<BpState, "balls" | "strikes"> &
+    Partial<Pick<BpState, "balls" | "strikes">>;
   result: string;
   jobSuccess?: boolean;
   runnerOutcomes?: Record<string, string>;
@@ -94,6 +98,9 @@ export const initialBpState = (): BpState => ({
   job: "",
   pa: 1,
 });
+export const bpTracksCount = (
+  settings: Pick<BpSettings, "mode" | "countTracking">,
+) => settings.countTracking ?? settings.mode !== "FREE";
 export const initialBpSettings = (hitterId: string): BpSettings => ({
   mode: "FREE",
   source: "MACHINE",
@@ -155,6 +162,10 @@ export function validateBpSettings(s: BpSettings) {
       (v) => typeof v === "boolean",
     ),
     "Invalid tracking settings.",
+  );
+  bpAssert(
+    s.countTracking === undefined || typeof s.countTracking === "boolean",
+    "Invalid count tracking setting.",
   );
   const assigned = Object.values(s.alignment).filter(Boolean);
   bpAssert(
@@ -278,18 +289,21 @@ export function buildBpPitch(
     !bip || settings.mode !== "GAME" || draft.result,
     "Choose the batter result before updating runners.",
   );
-  const count = advancePitchCount(before, draft.outcome);
+  const trackedCount = bpTracksCount(settings);
+  const count = trackedCount
+    ? advancePitchCount(before, draft.outcome)
+    : { balls: 0, strikes: 0 };
   const ended =
     bip || draft.outcome === "HBP" || count.balls >= 4 || count.strikes >= 3;
   const after: BpState = {
     ...before,
     runners: [...before.runners],
-    ...(settings.mode === "FREE" || ended ? { balls: 0, strikes: 0 } : count),
+    ...(!trackedCount || ended ? { balls: 0, strikes: 0 } : count),
     pa: before.pa + (ended ? 1 : 0),
   };
   const runnerOutcomes: Record<string, string> = {};
   let result = bip ? (draft.result ?? "Ball in play") : draft.outcome;
-  if (settings.mode !== "FREE")
+  if (trackedCount)
     result =
       count.balls >= 4 ? "Walk" : count.strikes >= 3 ? "Strikeout" : result;
   if (settings.mode === "GAME" && ended) {
@@ -359,6 +373,18 @@ export function buildBpPitch(
   }
   if (draft.jobSuccess !== undefined)
     bpAssert(typeof draft.jobSuccess === "boolean", "Choose the job result.");
+  const beforeSituation = {
+    outs: before.outs,
+    runners: before.runners,
+    job: before.job,
+    pa: before.pa,
+  };
+  const afterSituation = {
+    outs: after.outs,
+    runners: after.runners,
+    job: after.job,
+    pa: after.pa,
+  };
   const context: BpContext = {
     source: "Live BP",
     thrower: settings.source,
@@ -366,8 +392,9 @@ export function buildBpPitch(
       ? { coachName: settings.coachName.trim() }
       : {}),
     mode: settings.mode,
-    before,
-    after,
+    countTracked: trackedCount,
+    before: trackedCount ? before : beforeSituation,
+    after: trackedCount ? after : afterSituation,
     result,
     ...(settings.mode === "GAME" && ended
       ? {
@@ -417,14 +444,12 @@ export function buildBpPitch(
           contact_quality: bip
             ? liveBpPitchContactQuality(draft.contactQuality)
             : undefined,
-          count_before:
-            settings.mode === "FREE"
-              ? undefined
-              : { balls: before.balls, strikes: before.strikes },
-          count_after:
-            settings.mode === "FREE"
-              ? undefined
-              : { balls: after.balls, strikes: after.strikes },
+          count_before: !trackedCount
+            ? undefined
+            : { balls: before.balls, strikes: before.strikes },
+          count_after: !trackedCount
+            ? undefined
+            : { balls: after.balls, strikes: after.strikes },
         }
       : undefined;
   let defense;
@@ -480,5 +505,12 @@ export function buildBpPitch(
       location: spray,
     };
   }
-  return { hitting, pitching, defense, context };
+  return {
+    hitting,
+    pitching,
+    defense,
+    context,
+    stateBefore: before,
+    stateAfter: after,
+  };
 }

@@ -5,10 +5,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Check,
-  Plus,
-  MoreHorizontal,
-  X,
   BarChart3,
+  Settings,
+  ArrowLeft,
+  ArrowRight,
+  Plus,
 } from "lucide-react";
 import type { Player, ZonePoint } from "../types";
 import {
@@ -16,36 +17,23 @@ import {
   buildBpPitch,
   initialBpSettings,
   initialBpState,
+  bpTracksCount,
+  type BpState,
   type BpDraft,
   type BpRound,
   type BpSettings,
 } from "../lib/liveBp";
-import { TENDEX_PITCH_TYPES } from "../lib/tendexGameAnalysis";
+import { LiveBpPitchDetails } from "./LiveBpPitchDetails";
+import { VelocityPickerField } from "./TeamTrainingViews";
 import { ChoiceSelect } from "./ChoiceSelect";
 import { ClubhouseBaseballField } from "./ClubhouseBaseballField";
-import { PlayerAvatar } from "./visuals";
+import { DensePlayerIdentity } from "./DensePlayerIdentity";
+import { densePlayerIdentityLabel } from "../lib/densePlayerIdentity";
+import { GAME_FIELD_POSITION_COORDINATES } from "../lib/baseballFieldLayout";
+import { LiveBpSetup } from "./LiveBpSetup";
+import { BpBases, BpCount, BpSegments, type BpSheet } from "./LiveBpControls";
 import styles from "./LiveBpConsole.module.css";
 
-function Select({
-  label,
-  value,
-  values,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  values: readonly string[];
-  onChange: (v: string) => void;
-}) {
-  return (
-    <ChoiceSelect
-      label={label}
-      value={value}
-      options={values.map((value) => ({ value, label: value }))}
-      onChange={onChange}
-    />
-  );
-}
 export function LiveBpConsole({
   practiceId,
   players,
@@ -58,6 +46,8 @@ export function LiveBpConsole({
   initialSource,
   coaches = [],
   charts,
+  sheet,
+  createPlayer,
 }: {
   practiceId: string;
   players: Player[];
@@ -68,7 +58,16 @@ export function LiveBpConsole({
   initialPitcherId?: string;
   initialSource?: BpSettings["source"];
   coaches?: string[];
-  charts: (hitterId: string) => ReactNode;
+  charts: (
+    playerId: string,
+    side?: "hitting" | "pitching",
+    view?: "spray" | "location",
+  ) => ReactNode;
+  sheet: BpSheet;
+  createPlayer: (
+    onCreated: (player: Player) => void,
+    onClose: () => void,
+  ) => ReactNode;
   pitchLocationControl: (
     point: ZonePoint | undefined,
     onSelect: (point: ZonePoint) => void,
@@ -96,8 +95,27 @@ export function LiveBpConsole({
     [draft, setDraft] = useState<BpDraft>({ outcome: "" });
   const [loading, setLoading] = useState(true),
     [optionsOpen, setOptionsOpen] = useState(false),
-    [entryOpen, setEntryOpen] = useState(false),
     [chartsOpen, setChartsOpen] = useState(false),
+    [chartSide, setChartSide] = useState<"hitting" | "pitching">("hitting"),
+    [chartPlayer, setChartPlayer] = useState(""),
+    [stage, setStage] = useState<"pitch" | "details" | "result" | "bip">(
+      "pitch",
+    ),
+    [quickView, setQuickView] = useState<"defense" | "spray" | "location">(
+      "defense",
+    ),
+    [alignmentPosition, setAlignmentPosition] = useState<BpDraft["position"]>(),
+    [participantPicker, setParticipantPicker] = useState<
+      "hitter" | "pitcher" | null
+    >(null),
+    [creatingParticipant, setCreatingParticipant] = useState(false),
+    [participantType, setParticipantType] = useState("Player"),
+    [coachDraft, setCoachDraft] = useState(""),
+    [playerEditor, setPlayerEditor] = useState(false),
+    [contactFinished, setContactFinished] = useState(false),
+    [detail, setDetail] = useState<"defense" | "runners" | null>(null),
+    [setupStep, setSetupStep] = useState(0),
+    [lastPitch, setLastPitch] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -106,6 +124,20 @@ export function LiveBpConsole({
     fields = useRef<HTMLFieldSetElement>(null),
     pending = useRef<{ id: string; draft: BpDraft } | null>(null),
     startId = useRef<string | null>(null);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onSavedRef = useRef(onSaved);
+  useEffect(() => {
+    onSavedRef.current = onSaved;
+  }, [onSaved]);
+  useEffect(
+    () => () => {
+      if (refreshTimer.current) {
+        clearTimeout(refreshTimer.current);
+        onSavedRef.current();
+      }
+    },
+    [],
+  );
   const url = `/api/live-bp?practiceId=${encodeURIComponent(practiceId)}`;
   function adopt(r: BpRound) {
     setRound(r);
@@ -160,19 +192,15 @@ export function LiveBpConsole({
       });
     return () => controller.abort();
   }, [url]);
-  const roster = players.map((p) => ({ value: p.id, label: p.name }));
+  const roster = players.map((p) => ({
+    value: p.id,
+    label: densePlayerIdentityLabel(p),
+  }));
   const hitters = players.filter(
     (p) => settings.source !== "PLAYER" || p.id !== settings.pitcherId,
   );
-  const coachNames = [
-    ...new Set([...coaches, settings.coachName ?? ""].filter(Boolean)),
-  ];
-  function rotateHitter(direction: number) {
-    const index = hitters.findIndex((p) => p.id === settings.hitterId);
-    const next = hitters[(index + direction + hitters.length) % hitters.length];
-    if (next) update("hitterId", next.id);
-  }
   function update<K extends keyof BpSettings>(key: K, value: BpSettings[K]) {
+    if (uncertain || busy) return;
     if (["hitterId", "pitcherId", "source", "coachName"].includes(key))
       setDraft({ outcome: "" });
     setSettings((s) => ({ ...s, [key]: value }));
@@ -183,6 +211,7 @@ export function LiveBpConsole({
   async function write(
     operation: "start" | "configure" | "pitch" | "end",
     nextSettings = settings,
+    nextState = state,
   ) {
     if (lock.current) return;
     lock.current = true;
@@ -233,7 +262,7 @@ export function LiveBpConsole({
           roundId: savedRound?.id ?? startId.current,
           version: savedRound?.version ?? 0,
           settings: nextSettings,
-          state,
+          state: nextState,
           requestId: pending.current?.id,
           draft: pending.current?.draft,
         }),
@@ -245,26 +274,44 @@ export function LiveBpConsole({
           setRound({ ...round, ended_at: new Date().toISOString() });
         throw new Error(p.message ?? "Save failed.");
       }
-      if (
-        operation === "configure" &&
-        (nextSettings.hitterId !== round?.settings.hitterId ||
-          nextSettings.pitcherId !== round?.settings.pitcherId ||
-          nextSettings.source !== round?.settings.source)
-      )
-        setDraft({ outcome: "" });
       adopt(p.round);
       if (operation === "pitch") {
         const pitchType = draft.pitchType;
         pending.current = null;
         setDraft({ outcome: "", pitchType });
-        requestAnimationFrame(() => fields.current?.scrollTo({ top: 0 }));
+        requestAnimationFrame(() =>
+          fields.current?.scrollIntoView({ block: "start" }),
+        );
         setNotice("Pitch saved");
-        setEntryOpen(false);
+        setStage("pitch");
+        setLastPitch(
+          [
+            settings.pitchMode !== "OFF"
+              ? settings.pitchMode === "ONE"
+                ? settings.pitchType
+                : (draft.pitchType ?? settings.pitchType)
+              : "",
+            settings.velocity && draft.velocity ? `${draft.velocity} mph` : "",
+            draft.outcome,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        );
       }
       if (operation === "end") {
         setNotice("Live BP ended");
       }
-      onSaved();
+      if (operation === "start" || operation === "configure")
+        setOptionsOpen(false);
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      if (operation === "end") {
+        refreshTimer.current = null;
+        onSaved();
+      } else
+        refreshTimer.current = setTimeout(() => {
+          refreshTimer.current = null;
+          onSavedRef.current();
+        }, 10000);
     } catch (e) {
       setError(
         e instanceof Error &&
@@ -280,683 +327,967 @@ export function LiveBpConsole({
       setBusy(false);
     }
   }
-  const bip = draft.outcome === "Ball in play",
-    ended = !active || Boolean(round?.ended_at);
-  const nonBipPaEnd =
-    draft.outcome === "HBP" ||
-    (draft.outcome === "Ball" && state.balls === 3) ||
-    (["Called Strike", "Whiff"].includes(draft.outcome) && state.strikes === 2);
+  const bip = stage === "bip";
+  const ended = !active || Boolean(round?.ended_at);
+  const trackedCount = bpTracksCount(settings);
+  const pitcher = players.find((p) => p.id === settings.pitcherId);
   const positions =
     settings.defense === "ALL" ? BP_POSITIONS : settings.positions;
-  const number = (key: "velocity" | "ev", label: string) => (
-    <label>
-      {label}
-      <input
-        inputMode="decimal"
-        type="number"
-        min="1"
-        max="130"
-        value={draft[key] ?? ""}
-        onChange={(e) =>
-          edit(key, e.target.value === "" ? undefined : Number(e.target.value))
-        }
-      />
-    </label>
-  );
+  const currentPitchType =
+    settings.pitchMode === "ONE"
+      ? settings.pitchType
+      : (draft.pitchType ?? settings.pitchType);
+  const nonBipPaEnd =
+    draft.outcome === "HBP" ||
+    (trackedCount &&
+      ((draft.outcome === "Ball" && state.balls === 3) ||
+        (["Called Strike", "Whiff"].includes(draft.outcome) &&
+          state.strikes === 2)));
+  function setup(step = 0) {
+    if (uncertain || busy) return;
+    setAlignmentPosition(undefined);
+    setSetupStep(step);
+    setOptionsOpen(true);
+  }
+  function saveSetup(next: BpSettings, nextState: BpState) {
+    const changed =
+      next.source !== settings.source ||
+      next.pitcherId !== settings.pitcherId ||
+      next.coachName !== settings.coachName;
+    if (
+      changed &&
+      (draft.outcome || draft.velocity || draft.location) &&
+      !window.confirm("Discard this pitch and change the pitch source?")
+    )
+      return;
+    if (changed) {
+      setDraft({ outcome: "" });
+      setStage("pitch");
+    }
+    void write(round ? "configure" : "start", next, nextState);
+  }
+  function chooseResult(outcome: string) {
+    setContactFinished(false);
+    edit("outcome", outcome);
+    if (outcome === "Ball in play") {
+      setContactFinished(!settings.ev && !settings.spray);
+      setStage("bip");
+    }
+  }
+  function changeHitter(id: string) {
+    if (id === settings.hitterId) return;
+    if (
+      (draft.outcome || draft.velocity || draft.location) &&
+      !window.confirm("Discard this pitch and change hitter?")
+    )
+      return;
+    update("hitterId", id);
+    setStage("pitch");
+  }
+  function rotate(direction: number) {
+    const index = hitters.findIndex((p) => p.id === settings.hitterId);
+    const next = hitters[(index + direction + hitters.length) % hitters.length];
+    if (next) changeHitter(next.id);
+  }
+  function flow(content: ReactNode) {
+    const next = stage === "details" || (bip && !contactFinished);
+    return sheet(
+      bip ? "Ball in Play" : "Log Pitch",
+      () => {
+        if (!busy) setStage("pitch");
+      },
+      <>
+        <div
+          className="practice-hitting-sheet__flow"
+          aria-label="Pitch log steps"
+        >
+          <span className={stage === "details" ? "active" : ""}>Pitch</span>
+          <span className={stage === "result" ? "active" : ""}>Result</span>
+          {draft.outcome === "Ball in play" && (
+            <>
+              <span className={bip && !contactFinished ? "active" : ""}>
+                Contact
+              </span>
+              <span className={contactFinished ? "active" : ""}>Result</span>
+            </>
+          )}
+        </div>
+        <fieldset disabled={busy || uncertain} className={styles.fields}>
+          {content}
+        </fieldset>
+        <div className="modal-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy}
+            onClick={() => {
+              if (bip && contactFinished) setContactFinished(false);
+              else setStage("pitch");
+            }}
+          >
+            Back
+          </button>
+          {error && <p role="alert">{error}</p>}
+          <button
+            type="button"
+            className="primary-button"
+            disabled={
+              busy ||
+              (!next && !draft.outcome) ||
+              (bip && contactFinished && !draft.result)
+            }
+            onClick={() =>
+              next
+                ? bip
+                  ? setContactFinished(true)
+                  : setStage("result")
+                : void write("pitch")
+            }
+          >
+            {busy
+              ? "Saving..."
+              : uncertain
+                ? "Retry Pitch"
+                : next
+                  ? "Next"
+                  : bip
+                    ? "Save Ball in Play"
+                    : "Save Pitch"}
+            <ArrowRight size={18} />
+          </button>
+        </div>
+      </>,
+    );
+  }
+  const job =
+    settings.mode === "GAME" && state.job ? (
+      <div className={styles.job}>
+        <span>Job · {state.job}</span>
+        <BpSegments
+          label="Job result"
+          value={draft.jobSuccess === undefined ? "" : String(draft.jobSuccess)}
+          options={[
+            { value: "true", label: "Done" },
+            { value: "false", label: "Not Done" },
+          ]}
+          onChange={(v) => edit("jobSuccess", v === "true")}
+        />
+      </div>
+    ) : null;
+  const status = [
+    settings.mode === "FREE"
+      ? "FREE BP"
+      : settings.mode === "AB"
+        ? "LIVE AB"
+        : "GAME-LIKE",
+    settings.pitchMode !== "OFF"
+      ? settings.pitchMode === "ONE"
+        ? settings.pitchType
+        : "MULTI"
+      : "",
+    settings.location && "LOC",
+    settings.velocity && "VELO",
+    settings.ev && "EV",
+    settings.spray && "SPRAY",
+    trackedCount && "COUNT",
+    settings.defense !== "OFF" && "DEF",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <section className={`practice-hitting-shell ${styles.console}`}>
+    <section className={styles.console} aria-label="Live BP console">
       {loading ? (
         <p role="status">Loading Live BP...</p>
+      ) : ended ? (
+        <div className={styles.complete}>
+          <h2>Live BP Complete</h2>
+          <p>Practice or Live BP has ended.</p>
+          <button className="secondary-button" onClick={onExit}>
+            Practice Home
+          </button>
+          <button
+            className="secondary-button"
+            onClick={() => {
+              onSaved();
+              setChartsOpen(true);
+            }}
+          >
+            View Analytics
+          </button>
+          {chartsOpen && charts(settings.hitterId)}
+        </div>
       ) : (
         <>
-          {error && (
-            <div role="alert">
-              <p>{error}</p>
-              <button
-                className="secondary-button"
-                onClick={() => void reload()}
-              >
-                Reload round
-              </button>
-            </div>
-          )}
-          {ended ? (
-            <div>
-              <p role="status">Practice or Live BP has ended.</p>
-              <button className="secondary-button" onClick={onExit}>
-                Practice Home
-              </button>
-            </div>
-          ) : (
-            <>
-              <fieldset
-                ref={fields}
-                disabled={busy || uncertain}
-                className={`practice-hitting-stage panel ${styles.fields}`}
-              >
-                <div
-                  className={`practice-hitting-player-row ${styles.playerRow}`}
-                >
+          <fieldset disabled={busy} className={styles.fields} ref={fields}>
+            <div className={styles.matchup}>
+              <div className={styles.athlete}>
+                <span>Hitter</span>
+                <div className={styles.rotation}>
                   <button
-                    className="practice-hitting-nav-button"
+                    type="button"
                     aria-label="Previous hitter"
-                    onClick={() => rotateHitter(-1)}
+                    onClick={() => rotate(-1)}
                   >
-                    <ChevronLeft size={20} />
+                    <ChevronLeft size={18} />
                   </button>
-                  <ChoiceSelect
+                  <button
+                    type="button"
+                    className={styles.participantName}
                     aria-label="Hitter"
-                    className={styles.hitter}
-                    mobilePresentation="popover"
-                    value={settings.hitterId}
-                    options={hitters.map((p) => ({
-                      value: p.id,
-                      label: p.name,
-                      icon: <PlayerAvatar player={p} size="lg" compact />,
-                    }))}
-                    onChange={(v) => update("hitterId", v)}
-                  />
-                  <button
-                    className="practice-hitting-nav-button practice-hitting-nav-button--stats"
-                    aria-label="Show Live BP charts"
-                    aria-expanded={chartsOpen}
-                    onClick={() => setChartsOpen((v) => !v)}
+                    title={
+                      players.find((p) => p.id === settings.hitterId)?.name
+                    }
+                    onClick={() => {
+                      if (!uncertain) {
+                        setCreatingParticipant(false);
+                        setParticipantPicker("hitter");
+                      }
+                    }}
                   >
-                    <BarChart3 size={18} />
+                    {densePlayerIdentityLabel(
+                      players.find((p) => p.id === settings.hitterId) ??
+                        players[0],
+                    )}
                   </button>
                   <button
-                    className="practice-hitting-nav-button"
+                    type="button"
                     aria-label="Next hitter"
-                    onClick={() => rotateHitter(1)}
+                    onClick={() => rotate(1)}
                   >
-                    <ChevronRight size={20} />
+                    <ChevronRight size={18} />
                   </button>
                 </div>
-                <ChoiceSelect
-                  aria-label="Pitch source"
-                  className="practice-hitting-session-select practice-session-select"
-                  mobilePresentation="popover"
-                  value={
-                    settings.source === "PLAYER"
-                      ? `PLAYER:${settings.pitcherId}`
-                      : settings.source === "COACH" && settings.coachName
-                        ? `COACH:${settings.coachName}`
-                        : settings.source
-                  }
-                  options={[
-                    { value: "MACHINE", label: "Machine" },
-                    ...coachNames.map((name) => ({
-                      value: `COACH:${name}`,
-                      label: `Coach ${name}`,
-                    })),
-                    { value: "COACH", label: "Other coach" },
-                    ...players
-                      .filter((p) => p.id !== settings.hitterId)
-                      .map((p) => ({
-                        value: `PLAYER:${p.id}`,
-                        label: p.name,
-                        description: "Player pitcher",
-                      })),
-                  ]}
-                  onChange={(v) => {
-                    setDraft({ outcome: "" });
-                    setSettings((s) => ({
-                      ...s,
-                      source: v.startsWith("PLAYER:")
-                        ? "PLAYER"
-                        : v.startsWith("COACH")
-                          ? "COACH"
-                          : "MACHINE",
-                      pitcherId: v.startsWith("PLAYER:")
-                        ? v.slice(7)
-                        : undefined,
-                      coachName: v.startsWith("COACH:")
-                        ? v.slice(6)
-                        : undefined,
-                    }));
+              </div>
+              <span className={styles.vs}>VS</span>
+              <div className={styles.athlete}>
+                <span>Pitcher</span>
+                <button
+                  type="button"
+                  className={styles.sourceButton}
+                  aria-label="Change pitch source"
+                  onClick={() => {
+                    if (!uncertain) {
+                      setCreatingParticipant(false);
+                      setParticipantPicker("pitcher");
+                    }
+                  }}
+                >
+                  {settings.source === "PLAYER" && pitcher ? (
+                    <DensePlayerIdentity player={pitcher} />
+                  ) : (
+                    <strong>
+                      {settings.source === "MACHINE"
+                        ? "Machine"
+                        : (settings.coachName ?? "Coach BP")}
+                    </strong>
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className={styles.statusRow}>
+              <span className={styles.live}>LIVE</span>
+              {trackedCount && (
+                <BpCount
+                  balls={state.balls}
+                  strikes={state.strikes}
+                  onChange={(balls, strikes) => {
+                    if (!uncertain) setState((s) => ({ ...s, balls, strikes }));
                   }}
                 />
-                {settings.source === "COACH" &&
-                  (!coaches.includes(settings.coachName ?? "") ||
-                    optionsOpen) && (
-                    <label>
-                      Coach name
-                      <input
-                        maxLength={80}
-                        value={settings.coachName ?? ""}
-                        onChange={(e) =>
-                          update("coachName", e.target.value || undefined)
-                        }
-                      />
-                    </label>
-                  )}
-                <div className="practice-hitting-entry-bar">
-                  <button
-                    className="primary-button practice-hitting-log-trigger"
-                    aria-expanded={entryOpen}
-                    onClick={() => setEntryOpen(true)}
-                  >
-                    <Plus size={20} />
-                    Log Pitch
-                  </button>
-                  <div className="practice-hitting-quick-controls">
-                    {(["ev", "velocity", "spray", "location"] as const).map(
-                      (key, i) => (
-                        <button
-                          key={key}
-                          type="button"
-                          aria-pressed={settings[key]}
-                          onClick={() => update(key, !settings[key])}
-                        >
-                          {["EV", "Velo", "Spray", "Loc"][i]}{" "}
-                          <strong>{settings[key] ? "On" : "Off"}</strong>
-                        </button>
-                      ),
-                    )}
+              )}
+              <button
+                type="button"
+                className={styles.status}
+                aria-label="Live BP Setup"
+                title={status}
+                onClick={() => setup(1)}
+              >
+                <Settings size={18} />
+              </button>
+              <button
+                type="button"
+                className="practice-hitting-nav-button practice-hitting-nav-button--stats"
+                aria-label="Show Live BP charts"
+                aria-expanded={chartsOpen}
+                onClick={() => {
+                  onSaved();
+                  setChartPlayer(settings.hitterId);
+                  setChartSide("hitting");
+                  setChartsOpen((v) => !v);
+                }}
+              >
+                <BarChart3 size={18} />
+              </button>
+            </div>
+            {bip ? (
+              flow(
+                <>
+                  <div className={styles.pitchSummary}>
                     <button
                       type="button"
-                      aria-expanded={optionsOpen}
-                      onClick={() => setOptionsOpen((v) => !v)}
-                    >
-                      Pitch{" "}
-                      <strong>
-                        {settings.pitchMode === "OFF"
-                          ? "Off"
-                          : settings.pitchMode === "ONE"
-                            ? "Single"
-                            : "Multi"}
-                      </strong>
-                    </button>
-                  </div>
-                  <button
-                    className="secondary-button practice-hitting-more-trigger"
-                    title="Live BP options"
-                    aria-label="Live BP options"
-                    aria-expanded={optionsOpen}
-                    onClick={() => setOptionsOpen((v) => !v)}
-                  >
-                    <MoreHorizontal size={20} />
-                  </button>
-                </div>
-                {chartsOpen && charts(settings.hitterId)}
-                {optionsOpen && (
-                  <>
-                    <div className={styles.grid}>
-                      <ChoiceSelect
-                        label="Mode"
-                        value={settings.mode}
-                        options={[
-                          { value: "FREE", label: "Free BP" },
-                          { value: "AB", label: "Live AB" },
-                          { value: "GAME", label: "Game-Like" },
-                        ]}
-                        onChange={(v) =>
-                          update("mode", v as BpSettings["mode"])
-                        }
-                      />
-                      <ChoiceSelect
-                        label="Pitch type tracking"
-                        value={settings.pitchMode}
-                        options={[
-                          { value: "OFF", label: "Off" },
-                          { value: "ONE", label: "Single Pitch" },
-                          { value: "MULTI", label: "Multi Pitch" },
-                        ]}
-                        onChange={(v) =>
-                          update("pitchMode", v as BpSettings["pitchMode"])
-                        }
-                      />
-                      {settings.pitchMode !== "OFF" && (
-                        <Select
-                          label="Pitch type"
-                          value={settings.pitchType ?? ""}
-                          values={TENDEX_PITCH_TYPES}
-                          onChange={(v) =>
-                            update("pitchType", v as BpSettings["pitchType"])
-                          }
-                        />
-                      )}
-                    </div>
-                    <ChoiceSelect
-                      label="Defense tracking"
-                      value={settings.defense}
-                      options={[
-                        { value: "OFF", label: "Off" },
-                        { value: "ALL", label: "All Positions" },
-                        { value: "SELECTED", label: "Selected Positions" },
-                      ]}
-                      onChange={(v) =>
-                        update("defense", v as BpSettings["defense"])
+                      className="icon-button"
+                      aria-label="Back to pitch"
+                      onClick={() =>
+                        setStage(
+                          settings.velocity ||
+                            settings.location ||
+                            settings.pitchMode !== "OFF"
+                            ? "details"
+                            : "pitch",
+                        )
                       }
-                    />
-                    {settings.defense === "SELECTED" && (
-                      <div className={styles.toggles}>
-                        {BP_POSITIONS.map((p) => (
-                          <label key={p}>
-                            <input
-                              type="checkbox"
-                              checked={settings.positions.includes(p)}
-                              onChange={(e) =>
-                                update(
-                                  "positions",
-                                  e.target.checked
-                                    ? [...settings.positions, p]
-                                    : settings.positions.filter((v) => v !== p),
-                                )
-                              }
-                            />
-                            {p}
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                    {settings.defense !== "OFF" && (
-                      <div className={styles.grid}>
-                        {positions.map((p) => (
-                          <ChoiceSelect
-                            key={p}
-                            label={p}
-                            value={settings.alignment[p] ?? ""}
-                            options={[
-                              { value: "", label: "Unassigned" },
-                              ...roster,
-                            ]}
-                            onChange={(v) =>
-                              update("alignment", {
-                                ...settings.alignment,
-                                [p]: v,
-                              })
-                            }
-                          />
-                        ))}
-                      </div>
-                    )}
-                    {settings.mode !== "FREE" && (
-                      <div className={styles.grid}>
-                        <Select
-                          label="Balls"
-                          value={String(state.balls)}
-                          values={["0", "1", "2", "3"]}
-                          onChange={(v) =>
-                            setState((s) => ({ ...s, balls: Number(v) }))
-                          }
-                        />
-                        <Select
-                          label="Strikes"
-                          value={String(state.strikes)}
-                          values={["0", "1", "2"]}
-                          onChange={(v) =>
-                            setState((s) => ({ ...s, strikes: Number(v) }))
-                          }
-                        />
-                        {settings.mode === "GAME" && (
-                          <>
-                            <Select
-                              label="Outs"
-                              value={String(state.outs)}
-                              values={["0", "1", "2"]}
-                              onChange={(v) =>
-                                setState((s) => ({ ...s, outs: Number(v) }))
-                              }
-                            />
-                            <label>
-                              Job
-                              <input
-                                maxLength={80}
-                                value={state.job}
-                                onChange={(e) =>
-                                  setState((s) => ({
-                                    ...s,
-                                    job: e.target.value,
-                                  }))
-                                }
-                              />
-                            </label>
-                            <div className={styles.toggles}>
-                              {[1, 2, 3].map((b) => (
-                                <label key={b}>
-                                  <input
-                                    type="checkbox"
-                                    checked={state.runners.includes(b)}
-                                    onChange={(e) =>
-                                      setState((s) => ({
-                                        ...s,
-                                        runners: e.target.checked
-                                          ? [...s.runners, b]
-                                          : s.runners.filter((v) => v !== b),
-                                      }))
-                                    }
-                                  />
-                                  {b}B
-                                </label>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
-                {entryOpen && (
-                  <>
-                    <div className={styles.header}>
-                      <h3>Log Pitch</h3>
-                      <button
-                        className="icon-button"
-                        aria-label="Close pitch entry"
-                        onClick={() => setEntryOpen(false)}
-                      >
-                        <X size={18} />
-                      </button>
+                    >
+                      <ArrowLeft size={18} />
+                    </button>
+                    <div>
+                      <span>
+                        {[
+                          settings.pitchMode !== "OFF" && currentPitchType,
+                          settings.velocity &&
+                            draft.velocity &&
+                            `${draft.velocity} mph`,
+                          trackedCount && `${state.balls}-${state.strikes}`,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
                     </div>
-                    {settings.pitchMode !== "OFF" && (
-                      <Select
-                        label="Pitch type for this pitch"
-                        value={
-                          settings.pitchMode === "ONE"
-                            ? (settings.pitchType ?? "")
-                            : (draft.pitchType ?? settings.pitchType ?? "")
-                        }
-                        values={TENDEX_PITCH_TYPES}
-                        onChange={(v) =>
-                          settings.pitchMode === "ONE"
-                            ? update("pitchType", v as BpSettings["pitchType"])
-                            : edit("pitchType", v as BpDraft["pitchType"])
-                        }
-                      />
-                    )}
-                    {settings.mode !== "FREE" && (
-                      <div className={styles.situation}>
-                        <strong>{`${state.balls}-${state.strikes}`}</strong>
-                        {settings.mode === "GAME" && (
-                          <>
-                            <span>{state.outs} out</span>
-                            <span>
-                              {state.runners.length
-                                ? state.runners.map((b) => `${b}B`).join(", ")
-                                : "Bases empty"}
-                            </span>
-                            <span>{state.job}</span>
-                          </>
-                        )}
-                      </div>
-                    )}
-                    {settings.velocity && (
-                      <div className={styles.grid}>
-                        {settings.velocity &&
-                          number("velocity", "Pitch velocity (mph)")}
-                      </div>
-                    )}
-                    <div className={styles.outcomes}>
-                      {[
-                        "Ball",
-                        "Called Strike",
-                        "Whiff",
-                        "Foul",
-                        "Ball in play",
-                        "HBP",
-                      ].map((v) => (
-                        <button
-                          key={v}
-                          aria-pressed={draft.outcome === v}
-                          className={
-                            draft.outcome === v
-                              ? "primary-button"
-                              : "secondary-button"
+                  </div>
+                  <div className={styles.bipLayout}>
+                    <div className={styles.bipDetails}>
+                      {!contactFinished && settings.ev && (
+                        <VelocityPickerField
+                          label="EV"
+                          value={draft.ev?.toString() ?? ""}
+                          onChange={(v) =>
+                            edit("ev", v ? Number(v) : undefined)
                           }
-                          onClick={() => edit("outcome", v)}
-                        >
-                          {v === "Whiff"
-                            ? "Swing + Miss"
-                            : v === "Ball"
-                              ? "Take: Ball"
-                              : v === "Called Strike"
-                                ? "Take: Strike"
-                                : v}
-                        </button>
-                      ))}
-                    </div>
-                    <div className={styles.entry}>
-                      {settings.location && (
-                        <section>
-                          <h3>Pitch Location</h3>
-                          {pitchLocationControl(
-                            draft.location,
-                            (p) => edit("location", p),
-                            settings.hitterId,
-                          )}
-                        </section>
+                          defaultValue={80}
+                          ariaLabel="Exit velocity in miles per hour"
+                        />
                       )}
-                      {bip && (
-                        <section className={styles.bip}>
-                          <h3>Ball in Play</h3>
-                          <div className={styles.grid}>
-                            {settings.ev && number("ev", "Exit velocity (mph)")}
-                            <Select
-                              label="Batted-ball type"
-                              value={draft.battedBall ?? ""}
-                              values={[
-                                "Ground ball",
-                                "Line drive",
-                                "Fly ball",
-                                "Pop up",
-                              ]}
-                              onChange={(v) => edit("battedBall", v)}
-                            />
-                            <Select
-                              label="Contact quality (optional)"
+                      {contactFinished && (
+                        <>
+                          <BpSegments
+                            label="Batted ball"
+                            value={draft.battedBall ?? ""}
+                            options={[
+                              "Ground ball",
+                              "Line drive",
+                              "Fly ball",
+                              "Pop up",
+                            ].map((v) => ({ value: v, label: v }))}
+                            onChange={(v) => edit("battedBall", v)}
+                          />
+                          <BpSegments
+                            label="Batter result"
+                            value={draft.result ?? ""}
+                            options={[
+                              ["Out", "Out"],
+                              ["Single", "1B"],
+                              ["Double", "2B"],
+                              ["Triple", "3B"],
+                              ["Home Run", "HR"],
+                              ["Reached on Error", "Error"],
+                              ["Fielders Choice", "FC"],
+                            ].map(([value, label]) => ({ value, label }))}
+                            onChange={(v) => edit("result", v)}
+                          />
+                          <details className={styles.optional}>
+                            <summary>Contact quality</summary>
+                            <BpSegments
+                              label="Contact quality"
                               value={draft.contactQuality ?? ""}
-                              values={[
+                              options={[
                                 "Poor",
                                 "Weak",
                                 "Solid",
                                 "Hard",
                                 "Barrel",
-                              ]}
+                              ].map((v) => ({ value: v, label: v }))}
                               onChange={(v) => edit("contactQuality", v)}
                             />
-                            <Select
-                              label="Batter result"
-                              value={draft.result ?? ""}
-                              values={[
-                                "Out",
-                                "Single",
-                                "Double",
-                                "Triple",
-                                "Home Run",
-                                "Reached on Error",
-                                "Fielders Choice",
-                              ]}
-                              onChange={(v) => edit("result", v)}
-                            />
-                          </div>
-                          {settings.spray && (
-                            <ClubhouseBaseballField
-                              activePoint={draft.spray}
-                              onSelect={(p) => edit("spray", p)}
-                              ariaLabel="Live BP spray location"
-                            />
-                          )}
-                          {settings.defense !== "OFF" && (
-                            <>
-                              <ChoiceSelect
-                                label="Fielder"
-                                value={draft.position ?? ""}
-                                options={[
-                                  { value: "", label: "No defensive rep" },
-                                  ...positions
-                                    .filter((p) => settings.alignment[p])
-                                    .map((p) => ({
-                                      value: p,
-                                      label: `${p} - ${roster.find((r) => r.value === settings.alignment[p])?.label ?? ""}`,
-                                    })),
-                                ]}
-                                onChange={(v) =>
-                                  edit(
-                                    "position",
-                                    v ? (v as BpDraft["position"]) : undefined,
-                                  )
-                                }
-                              />
-                              {draft.position && (
-                                <div className={styles.grid}>
-                                  <Select
-                                    label="Defense result"
-                                    value={draft.defenseResult ?? ""}
-                                    values={[
-                                      "Clean",
-                                      "Missed Rep",
-                                      "Error",
-                                      "Great Play",
-                                    ]}
-                                    onChange={(v) => edit("defenseResult", v)}
-                                  />
-                                  <Select
-                                    label="Throw"
-                                    value={draft.throwResult ?? "No Throw"}
-                                    values={[
-                                      "No Throw",
-                                      "Accurate",
-                                      "Inaccurate",
-                                    ]}
-                                    onChange={(v) => edit("throwResult", v)}
-                                  />
-                                  {draft.defenseResult === "Error" && (
-                                    <Select
-                                      label="Error type"
-                                      value={draft.errorType ?? ""}
-                                      values={[
-                                        "Fielding",
-                                        "Throwing",
-                                        "Decision",
-                                      ]}
-                                      onChange={(v) => edit("errorType", v)}
-                                    />
-                                  )}
-                                </div>
-                              )}
-                            </>
-                          )}
-                          {settings.mode === "GAME" && (
-                            <div className={styles.grid}>
-                              <ChoiceSelect
-                                label="Batter finishes"
-                                value={draft.runnerOutcomes?.batter ?? ""}
-                                options={[
-                                  { value: "", label: "From batter result" },
-                                  { value: "out", label: "Out" },
-                                  ...["1", "2", "3"].map((value) => ({
-                                    value,
-                                    label: `To ${value}B`,
-                                  })),
-                                  { value: "score", label: "Scores" },
-                                ]}
-                                onChange={(v) => {
-                                  const next = { ...draft.runnerOutcomes };
-                                  if (v) next.batter = v;
-                                  else delete next.batter;
-                                  edit("runnerOutcomes", next);
-                                }}
-                              />
-                              {state.runners.map((b) => (
-                                <ChoiceSelect
-                                  key={b}
-                                  label={`Runner ${b}B`}
-                                  value={draft.runnerOutcomes?.[b] ?? "hold"}
-                                  options={[
-                                    { value: "hold", label: "Holds" },
-                                    ...["1", "2", "3"].map((value) => ({
-                                      value,
-                                      label: `To ${value}B`,
-                                    })),
-                                    { value: "score", label: "Scores" },
-                                    { value: "out", label: "Out" },
-                                  ]}
-                                  onChange={(v) =>
-                                    edit("runnerOutcomes", {
-                                      ...draft.runnerOutcomes,
-                                      [b]: v,
-                                    })
-                                  }
-                                />
-                              ))}
-                              {state.job && (
-                                <ChoiceSelect
-                                  label="Job result"
-                                  value={
-                                    draft.jobSuccess === undefined
-                                      ? ""
-                                      : String(draft.jobSuccess)
-                                  }
-                                  options={[
-                                    { value: "true", label: "Job Done" },
-                                    { value: "false", label: "Job Not Done" },
-                                  ]}
-                                  onChange={(v) =>
-                                    edit("jobSuccess", v === "true")
-                                  }
-                                />
-                              )}
-                            </div>
-                          )}
-                        </section>
+                          </details>
+                        </>
                       )}
                     </div>
-                    {settings.mode === "GAME" && state.job && nonBipPaEnd && (
-                      <ChoiceSelect
-                        label="Job result"
-                        value={
-                          draft.jobSuccess === undefined
-                            ? ""
-                            : String(draft.jobSuccess)
-                        }
-                        options={[
-                          { value: "true", label: "Job Done" },
-                          { value: "false", label: "Job Not Done" },
-                        ]}
-                        onChange={(v) => edit("jobSuccess", v === "true")}
-                      />
+                    {!contactFinished && settings.spray && (
+                      <section className={styles.spray}>
+                        <h3>Spray Location</h3>
+                        <ClubhouseBaseballField
+                          activePoint={draft.spray}
+                          onSelect={(p) => edit("spray", p)}
+                          ariaLabel="Live BP spray location"
+                        />
+                        <button
+                          className="text-button"
+                          onClick={() => edit("spray", undefined)}
+                        >
+                          Clear spray
+                        </button>
+                      </section>
                     )}
+                  </div>
+                  {contactFinished && settings.defense !== "OFF" && (
+                    <button
+                      type="button"
+                      className={styles.detailRow}
+                      onClick={() => setDetail("defense")}
+                    >
+                      <span>Defense</span>
+                      <strong>
+                        {draft.position
+                          ? `${draft.position} · ${draft.defenseResult ?? "Select result"}`
+                          : "Select Fielder"}
+                      </strong>
+                      <ChevronRight size={18} />
+                    </button>
+                  )}
+                  {contactFinished &&
+                    settings.mode === "GAME" &&
+                    state.runners.length > 0 && (
+                      <button
+                        type="button"
+                        className={styles.detailRow}
+                        onClick={() => setDetail("runners")}
+                      >
+                        <span>Runners</span>
+                        <strong>
+                          {state.runners
+                            .map(
+                              (b) =>
+                                `${b}B → ${draft.runnerOutcomes?.[b] ?? "Hold"}`,
+                            )
+                            .join(" · ")}
+                        </strong>
+                        <ChevronRight size={18} />
+                      </button>
+                    )}
+                  {contactFinished && job}
+                </>,
+              )
+            ) : (
+              <>
+                <div className={styles.situation}>
+                  {settings.mode === "GAME" && (
+                    <div className={styles.gameSituation}>
+                      <button
+                        type="button"
+                        aria-label="Edit situation"
+                        onClick={() => setup(2)}
+                      >
+                        <strong>
+                          {state.outs} OUT{state.outs === 1 ? "" : "S"}
+                        </strong>
+                        <span>
+                          {state.job ? `JOB · ${state.job}` : "Edit situation"}
+                        </span>
+                      </button>
+                      <BpBases runners={state.runners} />
+                    </div>
+                  )}
+                </div>
+                {stage === "result" &&
+                  flow(
+                    <section className={styles.result}>
+                      <h3>Result</h3>
+                      <div className={styles.outcomes}>
+                        {[
+                          ["Ball", "Ball"],
+                          ["Called Strike", "Called Strike"],
+                          ["Whiff", "Whiff"],
+                          ["Foul", "Foul"],
+                          ["Ball in play", "In Play"],
+                          ["HBP", "HBP"],
+                        ].map(([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            aria-pressed={draft.outcome === value}
+                            className={
+                              draft.outcome === value
+                                ? "primary-button"
+                                : "secondary-button"
+                            }
+                            onClick={() => chooseResult(value)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      {nonBipPaEnd && job}
+                    </section>,
+                  )}
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() =>
+                    setStage(
+                      uncertain
+                        ? "result"
+                        : settings.velocity ||
+                            settings.location ||
+                            settings.pitchMode !== "OFF"
+                          ? "details"
+                          : "result",
+                    )
+                  }
+                >
+                  <Plus size={20} />
+                  {uncertain ? "Retry Pitch" : "Log Pitch"}
+                </button>
+                <div
+                  className="practice-hitting-inline-pitch"
+                  aria-label="Live BP quick charts"
+                >
+                  {["defense", "spray", "location"].map((view) => (
+                    <button
+                      key={view}
+                      type="button"
+                      className={quickView === view ? "active" : ""}
+                      onClick={() => setQuickView(view as typeof quickView)}
+                    >
+                      {view === "defense"
+                        ? "Defense"
+                        : view === "spray"
+                          ? "Spray"
+                          : "Pitch Map"}
+                    </button>
+                  ))}
+                </div>
+                {quickView === "defense" ? (
+                  <div className={styles.alignmentField}>
+                    <ClubhouseBaseballField
+                      coordinateSpace="game"
+                      showLabels={false}
+                    />
+                    {(settings.defense === "OFF"
+                      ? BP_POSITIONS
+                      : positions
+                    ).map((position) => {
+                      const [left, top] =
+                        GAME_FIELD_POSITION_COORDINATES[position];
+                      return (
+                        <button
+                          key={position}
+                          type="button"
+                          style={{ left: `${left}%`, top: `${top}%` }}
+                          aria-label={`Change ${position}: ${roster.find((p) => p.value === settings.alignment[position])?.label ?? "Unassigned"}`}
+                          onClick={() => {
+                            setAlignmentPosition(position);
+                            setSetupStep(2);
+                            setOptionsOpen(true);
+                          }}
+                        >
+                          {position}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  charts(
+                    settings.hitterId,
+                    "hitting",
+                    quickView === "location" ? "location" : "spray",
+                  )
+                )}
+              </>
+            )}
+          </fieldset>
+          {stage === "details" &&
+            flow(
+              <LiveBpPitchDetails
+                settings={settings}
+                draft={draft}
+                location={pitchLocationControl}
+                onChange={(next) => {
+                  setDraft(next);
+                  if (settings.pitchMode === "ONE" && next.pitchType)
+                    update("pitchType", next.pitchType);
+                }}
+              />,
+            )}
+          {stage === "pitch" && (
+            <footer className={styles.footer}>
+              {error && (
+                <div role="alert">
+                  <p>{error}</p>
+                  {!uncertain && (
+                    <button
+                      className="text-button"
+                      disabled={busy}
+                      onClick={() => void reload()}
+                    >
+                      Reload round
+                    </button>
+                  )}
+                </div>
+              )}
+              <p role="status" className={styles.notice}>
+                {notice || (lastPitch ? `Last: ${lastPitch}` : "")}
+              </p>
+            </footer>
+          )}
+          {chartsOpen &&
+            sheet(
+              "Live BP Analytics",
+              () => setChartsOpen(false),
+              <>
+                <BpSegments
+                  label="Analytics"
+                  value={chartSide}
+                  options={[
+                    { value: "hitting", label: "Hitting" },
+                    { value: "pitching", label: "Pitching" },
+                  ]}
+                  onChange={(side) => {
+                    setChartSide(side as "hitting" | "pitching");
+                    setChartPlayer(
+                      side === "pitching"
+                        ? (settings.pitcherId ?? players[0]?.id ?? "")
+                        : settings.hitterId,
+                    );
+                  }}
+                />
+                <div
+                  className={`practice-hitting-stats-scope ${styles.analyticsPlayers}`}
+                  aria-label="Analytics players"
+                >
+                  {players
+                    .filter((p) => !p.archived)
+                    .map((p) => (
+                      <button
+                        type="button"
+                        key={p.id}
+                        className={chartPlayer === p.id ? "active" : ""}
+                        onClick={() => setChartPlayer(p.id)}
+                      >
+                        {densePlayerIdentityLabel(p)}
+                      </button>
+                    ))}
+                </div>
+                <section className={styles.charts}>
+                  {charts(chartPlayer || settings.hitterId, chartSide)}
+                </section>
+              </>,
+            )}
+          {optionsOpen && (
+            <LiveBpSetup
+              settings={settings}
+              state={state}
+              players={players}
+              coaches={coaches}
+              initialStep={setupStep}
+              initialPosition={alignmentPosition}
+              busy={busy}
+              error={error}
+              onSave={saveSetup}
+              onClose={() => setOptionsOpen(false)}
+              sheet={sheet}
+              onEnd={
+                round
+                  ? () => {
+                      if (window.confirm("End this Live BP round?"))
+                        void write("end");
+                    }
+                  : undefined
+              }
+            />
+          )}
+          {participantPicker &&
+            !playerEditor &&
+            sheet(
+              creatingParticipant
+                ? "Create new"
+                : participantPicker === "hitter"
+                  ? "Choose Hitter"
+                  : "Choose Pitcher",
+              () => setParticipantPicker(null),
+              <>
+                {creatingParticipant ? (
+                  <>
+                    <BpSegments
+                      label="Type"
+                      value={participantType}
+                      options={[
+                        { value: "Player", label: "Player" },
+                        { value: "Coach", label: "Coach" },
+                      ]}
+                      onChange={setParticipantType}
+                    />
+                    {participantType === "Coach" && (
+                      <label>
+                        Coach name
+                        <input
+                          value={coachDraft}
+                          maxLength={80}
+                          onChange={(e) => setCoachDraft(e.target.value)}
+                        />
+                      </label>
+                    )}
+                    <div className="modal-actions">
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() => setCreatingParticipant(false)}
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="button"
+                        className="primary-button"
+                        disabled={
+                          participantType === "Coach" && !coachDraft.trim()
+                        }
+                        onClick={() => {
+                          if (participantType === "Player")
+                            setPlayerEditor(true);
+                          else {
+                            saveSetup(
+                              {
+                                ...settings,
+                                source: "COACH",
+                                coachName: coachDraft.trim(),
+                                pitcherId: undefined,
+                              },
+                              state,
+                            );
+                            setParticipantPicker(null);
+                          }
+                        }}
+                      >
+                        {participantType === "Player"
+                          ? "Player Details"
+                          : "Use Coach"}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className={styles.participantList}>
+                      {participantPicker === "pitcher" && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              saveSetup(
+                                {
+                                  ...settings,
+                                  source: "MACHINE",
+                                  pitcherId: undefined,
+                                },
+                                state,
+                              );
+                              setParticipantPicker(null);
+                            }}
+                          >
+                            Machine
+                          </button>
+                          {[
+                            ...new Set(
+                              [...coaches, settings.coachName].filter(
+                                (v): v is string => Boolean(v),
+                              ),
+                            ),
+                          ].map((name) => (
+                            <button
+                              type="button"
+                              key={name}
+                              onClick={() => {
+                                saveSetup(
+                                  {
+                                    ...settings,
+                                    source: "COACH",
+                                    coachName: name,
+                                    pitcherId: undefined,
+                                  },
+                                  state,
+                                );
+                                setParticipantPicker(null);
+                              }}
+                            >
+                              Coach · {name}
+                            </button>
+                          ))}
+                        </>
+                      )}
+                      {(participantPicker === "hitter"
+                        ? hitters
+                        : players.filter(
+                            (p) => !p.archived && p.id !== settings.hitterId,
+                          )
+                      ).map((player) => (
+                        <button
+                          type="button"
+                          key={player.id}
+                          onClick={() => {
+                            if (participantPicker === "hitter")
+                              changeHitter(player.id);
+                            else
+                              saveSetup(
+                                {
+                                  ...settings,
+                                  source: "PLAYER",
+                                  pitcherId: player.id,
+                                },
+                                state,
+                              );
+                            setParticipantPicker(null);
+                          }}
+                        >
+                          {densePlayerIdentityLabel(player)}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="modal-actions">
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() => {
+                          setParticipantType("Player");
+                          setCoachDraft("");
+                          setCreatingParticipant(true);
+                        }}
+                      >
+                        <Plus size={18} />
+                        Create new
+                      </button>
+                    </div>
                   </>
                 )}
-              </fieldset>
-              {entryOpen && (
-                <footer className={styles.footer}>
-                  <button
-                    className="secondary-button"
-                    disabled={busy || uncertain}
-                    onClick={() => setEntryOpen(false)}
-                  >
-                    <X size={16} /> Close
-                  </button>
+              </>,
+            )}
+          {playerEditor &&
+            createPlayer(
+              (player) => {
+                if (participantPicker === "hitter") {
+                  update("hitterId", player.id);
+                } else {
+                  setSettings((s) => ({
+                    ...s,
+                    source: "PLAYER",
+                    pitcherId: player.id,
+                  }));
+                  setDraft({ outcome: "" });
+                }
+                setPlayerEditor(false);
+                setParticipantPicker(null);
+              },
+              () => setPlayerEditor(false),
+            )}
+          {detail === "defense" &&
+            sheet(
+              "Fielding Play",
+              () => setDetail(null),
+              <>
+                <fieldset disabled={busy || uncertain} className={styles.setup}>
+                  <ChoiceSelect
+                    label="Fielder"
+                    value={draft.position ?? ""}
+                    options={[
+                      { value: "", label: "No defensive rep" },
+                      ...positions
+                        .filter((p) => settings.alignment[p])
+                        .map((p) => ({
+                          value: p,
+                          label: `${p} · ${roster.find((r) => r.value === settings.alignment[p])?.label ?? ""}`,
+                        })),
+                    ]}
+                    onChange={(v) =>
+                      edit(
+                        "position",
+                        v ? (v as BpDraft["position"]) : undefined,
+                      )
+                    }
+                  />
+                  {draft.position && (
+                    <>
+                      <BpSegments
+                        label="Defense result"
+                        value={draft.defenseResult ?? ""}
+                        options={[
+                          "Clean",
+                          "Missed Rep",
+                          "Error",
+                          "Great Play",
+                        ].map((v) => ({ value: v, label: v }))}
+                        onChange={(v) => edit("defenseResult", v)}
+                      />
+                      {draft.defenseResult === "Error" && (
+                        <BpSegments
+                          label="Error type"
+                          value={draft.errorType ?? ""}
+                          options={["Fielding", "Throwing", "Decision"].map(
+                            (v) => ({ value: v, label: v }),
+                          )}
+                          onChange={(v) => edit("errorType", v)}
+                        />
+                      )}
+                      <BpSegments
+                        label="Throw"
+                        value={draft.throwResult ?? "No Throw"}
+                        options={["No Throw", "Accurate", "Inaccurate"].map(
+                          (v) => ({ value: v, label: v }),
+                        )}
+                        onChange={(v) => edit("throwResult", v)}
+                      />
+                    </>
+                  )}
+                </fieldset>
+                <div className="modal-actions">
                   <button
                     className="primary-button"
-                    disabled={busy || !draft.outcome}
-                    onClick={() => void write("pitch")}
+                    onClick={() => setDetail(null)}
                   >
-                    <Check size={16} />
-                    {busy
-                      ? "Saving..."
-                      : uncertain
-                        ? "Retry Pitch"
-                        : "Save Pitch"}
+                    Done
+                    <Check size={18} />
                   </button>
-                </footer>
-              )}
-              {round && optionsOpen && (
-                <button
-                  className="ghost-button"
-                  disabled={busy || uncertain}
-                  onClick={() => void write("end")}
-                >
-                  End Live BP
-                </button>
-              )}
-            </>
-          )}
-          <p role="status" className={styles.notice}>
-            {notice}
-          </p>
+                </div>
+              </>,
+            )}
+          {detail === "runners" &&
+            sheet(
+              "Runner Outcomes",
+              () => setDetail(null),
+              <>
+                <div className={styles.setup}>
+                  {state.runners.map((b) => (
+                    <BpSegments
+                      key={b}
+                      label={`Runner ${b}B`}
+                      value={draft.runnerOutcomes?.[b] ?? "hold"}
+                      options={[
+                        { value: "hold", label: "Hold" },
+                        ...[1, 2, 3]
+                          .filter((n) => n !== b)
+                          .map((n) => ({
+                            value: String(n),
+                            label: `To ${n}B`,
+                          })),
+                        { value: "score", label: "Score" },
+                        { value: "out", label: "Out" },
+                      ]}
+                      onChange={(v) =>
+                        edit("runnerOutcomes", {
+                          ...draft.runnerOutcomes,
+                          [b]: v,
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+                <div className="modal-actions">
+                  <button
+                    className="primary-button"
+                    onClick={() => setDetail(null)}
+                  >
+                    Done
+                    <Check size={18} />
+                  </button>
+                </div>
+              </>,
+            )}
         </>
       )}
     </section>

@@ -2153,7 +2153,12 @@ function countLabel(count: { balls: number; strikes: number }): string {
 }
 
 function hittingEventCount(data: AppData, event: HittingEvent): { balls: number; strikes: number } | undefined {
-  if (event.liveBpContext) return event.liveBpContext.mode === "FREE" ? undefined : event.liveBpContext.before;
+  if (event.liveBpContext) {
+    const context = event.liveBpContext;
+    if (!(context.countTracked ?? context.mode !== "FREE")) return undefined;
+    const { balls, strikes } = context.before;
+    return balls === undefined || strikes === undefined ? undefined : { balls, strikes };
+  }
   if (!event.plateAppearanceId) return undefined;
   const linked = data.pitchEvents
     .filter((pitch) => pitch.plateAppearanceId === event.plateAppearanceId)

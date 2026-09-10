@@ -1,227 +1,785 @@
 .console {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-  max-width: 1100px;
-  margin: 0 auto;
   width: 100%;
-  padding-bottom: 0;
+  max-width: 1040px;
+  margin: auto;
+  min-width: 0;
+  padding-bottom: 100px;
 }
-.header {
+.analyticsPlayers {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  justify-content: space-between;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 6px;
+  scroll-snap-type: x proximity;
 }
-.header h3 {
-  margin: 0;
-  font-size: 16px;
+.analyticsPlayers > button {
+  flex: 0 0 auto;
+  scroll-snap-align: center;
+  min-height: 44px;
 }
-.playerRow {
-  grid-template-columns: 32px minmax(0, 1fr) 32px 32px;
-}
-.hitter {
-  min-width: 0;
-}
-.hitter :global(.choice-select__button) {
+.fields,
+.setup {
   border: 0;
-  background: transparent;
-  padding: 0 4px;
-  font-size: 18px;
-  font-weight: 800;
-}
-.hitter :global(.choice-select__button) > span {
-  min-width: 0;
-}
-.header h2 {
-  flex: 1;
   margin: 0;
-  font-size: 22px;
-}
-.title {
-  flex: 1;
+  padding: 0;
+  display: grid;
+  gap: 10px;
   min-width: 0;
 }
-.title p {
-  font-size: 12px;
-  margin: 4px 0 0;
+.fields:disabled {
+  opacity: 0.75;
+}
+.console h2 {
+  font-size: 18px;
+  margin: 0;
+}
+.console h3 {
+  font-size: 13px;
+  margin: 0;
+}
+.console button,
+.setup button {
+  touch-action: manipulation;
+}
+.matchup {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) 20px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
+}
+.athlete {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  text-align: center;
+}
+.athlete > span {
+  text-transform: uppercase;
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 750;
+}
+.athlete > small {
+  min-height: 20px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
   overflow-wrap: anywhere;
 }
-.fields {
-  min-height: 0;
-  align-content: start;
-  padding: 12px;
-  margin: 0;
-  min-width: 0;
-  display: grid;
-  gap: 12px;
-}
-.console .fields :global(.practice-hitting-entry-bar) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 42px;
-  gap: 6px;
-}
-.console .fields :global(.practice-hitting-quick-controls) {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 5px;
-  order: 2;
-}
-.console .fields :global(.practice-hitting-quick-controls) button {
-  min-width: 0;
-  min-height: 34px;
-  padding: 5px;
-  font-size: 10px;
-  white-space: nowrap;
-}
-.console .fields :global(.practice-hitting-quick-controls) strong {
-  font-size: 10px;
-}
-.hitter :global(.player-avatar--lg) {
-  --size: 32px;
-  width: 32px;
-  height: 32px;
+.vs {
   font-size: 11px;
-}
-.console .hitter :global(.choice-select__button) strong {
-  font-size: 20px;
-  flex: 0 1 auto;
+  font-weight: 800;
+  color: var(--muted);
   text-align: center;
+}
+.console .hitter :global(.choice-select__button),
+.sourceButton {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text);
+  padding: 0 3px;
+  min-height: 44px;
+  width: 100%;
+  justify-content: center;
+}
+.console .hitter :global(.choice-select__button) strong,
+.sourceButton strong,
+.sourceButton :global(.dense-player-identity) {
+  font-size: 17px;
+  font-weight: 800;
   white-space: normal;
   overflow-wrap: anywhere;
   line-height: 1.15;
 }
-.console .hitter :global(.choice-select__button) {
+.sourceButton :global(.dense-player-identity__visual) {
   justify-content: center;
-  gap: 8px;
-}
-.grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-.console label {
-  display: grid;
-  gap: 6px;
-  font-size: 13px;
-  min-width: 0;
-}
-.console input:not([type="checkbox"]) {
-  min-width: 0;
-  width: 100%;
-  min-height: 44px;
-  padding: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: inherit;
-  border-radius: 6px;
-}
-.toggles {
-  display: flex;
   flex-wrap: wrap;
-  gap: 14px;
 }
-.toggles label {
+.rotation {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 28px;
+  align-items: center;
+}
+.rotation small {
+  font-size: 11px;
+}
+.rotation > button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 44px;
+  background: transparent;
+  color: var(--text);
+  border: 0;
+  border-radius: 50%;
+}
+.rotation > .participantName {
+  width: 100%;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-radius: 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+.participantList {
+  display: grid;
+  max-height: 52dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.participantList button {
+  min-height: 48px;
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  padding: 10px 12px;
+}
+.statusRow {
   display: flex;
   align-items: center;
-  min-height: 44px;
-}
-.toggles input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--accent);
-}
-.tracking {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
+  min-width: 0;
 }
-.tracking label {
-  justify-content: center;
-  gap: 5px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  font-size: 11px;
-  background: var(--panel-soft);
+.live {
+  color: var(--brand-primary);
+  background: var(--brand-soft);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 850;
+  padding: 5px;
 }
-.tracking label:has(input:checked) {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 16%, var(--panel-soft));
+.status {
+  flex: 0 0 36px;
+  margin-left: auto;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  font-size: 10px;
+  font-weight: 750;
+  text-align: left;
+  line-height: 1.4;
 }
-.source {
-  align-self: center;
-  font-size: 14px;
+.status svg {
+  flex: none;
+  margin-left: auto;
+  color: var(--text);
+}
+.statusRow > button:last-child {
+  width: 44px;
+  height: 44px;
 }
 .situation {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: center;
-  padding: 8px 0;
+  display: grid;
+  gap: 4px;
 }
-.situation strong {
-  font-size: 24px;
+.situation:empty {
+  display: none;
+}
+.count {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  align-items: center;
+}
+.count :global(.game-state-lights) {
+  display: flex;
+  align-items: center;
+  padding-top: 0;
+  gap: 0;
+}
+.count :global(.game-state-lights) strong {
+  position: static;
+  font-size: 10px;
+}
+.count :global(.game-state-lights) button {
+  display: grid;
+  place-items: center;
+  background: none;
+  color: inherit;
+  border: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 6px;
+}
+.count :global(.game-state-lights) i {
+  width: 16px;
+  height: 16px;
+}
+.count :global(.game-state-lights) i:global(.active) {
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+}
+.count :global(.game-state-lights--ball) i:global(.active) {
+  background: #38a669;
+  border-color: #38a669;
+}
+.count :global(.game-state-lights--strike) i:global(.active) {
+  background: #df4a5a;
+  border-color: #df4a5a;
+}
+.statusRow .count {
+  gap: 7px;
+}
+.statusRow .count :global(.game-state-lights) button {
+  width: 26px;
+}
+.statusRow .count :global(.game-state-lights) i {
+  width: 11px;
+  height: 11px;
+}
+.statusRow .count :global(.game-state-lights) strong {
+  font-size: 9px;
+}
+.console .rotation .hitter :global(.choice-select__button) strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+}
+.gameSituation {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+.gameSituation > button {
+  display: grid;
+  gap: 3px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  min-height: 44px;
+  text-align: left;
+}
+.gameSituation span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.inputs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.inputs > :only-child {
+  max-width: 190px;
+}
+.console label,
+.setup label {
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 650;
+  min-width: 0;
+}
+.console input:not([type="checkbox"]),
+.setup input:not([type="checkbox"]) {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 16px;
+}
+.pitchData {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+.pitchLayout {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.pitchTypes {
+  display: flex;
+  gap: 5px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  max-width: 100%;
+}
+.pitchTypes button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 11px;
+}
+.pitchTypes button[aria-pressed="true"],
+.segments button[aria-pressed="true"],
+.positions button[aria-pressed="true"],
+.alignmentList button[aria-pressed="true"] {
+  background: var(--brand-soft);
+  border-color: var(--brand-primary);
+  color: var(--text);
+  box-shadow: inset 0 -2px var(--brand-primary);
+}
+.location {
+  max-width: 260px;
+  width: 100%;
+  justify-self: center;
+  min-width: 0;
+}
+.location header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 30px;
+}
+.location header button {
+  min-height: 44px;
+  padding: 0 8px;
+}
+.result {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
 }
 .outcomes {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 .outcomes button {
-  min-height: 48px;
-  padding: 8px;
+  min-height: 44px;
+  padding: 8px 4px;
+  font-size: 12px;
   white-space: normal;
-}
-.entry {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 20px;
-}
-.entry section {
-  min-width: 0;
-}
-.entry h3 {
-  font-size: 16px;
-  margin: 0 0 12px;
-}
-.entry > section:first-child:not(.bip) {
-  max-width: 330px;
-  width: 100%;
-  justify-self: center;
-}
-.bip {
-  display: grid;
-  gap: 12px;
-  align-content: start;
+  border-radius: 6px;
 }
 .footer {
-  flex-shrink: 0;
-  width: 100%;
+  position: sticky;
+  bottom: calc(78px + env(safe-area-inset-bottom));
+  z-index: 3;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  background: var(--bg, var(--surface));
-  padding: 10px 0;
-  z-index: 5;
+  gap: 4px;
+  padding: 8px 0;
+  background: var(--bg, var(--panel));
 }
-.footer button {
+.footer > button {
+  width: 100%;
   min-height: 48px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 8px;
+}
+.footer p {
+  font-size: 12px;
+  margin: 0;
 }
 .notice {
-  min-height: 20px;
+  min-height: 16px;
+  text-align: center;
+  color: var(--muted);
+}
+.pitchSummary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pitchSummary span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.pitchSummary > button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.bipLayout {
+  display: grid;
+  gap: 12px;
+}
+.bipDetails {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+.spray {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  min-width: 0;
+}
+.spray > button:last-child {
+  justify-self: end;
+  min-height: 44px;
+}
+.detailRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  min-height: 48px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 12px;
+  text-align: left;
+}
+.detailRow strong {
+  margin-left: auto;
+  overflow-wrap: anywhere;
+}
+.detailRow svg {
+  flex: none;
+}
+.optional {
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+.optional summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 12px 0;
+}
+.job {
+  display: grid;
+  gap: 6px;
+  padding: 8px 0;
+  font-size: 12px;
+}
+.charts {
+  margin-top: 12px;
+}
+.setup {
+  gap: 18px;
+}
+.segmentGroup {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.segmentGroup > span {
+  font-size: 12px;
+  font-weight: 700;
+}
+.segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.segments button {
+  flex: 1 1 70px;
+  min-height: 44px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 8px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+.steps button {
+  min-height: 44px;
+  border: 0;
+  border-bottom: 2px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+.steps button[aria-current="step"] {
+  color: var(--text);
+  border-color: var(--brand-primary);
+  font-weight: 800;
+}
+.switches {
+  display: grid;
+}
+.switches label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 48px;
+  border-bottom: 1px solid var(--line);
+}
+.switches input {
+  appearance: none;
+  width: 44px;
+  height: 26px;
+  min-height: 26px;
+  flex: 0 0 44px;
+  padding: 0;
+  background: var(--line-strong);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  cursor: pointer;
+  position: relative;
+}
+.switches input:before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--text);
+  position: absolute;
+  left: 3px;
+  top: 3px;
+}
+.switches input:checked {
+  background: var(--brand-primary);
+}
+.switches input:checked:before {
+  left: 21px;
+  background: white;
+}
+.inlineSegments {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.inlineSegments > span {
+  flex: 1;
+}
+.inlineSegments .segments {
+  flex: 0 0 auto;
+  gap: 4px;
+}
+.inlineSegments .segments button {
+  min-width: 48px;
+  padding: 8px;
+}
+.assignmentRoster h3 {
+  margin: 0 0 6px;
+}
+.assignmentRoster [role="listbox"] {
+  display: grid;
+  max-height: 180px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-snap-type: y proximity;
+}
+.assignmentRoster button {
+  min-height: 44px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 8px 12px;
+  scroll-snap-align: center;
+}
+.assignmentRoster button[aria-selected="true"] {
+  background: var(--brand-soft);
+  color: var(--brand-primary);
+}
+.rotation .hitter {
+  min-width: 0;
+}
+.rotation .hitter :global(.choice-select__button) strong {
+  font-size: 14px;
+}
+.rotation .hitter :global(.choice-select__button) {
+  padding: 0;
+}
+.spray {
+  width: min(100%, 310px);
+  margin-inline: auto;
+}
+.alignmentField {
+  width: min(100%, 310px);
+  margin-inline: auto;
+}
+.count {
+  gap: 10px;
+}
+.count :global(.game-state-lights) strong {
+  font-size: 10px;
+}
+.positions {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+}
+.positions button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+}
+.alignmentField {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  margin: auto;
+}
+.alignmentField > button {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 800;
+}
+.alignmentField > button[aria-pressed="true"] {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary);
+  color: white;
+}
+.alignmentList {
+  display: grid;
+  gap: 4px;
+}
+.alignmentList button {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  text-align: left;
+}
+.alignmentList strong {
+  width: 26px;
+}
+.bases {
+  width: 230px;
+  height: 170px;
+  margin: 0 auto;
+}
+.bases > button {
+  min-height: 44px;
+  width: 60px;
+}
+.bases > button:global(.occupied) {
+  background: var(--brand-primary);
+  color: white;
+}
+.bases > button:global(.occupied) span {
+  color: white;
+}
+.homePlate {
+  width: 14px;
+  height: 14px;
+  background: var(--line-strong);
+  position: absolute;
+  left: calc(50% - 7px);
+  bottom: 10px;
+  transform: rotate(45deg);
+}
+.miniBases {
+  height: 54px;
+  width: 72px;
   margin: 0;
-  font-size: 13px;
+  flex: none;
+}
+.miniBases :global(.game-base-diamond__line) {
+  display: none;
+}
+.miniBases > button {
+  width: 15px;
+  height: 15px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 2px;
+  transform: rotate(45deg) !important;
+}
+.miniBases > button span,
+.miniBases > button strong {
+  display: none;
+}
+.miniBases > button[data-base="second"] {
+  left: 28px;
+  top: 0;
+}
+.miniBases > button[data-base="third"] {
+  top: 20px;
+  left: 8px;
+}
+.miniBases > button[data-base="first"] {
+  top: 20px;
+  right: 8px;
+}
+.miniBases > button:global(.occupied) {
+  background: var(--brand-primary);
+}
+.miniBases .homePlate {
+  display: none;
+}
+.complete {
+  display: grid;
+  gap: 12px;
 }
 @media (min-width: 760px) {
-  .entry {
-    grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
-  }
-  .entry .bip:only-child {
-    grid-column: 1 / -1;
-    max-width: 620px;
+  .matchup {
+    max-width: 720px;
     width: 100%;
-    justify-self: center;
+    margin: auto;
+  }
+  .console .hitter :global(.choice-select__button) strong,
+  .sourceButton strong,
+  .sourceButton :global(.dense-player-identity) {
+    font-size: 22px;
+  }
+  .pitchLayout {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    gap: 24px;
+    align-items: center;
+  }
+  .location {
+    max-width: 330px;
+  }
+  .outcomes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .outcomes button {
+    min-height: 60px;
+  }
+  .bipLayout {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    gap: 24px;
+  }
+  .situation {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 30px;
+  }
+  .footer {
+    max-width: 620px;
+    margin: auto;
+  }
+}
+@media (max-width: 440px) {
+  .location {
+    max-width: 225px;
+  }
+  .console .hitter :global(.choice-select__button) strong {
+    font-size: 16px;
   }
 }

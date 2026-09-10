@@ -3,6 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const fieldLayout = fs.readFileSync(new URL("../app/lib/baseballFieldLayout.ts", import.meta.url), "utf8");
 const css = fs.readFileSync(new URL("../app/game-session.css", import.meta.url), "utf8");
 const globalCss = fs.readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const visuals = fs.readFileSync(new URL("../app/components/visuals.tsx", import.meta.url), "utf8");
@@ -70,13 +71,13 @@ test("field tracking uses the shared scalable field renderer and keeps draggable
   assert.ok(fs.statSync(centerBaseball).size > 0);
   assert.match(css, /game-base-diamond > button\.occupied[\s\S]*?width:\s*44px/);
   assert.match(globalCss, /game-field-command__runners \.game-base-diamond\s*\{[^}]*height:\s*35%;[^}]*top:\s*63%;[^}]*width:\s*42%/);
-  assert.match(page, /GAME_LIVE_FIELD_POSITION_COORDINATES[\s\S]*?P:\s*\[73,\s*82\][\s\S]*?C:\s*\[27,\s*89\][\s\S]*?"1B":\s*\[70,\s*75\][\s\S]*?"3B":\s*\[30,\s*75\]/);
+  assert.match(fieldLayout, /GAME_LIVE_FIELD_POSITION_COORDINATES[\s\S]*?P:\s*\[73,\s*82\][\s\S]*?C:\s*\[27,\s*89\][\s\S]*?"1B":\s*\[70,\s*75\][\s\S]*?"3B":\s*\[30,\s*75\]/);
   assert.match(globalCss, /game-base-diamond > button\.occupied,[\s\S]*?background:\s*var\(--brand-primary\)/);
   assert.match(globalCss, /game-field-pitch-ball\s*\{[^}]*height:\s*60px;[^}]*top:\s*62\.5%;[^}]*width:\s*60px/);
   assert.match(globalCss, /button\[data-base="second"\][^}]*top:\s*0;[^}]*translate\(-50%,-50%\)/);
   assert.match(globalCss, /button\[data-base="first"\][^}]*right:\s*0;[^}]*translate\(50%,-50%\)/);
   assert.match(page, /GAME_FIELD_POSITION_COORDINATES/);
-  assert.match(page, /P:\s*\[50,\s*76\], C:\s*\[50,\s*94\], "1B":\s*\[67,\s*75\], "2B":\s*\[63,\s*61\], "3B":\s*\[33,\s*75\]/);
+  assert.match(fieldLayout, /P:\s*\[50,\s*76\],[\s\S]*C:\s*\[50,\s*94\],[\s\S]*"1B":\s*\[67,\s*75\],[\s\S]*"2B":\s*\[63,\s*61\],[\s\S]*"3B":\s*\[33,\s*75\]/);
   assert.match(page, /data-position=\{position\}/);
   assert.match(globalCss, /\.game-field-player\s*\{[^}]*height:\s*44px;[^}]*max-width:\s*58px;[^}]*min-width:\s*58px;[^}]*text-align:\s*center;[^}]*width:\s*58px/);
   assert.match(globalCss, /clip-path:\s*polygon\(0 0, 100% 0, 100% 45%, 50% 100%, 0 45%\)/);

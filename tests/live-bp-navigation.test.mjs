@@ -12,19 +12,28 @@ test("Live BP is embedded inside the shared Practice tracker, with compact entry
   );
   const tracker = page.slice(page.indexOf("function PracticeConsole("));
   assert.match(tracker, /<LiveBpConsole/);
-  assert.match(page, /nextMode === "Hitting" && hittingStation === "Live BP" \? "Tee"/);
-  assert.match(page, /nextMode === "Pitching" && pitchingStation === "Live BP" \? "Bullpen"/);
+  assert.match(
+    page,
+    /nextMode === "Hitting" && hittingStation === "Live BP" \? "Tee"/,
+  );
+  assert.match(
+    page,
+    /nextMode === "Pitching" && pitchingStation === "Live BP" \? "Bullpen"/,
+  );
   const header = tracker.slice(
     tracker.indexOf("practice-tracker-header"),
     tracker.indexOf("practice-mode-picker-trigger"),
   );
   assert.doesNotMatch(header, /CoachLiveEntrySettings/);
   const source = fs.readFileSync("app/components/LiveBpConsole.tsx", "utf8");
-  assert.match(source, /practice-hitting-player-row/);
+  assert.match(source, /styles.matchup/);
   assert.match(source, /aria-label="Previous hitter"/);
   assert.match(source, /aria-label="Next hitter"/);
-  assert.match(source, /entryOpen &&/);
-  assert.match(source, /chartsOpen && charts/);
+  assert.doesNotMatch(source, /entryOpen/);
+  assert.match(source, /setStage\("bip"\)/);
+  assert.match(source, /<LiveBpSetup/);
+  assert.match(source, /chartsOpen &&\s*sheet/);
+  assert.match(source, /<LiveBpPitchDetails/);
 });
 
 test("Practice mode switch delegates one route transition without stale station callbacks", () => {
