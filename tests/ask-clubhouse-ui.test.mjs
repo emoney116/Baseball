@@ -53,7 +53,7 @@ test("Ask Clubhouse UI supports structured answers and deduped setup/error state
   assert.match(page, /ASK_CLUBHOUSE_GENERIC_STAGE = "Analyzing your Clubhouse data\.\.\."/);
 });
 
-test("Ask Clubhouse keeps launch suggestions on landing and follow-ups on only the latest answer", () => {
+test("Ask Clubhouse keeps launch suggestions on landing without post-answer suggestion panels", () => {
   const page = readFileSync("app/page.tsx", "utf8") + readFileSync("app/components/AskClubhouseDrawer.tsx", "utf8");
 
   assert.match(page, /ASK_CLUBHOUSE_UI_SUGGESTIONS/);
@@ -61,9 +61,10 @@ test("Ask Clubhouse keeps launch suggestions on landing and follow-ups on only t
   assert.doesNotMatch(page, /What should we watch next game\?/);
   assert.match(page, /Who has the highest Practice Contact %\?/);
   assert.match(page, /Show our latest Practice summary/);
-  assert.match(page, /function AskClubhouseFollowUps/);
-  assert.match(page, /showFollowUps=\{message\.id === lastAssistantId\}/);
-  assert.match(page, /showFollowUps && <AskClubhouseFollowUps/);
+  assert.doesNotMatch(page, /function AskClubhouseFollowUps|<AskClubhouseFollowUps|You might also ask/);
+  assert.match(page, /canRetry=\{message\.id === lastAssistantId\}/);
+  assert.match(page, /hasDetails && showDetails && <div className="ask-answer-details"/);
+  assert.match(page, /const \[showDetails, setShowDetails\] = useState\(false\)/);
 });
 
 test("Ask Clubhouse exposes shared launch surfaces and authorized team scope controls", () => {
@@ -126,4 +127,24 @@ test("Ask Clubhouse mock states are local development only", () => {
   assert.match(page, /case "rule":/);
   assert.match(page, /case "setup":/);
   assert.match(page, /case "error":/);
+});
+
+test("Chat replies omit repeated branding while retaining the drawer title and accessible roles", () => {
+  const source = readFileSync("app/components/AskClubhouseDrawer.tsx", "utf8");
+  assert.doesNotMatch(source, /<header className="ask-message__meta">/);
+  assert.match(source, /<strong>Ask Clubhouse<\/strong>/);
+  assert.match(source, /aria-label=\{isAssistant \? "Assistant reply" : "Your message"\}/);
+});
+
+test("Only the Thinking wording shimmers using neutral theme colors", () => {
+  const source = readFileSync("app/components/AskClubhouseDrawer.tsx", "utf8");
+  const css = readFileSync("app/ask-clubhouse.css", "utf8");
+  assert.match(source, /className=\{active && !message\.streaming \? "ask-wave-text" : ""\}/);
+  assert.equal(source.match(/"ask-wave-text"/g)?.length, 1);
+  assert.match(source, /<span>\{ASK_PROGRESS_LABELS\[step\.stage\]\}<\/span>/);
+  const shimmer = css.match(/\.ask-progress__toggle > \.ask-wave-text \{([^}]+)\}/)?.[1];
+  assert.ok(shimmer);
+  assert.match(shimmer, /var\(--muted\).*var\(--text\).*var\(--muted\)/);
+  assert.doesNotMatch(shimmer, /brand|#[0-9a-f]/i);
+  assert.match(css, /prefers-reduced-motion: reduce/);
 });

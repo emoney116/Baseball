@@ -1,4 +1,5 @@
 import type { AIProvider, AIProviderResult } from "./types.ts";
+import { readStreamLines } from "./stream.ts";
 
 export class AskClubhouseProviderError extends Error {
   code: "rate_limited" | "quota" | "unavailable" | "provider_error";
@@ -29,11 +30,13 @@ export class OpenAIProvider implements AIProvider {
     maxOutputTokens: number;
     webSearch?: { enabled: boolean; maxSearches: number };
     structured?: { name: string; schema: Record<string, unknown>; image?: string };
+    onTextDelta?: (text: string) => void;
+    signal?: AbortSignal;
   }): Promise<AIProviderResult> {
     const webSearchEnabled = Boolean(input.webSearch?.enabled && input.webSearch.maxSearches > 0);
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
-      ...(input.structured ? { signal: AbortSignal.timeout(45000) } : {}),
+      signal: input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(input.structured ? 45000 : 60000),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${this.apiKey}`,
@@ -45,6 +48,7 @@ export class OpenAIProvider implements AIProvider {
         ...(input.structured ? { text: { format: { type: "json_schema", name: input.structured.name, schema: input.structured.schema, strict: true } } } : {}),
         max_output_tokens: input.maxOutputTokens,
         store: false,
+        ...(input.onTextDelta && !input.structured ? { stream: true } : {}),
         ...(webSearchEnabled ? {
           tools: [{ type: "web_search" }],
           tool_choice: "required",
@@ -54,7 +58,10 @@ export class OpenAIProvider implements AIProvider {
       }),
     });
 
-    const payload = await response.json().catch(() => ({})) as OpenAIResponsesPayload;
+    const streamed = response.ok && response.headers.get("content-type")?.includes("text/event-stream");
+    const payload = streamed
+      ? await consumeProviderStream(response, input.onTextDelta, input.signal)
+      : await response.json().catch(() => ({})) as OpenAIResponsesPayload;
     if (!response.ok) {
       const message = payload.error?.message ?? "Ask Clubhouse is temporarily unavailable.";
       const code = classifyProviderError(response.status, message);
@@ -70,6 +77,23 @@ export class OpenAIProvider implements AIProvider {
       sources: extractSources(payload),
     };
   }
+}
+
+async function consumeProviderStream(response: Response, onTextDelta?: (text: string) => void, signal?: AbortSignal): Promise<OpenAIResponsesPayload> {
+  if (!response.body) throw new AskClubhouseProviderError("provider_error", "The answer stream is unavailable.");
+  for await (const line of readStreamLines(response.body, signal)) {
+    if (!line.startsWith("data:")) continue;
+    const data = line.slice(5).trim();
+    if (!data || data === "[DONE]") continue;
+    const event = JSON.parse(data) as { type?: string; delta?: string; response?: OpenAIResponsesPayload; message?: string };
+    // Only answer text crosses the boundary; never expose private reasoning events.
+    if (event.type === "response.output_text.delta" && event.delta) onTextDelta?.(event.delta);
+    if (event.type === "response.completed" && event.response) return event.response;
+    if (event.type === "error" || event.type === "response.failed" || event.type === "response.incomplete") {
+      throw new AskClubhouseProviderError("provider_error", event.response?.error?.message ?? event.message ?? "The answer could not be completed.");
+    }
+  }
+  throw new AskClubhouseProviderError("provider_error", "The answer stream ended unexpectedly.");
 }
 
 interface OpenAIResponsesPayload {

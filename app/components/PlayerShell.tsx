@@ -24,6 +24,7 @@ import { authRepository } from "../data/supabaseRepository";
 import { createClient } from "../lib/supabase/client";
 import type { AskClubhouseAction, AskClubhouseApiResponse } from "../lib/askClubhouse/types";
 import { AskClubhouseDrawer, AskClubhouseFab, ASK_CLUBHOUSE_GENERIC_STAGE, type AskClubhouseChatMessage } from "./AskClubhouseDrawer";
+import { advanceAskMessage, readAskResponse, stopAskMessage } from "../lib/askClubhouse/stream";
 import { PlayerHome } from "./PlayerHome";
 import { ClubhouseBottomNav } from "./ClubhouseBottomNav";
 import { ChoiceSelect } from "./ChoiceSelect";
@@ -84,6 +85,8 @@ export function PlayerShell({
   const [liveSelection, setLiveSelection] = useState("");
   const askGeneration = useRef(0);
   const askInFlight = useRef(false);
+  const askAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => { askGeneration.current++; askAbort.current?.abort(); }, []);
   const [error, setError] = useState(""),
     [loading, setLoading] = useState(false);
   const [eventId, setEventId] = useState("");
@@ -267,11 +270,21 @@ export function PlayerShell({
     : { source: typeof window !== "undefined" && new URLSearchParams(window.location.search).has("source") ? undefined : "practice" };
   function resetAsk() {
     askGeneration.current++;
+    askAbort.current?.abort();
+    askAbort.current = null;
     askInFlight.current = false;
     setAsking(false);
     setAnswer(null);
     setAskMessages([]);
     setQuestion("");
+  }
+  function stopAskReply() {
+    askGeneration.current++;
+    askAbort.current?.abort();
+    askAbort.current = null;
+    askInFlight.current = false;
+    setAsking(false);
+    setAskMessages(current => current.map(message => message.pending ? stopAskMessage(message) : message));
   }
   function openAskAnalytics(action: AskClubhouseAction) {
     if (!context || !session.access?.capabilities.canViewOwnAnalytics) return;
@@ -290,10 +303,12 @@ export function PlayerShell({
     if (!context || !session.access?.capabilities.canUseAskClubhouse || !message || askInFlight.current) return;
     const seq = contextGeneration.current;
     const request = ++askGeneration.current;
+    const abort = new AbortController();
+    askAbort.current = abort;
     askInFlight.current = true;
     const pendingId = crypto.randomUUID();
     const userMessage: AskClubhouseChatMessage = { id: crypto.randomUUID(), role: "user", content: message, createdAt: new Date().toISOString() };
-    const history = [...askMessages.filter(m => !m.pending), userMessage].slice(-8);
+    const history = [...askMessages.filter(m => !m.pending && !m.stopped && !m.interrupted), userMessage].slice(-8);
     setAskMessages(current => [...current, userMessage, { id: pendingId, role: "assistant", content: ASK_CLUBHOUSE_GENERIC_STAGE, pending: true, pendingStartedAt: Date.now() }]);
     setQuestion("");
     setAsking(true);
@@ -302,7 +317,8 @@ export function PlayerShell({
         throw new Error("Live answers require a signed-in player account.");
       const r = preview ? new Response(JSON.stringify(previewReply)) : await fetch("/api/ai/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
+        signal: abort.signal,
         body: JSON.stringify({
           message,
           messages: history.map(({ role, content, createdAt }) => ({ role, content, createdAt })),
@@ -332,10 +348,14 @@ export function PlayerShell({
           },
         }),
       });
-      const p: AskClubhouseApiResponse = await r.json();
+      const p = await readAskResponse(r, event => {
+        if (seq !== contextGeneration.current || request !== askGeneration.current) return;
+        setAskMessages(current => current.map(m => m.id === pendingId ? advanceAskMessage(m, event) : m));
+      }, abort.signal);
       if (seq !== contextGeneration.current || request !== askGeneration.current) return;
       setAnswer(p);
       setAskMessages(current => current.map(m => m.id === pendingId ? {
+        ...m, pending: false, streaming: false, completedAt: Date.now(),
         id: pendingId, role: "assistant", content: p.answer ?? p.message?.content ?? "Unable to complete that question.", createdAt: p.message?.createdAt ?? new Date().toISOString(),
         status: p.status, route: p.route, evidence: p.evidence, actions: p.actions, followUps: p.followUps, usage: p.usage, visuals: p.visuals, visualUnavailable: p.visualUnavailable,
       } : m));
@@ -346,6 +366,7 @@ export function PlayerShell({
     } finally {
       if (seq === contextGeneration.current && request === askGeneration.current) {
         askInFlight.current = false;
+        askAbort.current = null;
         setAsking(false);
       }
     }
@@ -459,6 +480,7 @@ export function PlayerShell({
           includeDefaultSuggestions={false}
           onClose={() => setAsk(false)}
           onNewChat={resetAsk}
+          onStop={stopAskReply}
           onInput={setQuestion}
           onQuestion={(value) => void askQuestion(value)}
           onSubmit={() => void askQuestion(question)}
