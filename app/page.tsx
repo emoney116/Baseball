@@ -66,6 +66,7 @@ import type React from "react";
 import { Children, Fragment, isValidElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ASK_CLUBHOUSE_ERROR_BODY, ASK_CLUBHOUSE_ERROR_TITLE, ASK_CLUBHOUSE_GENERIC_STAGE, ASK_CLUBHOUSE_SETUP_BODY, ASK_CLUBHOUSE_SETUP_TITLE, ASK_CLUBHOUSE_UI_SUGGESTIONS, AskClubhouseDrawer, AskClubhouseFab, type AskClubhouseChatMessage } from "./components/AskClubhouseDrawer";
+import { advanceAskMessage, readAskResponse, stopAskMessage } from "./lib/askClubhouse/stream";
 import { ChoiceSelect, type ChoiceOption } from "./components/ChoiceSelect";
 import { ClubhouseBaseballField } from "./components/ClubhouseBaseballField";
 import { ClubhouseBottomNav } from "./components/ClubhouseBottomNav";
@@ -100,7 +101,6 @@ import {
 } from "./lib/analyticsQuery";
 import type {
   AskClubhouseAction,
-  AskClubhouseApiResponse,
   AskClubhouseLaunchSurface,
   AskClubhouseTeamScope,
   AskClubhouseVisualContext,
@@ -322,13 +322,6 @@ function askTeamScopeKey(team: Pick<TeamOption, "teamId" | "seasonId">) {
 }
 
 const ASK_ALL_TEAMS_SCOPE_KEY = "__all_teams__";
-
-function askStageForQuestion(question: string) {
-  if (/\b(nfhs|ncaa|mlb|rule|rulebook|balk|pitch count limit)\b/i.test(question)) return "Checking current baseball guidance...";
-  if (/\b(is that good|benchmark|for (?:his|her|their|my) age|how does that compare)\b/i.test(question)) return "Comparing Clubhouse data with baseball context...";
-  if (/\b(ops|babip|csw|what is|what does)\b/i.test(question) && !/\b(our|my|team|player|who)\b/i.test(question)) return "Checking baseball knowledge...";
-  return ASK_CLUBHOUSE_GENERIC_STAGE;
-}
 
 const ASK_CLUBHOUSE_MOCK_TIME = "2026-08-30T13:41:00.000Z";
 
@@ -1251,6 +1244,9 @@ export default function MetrolinaBaseballApp() {
   const [askInput, setAskInput] = useState("");
   const [askSending, setAskSending] = useState(Boolean(initialAskFixture?.sending));
   const [askStage, setAskStage] = useState(initialAskFixture?.stage ?? ASK_CLUBHOUSE_GENERIC_STAGE);
+  const askAbortRef = useRef<AbortController | null>(null);
+  const askGenerationRef = useRef(0);
+  useEffect(() => () => { askGenerationRef.current++; askAbortRef.current?.abort(); }, []);
   const [askError, setAskError] = useState<string | undefined>(initialAskFixture?.error);
   const [askLaunchContext, setAskLaunchContext] = useState<AskClubhouseLaunchContext>({ surface: "analytics" });
   const [askVisualContext, setAskVisualContext] = useState<AskClubhouseVisualContext | undefined>();
@@ -3706,11 +3702,23 @@ export default function MetrolinaBaseballApp() {
   }
 
   function startNewAskChat() {
+    askGenerationRef.current++;
+    askAbortRef.current?.abort();
+    askAbortRef.current = null;
+    setAskSending(false);
     setAskConversationId(undefined);
     setAskMessages([]);
     setAskInput("");
     setAskError(undefined);
     setAskVisualContext(undefined);
+  }
+
+  function stopAskReply() {
+    askGenerationRef.current++;
+    askAbortRef.current?.abort();
+    askAbortRef.current = null;
+    setAskSending(false);
+    setAskMessages(current => current.map(message => message.pending ? stopAskMessage(message) : message));
   }
 
   function openAskClubhouse(surface: AskClubhouseLaunchSurface, analytics?: Partial<AnalyticsQuery>) {
@@ -3735,11 +3743,14 @@ export default function MetrolinaBaseballApp() {
   async function handleAskQuestion(question: string) {
     if (!data) return;
     const nextQuestion = question.trim();
-    if (!nextQuestion || askSending) return;
+    if (!nextQuestion || askSending || askAbortRef.current) return;
+    const requestId = ++askGenerationRef.current;
+    const abort = new AbortController();
+    askAbortRef.current = abort;
     setAskOpen(true);
     setAskError(undefined);
     setAskInput("");
-    const nextStage = askStageForQuestion(nextQuestion);
+    const nextStage = "Checking your question";
     setAskStage(nextStage);
     setAskSending(true);
     const now = Date.now();
@@ -3756,8 +3767,9 @@ export default function MetrolinaBaseballApp() {
       createdAt: new Date(now).toISOString(),
       pending: true,
       pendingStartedAt: now,
+      steps: [{ stage: "access", startedAt: now }],
     };
-    const history = [...askMessages, userMessage].slice(-8);
+    const history = [...askMessages.filter(message => !message.pending && !message.stopped && !message.interrupted), userMessage].slice(-8);
     const availableTeams = displayWorkspaceTeams(data.teamContext?.availableTeams ?? []);
     const selectedTeams = resolvedAskSelectedScopeKeys.includes(ASK_ALL_TEAMS_SCOPE_KEY)
       ? availableTeams
@@ -3769,7 +3781,8 @@ export default function MetrolinaBaseballApp() {
       const response = await fetch("/api/ai/chat", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
+        signal: abort.signal,
         body: JSON.stringify({
           message: nextQuestion,
           conversationId: askConversationId,
@@ -3786,9 +3799,13 @@ export default function MetrolinaBaseballApp() {
           },
         }),
       });
-      const payload = (await response.json().catch(() => ({}))) as AskClubhouseApiResponse;
+      const payload = await readAskResponse(response, event => {
+        if (requestId !== askGenerationRef.current) return;
+        setAskMessages(current => current.map(item => item.id === pendingMessage.id ? advanceAskMessage(item, event) : item));
+      }, abort.signal);
+      if (requestId !== askGenerationRef.current) return;
       const assistantMessage: AskClubhouseChatMessage = {
-        id: payload.message?.id ?? `ask-assistant-${Date.now()}`,
+        id: pendingMessage.id,
         role: "assistant",
         content: payload.answer ?? payload.message?.content ?? "Ask Clubhouse could not answer that yet.",
         createdAt: payload.message?.createdAt ?? new Date().toISOString(),
@@ -3809,9 +3826,12 @@ export default function MetrolinaBaseballApp() {
         playerId: nextVisual.playerId,
         query: nextVisual.query,
       });
-      if (!response.ok || !payload.ok) setAskError(payload.answer);
-      setAskMessages((current) => current.map((messageItem) => messageItem.pending ? assistantMessage : messageItem));
+      setAskMessages((current) => current.map((messageItem) => messageItem.id === pendingMessage.id ? {
+        ...messageItem, ...assistantMessage, pending: false, streaming: false, completedAt: Date.now(),
+        ...(!payload.ok && messageItem.streaming ? { content: messageItem.content, status: undefined, interrupted: true, evidence: [], actions: [], followUps: [], visuals: [] } : {}),
+      } : messageItem));
     } catch {
+      if (requestId !== askGenerationRef.current || abort.signal.aborted) return;
       const failedMessage: AskClubhouseChatMessage = {
         id: `ask-error-${Date.now()}`,
         role: "assistant",
@@ -3819,10 +3839,9 @@ export default function MetrolinaBaseballApp() {
         createdAt: new Date().toISOString(),
         status: "failed",
       };
-      setAskError(failedMessage.content);
-      setAskMessages((current) => current.map((messageItem) => messageItem.pending ? failedMessage : messageItem));
+      setAskMessages((current) => current.map((messageItem) => messageItem.id === pendingMessage.id ? { ...messageItem, content: messageItem.streaming ? messageItem.content : failedMessage.content, status: messageItem.streaming ? undefined : "failed", interrupted: Boolean(messageItem.streaming), pending: false, streaming: false, completedAt: Date.now() } : messageItem));
     } finally {
-      setAskSending(false);
+      if (requestId === askGenerationRef.current) { setAskSending(false); askAbortRef.current = null; }
     }
   }
 
@@ -4396,6 +4415,7 @@ export default function MetrolinaBaseballApp() {
           suggestions={ASK_CLUBHOUSE_CONTEXT_SUGGESTIONS[askLaunchContext.surface]}
           onClose={() => setAskOpen(false)}
           onNewChat={startNewAskChat}
+          onStop={stopAskReply}
           onInput={setAskInput}
           onQuestion={handleAskQuestion}
           onSubmit={() => handleAskQuestion(askInput)}

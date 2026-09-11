@@ -201,6 +201,8 @@ export interface AIProvider {
     system: string;
     prompt: string;
     maxOutputTokens: number;
+    onTextDelta?: (text: string) => void;
+    signal?: AbortSignal;
     webSearch?: {
       enabled: boolean;
       maxSearches: number;

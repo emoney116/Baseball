@@ -1,7 +1,10 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { BarChart3, ChevronDown, ChevronRight, ChevronUp, Dumbbell, Gauge, RefreshCw, Send, Sparkles, TrendingUp, Trophy, X, type LucideIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, BarChart3, BookOpen, Check, ChevronDown, ChevronRight, ChevronUp, CircleAlert, Copy, Dumbbell, Gauge, RefreshCw, Square, SquarePen, Sparkles, TrendingUp, Trophy, X, type LucideIcon } from "lucide-react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { ASK_PROGRESS_LABELS, type AskStreamingState } from "../lib/askClubhouse/stream";
 import type { ID } from "../types";
 import type { AskClubhouseAction, AskClubhouseClientMessage, AskClubhouseEvidenceItem, AskClubhouseRoute, AskClubhouseStatus, AskClubhouseUsageSnapshot, AskClubhouseVisual } from "../lib/askClubhouse/types";
 import { ClubhouseBaseballField } from "./ClubhouseBaseballField";
@@ -29,7 +32,7 @@ export function AskClubhouseFab({ onClick }: { onClick: () => void }) {
   );
 }
 
-export type AskClubhouseChatMessage = AskClubhouseClientMessage & {
+export type AskClubhouseChatMessage = AskClubhouseClientMessage & AskStreamingState & {
   id: ID;
   status?: AskClubhouseStatus;
   evidence?: AskClubhouseEvidenceItem[];
@@ -129,6 +132,7 @@ export function AskClubhouseDrawer({
   includeDefaultSuggestions = true,
   onClose,
   onNewChat,
+  onStop,
   onInput,
   onQuestion,
   onSubmit,
@@ -144,6 +148,7 @@ export function AskClubhouseDrawer({
   suggestions: Array<{ label: string; icon: LucideIcon }>;
   onClose: () => void;
   onNewChat: () => void;
+  onStop: () => void;
   onInput: (value: string) => void;
   onQuestion: (question: string) => void;
   onSubmit: () => void;
@@ -156,6 +161,8 @@ export function AskClubhouseDrawer({
   });
   const visibleMessages = useMemo(() => dedupeAskClubhouseMessages(messages), [messages]);
   const chatRef = useRef<HTMLElement | null>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const [showJump, setShowJump] = useState(false);
   const drawerRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
@@ -179,7 +186,28 @@ export function AskClubhouseDrawer({
       if (previousFocus?.isConnected) previousFocus.focus();
     };
   }, []);
+  useEffect(() => {
+    const textarea = composerRef.current;
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`;
+  }, [input]);
+  useEffect(() => {
+    // Follow the visible viewport when the mobile keyboard opens.
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const update = () => {
+      drawerRef.current?.style.setProperty("--ask-viewport-height", `${viewport.height}px`);
+      drawerRef.current?.style.setProperty("--ask-viewport-top", `${viewport.offsetTop}px`);
+    };
+    update();
+    viewport.addEventListener("resize", update);
+    viewport.addEventListener("scroll", update);
+    return () => { viewport.removeEventListener("resize", update); viewport.removeEventListener("scroll", update); };
+  }, []);
   const shouldFollowChatRef = useRef(true);
+  const followLatest = () => { shouldFollowChatRef.current = true; setShowJump(false); };
+  const askQuestion = (question: string) => { followLatest(); onQuestion(question); };
   const lastUserQuestion = [...visibleMessages].reverse().find((message) => message.role === "user")?.content;
   const combinedSuggestions = [...contextualSuggestions, ...(includeDefaultSuggestions ? ASK_CLUBHOUSE_UI_SUGGESTIONS : []).filter((item) => !contextualSuggestions.some((suggestion) => suggestion.label === item.label))];
   const suggestions = showAllIdeas ? combinedSuggestions : combinedSuggestions.slice(0, 4);
@@ -192,11 +220,24 @@ export function AskClubhouseDrawer({
   );
 
   useEffect(() => {
+    if (!visibleMessages.length) { shouldFollowChatRef.current = true; if (chatRef.current) chatRef.current.scrollTop = 0; return; }
     if (!shouldFollowChatRef.current) return;
     const chat = chatRef.current;
     if (!chat) return;
-    window.requestAnimationFrame(() => chat.scrollTo({ top: chat.scrollHeight, behavior: "smooth" }));
+    const frame = window.requestAnimationFrame(() => chat.scrollTo({ top: chat.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }));
+    return () => window.cancelAnimationFrame(frame);
   }, [visibleMessages.length, sending]);
+  useEffect(() => {
+    const chat = chatRef.current;
+    if (!chat) return;
+    const follow = () => {
+      if (shouldFollowChatRef.current) chat.scrollTop = visibleMessages.length ? chat.scrollHeight : 0;
+    };
+    const observer = new ResizeObserver(follow);
+    for (const child of chat.children) observer.observe(child);
+    follow();
+    return () => observer.disconnect();
+  }, [visibleMessages]);
 
   return portalTarget ? createPortal(
     <div
@@ -206,10 +247,10 @@ export function AskClubhouseDrawer({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <aside ref={drawerRef} className="analytics-drawer analytics-ask-drawer" role="dialog" aria-modal="true" aria-label="Ask Clubhouse">
+      <aside ref={drawerRef} className="analytics-drawer analytics-ask-drawer ask-experience" role="dialog" aria-modal="true" aria-label="Ask Clubhouse">
         <header className="ask-header">
-          <button className="icon-button ask-header__new-button" type="button" onClick={onNewChat} aria-label="Start a new Ask Clubhouse chat" title="New Chat">
-            <RefreshCw size={15} aria-hidden="true" />
+          <button className="icon-button ask-header__new-button" type="button" onClick={() => { followLatest(); onNewChat(); }} aria-label="Start a new Ask Clubhouse chat" title="New Chat">
+            <SquarePen size={18} aria-hidden="true" />
           </button>
           <div className="ask-header__title">
             <strong>Ask Clubhouse</strong>
@@ -228,6 +269,7 @@ export function AskClubhouseDrawer({
           onScroll={(event) => {
             const target = event.currentTarget;
             shouldFollowChatRef.current = target.scrollHeight - target.scrollTop - target.clientHeight < 72;
+            setShowJump(!shouldFollowChatRef.current);
           }}
         >
           {!visibleMessages.length && (
@@ -235,19 +277,20 @@ export function AskClubhouseDrawer({
               suggestions={suggestions}
               showAllIdeas={showAllIdeas}
               sending={sending}
-              onQuestion={onQuestion}
+              onQuestion={askQuestion}
               onToggleIdeas={() => setShowAllIdeas((current) => !current)}
             />
           )}
-          {visibleMessages.map((message) => (
+          {visibleMessages.map((message, index) => (
             <AskClubhouseMessageBubble
               key={message.id}
-              message={message.pending ? { ...message, content: stage } : message}
+              message={message.pending && !message.streaming ? { ...message, content: stage } : message}
               onAction={onAction}
-              onQuestion={onQuestion}
-              showFollowUps={message.id === lastAssistantId}
+              busy={sending}
+              canRetry={message.id === lastAssistantId}
               onRetry={() => {
-                if (lastUserQuestion) onQuestion(lastUserQuestion);
+                const originalQuestion = visibleMessages.slice(0, index).reverse().find(item => item.role === "user")?.content;
+                if (originalQuestion) askQuestion(originalQuestion);
               }}
             />
           ))}
@@ -257,7 +300,7 @@ export function AskClubhouseDrawer({
               title={ASK_CLUBHOUSE_ERROR_TITLE}
               body={error ?? ASK_CLUBHOUSE_ERROR_BODY}
               actionLabel={lastUserQuestion ? "Try Again" : undefined}
-              onAction={lastUserQuestion ? () => onQuestion(lastUserQuestion) : undefined}
+              onAction={lastUserQuestion ? () => askQuestion(lastUserQuestion) : undefined}
             />
           )}
         </section>
@@ -265,27 +308,36 @@ export function AskClubhouseDrawer({
           className="ask-composer"
           onSubmit={(event) => {
             event.preventDefault();
-            if (canSend) onSubmit();
+            if (canSend) { followLatest(); onSubmit(); }
           }}
         >
+          {showJump && <button className="ask-jump-latest" type="button" aria-label="Scroll to latest message" onClick={() => {
+            shouldFollowChatRef.current = true;
+            setShowJump(false);
+            chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+          }}><ArrowDown size={16} /><span>Latest</span></button>}
+          <div className="ask-composer__field">
           <textarea
+            ref={composerRef}
             aria-label="Ask a question"
             value={input}
             onChange={(event) => onInput(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
+              if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                 event.preventDefault();
-                if (canSend) onSubmit();
+                if (canSend) { followLatest(); onSubmit(); }
               }
             }}
             placeholder={visibleMessages.length ? "Ask a follow-up..." : "Ask about your team..."}
-            rows={2}
+            rows={1}
             maxLength={4000}
-            disabled={sending}
           />
-          <button className="primary-button ask-send-button" type="submit" disabled={!canSend} aria-label="Send Ask Clubhouse message">
-            <Send size={16} aria-hidden="true" />
-          </button>
+          <div className="ask-composer__tools"><span><Sparkles size={13} aria-hidden="true" /> Clubhouse</span>
+            {sending ? <button key="stop" className="primary-button ask-send-button ask-stop-button" type="button" onClick={(event) => { event.preventDefault(); onStop(); }} aria-label="Stop response"><Square size={13} fill="currentColor" aria-hidden="true" /></button> :
+              <button key="send" className="primary-button ask-send-button" type="submit" disabled={!canSend} aria-label="Send Ask Clubhouse message"><ArrowUp size={19} aria-hidden="true" /></button>}
+          </div>
+          </div>
+          <p className="ask-composer__hint">{sending ? "You can keep typing while Clubhouse responds." : "Ask a follow-up. Your context stays with the conversation."}</p>
         </form>
       </aside>
     </div>, portalTarget
@@ -306,7 +358,7 @@ function AskClubhouseLanding({
   onToggleIdeas: () => void;
 }) {
   return (
-    <div className="ask-empty-state">
+    <div className={`ask-empty-state${showAllIdeas ? " is-expanded" : ""}`}>
       <div className="ask-empty-state__intro">
         <span className="ask-mark" aria-hidden="true">
           <Sparkles size={19} />
@@ -335,33 +387,51 @@ function AskClubhouseLanding({
 function AskClubhouseMessageBubble({
   message,
   onAction,
-  onQuestion,
-  showFollowUps,
+  canRetry,
   onRetry,
+  busy,
 }: {
   message: AskClubhouseChatMessage;
   onAction: (action: AskClubhouseAction) => void;
-  onQuestion: (question: string) => void;
-  showFollowUps: boolean;
+  canRetry: boolean;
   onRetry: () => void;
+  busy: boolean;
 }) {
   const isAssistant = message.role === "assistant";
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  const detailsId = useId();
+  const hasDetails = !message.interrupted && !message.stopped && Boolean(message.actions?.length || message.evidence?.some(item => !message.visuals?.length || item.url || item.title.startsWith("Baseball Knowledge")));
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
   return (
-    <article className={`ask-message ask-message--${message.role}${message.pending ? " ask-message--thinking" : ""}`}>
-      <header className="ask-message__meta">
-        <span>
-          {isAssistant && <Sparkles size={15} aria-hidden="true" />}
-          {isAssistant ? "Ask Clubhouse" : "You"}
-        </span>
-        {message.createdAt && <time dateTime={message.createdAt}>{formatAskMessageTime(message.createdAt)}</time>}
-      </header>
+    <article className={`ask-message ask-message--${message.role}${message.pending ? " ask-message--thinking" : ""}`} aria-label={isAssistant ? "Assistant reply" : "Your message"}>
+      {isAssistant && (message.pending || message.steps?.length) ? <AskClubhouseThinking message={message} /> : null}
       {message.pending ? (
-        <AskClubhouseThinking stage={message.content} startedAt={message.pendingStartedAt} />
+        message.streaming ? <div className="ask-streaming-answer"><AskClubhouseTextAnswer content={message.content} streaming /></div> : null
+      ) : message.stopped || message.interrupted ? (
+        <>{message.content && <AskClubhouseTextAnswer content={message.content} />}<div className="ask-interrupted"><span>{message.stopped ? "Response stopped" : "Connection interrupted · this answer is incomplete"}</span><button type="button" onClick={onRetry} disabled={busy}>Try again</button></div></>
       ) : isAssistant ? (
-        <AskClubhouseAssistantAnswer message={message} onAction={onAction} onQuestion={onQuestion} showFollowUps={showFollowUps} onRetry={onRetry} />
+        <AskClubhouseAssistantAnswer message={message} onAction={onAction} onRetry={onRetry} />
       ) : (
         <p className="ask-user-question">{message.content}</p>
       )}
+      {isAssistant && !message.pending && message.content && !message.stopped && <div className="ask-message-tools">
+        <button type="button" aria-label={copied ? "Answer copied" : "Copy answer"} title="Copy answer" onClick={async () => {
+          try { await navigator.clipboard.writeText(message.content); setCopied(true); setCopyError(false); } catch { setCopyError(true); }
+        }}>{copied ? <Check size={15} /> : <Copy size={15} />}</button>
+        {canRetry && <button type="button" aria-label="Retry last question" title="Try again" onClick={onRetry} disabled={busy}><RefreshCw size={15} /></button>}
+        {hasDetails && <button type="button" aria-label="Answer sources and details" title="Sources and details" aria-expanded={showDetails} aria-controls={detailsId} onClick={() => setShowDetails(current => !current)}><BookOpen size={15} /></button>}
+        <span role="status">{copied ? "Copied" : copyError ? "Could not copy. Select the answer to copy it." : ""}</span>
+      </div>}
+      {isAssistant && !message.pending && hasDetails && showDetails && <div className="ask-answer-details" id={detailsId}>
+        <AskClubhouseEvidence message={message} />
+        <AskClubhouseActions message={message} onAction={onAction} />
+      </div>}
     </article>
   );
 }
@@ -369,14 +439,10 @@ function AskClubhouseMessageBubble({
 function AskClubhouseAssistantAnswer({
   message,
   onAction,
-  onQuestion,
-  showFollowUps,
   onRetry,
 }: {
   message: AskClubhouseChatMessage;
   onAction: (action: AskClubhouseAction) => void;
-  onQuestion: (question: string) => void;
-  showFollowUps: boolean;
   onRetry: () => void;
 }) {
   if (isAskSetupMessage(message)) {
@@ -424,9 +490,6 @@ function AskClubhouseAssistantAnswer({
       {!message.ui && <AskClubhouseTextAnswer content={message.content} />}
       {message.visuals?.length ? <AskClubhouseVisualAnswers visuals={message.visuals} actions={message.actions} onAction={onAction} /> : null}
       {message.visualUnavailable && <p className="ask-visual-unavailable">Visual unavailable for this answer.</p>}
-      <AskClubhouseEvidence message={message} />
-      <AskClubhouseActions message={message} onAction={onAction} />
-      {showFollowUps && <AskClubhouseFollowUps message={message} onQuestion={onQuestion} />}
     </>
   );
 
@@ -535,23 +598,58 @@ function askVisualModeLabel(mode: AskClubhouseVisual["mode"]) {
   return ({ spray: "Spray", dots: "Dots", count: "#", percent: "%", heat: "Heat" })[mode];
 }
 
-function AskClubhouseThinking({ stage, startedAt }: { stage: string; startedAt?: number }) {
+function AskClubhouseThinking({ message }: { message: AskClubhouseChatMessage }) {
+  const startedAt = message.pendingStartedAt;
+  const active = Boolean(message.pending);
+  const [expanded, setExpanded] = useState<boolean | undefined>();
+  const stepsId = useId();
+  const steps = message.steps?.length ? message.steps : [{ stage: "access" as const, startedAt: startedAt ?? 0 }];
+  const isExpanded = expanded ?? (active && !message.streaming);
   const [elapsedSeconds, setElapsedSeconds] = useState(() => startedAt ? Math.max(0, Math.floor((Date.now() - startedAt) / 1000)) : 0);
   useEffect(() => {
-    if (!startedAt) return;
-    const timer = window.setInterval(() => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000))), 1000);
+    if (!startedAt || !active) return;
+    const timer = window.setInterval(() => setElapsedSeconds(Math.max(0, (Date.now() - startedAt) / 1000)), 100);
     return () => window.clearInterval(timer);
-  }, [startedAt]);
+  }, [startedAt, active]);
+  const elapsed = !active && startedAt && message.completedAt ? (message.completedAt - startedAt) / 1000 : elapsedSeconds;
+  const unsuccessful = message.interrupted || message.status === "failed" || message.status === "unavailable";
+  const label = active ? message.streaming ? "Writing your answer" : "Thinking" : message.stopped || unsuccessful ? "Request steps" : "Completed";
   return (
-    <div className="ask-thinking-block" aria-live="polite">
-      <span aria-hidden="true" />
-      <strong>{stage || ASK_CLUBHOUSE_GENERIC_STAGE}</strong>
-      <time>{Math.floor(elapsedSeconds / 60)}:{String(elapsedSeconds % 60).padStart(2, "0")}</time>
+    <div className={`ask-progress${active ? " is-active" : ""}`}>
+      <button className="ask-progress__toggle" type="button" aria-expanded={isExpanded} aria-controls={stepsId} onClick={() => setExpanded(!isExpanded)}>
+        {active ? <span className="ask-wave-dots" aria-hidden="true"><i /><i /><i /><i /><i /></span> : message.stopped ? <Square size={12} aria-hidden="true" /> : unsuccessful ? <CircleAlert size={14} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
+        <span className={active && !message.streaming ? "ask-wave-text" : ""}>{label}</span>
+        <time>{elapsed.toFixed(1)}s</time><ChevronDown size={13} className={isExpanded ? "is-open" : ""} aria-hidden="true" />
+      </button>
+      <span className="ask-sr-only" role="status">{active ? ASK_PROGRESS_LABELS[steps.at(-1)!.stage] : label}</span>
+      {isExpanded && <ol className="ask-progress__steps" id={stepsId} aria-label="Response progress">
+        {steps.map((step, index) => {
+          const done = index < steps.length - 1 || (!active && !message.stopped && !message.interrupted && message.status !== "failed" && message.status !== "unavailable");
+          return <li key={step.stage} className={done ? "is-done" : active ? "is-current" : ""}>
+            <span className="ask-progress__node" aria-hidden="true">{done ? <Check size={10} /> : <i />}</span>
+            <span>{ASK_PROGRESS_LABELS[step.stage]}</span>
+          </li>;
+        })}
+      </ol>}
     </div>
   );
 }
 
-function AskClubhouseTextAnswer({ content }: { content: string }) {
+function AskClubhouseTextAnswer({ content, streaming = false }: { content: string; streaming?: boolean }) {
+  // Preserve the historical flat ranking presentation for stored non-Markdown answers.
+  const legacyRanking = !streaming && !/[#*|`]/.test(content) && /^\d+[.)]\s+.+[%]/m.test(content);
+  if (legacyRanking) return <AskClubhouseLegacyTextAnswer content={content} />;
+  return <div className="ask-markdown"><Markdown remarkPlugins={[remarkGfm]} components={{
+    a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>,
+    // Keyboard users must be able to scroll wide result tables.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+    table: ({ children }) => <div className="ask-markdown__table" role="region" aria-label="Answer table" tabIndex={0}><table>{children}</table></div>,
+    // External images are not part of the answer contract; charts use authorized visuals.
+    img: ({ alt }) => alt ? <span>{alt}</span> : null,
+  }}>{content}</Markdown></div>;
+}
+
+function AskClubhouseLegacyTextAnswer({ content }: { content: string }) {
   const blocks = parseAskClubhouseTextAnswer(content);
   return (
     <div className="ask-answer-copy">
@@ -683,28 +781,6 @@ function AskClubhouseEvidence({ message }: { message: AskClubhouseChatMessage })
           ) : <strong>{item.title}</strong>}
           <small>{item.summary}</small>
         </div>
-      ))}
-    </div>
-  );
-}
-
-function AskClubhouseFollowUps({
-  message,
-  onQuestion,
-}: {
-  message: AskClubhouseChatMessage;
-  onQuestion: (question: string) => void;
-}) {
-  const followUps = (message.followUps ?? []).slice(0, 3);
-  if (!followUps.length) return null;
-  return (
-    <div className="ask-followup-list">
-      <span>You might also ask</span>
-      {followUps.map((question) => (
-        <button key={`${message.id}-${question}`} type="button" onClick={() => onQuestion(question)}>
-          <span>{question}</span>
-          <ChevronRight size={13} aria-hidden="true" />
-        </button>
       ))}
     </div>
   );
@@ -918,10 +994,4 @@ function formatAskActionLabel(label: string): string {
 
 function isAskSetupMessage(message: AskClubhouseChatMessage): boolean {
   return message.status === "unavailable" && normalizeAskContent(message.content).includes("ask clubhouse is finishing setup");
-}
-
-function formatAskMessageTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }

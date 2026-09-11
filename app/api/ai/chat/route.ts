@@ -20,8 +20,17 @@ import { hasStaffAccess, loadPlayerSession, listPlayerContexts } from "../../../
 import { PlayerLinkError } from "../../../lib/playerAccountLinks";
 import { playerAskContext, isPrivateTeamQuestion } from "../../../lib/playerAskScope";
 import { generatePlayerTeamsReply, loadOtherPlayerAskTeams, requirePlayerAskSession } from "../../../lib/playerAskTeams";
+import { createAskResponseStream } from "../../../lib/askClubhouse/streamResponse";
+import type { AskProgressStage, AskStreamEvent } from "../../../lib/askClubhouse/stream";
 
 export async function POST(request: NextRequest) {
+  if (request.headers.get("accept")?.includes("application/x-ndjson")) {
+    return createAskResponseStream(request.signal, (emit, signal) => handleChat(request, emit, signal));
+  }
+  return handleChat(request, undefined, request.signal);
+}
+
+async function handleChat(request: NextRequest, emit?: (event: AskStreamEvent) => void, signal?: AbortSignal) {
   const requestStartedAt = Date.now();
   const config = getAskClubhouseConfig();
   let body: AskClubhouseApiRequest;
@@ -57,6 +66,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    signal?.throwIfAborted();
+    emit?.({ type: "progress", stage: "access" });
     const supabase = await createClient();
     const { data: userData, error: userError } = await supabase.auth.getUser();
     if (userError || !userData.user) {
@@ -68,6 +79,8 @@ export async function POST(request: NextRequest) {
       }, 401);
     }
 
+    signal?.throwIfAborted();
+    emit?.({ type: "progress", stage: "records" });
     const usageSupabase = createAdminClient();
     const staffViewer = !body.uiContext?.viewerPlayerId && await hasStaffAccess(usageSupabase, userData.user.id);
     const playerSession = staffViewer ? undefined : await loadPlayerSession(usageSupabase, userData.user.id, {
@@ -143,6 +156,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    signal?.throwIfAborted();
     const conversationId = await ensureConversation(supabase, {
       conversationId: body.conversationId,
       profileId: scope.profileId,
@@ -201,6 +215,10 @@ export async function POST(request: NextRequest) {
       config,
       provider,
       knowledgeProvider,
+      signal,
+      onProgress: emit ? (stage: AskProgressStage) => emit({ type: "progress", stage }) : undefined,
+      // Player content stays buffered until the existing post-generation access check.
+      onTextDelta: emit && !playerSession ? (text: string) => emit({ type: "delta", text }) : undefined,
     };
     const reply = playerAskSessions.length > 1 ? await generatePlayerTeamsReply(playerAskSessions, replyInput) : await generateAskClubhouseReply(replyInput);
 
@@ -212,6 +230,7 @@ export async function POST(request: NextRequest) {
         throw new PlayerLinkError('Your player access has changed. Refresh to continue.',403);
       }
     }
+    emit?.({ type: "progress", stage: "saving" });
     const assistantMessageId = await insertMessage(supabase, {
       conversationId,
       profileId: scope.profileId,

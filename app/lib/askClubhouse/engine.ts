@@ -11,6 +11,7 @@ import {
 } from "./tools.ts";
 import { buildAskClubhouseVisuals } from "./visuals.ts";
 import type { AiQuotaOutcome } from "./usage.ts";
+import type { AskProgressStage } from "./stream.ts";
 import type {
   AIProvider,
   AIProviderUsage,
@@ -33,6 +34,9 @@ export interface GenerateAskReplyInput {
   provider?: AIProvider;
   knowledgeProvider?: BaseballKnowledgeProvider;
   now?: Date;
+  onProgress?: (stage: AskProgressStage) => void;
+  onTextDelta?: (text: string) => void;
+  signal?: AbortSignal;
 }
 
 export interface GenerateAskReplyResult extends AskClubhouseApiResponse {
@@ -45,6 +49,8 @@ export interface GenerateAskReplyResult extends AskClubhouseApiResponse {
 }
 
 export async function generateAskClubhouseReply(input: GenerateAskReplyInput): Promise<GenerateAskReplyResult> {
+  input.signal?.throwIfAborted();
+  input.onProgress?.("analysis");
   const startedAt = input.now?.getTime() ?? Date.now();
   const history = boundConversationHistory(input.history, input.config.contextMessageLimit);
   const plan = buildAskClubhouseToolPlan(input.data, input.message, input.uiContext, input.config, history, input.knowledgeProvider, input.now);
@@ -178,10 +184,13 @@ export async function generateAskClubhouseReply(input: GenerateAskReplyInput): P
   }
 
   try {
+    input.onProgress?.("answer");
     const providerResult = await input.provider.generate({
       system: buildSystemPrompt(input.config, plan.route, plan.requiresWebSearch, plan.knowledgeItems.length > 0),
       prompt: buildUserPrompt(input, toolResults, plan.actions, plan.followUps, plan.route, plan.interpretation, plan.knowledgeItems, visuals),
       maxOutputTokens: input.config.maxOutputTokens,
+      onTextDelta: input.onTextDelta,
+      signal: input.signal,
       webSearch: {
         enabled: plan.requiresWebSearch,
         maxSearches: Math.min(1, input.config.maxWebSearchesPerRequest),
