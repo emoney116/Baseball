@@ -1089,7 +1089,7 @@
 }
 .assignmentRoster button[aria-selected="true"] {
   background: var(--brand-soft);
-  color: var(--brand-primary);
+  color: var(--selected-foreground);
 }
 .rotation .hitter {
   min-width: 0;

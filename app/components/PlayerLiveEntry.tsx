@@ -190,23 +190,15 @@ export function PlayerLiveEntry({
                 <span>{state.context.name}</span>
               </div>
               {sessions.length > 1 && (
-                <label className="player-live-select">
-                  Your Station
-                  <select
+                <div className="player-live-select">
+                  <ChoiceSelect
+                    label="Your Station"
                     aria-label="Your live station"
                     value={`${active.id}:${active.domain}`}
-                    onChange={(e) => setSelected(e.target.value)}
-                  >
-                    {sessions.map((s) => (
-                      <option
-                        key={`${s.id}:${s.domain}`}
-                        value={`${s.id}:${s.domain}`}
-                      >
-                        {s.title} - {s.station}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                    onChange={setSelected}
+                    options={sessions.map(s => ({ value: `${s.id}:${s.domain}`, label: `${s.title} - ${s.station}` }))}
+                  />
+                </div>
               )}
               <h2>{active.title}</h2>
               <p className="muted">
@@ -361,26 +353,15 @@ export function LiveEntryForm({
     <div className="player-live-form">
       <fieldset disabled={busy || retry}>
         {workout && (
-          <label>
-            Set
-            <select
+            <ChoiceSelect
+              label="Set"
               aria-label="Set number"
-              disabled={!!editing}
-              value={nextSet ?? ""}
-              onChange={(e) => setSetNumber(Number(e.target.value))}
-            >
-              {(editing ? [Number(editing.payload.setNumber)] : available).map(
-                (n) => (
-                  <option key={n} value={n}>
-                    Set {n} of {session.exercise?.sets}
-                  </option>
-                ),
-              )}
-              {!editing && !available.length && (
-                <option value="">All sets recorded</option>
-              )}
-            </select>
-          </label>
+              disabled={!!editing || busy || retry}
+              value={nextSet == null ? "" : String(nextSet)}
+              onChange={(value) => setSetNumber(Number(value))}
+              placeholder="All sets recorded"
+              options={(editing ? [Number(editing.payload.setNumber)] : available).map(n => ({ value: String(n), label: `Set ${n} of ${session.exercise?.sets}` }))}
+            />
         )}
         {!workout && <PracticeResultChoices
           className={session.domain === "defense" ? "practice-defense-result-grid" : "practice-hitting-result-grid"}

@@ -1,4 +1,5 @@
 "use client";
+import { ClubhouseMultiSelect, ClubhouseOptionSheet } from "./ClubhouseSelect";
 import {
   CalendarDays,
   CalendarPlus,
@@ -16,11 +17,10 @@ import {
   Sparkles,
   Swords,
   Trophy,
-  Users,
   X
 } from "lucide-react";
 import type React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnalyticsPlayerMetrics } from "../components/AnalyticsPlayerMetrics";
 import { AskClubhouseLauncher } from "../components/AskClubhouseDrawer";
 import { ChoiceSelect, type ChoiceOption } from "../components/ChoiceSelect";
@@ -1115,35 +1115,20 @@ export function AnalyticsSourceSelector({
   onOpenWeightRoom: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
   const sourceLabels: Record<AnalyticsFieldSource, string> = { games: "Games", practice: "Practice", "live-bp": "Live BP", personal: "Personal" };
   const summary = domain === "development"
     ? "Workouts"
     : selectedSources.length === 1 ? sourceLabels[selectedSources[0]] : `${selectedSources.length} Sources`;
 
-  useEffect(() => {
-    if (!open) return;
-    const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOnOutsidePointer);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOnOutsidePointer);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
   return (
-    <div ref={rootRef} className={`analytics-source-selector analytics-scope-select${open ? " open" : ""}`}>
+    <div className="analytics-source-selector analytics-scope-select">
+    <ClubhouseOptionSheet title="Analytics source and Workouts" open={open} onOpenChange={setOpen} trigger={
       <button type="button" className="choice-select__button" aria-haspopup="menu" aria-expanded={open} aria-label="Analytics source and Workouts" onClick={() => setOpen((current) => !current)}>
         <strong>{summary}</strong>
         <ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {open && <div className="analytics-source-selector__menu" role="menu" aria-label="Analytics source and Workouts">
+      </button>}
+    >
+      <div className="clubhouse-source-options" role="menu" aria-label="Analytics source and Workouts">
         <div className="analytics-source-selector__field-sources" role="group" aria-label="Field sources">
           {availableSources.map((source) => {
             const selected = domain !== "development" && selectedSources.includes(source);
@@ -1159,31 +1144,26 @@ export function AnalyticsSourceSelector({
           <Dumbbell size={15} aria-hidden="true" />
           <span>Workouts</span>
         </button>
-      </div>}
+      </div>
+    </ClubhouseOptionSheet>
     </div>
   );
 }
 
 export function AnalyticsChartPlayerSelector({ players, selectedIds, onChange }: { players: Player[]; selectedIds: ID[]; onChange: (playerIds: ID[]) => void }) {
-  const [open, setOpen] = useState(false);
-  const selectedPlayers = players.filter((player) => selectedIds.includes(player.id));
-  const label = selectedPlayers.length === 0 ? "Team" : selectedPlayers.length === 1 ? selectedPlayers[0].name : `${selectedPlayers.length} players`;
-  return (
-    <div className="analytics-chart-player-select">
-      <button type="button" className="secondary-button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="listbox">
-        <Users size={14} aria-hidden="true" /><strong>{label}</strong><ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {open && <div className="analytics-chart-player-select__menu" role="listbox" aria-multiselectable="true" aria-label="Chart players">
-        <button type="button" role="option" aria-selected={selectedIds.length === 0} className={selectedIds.length === 0 ? "active" : ""} onClick={() => onChange([])}><Check size={14} aria-hidden="true" /><span><strong>Team</strong><small>All players</small></span></button>
-        {players.map((player) => {
-          const selected = selectedIds.includes(player.id);
-          return <button key={player.id} type="button" role="option" aria-selected={selected} className={selected ? "active" : ""} onClick={() => onChange(selected ? selectedIds.filter((id) => id !== player.id) : [...selectedIds, player.id])}>
-            <Check size={14} aria-hidden="true" /><span><strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}<small>#{player.jerseyNumber}</small></span>
-          </button>;
-        })}
-      </div>}
-    </div>
-  );
+  return <ClubhouseMultiSelect
+    className="analytics-multi-select"
+    aria-label="Chart players"
+    values={selectedIds}
+    onApply={onChange}
+    placeholder="Team"
+    searchable
+    options={players.map(player => ({
+      value: player.id,
+      label: player.name,
+      description: [player.identityLabel, player.jerseyNumber == null ? null : `#${player.jerseyNumber}`].filter(Boolean).join(" · ") || undefined,
+    }))}
+  />;
 }
 
 export function AnalyticsChartModes({ mode, onChange, includeAverage = false }: { mode: PracticeChartMetricMode; onChange: (mode: PracticeChartMetricMode) => void; includeAverage?: boolean }) {

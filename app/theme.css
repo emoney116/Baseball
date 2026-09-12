@@ -14,6 +14,8 @@
   --text-primary: #ffffff;
   --text-secondary: #d6d6d6;
   --text-muted: #9a9a9a;
+  --brand-ink: #ff8ab0;
+  --selected-foreground: var(--text-primary);
   --sidebar: #111111;
   --panel: var(--surface);
   --panel-strong: var(--surface-raised);
@@ -47,6 +49,8 @@
   --text-primary: #111111;
   --text-secondary: #3f3f3f;
   --text-muted: #6b6b6b;
+  --brand-ink: #9c2148;
+  --selected-foreground: var(--text-primary);
   --sidebar: #ffffff;
   --panel: var(--surface);
   --panel-strong: var(--surface-raised);
