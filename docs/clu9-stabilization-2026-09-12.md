@@ -48,6 +48,10 @@ This is an evidence log, not rollout acceptance.
 - Ask team scope and Hitting/Pitching pitch filters now use shared staged multi-selects, preserving exact scope keys and filter values. Multi-select search supports ArrowDown into options.
 - Latest full build/test run: 899/899 passed. Updated selector browser runner passed all 30 viewport/theme geometry cases plus keyboard, Apply/Cancel/Clear, outside dismissal and dialog checks.
 - This is progress evidence, not final app-wide or Player rollout acceptance.
+- Second checkpoint `b0a736d` preview is Ready at `https://baseball-7miolbemv-emoney116s-projects.vercel.app`.
+- Actual hosted Ask spray response inspected on phone dark and iPad portrait light: prose, sample warning, metric strip and real spray point render; no ASCII substitute charts.
+- Visual review found hard-coded Player live-status/access/invite secondary colors and white-only shared strike-zone lines. Replaced with semantic foregrounds; field labels now use an image-overlay foreground independent of page theme. Full suite remains 899/899 and TypeScript passes.
+- An initial page geometry script used an incorrect Weight Room route and did not assert context on every capture. Its 50 outputs are not accepted as full-page responsive evidence; correct routes/context assertions and visual review are still required.
 
 - Complete app-wide surface/token audit, remaining contextual selectors, representative live-page responsive checks and maintained browser regression runner.
 - Full hosted signup/claim/invite/link/multi-team/revoke/downgrade/tracking/Analytics/Ask acceptance against branch preview.

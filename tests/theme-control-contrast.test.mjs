@@ -15,7 +15,7 @@ function contrast(a,b) {
 for (const [name, css] of Object.entries(sections)) {
   const token = key => rgb(css.match(new RegExp(`--${key}:\\s*(#[a-f0-9]{6})`, 'i'))[1]);
   test(`${name} text, muted text and brand ink pass normal-text contrast on menu surfaces`, () => {
-    for (const foreground of ['text-primary','text-secondary','text-muted','brand-ink']) {
+    for (const foreground of ['text-primary','text-secondary','text-muted','brand-ink','success-ink']) {
       assert.ok(contrast(token(foreground),token('surface-overlay')) >= 4.5,`${name}: ${foreground}`);
     }
     const brand = rgb(name === 'dark' ? '#c22f62' : '#b92b59');

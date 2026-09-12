@@ -14091,7 +14091,7 @@ button.analytics-box-score__row:hover {
   right: 23%;
   top: 18%;
   bottom: 24%;
-  border: 2px solid rgba(229, 231, 235, 0.58);
+  border: 2px solid var(--muted);
 }
 
 .strike-zone__plate {
@@ -14114,7 +14114,7 @@ button.analytics-box-score__row:hover {
 
 .strike-zone__grid {
   position: absolute;
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--muted);
 }
 
 .strike-zone__grid--v1 {
@@ -28600,13 +28600,13 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .clubhouse-baseball-field__label {
-  color: color-mix(in srgb, var(--text) 66%, transparent);
+  color: var(--field-label);
   font-size: 10px;
   font-weight: 900;
   letter-spacing: .04em;
   pointer-events: none;
   position: absolute;
-  text-shadow: 0 1px 2px color-mix(in srgb, var(--background) 72%, transparent);
+  text-shadow: 0 1px 2px var(--field-label-shadow), 0 0 3px var(--field-label-shadow);
   z-index: 4;
 }
 
@@ -37425,7 +37425,7 @@ body[data-ask-clubhouse-open="true"] .bottom-nav--persistent { display: none !im
 .player-invites__roster { max-height: 320px; overflow: auto; margin-bottom: 16px; }
 .player-invites__row { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; align-items: center; padding: 10px 0; border-bottom: 1px solid #333; }
 .player-invites__row label { display: flex; align-items: center; gap: 10px; }
-.player-invites__row small { display: block; color: #aaa; overflow-wrap: anywhere; }
+.player-invites__row small { display: block; color: var(--muted); overflow-wrap: anywhere; }
 @media (max-width: 430px) { .player-beta { padding: 18px 16px 104px; } .player-beta-header h1 { font-size: 20px; } }
 @media (max-width: 430px) {
   .analytics-primary-navigation { grid-template-columns: minmax(0, 1fr) 120px; padding-right: var(--mobile-page-gutter); }
@@ -37485,7 +37485,7 @@ body[data-ask-clubhouse-open="true"] .bottom-nav--persistent { display: none !im
 .player-live-section h2 { font-size: 20px; line-height: 1.3; margin-block: 12px 6px; overflow-wrap: anywhere; }
 .player-live-section p { overflow-wrap: anywhere; }
 .player-live-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; }
-.player-live-badge { color: #50cc8a; display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+.player-live-badge { color: var(--success-ink); display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
 .player-live-form { display: grid; gap: 14px; }
 .player-live-form fieldset, .coach-live-entry fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .player-live-form > fieldset { display: grid; gap: 14px; }

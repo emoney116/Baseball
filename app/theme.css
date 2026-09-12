@@ -15,6 +15,9 @@
   --text-secondary: #d6d6d6;
   --text-muted: #9a9a9a;
   --brand-ink: #ff8ab0;
+  --success-ink: #80dba8;
+  --field-label: #ffffff;
+  --field-label-shadow: #152016;
   --selected-foreground: var(--text-primary);
   --sidebar: #111111;
   --panel: var(--surface);
@@ -50,6 +53,7 @@
   --text-secondary: #3f3f3f;
   --text-muted: #6b6b6b;
   --brand-ink: #9c2148;
+  --success-ink: #136d42;
   --selected-foreground: var(--text-primary);
   --sidebar: #ffffff;
   --panel: var(--surface);
