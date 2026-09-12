@@ -30,7 +30,7 @@ This consolidates the chronological evidence in `clu9-stabilization-2026-09-12.m
 | Signup and verification | Public signup rejects reserved fake addresses; no fresh account created | External inbox required |
 | Login/session | Existing controlled QA accounts authenticated and used across hosted workflows | Passed for existing accounts |
 | Forgot/reset password | No actual delivered recovery link completed | External inbox required |
-| Team search and claim | Hosted pending, duplicate, rejection, reclaim, approval and revoked access checks | API/data flow passed; every visual state not yet signed off |
+| Team search and claim | Hosted pending, duplicate, rejection, reclaim, approval and revoked access checks; fresh pending/rejected states passed eight phone/iPad theme captures with representative visual review | API/data flow and waiting/rejection visual checks passed; invite continuation separate |
 | Invite creation | Normal coach API accepted request; provider accepted send; QA invite revoked afterward | Not delivery proof |
 | Redemption/auto-link | Database tests cover wrong email, expiry, unknown/revoked/used token, exact existing identity, identity reuse, wrong account and inactive membership | Hosted successful redemption remains unverified |
 | Multi-team | Hosted canonical identity and isolated team contexts/policies | Passed controlled fixtures |
@@ -61,7 +61,7 @@ This consolidates the chronological evidence in `clu9-stabilization-2026-09-12.m
 
 - **External acceptance blocker:** deliverable controlled inbox for fresh signup, verification, password recovery and successful invite redemption. Fake accounts cannot substitute for these proofs.
 - **Unverified physical acceptance:** real Safari/PWA smoke, explicitly unavailable on this host.
-- **Repository/QA remaining:** finish uncovered nested visual states, especially claim waiting/rejection/continuation and coach tracking forms; strengthen coverage where review reveals defects. Do not equate the route matrix with all workflows.
+- **Repository/QA remaining:** finish uncovered nested visual states, especially invitation continuation and coach tracking forms; strengthen coverage where review reveals defects. Do not equate the route matrix with all workflows.
 - **Final gate:** rerun full quality on the final code revision and consolidate Linear acceptance before rollout. No automatic main merge.
 
 Ready for Player rollout: **NO**.
