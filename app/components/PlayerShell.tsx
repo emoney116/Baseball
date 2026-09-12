@@ -228,7 +228,7 @@ export function PlayerShell({
         p = await r.json();
       if (seq !== generation.current) return;
       if (!r.ok || p.mode !== "player")
-        throw new Error(p.message ?? "Unable to switch player context.");
+        throw new Error(p.message ?? "Unable to switch teams. Please try again.");
       setSession(p);
       const url = new URL(window.location.href);
       url.searchParams.set("player", c.playerId);
@@ -385,7 +385,7 @@ export function PlayerShell({
       )}
       {error && <p role="alert">{error}</p>}
       {loading ? (
-        <p role="status">Loading your player context...</p>
+        <p role="status">Loading your team...</p>
       ) : !context ? (
         <PlayerAccountLinksPanel />
       ) : (
@@ -411,7 +411,7 @@ export function PlayerShell({
             </div>}
             {view === "Games" && session.access?.capabilities.canViewOwnGames && <div className="page-stack games-page player-games-page">
               <SectionHeader title="Game Center" />
-              {selectedGame ? <section className="games-layout"><GameLibrary games={data.games} selectedGameId={selectedGame.id} onGame={id => { setSelectedGameId(id); setAnalyticsRevision(value => value + 1); }} /><section className="game-console"><GameScoreRibbon game={selectedGame} teamName={context.team.teamName} /></section></section> : <p>No games available for this player context.</p>}
+              {selectedGame ? <section className="games-layout"><GameLibrary games={data.games} selectedGameId={selectedGame.id} onGame={id => { setSelectedGameId(id); setAnalyticsRevision(value => value + 1); }} /><section className="game-console"><GameScoreRibbon game={selectedGame} teamName={context.team.teamName} /></section></section> : <p>No games to show yet.</p>}
             </div>}
             {view === "Home" && <PlayerHome key={context.membershipId} session={session} preview={preview} onNavigate={navigate} onAnalytics={query => { navigate("Analytics"); setDomain(query.domain ?? "hitting"); setSource(query.source ?? "practice"); setAskQuery(query); setEventId(query.eventIds?.[0] ?? ""); setAnalyticsRevision(value => value + 1); }} onEnter={live => { navigate(live.domain === "workout" ? "Weight Room" : "Practice"); setLiveSelection(`${live.id}:${live.domain}`); }} onAsk={prompt => { setAsk(true); void askQuestion(prompt); }} onSaved={() => refreshSession.current()} />}
             {view === "Schedule" && session.access?.capabilities.canViewTeamSchedule && (
@@ -468,7 +468,7 @@ export function PlayerShell({
           scopeControl={<div className="ask-scope-control"><span>Data from</span><ChoiceSelect
             aria-label="Ask Clubhouse player team scope"
             value={askAllTeams ? "all" : context.membershipId}
-            options={[...session.contexts.map(c => ({ value: c.membershipId, label: c.team.teamName, description: `${c.name} · ${c.team.seasonName}` })), ...(session.contexts.length > 1 ? [{ value: "all", label: "All My Teams", description: "Your approved player contexts" }] : [])]}
+            options={[...session.contexts.map(c => ({ value: c.membershipId, label: c.team.teamName, description: `${c.name} · ${c.team.seasonName}` })), ...(session.contexts.length > 1 ? [{ value: "all", label: "All My Teams", description: "Your linked teams" }] : [])]}
             onChange={value => {
               resetAsk(); setAskAnalytics({});
               if (value === "all") { setAskAllTeams(true); return; }

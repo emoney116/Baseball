@@ -68,7 +68,7 @@ import { createPortal } from "react-dom";
 import { ASK_CLUBHOUSE_ERROR_BODY, ASK_CLUBHOUSE_ERROR_TITLE, ASK_CLUBHOUSE_GENERIC_STAGE, ASK_CLUBHOUSE_SETUP_BODY, ASK_CLUBHOUSE_SETUP_TITLE, ASK_CLUBHOUSE_UI_SUGGESTIONS, AskClubhouseDrawer, AskClubhouseFab, type AskClubhouseChatMessage } from "./components/AskClubhouseDrawer";
 import { advanceAskMessage, readAskResponse, stopAskMessage } from "./lib/askClubhouse/stream";
 import { ChoiceSelect, type ChoiceOption } from "./components/ChoiceSelect";
-import { ClubhouseMultiSelect } from "./components/ClubhouseSelect";
+import { ClubhouseMultiSelect, ClubhouseOptionSheet } from "./components/ClubhouseSelect";
 import { ClubhouseBaseballField } from "./components/ClubhouseBaseballField";
 import { ClubhouseBottomNav } from "./components/ClubhouseBottomNav";
 import { CoachLiveEntrySettings } from "./components/CoachLiveEntrySettings";
@@ -7522,14 +7522,12 @@ function PracticeHome({
           >
             <div className="practice-summary-actions" aria-label="Practice quick entry">
               <div className="practice-hitting-quick-start">
-                <PracticeActivityCard mode="Hitting" icon={Swords} title="Hitting" compact onClick={() => setHittingStartOpen((open) => !open)} />
-                {hittingStartOpen && (
-                  <div className="practice-hitting-start-popover" role="menu" aria-label="Start hitting session">
+                <ClubhouseOptionSheet title="Start hitting session" open={hittingStartOpen} onOpenChange={setHittingStartOpen} trigger={<PracticeActivityCard mode="Hitting" icon={Swords} title="Hitting" compact expanded={hittingStartOpen} onClick={() => setHittingStartOpen((open) => !open)} />}>
+                  <div className="clubhouse-option-overlay__list" role="group" aria-label="Start hitting session">
                     {HITTING_STATIONS.map((station) => (
                       <button
                         key={station}
                         type="button"
-                        role="menuitem"
                         onClick={() => {
                           setHittingStartOpen(false);
                           onStartHittingStation(station);
@@ -7539,7 +7537,7 @@ function PracticeHome({
                       </button>
                     ))}
                   </div>
-                )}
+                </ClubhouseOptionSheet>
               </div>
               <PracticeActivityCard mode="Pitching" icon={BaseballIcon} title="Pitching" compact onClick={() => onOpenStation("Pitching")} />
               <PracticeActivityCard mode="Defense" icon={Shield} title="Defense" compact onClick={() => onOpenStation("Defense")} />
@@ -7641,16 +7639,18 @@ function PracticeActivityCard({
   icon: Icon,
   title,
   compact = false,
+  expanded,
   onClick,
 }: {
   mode: PracticeMode;
   icon: AppIcon;
   title: string;
   compact?: boolean;
+  expanded?: boolean;
   onClick: () => void;
 }) {
   return (
-    <button type="button" className={`practice-activity-card ${compact ? "practice-activity-card--compact" : ""} practice-activity-card--${practiceModeClass(mode)}`} onClick={onClick}>
+    <button type="button" aria-expanded={expanded} aria-haspopup={expanded === undefined ? undefined : "dialog"} className={`practice-activity-card ${compact ? "practice-activity-card--compact" : ""} practice-activity-card--${practiceModeClass(mode)}`} onClick={onClick}>
       <span><Icon size={compact ? 15 : 22} aria-hidden="true" /></span>
       <strong>{title}</strong>
     </button>

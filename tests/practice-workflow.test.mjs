@@ -220,7 +220,8 @@ const page = ["app/page.tsx", "app/components/TeamWorkspaceViews.tsx", "app/comp
   assert.match(page, /View History/);
 
   assert.match(styles, /\.practice-summary-strip/);
-  assert.match(styles, /\.practice-hitting-start-popover/);
+  assert.match(page, /<ClubhouseOptionSheet title="Start hitting session"/);
+  assert.doesNotMatch(page, /className="practice-hitting-start-popover"/);
   assert.match(styles, /\.practice-metrics-page/);
   assert.match(styles, /\.attendance-roster__scroll \.scroll-cue-panel__body \{[\s\S]*max-height: min\(44dvh, 440px\)/);
   assert.match(styles, /\.attendance-roster__scroll \.scroll-cue-panel__body \{[\s\S]*padding-bottom: 30px/);
