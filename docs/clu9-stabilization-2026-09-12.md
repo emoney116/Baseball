@@ -122,6 +122,12 @@ This is an evidence log, not rollout acceptance.
 
 ## References
 
+## Analytics Keyboard Correction
+
+- The maintained `scripts/qa-analytics-filter-layout.mjs` exposed a separate bug: Escape did not remove the Analytics filter panel. The earlier focus-only observation was insufficient because focus had remained on the trigger. That earlier dismissal claim is withdrawn.
+- Added panel focus entry, Tab containment, Escape dismissal, and focus return for the specialized Events/Filters/Columns panels. Their rapid filtering/column behavior remains unchanged.
+- The maintained browser test now asserts actual panel removal as well as focus return, header/body/footer separation, viewport bounds, and unobstructed Apply action for all five sizes and both themes. Fresh post-deploy run required before recording a pass.
+
 Next.js fixes follow the [Windows-server advisory](https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36) and [AVIF advisory](https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4).
 
 Native top-layer behavior follows the [Popover API documentation](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/showPopover). Browser fixtures are development-only and return not-found outside development.

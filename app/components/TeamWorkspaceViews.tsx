@@ -20,7 +20,7 @@ import {
   X
 } from "lucide-react";
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnalyticsPlayerMetrics } from "../components/AnalyticsPlayerMetrics";
 import { AskClubhouseLauncher } from "../components/AskClubhouseDrawer";
 import { ChoiceSelect, type ChoiceOption } from "../components/ChoiceSelect";
@@ -572,6 +572,39 @@ export function AnalyticsView({
   const [eventSelectorOpen, setEventSelectorOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
+  const eventTriggerRef = useRef<HTMLButtonElement>(null);
+  const filterTriggerRef = useRef<HTMLButtonElement>(null);
+  const columnTriggerRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const trigger = (filtersOpen ? filterTriggerRef : columnsOpen ? columnTriggerRef : eventSelectorOpen ? eventTriggerRef : null)?.current;
+    const panel = trigger?.parentElement?.querySelector<HTMLElement>(".analytics-popover");
+    if (!trigger || !panel) return;
+    const focusable = () => [...panel.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]')].filter(element => element.getClientRects().length);
+    const frame = requestAnimationFrame(() => focusable()[0]?.focus());
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setEventSelectorOpen(false);
+        setFiltersOpen(false);
+        setColumnsOpen(false);
+      } else if (event.key === "Tab") {
+        const targets = focusable();
+        const first = targets[0], last = targets.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault(); last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault(); first?.focus();
+        }
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", onKeyDown);
+      if (trigger.isConnected) trigger.focus();
+    };
+  }, [eventSelectorOpen, filtersOpen, columnsOpen]);
   const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>(() => readInitialAnalyticsDetailPlayerId(data));
   const [metricIds, setMetricIds] = useState<string[] | undefined>(initialState.metricIds);
   const [columnPreset, setColumnPreset] = useState<AnalyticsColumnPreset>(initialState.columnPreset);
@@ -914,7 +947,7 @@ export function AnalyticsView({
         </nav>
         <div className="analytics-controls__row analytics-controls__row--filters">
           <div className="analytics-popover-wrap">
-            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
+            <button ref={eventTriggerRef} aria-expanded={eventSelectorOpen} className="secondary-button analytics-control-trigger" type="button" onClick={() => {
               setEventSelectorOpen((open) => !open);
               setFiltersOpen(false);
               setColumnsOpen(false);
@@ -934,7 +967,7 @@ export function AnalyticsView({
             )}
           </div>
           <div className="analytics-popover-wrap">
-            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => filtersOpen ? setFiltersOpen(false) : openFilters()}>
+            <button ref={filterTriggerRef} aria-expanded={filtersOpen} aria-haspopup="dialog" className="secondary-button analytics-control-trigger" type="button" onClick={() => filtersOpen ? setFiltersOpen(false) : openFilters()}>
               <SlidersHorizontal size={14} aria-hidden="true" />
               Filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
             </button>
@@ -952,7 +985,7 @@ export function AnalyticsView({
             )}
           </div>
           <div className="analytics-popover-wrap">
-            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
+            <button ref={columnTriggerRef} aria-expanded={columnsOpen} className="secondary-button analytics-control-trigger" type="button" onClick={() => {
               setColumnsOpen((open) => !open);
               setEventSelectorOpen(false);
               setFiltersOpen(false);
