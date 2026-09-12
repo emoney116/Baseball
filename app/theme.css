@@ -257,3 +257,14 @@ button[aria-disabled="true"] {
 .game-workstation-page .game-result-pad--guided button.is-impact small {
   color: rgba(255, 255, 255, 0.82);
 }
+
+.game-event-list span,
+.game-live-sequence > span,
+.game-live-last-play span,
+.game-count-patterns strong,
+.game-field-editor > button:not(.field-chart) b,
+.game-play-ledger article > b,
+.game-field-matchup > div span,
+.game-field-player b {
+  color: var(--brand-ink);
+}

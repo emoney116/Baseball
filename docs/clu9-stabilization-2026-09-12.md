@@ -109,6 +109,12 @@ This is an evidence log, not rollout acceptance.
 
 ## References
 
+## Planning And Creation Checks
+
+- Populated Practice Plan review inspected at 430x932 dark and 1180x820 light. Input/focus/action states readable, draft cancelled without publishing.
+- Add Team selectors (Organization, Team type, Team level, Season) passed 40 bounds/content/Escape-focus checks across all five requested viewports in both themes. Representative phone light sheet and landscape iPad dark anchored popup reviewed. Draft cancelled; no team created.
+- Small Game Center field/sequence/history labels now use the existing brand-ink token instead of the brand fill color. Focused theme/selector tests pass; this final token correction needs hosted confirmation.
+
 Next.js fixes follow the [Windows-server advisory](https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36) and [AVIF advisory](https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4).
 
 Native top-layer behavior follows the [Popover API documentation](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/showPopover). Browser fixtures are development-only and return not-found outside development.

@@ -4,6 +4,12 @@ import test from 'node:test';
 
 const theme = readFileSync('app/theme.css', 'utf8');
 const globals = readFileSync('app/globals.css', 'utf8');
+test('small Game Center labels use readable brand ink rather than button fill', () => {
+  assert.match(theme, /\.game-field-player b\s*\{\s*color: var\(--brand-ink\);/);
+  for (const selector of ['.game-event-list span', '.game-field-matchup > div span', '.game-play-ledger article > b']) {
+    assert.ok(theme.includes(selector));
+  }
+});
 const brandSections = { dark: globals.split('[data-theme="light"]')[0], light: globals.split('[data-theme="light"]')[1] };
 const sections = { dark: theme.split('[data-theme="light"]')[0], light: theme.split('[data-theme="light"]')[1].split('html,')[0] };
 const rgb = hex => hex.match(/[a-f0-9]{2}/gi).map(value => parseInt(value, 16));
