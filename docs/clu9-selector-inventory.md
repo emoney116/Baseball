@@ -9,7 +9,7 @@ Stabilization branch inventory, September 12, 2026. This records implementation 
 - `ClubhouseMultiSelect`: staged selection, Clear/Cancel/Apply; used by chart players, Ask team scope and Practice pitch filters.
 - `ClubhousePicker`: responsive single picker.
 - `ClubhouseSegmentedControl`: compact immediate choices. Existing specialized segmented rapid controls retain their layout and shared semantic theme tokens.
-- `ClubhouseOptionSheet`: contextual actions and selectors; used by Analytics sources, Practice quick start and profile actions.
+- `ClubhouseOptionSheet`: contextual actions and selectors; used by Analytics sources, Practice quick start, Game commands and profile actions.
 - Shared overlays portal outside clipping containers, use actual-edge placement, visual viewport bounds and native dialog top-layer support. Phone auto mode uses a sheet; tablet/desktop use anchored placement when space permits.
 
 ## Native Exceptions
@@ -26,7 +26,7 @@ Stabilization branch inventory, September 12, 2026. This records implementation 
 
 - Bottom navigation More/Pinned menus retain the existing navigation component, dismissal layer and trigger-relative tablet placement. They are not data selectors. Keyboard/orientation/Safari acceptance must still be audited independently.
 - Field position/base assignment, catcher/pitch location, spray placement, and velocity/time wheels remain spatial or numeric controls.
-- Game session commands remain a specialized rapid-action menu pending final interaction audit.
+- Game session commands use the shared overlay; the underlying scoring, lineup, history and analysis actions are preserved.
 
 ## Acceptance Limits
 

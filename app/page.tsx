@@ -16827,7 +16827,8 @@ function GamesView({
     : [];
   const latestConfirmedEvent = events.find((event) => (event.recordStatus ?? "confirmed") === "confirmed" && event.stateBefore);
   const metrolinaBatting = game ? (game.homeAway === "Home" ? game.half === "Bottom" : game.half === "Top") : false;
-  const possessionLabel = metrolinaBatting ? "Metrolina batting" : "Metrolina pitching";
+  const currentGameTeamName = data.teamContext?.currentTeam?.teamName ?? "Our team";
+  const possessionLabel = `${currentGameTeamName} ${metrolinaBatting ? "batting" : "pitching"}`;
   const hasScoringDraft = Boolean(pendingPitchOutcome || pitchChosen || pitchLocation || contactType || selectedBipOutcome || playMovements.length || fieldLocationTracked);
 
   useEffect(() => {
@@ -16997,24 +16998,25 @@ function GamesView({
           <section className="game-console game-workstation">
             {sessionActive && <header className="game-session-bar">
               <button type="button" className="game-session-exit" aria-label="Exit game" onClick={() => { setSessionActive(false); setSessionMenuOpen(false); setSessionDrawer(null); }}><ChevronLeft size={17} aria-hidden="true" /><span>Exit game</span></button>
-              <div className="game-session-identity"><span>{possessionLabel}</span><strong>Metrolina <em>vs</em> {game.opponent}</strong><small>{game.location} · {shortDate(game.date)}</small></div>
+              <div className="game-session-identity"><span>{possessionLabel}</span><strong title={`${currentGameTeamName} vs ${game.opponent}`}>{currentGameTeamName} <em>vs</em> {game.opponent}</strong><small>{game.location} · {shortDate(game.date)}</small></div>
               <div className="game-session-actions">
                 <button type="button" className="game-session-bases-trigger" onClick={() => setSessionDrawer("bases")}>Bases</button>
                 <button type="button" aria-label="History and corrections" onClick={() => setSessionDrawer("history")}><Undo2 size={15} aria-hidden="true" /><span>History</span></button>
-                <button type="button" aria-label="Open game menu" aria-expanded={sessionMenuOpen} onClick={() => setSessionMenuOpen((open) => !open)}><MoreHorizontal size={18} aria-hidden="true" /></button>
+                <ClubhouseOptionSheet title="Game commands" open={sessionMenuOpen} onOpenChange={setSessionMenuOpen} trigger={<button type="button" aria-label="Open game menu" aria-haspopup="dialog" aria-expanded={sessionMenuOpen} onClick={() => setSessionMenuOpen((open) => !open)}><MoreHorizontal size={18} aria-hidden="true" /></button>}>
+                  <div className="clubhouse-option-overlay__list" role="group" aria-label="Game commands">
+                    {data.teamContext?.currentTeam?.role !== "PLAYER" && <button type="button" onClick={() => { setLocationEditOpen(true); setSessionMenuOpen(false); }}>Edit location</button>}
+                    <button type="button" onClick={() => { setWorkspaceMode("field"); setScoringPanelOpen(hasScoringDraft); setSessionMenuOpen(false); }}>{hasScoringDraft ? "Resume pitch scoring" : "Return to field"}</button>
+                    <button type="button" onClick={() => { setWorkspaceMode("team"); setSessionMenuOpen(false); }}>Lineup & field</button>
+                    <button type="button" onClick={() => { setWorkspaceMode("plays"); setSessionMenuOpen(false); }}>Plays & corrections</button>
+                    <button type="button" onClick={() => { setWorkspaceMode("live"); setSessionMenuOpen(false); }}>Analyze game</button>
+                    <button type="button" onClick={() => { setSessionDrawer("history"); setSessionMenuOpen(false); }}>History & corrections</button>
+                    <button type="button" onClick={() => { setSessionActive(false); setSessionMenuOpen(false); }}>Exit to Game Center</button>
+                  </div>
+                </ClubhouseOptionSheet>
               </div>
-              {sessionMenuOpen && <div className="game-session-menu" role="menu">
-                {data.teamContext?.currentTeam?.role !== "PLAYER" && <button type="button" role="menuitem" onClick={() => { setLocationEditOpen(true); setSessionMenuOpen(false); }}>Edit location</button>}
-                <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("field"); setScoringPanelOpen(hasScoringDraft); setSessionMenuOpen(false); }}>{hasScoringDraft ? "Resume pitch scoring" : "Return to field"}</button>
-                <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("team"); setSessionMenuOpen(false); }}>Lineup & field</button>
-                <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("plays"); setSessionMenuOpen(false); }}>Plays & corrections</button>
-                <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("live"); setSessionMenuOpen(false); }}>Analyze game</button>
-                <button type="button" role="menuitem" onClick={() => { setSessionDrawer("history"); setSessionMenuOpen(false); }}>History & corrections</button>
-                <button type="button" role="menuitem" onClick={() => { setSessionActive(false); setSessionMenuOpen(false); }}>Exit to Game Center</button>
-              </div>}
             </header>}
             {locationEditOpen && <ModalFrame title="Game Location" onClose={() => setLocationEditOpen(false)}><ClubhouseLocationPicker value={game.location} scope={{ teamId: data.teamContext?.currentTeam?.teamId, eventLocationId: game.locationId }} onChange={location => { onLocation(game.id, location); setLocationEditOpen(false); }} /></ModalFrame>}
-            <GameScoreRibbon game={game} teamName={data.teamContext?.currentTeam?.teamName ?? "Metrolina"}>
+            <GameScoreRibbon game={game} teamName={currentGameTeamName}>
                 <div className="game-count-lights" aria-label={`${game.balls} balls, ${game.strikes} strikes, ${game.outs} outs`}>
                   <GameStateLights label="B" active={game.balls} total={3} tone="ball" />
                   <GameStateLights label="S" active={game.strikes} total={2} tone="strike" />
@@ -17138,7 +17140,7 @@ function GamesView({
                   <summary>Correction tools</summary>
                   <small>Use only to repair the official game state.</small>
                   <div className="game-manual-controls">
-                    <button type="button" onClick={() => onAdjust("metrolinaScore", 1)}>+ Metro Run</button>
+                    <button type="button" aria-label={`Add run for ${currentGameTeamName}`} onClick={() => onAdjust("metrolinaScore", 1)}>+ Team Run</button>
                     <button type="button" onClick={() => onAdjust("opponentScore", 1)}>+ Opp Run</button>
                     <button type="button" onClick={() => onAdjust("outs", 1)}>+ Out</button>
                   </div>
@@ -17191,7 +17193,7 @@ function GamesView({
                   <div className="game-event-list game-session-history-list">
                     {recentEvents.length ? recentEvents.map((event) => <div key={event.id}><span>{event.half.slice(0, 1)}{event.inning}</span><strong>{gameEventLabel(event, data.players)}</strong><small>{gameEventMeta(event)}</small></div>) : <CompactEmpty title="Record the first pitch to start the event log" />}
                   </div>
-                  <div className="game-drawer-adjustments"><span>Manual state repair</span><div><button type="button" onClick={() => onAdjust("metrolinaScore", -1)}>− Metro</button><button type="button" onClick={() => onAdjust("metrolinaScore", 1)}>+ Metro</button><button type="button" onClick={() => onAdjust("opponentScore", -1)}>− Opp</button><button type="button" onClick={() => onAdjust("opponentScore", 1)}>+ Opp</button><button type="button" onClick={() => onAdjust("outs", -1)}>− Out</button><button type="button" onClick={() => onAdjust("outs", 1)}>+ Out</button></div></div>
+                  <div className="game-drawer-adjustments"><span>Adjust score and outs</span><div><button type="button" aria-label={`Remove run from ${currentGameTeamName}`} onClick={() => onAdjust("metrolinaScore", -1)}>− Team</button><button type="button" aria-label={`Add run for ${currentGameTeamName}`} onClick={() => onAdjust("metrolinaScore", 1)}>+ Team</button><button type="button" onClick={() => onAdjust("opponentScore", -1)}>− Opp</button><button type="button" onClick={() => onAdjust("opponentScore", 1)}>+ Opp</button><button type="button" onClick={() => onAdjust("outs", -1)}>− Out</button><button type="button" onClick={() => onAdjust("outs", 1)}>+ Out</button></div></div>
                 </> : <>
                   <GameBaseDiamond game={game} players={data.players} selectedBase={selectedRunnerBase} onSelectBase={setSelectedRunnerBase} onMoveRunner={onRunnerMove} />
                   {selectedRunner ? <div className="game-runner-actions"><strong>{selectedRunner.name}<small>{selectedRunnerBase?.toUpperCase()}</small></strong><div><button type="button" onClick={() => onRunnerAction("Advance", selectedRunnerBase)}>Advance</button><button type="button" onClick={() => onRunnerAction("Stolen Base", selectedRunnerBase)}>Stolen Base</button><button type="button" onClick={() => onRunnerAction("Caught Stealing", selectedRunnerBase)}>Caught</button><button type="button" onClick={() => onRunnerAction("Pickoff", selectedRunnerBase)}>Pickoff</button></div></div> : <p className="game-runner-hint">Select an occupied base to move or score that runner.</p>}

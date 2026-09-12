@@ -119,29 +119,6 @@
   display: none !important;
 }
 
-.game-session-menu {
-  background: var(--panel-strong);
-  border: 1px solid var(--line-strong);
-  border-radius: 11px;
-  box-shadow: var(--shadow);
-  display: grid;
-  gap: 3px;
-  padding: 5px;
-  position: absolute;
-  right: 8px;
-  top: calc(100% + 6px);
-  width: 205px;
-  z-index: 80;
-}
-
-.game-session-menu button {
-  background: transparent;
-  border: 0;
-  justify-content: flex-start;
-  text-align: left;
-  width: 100%;
-}
-
 .game-session-active .game-score-ribbon {
   box-shadow: none;
   min-height: 92px;
@@ -489,7 +466,8 @@
   }
 
   .game-session-exit,
-  .game-session-actions > button {
+  .game-session-actions > button,
+  .game-session-actions .clubhouse-option-sheet-anchor > button {
     min-width: 38px;
     padding: 0 8px !important;
   }

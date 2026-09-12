@@ -23,7 +23,16 @@ test('Practice and profile context menus use the shared positioned overlay',()=>
   const page=readFileSync('app/page.tsx','utf8');
   assert.match(page,/<ClubhouseOptionSheet title="Start hitting session"/);
   assert.match(page,/<ClubhouseOptionSheet title="My account"/);
+  assert.match(page,/<ClubhouseOptionSheet title="Game commands"/);
   assert.doesNotMatch(page,/className="(?:profile-menu__panel|practice-hitting-start-popover)"/);
+});
+test('Game Center identifies the selected team rather than a hard-coded organization',()=>{
+  const page=readFileSync('app/page.tsx','utf8');
+  assert.match(page,/const currentGameTeamName = data\.teamContext\?\.currentTeam\?\.teamName \?\? "Our team"/);
+  assert.match(page,/<GameScoreRibbon game=\{game\} teamName=\{currentGameTeamName\}/);
+  assert.doesNotMatch(page,/<strong>Metrolina <em>vs<\/em>/);
+  assert.doesNotMatch(page,/"Metrolina batting"|"Metrolina pitching"/);
+  assert.doesNotMatch(page,/>[+−] Metro(?: Run)?</);
 });
 test('bottom navigation menus dismiss hidden triggers and follow the visual viewport',()=>{
   const page=readFileSync('app/page.tsx','utf8');
