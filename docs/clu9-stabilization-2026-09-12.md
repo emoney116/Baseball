@@ -93,14 +93,21 @@ This is an evidence log, not rollout acceptance.
 - `abe852f` preview is Ready at https://baseball-9huuseoe9-emoney116s-projects.vercel.app, including runtime dependency patches and live field badge suppression.
 - Remaining npm advisories are in the development toolchain, including the alternate Vite/Cloudflare preview path and Drizzle tooling. Current production scripts use Next.js, not that alternate path. Do not describe this as zero advisories app-wide or automatically apply npm's proposed Drizzle downgrade.
 
-## References
-
 ## Roster Follow-Up
 
 - `526584c` preview reached Ready at https://baseball-6lgfc35i6-emoney116s-projects.vercel.app. Hosted phone settings triggers now span 370px and display the complete Personal + Live Sessions label. Live Game field spray badge has computed display:none while the field remains present.
 - Add Player phone dialog: position picker stays within viewport, Escape returns to Primary without closing the form, and Save Player sits inside the viewport (bottom 834px at height 844px). Draft cancelled, no player created.
 - Manual roster import phone review found wrapped bulk status chips in a tall pill. Replaced that bulk control with shared ChoiceSelect and a responsive toolbar, retaining onApplyStatus behavior. Import draft cancelled without creating players. Post-deploy picker verification remains pending.
 - Build plus 904/904 tests passed after this change; tsc, lint (26 existing image warnings), and diff check passed.
+
+## Hosted Form Confirmation
+
+- `f502489` preview Ready: https://baseball-3m16r6rif-emoney116s-projects.vercel.app. Manual import bulk status opens as a phone sheet and attached iPad landscape popup, reviewed in dark/light respectively. Selecting JV updated all nine draft rows; Cancel discarded the draft without roster writes.
+- QA organization General and role-picker phone light screens reviewed. Role picker opens and Escape dismisses it without mutations. Visibility and invitation screens opened read-only; no invitations sent. Broader organization responsive coverage remains distinct from these observations.
+- Profile Photo cropper passed 12 action visibility/hit-target checks: five required sizes plus 390x550, both themes. Use Photo remains inside the viewport and unobstructed. Short phone light and iPad dark screenshots reviewed. Bundled logo selected locally, then Cancel; no photo saved. This is viewport emulation, not Safari chrome/keyboard hardware proof.
+- Latest origin/main re-fetched and remains 8754d8b. No main merge or production promotion.
+
+## References
 
 Next.js fixes follow the [Windows-server advisory](https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36) and [AVIF advisory](https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4).
 
