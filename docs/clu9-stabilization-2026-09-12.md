@@ -79,6 +79,15 @@ This is an evidence log, not rollout acceptance.
 - Game Center rapid runner/position/substitution and Player count controls are currently native/specialized, not yet signed off as final exceptions.
 - Development-only preview selectors are test controls, not product selectors.
 
+## Game Center And Dependency Follow-Up
+
+- `204a5cf` preview reached Ready at https://baseball-2f6b51h86-emoney116s-projects.vercel.app. Controlled QA game header now identifies Critical QA A instead of hard-coded Metrolina. Recorded Ball then undo persisted a 0-0 count on reload. Shared Game commands menu opens on phone and anchors within the 820px viewport; Escape returns focus to its trigger. Both theme screenshots reviewed. No real Metrolina game changed.
+- Visual review found the decorative spray badge under the live field's Bases button. It is suppressed only inside Game Center's field surface; this final CSS correction still needs post-deploy visual confirmation.
+- Production dependency audit identified Next.js Windows-server and AVIF image optimization advisories. Updated Next.js lower bound to 16.3.3 and resolved sharp 0.35.4 plus baseline-browser-mapping. `npm audit --omit=dev` now reports zero vulnerabilities. Development-tool advisories remain to be assessed separately.
+- Patched dependencies passed build plus 903/903 tests, type-check and lint (0 errors, 26 existing image warnings). This is not yet full rollout acceptance: email/invite end-to-end and remaining app-wide surface checks remain open.
+
 ## References
+
+Next.js fixes follow the [Windows-server advisory](https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36) and [AVIF advisory](https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4).
 
 Native top-layer behavior follows the [Popover API documentation](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/showPopover). Browser fixtures are development-only and return not-found outside development.

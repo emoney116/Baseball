@@ -119,6 +119,10 @@
   display: none !important;
 }
 
+.game-field-command__surface .practice-spray-field__mode {
+  display: none;
+}
+
 .game-session-active .game-score-ribbon {
   box-shadow: none;
   min-height: 92px;

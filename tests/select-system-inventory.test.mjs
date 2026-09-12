@@ -33,6 +33,8 @@ test('Game Center identifies the selected team rather than a hard-coded organiza
   assert.doesNotMatch(page,/<strong>Metrolina <em>vs<\/em>/);
   assert.doesNotMatch(page,/"Metrolina batting"|"Metrolina pitching"/);
   assert.doesNotMatch(page,/>[+−] Metro(?: Run)?</);
+  const css=readFileSync('app/game-session.css','utf8');
+  assert.match(css,/\.game-field-command__surface \.practice-spray-field__mode\s*\{\s*display: none;/);
 });
 test('bottom navigation menus dismiss hidden triggers and follow the visual viewport',()=>{
   const page=readFileSync('app/page.tsx','utf8');
