@@ -1,5 +1,5 @@
 "use client";
-import { ClubhouseMultiSelect, ClubhouseOptionSheet } from "./ClubhouseSelect";
+import { ClubhouseMultiSelect, ClubhouseOptionSheet, useOverlayPosition } from "./ClubhouseSelect";
 import {
   CalendarDays,
   CalendarPlus,
@@ -575,6 +575,16 @@ export function AnalyticsView({
   const eventTriggerRef = useRef<HTMLButtonElement>(null);
   const filterTriggerRef = useRef<HTMLButtonElement>(null);
   const columnTriggerRef = useRef<HTMLButtonElement>(null);
+  const { position: panelPosition } = useOverlayPosition(
+    filtersOpen ? filterTriggerRef : columnsOpen ? columnTriggerRef : eventTriggerRef,
+    eventSelectorOpen || filtersOpen || columnsOpen, 20, "auto", 0, 430, 760,
+  );
+  const panelStyle: React.CSSProperties | undefined = panelPosition ? {
+    position: "fixed", top: panelPosition.top, left: panelPosition.left, right: "auto", bottom: "auto",
+    width: panelPosition.width, maxHeight: panelPosition.maxHeight,
+    transform: panelPosition.placement === "bottom" ? "none" : "translateY(-100%)",
+    overflowY: filtersOpen ? "hidden" : "auto",
+  } : undefined;
   useEffect(() => {
     const trigger = (filtersOpen ? filterTriggerRef : columnsOpen ? columnTriggerRef : eventSelectorOpen ? eventTriggerRef : null)?.current;
     const panel = trigger?.parentElement?.querySelector<HTMLElement>(".analytics-popover");
@@ -957,6 +967,7 @@ export function AnalyticsView({
             </button>
             {eventSelectorOpen && (
               <AnalyticsEventSelector
+                style={panelStyle}
                 events={result.availableEvents}
                 selectedIds={eventIds}
                 timeRange={timeRange}
@@ -973,6 +984,7 @@ export function AnalyticsView({
             </button>
             {filtersOpen && (
               <AnalyticsFilterPanel
+                style={panelStyle}
                 definitions={result.filterDefinitions}
                 values={stagedFilters}
                 onToggle={toggleStagedFilter}
@@ -995,6 +1007,7 @@ export function AnalyticsView({
             </button>
             {columnsOpen && (
               <AnalyticsColumnPanel
+                style={panelStyle}
                 domain={domain}
                 columns={result.availableColumns}
                 selectedIds={metricIds ?? result.columns.map((column) => column.metricId)}
@@ -1463,6 +1476,7 @@ export function analyticsMetricKeyLabel(column: AnalyticsColumn) {
 }
 
 export function AnalyticsEventSelector({
+  style,
   events,
   selectedIds,
   timeRange,
@@ -1470,6 +1484,7 @@ export function AnalyticsEventSelector({
   onClear,
   onTimeRangeChange,
 }: {
+  style?: React.CSSProperties;
   events: AnalyticsEventOption[];
   selectedIds: ID[];
   timeRange: AnalyticsTimeRange;
@@ -1494,7 +1509,7 @@ export function AnalyticsEventSelector({
     : events;
   const groups = groupAnalyticsEvents(filteredEvents);
   return (
-    <div className="analytics-popover" role="dialog" aria-label="Analytics events">
+    <div style={style} className="analytics-popover" role="dialog" aria-label="Analytics events">
       <div className="analytics-popover__head">
         <strong>Events</strong>
         <button type="button" className="text-button" onClick={() => { onClear(); onTimeRangeChange("season"); }}>All Events</button>
@@ -1527,6 +1542,7 @@ export function AnalyticsEventSelector({
 }
 
 export function AnalyticsColumnPanel({
+  style,
   domain,
   columns,
   selectedIds,
@@ -1535,6 +1551,7 @@ export function AnalyticsColumnPanel({
   onPreset,
   onReset,
 }: {
+  style?: React.CSSProperties;
   domain: AnalyticsDomain;
   columns: AnalyticsColumn[];
   selectedIds: string[];
@@ -1554,7 +1571,7 @@ export function AnalyticsColumnPanel({
     return grouped;
   }, {}));
   return (
-    <div className="analytics-popover analytics-popover--columns" role="dialog" aria-label="Analytics columns">
+    <div style={style} className="analytics-popover analytics-popover--columns" role="dialog" aria-label="Analytics columns">
       <div className="analytics-popover__head">
         <strong>Stat View</strong>
         <button type="button" className="text-button" onClick={onReset}>Default</button>
@@ -1666,6 +1683,7 @@ export function analyticsFilterValueSummary(definition: AnalyticsFilterDefinitio
 }
 
 export function AnalyticsFilterPanel({
+  style,
   definitions,
   values,
   onToggle,
@@ -1675,6 +1693,7 @@ export function AnalyticsFilterPanel({
   onCancel,
   onApply,
 }: {
+  style?: React.CSSProperties;
   definitions: AnalyticsFilterDefinition[];
   values: AnalyticsFilters;
   onToggle: (definition: AnalyticsFilterDefinition, value: string) => void;
@@ -1696,7 +1715,7 @@ export function AnalyticsFilterPanel({
     activeCount: sectionDefinitions.filter((definition) => analyticsFilterValueSummary(definition, values) !== (definition.type === "range" ? "Any" : "All")).length,
   }));
   return (
-    <div className="analytics-popover analytics-popover--wide analytics-filter-sheet" role="dialog" aria-modal="true" aria-label="Analytics filters">
+    <div style={style} className="analytics-popover analytics-popover--wide analytics-filter-sheet" role="dialog" aria-modal="true" aria-label="Analytics filters">
       <div className="analytics-filter-sheet__head">
         <strong>Filters</strong>
         <button type="button" className="text-button" onClick={onClear} disabled={!activeFilterGroups}>Clear All</button>

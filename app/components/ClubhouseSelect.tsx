@@ -28,12 +28,14 @@ type OverlayPosition = {
 const VIEWPORT_PADDING = 12;
 const OPTION_ROW_HEIGHT = 44;
 
-function useOverlayPosition(
+export function useOverlayPosition(
   triggerRef: RefObject<HTMLElement | null>,
   open: boolean,
   optionCount: number,
   presentation: MobilePresentation,
   extraHeight = 0,
+  preferredWidth = 212,
+  preferredHeight = 460,
 ) {
   const [position, setPosition] = useState<OverlayPosition | null>(null);
 
@@ -49,7 +51,7 @@ function useOverlayPosition(
     const viewportBottom = viewportTop + viewportHeight;
     const viewportRight = viewportLeft + viewportWidth;
     const gap = 6;
-    const desiredHeight = Math.min(460, Math.max(112, optionCount * OPTION_ROW_HEIGHT + extraHeight + 20));
+    const desiredHeight = Math.min(preferredHeight, Math.max(112, optionCount * OPTION_ROW_HEIGHT + extraHeight + 20));
     const availableBelow = Math.max(0, viewportBottom - rect.bottom - VIEWPORT_PADDING - gap);
     const availableAbove = Math.max(0, rect.top - viewportTop - VIEWPORT_PADDING - gap);
     const shouldUseSheet = presentation === "sheet" || (
@@ -71,14 +73,14 @@ function useOverlayPosition(
 
     const placement: Placement = availableBelow >= desiredHeight || availableBelow >= availableAbove ? "bottom" : "top";
     const availableHeight = placement === "bottom" ? availableBelow : availableAbove;
-    const maxHeight = Math.max(0, Math.min(460, availableHeight));
-    const width = Math.max(0, Math.min(Math.max(rect.width, 212), viewportWidth - VIEWPORT_PADDING * 2));
+    const maxHeight = Math.max(0, Math.min(preferredHeight, availableHeight));
+    const width = Math.max(0, Math.min(Math.max(rect.width, preferredWidth), viewportWidth - VIEWPORT_PADDING * 2));
     const left = Math.min(Math.max(rect.left, viewportLeft + VIEWPORT_PADDING), viewportRight - width - VIEWPORT_PADDING);
     // Anchor the actual rendered edge, not an estimated option-list height.
     const candidateTop = placement === "bottom" ? rect.bottom + gap : rect.top - gap;
     const top = Math.min(Math.max(candidateTop, viewportTop + VIEWPORT_PADDING), viewportBottom - VIEWPORT_PADDING);
     setPosition({ top, left, width, maxHeight, placement, dialog });
-  }, [extraHeight, optionCount, presentation, triggerRef]);
+  }, [extraHeight, optionCount, presentation, preferredHeight, preferredWidth, triggerRef]);
 
   useEffect(() => {
     if (!open) return;
