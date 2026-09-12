@@ -86,6 +86,13 @@ This is an evidence log, not rollout acceptance.
 - Production dependency audit identified Next.js Windows-server and AVIF image optimization advisories. Updated Next.js lower bound to 16.3.3 and resolved sharp 0.35.4 plus baseline-browser-mapping. `npm audit --omit=dev` now reports zero vulnerabilities. Development-tool advisories remain to be assessed separately.
 - Patched dependencies passed build plus 903/903 tests, type-check and lint (0 errors, 26 existing image warnings). This is not yet full rollout acceptance: email/invite end-to-end and remaining app-wide surface checks remain open.
 
+## Settings Follow-Up
+
+- Populated Team Settings access mode and tracking policy menus passed 20 bounds/content/Escape-focus checks across all five requested viewports and both themes. Representative phone light and iPad dark screenshots reviewed; no setting mutations performed.
+- Phone screenshot identified an obsolete two-column default row after shared-selector migration. Corrected to one full-width track so the policy label can use available space; post-deploy verification remains pending.
+- `abe852f` preview is Ready at https://baseball-9huuseoe9-emoney116s-projects.vercel.app, including runtime dependency patches and live field badge suppression.
+- Remaining npm advisories are in the development toolchain, including the alternate Vite/Cloudflare preview path and Drizzle tooling. Current production scripts use Next.js, not that alternate path. Do not describe this as zero advisories app-wide or automatically apply npm's proposed Drizzle downgrade.
+
 ## References
 
 Next.js fixes follow the [Windows-server advisory](https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36) and [AVIF advisory](https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4).

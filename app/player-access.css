@@ -1,7 +1,7 @@
 .player-access-settings { padding: 20px 0; border-bottom: 1px solid var(--border, #444); }
 .player-access-settings h2 { display: flex; align-items: center; gap: 8px; font-size: 18px; margin: 0 0 20px; }
 .player-access-settings h3, .player-tracking-form h3 { font-size: 14px; margin: 12px 0; }
-.player-access-default-row { display: grid; grid-template-columns: minmax(0, 1fr) 156px; gap: 12px; align-items: center; }
+.player-access-default-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: center; }
 .player-access-default-row label { font-size: 14px; font-weight: 700; }
 .player-access-default-row select { min-width: 0; width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border, #444); border-radius: 6px; background: var(--surface, #181818); color: inherit; font: inherit; font-size: 13px; }
 .player-access-default-row select:focus-visible, .player-access-row select:focus-visible { outline: 2px solid #48a7b5; outline-offset: 2px; }

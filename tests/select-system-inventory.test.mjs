@@ -36,6 +36,10 @@ test('Game Center identifies the selected team rather than a hard-coded organiza
   const css=readFileSync('app/game-session.css','utf8');
   assert.match(css,/\.game-field-command__surface \.practice-spray-field__mode\s*\{\s*display: none;/);
 });
+test('Player settings selectors use the full row after label migration',()=>{
+  const css=readFileSync('app/player-access.css','utf8');
+  assert.match(css,/\.player-access-default-row\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\);/);
+});
 test('bottom navigation menus dismiss hidden triggers and follow the visual viewport',()=>{
   const page=readFileSync('app/page.tsx','utf8');
   const hook=page.slice(page.indexOf('function useBottomNavMenuStyle('),page.indexOf('type WeightRoomSetDraft'));
