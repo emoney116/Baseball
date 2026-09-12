@@ -68,6 +68,7 @@ import { createPortal } from "react-dom";
 import { ASK_CLUBHOUSE_ERROR_BODY, ASK_CLUBHOUSE_ERROR_TITLE, ASK_CLUBHOUSE_GENERIC_STAGE, ASK_CLUBHOUSE_SETUP_BODY, ASK_CLUBHOUSE_SETUP_TITLE, ASK_CLUBHOUSE_UI_SUGGESTIONS, AskClubhouseDrawer, AskClubhouseFab, type AskClubhouseChatMessage } from "./components/AskClubhouseDrawer";
 import { advanceAskMessage, readAskResponse, stopAskMessage } from "./lib/askClubhouse/stream";
 import { ChoiceSelect, type ChoiceOption } from "./components/ChoiceSelect";
+import { ClubhouseMultiSelect } from "./components/ClubhouseSelect";
 import { ClubhouseBaseballField } from "./components/ClubhouseBaseballField";
 import { ClubhouseBottomNav } from "./components/ClubhouseBottomNav";
 import { CoachLiveEntrySettings } from "./components/CoachLiveEntrySettings";
@@ -8422,7 +8423,6 @@ function PracticeConsole({
   const [pitchingStatsScopeSessionId, setPitchingStatsScopeSessionId] = useState<ID | "all">("all");
   const [pitchingLocationFilter, setPitchingLocationFilter] = useState<PitchType | "all">("all");
   const [pitchingLivePitchFilters, setPitchingLivePitchFilters] = useState<PitchType[]>([]);
-  const [pitchingLivePitchFilterOpen, setPitchingLivePitchFilterOpen] = useState(false);
   const [showAllPitchingPlayers, setShowAllPitchingPlayers] = useState(false);
   const [pitchingSavedNotice, setPitchingSavedNotice] = useState("");
   const [pitchingVelocityError, setPitchingVelocityError] = useState("");
@@ -8454,7 +8454,6 @@ function PracticeConsole({
   const [liveBpBattedBall, setLiveBpBattedBall] = useState<BattedBallType | undefined>();
   const [activityClock, setActivityClock] = useState(() => Date.now());
   const onSessionHeartbeatRef = useRef(onSessionHeartbeat);
-  const pitchingFilterMenuRef = useRef<HTMLDivElement | null>(null);
   const practiceId = practice?.id;
   const practiceEndedAt = practice?.endedAt;
   const availablePlayers = useMemo(() => availablePracticePlayers(data, practice), [data, practice]);
@@ -8652,11 +8651,6 @@ function PracticeConsole({
       : "Multi";
   const pitchingSessionLabel = pitchingStation === "Bullpen" ? "Bullpen" : pitchingStation;
   const pitchingSessionContext = pitchingSessionLabel;
-  const pitchingLivePitchFilterLabel = pitchingLivePitchFilters.length === 0
-    ? "All"
-    : pitchingLivePitchFilters.length === 1
-      ? PITCH_TYPE_LABELS[pitchingLivePitchFilters[0]]
-      : `${pitchingLivePitchFilters.length} pitches`;
   const pitchingLivePitchFilterOptions = PITCH_TYPES.filter((pitchType) => pitchEvents.some((event) => event.pitchType === pitchType));
   const filteredPitchLocationCount = filteredPitchEvents.filter((event) => isZonePoint(event.location)).length;
   const hasFilteredVelocity = pitchStats.avgVelocity !== undefined || pitchStats.maxVelocity !== undefined;
@@ -8716,23 +8710,6 @@ function PracticeConsole({
     onSessionHeartbeatRef.current = onSessionHeartbeat;
   }, [onSessionHeartbeat]);
 
-  useEffect(() => {
-    if (!pitchingLivePitchFilterOpen) return;
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target instanceof Node ? event.target : null;
-      if (target && pitchingFilterMenuRef.current?.contains(target)) return;
-      setPitchingLivePitchFilterOpen(false);
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPitchingLivePitchFilterOpen(false);
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [pitchingLivePitchFilterOpen]);
 
   useEffect(() => {
     if (mode === "Live BP" || !practiceId || practiceEndedAt || !currentSession?.id) return;
@@ -9007,13 +8984,6 @@ function PracticeConsole({
     setPitchingPlayersOpen(false);
   }
 
-  function togglePitchingLivePitchFilter(pitchType: PitchType) {
-    setPitchingLivePitchFilters((current) => (
-      current.includes(pitchType)
-        ? current.filter((item) => item !== pitchType)
-        : [...current, pitchType]
-    ));
-  }
 
   function changeDefenseDrill(nextDrill: DefenseDrillContext) {
     const option = defenseDrillOption(nextDrill);
@@ -9785,45 +9755,7 @@ function PracticeConsole({
                   <div className="practice-pitching-location-card__head">
                     <span>Location</span>
                     <div className="practice-pitching-location-card__tools">
-                      <div className="practice-pitching-filter-menu" ref={pitchingFilterMenuRef}>
-                        <button
-                          className="practice-pitching-filter-pill"
-                          type="button"
-                          onClick={() => setPitchingLivePitchFilterOpen((open) => !open)}
-                          aria-label="Filter pitching metrics by pitch type"
-                          aria-haspopup="menu"
-                          aria-expanded={pitchingLivePitchFilterOpen}
-                        >
-                          <span>Pitch Filter</span>
-                          <strong>{pitchingLivePitchFilterLabel}</strong>
-                          <ChevronDown size={15} aria-hidden="true" />
-                        </button>
-                        {pitchingLivePitchFilterOpen && (
-                          <div className="practice-pitching-filter-popover practice-pitching-filter-sheet" role="menu" aria-label="Pitch filter">
-                            <button type="button" role="menuitemcheckbox" aria-checked={pitchingLivePitchFilters.length === 0} className={pitchingLivePitchFilters.length === 0 ? "active" : ""} onClick={() => setPitchingLivePitchFilters([])}>
-                              <span>
-                                <strong>All Pitches</strong>
-                                <small>{pitchEvents.length} total</small>
-                              </span>
-                              {pitchingLivePitchFilters.length === 0 && <Check size={16} aria-hidden="true" />}
-                            </button>
-                            {pitchingLivePitchFilterOptions.map((pitchType) => {
-                              const active = pitchingLivePitchFilters.includes(pitchType);
-                              const count = pitchEvents.filter((event) => event.pitchType === pitchType).length;
-                              return (
-                                <button key={pitchType} type="button" role="menuitemcheckbox" aria-checked={active} className={active ? "active" : ""} onClick={() => togglePitchingLivePitchFilter(pitchType)}>
-                                  <span>
-                                    <strong><i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />{practicePitchTypeLabel(pitchType)}</strong>
-                                    <small>{count} pitches</small>
-                                  </span>
-                                  <em aria-hidden="true">{active && <Check size={15} />}</em>
-                                </button>
-                              );
-                            })}
-                            {!pitchingLivePitchFilterOptions.length && <CompactEmpty title="No pitch types logged yet" />}
-                          </div>
-                        )}
-                      </div>
+                      <ClubhouseMultiSelect className="practice-hitting-chart-filter" aria-label="Filter pitching metrics by pitch type" values={pitchingLivePitchFilters} onApply={values => setPitchingLivePitchFilters(values as PitchType[])} placeholder="All Pitches" options={pitchingLivePitchFilterOptions.map(pitchType => ({ value: pitchType, label: practicePitchTypeLabel(pitchType), icon: <i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />, description: `${pitchEvents.filter(event => event.pitchType === pitchType).length} pitches` }))} />
                       <button className="text-button" type="button" onClick={() => setPitchingStatsOpen(true)}>
                         Details
                         <ChevronRight size={14} aria-hidden="true" />
@@ -11276,19 +11208,12 @@ function PracticeHittingChartCarousel({
   const [sprayMode, setSprayMode] = useState<PracticeChartMetricMode>("dots");
   const [pitchLocationMode, setPitchLocationMode] = useState<PracticeChartMetricMode>("heat");
   const [pitchFilters, setPitchFilters] = useState<PitchType[]>([]);
-  const [pitchFilterOpen, setPitchFilterOpen] = useState(false);
-  const pitchFilterRef = useRef<HTMLDivElement | null>(null);
   const chartScrollerRef = useRef<HTMLDivElement | null>(null);
   const [requestedViewId, setRequestedViewId] = useState<"spray" | "location">("spray");
   const pitchFilterOptions = PITCH_TYPES.filter((pitchType) => events.some((event) => event.pitchType === pitchType));
   const filteredEvents = pitchFilters.length
     ? events.filter((event) => event.pitchType && pitchFilters.includes(event.pitchType))
     : events;
-  const pitchFilterLabel = pitchFilters.length === 0
-    ? "All"
-    : pitchFilters.length === 1
-      ? PITCH_TYPE_LABELS[pitchFilters[0]]
-      : `${pitchFilters.length} pitches`;
   const ballsInPlayCount = filteredEvents.filter((event) => event.action === "Ball in play").length;
   const sprayPoints = filteredEvents.filter((event) => event.action === "Ball in play").map((event) => event.fieldLocation).filter(isZonePoint);
   const pitchLocationEvents = filteredEvents.filter((event) => isZonePoint(event.pitchLocation));
@@ -11299,23 +11224,6 @@ function PracticeHittingChartCarousel({
 
   const activeViewId = views.some((view) => view.id === requestedViewId) ? requestedViewId : views[0]?.id;
 
-  useEffect(() => {
-    if (!pitchFilterOpen) return;
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target instanceof Node ? event.target : null;
-      if (target && pitchFilterRef.current?.contains(target)) return;
-      setPitchFilterOpen(false);
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPitchFilterOpen(false);
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [pitchFilterOpen]);
 
   if (!views.length) return null;
 
@@ -11334,13 +11242,6 @@ function PracticeHittingChartCarousel({
     if (nextView && nextView.id !== activeViewId) setRequestedViewId(nextView.id);
   }
 
-  function togglePitchFilter(pitchType: PitchType) {
-    setPitchFilters((current) => (
-      current.includes(pitchType)
-        ? current.filter((item) => item !== pitchType)
-        : [...current, pitchType]
-    ));
-  }
 
   return (
     <section className="practice-hitting-live-charts" aria-label="Hitting charts">
@@ -11355,45 +11256,7 @@ function PracticeHittingChartCarousel({
               ))}
             </div>
           )}
-          <div className="practice-hitting-chart-filter practice-pitching-filter-menu" ref={pitchFilterRef}>
-            <button
-              className="practice-pitching-filter-pill"
-              type="button"
-              onClick={() => setPitchFilterOpen((open) => !open)}
-              aria-label="Filter hitting charts by pitch type"
-              aria-haspopup="menu"
-              aria-expanded={pitchFilterOpen}
-            >
-              <span>Pitch Filter</span>
-              <strong>{pitchFilterLabel}</strong>
-              <ChevronDown size={15} aria-hidden="true" />
-            </button>
-            {pitchFilterOpen && (
-              <div className="practice-pitching-filter-popover practice-pitching-filter-sheet" role="menu" aria-label="Hitting chart pitch filter">
-                <button type="button" role="menuitemcheckbox" aria-checked={pitchFilters.length === 0} className={pitchFilters.length === 0 ? "active" : ""} onClick={() => setPitchFilters([])}>
-                  <span>
-                    <strong>All Pitches</strong>
-                    <small>{events.length} swings</small>
-                  </span>
-                  {pitchFilters.length === 0 && <Check size={16} aria-hidden="true" />}
-                </button>
-                {pitchFilterOptions.map((pitchType) => {
-                  const active = pitchFilters.includes(pitchType);
-                  const count = events.filter((event) => event.pitchType === pitchType).length;
-                  return (
-                    <button key={pitchType} type="button" role="menuitemcheckbox" aria-checked={active} className={active ? "active" : ""} onClick={() => togglePitchFilter(pitchType)}>
-                      <span>
-                        <strong><i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />{practicePitchTypeLabel(pitchType)}</strong>
-                        <small>{count} swings</small>
-                      </span>
-                      <em aria-hidden="true">{active && <Check size={15} />}</em>
-                    </button>
-                  );
-                })}
-                {!pitchFilterOptions.length && <CompactEmpty title="No pitch types logged yet" />}
-              </div>
-            )}
-          </div>
+          <ClubhouseMultiSelect className="practice-hitting-chart-filter" aria-label="Filter hitting charts by pitch type" values={pitchFilters} onApply={values => setPitchFilters(values as PitchType[])} placeholder="All Pitches" options={pitchFilterOptions.map(pitchType => ({ value: pitchType, label: practicePitchTypeLabel(pitchType), icon: <i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />, description: `${events.filter(event => event.pitchType === pitchType).length} swings` }))} />
         </div>
       </div>
       <div ref={chartScrollerRef} className="practice-hitting-live-charts__scroller" aria-label="Swipe charts" onScroll={syncActiveChartView}>
@@ -17744,63 +17607,22 @@ function AskClubhouseScopeSelector({
   selectedScopeKeys: string[];
   onChange: (scopeKeys: string[]) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
   const allSelected = selectedScopeKeys.includes(ASK_ALL_TEAMS_SCOPE_KEY);
-  const selectedTeams = teams.filter((team) => selectedScopeKeys.includes(askTeamScopeKey(team)));
-  const label = allSelected
-    ? "All teams"
-    : selectedTeams.length === 1 ? selectedTeams[0].teamName : `${selectedTeams.length} teams`;
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
-
-  function toggleTeam(team: TeamOption) {
-    const key = askTeamScopeKey(team);
-    if (allSelected) {
-      onChange([key]);
-      return;
-    }
-    const next = selectedScopeKeys.includes(key)
-      ? selectedScopeKeys.filter((item) => item !== key)
-      : [...selectedScopeKeys, key];
-    if (next.length) onChange(next);
-  }
-
-  return (
-    <div className="ask-scope-control" ref={rootRef}>
-      <span>Data from</span>
-      <button className="ask-scope-trigger" type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="menu">
-        <Users size={15} aria-hidden="true" />
-        <strong>{label}</strong>
-        <ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {open && (
-        <div className="ask-scope-menu" role="menu" aria-label="Ask Clubhouse team scope">
-          <button type="button" role="menuitemcheckbox" aria-checked={allSelected} className={allSelected ? "active" : ""} onClick={() => onChange([ASK_ALL_TEAMS_SCOPE_KEY])}>
-            <span className="ask-scope-check">{allSelected && <Check size={13} aria-hidden="true" />}</span>
-            <span><strong>All teams</strong><small>Ask across every team you can access</small></span>
-          </button>
-          {teams.map((team) => {
-            const selected = allSelected || selectedScopeKeys.includes(askTeamScopeKey(team));
-            return (
-              <button key={askTeamScopeKey(team)} type="button" role="menuitemcheckbox" aria-checked={selected} className={selected ? "active" : ""} onClick={() => toggleTeam(team)}>
-                <span className="ask-scope-check">{selected && <Check size={13} aria-hidden="true" />}</span>
-                <OrganizationLogo name={team.organizationName} imageUrl={team.logoUrl} />
-                <span><strong>{team.teamName}</strong><small>{team.seasonName ?? "Current season"}</small></span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+  return <div className="ask-scope-control clubhouse-ask-scope-control">
+    <span>Data from</span>
+    <ClubhouseMultiSelect
+      aria-label="Ask Clubhouse team scope"
+      placeholder="All teams"
+      values={allSelected ? [] : selectedScopeKeys}
+      onApply={keys => onChange(keys.length ? keys : [ASK_ALL_TEAMS_SCOPE_KEY])}
+      searchable
+      options={teams.map(team => ({
+        value: askTeamScopeKey(team),
+        label: team.teamName,
+        description: [team.organizationName, team.seasonName ?? "Current season"].join(" · "),
+      }))}
+    />
+  </div>;
 }
 
 function PlayerProfile({

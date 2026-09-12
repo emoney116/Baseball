@@ -437,7 +437,12 @@ export function ClubhouseMultiSelect({
             {position.placement !== "sheet" && <strong>{label ?? ariaLabel ?? "Options"}</strong>}
             <button type="button" className="text-button" onClick={() => setDraft([])}>Clear</button>
           </header>
-          {searchable && <label className="clubhouse-option-overlay__search"><Search size={15} aria-hidden="true" /><input ref={searchRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={searchPlaceholder} aria-label={searchPlaceholder} /></label>}
+          {searchable && <label className="clubhouse-option-overlay__search"><Search size={15} aria-hidden="true" /><input ref={searchRef} value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => {
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              listRef.current?.querySelector<HTMLButtonElement>('[role="option"]:not(:disabled)')?.focus();
+            }
+          }} placeholder={searchPlaceholder} aria-label={searchPlaceholder} /></label>}
           <div ref={listRef} className="clubhouse-option-overlay__list" role="listbox" tabIndex={-1} aria-multiselectable="true" aria-label={ariaLabel ?? label} onKeyDown={(event) => {
             const buttons = Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>('[role="option"]:not(:disabled)') ?? []);
             const index = buttons.findIndex(button => button === document.activeElement);
@@ -448,6 +453,7 @@ export function ClubhouseMultiSelect({
               const selected = draft.includes(option.value);
               return <button key={option.value} type="button" role="option" disabled={option.disabled} aria-selected={selected} className={selected ? "active" : ""} onClick={() => setDraft((current) => selected ? current.filter((item) => item !== option.value) : [...current, option.value])}>
                 <span className="clubhouse-option-overlay__checkbox">{selected && <Check size={14} aria-hidden="true" />}</span>
+                {option.icon && <span className="choice-select__icon">{option.icon}</span>}
                 <span><strong>{option.label}</strong>{option.description && <small>{option.description}</small>}</span>
               </button>;
             }) : <p className="clubhouse-option-overlay__empty">No matching options.</p>}

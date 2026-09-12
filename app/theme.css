@@ -127,6 +127,13 @@ textarea::placeholder {
   color: var(--brand-text-on-primary);
 }
 
+.text-button,
+.text-button:hover,
+.player-home-dashboard .text-button,
+.player-home-dashboard .text-button:hover {
+  color: var(--brand-ink);
+}
+
 button:disabled,
 button[aria-disabled="true"] {
   cursor: not-allowed;

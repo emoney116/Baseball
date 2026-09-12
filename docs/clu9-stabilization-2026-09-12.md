@@ -38,6 +38,17 @@ This is an evidence log, not rollout acceptance.
 
 ## Still Required
 
+### Second Checkpoint Evidence
+
+- First shared-system checkpoint `83fb733` pushed to the integration branch only; preview `https://baseball-3tsvdva3d-emoney116s-projects.vercel.app` verified Ready.
+- Controlled hosted claims passed: pending/rejected/revoked state boundaries, duplicate claim rejection, coach approval, exact existing identity, and multi-team context. No real roster identities created or modified.
+- Hosted own Hitting/Pitching/Defense and workout writes, idempotency, mode/policy downgrades, cross-player denial and Personal/Live isolation passed. One initial 503 was recorded as a service failure; a clean rerun passed rather than counting that response as an authorization denial.
+- Hosted self Analytics passed; Practice hitting and spray Ask responses returned real structured visuals after an actual QA spray event. Requests for private coach/other-player data returned 403. Browser rendering acceptance is still pending.
+- Player Home missing jersey numbers and stale active-practice selection found in hosted UI. Fixed with null guards and Campbell's existing `currentStartedPractice` helper; two regression tests added.
+- Ask team scope and Hitting/Pitching pitch filters now use shared staged multi-selects, preserving exact scope keys and filter values. Multi-select search supports ArrowDown into options.
+- Latest full build/test run: 899/899 passed. Updated selector browser runner passed all 30 viewport/theme geometry cases plus keyboard, Apply/Cancel/Clear, outside dismissal and dialog checks.
+- This is progress evidence, not final app-wide or Player rollout acceptance.
+
 - Complete app-wide surface/token audit, remaining contextual selectors, representative live-page responsive checks and maintained browser regression runner.
 - Full hosted signup/claim/invite/link/multi-team/revoke/downgrade/tracking/Analytics/Ask acceptance against branch preview.
 - Repeat all quality commands after final edits, inspect final diff, push integration branch and validate preview. Do not merge main.

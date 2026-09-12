@@ -46,7 +46,7 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 function playerContext(player: ClaimPlayer, teamName?: string, seasonName?: string) {
-  const identity = [player.jerseyNumber !== undefined ? `#${player.jerseyNumber}` : undefined, player.name].filter(Boolean).join(" ");
+  const identity = [player.jerseyNumber != null ? `#${player.jerseyNumber}` : undefined, player.name].filter(Boolean).join(" ");
   const details = [teamName, seasonName, player.graduationYear ? `Class of ${player.graduationYear}` : undefined, player.primaryPosition].filter(Boolean).join(" · ");
   return { identity, details };
 }
