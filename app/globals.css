@@ -17742,7 +17742,7 @@ body {
   font-weight: 760;
 }
 
-.profile-player-edit {
+.profile-header .profile-player-edit {
   width: 44px;
   min-width: 44px;
   height: 44px;
