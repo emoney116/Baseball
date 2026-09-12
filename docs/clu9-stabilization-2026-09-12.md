@@ -60,6 +60,11 @@ This is an evidence log, not rollout acceptance.
 - Profile card actions now use the shared positioned overlay; icon variant still opens Profile directly. Native selector exceptions documented in `docs/clu9-selector-inventory.md`, with a guard against accidental additions.
 - Actual Appearance Light selection confirmed the theme switch works and exposed low-contrast blended selected fills. Shared filled segments now use the existing solid brand token; contrast tests read the actual brand variables.
 - Full suite now 902/902; lint remains 0 errors/26 existing image warnings. Added maintained navigation overlay browser runner for anchoring, Escape/focus, outside dismissal and orientation closure.
+- Checkpoint `061ffbf` is Ready at `https://baseball-14uo6givs-emoney116s-projects.vercel.app`; origin/main re-fetched and remains `8754d8b`.
+- Hosted maintained navigation overlay runner passes both themes: portrait anchoring, Escape/focus return, outside dismissal, and rotation to landscape closing the hidden-trigger menu/backdrop.
+- Practice quick-start inspected on desktop dark and phone light; attached menu/sheet and Escape focus return verified. Current Profile entry points use direct-open icon variants; the retained card variant is reconciled code, not a claimed live-screen test.
+- Live BP basic BIP draft passed 50 step/viewport/theme checks (five steps, five requested sizes, both themes): stable panel height, viewport bounds and no body scrolling. Phone light/iPad portrait dark/landscape light field screens visually reviewed. Draft closed without saving; complex error/runner-detail expansions remain distinct from this basic-layout evidence.
+- Public signup rejected reserved example.test and example.com QA addresses with `email_address_invalid`; no fresh account was created. A deliverable test inbox was requested for signup/verification/recovery/invite acceptance. No Auth verification settings changed. Fresh existing coach login passed on retry after a transient failure.
 
 - Complete app-wide surface/token audit, remaining contextual selectors, representative live-page responsive checks and maintained browser regression runner.
 - Full hosted signup/claim/invite/link/multi-team/revoke/downgrade/tracking/Analytics/Ask acceptance against branch preview.
