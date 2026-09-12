@@ -120,13 +120,21 @@ This is an evidence log, not rollout acceptance.
 - `40003c8` preview Ready at https://baseball-lh552z39r-emoney116s-projects.vercel.app. Game field label computed colors verified as brand-ink in both themes (dark rgb(255,138,176), light rgb(156,33,72)).
 - Build plus 906/906 tests, tsc, lint (26 existing image warnings), and diff check pass after the filter correction.
 
-## References
-
 ## Analytics Keyboard Correction
 
 - The maintained `scripts/qa-analytics-filter-layout.mjs` exposed a separate bug: Escape did not remove the Analytics filter panel. The earlier focus-only observation was insufficient because focus had remained on the trigger. That earlier dismissal claim is withdrawn.
 - Added panel focus entry, Tab containment, Escape dismissal, and focus return for the specialized Events/Filters/Columns panels. Their rapid filtering/column behavior remains unchanged.
 - The maintained browser test now asserts actual panel removal as well as focus return, header/body/footer separation, viewport bounds, and unobstructed Apply action for all five sizes and both themes. Fresh post-deploy run required before recording a pass.
+
+## Analytics Hosted Regression Pass
+
+- `ed1ee33` preview Ready: https://baseball-oslhpn844-emoney116s-projects.vercel.app.
+- The strengthened runner first confirmed keyboard dismissal, then caught desktop height overflow (panel bottom 969px in a 900px viewport). Specialized Analytics panels now reuse shared `useOverlayPosition`, with explicit preferred width/height and available-space clamping. Existing selector defaults are unchanged.
+- All 10 hosted filter cases now pass: five sizes, both themes, panel bounds, header/body/footer separation, Apply hit target, actual Escape removal and focus return. Phone dark and desktop light outputs reviewed. No filters applied by the runner.
+- Build plus 906/906 tests, tsc, lint (26 existing image warnings), diff check passed for the positioning change.
+- Additional existing populated screenshot review: Discover phone light/iPad dark; My Teams phone light; Team Home phone light/iPad dark; Weight Room overview phone light/iPad dark. No major unreadable state observed in these captures. They do not prove every nested workflow.
+
+## References
 
 Next.js fixes follow the [Windows-server advisory](https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36) and [AVIF advisory](https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4).
 
