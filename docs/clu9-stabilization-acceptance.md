@@ -48,11 +48,12 @@ This consolidates the chronological evidence in `clu9-stabilization-2026-09-12.m
 - Player route matrix: 50 corrected geometry/context checks. Coach matrix: 84 captures, not all accepted as populated states; loading/empty captures are explicitly excluded from broad claims.
 - Live BP basic wizard: 50 step/size/theme checks. Complex runner/error expansions are not covered by that count.
 - Add Team selectors: 40 cases. Player mode/policy settings: 20. Profile crop action: 12 including short viewport. Relevant representative screenshots reviewed.
+- Coach Hitting, Pitching and Defense logging sheets reviewed on phone light and iPad dark using existing QA sessions. Actions remain readable; defense drill picker opens and Escape returns focus while preserving its parent sheet. All drafts cancelled; no entries saved. This is representative visual coverage, not every optional expanded combination.
 - Physical iPhone/iPad Safari/PWA hardware unavailable. Emulation cannot accept hardware keyboard, browser chrome or standalone-PWA behavior.
 
 ## Quality And Release
 
-- Latest full local run: build and 906/906 tests passed for `0b75dc7`; tsc and lint passed (26 existing image warnings). `84015ea` only strengthens CSS selector specificity and passed Vercel build plus ten hosted geometry/hit checks.
+- Full local quality rerun on `a86a5b7` (application code `84015ea`): build and 906/906 tests passed; tsc, lint (26 existing image warnings), and diff check passed. The same application revision passed Vercel build plus ten hosted profile geometry/hit checks.
 - Latest runtime dependency audit: zero production advisories. Development-tool advisories remain documented in the chronological log; not claimed resolved.
 - CLU9-70, CLU9-42 and CLU9-46 remain In Progress. No issue marked Done based merely on code presence.
 - Branch pushed without force; unrelated local documents preserved. Main untouched.
@@ -61,7 +62,7 @@ This consolidates the chronological evidence in `clu9-stabilization-2026-09-12.m
 
 - **External acceptance blocker:** deliverable controlled inbox for fresh signup, verification, password recovery and successful invite redemption. Fake accounts cannot substitute for these proofs.
 - **Unverified physical acceptance:** real Safari/PWA smoke, explicitly unavailable on this host.
-- **Repository/QA remaining:** finish uncovered nested visual states, especially invitation continuation and coach tracking forms; strengthen coverage where review reveals defects. Do not equate the route matrix with all workflows.
-- **Final gate:** rerun full quality on the final code revision and consolidate Linear acceptance before rollout. No automatic main merge.
+- **Acceptance remaining:** invitation continuation requires the real hosted email lifecycle. Optional expanded form combinations and physical-browser behavior are not claimed exhaustively verified by the representative visual audit.
+- **Final gate:** consolidate Linear acceptance after the email lifecycle is completed; rerun affected checks if that reveals further changes. No automatic main merge.
 
 Ready for Player rollout: **NO**.
