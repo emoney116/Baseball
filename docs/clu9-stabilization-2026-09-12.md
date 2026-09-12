@@ -107,13 +107,20 @@ This is an evidence log, not rollout acceptance.
 - Profile Photo cropper passed 12 action visibility/hit-target checks: five required sizes plus 390x550, both themes. Use Photo remains inside the viewport and unobstructed. Short phone light and iPad dark screenshots reviewed. Bundled logo selected locally, then Cancel; no photo saved. This is viewport emulation, not Safari chrome/keyboard hardware proof.
 - Latest origin/main re-fetched and remains 8754d8b. No main merge or production promotion.
 
-## References
-
 ## Planning And Creation Checks
 
 - Populated Practice Plan review inspected at 430x932 dark and 1180x820 light. Input/focus/action states readable, draft cancelled without publishing.
 - Add Team selectors (Organization, Team type, Team level, Season) passed 40 bounds/content/Escape-focus checks across all five requested viewports in both themes. Representative phone light sheet and landscape iPad dark anchored popup reviewed. Draft cancelled; no team created.
 - Small Game Center field/sequence/history labels now use the existing brand-ink token instead of the brand fill color. Focused theme/selector tests pass; this final token correction needs hosted confirmation.
+
+## Analytics Follow-Up
+
+- Populated Practice hitting overview contains the controlled QA metrics; spray and pitch-location charts reviewed on phone light. Chart-player Apply selects QA player-a, Clear+Cancel preserves that selection, and Clear+Apply restores Team. No analytics data mutated.
+- Filter Escape returns focus to Filters. Settled screenshots revealed an actual overlap: inherited `.analytics-popover::before` inserted a fourth grid item into the three-row filter sheet, collapsing the header track. Suppressed that duplicate pseudo-element for the filter sheet, which has its own handle. Browser-injected CSS confirmed header bottom equals body top without overlap; post-deployment confirmation remains required.
+- `40003c8` preview Ready at https://baseball-lh552z39r-emoney116s-projects.vercel.app. Game field label computed colors verified as brand-ink in both themes (dark rgb(255,138,176), light rgb(156,33,72)).
+- Build plus 906/906 tests, tsc, lint (26 existing image warnings), and diff check pass after the filter correction.
+
+## References
 
 Next.js fixes follow the [Windows-server advisory](https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36) and [AVIF advisory](https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4).
 

@@ -41,6 +41,10 @@ test('Player settings selectors use the full row after label migration',()=>{
   const css=readFileSync('app/player-access.css','utf8');
   assert.match(css,/\.player-access-default-row\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\);/);
 });
+test('Analytics filter sheet does not insert a second handle into its content grid',()=>{
+  const css=readFileSync('app/globals.css','utf8');
+  assert.match(css,/\.analytics-filter-sheet::before\s*\{\s*content: none;/);
+});
 test('bottom navigation menus dismiss hidden triggers and follow the visual viewport',()=>{
   const page=readFileSync('app/page.tsx','utf8');
   const hook=page.slice(page.indexOf('function useBottomNavMenuStyle('),page.indexOf('type WeightRoomSetDraft'));

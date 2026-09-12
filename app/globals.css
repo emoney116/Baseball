@@ -35803,6 +35803,10 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
+.analytics-filter-sheet::before {
+  content: none;
+}
+
 .analytics-filter-sheet__head,
 .analytics-filter-sheet__footer {
   display: flex;
