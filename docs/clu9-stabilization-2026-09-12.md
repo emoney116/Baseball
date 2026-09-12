@@ -95,6 +95,13 @@ This is an evidence log, not rollout acceptance.
 
 ## References
 
+## Roster Follow-Up
+
+- `526584c` preview reached Ready at https://baseball-6lgfc35i6-emoney116s-projects.vercel.app. Hosted phone settings triggers now span 370px and display the complete Personal + Live Sessions label. Live Game field spray badge has computed display:none while the field remains present.
+- Add Player phone dialog: position picker stays within viewport, Escape returns to Primary without closing the form, and Save Player sits inside the viewport (bottom 834px at height 844px). Draft cancelled, no player created.
+- Manual roster import phone review found wrapped bulk status chips in a tall pill. Replaced that bulk control with shared ChoiceSelect and a responsive toolbar, retaining onApplyStatus behavior. Import draft cancelled without creating players. Post-deploy picker verification remains pending.
+- Build plus 904/904 tests passed after this change; tsc, lint (26 existing image warnings), and diff check passed.
+
 Next.js fixes follow the [Windows-server advisory](https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36) and [AVIF advisory](https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4).
 
 Native top-layer behavior follows the [Popover API documentation](https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/showPopover). Browser fixtures are development-only and return not-found outside development.

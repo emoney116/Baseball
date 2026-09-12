@@ -24,6 +24,7 @@ test('Practice and profile context menus use the shared positioned overlay',()=>
   assert.match(page,/<ClubhouseOptionSheet title="Start hitting session"/);
   assert.match(page,/<ClubhouseOptionSheet title="My account"/);
   assert.match(page,/<ClubhouseOptionSheet title="Game commands"/);
+  assert.match(page,/<ChoiceSelect label="All new players" aria-label="Apply roster status to all manual rows"/);
   assert.doesNotMatch(page,/className="(?:profile-menu__panel|practice-hitting-start-popover)"/);
 });
 test('Game Center identifies the selected team rather than a hard-coded organization',()=>{

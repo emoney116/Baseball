@@ -19684,19 +19684,10 @@ function ManualRosterBuilder({
           <strong>Manual Roster Entry</strong>
         </div>
         <div className="manual-status-apply">
-          <span>All new players</span>
-          <div className="manual-status-chips" role="group" aria-label="Apply roster status to all manual rows">
-            {ROSTER_STATUSES.map((status) => (
-              <button
-                key={status}
-                type="button"
-                className={sharedStatus === status ? "active" : ""}
-                onClick={() => onApplyStatus(status)}
-              >
-                {status}
-              </button>
-            ))}
-          </div>
+          <ChoiceSelect label="All new players" aria-label="Apply roster status to all manual rows"
+            value={sharedStatus} placeholder="Mixed statuses"
+            options={ROSTER_STATUSES.map(status => ({ value: status, label: status }))}
+            onChange={value => onApplyStatus(value as RosterStatus)} />
         </div>
       </div>
 

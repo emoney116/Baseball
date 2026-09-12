@@ -7186,7 +7186,9 @@ select option {
 }
 
 .manual-status-apply {
-  display: flex;
+  display: grid;
+  width: min(240px, 100%);
+  min-width: 0;
   align-items: center;
   gap: 10px;
   color: var(--muted-strong);
@@ -19028,12 +19030,14 @@ body,
   }
 
   .manual-builder-toolbar {
+    display: grid;
     grid-template-columns: 1fr;
     align-items: stretch;
     gap: 10px;
   }
 
   .manual-status-apply {
+    width: 100%;
     justify-content: stretch;
   }
 
