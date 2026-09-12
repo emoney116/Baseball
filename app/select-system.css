@@ -219,6 +219,10 @@ body:has(.analytics-ask-drawer) {
 .clubhouse-option-overlay__actions > button { min-height: 40px; }
 
 .clubhouse-option-sheet-anchor { position: relative; min-width: 0; }
+.clubhouse-profile-options__identity { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.clubhouse-profile-options__identity strong,
+.clubhouse-profile-options__identity small { display: block; overflow-wrap: anywhere; }
+.clubhouse-profile-options__identity small { color: var(--muted); font-size: 11px; margin-top: 3px; }
 
 .clubhouse-source-options { overflow: auto; padding: 6px; }
 .clubhouse-source-options .analytics-source-selector__field-sources { display: grid; }

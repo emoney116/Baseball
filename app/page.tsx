@@ -585,6 +585,7 @@ function useBottomNavMenuStyle(
   triggerRef: React.RefObject<HTMLButtonElement | null>,
   open: boolean,
   preferredWidth: number,
+  setOpen: (open: boolean) => void,
 ): React.CSSProperties | undefined {
   const [style, setStyle] = useState<React.CSSProperties | undefined>();
 
@@ -601,34 +602,48 @@ function useBottomNavMenuStyle(
       const viewportWidth = viewport?.width ?? window.innerWidth;
       const viewportHeight = viewport?.height ?? window.innerHeight;
       const viewportLeft = viewport?.offsetLeft ?? 0;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const rect = triggerRef.current.getBoundingClientRect();
+      if (!rect.width || !rect.height) {
+        setOpen(false);
+        return;
+      }
+      const bottom = Math.max(window.innerHeight - rect.top + 8, window.innerHeight - viewportTop - viewportHeight + 12);
+      const maxHeight = Math.max(0, Math.min(rect.top - viewportTop - 20, viewportHeight - 24));
       if (viewportWidth <= 720) {
-        setStyle(undefined);
+        setStyle({ bottom, maxHeight, overflowY: "auto" });
         return;
       }
 
-      const rect = triggerRef.current.getBoundingClientRect();
       const width = Math.min(preferredWidth, viewportWidth - 24);
       const left = Math.min(
         Math.max(rect.left + rect.width / 2 - width / 2, viewportLeft + 12),
         viewportLeft + viewportWidth - width - 12,
       );
-      const bottom = Math.max(viewportHeight - rect.top + 8, 78);
       setStyle({
         left,
         right: "auto",
         bottom,
         width,
+        maxHeight,
+        overflowY: "auto",
       });
     }
 
     window.addEventListener("resize", updatePosition);
     window.addEventListener("orientationchange", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    window.visualViewport?.addEventListener("resize", updatePosition);
+    window.visualViewport?.addEventListener("scroll", updatePosition);
     return () => {
       window.cancelAnimationFrame(animationFrame);
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("orientationchange", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.visualViewport?.removeEventListener("resize", updatePosition);
+      window.visualViewport?.removeEventListener("scroll", updatePosition);
     };
-  }, [open, preferredWidth, triggerRef]);
+  }, [open, preferredWidth, triggerRef, setOpen]);
 
   return open ? style : undefined;
 }
@@ -1232,8 +1247,8 @@ export default function MetrolinaBaseballApp() {
   const [mobilePinnedOpen, setMobilePinnedOpen] = useState(false);
   const mobileMoreTriggerRef = useRef<HTMLButtonElement | null>(null);
   const mobilePinnedTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const mobileMoreMenuStyle = useBottomNavMenuStyle(mobileMoreTriggerRef, mobileMoreOpen, 268);
-  const mobilePinnedMenuStyle = useBottomNavMenuStyle(mobilePinnedTriggerRef, mobilePinnedOpen, 292);
+  const mobileMoreMenuStyle = useBottomNavMenuStyle(mobileMoreTriggerRef, mobileMoreOpen, 268, setMobileMoreOpen);
+  const mobilePinnedMenuStyle = useBottomNavMenuStyle(mobilePinnedTriggerRef, mobilePinnedOpen, 292, setMobilePinnedOpen);
   const [editingPlayerId, setEditingPlayerId] = useState<ID | undefined>();
   const [sessionSummary, setSessionSummary] = useState<{ type: "Hitting" | "Pitching" | "Defense"; sessionId: ID } | null>(null);
   const [practiceSummaryOpen, setPracticeSummaryOpen] = useState(false);
@@ -4962,7 +4977,7 @@ function ProfileMenu({
 
   return (
     <div className={`profile-menu profile-menu--${variant}`}>
-      <button className="profile-menu__button" type="button" onClick={handleProfileClick} aria-label={variant === "icon" ? "Open profile" : "Open profile menu"} aria-expanded={variant === "card" ? open : undefined}>
+      <ClubhouseOptionSheet title="My account" open={variant === "card" && open} onOpenChange={onOpen} trigger={<button className="profile-menu__button" type="button" onClick={handleProfileClick} aria-label={variant === "icon" ? "Open profile" : "Open profile menu"} aria-expanded={variant === "card" ? open : undefined} aria-haspopup={variant === "card" ? "dialog" : undefined}>
         <IdentityAvatar
           id={profile?.id ?? profile?.email}
           name={profileName}
@@ -4976,10 +4991,9 @@ function ProfileMenu({
             <small>{role}</small>
           </span>
         )}
-      </button>
-      {variant === "card" && open && (
-        <div className="profile-menu__panel">
-          <div>
+      </button>}>
+        <div className="clubhouse-option-overlay__list clubhouse-profile-options">
+          <div className="clubhouse-profile-options__identity">
             <strong>{profileName}</strong>
             <small>{profile?.email ?? "Coach account"}</small>
           </div>
@@ -5000,7 +5014,7 @@ function ProfileMenu({
             Sign Out
           </button>
         </div>
-      )}
+      </ClubhouseOptionSheet>
     </div>
   );
 }
