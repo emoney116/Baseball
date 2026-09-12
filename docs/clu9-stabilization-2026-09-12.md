@@ -134,6 +134,14 @@ This is an evidence log, not rollout acceptance.
 - Build plus 906/906 tests, tsc, lint (26 existing image warnings), diff check passed for the positioning change.
 - Additional existing populated screenshot review: Discover phone light/iPad dark; My Teams phone light; Team Home phone light/iPad dark; Weight Room overview phone light/iPad dark. No major unreadable state observed in these captures. They do not prove every nested workflow.
 
+## Additional Regression Evidence
+
+- The Analytics runner now also passes six Events/Columns cases at phone, portrait iPad and desktop sizes: viewport bounds, focus entry, forward/backward Tab containment, actual Escape removal/focus return and outside pointer dismissal. The outside test locates an exposed scrim coordinate instead of clicking the center underneath the panel. No selections changed.
+- Shared selector fixture rerun: 30/30 viewport/theme cases passed, including phone sheets and edge anchoring. Hosted navigation rerun passed light/dark outside dismissal and portrait-to-landscape closure.
+- Coach Ask Clubhouse on the isolated QA team answered "How did our team hit during BP today in practice?" with HTTP 200, a Practice-scoped written summary and three visuals. It reported five swings, four contacts, one hard-contact sample and the recorded EV values, explicitly warning that the sample is small and spatial charts each contain one point. This read-only check created no practice entries.
+- Fake existing QA accounts remain suitable for capability and data-boundary tests. Fresh public signup rejects reserved fake email domains; verification, password recovery and actual invitation redemption remain unaccepted pending a deliverable test inbox. No verification bypass or arbitrary real-address account was used.
+- These additions change only maintained QA/evidence, not application code. Script lint and diff check pass; the latest application baseline remains 906/906 tests plus successful build/tsc and lint with 26 existing image warnings.
+
 ## References
 
 Next.js fixes follow the [Windows-server advisory](https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36) and [AVIF advisory](https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4).

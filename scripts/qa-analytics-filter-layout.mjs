@@ -32,3 +32,23 @@ for(const [width,height] of [[390,844],[430,932],[820,1180],[1180,820],[1440,900
 }
 writeFileSync(`${output}/results.json`,JSON.stringify(results,null,2));
 console.log('PASS',results.length,'Analytics panel bounds, header/body/footer separation, Apply hit target and Escape focus checks. No filters applied.');
+for(const [width,height] of [[390,844],[820,1180],[1440,900]])for(const label of ['All Events','Columns: Standard']){
+ browser('set','viewport',String(width),String(height));
+ browser('find','role','button','click','--name',label,'--exact');browser('wait','300');
+ const r=read(`document.querySelector('.analytics-popover')?.getBoundingClientRect().toJSON()`);
+ assert.ok(r&&r.top>=0&&r.bottom<=height+1&&r.left>=0&&r.right<=width+1,JSON.stringify({label,width,r}));
+ assert.ok(read(`document.querySelector('.analytics-popover')?.contains(document.activeElement)`),'Focus must enter the panel');
+ browser('press','Shift+Tab');
+ assert.ok(read(`document.querySelector('.analytics-popover')?.contains(document.activeElement)`),'Backward Tab must remain in the panel');
+ browser('press','Tab');
+ assert.ok(read(`document.querySelector('.analytics-popover')?.contains(document.activeElement)`),'Forward Tab must remain in the panel');
+ browser('press','Escape');browser('wait','100');
+ assert.equal(read(`!!document.querySelector('.analytics-popover')`),false);
+ assert.equal(read(`document.activeElement?.textContent`),label);
+ browser('find','role','button','click','--name',label,'--exact');browser('wait','100');
+ const outside=read(`(()=>{for(const y of [12,60,innerHeight-12])for(const x of [12,innerWidth-12])if(document.elementFromPoint(x,y)?.classList.contains('analytics-sheet-scrim'))return {x,y};return null;})()`);
+ assert.ok(outside,'A visible scrim target must be available outside the panel');
+ browser('mouse','move',String(outside.x),String(outside.y));browser('mouse','down');browser('mouse','up');browser('wait','100');
+ assert.equal(read(`!!document.querySelector('.analytics-popover')`),false,'Outside dismissal must remove the panel');
+}
+console.log('PASS 6 Events/Columns viewport, focus entry, Tab containment, Escape and outside-dismissal checks. No selection changes.');
