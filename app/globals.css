@@ -17742,6 +17742,15 @@ body {
   font-weight: 760;
 }
 
+.profile-player-edit {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  justify-self: end;
+}
+
 .profile-header span {
   color: var(--muted-strong);
 }
@@ -36790,7 +36799,7 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
   }
 
   .profile-header {
-    grid-template-columns: 58px minmax(0, 1fr) 38px;
+    grid-template-columns: 58px minmax(0, 1fr) 44px;
     align-items: start;
   }
 

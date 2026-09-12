@@ -142,6 +142,13 @@ This is an evidence log, not rollout acceptance.
 - Fake existing QA accounts remain suitable for capability and data-boundary tests. Fresh public signup rejects reserved fake email domains; verification, password recovery and actual invitation redemption remain unaccepted pending a deliverable test inbox. No verification bypass or arbitrary real-address account was used.
 - These additions change only maintained QA/evidence, not application code. Script lint and diff check pass; the latest application baseline remains 906/906 tests plus successful build/tsc and lint with 26 existing image warnings.
 
+## Player Profile Touch Target
+
+- Additional populated review: Organizations iPad light and Schedule phone dark were readable; Player Profile overview reviewed on phone light and iPad dark, including development metrics, membership and recent activity.
+- Player Profile edit control measured 96x22px on iPad because it lacked explicit dimensions and stretched into its grid track. Added stable 44x44px dimensions to the existing control and matched its phone grid track. No capability or edit behavior changed.
+- Browser-injected candidate CSS confirms 44x44px on iPad and phone, with an unobstructed phone hit target and no horizontal overflow. This is pre-deploy evidence; fresh preview verification remains required.
+- Build and 906/906 tests pass; TypeScript and lint pass (26 existing image warnings), as does diff check.
+
 ## References
 
 Next.js fixes follow the [Windows-server advisory](https://github.com/vercel/next.js/security/advisories/GHSA-p293-qw3h-jr36) and [AVIF advisory](https://github.com/vercel/next.js/security/advisories/GHSA-2xp9-vwfh-vxw4).
