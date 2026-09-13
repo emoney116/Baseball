@@ -49,7 +49,7 @@ Same-origin, authenticated coach/team-manager and active underway Practice requi
 Parser/transcription writes no baseball records. Existing manual commands recheck access/team/lifecycle. Voice failure leaves manual entry available and discards audio. Uncertain Live BP saves use existing retry. Practice acknowledgements use the existing local/sync semantics, not a new server-ack guarantee.
 
 ## Privacy / Provider / Retention
-Audio leaves the device only for transient Clubhouse-to-OpenAI transcription. No Clubhouse audio file, Storage object, database audio, offline queue or routine transcript log. Transcript/intent remain component-memory only until replaced/canceled/unmounted or invalidated; no transcript column was added.
+Audio leaves the device only for transient Clubhouse-to-OpenAI transcription. No Clubhouse audio file, Storage object, database audio, offline queue or routine transcript log. Transcript/intent remain component-memory only until replaced/canceled/unmounted, and are hidden when context is invalidated; no transcript column was added.
 
 Provider-side controls are separate from Clubhouse no-storage behavior and must be confirmed for the deployed account. Official references checked September 13, 2026: [transcription](https://developers.openai.com/api/docs/guides/speech-to-text), [data controls](https://developers.openai.com/api/docs/guides/your-data), [pricing](https://developers.openai.com/api/docs/pricing).
 
@@ -77,6 +77,8 @@ No physical iPhone/iPad available. Safari/PWA permission/browser-chrome/keyboard
 
 ## Linear / Git / Preview
 CLU9-71 remains In Progress with implementation and external-blocker evidence. CLU9-68 is updated only for the material Live BP input integration. Branch only; no automatic main merge. Local development preview is localhost:3132 and requires configured server credentials for real saves. Browser fixtures are not a deployable acceptance environment.
+
+Implementation commit `6978dd8` is pushed to origin on the Voice branch. Hosted preview verification is blocked: the connected Vercel account returned 403 Forbidden for the project's team scope. No hosted deployment URL or successful deployment is claimed.
 
 ## Ready For Field Pilot?
 **NO.**
