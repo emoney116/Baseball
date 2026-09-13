@@ -1,0 +1,46 @@
+.root {
+  min-width: 0;
+  margin-block: 8px;
+}
+.toolbar,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.toolbar button,
+.actions button {
+  min-height: 44px;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+}
+.toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 12px;
+}
+.preview {
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+.preview p {
+  margin: 8px 0;
+  font-size: 13px;
+}
+.preview small {
+  display: block;
+  margin-bottom: 8px;
+}
+.actions {
+  margin-top: 8px;
+}

@@ -16,6 +16,8 @@ export function LiveBpCorrections({
   sheet,
   players,
   onUndo,
+  editState,
+  onEditStateClose,
 }: {
   state: BpState;
   trackedCount: boolean;
@@ -25,9 +27,16 @@ export function LiveBpCorrections({
   sheet: BpSheet;
   players: Player[];
   onUndo: () => void;
+  editState?: BpState | null;
+  onEditStateClose?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [edit, setEdit] = useState<BpState | null>(null);
+  const [localEdit, setLocalEdit] = useState<BpState | null>(null);
+  const edit = editState ?? localEdit;
+  function setEdit(value: BpState | null) {
+    setLocalEdit(value);
+    onEditStateClose?.();
+  }
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {

@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { fullPlayerDatabase } from "./helpers/fullPlayerDatabase.mjs";
 import { id, asAccount } from "./helpers/playerDatabase.mjs";
 import { buildBpRunnerMove } from "../app/lib/liveBpRunnerMove.ts";
+import { interpretVoice } from "../app/lib/voiceIntent.ts";
 import {
   buildBpPitch,
   bpBatterResults,
@@ -857,6 +858,34 @@ async function start(s = settings(), state = initialBpState()) {
 async function pitch(r, draft = { outcome: "Whiff" }, request = randomUUID()) {
   return call("pitch", r, buildBpPitch(r.settings, r.state, draft), request);
 }
+
+for (const [spoken, pitchType] of [["slider","Slider"],["heater","4-Seam"],["four seam","4-Seam"],["two seam","2-Seam"],["sinker","Sinker"],["changeup","Changeup"],["curve","Curveball"],["cutter","Cutter"],["splitter","Splitter"]]) {
+  for (const [spokenResult,outcome] of [["whiff","Whiff"],["swing and miss","Whiff"],["called strike","Called Strike"],["strike looking","Called Strike"],["ball","Ball"],["foul","Foul"]]) {
+    test(`persisted Voice/manual parity and retry/undo: ${spoken} ${spokenResult}`,async()=>{
+      const r=await start(settings({source:"PLAYER",pitcherId:id(41),mode:"AB",pitchMode:"MULTI",pitchType:"4-Seam",velocity:true,location:true}));
+      const request=randomUUID();
+      const context={domain:"live-bp",bats:"R",settings:r.settings,state:r.state,roster:[{id:id(40),aliases:["A Hitter"]},{id:id(41),aliases:["B Pitcher"]}]};
+      const intent=interpretVoice(`${spoken} 78 middle ${spokenResult}`,context,request,.99);
+      assert.deepEqual(intent.unresolvedFields,[]);
+      const snapshot=async()=>({
+        hitting:(await db.query("select to_jsonb(e)-'session_id' row from hitting_events e order by id")).rows,
+        pitching:(await db.query("select to_jsonb(e)-'session_id' row from pitch_events e order by id")).rows,
+        defense:(await db.query("select to_jsonb(e)-'session_id' row from defense_events e order by id")).rows,
+      });
+      await db.exec("savepoint parity");
+      const manual=await pitch(r,{outcome,pitchType,velocity:78,location:{x:.5,y:.5}},request);
+      const expected=await snapshot();
+      await db.exec("rollback to savepoint parity");
+      const voice=await pitch(r,intent.draft,intent.requestId);
+      assert.deepEqual(await snapshot(),expected);
+      assert.deepEqual(voice.state,manual.state);
+      await pitch(r,intent.draft,intent.requestId);
+      assert.deepEqual(await snapshot(),expected,"retry cannot duplicate either evidence row");
+      await call("undo",voice,{},randomUUID());
+      assert.deepEqual(await snapshot(),{hitting:[],pitching:[],defense:[]});
+    });
+  }
+}
 async function denied(
   fn,
   re = /denied|required|ended|running|roster|changed|enabled|permission/i,
@@ -864,6 +893,58 @@ async function denied(
   await db.exec("savepoint attack");
   await assert.rejects(fn, re);
   await db.exec("rollback to savepoint attack");
+}
+
+test("Voice metering is service-only, bounded and deduplicated",async()=>{
+  const reserve=(request=randomUUID(),seconds=5)=>db.query("select reserve_voice_usage($1,$2,$3,$4,$5) accepted",[request,id(1),id(20),id(60),seconds]);
+  const key=randomUUID();
+  assert.equal((await reserve(key)).rows[0].accepted,true);
+  assert.equal((await reserve(key)).rows[0].accepted,false);
+  for(let n=1;n<30;n++)assert.equal((await reserve()).rows[0].accepted,true);
+  assert.equal((await reserve()).rows[0].accepted,false);
+  await db.exec("update voice_usage set created_at=now()-interval '2 minutes'");
+  await denied(()=>reserve(randomUUID(),13),/constraint/);
+  for(const role of ["anon","authenticated"]){
+    await db.exec(`savepoint voice_role; set local role ${role}`);
+    await assert.rejects(reserve,/permission denied/);
+    await db.exec("rollback to savepoint voice_role");
+    await db.exec(`savepoint voice_read; set local role ${role}`);
+    await assert.rejects(db.query("select * from voice_usage"),/permission denied/);
+    await db.exec("rollback to savepoint voice_read");
+  }
+});
+
+for(const source of ["MACHINE","COACH","PLAYER"])for(const mode of ["FREE","AB","GAME"])for(const pitchMode of ["OFF","ONE","MULTI"])for(const countTracking of [false,true]){
+  test(`Voice persisted context matrix ${source}/${mode}/${pitchMode}/count=${countTracking}`,async()=>{
+    const r=await start(settings({source,mode,pitchMode,countTracking,pitchType:"Slider",pitcherId:id(41)}));
+    const c={domain:"live-bp",bats:"R",settings:r.settings,state:r.state,roster:[{id:id(40),aliases:["A Hitter"]},{id:id(41),aliases:["B Pitcher"]}]};
+    const i=interpretVoice(pitchMode==="MULTI"?"slider whiff":"whiff",c,randomUUID(),.99);
+    assert.deepEqual(i.unresolvedFields,[]);
+    const saved=await pitch(r,i.draft,i.requestId);
+    assert.deepEqual(saved.state,buildBpPitch(r.settings,r.state,{outcome:"Whiff",pitchType:pitchMode==="OFF"?undefined:"Slider"}).stateAfter);
+    const hits=(await db.query("select * from hitting_events")).rows;
+    assert.equal(hits.length,1);
+    assert.equal((await db.query("select count(*)::int n from pitch_events")).rows[0].n,source==="PLAYER"?1:0);
+  });
+}
+
+for(const defense of ["OFF","ALL","SELECTED"]){
+  test(`Voice BIP persisted parity with EV/spray/runner/job/defense ${defense}`,async()=>{
+    const s=settings({source:"PLAYER",pitcherId:id(41),mode:"GAME",pitchMode:"MULTI",pitchType:"4-Seam",velocity:true,location:true,ev:true,spray:true,defense,positions:["SS"],alignment:{SS:id(42)}});
+    const r=await start(s,{...initialBpState(),outs:1,runners:[2],runnerIds:{2:id(42)},job:"Move Runner"});
+    const suffix=defense==="OFF"?"":" to short clean play accurate throw";
+    const i=interpretVoice(`four seam 84 middle ground ball left center 92 EV${suffix} runner to third job done out`,{domain:"live-bp",bats:"R",settings:r.settings,state:r.state,roster:[{id:id(40),aliases:["A"]},{id:id(41),aliases:["B"]}]},randomUUID(),.99);
+    assert.deepEqual(i.unresolvedFields,[]);
+    const manual={outcome:"Ball in play",pitchType:"4-Seam",velocity:84,location:{x:.5,y:.5},battedBall:"Ground ball",spray:i.draft.spray,ev:92,result:"Out",runnerOutcomes:{2:"3"},jobSuccess:true,...(defense==="OFF"?{}:{position:"SS",defenseResult:"Clean",throwResult:"Accurate"})};
+    const snapshot=async()=>{const all={};for(const table of ["hitting_events","pitch_events","defense_events"])all[table]=(await db.query(`select to_jsonb(e)-'session_id' row from ${table} e order by id`)).rows;return all;};
+    await db.exec("savepoint bip_parity");
+    await pitch(r,manual,i.requestId);const expected=await snapshot();
+    await db.exec("rollback to savepoint bip_parity");
+    const saved=await pitch(r,i.draft,i.requestId);assert.deepEqual(await snapshot(),expected);
+    assert.equal(saved.state.outs,2);assert.deepEqual(saved.state.runners,[3]);
+    await call("undo",saved,{},randomUUID());
+    assert.deepEqual((await db.query("select state from live_bp_rounds where id=$1",[r.id])).rows[0].state,r.state);
+  });
 }
 for (const source of ["MACHINE", "COACH", "PLAYER"])
   test(`database ${source}: atomic canonical evidence and reload`, async () => {

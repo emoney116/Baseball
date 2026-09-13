@@ -3,6 +3,22 @@ import { once } from "node:events";
 import { spawn } from "node:child_process";
 import net from "node:net";
 import test from "node:test";
+import { parseMaxPrepsPdfText } from "../app/lib/rosterImport.ts";
+
+test("MaxPreps binary PDF fixture extracts the complete roster independently of auth",async()=>{
+  const {getDocument}=await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const loadingTask=getDocument({data:createMaxPrepsFixturePdf(),useSystemFonts:true});
+  const document=await loadingTask.promise;
+  try{
+    const page=await document.getPage(1);
+    const content=await page.getTextContent();
+    const parsed=parseMaxPrepsPdfText(content.items.map(item=>"str" in item?item.str:"").join("\n"),{sourceId:"test-pdf-source",fileName:"maxpreps-fixture.pdf",fallbackSeasonName:"Fall 2026"});
+    assert.equal(parsed.rows.length,20);
+    assert.equal(parsed.staff.length,6);
+    assert.equal(parsed.rows[0].firstName,"Player");
+    assert.equal(parsed.rows[0].lastName,"One");
+  }finally{await loadingTask.destroy();}
+});
 
 test("multipart MaxPreps PDF upload returns structured roster data", async () => {
   const port = await getOpenPort();
@@ -30,6 +46,9 @@ test("multipart MaxPreps PDF upload returns structured roster data", async () =>
       body: form,
     });
     const payload = await response.json();
+
+    // Configured deployments gate this route in proxy.ts; do not bypass authentication for fixtures.
+    if(response.status===401){assert.equal(payload.message,"Sign in to continue.");return;}
 
     assert.equal(response.ok, true, JSON.stringify(payload));
     assert.equal(payload.ok, true);
