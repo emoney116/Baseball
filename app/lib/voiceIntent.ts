@@ -59,10 +59,13 @@ const fielders = {
   short: "SS",
   second: "2B",
   "second base": "2B",
+  "second baseman": "2B",
   third: "3B",
   "third base": "3B",
   first: "1B",
   "first base": "1B",
+  "first baseman": "1B",
+  "third baseman": "3B",
   pitcher: "P",
   catcher: "C",
   "left fielder": "LF",
@@ -108,6 +111,7 @@ const locations = {
   "down and away": "down away",
   "down away": "down away",
   "low and away": "low away",
+  "low away": "low away",
   "low outside": "low away",
   "middle middle": "middle",
   middle: "middle",
@@ -250,24 +254,49 @@ export function interpretVoice(
     )
       unresolved.add("count tracking");
   } else {
+    const sequence = matchVoiceVocabulary(remaining, fielders);
+    const narratedThrow = /\b(?:threw|throws?|throw)\s+to\b/.test(remaining);
+    if(narratedThrow && sequence.length>1) {
+      draft.fieldingSequence=sequence.map(m=>m.value).filter((value,index,all)=>index===0||all[index-1]!==value);
+      const receivingError=/\b(?:drops? the tag|made an error fielding it(?: on the tag)?|fielding error)\b/.exec(remaining);
+      if(receivingError){
+        const before=sequence.filter(m=>m.start<receivingError.index);
+        draft.position=before.at(-1)?.value;
+        draft.defenseResult="Error";draft.errorType="Fielding";
+        remaining=remaining.replace(receivingError[0]," ".repeat(receivingError[0].length));
+      }else draft.position=sequence[0].value;
+      for(const m of [...sequence].reverse()) remaining=remaining.slice(0,m.start)+" ".repeat(m.end-m.start)+remaining.slice(m.end);
+    }
+    const hitArea=remaining.match(/\b(?:ball (?:was )?hit|single|double) to (left|right)\b/);
+    if(hitArea){
+      draft.spray=sprayPointForLane(hitArea[1]==="left"?0:4);
+      remaining=remaining.replace(hitArea[0],hitArea[0].startsWith("single")?"single":hitArea[0].startsWith("double")?"double":"ball in play");
+    }
+    remaining=remaining.replace(/\brunner scores\b/g,"runner to home");
+    const runnerDecision=remaining.match(/\b(?:runner (?:is )?)?(out|safe) at (first|second|third|home)\b/);
+    if(runnerDecision){
+      remaining=remaining.replace(runnerDecision[0]," ");
+      if(context.settings.mode!=="GAME"||context.state.runners.length!==1)unresolved.add("Which existing runner was safe or out?");
+      else draft.runnerOutcomes={[String(context.state.runners[0])]:runnerDecision[1]==="out"?"out":({first:"1",second:"2",third:"3",home:"score"})[runnerDecision[2] as "first"|"second"|"third"|"home"]};
+    }
     const runner = remaining.match(
-      /\brunner (?:moves? |advances? )?to (first|second|third|home)\b/,
+      /\brunner (?:(?:moves?|advances?|goes) )?(?:(first|second|third) )?to (first|second|third|home)\b/,
     );
     if (runner) {
       remaining = remaining.replace(runner[0], " ");
       if (
         context.settings.mode !== "GAME" ||
-        context.state.runners.length !== 1
+        (!runner[1] && context.state.runners.length !== 1) || (runner[1] && !context.state.runners.includes(({first:1,second:2,third:3})[runner[1] as "first"|"second"|"third"]))
       )
         unresolved.add("runner");
       else
         draft.runnerOutcomes = {
-          [String(context.state.runners[0])]: {
+          [String(runner[1]?({first:1,second:2,third:3})[runner[1] as "first"|"second"|"third"]:context.state.runners[0])]: {
             first: "1",
             second: "2",
             third: "3",
             home: "score",
-          }[runner[1] as "first" | "second" | "third" | "home"],
+          }[runner[2] as "first" | "second" | "third" | "home"],
         };
     }
     const job = remaining.match(/\bjob (not done|done)\b/);
@@ -278,13 +307,13 @@ export function interpretVoice(
       else draft.jobSuccess = job[1] === "done";
     }
     draft.pitchType = take("pitch type", VOICE_PITCH_ALIASES);
-    draft.defenseResult = take("defense result", defenseResults);
+    draft.defenseResult = take("defense result", defenseResults) ?? draft.defenseResult;
     if (/fielding error/i.test(transcript)) draft.errorType = "Fielding";
     if (/throwing error/i.test(transcript)) draft.errorType = "Throwing";
     draft.throwResult = take("throw result", throwResults);
     draft.battedBall = take("batted ball", VOICE_CONTACT_ALIASES);
     draft.result = take("batter result", batterResults);
-    draft.position = take("fielder", fielders);
+    draft.position = take("fielder", fielders) ?? draft.position;
     const lane = take("spray", sprayLanes);
     if (lane !== undefined) draft.spray = sprayPointForLane(Number(lane));
     const location = take("pitch location", locations);
@@ -308,14 +337,14 @@ export function interpretVoice(
       draft.ev = Number(evMatches[0][1] ?? evMatches[0][2]);
     for (const m of evMatches) remaining = remaining.replace(m[0], " ");
     const velocities = [...remaining.matchAll(/\b\d{2,3}\b/g)];
-    if (velocities.length > 1) unresolved.add("velocity");
+    if (velocities.length > 1 && context.settings.velocity) unresolved.add("Pitch velocity unclear: multiple numbers were spoken.");
     if (velocities.length === 1) draft.velocity = Number(velocities[0][0]);
     for (const m of velocities) remaining = remaining.replace(m[0], " ");
     if (
       draft.velocity !== undefined &&
       (draft.velocity < 25 || draft.velocity > 110)
     )
-      unresolved.add("velocity");
+      if(context.settings.velocity) unresolved.add("Pitch velocity unclear: expected 25 to 110 mph.");
     if (draft.ev !== undefined && (draft.ev < 20 || draft.ev > 130))
       unresolved.add("exit velocity");
     if (context.settings.pitchMode === "ONE") {
@@ -385,12 +414,12 @@ export function interpretVoice(
   }
   remaining = remaining
     .replace(
-      /\b(?:and|to|at|mph|miles per hour|a|the|throws|throw|pitch|velo|velocity)\b/g,
+      /\b(?:and|to|at|mph|miles per hour|a|the|was|now|then|threw|throws|throw|pitch|velo|velocity|on the tag)\b/g,
       " ",
     )
     .replace(/\s+/g, " ")
     .trim();
-  if (remaining) unresolved.add("unrecognized words");
+  if (remaining) unresolved.add(`Couldn't interpret "${remaining.slice(0,150)}".`);
   if (context.domain === "live-bp" && !correction && !unresolved.size) {
     try {
       buildBpPitch(context.settings, context.state, draft);
@@ -530,6 +559,7 @@ export function assertVoiceIntent(
     "errorType",
     "throwResult",
     "runnerOutcomes",
+    "fieldingSequence",
     "jobSuccess",
   ]);
   const enums: Record<string, readonly string[]> = {
@@ -542,6 +572,7 @@ export function assertVoiceIntent(
     errorType: ["Fielding", "Throwing", "Decision"],
     throwResult: Object.values(throwResults),
   };
+  if(d.fieldingSequence !== undefined && (!Array.isArray(d.fieldingSequence)||d.fieldingSequence.length>20||d.fieldingSequence.some(p=>!BP_POSITIONS.includes(p))))throw new Error("Invalid Voice fielding sequence.");
   for (const [key, allowed] of Object.entries(enums))
     if (
       (key === "outcome" || d[key] !== undefined) &&

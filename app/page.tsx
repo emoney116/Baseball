@@ -107,6 +107,8 @@ import type {
 } from "./lib/askClubhouse/types";
 import { APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
 import { VoiceEntry } from "./components/VoiceEntry";
+import type { VoiceContextCommand } from "./lib/voiceCommands";
+import type { BpRound } from "./lib/liveBp";
 import { initialBpSettings, initialBpState } from "./lib/liveBp";
 import type { VoiceIntent, VoiceContext } from "./lib/voiceIntent";
 import { playerSelectionLabel } from "./lib/exactRosterIdentity";
@@ -9172,15 +9174,33 @@ function PracticeConsole({
       setEditingDefenseEventId(undefined);setDefenseDraft(voiceDefenseDraft(intent));setDefenseSheetOpen(true);
     }
   }
+  const [sharedVoiceRound,setSharedVoiceRound]=useState<BpRound|null>(null);
+  const selectVoicePlayer=useRef(onSelectPlayer);
+  useEffect(()=>{selectVoicePlayer.current=onSelectPlayer;},[onSelectPlayer]);
+  useEffect(()=>{
+    if(!practice?.id || practice.endedAt || mode==="Live BP")return;
+    const controller=new AbortController();
+    void fetch(`/api/live-bp?practiceId=${encodeURIComponent(practice.id)}`,{cache:"no-store",signal:controller.signal}).then(async response=>{
+      if(!response.ok)return;
+      const data=await response.json();
+      if(controller.signal.aborted)return;
+      const current=data.rounds.find((r:BpRound)=>!r.ended_at) as BpRound|undefined;
+      setSharedVoiceRound(current??null);
+      const id=mode==="Pitching"?current?.settings.pitcherId:current?.settings.hitterId;
+      if(id)selectVoicePlayer.current(id);
+    }).catch(()=>{});
+    return()=>controller.abort();
+  },[practice?.id,practice?.endedAt,mode]);
   const practiceVoiceContext: VoiceContext = {
     domain: mode === "Hitting" ? "hitting" : mode === "Pitching" ? "pitching" : "defense",
     playerId: player.id,
     bats: player.bats,
-    roster: players.map(p => ({ id: p.id, aliases: [p.name, ...p.name.split(" ").filter(Boolean)] })),
+    roster: players.map(p => ({ id: p.id, aliases: [p.name, ...p.name.split(" ").filter(Boolean), ...(p.jerseyNumber === undefined ? [] : [String(p.jerseyNumber)])] })),
     state: initialBpState(),
     defenseRepType: mode === "Defense" && defenseDrillOption(defenseDrill).repTypeLocked ? defenseDrillOption(defenseDrill).defaultRepType : undefined,
     settings: {
       ...initialBpSettings(player.id),
+      ...(sharedVoiceRound && sharedVoiceRound.practice_id===practice?.id?sharedVoiceRound.settings:{}),
       pitchMode: mode === "Hitting" ? effectiveHittingPitchMode : mode === "Pitching" ? pitchingPitchTrackingMode : "OFF",
       pitchType: mode === "Hitting" ? effectiveHittingPitchType : selectedPitchType,
       velocity: mode === "Hitting" ? trackHittingPitchVelocity : mode === "Pitching" && trackPitchVelocity,
@@ -9189,7 +9209,22 @@ function PracticeConsole({
       spray: mode === "Defense" ? trackDefenseLocation : mode === "Hitting" && trackSprayChart,
     },
   };
-  const practiceVoice=practice&&mode!=="Live BP"?<VoiceEntry practiceId={practice.id} context={practiceVoiceContext} disabled={Boolean(practice.endedAt)} onSave={saveVoicePractice} onEdit={editVoicePractice} onUndo={onUndo}/>:null;
+  async function savePracticeVoiceCommand(command: VoiceContextCommand, _requestId: string, event?: VoiceIntent) {
+    if(!practice || practice.endedAt || event || command.problems.length)return false;
+    const url=`/api/live-bp?practiceId=${encodeURIComponent(practice.id)}`;
+    const read=await fetch(url,{cache:"no-store"});
+    const data=await read.json();
+    if(!read.ok)return false;
+    const current=data.rounds.find((r: BpRound)=>!r.ended_at) as BpRound|undefined;
+    const response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:current?"configure":"start",roundId:current?.id??crypto.randomUUID(),version:current?.version??0,settings:{...(current?.settings??initialBpSettings(player.id)),...command.patch},state:current?.state??initialBpState()})});
+    if(!response.ok)return false;
+    const result=await response.json();
+    setSharedVoiceRound(result.round);
+    const selected=mode==="Pitching"?command.patch.pitcherId:command.patch.hitterId;
+    if(selected)onSelectPlayer(selected);
+    return true;
+  }
+  const practiceVoice=practice&&mode!=="Live BP"?<VoiceEntry practiceId={practice.id} context={practiceVoiceContext} disabled={Boolean(practice.endedAt)} onSave={saveVoicePractice} onCommand={savePracticeVoiceCommand} onEdit={editVoicePractice} onUndo={onUndo}/>:null;
 
   const sessionStarted = currentSession?.startedAt ? formatTime(currentSession.startedAt) : practice ? formatTime(practice.startedAt) : "--";
 

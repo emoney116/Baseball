@@ -15,6 +15,7 @@ import {
   type VoiceIntent,
 } from "../lib/voiceIntent";
 import styles from "./VoiceEntry.module.css";
+import { parseVoiceCommand, type VoiceContextCommand } from "../lib/voiceCommands";
 
 type Phase =
   | "idle"
@@ -32,6 +33,7 @@ export function VoiceEntry({
   onSave,
   onEdit,
   onUndo,
+  onCommand,
 }: {
   practiceId: string;
   context: VoiceContext;
@@ -39,11 +41,14 @@ export function VoiceEntry({
   onSave: (intent: VoiceIntent) => Promise<boolean>;
   onEdit: (intent: VoiceIntent) => void;
   onUndo: () => void;
+  onCommand?: (command: VoiceContextCommand, requestId: string, event?: VoiceIntent) => Promise<boolean>;
 }) {
   const [storedPhase, setPhase] = useState<Phase>("idle"),
     [intent, setIntent] = useState<VoiceIntent | null>(null),
     [error, setError] = useState(""),
     [fast, setFast] = useState(false);
+  const [command, setCommand] = useState<VoiceContextCommand | null>(null);
+  const [activity, setActivity] = useState<{practiceId:string;label:string}[]>([]);
   const generation = useRef(0),
     stopCapture = useRef<(() => void) | null>(null),
     abort = useRef<AbortController | null>(null),
@@ -78,6 +83,7 @@ export function VoiceEntry({
     busy.current = false;
     setPhase("idle");
     setIntent(null);
+    setCommand(null);
     setError("");
   }
   async function save(value: VoiceIntent, automatic = false) {
@@ -89,11 +95,13 @@ export function VoiceEntry({
     )
       return;
     assertVoiceIntent(value);
+    if(command?.problems.length)return;
     busy.current = true;
     setPhase("saving");
     const saveStarted = performance.now();
     try {
-      const saved = await onSave(value);
+      const saved = command && onCommand ? await onCommand(command, value.requestId, value) : await onSave(value);
+      if(saved) setActivity(rows=>[...rows.filter(r=>r.practiceId===practiceId),{practiceId,label:[...(command?.confirmations??[]), value.draft.pitchType,value.draft.velocity,value.draft.outcome].filter(Boolean).join(" · ")}].slice(-5));
       if (saved)
         reportVoiceMetrics(value.requestId, {
           save_latency_ms: Math.min(
@@ -126,6 +134,7 @@ export function VoiceEntry({
     setCaptureKey(contextKey);
     setError("");
     setIntent(null);
+    setCommand(null);
     setPhase("listening");
     const token = ++generation.current,
       key = currentKey.current,
@@ -190,12 +199,35 @@ export function VoiceEntry({
         if (!valid()) return;
         setPhase("interpreting");
         const interpretationStarted = performance.now();
+        const nextCommand = parseVoiceCommand(result.transcript, snapshot.roster, snapshot.settings);
+        setCommand(nextCommand);
+        if(nextCommand?.kind === "context") {
+          busy.current=false;
+          if(nextCommand.problems.length || !onCommand) {
+            setError(nextCommand.problems.join(" ") || "Open Live BP to change shared participants.");
+            setPhase("error");
+          } else {
+            setPhase("saving");
+            busy.current=true;
+            const saved=await onCommand(nextCommand,requestId);
+            await new Promise(resolve=>setTimeout(resolve,0));
+            if(mounted.current){
+              setCaptureKey(currentKey.current);
+              setPhase(saved?"saved":"error");
+              if(saved)setActivity(rows=>[...rows.filter(r=>r.practiceId===practiceId),{practiceId,label:nextCommand.confirmations.join(" · ")}].slice(-5));
+              else setError("Context change was not confirmed. Check the console before retrying.");
+            }
+            busy.current=false;
+          }
+          return;
+        }
         const parsed = interpretVoice(
-          result.transcript,
-          snapshot,
+          nextCommand?.eventText ?? result.transcript,
+          nextCommand ? {...snapshot,settings:{...snapshot.settings,...nextCommand.patch},playerId:nextCommand.patch.hitterId??snapshot.playerId} : snapshot,
           requestId,
           typeof result.confidence === "number" ? result.confidence : null,
         );
+        if(nextCommand) parsed.unresolvedFields.push(...nextCommand.problems,...(!onCommand?["Open Live BP to change shared participants."]:[]));
         if (!valid()) return;
         reportVoiceMetrics(requestId, {
           interpretation_ms: Math.round(
@@ -210,7 +242,7 @@ export function VoiceEntry({
         setIntent(parsed);
         setPhase("review");
         busy.current = false;
-        if (fast && canFastSaveVoice(parsed)) await save(parsed, true);
+        if (!nextCommand && fast && canFastSaveVoice(parsed)) await save(parsed, true);
       } catch (e) {
         if (valid()) {
           setError(
@@ -358,6 +390,7 @@ export function VoiceEntry({
           Fast Voice
         </label>
       </div>
+      {activity.some(row=>row.practiceId===practiceId) && <ol aria-label="Recent Voice activity">{activity.filter(row=>row.practiceId===practiceId).map((row,index)=><li key={index}>{row.label}</li>)}</ol>}
       {phase !== "idle" && (
         <div className={styles.preview} aria-live="polite">
           <strong>
@@ -369,7 +402,7 @@ export function VoiceEntry({
                   interpreting: "Interpreting...",
                   review: "Voice event",
                   saving: "Saving...",
-                  saved: "Event saved",
+                  saved: command?.kind === "context" ? command.confirmations.join(" · ") : "Event saved",
                   error: "Voice unavailable",
                 } as Record<string, string>
               )[phase]
@@ -378,6 +411,7 @@ export function VoiceEntry({
           {intent && (
             <>
               <p>{description || intent.transcript}</p>
+              <small>Hitter: {context.roster.find(p=>p.id===intent.playerId)?.aliases[0]??"Choose hitter"} · {intent.source === "PLAYER" ? `Pitcher: ${context.roster.find(p=>p.id===intent.pitcherId)?.aliases[0]??"Choose pitcher"}` : `Source: ${intent.source === "COACH" ? "Coach" : "Machine"}`}</small>
               {location && <small>{locationLabel}</small>}
               {intent.unresolvedFields.length > 0 && (
                 <p>Review: {intent.unresolvedFields.join(", ")}</p>
@@ -464,7 +498,7 @@ export function VoiceEntry({
                 </button>
               </>
             )}
-            {phase === "saved" && !intent?.correction && (
+            {phase === "saved" && intent && !intent.correction && (
               <button
                 className="secondary-button"
                 onClick={() => {

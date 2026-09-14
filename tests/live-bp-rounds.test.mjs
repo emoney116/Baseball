@@ -5,6 +5,7 @@ import { fullPlayerDatabase } from "./helpers/fullPlayerDatabase.mjs";
 import { id, asAccount } from "./helpers/playerDatabase.mjs";
 import { buildBpRunnerMove } from "../app/lib/liveBpRunnerMove.ts";
 import { interpretVoice } from "../app/lib/voiceIntent.ts";
+import { parseVoiceCommand } from "../app/lib/voiceCommands.ts";
 import {
   buildBpPitch,
   bpBatterResults,
@@ -613,6 +614,22 @@ test("defensive presets persist atomically with settings without logging an even
   r = await pitch(r);
   assert.deepEqual(r.settings.defensePresets, [preset]);
 });
+test("Voice context commands persist without stats and next pitch uses shared identities", async()=>{
+  const roster=[{id:id(40),aliases:["Mylo"]},{id:id(41),aliases:["Darren"]},{id:id(42),aliases:["JP"]}];
+  let r=await start();
+  for(const phrase of ["Darren is pitching","Mylo is hitting","JP is now hitting"]){
+    const command=parseVoiceCommand(phrase,roster,r.settings);
+    assert.deepEqual(command.problems,[]);
+    r=await call("configure",r,{settings:{...r.settings,...command.patch},state:r.state});
+  }
+  assert.equal(r.settings.pitcherId,id(41));assert.equal(r.settings.hitterId,id(42));
+  assert.equal((await db.query("select count(*)::int n from hitting_events")).rows[0].n,0);
+  const intent=interpretVoice("slider 79 middle whiff",{domain:"live-bp",settings:r.settings,state:r.state,roster,bats:"R"},randomUUID());
+  r=await pitch(r,intent.draft,intent.requestId);
+  assert.equal((await db.query("select hitter_id from hitting_events")).rows[0].hitter_id,id(42));
+  assert.equal((await db.query("select pitcher_id from pitch_events")).rows[0].pitcher_id,id(41));
+});
+
 test("situation corrections persist without adding or changing linked pitches", async () => {
   let r = await start(
     settings({ mode: "GAME", source: "PLAYER", pitcherId: id(41) }),

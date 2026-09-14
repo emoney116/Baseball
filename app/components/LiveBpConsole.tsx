@@ -221,6 +221,25 @@ export function LiveBpConsole({
     value: p.id,
     label: densePlayerIdentityLabel(p),
   }));
+  useEffect(() => {
+    if(!round || busy || uncertain || draft.outcome || JSON.stringify(round.settings)!==JSON.stringify(settings) || JSON.stringify(round.state)!==JSON.stringify(state))return;
+    const controller=new AbortController();
+    const refresh=async()=>{
+      if(document.visibilityState!=="visible")return;
+      try{
+        const response=await fetch(url,{cache:"no-store",signal:controller.signal});
+        const data=await response.json();
+        const latest=data.rounds?.find((r:BpRound)=>r.id===round.id);
+        if(response.ok && latest && latest.version!==round.version && !controller.signal.aborted){
+          adopt(latest);
+          setNotice("Practice context updated by another coach.");
+        }
+      }catch{/* Keep manual entry available during a connection interruption. */}
+    };
+    const timer=setInterval(()=>void refresh(),5000);
+    window.addEventListener("focus",refresh);
+    return()=>{controller.abort();clearInterval(timer);window.removeEventListener("focus",refresh);};
+  },[url,round,settings,state,busy,uncertain,draft.outcome]);
   const hitters = players.filter(
     (p) => settings.source !== "PLAYER" || p.id !== settings.pitcherId,
   );
@@ -256,7 +275,7 @@ export function LiveBpConsole({
         );
       }
       if (operation === "pitch" && !pending.current) {
-        buildBpPitch(settings, state, voiceDraft ?? draft);
+        buildBpPitch(nextSettings, nextState, voiceDraft ?? draft);
         pending.current = {
           id: voiceRequestId ?? crypto.randomUUID(),
           draft: { ...(voiceDraft ?? draft) },
@@ -267,8 +286,8 @@ export function LiveBpConsole({
       if (
         operation === "pitch" &&
         (!savedRound ||
-          JSON.stringify(savedRound.settings) !== JSON.stringify(settings) ||
-          JSON.stringify(savedRound.state) !== JSON.stringify(state))
+          JSON.stringify(savedRound.settings) !== JSON.stringify(nextSettings) ||
+          JSON.stringify(savedRound.state) !== JSON.stringify(nextState))
       ) {
         const setup = await fetch(url, {
           method: "POST",
@@ -278,8 +297,8 @@ export function LiveBpConsole({
             operation: savedRound ? "configure" : "start",
             roundId: savedRound?.id ?? startId.current,
             version: savedRound?.version ?? 0,
-            settings,
-            state,
+            settings: nextSettings,
+            state: nextState,
           }),
         });
         const result = await setup.json();
@@ -698,7 +717,7 @@ export function LiveBpConsole({
         bats: players.find((p) => p.id === settings.hitterId)?.bats,
         roster: players.map((p) => ({
           id: p.id,
-          aliases: [p.name, ...p.name.split(" ").filter(Boolean)],
+          aliases: [p.name, ...p.name.split(" ").filter(Boolean), ...(p.jerseyNumber === undefined ? [] : [String(p.jerseyNumber)])],
         })),
       }}
       onSave={async (intent) => {
@@ -717,6 +736,11 @@ export function LiveBpConsole({
         return Boolean(
           await write("pitch", settings, state, intent.draft, intent.requestId),
         );
+      }}
+      onCommand={async (command, requestId, event) => {
+        if(command.problems.length)return false;
+        const next={...settings,...command.patch};
+        return Boolean(await write(event?"pitch":round?"configure":"start",next,state,event?.draft,event?requestId:undefined));
       }}
       onEdit={(intent) => {
         if(intent.correction){setVoiceCorrection({...state,...intent.correction});return;}
