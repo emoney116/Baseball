@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { liveSyncDelta } from "../lib/liveSyncDelta";
 import { currentStartedPractice } from "../lib/practiceStart";
+import { readAllRows } from "../lib/readAllRows";
 import { liveBpPitchContactQuality } from "../lib/liveBp";
 import { staffDataChanged } from "../lib/staffSyncChanges";
 
@@ -824,6 +825,22 @@ function normalizeTeamRole(role: unknown): TeamMembershipRole {
     : "STAFF";
 }
 
+async function readPracticeRows(supabase:SupabaseClient,table:string,practiceIds:string[]) {
+  const data:any[]=[];
+  // Scope before pagination; another managed team's events cannot consume this page.
+  for(let offset=0;offset<practiceIds.length;offset+=100){
+    const ids=practiceIds.slice(offset,offset+100);
+    const result=await readAllRows<any>(after=>{
+      const query=supabase.from(table).select("*").in("practice_id",ids).order("id").limit(500);
+      return after?query.gt("id",after):query;
+    });
+    if(result.error)return result;
+    data.push(...(result.data??[]));
+  }
+  data.sort((a,b)=>String(b.created_at??"").localeCompare(String(a.created_at??"")));
+  return {data,error:null};
+}
+
 async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Promise<AppData> {
   if (!foundation.teamId || !foundation.seasonId) {
     const [profileFollows, profileFollowExclusions, profileTeamPins, publicDirectory] = await Promise.all([
@@ -900,7 +917,10 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     notesResult,
     goalsResult,
   ] = await Promise.all([
-    supabase.from("practices").select("*").eq("season_id", foundation.seasonId).order("practice_date", { ascending: false }),
+    readAllRows<any>(after => {
+      const query=supabase.from("practices").select("*").eq("team_id",foundation.teamId).eq("season_id", foundation.seasonId).order("id").limit(500);
+      return after ? query.gt("id",after) : query;
+    }),
     organizationScoped
       ? supabase.from("exercises").select("*").eq("organization_id", foundation.organizationId)
       : Promise.resolve({ data: [], error: null }),
@@ -949,7 +969,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
           .order("created_at", { ascending: false }),
   ]);
 
-  const practiceRows = practicesResult.data ?? [];
+  const practiceRows = (practicesResult.data ?? []).sort((a:any,b:any)=>String(b.practice_date).localeCompare(String(a.practice_date)));
   const practiceIds = new Set<string>(practiceRows.map((practice: any) => practice.id));
   const workoutSessionRows = workoutSessionsResult.data ?? [];
   const workoutSessionIds = new Set<string>(workoutSessionRows.map((session: any) => session.id));
@@ -1008,12 +1028,12 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     gameEventsResult,
     plateAppearancesResult,
   ] = await Promise.all([
-    supabase.from("practice_attendance").select("*"),
-    supabase.from("practice_sessions").select("*"),
+    readPracticeRows(supabase,"practice_attendance",[...practiceIds]),
+    readPracticeRows(supabase,"practice_sessions",[...practiceIds]),
     supabase.from("practice_session_contributors").select("*"),
-    supabase.from("pitch_events").select("*").order("created_at", { ascending: false }),
-    supabase.from("hitting_events").select("*").order("created_at", { ascending: false }),
-    supabase.from("defense_events").select("*").order("created_at", { ascending: false }),
+    readPracticeRows(supabase,"pitch_events",[...practiceIds]),
+    readPracticeRows(supabase,"hitting_events",[...practiceIds]),
+    readPracticeRows(supabase,"defense_events",[...practiceIds]),
     supabase.from("workout_sets").select("*").order("created_at", { ascending: false }),
     supabase.from("game_lineups").select("*"),
     supabase.from("game_pitch_events").select("*").order("created_at", { ascending: false }),
