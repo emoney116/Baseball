@@ -24,7 +24,8 @@ export async function POST(request: Request) {
     const { data, error } = await (await createClient()).auth.getUser();
     if (error || !data.user)
       return reply({ message: "Sign in to use Voice." }, 401);
-    if (!process.env.OPENAI_API_KEY)
+    const apiKey = process.env.OPENAI_VOICE_API_KEY || process.env.OPENAI_API_KEY;
+    if (!apiKey)
       return reply({ message: "Voice unavailable - use manual entry." }, 503);
     const url = new URL(request.url),
       practiceId = url.searchParams.get("practiceId"),
@@ -105,7 +106,7 @@ export async function POST(request: Request) {
       "https://api.openai.com/v1/audio/transcriptions",
       {
         method: "POST",
-        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        headers: { Authorization: `Bearer ${apiKey}` },
         body: form,
         signal: AbortSignal.any([request.signal, AbortSignal.timeout(15000)]),
       },
