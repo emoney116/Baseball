@@ -1,4 +1,6 @@
 "use client";
+import { PracticeRecap } from "./components/PracticeRecap";
+import { buildPracticeReviewSummary } from "./lib/practiceReviewSummary";
 import { LiveBpConsole } from "./components/LiveBpConsole";
 import { practiceDirectionForPoint } from "./lib/sprayChart";
 import { ClubhouseLocationPicker } from "./components/ClubhouseLocationPicker";
@@ -2259,6 +2261,10 @@ export default function MetrolinaBaseballApp() {
       mutate: (url) => {
         url.searchParams.set("domain", category === "Pitching" ? "pitching" : category === "Defense" ? "defense" : "hitting");
         url.searchParams.set("source", category === "Live BP" ? "live-bp" : "practice");
+        if (category === "Live BP") url.searchParams.delete("sources");
+        else url.searchParams.set("sources", "practice,live-bp");
+        for (const key of ["filters", "columns", "columnPreset", "sort", "dir", "start", "end", "analyticsWorkspace"]) url.searchParams.delete(key);
+        url.searchParams.set("statView", "overview");
         url.searchParams.set("mode", "box-score");
         url.searchParams.set("period", "season");
         url.searchParams.set("practiceId", practiceId);
@@ -8025,6 +8031,7 @@ function PracticeReview({
       </nav>
 
       {tab === "Summary" ? (
+        <><PracticeRecap summary={buildPracticeReviewSummary(data, practice.id)} />
         <section className="practice-review-layout">
           <PracticeTeamPlan key={practice.id} practice={practice} teamId={data.teamContext?.currentTeam?.teamId} canManage={Boolean(data.teamContext?.currentTeam && ["OWNER", "ADMIN", "HEAD_COACH", "ASSISTANT_COACH", "STAFF", "COACH"].includes(data.teamContext.currentTeam.role))} />
           <article className="panel practice-review-session-list">
@@ -8070,6 +8077,7 @@ function PracticeReview({
             </div>
           </article>
         </section>
+        </>
       ) : (
         <section className="panel practice-review-table-card">
           <div className="panel-heading tight">

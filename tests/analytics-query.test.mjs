@@ -12,6 +12,27 @@ import {
   serializeAnalyticsContext,
 } from "../app/lib/analyticsCatalog.ts";
 import { buildAnalyticsInsights } from "../app/lib/analyticsInsights.ts";
+import { buildPracticeReviewSummary } from "../app/lib/practiceReviewSummary.ts";
+
+test("unknown Practice selection never broadens to every Practice", () => {
+  const result = executeAnalyticsQuery(baseData, { ...query("hitting", "practice"), eventIds: ["unavailable-practice"] });
+  assert.equal(result.rows.some((item) => item.sampleCount > 0), false);
+});
+
+test("Practice review reconciles combined Practice and Live BP without changing global source semantics", () => {
+  const summary = buildPracticeReviewSummary(baseData, "practice-aug-19");
+  assert.equal(summary.hitting.teamTotals.cells.swings.display, "3");
+  assert.equal(summary.pitching.teamTotals.cells.pitches.display, "1");
+  assert.equal(summary.liveHitting.teamTotals.cells.swings.display, "1");
+  const practiceOnly = executeAnalyticsQuery(baseData, { ...query("hitting", "practice"), eventIds: ["practice-aug-19"] });
+  assert.equal(practiceOnly.teamTotals.cells.swings.display, "2");
+});
+
+test("ended Practice preserves canonical review metrics", () => {
+  const ended = structuredClone(baseData);
+  ended.practices = ended.practices.map((item) => ({ ...item, endedAt: now, status: "ended" }));
+  assert.deepEqual(buildPracticeReviewSummary(ended, "practice-aug-19").hitting.teamTotals, buildPracticeReviewSummary(baseData, "practice-aug-19").hitting.teamTotals);
+});
 
 const now = "2026-08-20T12:00:00.000Z";
 

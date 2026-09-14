@@ -334,16 +334,12 @@ export const ASK_CLUBHOUSE_QUESTIONS: AskClubhouseQuestion[] = [
 ];
 
 export function executeAnalyticsQuery(data: AppData, input: AnalyticsQuery, options: { today?: string } = {}): AnalyticsResult {
-  let query = normalizeAnalyticsQuery(input);
+  const query = normalizeAnalyticsQuery(input);
   const warnings = validateAnalyticsContext(data, query);
   const sourceLabel = analyticsFieldSourceLabel(query);
   const scopeLabel = buildScopeLabel(data, query);
   const availableEvents = buildEventOptions(data, query.domain, analyticsFieldSources(query));
-  if (query.eventIds?.length) {
-    const availableEventIds = new Set(availableEvents.map((event) => event.id));
-    const selectedEventIds = query.eventIds.filter((id) => availableEventIds.has(id));
-    query = { ...query, eventIds: selectedEventIds.length ? selectedEventIds : undefined };
-  }
+  // An unavailable event must remain empty, never silently broaden to all practices.
   const filterDefinitions = availableFilterDefinitions(data, query);
 
   const result = query.domain === "hitting"
@@ -1850,7 +1846,7 @@ function buildEventOptions(data: AppData, domain: AnalyticsDomain, sources: Anal
     ...(sources.includes("games") ? gameOptions : []),
     ...(sources.includes("personal") ? (data.personalSessions ?? []).filter(s => s.domain === domain).map(s => ({ id: s.id, label: `${shortDate(s.startedAt.slice(0, 10))} Personal ${s.domain === "pitching" ? "Bullpen" : s.domain}`, date: s.startedAt.slice(0, 10), source: "personal" as const })) : []),
     ...(sources.includes("practice") ? [...practiceOptions, ...hittingSessionOptions, ...defenseSessionOptions] : []),
-    ...(sources.includes("live-bp") ? liveOptions : []),
+    ...(sources.includes("live-bp") ? [...(!sources.includes("practice") ? practiceOptions.map(p=>({...p,source:"live-bp" as const})) : []),...liveOptions] : []),
   ]
     .filter((event) => domain !== "defense" || event.source !== "games")
     .sort((left, right) => (right.date ?? "").localeCompare(left.date ?? ""));
