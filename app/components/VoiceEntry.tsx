@@ -16,6 +16,8 @@ import {
 } from "../lib/voiceIntent";
 import styles from "./VoiceEntry.module.css";
 import { parseVoiceCommand, type VoiceContextCommand } from "../lib/voiceCommands";
+import { SessionVoiceCapture } from './SessionVoiceCapture';
+import { appendVoiceFragment, voiceSessionAction } from '../lib/voiceSession';
 
 type Phase =
   | "idle"
@@ -49,6 +51,9 @@ export function VoiceEntry({
     [fast, setFast] = useState(false);
   const [command, setCommand] = useState<VoiceContextCommand | null>(null);
   const [activity, setActivity] = useState<{practiceId:string;label:string}[]>([]);
+  const [continuous, setContinuous] = useState(true);
+  const pendingIntent = useRef<VoiceIntent | null>(null);
+  useEffect(() => { pendingIntent.current = storedPhase === 'saved' ? null : intent; }, [intent, storedPhase]);
   const generation = useRef(0),
     stopCapture = useRef<(() => void) | null>(null),
     abort = useRef<AbortController | null>(null),
@@ -75,6 +80,7 @@ export function VoiceEntry({
     abort.current?.abort();
     stopCapture.current?.();
     busy.current = false;
+    pendingIntent.current = null;
   }, [contextKey, disabled]);
   function cancel() {
     generation.current++;
@@ -85,6 +91,75 @@ export function VoiceEntry({
     setIntent(null);
     setCommand(null);
     setError("");
+    pendingIntent.current = null;
+  }
+  async function receiveSessionTranscript(text: string, confidence: number | null, requestId: string): Promise<boolean> {
+    if (disabled || busy.current) return false;
+    const action = voiceSessionAction(text);
+    if (action === 'mute') return false;
+    if (action === 'discard') { cancel(); return true; }
+    if (action === 'save') {
+      const pending = pendingIntent.current;
+      if (!pending || pending.unresolvedFields.length) {
+        setError('Nothing complete to save. Finish or edit the pending pitch.');
+        return false;
+      }
+      return (await save(pending)) === true;
+    }
+    const nextCommand = parseVoiceCommand(text, context.roster, context.settings);
+    const velocityChange = nextCommand?.patch.velocity === true;
+    if (velocityChange && context.domain !== 'live-bp') {
+      setError('Enable velocity in this station\'s tracking settings, then repeat the measurement.');
+      return false;
+    }
+    const retained = velocityChange ? pendingIntent.current : null;
+    if (nextCommand && pendingIntent.current && !velocityChange) {
+      setError(`Save or discard the pending pitch before changing participants. Not applied: "${text}"`);
+      return false;
+    }
+    setCaptureKey(contextKey);
+    setError('');
+    if (nextCommand?.kind === 'context') {
+      setCommand(nextCommand);
+      if (nextCommand.problems.length || !onCommand) {
+        setPhase('error');
+        setError(nextCommand.problems.join(' ') || 'This context change is unavailable here.');
+        return false;
+      }
+      busy.current = true; setPhase('saving');
+      try {
+        const saved = await onCommand(nextCommand, requestId);
+        await new Promise(resolve => setTimeout(resolve, 0));
+        if (!mounted.current) return false;
+        setCaptureKey(currentKey.current);
+        setPhase(saved ? 'saved' : 'error');
+        if (saved && retained) {
+          const updated = interpretVoice(retained.transcript, {...context,settings:{...context.settings,velocity:true}},retained.requestId,retained.confidence.transcription);
+          pendingIntent.current = updated;
+          setCommand(null); setIntent(updated); setPhase('review');
+        }
+        if (saved) setActivity(rows => [...rows.filter(row => row.practiceId === practiceId), {practiceId, label:nextCommand.confirmations.join(' · ')}].slice(-5));
+        else setError('Context change was not confirmed. Check the console.');
+        return saved;
+      } finally { busy.current = false; }
+    }
+    const previous = pendingIntent.current;
+    const effectiveCommand = nextCommand ?? (previous ? command : null);
+    const snapshot = effectiveCommand ? {...context, settings:{...context.settings,...effectiveCommand.patch}, playerId:effectiveCommand.patch.hitterId ?? context.playerId} : context;
+    const incoming = interpretVoice(nextCommand?.eventText ?? text, snapshot, requestId, confidence);
+    // A second explicit outcome is a new pitch, never an amendment to the last pitch.
+    if (previous?.draft.outcome && incoming.draft.outcome) {
+      setError(`A pitch is still awaiting review. Next pitch not saved: "${text}"`);
+      return false;
+    }
+    const combined = previous ? appendVoiceFragment(previous.transcript, text) : nextCommand?.eventText ?? text;
+    const parsed = interpretVoice(combined, snapshot, previous?.requestId ?? requestId,
+      previous ? (confidence === null || previous.confidence.transcription === null ? null : Math.min(confidence, previous.confidence.transcription)) : confidence);
+    if (nextCommand) parsed.unresolvedFields.push(...nextCommand.problems, ...(!onCommand ? ['Context changes are unavailable here.'] : []));
+    pendingIntent.current = parsed;
+    setCommand(effectiveCommand); setIntent(parsed); setPhase('review');
+    if (!effectiveCommand && fast && canFastSaveVoice(parsed)) return (await save(parsed, true)) === true;
+    return true;
   }
   async function save(value: VoiceIntent, automatic = false) {
     if (
@@ -112,18 +187,20 @@ export function VoiceEntry({
         });
       await new Promise((resolve) => setTimeout(resolve, 0));
       if (mounted.current) {
-        if (saved) setCaptureKey(currentKey.current);
+        if (saved) { setCaptureKey(currentKey.current); pendingIntent.current = null; }
         setPhase(saved ? "saved" : "review");
         if (!saved)
           setError(
             "Save not confirmed. Review the manual console before retrying.",
           );
       }
+      return saved;
     } catch {
       if (mounted.current) {
         setPhase("review");
         setError("Save not confirmed. Your draft is still available.");
       }
+      return false;
     } finally {
       busy.current = false;
     }
@@ -324,7 +401,7 @@ export function VoiceEntry({
         intent.draft.velocity !== undefined
           ? `${intent.draft.velocity} mph`
           : "",
-        intent.draft.outcome,
+        intent.draft.outcome === 'Whiff' ? 'Swing & Miss' : intent.draft.outcome,
         intent.draft.battedBall,
         intent.draft.ev !== undefined ? `${intent.draft.ev} EV` : "",
         intent.draft.result,
@@ -357,6 +434,8 @@ export function VoiceEntry({
   return (
     <section className={styles.root} aria-label="Voice stat entry">
       <div className={styles.toolbar}>
+        <label><input type="checkbox" checked={continuous} disabled={phase === 'saving'} onChange={e => { cancel(); setContinuous(e.target.checked); }} />Continuous</label>
+        {continuous ? <SessionVoiceCapture key={`${practiceId}:${Boolean(disabled)}`} practiceId={practiceId} contextKey={contextKey} disabled={disabled} onTranscript={receiveSessionTranscript} /> :
         <button
           type="button"
           className="secondary-button"
@@ -378,6 +457,7 @@ export function VoiceEntry({
           {phase === "listening" ? <Square size={18} /> : <Mic size={18} />}
           <span>{phase === "listening" ? "Stop" : "Voice"}</span>
         </button>
+        }
         <label>
           <input
             type="checkbox"
@@ -400,7 +480,7 @@ export function VoiceEntry({
                   listening: "Listening...",
                   transcribing: "Transcribing...",
                   interpreting: "Interpreting...",
-                  review: "Voice event",
+                  review: continuous ? (context.domain === 'live-bp' ? 'Pending pitch' : 'Pending event') : "Voice event",
                   saving: "Saving...",
                   saved: command?.kind === "context" ? command.confirmations.join(" · ") : "Event saved",
                   error: "Voice unavailable",
@@ -470,8 +550,10 @@ export function VoiceEntry({
             <small>{getSprayLane(intent.draft.spray)?.physicalLabel}</small>
           )}
           {intent && intent.ignoredFields.length > 0 && (
-            <small>Not tracked: {intent.ignoredFields.join(", ")}</small>
+            <small>{intent.ignoredFields.includes('Velocity') ? 'Velocity tracking is off in session settings. ' : ''}Not tracked: {intent.ignoredFields.join(", ")}</small>
           )}
+          {phase === 'review' && context.domain === 'live-bp' && onCommand && intent?.ignoredFields.includes('Velocity') &&
+            <button type="button" className="secondary-button" onClick={() => void receiveSessionTranscript('enable velocity', 1, crypto.randomUUID())}>Enable velocity tracking</button>}
           <div className={styles.actions}>
             {phase === "review" && intent && (
               <>

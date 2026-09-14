@@ -414,7 +414,7 @@ export function interpretVoice(
   }
   remaining = remaining
     .replace(
-      /\b(?:and|to|at|mph|miles per hour|a|the|was|now|then|threw|throws|throw|pitch|velo|velocity|on the tag)\b/g,
+      /\b(?:miles? (?:per|an?) hour|and|to|at|mph|a|the|was|now|then|threw|throws|throw|pitch|velo|velocity|on the tag)\b/g,
       " ",
     )
     .replace(/\s+/g, " ")

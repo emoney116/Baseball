@@ -3,7 +3,7 @@ import { normalizeVoiceText, type VoiceIdentity } from "./voiceVocabulary.ts";
 
 export type VoiceContextCommand = {
   kind: "context" | "compound";
-  patch: Partial<Pick<BpSettings, "hitterId" | "pitcherId" | "source" | "alignment" | "defense" | "positions">>;
+  patch: Partial<Pick<BpSettings, "hitterId" | "pitcherId" | "source" | "alignment" | "defense" | "positions" | "velocity">>;
   eventText: string;
   confirmations: string[];
   problems: string[];
@@ -13,6 +13,11 @@ export type VoiceContextCommand = {
 export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[], settings: BpSettings): VoiceContextCommand | null {
   let remaining = normalizeVoiceText(text.replace(/['’]s\b/g," is"));
   const command: VoiceContextCommand = {kind:"context",patch:{},eventText:"",confirmations:[],problems:[]};
+  if (/^(?:enable|track|turn on) (?:pitch )?velocity$/.test(remaining)) {
+    command.patch.velocity = true;
+    command.confirmations.push('Velocity tracking on');
+    return command;
+  }
   let recognized = false;
   const group = remaining.match(/^(teams? .+?) (?:is |are )?(?:on |in )?(defense|hitting|cages)$/);
   if (group || remaining === "next rotation") {

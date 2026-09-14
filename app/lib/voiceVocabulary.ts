@@ -47,9 +47,13 @@ export const VOICE_CONTACT_ALIASES = {
 } as const;
 
 export function normalizeVoiceText(text: string): string {
+  const tens: Record<string, number> = {twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
+  const ones: Record<string, number> = {one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9};
   return text
     .toLowerCase()
     .replace(/[-\u2010-\u2015]/g, " ")
+    .replace(/\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)(?:\s+(one|two|three|four|five|six|seven|eight|nine))?\b/g,
+      (_, ten: string, one: string | undefined) => String(tens[ten] + (one ? ones[one] : 0)))
     .replace(/[^a-z0-9' ]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
