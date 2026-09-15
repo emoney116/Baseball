@@ -2,6 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { workoutMvp } from '../app/lib/workoutMvp.ts';
+import { workoutStationSelection } from '../app/lib/workoutStationSelection.ts';
+
+test('groups can independently choose the same station until the next rotation', () => {
+  const groups = [{id:'a',current_station_id:'pull'}, {id:'b',current_station_id:'push'}];
+  const choices = {a:{stationId:'bench',revision:2},b:{stationId:'bench',revision:2}};
+  for (const group of groups) assert.equal(workoutStationSelection(group, choices, 2, ''), 'bench');
+  assert.equal(workoutStationSelection(groups[0], choices, 3, ''), 'pull');
+  assert.equal(workoutStationSelection(groups[1], {}, 2, ''), 'push');
+  assert.equal(workoutStationSelection(undefined, choices, 2, 'hang'), 'hang');
+});
 
 test('unassigned athlete layout does not override shared avatar spans', () => {
   const css = readFileSync('app/globals.css', 'utf8');
@@ -19,7 +29,7 @@ test('MVP requires recorded results and ranks progress before completion, not ra
 
 test('group mode follows authoritative station and individual mode omits group picker',()=>{
   const source=readFileSync('app/components/WorkoutTestingConsole.tsx','utf8');
-  assert.match(source,/selectedGroup\.current_station_id/);
+  assert.match(source,/workoutStationSelection\(selectedGroup, groupStations, revision, stationId\)/);
   assert.match(source,/mode === "Groups" \? <ClubhouseSelect label="Group"/);
   assert.match(source,/onBlur=\{\(\) => void save\(player.id\)\}/);
   assert.match(source,/expected_revision: draft.revision/);

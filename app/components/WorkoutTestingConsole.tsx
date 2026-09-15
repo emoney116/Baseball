@@ -1,12 +1,13 @@
 "use client";
 
-import { Check, RefreshCw, RotateCw, Pencil, X } from "lucide-react";
+import { RefreshCw, RotateCw, Pencil, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "../lib/supabase/client";
 import { formatTestResult, parseTestResult, testConditionLabel, type WorkoutTestConditions } from "../lib/workoutTesting";
 import type { Player } from "../types";
 import { ClubhouseSelect } from "./ClubhouseSelect";
 import { formatDensePlayerIdentity } from "../lib/densePlayerIdentity";
+import { workoutStationSelection } from "../lib/workoutStationSelection";
 import styles from "./WorkoutTestingConsole.module.css";
 
 type Station = { id: string; exercise_name: string; test_conditions: WorkoutTestConditions | null };
@@ -22,6 +23,7 @@ export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "G
   const [results, setResults] = useState<Result[]>([]);
   const [stationId, setStationId] = useState("");
   const [groupId, setGroupId] = useState("");
+  const [groupStations, setGroupStations] = useState<Record<string, { stationId: string; revision: number }>>({});
   const [side, setSide] = useState("Left");
   const [attempt, setAttempt] = useState("1");
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() => {
@@ -93,7 +95,8 @@ export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "G
   }, [refresh]);
 
   const selectedGroup = mode === "Groups" ? groups.find((item) => item.id === groupId) ?? groups[0] : undefined;
-  const station = stations.find((item) => item.id === (selectedGroup ? selectedGroup.current_station_id : stationId)) ?? stations[0];
+  const selectedStationId = workoutStationSelection(selectedGroup, groupStations, revision, stationId);
+  const station = stations.find((item) => item.id === selectedStationId) ?? stations[0];
   const conditions = station?.test_conditions;
   const roster = selectedGroup ? players.filter((player) => members.some((member) => member.group_id === selectedGroup.id && member.player_id === player.id)) : players;
   const keyFor = (playerId: string) => `${station?.id}:${playerId}:${attempt}:${conditions?.bilateral ? side : ""}`;
@@ -141,12 +144,18 @@ export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "G
 
   return <section className={styles.console} aria-label="Testing circuit">
     <aside className={styles.navigation}>
-      {mode === "Groups" ? <ClubhouseSelect label="Group" value={selectedGroup?.id ?? ""} options={groups.map((group) => ({ value: group.id, label: group.name, description: stations.find((item) => item.id === group.current_station_id)?.exercise_name }))} onChange={setGroupId} /> : <ClubhouseSelect label="Station" value={station?.id ?? ""} options={stations.map((item) => ({ value: item.id, label: item.exercise_name }))} onChange={setStationId} />}
-      {conditions?.bilateral && <ClubhouseSelect label="Side" value={side} options={[{ value: "Left", label: "Left" }, { value: "Right", label: "Right" }]} onChange={setSide} />}
+      <div className={`${styles.pickers} ${mode === "Individual" ? styles.individual : ""}`}>
+      {mode === "Groups" ? <ClubhouseSelect label="Group" value={selectedGroup?.id ?? ""} options={groups.map((group) => ({ value: group.id, label: group.name }))} onChange={setGroupId} /> : null}
+      <ClubhouseSelect label="Station" value={station?.id ?? ""} options={stations.map((item) => ({ value: item.id, label: item.exercise_name }))} onChange={(id) => {
+        if (selectedGroup) setGroupStations(current => ({ ...current, [selectedGroup.id]: { stationId: id, revision } }));
+        else setStationId(id);
+      }} />
       <label className={styles.attempt}>Attempt<input aria-label="Attempt" type="number" min={1} max={100} value={attempt} onChange={(event) => setAttempt(event.target.value)} /></label>
+      </div>
+      {conditions?.bilateral && <ClubhouseSelect label="Side" value={side} options={[{ value: "Left", label: "Left" }, { value: "Right", label: "Right" }]} onChange={setSide} />}
       <div className={styles.actions}>
-        {mode === "Groups" && <button type="button" aria-label="Next Rotation" title="Next Rotation" disabled={!active || !!busy || !groups.length} onClick={() => void rotate()}><RotateCw size={20} /></button>}
-        <button type="button" aria-label="Refresh results" title="Refresh results" onClick={() => void refresh()}><RefreshCw size={20} /></button>
+        {mode === "Groups" && <button type="button" aria-label="Next Rotation" title="Next Rotation" disabled={!active || !!busy || !groups.length} onClick={() => void rotate()}><RotateCw size={18} />Next Rotation</button>}
+        <button type="button" aria-label="Refresh results" title="Refresh results" onClick={() => void refresh()}><RefreshCw size={18} />Refresh</button>
       </div>
     </aside>
     <div className={styles.entries}>
@@ -160,7 +169,7 @@ export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "G
         const draft = drafts[key];
         return <div key={key} className={styles.row}>
         <strong>{formatDensePlayerIdentity(player)}</strong>
-          {saved && !draft ? <button type="button" className={styles.saved} aria-label={`Edit ${player.name} result`} title="Edit result" disabled={!canCorrect} onClick={() => editResult(saved)}><Check size={16} />{formatTestResult(saved.value ?? saved.reps, conditions)}<Pencil size={14} /></button> : <form onSubmit={(event) => { event.preventDefault(); inputs.current[player.id]?.blur(); }}>
+          {saved && !draft ? <button type="button" className={styles.saved} aria-label={`Edit ${player.name} result`} title="Edit result" disabled={!canCorrect} onClick={() => editResult(saved)}>{formatTestResult(saved.value ?? saved.reps, conditions)}<Pencil size={14} /></button> : <form onSubmit={(event) => { event.preventDefault(); inputs.current[player.id]?.blur(); }}>
             <input ref={(element) => { inputs.current[player.id] = element; }} aria-label={`${player.name} result`} inputMode={conditions.mode === "MAX_DURATION" ? "decimal" : "numeric"} placeholder={conditions.mode === "MAX_DURATION" ? "Seconds" : "Reps"} value={draft?.text ?? ""} disabled={!(draft?.resultId ? canCorrect : active) || saving.current.has(key)} onBlur={() => void save(player.id)} onChange={(event) => { const text = event.target.value; setDrafts((current) => ({ ...current, [key]: { ...current[key], text, request: current[key]?.request ?? crypto.randomUUID(), error: undefined } })); }} />
             {draft?.resultId && <button type="button" aria-label={`Cancel editing ${player.name}`} title="Cancel edit" onPointerDown={(event) => event.preventDefault()} onClick={() => setDrafts((current) => {const next={...current};delete next[key];return next;})}><X size={16} /></button>}
           </form>}

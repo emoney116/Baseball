@@ -1,8 +1,12 @@
 .console { display: grid; gap: 20px; padding: 16px 0 calc(100px + env(safe-area-inset-bottom)); color: var(--text); }
 .navigation { display: grid; gap: 12px; align-content: start; min-width: 0; }
 .navigation button { min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; }
-.attempt { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.attempt input { width: 76px; min-height: 44px; }
+.pickers { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.4fr) 64px; gap: 8px; align-items: end; }
+.pickers > * { min-width: 0; }
+.pickers button { padding-inline: 8px; }
+.individual { grid-template-columns: minmax(0,1fr) 64px; }
+.attempt { display: grid; gap: 6px; font-size: 12px; color: var(--muted-strong); }
+.attempt input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: 6px; padding: 8px; background: var(--panel); color: var(--text); font-size: 16px; }
 .entries { min-width: 0; }
 .entries header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 12px; }
 .entries h2 { font-size: 20px; margin: 0; }
@@ -17,8 +21,8 @@
 .row input { border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); padding: 10px; }
 .row form button { flex: 0 0 32px; border: 0; background: transparent; color: var(--muted-strong); }
 .actions { display: flex; gap: 8px; }
-.actions button { width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--text); }
+.actions button { min-height: 44px; padding: 8px 12px; white-space: nowrap; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--text); }
 .actions button:hover:not(:disabled), .row .saved:hover:not(:disabled) { color: var(--burgundy); background: color-mix(in srgb, var(--burgundy) 10%, transparent); }
 .actions button:disabled { opacity: .45; }
 .row p button { display: inline-flex; min-height: 44px; padding: 8px; border: 0; background: transparent; color: var(--text); text-decoration: underline; }
-@media (min-width: 760px) { .console { grid-template-columns: 230px minmax(0,1fr); } .navigation { position: sticky; top: 88px; align-self: start; } }
+@media (min-width: 760px) { .console { grid-template-columns: 290px minmax(0,1fr); } .navigation { position: sticky; top: 88px; align-self: start; } }

@@ -24,3 +24,20 @@
 .weight-room-test-config > span { grid-column: 2/-1; color: var(--muted-strong); font-size: 13px; }
 .weight-room-baseline-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; }
 @media(max-width:540px) { .weights-page .weight-room-test-config { grid-template-columns: minmax(110px,1fr) repeat(2,minmax(80px,100px)); gap: 8px; } .weight-room-test-config > strong { overflow-wrap: anywhere; font-size: 13px; } }
+.weight-room-active-weigh-table > .weight-room-active-weigh-table__row,
+.weight-room-active-weigh-table > .weight-room-active-weigh-table__head {
+  min-width: 0;
+  grid-template-columns: minmax(0,1fr) 92px 108px;
+  grid-template-areas: none;
+  gap: 8px;
+  padding: 8px;
+}
+.weight-room-active-weigh-table .weight-room-weigh-name { font-size: 13px; overflow-wrap: anywhere; }
+.weight-room-active-weigh-table .weight-room-weigh-previous { grid-area: auto !important; white-space: nowrap; font-size: 12px; }
+.weight-room-weigh-previous small { color: var(--muted-strong); font-size: inherit; }
+.weight-room-active-weigh-table .weight-room-weigh-new { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; }
+.weight-room-active-weigh-table .weight-room-weigh-new input { grid-area: auto; width: 100%; min-width: 0; min-height: 44px; font-size: 16px; }
+@media (min-width: 760px) {
+  .weight-room-active-weigh-table > .weight-room-active-weigh-table__row,
+  .weight-room-active-weigh-table > .weight-room-active-weigh-table__head { grid-template-columns: minmax(0,1fr) 140px 150px; }
+}

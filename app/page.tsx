@@ -13870,17 +13870,15 @@ function WeightRoomActiveWeighIns({
         <div className="weight-room-active-weigh-table__head" role="row">
           <span>Athlete</span>
           <span>Previous</span>
-          <span>Today</span>
-          <span>Change</span>
+          <span>New</span>
         </div>
         {filteredPlayers.map((player) => {
           const previous = previousBodyWeight(data, player.id, date);
-          const today = optionalNumber(drafts[player.id] ?? "");
-          const change = typeof today === "number" && typeof previous === "number" ? today - previous : undefined;
           return (
             <div key={player.id} className="weight-room-active-weigh-table__row" role="row">
-              <span className="weight-room-active-athlete-cell"><PlayerAvatar player={player} size="sm" compact /><strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}<small>#{player.jerseyNumber} - {player.primaryPosition}</small></span>
-              <span>{typeof previous === "number" ? `${formatNumber(previous, 1)} lb` : "--"}</span>
+              <strong className="weight-room-weigh-name">{player.name}</strong>
+              <span className="weight-room-weigh-previous"><small>Prev</small> {typeof previous === "number" ? `${formatNumber(previous, 1)} lb` : "--"}</span>
+              <label className="weight-room-weigh-new"><span>New</span>
               <input
                 aria-label={`${playerSelectionLabel(player)} weigh-in`}
                 inputMode="decimal"
@@ -13889,14 +13887,13 @@ function WeightRoomActiveWeighIns({
                 onChange={(event) => update(player.id, event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
-                    save(player.id);
-                    focusNext(event.currentTarget);
+                    const current = event.currentTarget;
+                    current.blur();
+                    focusNext(current);
                   }
                 }}
               />
-              <em className={change && change > 0 ? "positive" : change && change < 0 ? "negative" : ""}>
-                {typeof change === "number" ? `${change > 0 ? "+" : ""}${formatNumber(change, 1)} lb` : "--"}
-              </em>
+              </label>
             </div>
           );
         })}
