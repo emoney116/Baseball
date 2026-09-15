@@ -825,13 +825,13 @@ function normalizeTeamRole(role: unknown): TeamMembershipRole {
     : "STAFF";
 }
 
-async function readPracticeRows(supabase:SupabaseClient,table:string,practiceIds:string[]) {
+async function readPracticeRows(supabase:SupabaseClient,table:string,practiceIds:string[], parentColumn = "practice_id") {
   const data:any[]=[];
   // Scope before pagination; another managed team's events cannot consume this page.
   for(let offset=0;offset<practiceIds.length;offset+=100){
     const ids=practiceIds.slice(offset,offset+100);
     const result=await readAllRows<any>(after=>{
-      const query=supabase.from(table).select("*").in("practice_id",ids).order("id").limit(500);
+      const query=supabase.from(table).select("*").in(parentColumn,ids).order("id").limit(500);
       return after?query.gt("id",after):query;
     });
     if(result.error)return result;
@@ -924,7 +924,10 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     organizationScoped
       ? supabase.from("exercises").select("*").eq("organization_id", foundation.organizationId)
       : Promise.resolve({ data: [], error: null }),
-    supabase.from("workout_sessions").select("*").eq("season_id", foundation.seasonId).order("session_date", { ascending: false }),
+    readAllRows<any>(after => {
+      const query = supabase.from("workout_sessions").select("*").eq("team_id", foundation.teamId).eq("season_id", foundation.seasonId).order("id").limit(500);
+      return after ? query.gt("id", after) : query;
+    }),
     supabase.from("weight_room_workouts").select("*").eq("team_id", foundation.teamId).eq("season_id", foundation.seasonId).order("workout_date", { ascending: false }),
     organizationScoped
       ? supabase
@@ -1034,7 +1037,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     readPracticeRows(supabase,"pitch_events",[...practiceIds]),
     readPracticeRows(supabase,"hitting_events",[...practiceIds]),
     readPracticeRows(supabase,"defense_events",[...practiceIds]),
-    supabase.from("workout_sets").select("*").order("created_at", { ascending: false }),
+    readPracticeRows(supabase, "workout_sets", workoutSessionRows.map((row: any) => row.id), "workout_session_id"),
     supabase.from("game_lineups").select("*"),
     supabase.from("game_pitch_events").select("*").order("created_at", { ascending: false }),
     supabase.from("plate_appearances").select("*"),
@@ -1805,6 +1808,7 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
       target_weight: station.targetWeight ?? null,
       target_value: station.targetValue ?? null,
       target_style: station.targetStyle ?? null,
+      test_conditions: station.testConditions ?? null,
       measurement_type: station.measurementType ?? null,
       performance_direction: station.performanceDirection ?? null,
       unit: station.unit ?? null,
@@ -1897,6 +1901,7 @@ async function syncActiveWeightRoomSetup(supabase: SupabaseClient, foundation: F
         target_weight: item.targetWeight ?? null,
         target_value: item.targetValue ?? null,
         target_style: item.targetStyle ?? null,
+        test_conditions: item.testConditions ?? null,
         measurement_type: item.measurementType ?? null,
         performance_direction: item.performanceDirection ?? null,
         unit: item.unit ?? null,
@@ -2945,6 +2950,7 @@ function mapWeightRoomExerciseDefinition(row: any): WeightRoomExerciseDefinition
 
 function mapWeightRoomWorkout(row: any): WeightRoomWorkout {
   return {
+    circuitRevision: row.circuit_revision ?? 0,
     id: row.id,
     organizationId: row.organization_id ?? undefined,
     teamId: row.team_id ?? undefined,
@@ -2964,6 +2970,7 @@ function mapWeightRoomWorkout(row: any): WeightRoomWorkout {
 
 function mapWeightRoomWorkoutStation(row: any): WeightRoomWorkoutStation {
   return {
+    testConditions: row.test_conditions ?? undefined,
     id: row.id,
     workoutId: row.workout_id,
     exerciseId: row.exercise_id ?? undefined,
@@ -3023,6 +3030,7 @@ function mapWeightRoomExercisePreset(row: any): WeightRoomExercisePreset {
 
 function mapWeightRoomExercisePresetItem(row: any): WeightRoomExercisePresetItem {
   return {
+    testConditions: row.test_conditions ?? undefined,
     id: row.id,
     presetId: row.preset_id,
     exerciseId: row.exercise_id ?? undefined,
@@ -3094,6 +3102,9 @@ function mapWorkoutSession(row: any): WorkoutSession {
 
 function mapWorkoutEntry(row: any, exercise?: any): WorkoutEntry {
   return {
+    testConditions: row.test_conditions ?? undefined,
+    testSide: row.test_side ?? undefined,
+    testAttempt: row.test_attempt ?? undefined,
     activeWorkoutId: row.active_workout_id ?? undefined,
     workoutStationId: row.workout_station_id ?? undefined,
     workoutGroupId: row.workout_group_id ?? undefined,

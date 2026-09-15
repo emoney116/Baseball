@@ -1,5 +1,7 @@
 "use client";
 import { PracticeRecap } from "./components/PracticeRecap";
+import { WorkoutTestingConsole } from "./components/WorkoutTestingConsole";
+import { BASELINE_TESTING_CIRCUIT } from "./lib/workoutTesting";
 import { buildPracticeReviewSummary } from "./lib/practiceReviewSummary";
 import { LiveBpConsole } from "./components/LiveBpConsole";
 import { practiceDirectionForPoint } from "./lib/sprayChart";
@@ -3344,6 +3346,7 @@ export default function MetrolinaBaseballApp() {
           id: existingItem?.id ?? createId("wepi"),
           presetId: preset.id,
           exerciseName: station.name,
+          testConditions: station.testConditions,
           displayOrder: index + 1,
           targetSets: station.targetSets,
           targetReps: station.targetReps,
@@ -12858,6 +12861,20 @@ function WeightRoomActiveWorkout({
     });
   }
 
+  function loadBaselineCircuit() {
+    const nextStations = BASELINE_TESTING_CIRCUIT.map(({ name, conditions }, index) => {
+      const aliases = name === "Bar Bench Press" ? ["barbenchpress", "benchpress", "barbellbenchpress"] : [name.toLowerCase().replace(/[^a-z0-9]/g, "")];
+      const existing = availableExercises.find((exercise) => aliases.includes(exercise.name.toLowerCase().replace(/[^a-z0-9]/g, "")));
+      const exercise = existing ?? makeWeightRoomExercise(name);
+      return { ...createActiveWorkoutStation(exercise, index), unit: conditions.mode === "MAX_DURATION" ? "sec" as const : "reps" as const, measurementType: conditions.mode === "MAX_DURATION" ? "TIME" as const : "REPS_ONLY" as const, targetStyle: conditions.mode === "MAX_DURATION" ? "Max Time" as const : "Max Reps" as const, targetSets: "bilateral" in conditions && conditions.bilateral ? 2 : 1, targetReps: undefined, targetValue: undefined, testConditions: conditions };
+    });
+    setCustomExercises((current) => [...current, ...nextStations.filter((station) => !availableExercises.some((exercise) => exercise.name.toLowerCase() === station.name.toLowerCase()))]);
+    setStations(nextStations);
+    setExercisePresets((current) => [...current.filter((preset) => preset.name !== "Baseline Testing Circuit"), { id: current.find((preset) => preset.name === "Baseline Testing Circuit")?.id ?? createId("wep"), name: "Baseline Testing Circuit", stations: nextStations }]);
+    setGroups((current) => current.map((group, index) => ({ ...group, stationIndex: index % nextStations.length })));
+    setSetupMessage("Baseline Testing Circuit loaded.");
+  }
+
   function addStations(exerciseNames = selectedExerciseNames) {
     const exercisesToAdd = exerciseNames
       .map((name) => availableExercises.find((item) => item.name === name))
@@ -13139,6 +13156,12 @@ function WeightRoomActiveWorkout({
         )}
       </div>
 
+      {setupOpen && !completed && <button type="button" disabled={entriesForDate.length > 0} onClick={loadBaselineCircuit}>Baseline Testing Circuit</button>}
+      {setupOpen && stations.filter((station) => station.testConditions).map((station) => <div key={station.id} className="field-row">
+        <strong>{station.name}</strong>
+        {station.testConditions?.mode !== "MAX_DURATION" && <label>Test seconds<input type="number" min={1} max={3600} disabled={entriesForDate.length > 0} value={station.testConditions?.durationSeconds ?? ""} onChange={(event) => setStations((current) => current.map((item) => item.id === station.id && item.testConditions ? { ...item, testConditions: { ...item.testConditions, durationSeconds: Number(event.target.value) } } : item))} /></label>}
+        {(station.testConditions?.configurableLoad || station.testConditions?.mode === "FIXED_LOAD_TIMED_REPS") && <label>Load (lb)<input type="number" min={0} max={2000} disabled={entriesForDate.length > 0} placeholder="Not configured" value={station.testConditions.loadLb ?? ""} onChange={(event) => setStations((current) => current.map((item) => item.id === station.id && item.testConditions ? { ...item, testConditions: { ...item.testConditions, loadLb: event.target.value === "" ? undefined : Number(event.target.value) } } : item))} /></label>}
+      </div>)}
       {activeTab === "Weigh-Ins" ? (
         <WeightRoomActiveWeighIns data={data} players={players} date={workoutDate} sessions={sessionsForDate} onSave={onSaveWeighIns} />
       ) : setupOpen ? (
@@ -13181,6 +13204,8 @@ function WeightRoomActiveWorkout({
           onAddPlayer={addPlayerToGroup}
           onRemovePlayer={removePlayerFromGroup}
         />
+      ) : activeWorkout && stations.some((station) => station.testConditions) ? (
+        <WorkoutTestingConsole key={activeWorkout.id} workoutId={activeWorkout.id} profileId={data.teamContext?.profile?.id ?? "local"} players={players} />
       ) : (
         <section className={`weight-room-active-workspace ${paused ? "is-paused" : ""}`}>
           {entryMode === "Groups" ? (
@@ -14965,6 +14990,7 @@ function activeStationFromPersistedStation(station: PersistedWeightRoomWorkoutSt
     ...baseExercise,
     id: station.id,
     name: station.exerciseName,
+    testConditions: station.testConditions,
     displayOrder: station.displayOrder,
     targetSets: station.targetSets,
     targetReps: station.targetReps,
@@ -20808,6 +20834,7 @@ function applyWeightRoomSetupToData(data: AppData, payload: WeightRoomSetupPaylo
       id: station.id,
       workoutId: payload.workoutId,
       exerciseName: station.name,
+      testConditions: station.testConditions,
       displayOrder: index + 1,
       targetSets: station.targetSets,
       targetReps: station.targetReps,
@@ -20871,6 +20898,7 @@ function applyWeightRoomSetupToData(data: AppData, payload: WeightRoomSetupPaylo
         id: existing?.id ?? createId("wepi"),
         presetId: preset.id,
         exerciseName: station.name,
+        testConditions: station.testConditions,
         displayOrder: index + 1,
         targetSets: station.targetSets,
         targetReps: station.targetReps,
