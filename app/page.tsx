@@ -112,6 +112,11 @@ import type {
   AskClubhouseVisualContext,
 } from "./lib/askClubhouse/types";
 import { APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
+import { VoiceEntry } from "./components/VoiceEntry";
+import type { VoiceContextCommand } from "./lib/voiceCommands";
+import type { BpRound } from "./lib/liveBp";
+import { initialBpSettings, initialBpState } from "./lib/liveBp";
+import type { VoiceIntent, VoiceContext } from "./lib/voiceIntent";
 import { playerSelectionLabel } from "./lib/exactRosterIdentity";
 import { applyGameAdjustment, applyRunnerAction, applyScoredPlay, applyTrackedPitch, moveRunnerToDestination, restoreGameSnapshot, snapshotGame, suggestedPlayMovements, validateScoredPlay } from "./lib/gameTracking";
 import {
@@ -1033,6 +1038,7 @@ type PitchingDraft = {
   outcome?: PitchOutcome;
 };
 type PitchLogOptions = {
+  requestId?: string;
   pitchType?: PitchType;
   velocity?: number;
   location?: ZonePoint;
@@ -2491,11 +2497,13 @@ export default function MetrolinaBaseballApp() {
     pitchLocationPoint?: ZonePoint,
     pitchVelocityMph?: number,
     exitVelocityOverride?: number,
+    requestId?: string,
   ) {
     if (!practice || !practicePlayer) return;
-    const exitVelocityMph = action === "Ball in play" ? exitVelocityOverride ?? parsePendingExitVelocity() : undefined;
+    const exitVelocityMph = action === "Ball in play" ? requestId ? exitVelocityOverride : exitVelocityOverride ?? parsePendingExitVelocity() : undefined;
     if (exitVelocityMph === null) return;
     commit((current) => {
+      if (requestId && current.hittingEvents.some(event => event.idempotencyKey === requestId)) return current;
       const profileId = current.teamContext?.profile?.id;
       const pitchMode = resolvePracticeHittingPitchMode(hittingStation, undefined, hittingPitchTrackingMode);
       const next = ensureHittingSession(current, practice, practicePlayer.id, hittingStation, profileId, "PLAYER", {
@@ -2511,7 +2519,7 @@ export default function MetrolinaBaseballApp() {
       const resolvedDirection = resolvedFieldLocation ? direction ?? deriveHitDirectionFromFieldLocation(resolvedFieldLocation, practicePlayer.bats) : undefined;
       const sessionPitchMode = resolvePracticeHittingPitchMode(hittingStation, session, hittingPitchTrackingMode);
       const resolvedPitchType = sessionPitchMode === "OFF" ? undefined : pitchType ?? resolvePracticeHittingPitchType(session, selectedPitchType);
-      const eventId = createId("he");
+      const eventId = requestId ?? createId("he");
       const createdAt = new Date().toISOString();
       const event: HittingEvent = {
         id: eventId,
@@ -2592,12 +2600,13 @@ export default function MetrolinaBaseballApp() {
   function logPitch(outcome: PitchOutcome, battedBall?: BattedBallType, options: PitchLogOptions = {}) {
     if (!practice || !practicePlayer) return;
     commit((current) => {
+      if (options.requestId && current.pitchEvents.some(event => event.idempotencyKey === options.requestId)) return current;
       const profileId = current.teamContext?.profile?.id;
       const next = ensurePitchingSession(current, practice, practicePlayer.id, pitchingStation, profileId);
       const session = next.session;
       const sessionEvents = next.data.pitchEvents.filter((event) => event.sessionId === session.id);
       const last = sessionEvents[0];
-      const resolvedLocation = options.location ?? pitchLocation;
+      const resolvedLocation = options.requestId ? options.location : options.location ?? pitchLocation;
       const resolvedTarget = options.targetLocation ?? targetLocation;
       const resolvedPitchType = options.pitchType ?? selectedPitchType;
       const isBip = outcome === "Ball in play";
@@ -2606,7 +2615,7 @@ export default function MetrolinaBaseballApp() {
       const isZone = isPitchLocationInZone(resolvedLocation);
       const countBefore = last?.countAfter ?? { balls: 0, strikes: 0 };
       const countAfter = nextCount(countBefore, outcome);
-      const eventId = createId("pe");
+      const eventId = options.requestId ?? createId("pe");
       const createdAt = new Date().toISOString();
       const event: PitchEvent = {
         id: eventId,
@@ -2625,7 +2634,7 @@ export default function MetrolinaBaseballApp() {
         isBallInPlay: isBip,
         battedBall: isBip ? battedBall : undefined,
         contactQuality: isBip ? (battedBall === "Line drive" ? "Hard contact" : "Medium contact") : undefined,
-        velocity: options.velocity ?? (velocity ? Number(velocity) : undefined),
+        velocity: options.requestId ? options.velocity : options.velocity ?? (velocity ? Number(velocity) : undefined),
         qualityRating: outcome === "Ball" ? 2 : outcome === "Whiff" || outcome === "Called Strike" ? 5 : 4,
         missedIntendedLocation: resolvedLocation && resolvedTarget ? distanceBetween(resolvedLocation, resolvedTarget) > 0.18 : undefined,
         intendedTarget: resolvedTarget,
@@ -2872,9 +2881,10 @@ export default function MetrolinaBaseballApp() {
     setLiveBpHitterId(next.id);
   }
 
-  function logDefense(draft: DefenseLogDraft) {
+  function logDefense(draft: DefenseLogDraft, requestId?: string) {
     if (!practice || !practicePlayer) return;
     commit((current) => {
+      if (requestId && current.defenseEvents.some(event => event.idempotencyKey === requestId)) return current;
       const profileId = current.teamContext?.profile?.id;
       const next = ensureDefenseSession(current, practice, practicePlayer.id, defenseStationForDrill(draft.drillContext), profileId, {
         drillContext: draft.drillContext,
@@ -2882,7 +2892,7 @@ export default function MetrolinaBaseballApp() {
       });
       const session = next.session;
       const eventNumber = next.data.defenseEvents.filter((event) => event.sessionId === session.id).length + 1;
-      const eventId = createId("de");
+      const eventId = requestId ?? createId("de");
       const createdAt = new Date().toISOString();
       const event: DefenseEvent = {
         id: eventId,
@@ -8376,6 +8386,7 @@ function PracticeConsole({
     pitchLocationPoint?: ZonePoint,
     pitchVelocityMph?: number,
     exitVelocityMph?: number,
+    requestId?: string,
   ) => void;
   onUpdateHittingEvent: (eventId: ID, update: {
     action: HittingEvent["action"];
@@ -8405,7 +8416,7 @@ function PracticeConsole({
   createLiveBpPlayer: (onCreated: (player: Player) => void, onClose: () => void) => React.ReactNode;
   onCompleteLiveBpPa: (outcome: LiveBpOutcomeLabel) => void;
   onNextLiveBpHitter: () => void;
-  onLogDefense: (draft: DefenseLogDraft) => void;
+  onLogDefense: (draft: DefenseLogDraft, requestId?: string) => void;
   onUpdateDefenseEvent: (eventId: ID, draft: DefenseLogDraft) => void;
   onUndo: () => void;
   onOpenSessionNotes: () => void;
@@ -9119,6 +9130,99 @@ function PracticeConsole({
     saveLiveBpPitch("Ball in play", liveBpBattedBall ?? "Line drive");
   }
 
+  const voiceRequests = useRef(new Set<string>());
+  function voiceHittingOption(intent: VoiceIntent) {
+    const d=intent.draft;
+    return HITTING_RESULT_ACTIONS.find(option=>d.outcome==="Whiff"?option.action==="Miss":d.outcome==="Foul"?option.action==="Foul":option.label.toLowerCase()===d.battedBall?.toLowerCase());
+  }
+  function voiceDefenseDraft(intent: VoiceIntent): DefenseLogDraft {
+    const d=intent.draft;
+    return normalizeDefenseDraft(createDefenseLogDraft(player,defenseDrill,(d.position as Position|undefined)??defensePosition,{repType:({"Ground ball":"Ground Ball","Hard ground ball":"Ground Ball","Line drive":"Line Drive","Fly ball":"Fly Ball","Pop up":"Fly Ball","Bunt":"Bunt"} as Record<string,DefenseRepType>)[d.battedBall??""]??"Other",result:d.defenseResult as DefenseOutcome,throwResult:d.errorType==="Throwing"?"Inaccurate":d.throwResult as DefenseThrowResult|undefined,location:d.spray}),trackDefenseLocation,trackDefenseDifficulty);
+  }
+  async function saveVoicePractice(intent: VoiceIntent) {
+    if(!practice||practice.endedAt||intent.unresolvedFields.length||intent.playerId!==player.id)return false;
+    if(voiceRequests.current.has(intent.requestId))return true;
+    const d=intent.draft;
+    if(mode==="Hitting"){
+      const option=voiceHittingOption(intent);if(!option)return false;
+      onLogHitting(option.action,option.contactResult,option.contactQuality,d.spray?deriveHitDirectionFromFieldLocation(d.spray,player.bats):undefined,d.spray,d.pitchType,trackHittingPitchLocation?d.location:undefined,trackHittingPitchVelocity?d.velocity:undefined,trackExitVelocity?d.ev:undefined,intent.requestId);
+      showHittingSavedNotice();
+    }else if(mode==="Pitching"){
+      if(trackPitchLocation&&!d.location)return false;
+      onLogPitch(d.outcome as PitchOutcome,d.battedBall as BattedBallType|undefined,{requestId:intent.requestId,pitchType:pitchingPitchTrackingMode==="OFF"?"Other":d.pitchType??selectedPitchType,velocity:trackPitchVelocity?d.velocity:undefined,location:trackPitchLocation?d.location:undefined,targetLocation});
+      showPitchingSavedNotice();
+    }else if(mode==="Defense"){
+      if(!d.defenseResult)return false;
+      onLogDefense(voiceDefenseDraft(intent),intent.requestId);showDefenseSavedNotice();
+    }else return false;
+    voiceRequests.current.add(intent.requestId);
+    return true;
+  }
+  function editVoicePractice(intent: VoiceIntent) {
+    if(intent.playerId && intent.playerId !== player.id) onSelectPlayer(intent.playerId);
+    const d=intent.draft;
+    if(mode==="Hitting"){
+      setEditingHittingEventId(undefined);setHittingDraft(voiceHittingOption(intent)??null);setHittingSheetFieldLocation(d.spray);setHittingSheetPitchLocation(d.location);
+      onExitVelocity(d.ev===undefined?"":String(d.ev));onVelocity(d.velocity===undefined?"":String(d.velocity));if(d.pitchType)onPitchType(d.pitchType);
+      setHittingSheetStep(hittingHasSetupStep()?"setup":"result");setHittingSheetOpen(true);
+    }else if(mode==="Pitching"){
+      setEditingPitchEventId(undefined);setPitchingDraft({pitchType:d.pitchType??selectedPitchType,velocity:d.velocity===undefined?"":String(d.velocity),location:d.location,outcome:d.outcome as PitchOutcome});setPitchingSheetOpen(true);
+    }else if(mode==="Defense"){
+      setEditingDefenseEventId(undefined);setDefenseDraft(voiceDefenseDraft(intent));setDefenseSheetOpen(true);
+    }
+  }
+  const [sharedVoiceRound,setSharedVoiceRound]=useState<BpRound|null>(null);
+  const selectVoicePlayer=useRef(onSelectPlayer);
+  useEffect(()=>{selectVoicePlayer.current=onSelectPlayer;},[onSelectPlayer]);
+  useEffect(()=>{
+    if(!practice?.id || practice.endedAt || mode==="Live BP")return;
+    const controller=new AbortController();
+    void fetch(`/api/live-bp?practiceId=${encodeURIComponent(practice.id)}`,{cache:"no-store",signal:controller.signal}).then(async response=>{
+      if(!response.ok)return;
+      const data=await response.json();
+      if(controller.signal.aborted)return;
+      const current=data.rounds.find((r:BpRound)=>!r.ended_at) as BpRound|undefined;
+      setSharedVoiceRound(current??null);
+      const id=mode==="Pitching"?current?.settings.pitcherId:current?.settings.hitterId;
+      if(id)selectVoicePlayer.current(id);
+    }).catch(()=>{});
+    return()=>controller.abort();
+  },[practice?.id,practice?.endedAt,mode]);
+  const practiceVoiceContext: VoiceContext = {
+    domain: mode === "Hitting" ? "hitting" : mode === "Pitching" ? "pitching" : "defense",
+    playerId: player.id,
+    bats: player.bats,
+    roster: players.map(p => ({ id: p.id, aliases: [p.name, ...p.name.split(" ").filter(Boolean), ...(p.jerseyNumber === undefined ? [] : [String(p.jerseyNumber)])] })),
+    state: initialBpState(),
+    defenseRepType: mode === "Defense" && defenseDrillOption(defenseDrill).repTypeLocked ? defenseDrillOption(defenseDrill).defaultRepType : undefined,
+    settings: {
+      ...initialBpSettings(player.id),
+      ...(sharedVoiceRound && sharedVoiceRound.practice_id===practice?.id?sharedVoiceRound.settings:{}),
+      pitchMode: mode === "Hitting" ? effectiveHittingPitchMode : mode === "Pitching" ? pitchingPitchTrackingMode : "OFF",
+      pitchType: mode === "Hitting" ? effectiveHittingPitchType : selectedPitchType,
+      velocity: mode === "Hitting" ? trackHittingPitchVelocity : mode === "Pitching" && trackPitchVelocity,
+      location: mode === "Hitting" ? trackHittingPitchLocation : mode === "Pitching" && trackPitchLocation,
+      ev: mode === "Hitting" && trackExitVelocity,
+      spray: mode === "Defense" ? trackDefenseLocation : mode === "Hitting" && trackSprayChart,
+    },
+  };
+  async function savePracticeVoiceCommand(command: VoiceContextCommand, _requestId: string, event?: VoiceIntent) {
+    if(!practice || practice.endedAt || event || command.problems.length)return false;
+    const url=`/api/live-bp?practiceId=${encodeURIComponent(practice.id)}`;
+    const read=await fetch(url,{cache:"no-store"});
+    const data=await read.json();
+    if(!read.ok)return false;
+    const current=data.rounds.find((r: BpRound)=>!r.ended_at) as BpRound|undefined;
+    const response=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:current?"configure":"start",roundId:current?.id??crypto.randomUUID(),version:current?.version??0,settings:{...(current?.settings??initialBpSettings(player.id)),...command.patch},state:current?.state??initialBpState()})});
+    if(!response.ok)return false;
+    const result=await response.json();
+    setSharedVoiceRound(result.round);
+    const selected=mode==="Pitching"?command.patch.pitcherId:command.patch.hitterId;
+    if(selected)onSelectPlayer(selected);
+    return true;
+  }
+  const practiceVoice=practice&&mode!=="Live BP"?<VoiceEntry practiceId={practice.id} context={practiceVoiceContext} disabled={Boolean(practice.endedAt)} onSave={saveVoicePractice} onCommand={savePracticeVoiceCommand} onEdit={editVoicePractice} onUndo={onUndo}/>:null;
+
   const sessionStarted = currentSession?.startedAt ? formatTime(currentSession.startedAt) : practice ? formatTime(practice.startedAt) : "--";
 
   return (
@@ -9251,6 +9355,7 @@ function PracticeConsole({
                 ))}
               </div>
 
+              {practiceVoice}
               <div className="practice-hitting-entry-bar">
                 <button className="primary-button practice-hitting-log-trigger" type="button" onClick={openHittingSheet}>
                   <Plus size={18} aria-hidden="true" />
@@ -9751,6 +9856,7 @@ function PracticeConsole({
                 ))}
               </div>
 
+              {practiceVoice}
               <div className="practice-hitting-entry-bar practice-pitching-entry-bar">
                 <button className="primary-button practice-hitting-log-trigger" type="button" onClick={() => openPitchingSheet()}>
                   <Plus size={18} aria-hidden="true" />
@@ -10278,6 +10384,7 @@ function PracticeConsole({
                 ))}
               </div>
 
+              {practiceVoice}
               <div className="practice-hitting-entry-bar practice-defense-entry-bar">
                 <button className="primary-button practice-hitting-log-trigger" type="button" onClick={() => openDefenseSheet()}>
                   <Plus size={18} aria-hidden="true" />

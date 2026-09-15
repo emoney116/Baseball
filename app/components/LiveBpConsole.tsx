@@ -30,7 +30,10 @@ import { VelocityPickerField } from "./TeamTrainingViews";
 import { ChoiceSelect } from "./ChoiceSelect";
 import { ClubhouseBaseballField } from "./ClubhouseBaseballField";
 import { DensePlayerIdentity } from "./DensePlayerIdentity";
-import { densePlayerIdentityLabel, formatDensePlayerIdentity } from "../lib/densePlayerIdentity";
+import {
+  densePlayerIdentityLabel,
+  formatDensePlayerIdentity,
+} from "../lib/densePlayerIdentity";
 import { CLUBHOUSE_FIELD_POSITION_COORDINATES } from "../lib/baseballFieldLayout";
 import { LiveBpSetup } from "./LiveBpSetup";
 import { LiveBpDefensePresets } from "./LiveBpDefensePresets";
@@ -41,6 +44,7 @@ import { LiveBpCorrections } from "./LiveBpCorrections";
 import { LiveBpFieldRunners } from "./LiveBpFieldRunners";
 import type { BpRunnerMove } from "../lib/liveBpRunnerMove";
 import styles from "./LiveBpConsole.module.css";
+import { VoiceEntry } from "./VoiceEntry";
 
 export function LiveBpConsole({
   practiceId,
@@ -145,6 +149,7 @@ export function LiveBpConsole({
   } | null>(null);
   const [fieldRetry, setFieldRetry] = useState(false);
   const [undoOpen, setUndoOpen] = useState(false);
+  const [voiceCorrection, setVoiceCorrection] = useState<BpState | null>(null);
   const onSavedRef = useRef(onSaved);
   useEffect(() => {
     onSavedRef.current = onSaved;
@@ -216,6 +221,25 @@ export function LiveBpConsole({
     value: p.id,
     label: densePlayerIdentityLabel(p),
   }));
+  useEffect(() => {
+    if(!round || busy || uncertain || draft.outcome || JSON.stringify(round.settings)!==JSON.stringify(settings) || JSON.stringify(round.state)!==JSON.stringify(state))return;
+    const controller=new AbortController();
+    const refresh=async()=>{
+      if(document.visibilityState!=="visible")return;
+      try{
+        const response=await fetch(url,{cache:"no-store",signal:controller.signal});
+        const data=await response.json();
+        const latest=data.rounds?.find((r:BpRound)=>r.id===round.id);
+        if(response.ok && latest && latest.version!==round.version && !controller.signal.aborted){
+          adopt(latest);
+          setNotice("Practice context updated by another coach.");
+        }
+      }catch{/* Keep manual entry available during a connection interruption. */}
+    };
+    const timer=setInterval(()=>void refresh(),5000);
+    window.addEventListener("focus",refresh);
+    return()=>{controller.abort();clearInterval(timer);window.removeEventListener("focus",refresh);};
+  },[url,round,settings,state,busy,uncertain,draft.outcome]);
   const hitters = players.filter(
     (p) => settings.source !== "PLAYER" || p.id !== settings.pitcherId,
   );
@@ -232,6 +256,8 @@ export function LiveBpConsole({
     operation: "start" | "configure" | "pitch" | "end",
     nextSettings = settings,
     nextState = state,
+    voiceDraft?: BpDraft,
+    voiceRequestId?: string,
   ) {
     if (lock.current) return;
     lock.current = true;
@@ -239,17 +265,29 @@ export function LiveBpConsole({
     setError("");
     setNotice("");
     try {
+      if (
+        voiceRequestId &&
+        pending.current &&
+        pending.current.id !== voiceRequestId
+      ) {
+        throw new Error(
+          "Confirm the pending pitch before recording another event.",
+        );
+      }
       if (operation === "pitch" && !pending.current) {
-        buildBpPitch(settings, state, draft);
-        pending.current = { id: crypto.randomUUID(), draft: { ...draft } };
+        buildBpPitch(nextSettings, nextState, voiceDraft ?? draft);
+        pending.current = {
+          id: voiceRequestId ?? crypto.randomUUID(),
+          draft: { ...(voiceDraft ?? draft) },
+        };
       }
       startId.current ??= crypto.randomUUID();
       let savedRound = round;
       if (
         operation === "pitch" &&
         (!savedRound ||
-          JSON.stringify(savedRound.settings) !== JSON.stringify(settings) ||
-          JSON.stringify(savedRound.state) !== JSON.stringify(state))
+          JSON.stringify(savedRound.settings) !== JSON.stringify(nextSettings) ||
+          JSON.stringify(savedRound.state) !== JSON.stringify(nextState))
       ) {
         const setup = await fetch(url, {
           method: "POST",
@@ -259,8 +297,8 @@ export function LiveBpConsole({
             operation: savedRound ? "configure" : "start",
             roundId: savedRound?.id ?? startId.current,
             version: savedRound?.version ?? 0,
-            settings,
-            state,
+            settings: nextSettings,
+            state: nextState,
           }),
         });
         const result = await setup.json();
@@ -519,8 +557,8 @@ export function LiveBpConsole({
       (bip && (!contactFinished || (!playResolution && needsPlayResolution)));
     const canFinish = Boolean(
       draft.outcome &&
-      (draft.outcome !== "Ball in play" ||
-        (bip && (settings.mode !== "GAME" || draft.result))),
+        (draft.outcome !== "Ball in play" ||
+          (bip && (settings.mode !== "GAME" || draft.result))),
     );
     const stepIndex = steps.findIndex((step) => step.id === wizardStep);
     return sheet(
@@ -665,6 +703,55 @@ export function LiveBpConsole({
     .filter(Boolean)
     .join(" · ");
 
+  const voiceEntry = (
+    <VoiceEntry
+      practiceId={practiceId}
+      disabled={
+        !active || busy || uncertain || loading || Boolean(round?.ended_at)
+      }
+      context={{
+        domain: "live-bp",
+        settings,
+        state,
+        playerId: settings.hitterId,
+        bats: players.find((p) => p.id === settings.hitterId)?.bats,
+        roster: players.map((p) => ({
+          id: p.id,
+          aliases: [p.name, ...p.name.split(" ").filter(Boolean), ...(p.jerseyNumber === undefined ? [] : [String(p.jerseyNumber)])],
+        })),
+      }}
+      onSave={async (intent) => {
+        if (
+          intent.unresolvedFields.length ||
+          intent.playerId !== settings.hitterId
+        )
+          return false;
+        if (intent.correction)
+          return Boolean(
+            await write("configure", settings, {
+              ...state,
+              ...intent.correction,
+            }),
+          );
+        return Boolean(
+          await write("pitch", settings, state, intent.draft, intent.requestId),
+        );
+      }}
+      onCommand={async (command, requestId, event) => {
+        if(command.problems.length)return false;
+        const next={...settings,...command.patch};
+        return Boolean(await write(event?"pitch":round?"configure":"start",next,state,event?.draft,event?requestId:undefined));
+      }}
+      onEdit={(intent) => {
+        if(intent.correction){setVoiceCorrection({...state,...intent.correction});return;}
+        if(intent.playerId && intent.playerId !== settings.hitterId) update("hitterId", intent.playerId);
+        setDraft(intent.draft);
+        setStage(needsPitchDetails ? "details" : "result");
+      }}
+      onUndo={() => setUndoOpen(true)}
+    />
+  );
+
   return (
     <section className={styles.console} aria-label="Live BP console">
       {loading ? (
@@ -782,6 +869,8 @@ export function LiveBpConsole({
                   <Undo2 size={18} />
                 </button>
                 <LiveBpCorrections
+                  editState={voiceCorrection}
+                  onEditStateClose={()=>setVoiceCorrection(null)}
                   players={players}
                   state={state}
                   trackedCount={trackedCount}
@@ -985,6 +1074,7 @@ export function LiveBpConsole({
                   <Plus size={20} />
                   {uncertain ? "Retry Pitch" : "Log Pitch"}
                 </button>
+                {voiceEntry}
                 <div
                   className="practice-hitting-inline-pitch"
                   aria-label="Live BP quick charts"
@@ -1196,20 +1286,41 @@ export function LiveBpConsole({
               </p>
             </footer>
           )}
-          {undoOpen && sheet(
-            "Undo last pitch?",
-            () => { if (!busy) setUndoOpen(false); },
-            <>
-              <p>Remove the last pitch and its linked stats? Count, outs, and runners will return to before that pitch, including later runner moves or corrections. The current matchup stays selected.</p>
-              <div className="modal-actions">
-                <button type="button" disabled={busy} onClick={() => setUndoOpen(false)}>Cancel</button>
-                <button type="button" className="primary-button" disabled={busy || fieldRetry} onClick={() => {
-                  setUndoOpen(false);
-                  void fieldAction("undo");
-                }}><Undo2 size={16} /> Undo Pitch</button>
-              </div>
-            </>,
-          )}
+          {undoOpen &&
+            sheet(
+              "Undo last pitch?",
+              () => {
+                if (!busy) setUndoOpen(false);
+              },
+              <>
+                <p>
+                  Remove the last pitch and its linked stats? Count, outs, and
+                  runners will return to before that pitch, including later
+                  runner moves or corrections. The current matchup stays
+                  selected.
+                </p>
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setUndoOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="primary-button"
+                    disabled={busy || fieldRetry}
+                    onClick={() => {
+                      setUndoOpen(false);
+                      void fieldAction("undo");
+                    }}
+                  >
+                    <Undo2 size={16} /> Undo Pitch
+                  </button>
+                </div>
+              </>,
+            )}
           {chartsOpen &&
             sheet(
               "Live BP Analytics",

@@ -47,3 +47,4 @@ yarn-error.log*
 
 # local Supabase CLI state
 /supabase/.temp/
+/public/voice-assets/
