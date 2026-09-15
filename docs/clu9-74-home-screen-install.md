@@ -28,6 +28,8 @@ Physical installed-app cookie/session behavior must be tested independently: Saf
 
 ## Validation
 
+- Preview Ready at https://baseball-git-codex-clubhouse-pwa-install-emoney116s-projects.vercel.app (implementation 2629e4f). Hosted manifest, all three icons and version endpoint return 200; version matches the candidate SHA and is no-store.
+- Owner signed into Preview as Eric. Browser reload restored authenticated global Home. Entered Varsity, switched to exact Fall Ball/Fall 2026 context, and returned to global Home without reauthentication. Global Apple title/icon remained Clubhouse 9 throughout. Read-only navigation only, no team data changes. This verifies browser auth, not installed-device storage.
 - Production build and 923 tests pass (913 main baseline + 10 PWA tests).
 - TypeScript passes; lint 0 errors / 26 existing warnings; diff check passes.
 - Built resource HTTP checks: manifest, Apple 180, 192, 512 and version route all 200 with correct content types. Manifest max-age=0/must-revalidate; version no-store.
