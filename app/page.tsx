@@ -12917,7 +12917,6 @@ function WeightRoomActiveWorkout({
   const [autoCreateOpen, setAutoCreateOpen] = useState(false);
   const [autoGroupCount, setAutoGroupCount] = useState(Math.min(4, Math.max(1, Math.ceil(Math.max(1, players.length) / 6))));
   const [autoAssignment, setAutoAssignment] = useState<"Balanced" | "Random">("Balanced");
-  const [individualPlayerId, setIndividualPlayerId] = useState(players[0]?.id ?? "");
   const [individualExercise, setIndividualExercise] = useState("");
   const [editingCompleted, setEditingCompleted] = useState(false);
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
@@ -12939,7 +12938,6 @@ function WeightRoomActiveWorkout({
   const weighInCount = sessionsForDate.filter((session) => typeof session.bodyWeight === "number").length;
   const workoutVolume = uniqueEntriesForDate.reduce((sum, entry) => sum + workoutEntryVolume(entry), 0);
   const recentActivity = uniqueEntriesForDate.slice().sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-  const resolvedIndividualPlayerId = players.some((player) => player.id === individualPlayerId) ? individualPlayerId : players[0]?.id ?? "";
   const resolvedIndividualExercise = stations.some((station) => station.name === individualExercise) ? individualExercise : stations[0]?.name ?? "";
   const availableExercises = [...exercises, ...customExercises].filter((exercise, index, all) =>
     all.findIndex((item) => item.name.toLowerCase() === exercise.name.toLowerCase()) === index
@@ -13420,11 +13418,9 @@ function WeightRoomActiveWorkout({
               stations={stations}
               entries={entriesForDate}
               workoutDate={workoutDate}
-              playerId={resolvedIndividualPlayerId}
               exerciseName={resolvedIndividualExercise}
               disabled={paused}
               onOpenExercisePicker={() => setSetupOpen(true)}
-              onPlayer={setIndividualPlayerId}
               onExercise={setIndividualExercise}
               onSaveCell={saveCell}
             />
@@ -14567,10 +14563,8 @@ function WeightRoomIndividualWorkout({
   stations,
   entries,
   workoutDate,
-  playerId,
   exerciseName,
   disabled,
-  onPlayer,
   onExercise,
   onOpenExercisePicker,
   onSaveCell,
@@ -14580,29 +14574,18 @@ function WeightRoomIndividualWorkout({
   stations: ActiveWorkoutStation[];
   entries: WorkoutEntry[];
   workoutDate: string;
-  playerId: ID;
   exerciseName: string;
   disabled: boolean;
-  onPlayer: (playerId: ID) => void;
   onExercise: (exercise: string) => void;
   onOpenExercisePicker: () => void;
   onSaveCell: (cell: ActiveWorkoutCell, draft: { weight?: number; reps?: number; value?: number; rpe?: number; unit?: WorkoutEntry["unit"]; status?: WorkoutEntry["status"] }) => void;
 }) {
-  const player = players.find((item) => item.id === playerId) ?? players[0];
   const station = stations.find((item) => item.name === exerciseName) ?? stations[0];
   const targetSets = station?.targetSets ?? 1;
   const attemptLabel = station ? stationAttemptLabel(station) === "Attempts" ? "Attempt" : "Set" : "Set";
   return (
     <section className="panel weight-room-individual-mode">
-      <div className="weight-room-individual-selectors">
-        <ChoiceSelect
-          value={player?.id ?? ""}
-          className="form-choice"
-          options={players.map((item) => ({ value: item.id, label: item.name, description: [item.identityLabel, `#${item.jerseyNumber} - ${item.primaryPosition}`].filter(Boolean).join(" - ") }))}
-          onChange={onPlayer}
-          showSelectedDescription={false}
-          aria-label="Workout athlete"
-        />
+      <div className="weight-room-individual-selectors weight-room-box-score-selectors">
         <ChoiceSelect
           value={station?.name ?? ""}
           className="form-choice"
@@ -14616,24 +14599,20 @@ function WeightRoomIndividualWorkout({
           Edit Setup
         </button>
       </div>
-      <ScrollablePanel className="weight-room-individual-strip-panel" bodyClassName="weight-room-individual-strip" ariaLabel="workout athlete selector" direction="horizontal">
-        {players.map((item) => (
-          <button key={item.id} type="button" className={item.id === player?.id ? "active" : ""} onClick={() => onPlayer(item.id)}>
-            <PlayerAvatar player={item} size="sm" compact />
-            <span>{item.name.split(" ").slice(-1)[0]}</span>
-          </button>
-        ))}
-      </ScrollablePanel>
-      {player && station && (
-        <div className="weight-room-individual-set-list">
-          <span>Previous: {previousWorkoutEntry(data, player.id, station.name, workoutDate) ? formatWorkoutEntryValueForStation(previousWorkoutEntry(data, player.id, station.name, workoutDate)!, station) : "--"}</span>
-          {Array.from({ length: targetSets }, (_, index) => {
+      {station && (
+        <div className="weight-room-individual-box-score" role="table" aria-label={`${station.name} athlete results`} style={{ ["--active-set-count" as string]: targetSets }}>
+          <div role="row">
+            <span role="columnheader">Athlete</span>
+            {Array.from({ length: targetSets }, (_, index) => <span role="columnheader" key={index}>{attemptLabel} {index + 1}</span>)}
+          </div>
+          {players.map(player => <div role="row" key={player.id}>
+            <span role="cell" className="weight-room-box-score-athlete"><strong>{player.name}</strong></span>
+            {Array.from({ length: targetSets }, (_, index) => {
             const setNumber = index + 1;
             const entry = workoutEntryForCell(entries, player.id, station.name, setNumber);
             const previousEntry = previousWorkoutEntry(data, player.id, station.name, workoutDate);
             return (
-              <div key={`${station.id}-${setNumber}-${entry?.id ?? "empty"}-${entry?.weight ?? ""}-${entry?.reps ?? ""}-${entry?.value ?? ""}`} className="weight-room-individual-set-row">
-                <strong>{attemptLabel} {setNumber}</strong>
+              <div role="cell" aria-label={`${player.name}, ${attemptLabel} ${setNumber}`} key={`${station.id}-${setNumber}`}>
                 <WeightRoomInlineSetCell
                   key={`${player.id}-${station.id}-${station.measurementType}-${setNumber}-${entry?.id ?? "empty"}-${entry?.weight ?? ""}-${entry?.reps ?? ""}-${entry?.value ?? ""}`}
                   cell={{ playerId: player.id, exercise: station.name, setNumber }}
@@ -14645,7 +14624,8 @@ function WeightRoomIndividualWorkout({
                 />
               </div>
             );
-          })}
+            })}
+          </div>)}
         </div>
       )}
     </section>

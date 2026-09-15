@@ -26846,6 +26846,54 @@ button.weight-room-athlete-table__row:hover {
   gap: 10px;
 }
 
+.weight-room-individual-selectors.weight-room-box-score-selectors {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.weight-room-individual-box-score {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  isolation: isolate;
+  scrollbar-width: none;
+}
+
+.weight-room-individual-box-score > [role="row"] {
+  display: grid;
+  grid-template-columns: 136px repeat(var(--active-set-count, 1), minmax(160px, 1fr));
+  width: max(100%, calc(136px + var(--active-set-count, 1) * 160px));
+  border-bottom: 1px solid var(--line);
+  align-items: stretch;
+}
+
+.weight-room-individual-box-score [role="cell"],
+.weight-room-individual-box-score [role="columnheader"] {
+  min-width: 0;
+  padding: 10px 8px;
+}
+
+.weight-room-individual-box-score [role="columnheader"] {
+  color: var(--muted-strong);
+  font-size: var(--text-table-header);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.weight-room-individual-box-score [role="row"] > :first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+}
+
+.weight-room-box-score-athlete {
+  display: flex;
+  align-items: center;
+  overflow-wrap: anywhere;
+  font-size: var(--text-table-row);
+}
+
 .weight-room-individual-strip {
   display: flex;
   align-items: center;
