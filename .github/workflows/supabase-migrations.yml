@@ -65,7 +65,7 @@ jobs:
           set -o pipefail
           supabase db push --linked --include-all --dry-run --password "$SUPABASE_DB_PASSWORD" 2>&1 | tee /tmp/clubhouse-migration-plan.txt
           pending=$(grep -oE '[0-9]{14}_[A-Za-z0-9_]+\.sql' /tmp/clubhouse-migration-plan.txt | sort -u || true)
-          if [ -n "$pending" ] && [ "$pending" != "20260915032826_weight_room_testing_circuit.sql" ]; then
+          if [ -n "$pending" ] && [ "$pending" != "20260915130000_workout_test_corrections.sql" ]; then
             echo "::error::Unexpected pending migration. Review and authorize the migration plan before applying."
             exit 1
           fi
