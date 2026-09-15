@@ -8,6 +8,7 @@ import { PublicLocalityFields } from "./components/PublicLocalityFields";
 import { LocationDefaultSettings } from "./components/LocationDefaultSettings";
 import { GlobalTeamCard } from "./components/GlobalTeamCard";
 import { globalCreationCapabilities, globalHomeActivity, homeTeamGroups, type HomeActivity } from "./lib/globalHome";
+import { PwaHomeNotice } from "./components/PwaHomeNotice";
 import { recentHomeScores, type HomeScore } from "./lib/homeScores";
 import { PracticeResultChoices } from "./components/PracticeResultChoices";
 import { displayWorkspaceTeams, OrganizationLogo, organizationSummariesFromContext, OrganizationSummary, roleLabel, teamContextRole, teamOrganizationLogo, teamValue, TeamWorkspaceHeader } from "./components/TeamContextHeader";
@@ -4042,6 +4043,7 @@ export default function MetrolinaBaseballApp() {
         {view === "home" && (
             <ClubhouseHome
               data={data}
+              canRefresh={saveStatus !== "saving" && saveStatus !== "error" && !practiceTrackingOpen}
               onEnterTeam={enterTeam}
               onOpenPublicTeam={openPublicTeam}
               onOpenManagedOrganization={openManagedOrganization}
@@ -5632,10 +5634,11 @@ function PinnedTeamShortcuts({
 }
 
 function ClubhouseHome({
-  data, onEnterTeam, onOpenPublicTeam,
+  data, canRefresh, onEnterTeam, onOpenPublicTeam,
   onTogglePublicTeamFollow, onToggleTeamPin, onView, onAsk, onOpenActivity,
 }: {
   data: AppData;
+  canRefresh: boolean;
   onEnterTeam: (team: TeamOption) => void | Promise<void>;
   onOpenPublicTeam: (team: PublicDirectoryTeamSummary) => void;
   onOpenManagedOrganization: (organization: OrganizationSummary) => void;
@@ -5672,6 +5675,7 @@ function ClubhouseHome({
   return (
     <div className="page-stack global-home">
       <AskClubhouseFab onClick={onAsk} />
+      <PwaHomeNotice canRefresh={canRefresh} />
         <section className="global-section global-home-welcome">
           <h2>{data.teamContext?.profile?.firstName ? `Welcome back, ${data.teamContext.profile.firstName}` : "Welcome back"}</h2>
           <h3>Up Next</h3>

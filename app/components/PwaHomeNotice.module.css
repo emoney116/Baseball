@@ -1,0 +1,10 @@
+.notice { display: flex; align-items: start; gap: 12px; padding: 16px 0; border-block: 1px solid var(--line-strong); color: var(--text); min-width: 0; }
+.notice > div { flex: 1; min-width: 0; }
+.notice strong { font-size: 15px; }
+.notice p { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: var(--muted-strong); overflow-wrap: anywhere; }
+.notice button { display: grid; place-items: center; flex: 0 0 44px; width: 44px; min-height: 44px; padding: 0; background: var(--panel-soft); color: var(--text); border: 1px solid var(--line-strong); border-radius: 8px; }
+.notice button:focus-visible { outline: 2px solid var(--brand-ink); outline-offset: 3px; }
+.steps { display: flex; gap: 8px; align-items: center; }
+.steps svg { flex-shrink: 0; }
+.notice .refresh, .confirm button { display: inline-flex; gap: 8px; width: auto; padding: 8px 12px; margin: 8px 8px 0 0; align-items: center; }
+.notice button:disabled { opacity: .55; cursor: not-allowed; }

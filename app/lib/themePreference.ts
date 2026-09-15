@@ -74,6 +74,7 @@ export function applyDocumentTheme(theme: ThemePreference) {
   if (typeof document === "undefined") return;
   document.documentElement.dataset.theme = theme;
   document.documentElement.style.colorScheme = theme;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#ffffff" : "#111111");
 }
 
 export const THEME_BOOTSTRAP_SCRIPT = `
@@ -91,6 +92,7 @@ export const THEME_BOOTSTRAP_SCRIPT = `
     }
     if (isTheme(theme)) document.documentElement.dataset.theme = theme;
     if (isTheme(theme)) document.documentElement.style.colorScheme = theme;
+    if (isTheme(theme)) document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme === "light" ? "#ffffff" : "#111111");
   } catch {}
 })();
 `;

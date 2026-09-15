@@ -1,25 +1,29 @@
 import type { MetadataRoute } from "next";
-import { APP_DESCRIPTION, APP_NAME, APP_SHORT_NAME } from "./lib/branding";
+import { APP_DESCRIPTION, APP_NAME, APP_SHORT_NAME, BRAND_ASSETS } from "./lib/branding";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: APP_NAME,
     short_name: APP_SHORT_NAME,
     description: APP_DESCRIPTION,
-    start_url: "/",
+    id: "/",
+    start_url: "/?view=home",
+    scope: "/",
     display: "standalone",
-    background_color: "#0b0d0f",
-    theme_color: "#a70e1a",
+    background_color: "#111111",
+    theme_color: "#111111",
     icons: [
       {
-        src: "/brand/clubhouse9-icon-192.png",
+        src: BRAND_ASSETS.icon,
         sizes: "192x192",
         type: "image/png",
+        purpose: "any",
       },
       {
-        src: "/brand/clubhouse9-icon-512.png",
+        src: BRAND_ASSETS.icon512,
         sizes: "512x512",
         type: "image/png",
+        purpose: "any",
       },
     ],
   };

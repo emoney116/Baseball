@@ -11,6 +11,7 @@ import "./game-session.css";
 import "./player-access.css";
 import "./ask-clubhouse.css";
 import "./select-system.css";
+import "./pwa.css";
 
 const geist = Geist({
   subsets: ["latin"],
@@ -22,6 +23,8 @@ export const metadata: Metadata = {
   metadataBase: new URL(productionSiteUrl()),
   title: APP_NAME,
   applicationName: APP_NAME,
+  manifest: "/manifest.webmanifest",
+  other: { "mobile-web-app-capable": "yes" },
   description: APP_DESCRIPTION,
   alternates: {
     canonical: absoluteUrl("/"),
@@ -48,7 +51,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: APP_NAME,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
   },
 };
 
@@ -56,6 +59,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#111111",
 };
 
 export default function RootLayout({

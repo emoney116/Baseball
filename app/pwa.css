@@ -1,0 +1,7 @@
+/* No browser-toolbar offsets in the installed shell. Existing nav and sheets own their bottom inset. */
+@media (display-mode: standalone) {
+  body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+  .ops-shell { padding-top: env(safe-area-inset-top); }
+}
+html[data-display-mode="standalone"] body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+html[data-display-mode="standalone"] .ops-shell { padding-top: env(safe-area-inset-top); }

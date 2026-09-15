@@ -1,5 +1,5 @@
 export const APP_NAME = "Clubhouse 9";
-export const APP_SHORT_NAME = "C9";
+export const APP_SHORT_NAME = "Clubhouse 9";
 export const APP_TAGLINE = "Run your program.";
 export const APP_DESCRIPTION = "A connected baseball operations platform for rosters, staff, practices, games, weight room, and player development.";
 
