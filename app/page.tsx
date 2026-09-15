@@ -13326,7 +13326,7 @@ function WeightRoomActiveWorkout({
           onRemovePlayer={removePlayerFromGroup}
         />
       ) : activeWorkout && stations.some((station) => station.testConditions) ? (
-        <WorkoutTestingConsole key={activeWorkout.id} workoutId={activeWorkout.id} profileId={data.teamContext?.profile?.id ?? "local"} players={players} mode={entryMode} completedEdit={completed && editingCompleted} onStatus={setObservedWorkoutStatus} onEditSetup={() => setSetupOpen(true)} />
+        <WorkoutTestingConsole key={activeWorkout.id} workoutId={activeWorkout.id} profileId={data.teamContext?.profile?.id ?? "local"} players={players} mode={entryMode} completedEdit={completed && editingCompleted} onStatus={setObservedWorkoutStatus} onEditSetup={() => setSetupOpen(true)} onRetrySetup={() => setStations(current => [...current])} />
       ) : (
         <section className={`weight-room-active-workspace ${paused ? "is-paused" : ""}`}>
           {entryMode === "Groups" ? (

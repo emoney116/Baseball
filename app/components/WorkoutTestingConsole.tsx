@@ -15,7 +15,7 @@ type Group = { id: string; name: string; current_station_id: string | null };
 type Result = { id: string; player_id: string; workout_station_id: string; reps: number | null; value: number | null; test_side: string | null; test_attempt: number; test_revision: number };
 type Draft = { text: string; request: string; error?: string; resultId?: string; revision?: number; original?: number };
 
-export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "Groups", completedEdit = false, onStatus, onEditSetup }: { workoutId: string; profileId: string; players: Player[]; mode?: "Groups" | "Individual"; completedEdit?: boolean; onStatus?: (status: WeightRoomWorkoutStatus) => void; onEditSetup?: () => void }) {
+export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "Groups", completedEdit = false, onStatus, onEditSetup, onRetrySetup }: { workoutId: string; profileId: string; players: Player[]; mode?: "Groups" | "Individual"; completedEdit?: boolean; onStatus?: (status: WeightRoomWorkoutStatus) => void; onEditSetup?: () => void; onRetrySetup?: () => void }) {
   const storageKey = `clubhouse:test-drafts:v1:${profileId}:${workoutId}`;
   const [stations, setStations] = useState<Station[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -86,7 +86,8 @@ export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "G
       setRevision(workout.data.circuit_revision);
       setError("");
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : "Could not refresh results. Your unsaved entries are still here.");
+      const detail = failure && typeof failure === "object" && "message" in failure ? String(failure.message) : "Could not refresh results.";
+      setError(`${detail} Setup may not have finished saving. Retry setup from Edit Setup; your unsaved entries are still here.`);
     } finally { loading.current = false; }
   }, [workoutId, completedEdit, onStatus]);
 
@@ -164,12 +165,13 @@ export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "G
     </aside>
     <div className={styles.entries}>
       <header><h2>{station?.exercise_name ?? "Testing Circuit"}</h2><span>{conditions && testConditionLabel(conditions)}</span></header>
-      {error && <p role="alert">{error}</p>}
-      {active === null && <p role="status">Loading workout...</p>}
+      {error && <p role="alert">{error} {onRetrySetup && <button type="button" onClick={onRetrySetup}>Retry setup save</button>}</p>}
+      {active === null && !error && <p role="status">Loading workout...</p>}
       {active === false && <p role="status">{lifecycle === "COMPLETED" ? "Workout completed. Existing results can be corrected in Edit Workout; new attempts require a new workout." : lifecycle === "PAUSED" ? "Workout paused. Resume Workout to enter results." : "Workout is not open for new results. Saved results are preserved."}</p>}
       <div className="weight-room-individual-box-score" role="table" aria-label={`${station?.exercise_name ?? "Workout"} athlete results`} style={{ ["--active-set-count" as string]: 1 }}>
       <div role="row"><span role="columnheader">Athlete</span><span role="columnheader">Attempt {attempt}{conditions?.bilateral ? ` - ${side}` : ""}</span></div>
-      {conditions && roster.map((player) => {
+      {roster.map((player) => {
+        if (!conditions) return <div key={player.id} role="row"><span role="cell" className="weight-room-box-score-athlete"><strong>{player.name}</strong></span><span role="cell">Waiting for saved exercise setup</span></div>;
         const key = keyFor(player.id);
         const saved = results.find((result) => result.player_id === player.id && result.workout_station_id === station.id && result.test_attempt === Number(attempt) && result.test_side === (conditions.bilateral ? side : null));
         const draft = drafts[key];

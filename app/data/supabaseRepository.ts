@@ -258,6 +258,26 @@ export const supabaseAppRepository = {
     await syncDeletedEvents(supabase, previous, next);
     await syncPlayers(supabase, foundation, next.players, next.playerTeamMemberships);
     const liveDelta = liveSyncDelta(previous, next);
+    // A failed earlier save can leave local children referencing a parent that
+    // never reached the server. Recover only missing parents, never replay an
+    // unchanged lifecycle over another coach's completed workout.
+    const setupParentIds = [...new Set([
+      ...(liveDelta.weightRoomWorkoutStations ?? []).map(row => row.workoutId),
+      ...(liveDelta.weightRoomWorkoutGroups ?? []).map(row => row.workoutId),
+    ])];
+    if (setupParentIds.length) {
+      const parents = await supabase.from("weight_room_workouts").select("id").in("id", setupParentIds);
+      if (parents.error) throw new PersistenceError("save-failed", parents.error.message);
+      const existing = new Set((parents.data ?? []).map(row => row.id));
+      const pending = new Set((liveDelta.weightRoomWorkouts ?? []).map(row => row.id));
+      const missing = (next.weightRoomWorkouts ?? []).filter(row => setupParentIds.includes(row.id) && !existing.has(row.id) && !pending.has(row.id));
+      liveDelta.weightRoomWorkouts = [...(liveDelta.weightRoomWorkouts ?? []), ...missing];
+      for (const id of setupParentIds) {
+        if (!existing.has(id) && !liveDelta.weightRoomWorkouts.some(row => row.id === id)) {
+          throw new PersistenceError("save-failed", "Workout setup has no saved parent workout. Reopen the workout before saving setup.");
+        }
+      }
+    }
     await syncPractices(supabase, foundation, liveDelta.practices);
     await syncAttendance(supabase, liveDelta.attendance);
     await syncPracticeSessions(supabase, liveDelta);
