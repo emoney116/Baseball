@@ -3235,28 +3235,28 @@ export default function MetrolinaBaseballApp() {
       return {
         ...current,
         weightRoomWorkouts: upsertById(current.weightRoomWorkouts ?? [], workout),
+        scheduleEvents: current.scheduleEvents.some((event) => event.id === newEventId) ? current.scheduleEvents : [...current.scheduleEvents, {
+          id: newEventId,
+          organizationId: workout.organizationId,
+          teamId: workout.teamId,
+          seasonId: workout.seasonId,
+          teamIds: workout.teamId ? [workout.teamId] : [],
+          eventType: "Lift",
+          title: input.title,
+          startAt,
+          location: input.location,
+          visibility: "TEAM_ONLY",
+          status: "Scheduled",
+          createdBy: workout.createdBy,
+          createdAt: now,
+          updatedAt: now,
+        }],
       };
     });
     if (input.eventId || existingLiftEvent) {
       updateScheduleEventForWeightRoom(newEventId, { status: "Scheduled" });
       return;
     }
-    createScheduleEvent({
-      id: newEventId,
-      organizationId: data?.teamContext?.currentTeam?.organizationId,
-      teamId: data?.teamContext?.currentTeam?.teamId,
-      seasonId: data?.teamContext?.currentTeam?.seasonId,
-      teamIds: data?.teamContext?.currentTeam?.teamId ? [data.teamContext.currentTeam.teamId] : [],
-      eventType: "Lift",
-      title: input.title,
-      startAt,
-      location: input.location,
-      visibility: "TEAM_ONLY",
-      status: "Scheduled",
-      createdBy: data?.teamContext?.profile?.id,
-      createdAt: now,
-      updatedAt: now,
-    });
   }
 
   function completeWeightRoomWorkout() {

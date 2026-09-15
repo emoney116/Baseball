@@ -268,6 +268,9 @@ export const supabaseAppRepository = {
       pitchEvents: liveDelta.pitchEvents.map(e=>({...e,updatedByProfileId:userData.user.id})),
       defenseEvents: liveDelta.defenseEvents.map(e=>({...e,updatedByProfileId:userData.user.id})),
     });
+    // A new workout references its Lift event. Persist that parent first.
+    const workoutScheduleIds = new Set((liveDelta.weightRoomWorkouts ?? []).map((workout) => workout.scheduleEventId).filter(Boolean));
+    if (workoutScheduleIds.size) await syncScheduleEvents(supabase, foundation, { ...next, scheduleEvents: next.scheduleEvents.filter((event) => workoutScheduleIds.has(event.id)) });
     await syncActiveWeightRoomSetup(supabase, foundation, liveDelta);
     await syncWorkoutData(supabase, foundation, liveDelta);
     await syncGames(supabase, foundation, next);
