@@ -47,13 +47,32 @@ jobs:
           done
           exit "$missing"
 
+      - name: Confirm Clubhouse target
+        shell: bash
+        run: |
+          if [ "$SUPABASE_PROJECT_ID" != "lvlibxghdyvtxjnddfwf" ]; then
+            echo "::error::Supabase target is not the authorized Clubhouse project."
+            exit 1
+          fi
+
       - name: Link Supabase project
         shell: bash
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID" --password "$SUPABASE_DB_PASSWORD"
 
       - name: Review pending migrations
         shell: bash
-        run: supabase db push --linked --include-all --dry-run --password "$SUPABASE_DB_PASSWORD"
+        run: |
+          set -o pipefail
+          supabase db push --linked --include-all --dry-run --password "$SUPABASE_DB_PASSWORD" 2>&1 | tee /tmp/clubhouse-migration-plan.txt
+          pending=$(grep -oE '[0-9]{14}_[A-Za-z0-9_]+\.sql' /tmp/clubhouse-migration-plan.txt | sort -u || true)
+          if [ -n "$pending" ] && [ "$pending" != "20260915032826_weight_room_testing_circuit.sql" ]; then
+            echo "::error::Unexpected pending migration. Review and authorize the migration plan before applying."
+            exit 1
+          fi
+          if [ -z "$pending" ] && ! grep -qi 'database is up to date' /tmp/clubhouse-migration-plan.txt; then
+            echo "::error::Could not verify the pending migration plan. No migrations will be applied."
+            exit 1
+          fi
 
       - name: Apply pending migrations
         shell: bash
