@@ -36,7 +36,7 @@ export function WorkoutTestingConsole({ workoutId, profileId, players }: { worko
   });
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [active, setActive] = useState(false);
+  const [active, setActive] = useState<boolean | null>(null);
   const [revision, setRevision] = useState(0);
   const loading = useRef(false);
   const saving = useRef(false);
@@ -134,7 +134,8 @@ export function WorkoutTestingConsole({ workoutId, profileId, players }: { worko
     <div className={styles.entries}>
       <header><h2>{station?.exercise_name ?? "Testing Circuit"}</h2><span>{conditions && testConditionLabel(conditions)}</span></header>
       {error && <p role="alert">{error}</p>}
-      {!active && <p role="status">Workout is not active. Saved results are preserved.</p>}
+      {active === null && <p role="status">Loading workout...</p>}
+      {active === false && <p role="status">Workout is not active. Saved results are preserved.</p>}
       {conditions && roster.map((player) => {
         const key = keyFor(player.id);
         const saved = results.find((result) => result.player_id === player.id && result.workout_station_id === station.id && result.test_attempt === Number(attempt) && result.test_side === (conditions.bilateral ? side : null));

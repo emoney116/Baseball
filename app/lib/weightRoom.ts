@@ -143,6 +143,12 @@ export function calculateWeightRoomScore(_player: Player, sessions: WorkoutSessi
 }
 
 export function workoutEntryVolume(entry: WorkoutEntry) {
+  if (entry.testConditions) {
+    const { mode, loadLb } = entry.testConditions;
+    return mode === "FIXED_LOAD_TIMED_REPS" && typeof loadLb === "number" && typeof entry.reps === "number"
+      ? loadLb * entry.reps * Math.max(1, entry.sets ?? 1)
+      : 0;
+  }
   if (typeof entry.weight === "number" && typeof entry.reps === "number") return entry.weight * entry.reps * Math.max(1, entry.sets ?? 1);
   if (typeof entry.value === "number") return entry.value * Math.max(1, entry.sets ?? 1);
   if (typeof entry.reps === "number") return entry.reps * Math.max(1, entry.sets ?? 1);
