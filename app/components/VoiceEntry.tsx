@@ -28,7 +28,12 @@ type Phase =
   | "saving"
   | "saved"
   | "error";
-export function VoiceEntry({
+export function VoiceEntry(props: Parameters<typeof EnabledVoiceEntry>[0]) {
+  if (process.env.NEXT_PUBLIC_CLUBHOUSE_VOICE_ENABLED !== "true") return null;
+  return <EnabledVoiceEntry {...props} />;
+}
+
+function EnabledVoiceEntry({
   practiceId,
   context,
   disabled,

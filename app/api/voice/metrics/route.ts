@@ -3,6 +3,8 @@ import { createAdminClient } from "../../../lib/supabase/admin";
 import { validateVoiceMetrics } from "../../../lib/voiceMetrics";
 
 export async function POST(request: Request) {
+  if (process.env.NEXT_PUBLIC_CLUBHOUSE_VOICE_ENABLED !== "true")
+    return new Response(null, { status: 503 });
   if (request.headers.get("origin") !== new URL(request.url).origin)
     return new Response(null, { status: 403 });
   try {

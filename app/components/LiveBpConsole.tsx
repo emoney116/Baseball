@@ -222,6 +222,7 @@ export function LiveBpConsole({
     label: densePlayerIdentityLabel(p),
   }));
   useEffect(() => {
+    if(process.env.NEXT_PUBLIC_CLUBHOUSE_VOICE_ENABLED !== "true")return;
     if(!round || busy || uncertain || draft.outcome || JSON.stringify(round.settings)!==JSON.stringify(settings) || JSON.stringify(round.state)!==JSON.stringify(state))return;
     const controller=new AbortController();
     const refresh=async()=>{

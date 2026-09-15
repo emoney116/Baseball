@@ -14,6 +14,8 @@ const reply = (body: unknown, status = 200) =>
     headers: { "Cache-Control": "private, no-store" },
   });
 export async function POST(request: Request) {
+  if (process.env.NEXT_PUBLIC_CLUBHOUSE_VOICE_ENABLED !== "true")
+    return reply({ message: "Voice unavailable - use manual entry." }, 503);
   const started = Date.now();
   let reservation:
     | { id: string; db: ReturnType<typeof createAdminClient> }
