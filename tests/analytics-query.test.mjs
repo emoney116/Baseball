@@ -34,6 +34,27 @@ test("ended Practice preserves canonical review metrics", () => {
   assert.deepEqual(buildPracticeReviewSummary(ended, "practice-aug-19").hitting.teamTotals, buildPracticeReviewSummary(baseData, "practice-aug-19").hitting.teamTotals);
 });
 
+test("Live BP recap preserves the observed 149-opportunity distribution without treating takes as swings", () => {
+  const data = structuredClone(baseData);
+  // Regression distribution from the read-only Sep 10 audit; no production rows are inserted.
+  data.hittingEvents = [["Took pitch", 62], ["Foul", 30], ["Ball in play", 50], ["Miss", 7]].flatMap(([action, count]) =>
+    Array.from({ length: count }, (_, index) => hittingEvent(`${action}-${index}`, "practice-aug-19", "live-hit-1", "p-jacob", action, { isLiveBp: true })),
+  );
+  data.pitchEvents = [];
+  const summary = buildPracticeReviewSummary(data, "practice-aug-19");
+  const cells = summary.hitting.teamTotals.cells;
+  assert.equal(cells.opportunities.display, "149");
+  assert.equal(cells.swings.display, "87");
+  assert.equal(cells.takes.display, "62");
+  assert.equal(cells.contacts.display, "80");
+  assert.equal(cells.bip.display, "50");
+  assert.equal(cells.misses.display, "7");
+  assert.equal(cells.contactPct.display, "92%");
+  assert.equal(cells.avgEv.display, "—");
+  assert.equal(summary.liveHitting.teamTotals.cells.opportunities.display, "149");
+  assert.equal(summary.pitching.rows.some((row) => row.sampleCount > 0), false);
+});
+
 const now = "2026-08-20T12:00:00.000Z";
 
 const players = [
