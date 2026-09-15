@@ -5,6 +5,17 @@ import { resumableWeightRoomWorkout } from "../app/lib/weightRoom.ts";
 
 const workout = (id, status) => ({ id, status, title: id, date: "2026-08-15" });
 
+test("new workout and Lift share one snapshot and the referenced Lift saves first", () => {
+  const page = readFileSync("app/page.tsx", "utf8");
+  const start = page.slice(page.indexOf("function startWeightRoomWorkout("), page.indexOf("function completeWeightRoomWorkout("));
+  assert.match(start, /weightRoomWorkouts: upsertById/);
+  assert.match(start, /scheduleEvents: current\.scheduleEvents/);
+  assert.doesNotMatch(start, /createScheduleEvent\(/);
+  const repository = readFileSync("app/data/supabaseRepository.ts", "utf8");
+  const parentSave = repository.indexOf("if (workoutScheduleIds.size) await syncScheduleEvents");
+  assert.ok(parentSave > 0 && parentSave < repository.indexOf("await syncActiveWeightRoomSetup"));
+});
+
 test("only active and paused team workouts can resume", () => {
   for (const status of ["SCHEDULED", "COMPLETED", "CANCELLED"]) {
     assert.equal(resumableWeightRoomWorkout([workout("old", status)], "old"), undefined);

@@ -143,6 +143,12 @@ export function calculateWeightRoomScore(_player: Player, sessions: WorkoutSessi
 }
 
 export function workoutEntryVolume(entry: WorkoutEntry) {
+  if (entry.testConditions) {
+    const { mode, loadLb } = entry.testConditions;
+    return mode === "FIXED_LOAD_TIMED_REPS" && typeof loadLb === "number" && typeof entry.reps === "number"
+      ? loadLb * entry.reps * Math.max(1, entry.sets ?? 1)
+      : 0;
+  }
   if (typeof entry.weight === "number" && typeof entry.reps === "number") return entry.weight * entry.reps * Math.max(1, entry.sets ?? 1);
   if (typeof entry.value === "number") return entry.value * Math.max(1, entry.sets ?? 1);
   if (typeof entry.reps === "number") return entry.reps * Math.max(1, entry.sets ?? 1);
@@ -174,7 +180,7 @@ function cappedAverageImprovement(entries: WorkoutEntry[]) {
       const current = workoutEntryComparableValue(entry);
       const prior = entry.priorValue ?? 0;
       const raw = ((current - prior) / Math.max(1, prior)) * 100;
-      const timeBased = entry.kind === "Speed" || entry.unit === "sec";
+      const timeBased = !entry.testConditions && (entry.kind === "Speed" || entry.unit === "sec");
       return timeBased ? -raw : raw;
     })
     .filter((value) => Number.isFinite(value))
@@ -183,10 +189,13 @@ function cappedAverageImprovement(entries: WorkoutEntry[]) {
 }
 
 function hasComparablePrior(entry: WorkoutEntry) {
+  // Legacy priorValue has no test-condition provenance.
+  if (entry.testConditions) return false;
   return Boolean(entry.priorValue && workoutEntryComparableValue(entry));
 }
 
 function workoutEntryComparableValue(entry: WorkoutEntry) {
+  if (entry.testConditions) return entry.value ?? entry.reps ?? 0;
   return entry.weight ?? entry.value ?? entry.reps ?? 0;
 }
 

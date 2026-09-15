@@ -4,7 +4,15 @@ import {
   WEIGHT_ROOM_MIN_TRACKED_SETS,
   buildWeightRoomLeaderboard,
   calculateWeightRoomScore,
+  workoutEntryVolume,
 } from "../app/lib/weightRoom.ts";
+
+test("testing volume never treats reps or held seconds as pounds", () => {
+  assert.equal(workoutEntryVolume({ reps: 24, value: 24, testConditions: { key: "pull-ups", mode: "TIMED_REPS", durationSeconds: 60 } }), 0);
+  assert.equal(workoutEntryVolume({ value: 78, testConditions: { key: "hang", mode: "MAX_DURATION", loadLb: 45 } }), 0);
+  assert.equal(workoutEntryVolume({ reps: 32, testConditions: { key: "bench", mode: "FIXED_LOAD_TIMED_REPS", durationSeconds: 60, loadLb: 45 } }), 1440);
+  assert.equal(workoutEntryVolume({ reps: 27, testConditions: { key: "squat", mode: "FIXED_LOAD_TIMED_REPS", durationSeconds: 60, loadLb: 135 } }), 3645);
+});
 
 const now = "2026-08-13T22:00:00.000Z";
 

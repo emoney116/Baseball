@@ -225,6 +225,7 @@ export function formatRelativeWorkoutDate(date: string) {
 }
 
 export function workoutEntryComparableForDisplay(entry: WorkoutEntry) {
+  if (entry.testConditions) return entry.value ?? entry.reps ?? 0;
   if (entry.unit === "sec" && typeof entry.value === "number") return -entry.value;
   return estimatedOneRepMax(entry.weight, entry.reps) ?? entry.weight ?? entry.value ?? entry.reps ?? 0;
 }
@@ -235,7 +236,10 @@ export function weightRoomDeltaClass(value?: number) {
 }
 
 export function trendForExercise(entries: WorkoutEntry[]) {
-  const sorted = entries.slice().sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const ordered = entries.slice().sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  const newest = ordered.at(-1);
+  const comparisonKey = (entry: WorkoutEntry) => entry.testConditions ? JSON.stringify([entry.testConditions.key, entry.testConditions.mode, entry.testConditions.durationSeconds ?? null, entry.testConditions.loadLb ?? null, entry.testSide ?? null]) : "ordinary";
+  const sorted = newest ? ordered.filter((entry) => comparisonKey(entry) === comparisonKey(newest)) : [];
   const first = sorted[0];
   const latest = sorted[sorted.length - 1];
   const firstValue = first ? workoutEntryComparableForDisplay(first) : 0;

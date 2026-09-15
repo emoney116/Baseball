@@ -708,6 +708,9 @@ export type WorkoutSetStatus = "Completed" | "Modified" | "Skipped";
 export type WorkoutEntrySource = "COACH" | "PLAYER" | "IMPORT" | "DEVICE";
 
 export interface WorkoutEntry {
+  testConditions?: import("./lib/workoutTesting").WorkoutTestConditions;
+  testSide?: "Left" | "Right";
+  testAttempt?: number;
   activeWorkoutId?: ID;
   workoutStationId?: ID;
   workoutGroupId?: ID;
@@ -776,6 +779,7 @@ export interface WeightRoomExerciseDefinition {
 }
 
 export interface WeightRoomWorkout {
+  circuitRevision?: number;
   id: ID;
   organizationId?: ID;
   teamId?: ID;
@@ -793,6 +797,7 @@ export interface WeightRoomWorkout {
 }
 
 export interface WeightRoomWorkoutStation {
+  testConditions?: import("./lib/workoutTesting").WorkoutTestConditions;
   id: ID;
   workoutId: ID;
   exerciseId?: ID;
@@ -846,6 +851,7 @@ export interface WeightRoomExercisePreset {
 }
 
 export interface WeightRoomExercisePresetItem {
+  testConditions?: import("./lib/workoutTesting").WorkoutTestConditions;
   id: ID;
   presetId: ID;
   exerciseId?: ID;

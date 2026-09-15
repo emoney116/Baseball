@@ -4,6 +4,7 @@ import {
   ChevronRight
 } from "lucide-react";
 import type React from "react";
+import { formatTestResult, testConditionLabel } from "../lib/workoutTesting";
 import { useEffect, useRef, useState } from "react";
 import { buildScheduleItems, CompactEmpty, dateKeyFromIso, formatTime, isUpcomingScheduleItem, ScheduleItem, ScheduleTypeIcon, SegmentedControl } from "../components/TeamWorkspaceViews";
 import { deriveConcurrentPracticeTotals } from "../lib/practiceConcurrency";
@@ -49,6 +50,7 @@ export type WeightRoomExercise = {
 };
 
 export type ActiveWorkoutStation = WeightRoomExercise & {
+  testConditions?: import("../lib/workoutTesting").WorkoutTestConditions;
   id: ID;
   displayOrder: number;
   targetStyle: WorkoutTargetStyle;
@@ -476,6 +478,7 @@ export function cleanWorkoutMeasurementDraft(value: string, measurementType: Wor
 }
 
 export function formatWorkoutEntryValue(entry: WorkoutEntry) {
+  if (entry.testConditions) return `${formatTestResult(entry.value ?? entry.reps, entry.testConditions)}${entry.testConditions.mode === "MAX_DURATION" ? "" : " reps"} · ${testConditionLabel(entry.testConditions)}${entry.testSide ? ` · ${entry.testSide}` : ""}`;
   if (typeof entry.weight === "number" && typeof entry.reps === "number") return `${formatNumber(entry.weight, 0)} lb x ${entry.reps}`;
   if (typeof entry.weight === "number") return `${formatNumber(entry.weight, 0)} lb`;
   if (typeof entry.value === "number" && entry.unit === "sec") return formatSecondsValue(entry.value);
@@ -486,6 +489,7 @@ export function formatWorkoutEntryValue(entry: WorkoutEntry) {
 }
 
 export function formatWorkoutEntryValueForStation(entry: WorkoutEntry, station?: Pick<ActiveWorkoutStation, "measurementType" | "targetStyle" | "unit">) {
+  if (entry.testConditions) return formatWorkoutEntryValue(entry);
   if (!station) return formatWorkoutEntryValue(entry);
   if (station.measurementType === "WEIGHT_REPS") {
     if (typeof entry.weight === "number" && typeof entry.reps === "number") return `${formatNumber(entry.weight, 0)} lb x ${entry.reps}`;
