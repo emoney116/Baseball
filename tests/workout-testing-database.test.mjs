@@ -77,3 +77,31 @@ test("unaffiliated account and off-roster athlete are denied", async () => {
   await assert.rejects(save({player:99}),/active roster/);
   await assert.rejects(save({coach:99,attempt:3}),/unavailable/);
 });
+
+test("corrections retain attempt identity, revision and auditable previous value", async () => {
+  await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${id(1)}',false);`);
+  const row=(await db.query("select id from workout_sets where player_id=$1 and workout_station_id=$2 and test_attempt=1",[id(40),id(200)])).rows[0];
+  const request=randomUUID();
+  await db.query("select correct_workout_test($1,0,$2,25)",[row.id,request]);
+  const edited=(await db.query("select reps,test_revision,test_corrections from workout_sets where id=$1",[row.id])).rows[0];
+  assert.equal(edited.reps,25); assert.equal(edited.test_revision,1);
+  assert.equal(edited.test_corrections[0].before,24);
+  assert.equal(edited.test_corrections[0].actor,id(1));
+  await db.query("select correct_workout_test($1,0,$2,25)",[row.id,request]);
+  await assert.rejects(db.query("select correct_workout_test($1,0,$2,26)",[row.id,randomUUID()]),/Another coach/);
+  await assert.rejects(db.query("select correct_workout_test($1,1,$2,27)",[row.id,request]),/different correction/);
+  assert.equal((await db.query("select test_revision from workout_sets where id=$1",[row.id])).rows[0].test_revision,1);
+});
+
+test("ended workout requires explicit completed edit and retains zero distinctly", async () => {
+  await db.exec("reset role");
+  await db.query("update weight_room_workouts set status='COMPLETED',ended_at=now() where id=$1",[id(90)]);
+  await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${id(2)}',false);`);
+  const row=(await db.query("select id from workout_sets where player_id=$1 and workout_station_id=$2",[id(41),id(202)])).rows[0];
+  await assert.rejects(db.query("select correct_workout_test($1,0,$2,0)",[row.id,randomUUID()]),/ended or paused/);
+  await db.query("select correct_workout_test($1,0,$2,0,true)",[row.id,randomUUID()]);
+  assert.equal((await db.query("select reps from workout_sets where id=$1",[row.id])).rows[0].reps,0);
+  await assert.rejects(db.query("select correct_workout_test($1,1,$2,1.5,true)",[row.id,randomUUID()]),/valid test result/);
+  await db.exec(`select set_config('request.jwt.claim.sub','${id(99)}',false)`);
+  await assert.rejects(db.query("select correct_workout_test($1,1,$2,2,true)",[row.id,randomUUID()]),/unavailable/);
+});

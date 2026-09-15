@@ -36,7 +36,7 @@ const page = ["app/page.tsx", "app/components/TeamWorkspaceViews.tsx", "app/comp
   assert.match(weighInCard, /Weight \(lb\)/);
   assert.match(weighInCard, /<span role="columnheader">This<\/span>/);
   assert.match(weighInCard, /<span role="columnheader">\+\/-<\/span>/);
-  assert.match(weighInCard, /<DensePlayerIdentity player=\{row\.player\} \/>/);
+  assert.match(weighInCard, /<DensePlayerIdentity player=\{row\.player\} showIdentityLabel=\{false\} \/>/);
   assert.doesNotMatch(weighInCard, /PlayerAvatar|\$\{formatNumber\(row\.(thisWeek|lastWeek|starting), 1\)\} lb/);
   assert.match(analyticsTable, /<DensePlayerIdentity player=\{row\.player\} \/>/);
   assert.doesNotMatch(analyticsTable, /PlayerAvatar player=\{row\.player\}/);

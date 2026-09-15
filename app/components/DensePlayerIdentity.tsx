@@ -4,13 +4,15 @@ import { denseJerseyNumber, densePlayerIdentityLabel, formatDensePlayerName } fr
 export function DensePlayerIdentity({
   player,
   showJersey = true,
+  showIdentityLabel = true,
   className = "",
 }: {
   player: Pick<Player, "name" | "jerseyNumber" | "identityLabel">;
   showJersey?: boolean;
+  showIdentityLabel?: boolean;
   className?: string;
 }) {
-  const label = [densePlayerIdentityLabel(player), player.identityLabel].filter(Boolean).join(" - ");
+  const label = [densePlayerIdentityLabel(player), showIdentityLabel && player.identityLabel].filter(Boolean).join(" - ");
   const jerseyNumber = denseJerseyNumber(player);
   return (
     <span className={`dense-player-identity ${className}`.trim()} title={label} aria-label={label}>
@@ -18,7 +20,7 @@ export function DensePlayerIdentity({
         {showJersey && jerseyNumber && <span className="dense-player-identity__jersey">#{jerseyNumber}</span>}
         <span className="dense-player-identity__name">{formatDensePlayerName(player.name)}</span>
       </span>
-      {player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}
+      {showIdentityLabel && player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}
     </span>
   );
 }

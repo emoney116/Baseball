@@ -1,0 +1,26 @@
+.weights-page .weight-room-test-config { display: grid; grid-template-columns: minmax(120px,1fr) repeat(2,minmax(90px,140px)); gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.weight-room-test-config label { display: grid; gap: 6px; color: var(--muted-strong); font-size: 12px; }
+.weight-room-test-config input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--line); border-radius: 6px; padding: 8px; color: var(--text); background: var(--panel); }
+.weight-room-workout-editor > .weight-room-station-add-row { width: 100%; min-width: 0; min-height: 44px; }
+.weight-room-current-stations--builder > .weight-room-current-stations__head,
+.weight-room-current-stations--builder > .weight-room-current-stations__row { width: max(100%,560px); min-width: 560px; grid-template-columns: 28px minmax(140px,1fr) 140px 60px 100px; gap: 6px; box-sizing: border-box; }
+.weight-room-current-stations--builder .choice-select__label { white-space: normal; text-overflow: clip; overflow: visible; }
+.weights-page .weight-room-completed-tabs { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); width: 100%; }
+.weights-page .weight-room-completed-tabs button { padding-inline: 6px; min-width: 0; min-height: 44px; }
+.weights-page .weight-room-completed-table { min-width: 0; max-width: 100%; }
+.weights-page [role="table"] { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; }
+.weights-page .weight-room-completed-exercise-table > [role="row"] { width: max(100%,920px); min-width: 920px; grid-template-columns: 36px minmax(170px,1fr) 150px 160px 130px 180px; }
+.weights-page .weight-room-completed-athlete-table > [role="row"] { width: max(100%,800px); min-width: 800px; grid-template-columns: minmax(190px,1fr) 110px 120px 120px 120px 60px; }
+.weights-page .weight-room-completed-drill-table > [role="row"] { width: max(100%,1000px); min-width: 1000px; grid-template-columns: 180px minmax(170px,1fr) 160px 150px 110px 150px; }
+.weights-page .weight-room-completed-weigh-table > [role="row"] { width: max(100%,660px); min-width: 660px; grid-template-columns: minmax(210px,1fr) 130px 150px 110px; }
+.weights-page [role="table"] > [role="row"] { box-sizing: border-box; gap: 8px; }
+.weights-page .weight-room-completed-table [role="row"] > span,
+.weights-page .weight-room-completed-table [role="row"] > strong { white-space: normal; text-overflow: clip; overflow: visible; overflow-wrap: anywhere; }
+.weights-page [role="columnheader"] button { min-height: 44px; padding: 0; border: 0; box-shadow: none; border-radius: 0; background: transparent; color: var(--muted-strong); font: inherit; text-align: left; letter-spacing: 0; }
+.weights-page [role="columnheader"] button:hover { color: var(--text); background: transparent; }
+.weights-page .player-record-label { display: none; }
+.weights-page button.weight-room-completed-metric { text-align: left; cursor: pointer; color: var(--text); font: inherit; }
+.weights-page .weight-room-completed-metric strong { overflow-wrap: anywhere; }
+.weight-room-test-config > span { grid-column: 2/-1; color: var(--muted-strong); font-size: 13px; }
+.weight-room-baseline-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; }
+@media(max-width:540px) { .weights-page .weight-room-test-config { grid-template-columns: minmax(110px,1fr) repeat(2,minmax(80px,100px)); gap: 8px; } .weight-room-test-config > strong { overflow-wrap: anywhere; font-size: 13px; } }

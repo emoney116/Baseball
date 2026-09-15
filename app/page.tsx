@@ -2,6 +2,7 @@
 import { PracticeRecap } from "./components/PracticeRecap";
 import { WorkoutTestingConsole } from "./components/WorkoutTestingConsole";
 import { BASELINE_TESTING_CIRCUIT } from "./lib/workoutTesting";
+import { workoutMvp } from "./lib/workoutMvp";
 import { buildPracticeReviewSummary } from "./lib/practiceReviewSummary";
 import { LiveBpConsole } from "./components/LiveBpConsole";
 import { practiceDirectionForPoint } from "./lib/sprayChart";
@@ -12602,7 +12603,7 @@ function WeightRoomWeighInCard({ data, players, date, onOpen }: { data: AppData;
         </div>
         {visibleRows.map((row) => (
           <button key={row.player.id} type="button" onClick={onOpen} role="row" aria-label={`Open weigh-ins for ${row.player.name}`}>
-            <DensePlayerIdentity player={row.player} />
+            <DensePlayerIdentity player={row.player} showIdentityLabel={false} />
             <span role="cell">{typeof row.thisWeek === "number" ? formatNumber(row.thisWeek, 1) : "—"}</span>
             <span role="cell">{typeof row.lastWeek === "number" ? formatNumber(row.lastWeek, 1) : "—"}</span>
             <em role="cell">
@@ -13267,9 +13268,10 @@ function WeightRoomActiveWorkout({
         )}
       </div>
 
-      {setupOpen && !completed && <button type="button" disabled={entriesForDate.length > 0} onClick={loadBaselineCircuit}>Baseline Testing Circuit</button>}
-      {setupOpen && stations.filter((station) => station.testConditions).map((station) => <div key={station.id} className="field-row">
+      {setupOpen && !completed && <button type="button" className="secondary-button weight-room-baseline-action" disabled={entriesForDate.length > 0} onClick={loadBaselineCircuit}><ClipboardList size={16} />Baseline Testing Circuit</button>}
+      {setupOpen && stations.filter((station) => station.testConditions).map((station) => <div key={station.id} className="weight-room-test-config">
         <strong>{station.name}</strong>
+        {station.testConditions?.mode === "MAX_DURATION" && !station.testConditions.configurableLoad && <span>Max hold{station.testConditions.bilateral ? " · Left / Right" : ""}</span>}
         {station.testConditions?.mode !== "MAX_DURATION" && <label>Test seconds<input type="number" min={1} max={3600} disabled={entriesForDate.length > 0} value={station.testConditions?.durationSeconds ?? ""} onChange={(event) => setStations((current) => current.map((item) => item.id === station.id && item.testConditions ? { ...item, testConditions: { ...item.testConditions, durationSeconds: Number(event.target.value) } } : item))} /></label>}
         {(station.testConditions?.configurableLoad || station.testConditions?.mode === "FIXED_LOAD_TIMED_REPS") && <label>Load (lb)<input type="number" min={0} max={2000} disabled={entriesForDate.length > 0} placeholder="Not configured" value={station.testConditions.loadLb ?? ""} onChange={(event) => setStations((current) => current.map((item) => item.id === station.id && item.testConditions ? { ...item, testConditions: { ...item.testConditions, loadLb: event.target.value === "" ? undefined : Number(event.target.value) } } : item))} /></label>}
       </div>)}
@@ -13316,7 +13318,7 @@ function WeightRoomActiveWorkout({
           onRemovePlayer={removePlayerFromGroup}
         />
       ) : activeWorkout && stations.some((station) => station.testConditions) ? (
-        <WorkoutTestingConsole key={activeWorkout.id} workoutId={activeWorkout.id} profileId={data.teamContext?.profile?.id ?? "local"} players={players} />
+        <WorkoutTestingConsole key={activeWorkout.id} workoutId={activeWorkout.id} profileId={data.teamContext?.profile?.id ?? "local"} players={players} mode={entryMode} completedEdit={completed && editingCompleted} />
       ) : (
         <section className={`weight-room-active-workspace ${paused ? "is-paused" : ""}`}>
           {entryMode === "Groups" ? (
@@ -14308,8 +14310,9 @@ function WeightRoomWorkoutEditor({
         </div>
       )}
       {!!stations.length && (
+        <>
+        <button type="button" className="weight-room-station-add-row" onClick={onOpenExercisePicker}><Plus size={14} aria-hidden="true" />Add Exercise</button>
         <div className="weight-room-current-stations weight-room-current-stations--builder" role="table" aria-label="Selected workout exercises">
-          <button type="button" className="weight-room-station-add-row" onClick={onOpenExercisePicker}><Plus size={14} aria-hidden="true" />Add Exercise</button>
           <div className="weight-room-current-stations__head" role="row">
             <span>#</span>
             <span>Exercise</span>
@@ -14369,6 +14372,7 @@ function WeightRoomWorkoutEditor({
             </div>
           ))}
         </div>
+        </>
       )}
       <details className="weight-room-quick-create">
         <summary>Can&apos;t find an exercise?</summary>
@@ -14702,6 +14706,7 @@ function WeightRoomCompletedWorkoutSummary({
   type ExerciseSortKey = "rank" | "exercise" | "target" | "results" | "completion" | "topResult";
   type AthleteSortKey = "athlete" | "exercises" | "results" | "completion" | "volume" | "prs";
   const [tab, setTab] = useState<CompletedTab>("Overview");
+  const [mvpOpen, setMvpOpen] = useState(false);
   const [selectedExerciseName, setSelectedExerciseName] = useState(stations[0]?.name ?? "");
   const [exerciseSort, setExerciseSort] = useState<WeightRoomSortState<ExerciseSortKey>>({ key: "exercise", direction: "asc" });
   const [athleteSort, setAthleteSort] = useState<WeightRoomSortState<AthleteSortKey>>({ key: "athlete", direction: "asc" });
@@ -14763,6 +14768,7 @@ function WeightRoomCompletedWorkoutSummary({
     return (left.prs - right.prs) * direction || left.player.name.localeCompare(right.player.name);
   });
   const selectedExercise = stations.find((station) => station.name === selectedExerciseName) ?? stations[0];
+  const mvp = workoutMvp(athleteRows);
 
   function toggleExerciseSort(key: ExerciseSortKey) {
     setExerciseSort((current) => current.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: key === "exercise" || key === "target" || key === "rank" ? "asc" : "desc" });
@@ -14809,8 +14815,19 @@ function WeightRoomCompletedWorkoutSummary({
             <small>PRs</small>
             <strong>{prs.length}</strong>
           </span>
+          <button type="button" className="weight-room-completed-metric" disabled={!mvp} onClick={() => setMvpOpen(true)}>
+            <i><Trophy size={15} aria-hidden="true" /></i><small>Workout MVP</small>
+            <strong>{mvp ? <DensePlayerIdentity player={mvp.player} showIdentityLabel={false} /> : "--"}</strong>
+          </button>
         </div>
       )}
+      {mvpOpen && mvp && <ModalFrame title="Workout MVP" onClose={() => setMvpOpen(false)}>
+        <div className="modal-body"><h3>{mvp.player.name}</h3>
+          <p>{mvp.prs} personal records · {mvp.exerciseCount} exercises · {mvp.resultCount} recorded results</p>
+          <p>Ranked by personal records, then planned completion (capped at 100%), then exercises recorded. Exact ties use name order. This recognizes recorded progress and participation, not raw strength.</p>
+          {completedEntries.filter(entry => entry.playerId === mvp.player.id).map(entry => <p key={entry.id}><strong>{entry.exercise}</strong> · {formatWorkoutEntryValueForStation(entry, stations.find(station => station.name === entry.exercise))}</p>)}
+        </div>
+      </ModalFrame>}
 
       {tab === "Overview" && (
         <div className="weight-room-completed-layout">
@@ -14849,7 +14866,7 @@ function WeightRoomCompletedWorkoutSummary({
                 return (
                   <div key={`${pr.player.id}-${pr.exercise}-${pr.entry.id}`} className="weight-room-pr-row">
                     <TrendingUp size={15} aria-hidden="true" />
-                    <DensePlayerIdentity player={pr.player} />
+                    <DensePlayerIdentity player={pr.player} showIdentityLabel={false} />
                     <span><small>{pr.exercise}</small></span>
                     <em>{formatWorkoutEntryValueForStation(pr.entry, station)}<small>Previous {formatWorkoutEntryValueForStation(pr.previous, station)}</small></em>
                   </div>
@@ -14860,7 +14877,7 @@ function WeightRoomCompletedWorkoutSummary({
               <div className="weight-room-completed-section-head"><h3>Athlete Highlights</h3></div>
               {sortedAthleteRows.filter((row) => row.resultCount > 0).slice(0, 4).map((row) => (
                 <button key={row.player.id} type="button" className="weight-room-athlete-highlight-row" onClick={() => setTab("Athletes")}>
-                  <DensePlayerIdentity player={row.player} />
+                  <DensePlayerIdentity player={row.player} showIdentityLabel={false} />
                   <span><small>{formatActiveSetProgress(row.resultCount, row.planned)} results - {formatWorkoutVolume(row.volume)}</small></span>
                 </button>
               ))}
@@ -14884,7 +14901,7 @@ function WeightRoomCompletedWorkoutSummary({
             </div>
             {sortedAthleteRows.map((row) => (
               <button key={row.player.id} type="button" role="row">
-                <DensePlayerIdentity player={row.player} />
+                <DensePlayerIdentity player={row.player} showIdentityLabel={false} />
                 <span>{row.exerciseCount} / {stations.length}</span>
                 <span>{formatActiveSetProgress(row.resultCount, row.planned)}</span>
                 <span>{row.planned ? formatPct(row.completion, 0) : "Not assigned"}</span>
@@ -14910,16 +14927,16 @@ function WeightRoomCompletedWorkoutSummary({
           </div>
           {selectedExercise ? (
             <div className="weight-room-completed-drill-table" role="table">
-              <div role="row"><span>Athlete</span><span>Target</span><span>Actual</span><span>Previous</span><span>Change</span><span>Best</span></div>
+              <div role="row"><span>Athlete</span><span>Actual</span><span>Target</span><span>Previous</span><span>Change</span><span>Best</span></div>
               {players.map((player) => {
                 const playerEntries = completedEntries.filter((entry) => entry.playerId === player.id && entry.exercise === selectedExercise.name);
                 const best = bestWorkoutEntryForStation(playerEntries, selectedExercise);
                 const previous = previousWorkoutEntry(data, player.id, selectedExercise.name, workoutDate);
                 return (
                   <button key={player.id} type="button" role="row">
-                    <DensePlayerIdentity player={player} />
-                    <span>{stationTargetSummary(selectedExercise)}</span>
+                    <DensePlayerIdentity player={player} showIdentityLabel={false} />
                     <span>{playerEntries.length ? playerEntries.map((entry) => formatWorkoutEntryValueForStation(entry, selectedExercise)).join(", ") : "--"}</span>
+                    <span>{stationTargetSummary(selectedExercise)}</span>
                     <span>{previous ? formatWorkoutEntryValueForStation(previous, selectedExercise) : "--"}</span>
                     <span>{formatCompletedEntryChange(best, previous, selectedExercise)}</span>
                     <span>{best ? formatWorkoutEntryValueForStation(best, selectedExercise) : "--"}</span>
@@ -14942,7 +14959,7 @@ function WeightRoomCompletedWorkoutSummary({
               const change = typeof current === "number" && typeof previous === "number" ? current - previous : undefined;
               return (
                 <button key={player.id} type="button" role="row">
-                  <DensePlayerIdentity player={player} />
+                  <DensePlayerIdentity player={player} showIdentityLabel={false} />
                   <span>{typeof previous === "number" ? `${formatNumber(previous, 1)} lb` : "--"}</span>
                   <span>{typeof current === "number" ? `${formatNumber(current, 1)} lb` : "--"}</span>
                   <span className={change && change > 0 ? "positive" : change && change < 0 ? "negative" : ""}>{typeof change === "number" ? `${change > 0 ? "+" : ""}${formatNumber(change, 1)} lb` : "--"}</span>
