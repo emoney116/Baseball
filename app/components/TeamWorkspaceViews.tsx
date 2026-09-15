@@ -1,4 +1,5 @@
 "use client";
+import { ClubhouseMultiSelect, ClubhouseOptionSheet, useOverlayPosition } from "./ClubhouseSelect";
 import {
   CalendarDays,
   CalendarPlus,
@@ -16,7 +17,6 @@ import {
   Sparkles,
   Swords,
   Trophy,
-  Users,
   X
 } from "lucide-react";
 import type React from "react";
@@ -572,6 +572,49 @@ export function AnalyticsView({
   const [eventSelectorOpen, setEventSelectorOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [columnsOpen, setColumnsOpen] = useState(false);
+  const eventTriggerRef = useRef<HTMLButtonElement>(null);
+  const filterTriggerRef = useRef<HTMLButtonElement>(null);
+  const columnTriggerRef = useRef<HTMLButtonElement>(null);
+  const { position: panelPosition } = useOverlayPosition(
+    filtersOpen ? filterTriggerRef : columnsOpen ? columnTriggerRef : eventTriggerRef,
+    eventSelectorOpen || filtersOpen || columnsOpen, 20, "auto", 0, 430, 760,
+  );
+  const panelStyle: React.CSSProperties | undefined = panelPosition ? {
+    position: "fixed", top: panelPosition.top, left: panelPosition.left, right: "auto", bottom: "auto",
+    width: panelPosition.width, maxHeight: panelPosition.maxHeight,
+    transform: panelPosition.placement === "bottom" ? "none" : "translateY(-100%)",
+    overflowY: filtersOpen ? "hidden" : "auto",
+  } : undefined;
+  useEffect(() => {
+    const trigger = (filtersOpen ? filterTriggerRef : columnsOpen ? columnTriggerRef : eventSelectorOpen ? eventTriggerRef : null)?.current;
+    const panel = trigger?.parentElement?.querySelector<HTMLElement>(".analytics-popover");
+    if (!trigger || !panel) return;
+    const focusable = () => [...panel.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]')].filter(element => element.getClientRects().length);
+    const frame = requestAnimationFrame(() => focusable()[0]?.focus());
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setEventSelectorOpen(false);
+        setFiltersOpen(false);
+        setColumnsOpen(false);
+      } else if (event.key === "Tab") {
+        const targets = focusable();
+        const first = targets[0], last = targets.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault(); last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault(); first?.focus();
+        }
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", onKeyDown);
+      if (trigger.isConnected) trigger.focus();
+    };
+  }, [eventSelectorOpen, filtersOpen, columnsOpen]);
   const [detailPlayerId, setDetailPlayerId] = useState<ID | undefined>(() => readInitialAnalyticsDetailPlayerId(data));
   const [metricIds, setMetricIds] = useState<string[] | undefined>(initialState.metricIds);
   const [columnPreset, setColumnPreset] = useState<AnalyticsColumnPreset>(initialState.columnPreset);
@@ -914,7 +957,7 @@ export function AnalyticsView({
         </nav>
         <div className="analytics-controls__row analytics-controls__row--filters">
           <div className="analytics-popover-wrap">
-            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
+            <button ref={eventTriggerRef} aria-expanded={eventSelectorOpen} className="secondary-button analytics-control-trigger" type="button" onClick={() => {
               setEventSelectorOpen((open) => !open);
               setFiltersOpen(false);
               setColumnsOpen(false);
@@ -924,6 +967,7 @@ export function AnalyticsView({
             </button>
             {eventSelectorOpen && (
               <AnalyticsEventSelector
+                style={panelStyle}
                 events={result.availableEvents}
                 selectedIds={eventIds}
                 timeRange={timeRange}
@@ -934,12 +978,13 @@ export function AnalyticsView({
             )}
           </div>
           <div className="analytics-popover-wrap">
-            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => filtersOpen ? setFiltersOpen(false) : openFilters()}>
+            <button ref={filterTriggerRef} aria-expanded={filtersOpen} aria-haspopup="dialog" className="secondary-button analytics-control-trigger" type="button" onClick={() => filtersOpen ? setFiltersOpen(false) : openFilters()}>
               <SlidersHorizontal size={14} aria-hidden="true" />
               Filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
             </button>
             {filtersOpen && (
               <AnalyticsFilterPanel
+                style={panelStyle}
                 definitions={result.filterDefinitions}
                 values={stagedFilters}
                 onToggle={toggleStagedFilter}
@@ -952,7 +997,7 @@ export function AnalyticsView({
             )}
           </div>
           <div className="analytics-popover-wrap">
-            <button className="secondary-button analytics-control-trigger" type="button" onClick={() => {
+            <button ref={columnTriggerRef} aria-expanded={columnsOpen} className="secondary-button analytics-control-trigger" type="button" onClick={() => {
               setColumnsOpen((open) => !open);
               setEventSelectorOpen(false);
               setFiltersOpen(false);
@@ -962,6 +1007,7 @@ export function AnalyticsView({
             </button>
             {columnsOpen && (
               <AnalyticsColumnPanel
+                style={panelStyle}
                 domain={domain}
                 columns={result.availableColumns}
                 selectedIds={metricIds ?? result.columns.map((column) => column.metricId)}
@@ -1115,35 +1161,20 @@ export function AnalyticsSourceSelector({
   onOpenWeightRoom: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
   const sourceLabels: Record<AnalyticsFieldSource, string> = { games: "Games", practice: "Practice", "live-bp": "Live BP", personal: "Personal" };
   const summary = domain === "development"
     ? "Workouts"
     : selectedSources.length === 1 ? sourceLabels[selectedSources[0]] : `${selectedSources.length} Sources`;
 
-  useEffect(() => {
-    if (!open) return;
-    const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", closeOnOutsidePointer);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeOnOutsidePointer);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [open]);
-
   return (
-    <div ref={rootRef} className={`analytics-source-selector analytics-scope-select${open ? " open" : ""}`}>
+    <div className="analytics-source-selector analytics-scope-select">
+    <ClubhouseOptionSheet title="Analytics source and Workouts" open={open} onOpenChange={setOpen} trigger={
       <button type="button" className="choice-select__button" aria-haspopup="menu" aria-expanded={open} aria-label="Analytics source and Workouts" onClick={() => setOpen((current) => !current)}>
         <strong>{summary}</strong>
         <ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {open && <div className="analytics-source-selector__menu" role="menu" aria-label="Analytics source and Workouts">
+      </button>}
+    >
+      <div className="clubhouse-source-options" role="menu" aria-label="Analytics source and Workouts">
         <div className="analytics-source-selector__field-sources" role="group" aria-label="Field sources">
           {availableSources.map((source) => {
             const selected = domain !== "development" && selectedSources.includes(source);
@@ -1159,31 +1190,26 @@ export function AnalyticsSourceSelector({
           <Dumbbell size={15} aria-hidden="true" />
           <span>Workouts</span>
         </button>
-      </div>}
+      </div>
+    </ClubhouseOptionSheet>
     </div>
   );
 }
 
 export function AnalyticsChartPlayerSelector({ players, selectedIds, onChange }: { players: Player[]; selectedIds: ID[]; onChange: (playerIds: ID[]) => void }) {
-  const [open, setOpen] = useState(false);
-  const selectedPlayers = players.filter((player) => selectedIds.includes(player.id));
-  const label = selectedPlayers.length === 0 ? "Team" : selectedPlayers.length === 1 ? selectedPlayers[0].name : `${selectedPlayers.length} players`;
-  return (
-    <div className="analytics-chart-player-select">
-      <button type="button" className="secondary-button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="listbox">
-        <Users size={14} aria-hidden="true" /><strong>{label}</strong><ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {open && <div className="analytics-chart-player-select__menu" role="listbox" aria-multiselectable="true" aria-label="Chart players">
-        <button type="button" role="option" aria-selected={selectedIds.length === 0} className={selectedIds.length === 0 ? "active" : ""} onClick={() => onChange([])}><Check size={14} aria-hidden="true" /><span><strong>Team</strong><small>All players</small></span></button>
-        {players.map((player) => {
-          const selected = selectedIds.includes(player.id);
-          return <button key={player.id} type="button" role="option" aria-selected={selected} className={selected ? "active" : ""} onClick={() => onChange(selected ? selectedIds.filter((id) => id !== player.id) : [...selectedIds, player.id])}>
-            <Check size={14} aria-hidden="true" /><span><strong>{player.name}</strong>{player.identityLabel && <small className="player-record-label">{player.identityLabel}</small>}<small>#{player.jerseyNumber}</small></span>
-          </button>;
-        })}
-      </div>}
-    </div>
-  );
+  return <ClubhouseMultiSelect
+    className="analytics-multi-select"
+    aria-label="Chart players"
+    values={selectedIds}
+    onApply={onChange}
+    placeholder="Team"
+    searchable
+    options={players.map(player => ({
+      value: player.id,
+      label: player.name,
+      description: [player.identityLabel, player.jerseyNumber == null ? null : `#${player.jerseyNumber}`].filter(Boolean).join(" · ") || undefined,
+    }))}
+  />;
 }
 
 export function AnalyticsChartModes({ mode, onChange, includeAverage = false }: { mode: PracticeChartMetricMode; onChange: (mode: PracticeChartMetricMode) => void; includeAverage?: boolean }) {
@@ -1450,6 +1476,7 @@ export function analyticsMetricKeyLabel(column: AnalyticsColumn) {
 }
 
 export function AnalyticsEventSelector({
+  style,
   events,
   selectedIds,
   timeRange,
@@ -1457,6 +1484,7 @@ export function AnalyticsEventSelector({
   onClear,
   onTimeRangeChange,
 }: {
+  style?: React.CSSProperties;
   events: AnalyticsEventOption[];
   selectedIds: ID[];
   timeRange: AnalyticsTimeRange;
@@ -1481,7 +1509,7 @@ export function AnalyticsEventSelector({
     : events;
   const groups = groupAnalyticsEvents(filteredEvents);
   return (
-    <div className="analytics-popover" role="dialog" aria-label="Analytics events">
+    <div style={style} className="analytics-popover" role="dialog" aria-label="Analytics events">
       <div className="analytics-popover__head">
         <strong>Events</strong>
         <button type="button" className="text-button" onClick={() => { onClear(); onTimeRangeChange("season"); }}>All Events</button>
@@ -1514,6 +1542,7 @@ export function AnalyticsEventSelector({
 }
 
 export function AnalyticsColumnPanel({
+  style,
   domain,
   columns,
   selectedIds,
@@ -1522,6 +1551,7 @@ export function AnalyticsColumnPanel({
   onPreset,
   onReset,
 }: {
+  style?: React.CSSProperties;
   domain: AnalyticsDomain;
   columns: AnalyticsColumn[];
   selectedIds: string[];
@@ -1541,7 +1571,7 @@ export function AnalyticsColumnPanel({
     return grouped;
   }, {}));
   return (
-    <div className="analytics-popover analytics-popover--columns" role="dialog" aria-label="Analytics columns">
+    <div style={style} className="analytics-popover analytics-popover--columns" role="dialog" aria-label="Analytics columns">
       <div className="analytics-popover__head">
         <strong>Stat View</strong>
         <button type="button" className="text-button" onClick={onReset}>Default</button>
@@ -1653,6 +1683,7 @@ export function analyticsFilterValueSummary(definition: AnalyticsFilterDefinitio
 }
 
 export function AnalyticsFilterPanel({
+  style,
   definitions,
   values,
   onToggle,
@@ -1662,6 +1693,7 @@ export function AnalyticsFilterPanel({
   onCancel,
   onApply,
 }: {
+  style?: React.CSSProperties;
   definitions: AnalyticsFilterDefinition[];
   values: AnalyticsFilters;
   onToggle: (definition: AnalyticsFilterDefinition, value: string) => void;
@@ -1683,7 +1715,7 @@ export function AnalyticsFilterPanel({
     activeCount: sectionDefinitions.filter((definition) => analyticsFilterValueSummary(definition, values) !== (definition.type === "range" ? "Any" : "All")).length,
   }));
   return (
-    <div className="analytics-popover analytics-popover--wide analytics-filter-sheet" role="dialog" aria-modal="true" aria-label="Analytics filters">
+    <div style={style} className="analytics-popover analytics-popover--wide analytics-filter-sheet" role="dialog" aria-modal="true" aria-label="Analytics filters">
       <div className="analytics-filter-sheet__head">
         <strong>Filters</strong>
         <button type="button" className="text-button" onClick={onClear} disabled={!activeFilterGroups}>Clear All</button>

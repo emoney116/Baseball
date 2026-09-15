@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowUp, Edit3, Plus, Trash2, Upload, X } from "lucide-react";
 import { useRef, useState } from "react";
+import { ChoiceSelect } from "./ChoiceSelect";
 import type { Practice } from "../types";
 import { validatePlanItems, type PracticePlanItem } from "../lib/practicePlan";
 
@@ -89,7 +90,7 @@ export function PracticeTeamPlan({ practice, teamId, canManage = false, request:
             {editing === row.id && <div className="plan-row-fields"><label>Time<input aria-label="Row time" value={row.timeLabel ?? ""} maxLength={40} onChange={e => update(row.id, { timeLabel: e.target.value || null })} /></label><label>Activity<input aria-label="Row activity" value={row.activity} maxLength={48} onChange={e => update(row.id, { activity: e.target.value })} /></label><label>Short Detail<input aria-label="Row short detail" value={row.shortDetail ?? ""} maxLength={64} onChange={e => update(row.id, { shortDetail: e.target.value || null })} /></label></div>}
           </li>)}</ol>
           <button className="secondary-button" disabled={busy || draft.length >= 30} onClick={() => { const id = crypto.randomUUID(); setDraft(rows => [...rows, { id, timeLabel: null, activity: "", shortDetail: null }]); setEditing(id); }}><Plus size={16} />Add Row</button>
-          {published.length > 0 && <label className="plan-publish-mode">Existing Plan<select aria-label="Publish mode" value={mode} onChange={e => setMode(e.target.value)} disabled={busy}><option value="" disabled>Choose...</option><option value="replace">Replace Existing</option><option value="merge">Merge</option></select></label>}
+          {published.length > 0 && <ChoiceSelect className="plan-publish-mode" label="Existing Plan" aria-label="Publish mode" value={mode} onChange={setMode} disabled={busy} placeholder="Choose..." options={[{ value: "replace", label: "Replace Existing" }, { value: "merge", label: "Merge" }]} />}
         </>}
         {error && <p role="alert">{error}</p>}{busy && <p role="status">{screen === "import" ? "Processing..." : "Saving..."}</p>}
       </div>

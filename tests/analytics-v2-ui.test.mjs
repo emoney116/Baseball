@@ -45,7 +45,8 @@ test("Analytics filter sheet stages values and reuses the canonical catcher-view
 test("Analytics workspace keeps chart controls with the selected chart and supports player groups", () => {
   assert.match(page, /analytics-view-tabs/);
   assert.match(page, /AnalyticsChartPlayerSelector/);
-  assert.match(page, /aria-multiselectable="true"/);
+  assert.match(page, /<ClubhouseMultiSelect/);
+  assert.match(readFileSync("app/components/ClubhouseSelect.tsx", "utf8"), /aria-multiselectable="true"/);
   assert.match(page, /AnalyticsChartModes/);
   assert.match(page, /analytics-chart-surface-control/);
   assert.match(page, /analytics-chart-mode-cycle/);

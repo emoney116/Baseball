@@ -68,6 +68,7 @@ import { createPortal } from "react-dom";
 import { ASK_CLUBHOUSE_ERROR_BODY, ASK_CLUBHOUSE_ERROR_TITLE, ASK_CLUBHOUSE_GENERIC_STAGE, ASK_CLUBHOUSE_SETUP_BODY, ASK_CLUBHOUSE_SETUP_TITLE, ASK_CLUBHOUSE_UI_SUGGESTIONS, AskClubhouseDrawer, AskClubhouseFab, type AskClubhouseChatMessage } from "./components/AskClubhouseDrawer";
 import { advanceAskMessage, readAskResponse, stopAskMessage } from "./lib/askClubhouse/stream";
 import { ChoiceSelect, type ChoiceOption } from "./components/ChoiceSelect";
+import { ClubhouseMultiSelect, ClubhouseOptionSheet } from "./components/ClubhouseSelect";
 import { ClubhouseBaseballField } from "./components/ClubhouseBaseballField";
 import { ClubhouseBottomNav } from "./components/ClubhouseBottomNav";
 import { CoachLiveEntrySettings } from "./components/CoachLiveEntrySettings";
@@ -584,6 +585,7 @@ function useBottomNavMenuStyle(
   triggerRef: React.RefObject<HTMLButtonElement | null>,
   open: boolean,
   preferredWidth: number,
+  setOpen: (open: boolean) => void,
 ): React.CSSProperties | undefined {
   const [style, setStyle] = useState<React.CSSProperties | undefined>();
 
@@ -600,34 +602,48 @@ function useBottomNavMenuStyle(
       const viewportWidth = viewport?.width ?? window.innerWidth;
       const viewportHeight = viewport?.height ?? window.innerHeight;
       const viewportLeft = viewport?.offsetLeft ?? 0;
+      const viewportTop = viewport?.offsetTop ?? 0;
+      const rect = triggerRef.current.getBoundingClientRect();
+      if (!rect.width || !rect.height) {
+        setOpen(false);
+        return;
+      }
+      const bottom = Math.max(window.innerHeight - rect.top + 8, window.innerHeight - viewportTop - viewportHeight + 12);
+      const maxHeight = Math.max(0, Math.min(rect.top - viewportTop - 20, viewportHeight - 24));
       if (viewportWidth <= 720) {
-        setStyle(undefined);
+        setStyle({ bottom, maxHeight, overflowY: "auto" });
         return;
       }
 
-      const rect = triggerRef.current.getBoundingClientRect();
       const width = Math.min(preferredWidth, viewportWidth - 24);
       const left = Math.min(
         Math.max(rect.left + rect.width / 2 - width / 2, viewportLeft + 12),
         viewportLeft + viewportWidth - width - 12,
       );
-      const bottom = Math.max(viewportHeight - rect.top + 8, 78);
       setStyle({
         left,
         right: "auto",
         bottom,
         width,
+        maxHeight,
+        overflowY: "auto",
       });
     }
 
     window.addEventListener("resize", updatePosition);
     window.addEventListener("orientationchange", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    window.visualViewport?.addEventListener("resize", updatePosition);
+    window.visualViewport?.addEventListener("scroll", updatePosition);
     return () => {
       window.cancelAnimationFrame(animationFrame);
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("orientationchange", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.visualViewport?.removeEventListener("resize", updatePosition);
+      window.visualViewport?.removeEventListener("scroll", updatePosition);
     };
-  }, [open, preferredWidth, triggerRef]);
+  }, [open, preferredWidth, triggerRef, setOpen]);
 
   return open ? style : undefined;
 }
@@ -1231,8 +1247,8 @@ export default function MetrolinaBaseballApp() {
   const [mobilePinnedOpen, setMobilePinnedOpen] = useState(false);
   const mobileMoreTriggerRef = useRef<HTMLButtonElement | null>(null);
   const mobilePinnedTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const mobileMoreMenuStyle = useBottomNavMenuStyle(mobileMoreTriggerRef, mobileMoreOpen, 268);
-  const mobilePinnedMenuStyle = useBottomNavMenuStyle(mobilePinnedTriggerRef, mobilePinnedOpen, 292);
+  const mobileMoreMenuStyle = useBottomNavMenuStyle(mobileMoreTriggerRef, mobileMoreOpen, 268, setMobileMoreOpen);
+  const mobilePinnedMenuStyle = useBottomNavMenuStyle(mobilePinnedTriggerRef, mobilePinnedOpen, 292, setMobilePinnedOpen);
   const [editingPlayerId, setEditingPlayerId] = useState<ID | undefined>();
   const [sessionSummary, setSessionSummary] = useState<{ type: "Hitting" | "Pitching" | "Defense"; sessionId: ID } | null>(null);
   const [practiceSummaryOpen, setPracticeSummaryOpen] = useState(false);
@@ -4961,7 +4977,7 @@ function ProfileMenu({
 
   return (
     <div className={`profile-menu profile-menu--${variant}`}>
-      <button className="profile-menu__button" type="button" onClick={handleProfileClick} aria-label={variant === "icon" ? "Open profile" : "Open profile menu"} aria-expanded={variant === "card" ? open : undefined}>
+      <ClubhouseOptionSheet title="My account" open={variant === "card" && open} onOpenChange={onOpen} trigger={<button className="profile-menu__button" type="button" onClick={handleProfileClick} aria-label={variant === "icon" ? "Open profile" : "Open profile menu"} aria-expanded={variant === "card" ? open : undefined} aria-haspopup={variant === "card" ? "dialog" : undefined}>
         <IdentityAvatar
           id={profile?.id ?? profile?.email}
           name={profileName}
@@ -4975,10 +4991,9 @@ function ProfileMenu({
             <small>{role}</small>
           </span>
         )}
-      </button>
-      {variant === "card" && open && (
-        <div className="profile-menu__panel">
-          <div>
+      </button>}>
+        <div className="clubhouse-option-overlay__list clubhouse-profile-options">
+          <div className="clubhouse-profile-options__identity">
             <strong>{profileName}</strong>
             <small>{profile?.email ?? "Coach account"}</small>
           </div>
@@ -4999,7 +5014,7 @@ function ProfileMenu({
             Sign Out
           </button>
         </div>
-      )}
+      </ClubhouseOptionSheet>
     </div>
   );
 }
@@ -7521,14 +7536,12 @@ function PracticeHome({
           >
             <div className="practice-summary-actions" aria-label="Practice quick entry">
               <div className="practice-hitting-quick-start">
-                <PracticeActivityCard mode="Hitting" icon={Swords} title="Hitting" compact onClick={() => setHittingStartOpen((open) => !open)} />
-                {hittingStartOpen && (
-                  <div className="practice-hitting-start-popover" role="menu" aria-label="Start hitting session">
+                <ClubhouseOptionSheet title="Start hitting session" open={hittingStartOpen} onOpenChange={setHittingStartOpen} trigger={<PracticeActivityCard mode="Hitting" icon={Swords} title="Hitting" compact expanded={hittingStartOpen} onClick={() => setHittingStartOpen((open) => !open)} />}>
+                  <div className="clubhouse-option-overlay__list" role="group" aria-label="Start hitting session">
                     {HITTING_STATIONS.map((station) => (
                       <button
                         key={station}
                         type="button"
-                        role="menuitem"
                         onClick={() => {
                           setHittingStartOpen(false);
                           onStartHittingStation(station);
@@ -7538,7 +7551,7 @@ function PracticeHome({
                       </button>
                     ))}
                   </div>
-                )}
+                </ClubhouseOptionSheet>
               </div>
               <PracticeActivityCard mode="Pitching" icon={BaseballIcon} title="Pitching" compact onClick={() => onOpenStation("Pitching")} />
               <PracticeActivityCard mode="Defense" icon={Shield} title="Defense" compact onClick={() => onOpenStation("Defense")} />
@@ -7640,16 +7653,18 @@ function PracticeActivityCard({
   icon: Icon,
   title,
   compact = false,
+  expanded,
   onClick,
 }: {
   mode: PracticeMode;
   icon: AppIcon;
   title: string;
   compact?: boolean;
+  expanded?: boolean;
   onClick: () => void;
 }) {
   return (
-    <button type="button" className={`practice-activity-card ${compact ? "practice-activity-card--compact" : ""} practice-activity-card--${practiceModeClass(mode)}`} onClick={onClick}>
+    <button type="button" aria-expanded={expanded} aria-haspopup={expanded === undefined ? undefined : "dialog"} className={`practice-activity-card ${compact ? "practice-activity-card--compact" : ""} practice-activity-card--${practiceModeClass(mode)}`} onClick={onClick}>
       <span><Icon size={compact ? 15 : 22} aria-hidden="true" /></span>
       <strong>{title}</strong>
     </button>
@@ -8422,7 +8437,6 @@ function PracticeConsole({
   const [pitchingStatsScopeSessionId, setPitchingStatsScopeSessionId] = useState<ID | "all">("all");
   const [pitchingLocationFilter, setPitchingLocationFilter] = useState<PitchType | "all">("all");
   const [pitchingLivePitchFilters, setPitchingLivePitchFilters] = useState<PitchType[]>([]);
-  const [pitchingLivePitchFilterOpen, setPitchingLivePitchFilterOpen] = useState(false);
   const [showAllPitchingPlayers, setShowAllPitchingPlayers] = useState(false);
   const [pitchingSavedNotice, setPitchingSavedNotice] = useState("");
   const [pitchingVelocityError, setPitchingVelocityError] = useState("");
@@ -8454,7 +8468,6 @@ function PracticeConsole({
   const [liveBpBattedBall, setLiveBpBattedBall] = useState<BattedBallType | undefined>();
   const [activityClock, setActivityClock] = useState(() => Date.now());
   const onSessionHeartbeatRef = useRef(onSessionHeartbeat);
-  const pitchingFilterMenuRef = useRef<HTMLDivElement | null>(null);
   const practiceId = practice?.id;
   const practiceEndedAt = practice?.endedAt;
   const availablePlayers = useMemo(() => availablePracticePlayers(data, practice), [data, practice]);
@@ -8652,11 +8665,6 @@ function PracticeConsole({
       : "Multi";
   const pitchingSessionLabel = pitchingStation === "Bullpen" ? "Bullpen" : pitchingStation;
   const pitchingSessionContext = pitchingSessionLabel;
-  const pitchingLivePitchFilterLabel = pitchingLivePitchFilters.length === 0
-    ? "All"
-    : pitchingLivePitchFilters.length === 1
-      ? PITCH_TYPE_LABELS[pitchingLivePitchFilters[0]]
-      : `${pitchingLivePitchFilters.length} pitches`;
   const pitchingLivePitchFilterOptions = PITCH_TYPES.filter((pitchType) => pitchEvents.some((event) => event.pitchType === pitchType));
   const filteredPitchLocationCount = filteredPitchEvents.filter((event) => isZonePoint(event.location)).length;
   const hasFilteredVelocity = pitchStats.avgVelocity !== undefined || pitchStats.maxVelocity !== undefined;
@@ -8716,23 +8724,6 @@ function PracticeConsole({
     onSessionHeartbeatRef.current = onSessionHeartbeat;
   }, [onSessionHeartbeat]);
 
-  useEffect(() => {
-    if (!pitchingLivePitchFilterOpen) return;
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target instanceof Node ? event.target : null;
-      if (target && pitchingFilterMenuRef.current?.contains(target)) return;
-      setPitchingLivePitchFilterOpen(false);
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPitchingLivePitchFilterOpen(false);
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [pitchingLivePitchFilterOpen]);
 
   useEffect(() => {
     if (mode === "Live BP" || !practiceId || practiceEndedAt || !currentSession?.id) return;
@@ -9007,13 +8998,6 @@ function PracticeConsole({
     setPitchingPlayersOpen(false);
   }
 
-  function togglePitchingLivePitchFilter(pitchType: PitchType) {
-    setPitchingLivePitchFilters((current) => (
-      current.includes(pitchType)
-        ? current.filter((item) => item !== pitchType)
-        : [...current, pitchType]
-    ));
-  }
 
   function changeDefenseDrill(nextDrill: DefenseDrillContext) {
     const option = defenseDrillOption(nextDrill);
@@ -9785,45 +9769,7 @@ function PracticeConsole({
                   <div className="practice-pitching-location-card__head">
                     <span>Location</span>
                     <div className="practice-pitching-location-card__tools">
-                      <div className="practice-pitching-filter-menu" ref={pitchingFilterMenuRef}>
-                        <button
-                          className="practice-pitching-filter-pill"
-                          type="button"
-                          onClick={() => setPitchingLivePitchFilterOpen((open) => !open)}
-                          aria-label="Filter pitching metrics by pitch type"
-                          aria-haspopup="menu"
-                          aria-expanded={pitchingLivePitchFilterOpen}
-                        >
-                          <span>Pitch Filter</span>
-                          <strong>{pitchingLivePitchFilterLabel}</strong>
-                          <ChevronDown size={15} aria-hidden="true" />
-                        </button>
-                        {pitchingLivePitchFilterOpen && (
-                          <div className="practice-pitching-filter-popover practice-pitching-filter-sheet" role="menu" aria-label="Pitch filter">
-                            <button type="button" role="menuitemcheckbox" aria-checked={pitchingLivePitchFilters.length === 0} className={pitchingLivePitchFilters.length === 0 ? "active" : ""} onClick={() => setPitchingLivePitchFilters([])}>
-                              <span>
-                                <strong>All Pitches</strong>
-                                <small>{pitchEvents.length} total</small>
-                              </span>
-                              {pitchingLivePitchFilters.length === 0 && <Check size={16} aria-hidden="true" />}
-                            </button>
-                            {pitchingLivePitchFilterOptions.map((pitchType) => {
-                              const active = pitchingLivePitchFilters.includes(pitchType);
-                              const count = pitchEvents.filter((event) => event.pitchType === pitchType).length;
-                              return (
-                                <button key={pitchType} type="button" role="menuitemcheckbox" aria-checked={active} className={active ? "active" : ""} onClick={() => togglePitchingLivePitchFilter(pitchType)}>
-                                  <span>
-                                    <strong><i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />{practicePitchTypeLabel(pitchType)}</strong>
-                                    <small>{count} pitches</small>
-                                  </span>
-                                  <em aria-hidden="true">{active && <Check size={15} />}</em>
-                                </button>
-                              );
-                            })}
-                            {!pitchingLivePitchFilterOptions.length && <CompactEmpty title="No pitch types logged yet" />}
-                          </div>
-                        )}
-                      </div>
+                      <ClubhouseMultiSelect className="practice-hitting-chart-filter" aria-label="Filter pitching metrics by pitch type" values={pitchingLivePitchFilters} onApply={values => setPitchingLivePitchFilters(values as PitchType[])} placeholder="All Pitches" options={pitchingLivePitchFilterOptions.map(pitchType => ({ value: pitchType, label: practicePitchTypeLabel(pitchType), icon: <i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />, description: `${pitchEvents.filter(event => event.pitchType === pitchType).length} pitches` }))} />
                       <button className="text-button" type="button" onClick={() => setPitchingStatsOpen(true)}>
                         Details
                         <ChevronRight size={14} aria-hidden="true" />
@@ -11276,19 +11222,12 @@ function PracticeHittingChartCarousel({
   const [sprayMode, setSprayMode] = useState<PracticeChartMetricMode>("dots");
   const [pitchLocationMode, setPitchLocationMode] = useState<PracticeChartMetricMode>("heat");
   const [pitchFilters, setPitchFilters] = useState<PitchType[]>([]);
-  const [pitchFilterOpen, setPitchFilterOpen] = useState(false);
-  const pitchFilterRef = useRef<HTMLDivElement | null>(null);
   const chartScrollerRef = useRef<HTMLDivElement | null>(null);
   const [requestedViewId, setRequestedViewId] = useState<"spray" | "location">("spray");
   const pitchFilterOptions = PITCH_TYPES.filter((pitchType) => events.some((event) => event.pitchType === pitchType));
   const filteredEvents = pitchFilters.length
     ? events.filter((event) => event.pitchType && pitchFilters.includes(event.pitchType))
     : events;
-  const pitchFilterLabel = pitchFilters.length === 0
-    ? "All"
-    : pitchFilters.length === 1
-      ? PITCH_TYPE_LABELS[pitchFilters[0]]
-      : `${pitchFilters.length} pitches`;
   const ballsInPlayCount = filteredEvents.filter((event) => event.action === "Ball in play").length;
   const sprayPoints = filteredEvents.filter((event) => event.action === "Ball in play").map((event) => event.fieldLocation).filter(isZonePoint);
   const pitchLocationEvents = filteredEvents.filter((event) => isZonePoint(event.pitchLocation));
@@ -11299,23 +11238,6 @@ function PracticeHittingChartCarousel({
 
   const activeViewId = views.some((view) => view.id === requestedViewId) ? requestedViewId : views[0]?.id;
 
-  useEffect(() => {
-    if (!pitchFilterOpen) return;
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target instanceof Node ? event.target : null;
-      if (target && pitchFilterRef.current?.contains(target)) return;
-      setPitchFilterOpen(false);
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPitchFilterOpen(false);
-    };
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [pitchFilterOpen]);
 
   if (!views.length) return null;
 
@@ -11334,13 +11256,6 @@ function PracticeHittingChartCarousel({
     if (nextView && nextView.id !== activeViewId) setRequestedViewId(nextView.id);
   }
 
-  function togglePitchFilter(pitchType: PitchType) {
-    setPitchFilters((current) => (
-      current.includes(pitchType)
-        ? current.filter((item) => item !== pitchType)
-        : [...current, pitchType]
-    ));
-  }
 
   return (
     <section className="practice-hitting-live-charts" aria-label="Hitting charts">
@@ -11355,45 +11270,7 @@ function PracticeHittingChartCarousel({
               ))}
             </div>
           )}
-          <div className="practice-hitting-chart-filter practice-pitching-filter-menu" ref={pitchFilterRef}>
-            <button
-              className="practice-pitching-filter-pill"
-              type="button"
-              onClick={() => setPitchFilterOpen((open) => !open)}
-              aria-label="Filter hitting charts by pitch type"
-              aria-haspopup="menu"
-              aria-expanded={pitchFilterOpen}
-            >
-              <span>Pitch Filter</span>
-              <strong>{pitchFilterLabel}</strong>
-              <ChevronDown size={15} aria-hidden="true" />
-            </button>
-            {pitchFilterOpen && (
-              <div className="practice-pitching-filter-popover practice-pitching-filter-sheet" role="menu" aria-label="Hitting chart pitch filter">
-                <button type="button" role="menuitemcheckbox" aria-checked={pitchFilters.length === 0} className={pitchFilters.length === 0 ? "active" : ""} onClick={() => setPitchFilters([])}>
-                  <span>
-                    <strong>All Pitches</strong>
-                    <small>{events.length} swings</small>
-                  </span>
-                  {pitchFilters.length === 0 && <Check size={16} aria-hidden="true" />}
-                </button>
-                {pitchFilterOptions.map((pitchType) => {
-                  const active = pitchFilters.includes(pitchType);
-                  const count = events.filter((event) => event.pitchType === pitchType).length;
-                  return (
-                    <button key={pitchType} type="button" role="menuitemcheckbox" aria-checked={active} className={active ? "active" : ""} onClick={() => togglePitchFilter(pitchType)}>
-                      <span>
-                        <strong><i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />{practicePitchTypeLabel(pitchType)}</strong>
-                        <small>{count} swings</small>
-                      </span>
-                      <em aria-hidden="true">{active && <Check size={15} />}</em>
-                    </button>
-                  );
-                })}
-                {!pitchFilterOptions.length && <CompactEmpty title="No pitch types logged yet" />}
-              </div>
-            )}
-          </div>
+          <ClubhouseMultiSelect className="practice-hitting-chart-filter" aria-label="Filter hitting charts by pitch type" values={pitchFilters} onApply={values => setPitchFilters(values as PitchType[])} placeholder="All Pitches" options={pitchFilterOptions.map(pitchType => ({ value: pitchType, label: practicePitchTypeLabel(pitchType), icon: <i className={`pitch-type-dot ${pitchTypeClassName(pitchType)}`} aria-hidden="true" />, description: `${events.filter(event => event.pitchType === pitchType).length} swings` }))} />
         </div>
       </div>
       <div ref={chartScrollerRef} className="practice-hitting-live-charts__scroller" aria-label="Swipe charts" onScroll={syncActiveChartView}>
@@ -16950,7 +16827,8 @@ function GamesView({
     : [];
   const latestConfirmedEvent = events.find((event) => (event.recordStatus ?? "confirmed") === "confirmed" && event.stateBefore);
   const metrolinaBatting = game ? (game.homeAway === "Home" ? game.half === "Bottom" : game.half === "Top") : false;
-  const possessionLabel = metrolinaBatting ? "Metrolina batting" : "Metrolina pitching";
+  const currentGameTeamName = data.teamContext?.currentTeam?.teamName ?? "Our team";
+  const possessionLabel = `${currentGameTeamName} ${metrolinaBatting ? "batting" : "pitching"}`;
   const hasScoringDraft = Boolean(pendingPitchOutcome || pitchChosen || pitchLocation || contactType || selectedBipOutcome || playMovements.length || fieldLocationTracked);
 
   useEffect(() => {
@@ -17120,24 +16998,25 @@ function GamesView({
           <section className="game-console game-workstation">
             {sessionActive && <header className="game-session-bar">
               <button type="button" className="game-session-exit" aria-label="Exit game" onClick={() => { setSessionActive(false); setSessionMenuOpen(false); setSessionDrawer(null); }}><ChevronLeft size={17} aria-hidden="true" /><span>Exit game</span></button>
-              <div className="game-session-identity"><span>{possessionLabel}</span><strong>Metrolina <em>vs</em> {game.opponent}</strong><small>{game.location} · {shortDate(game.date)}</small></div>
+              <div className="game-session-identity"><span>{possessionLabel}</span><strong title={`${currentGameTeamName} vs ${game.opponent}`}>{currentGameTeamName} <em>vs</em> {game.opponent}</strong><small>{game.location} · {shortDate(game.date)}</small></div>
               <div className="game-session-actions">
                 <button type="button" className="game-session-bases-trigger" onClick={() => setSessionDrawer("bases")}>Bases</button>
                 <button type="button" aria-label="History and corrections" onClick={() => setSessionDrawer("history")}><Undo2 size={15} aria-hidden="true" /><span>History</span></button>
-                <button type="button" aria-label="Open game menu" aria-expanded={sessionMenuOpen} onClick={() => setSessionMenuOpen((open) => !open)}><MoreHorizontal size={18} aria-hidden="true" /></button>
+                <ClubhouseOptionSheet title="Game commands" open={sessionMenuOpen} onOpenChange={setSessionMenuOpen} trigger={<button type="button" aria-label="Open game menu" aria-haspopup="dialog" aria-expanded={sessionMenuOpen} onClick={() => setSessionMenuOpen((open) => !open)}><MoreHorizontal size={18} aria-hidden="true" /></button>}>
+                  <div className="clubhouse-option-overlay__list" role="group" aria-label="Game commands">
+                    {data.teamContext?.currentTeam?.role !== "PLAYER" && <button type="button" onClick={() => { setLocationEditOpen(true); setSessionMenuOpen(false); }}>Edit location</button>}
+                    <button type="button" onClick={() => { setWorkspaceMode("field"); setScoringPanelOpen(hasScoringDraft); setSessionMenuOpen(false); }}>{hasScoringDraft ? "Resume pitch scoring" : "Return to field"}</button>
+                    <button type="button" onClick={() => { setWorkspaceMode("team"); setSessionMenuOpen(false); }}>Lineup & field</button>
+                    <button type="button" onClick={() => { setWorkspaceMode("plays"); setSessionMenuOpen(false); }}>Plays & corrections</button>
+                    <button type="button" onClick={() => { setWorkspaceMode("live"); setSessionMenuOpen(false); }}>Analyze game</button>
+                    <button type="button" onClick={() => { setSessionDrawer("history"); setSessionMenuOpen(false); }}>History & corrections</button>
+                    <button type="button" onClick={() => { setSessionActive(false); setSessionMenuOpen(false); }}>Exit to Game Center</button>
+                  </div>
+                </ClubhouseOptionSheet>
               </div>
-              {sessionMenuOpen && <div className="game-session-menu" role="menu">
-                {data.teamContext?.currentTeam?.role !== "PLAYER" && <button type="button" role="menuitem" onClick={() => { setLocationEditOpen(true); setSessionMenuOpen(false); }}>Edit location</button>}
-                <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("field"); setScoringPanelOpen(hasScoringDraft); setSessionMenuOpen(false); }}>{hasScoringDraft ? "Resume pitch scoring" : "Return to field"}</button>
-                <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("team"); setSessionMenuOpen(false); }}>Lineup & field</button>
-                <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("plays"); setSessionMenuOpen(false); }}>Plays & corrections</button>
-                <button type="button" role="menuitem" onClick={() => { setWorkspaceMode("live"); setSessionMenuOpen(false); }}>Analyze game</button>
-                <button type="button" role="menuitem" onClick={() => { setSessionDrawer("history"); setSessionMenuOpen(false); }}>History & corrections</button>
-                <button type="button" role="menuitem" onClick={() => { setSessionActive(false); setSessionMenuOpen(false); }}>Exit to Game Center</button>
-              </div>}
             </header>}
             {locationEditOpen && <ModalFrame title="Game Location" onClose={() => setLocationEditOpen(false)}><ClubhouseLocationPicker value={game.location} scope={{ teamId: data.teamContext?.currentTeam?.teamId, eventLocationId: game.locationId }} onChange={location => { onLocation(game.id, location); setLocationEditOpen(false); }} /></ModalFrame>}
-            <GameScoreRibbon game={game} teamName={data.teamContext?.currentTeam?.teamName ?? "Metrolina"}>
+            <GameScoreRibbon game={game} teamName={currentGameTeamName}>
                 <div className="game-count-lights" aria-label={`${game.balls} balls, ${game.strikes} strikes, ${game.outs} outs`}>
                   <GameStateLights label="B" active={game.balls} total={3} tone="ball" />
                   <GameStateLights label="S" active={game.strikes} total={2} tone="strike" />
@@ -17261,7 +17140,7 @@ function GamesView({
                   <summary>Correction tools</summary>
                   <small>Use only to repair the official game state.</small>
                   <div className="game-manual-controls">
-                    <button type="button" onClick={() => onAdjust("metrolinaScore", 1)}>+ Metro Run</button>
+                    <button type="button" aria-label={`Add run for ${currentGameTeamName}`} onClick={() => onAdjust("metrolinaScore", 1)}>+ Team Run</button>
                     <button type="button" onClick={() => onAdjust("opponentScore", 1)}>+ Opp Run</button>
                     <button type="button" onClick={() => onAdjust("outs", 1)}>+ Out</button>
                   </div>
@@ -17314,7 +17193,7 @@ function GamesView({
                   <div className="game-event-list game-session-history-list">
                     {recentEvents.length ? recentEvents.map((event) => <div key={event.id}><span>{event.half.slice(0, 1)}{event.inning}</span><strong>{gameEventLabel(event, data.players)}</strong><small>{gameEventMeta(event)}</small></div>) : <CompactEmpty title="Record the first pitch to start the event log" />}
                   </div>
-                  <div className="game-drawer-adjustments"><span>Manual state repair</span><div><button type="button" onClick={() => onAdjust("metrolinaScore", -1)}>− Metro</button><button type="button" onClick={() => onAdjust("metrolinaScore", 1)}>+ Metro</button><button type="button" onClick={() => onAdjust("opponentScore", -1)}>− Opp</button><button type="button" onClick={() => onAdjust("opponentScore", 1)}>+ Opp</button><button type="button" onClick={() => onAdjust("outs", -1)}>− Out</button><button type="button" onClick={() => onAdjust("outs", 1)}>+ Out</button></div></div>
+                  <div className="game-drawer-adjustments"><span>Adjust score and outs</span><div><button type="button" aria-label={`Remove run from ${currentGameTeamName}`} onClick={() => onAdjust("metrolinaScore", -1)}>− Team</button><button type="button" aria-label={`Add run for ${currentGameTeamName}`} onClick={() => onAdjust("metrolinaScore", 1)}>+ Team</button><button type="button" onClick={() => onAdjust("opponentScore", -1)}>− Opp</button><button type="button" onClick={() => onAdjust("opponentScore", 1)}>+ Opp</button><button type="button" onClick={() => onAdjust("outs", -1)}>− Out</button><button type="button" onClick={() => onAdjust("outs", 1)}>+ Out</button></div></div>
                 </> : <>
                   <GameBaseDiamond game={game} players={data.players} selectedBase={selectedRunnerBase} onSelectBase={setSelectedRunnerBase} onMoveRunner={onRunnerMove} />
                   {selectedRunner ? <div className="game-runner-actions"><strong>{selectedRunner.name}<small>{selectedRunnerBase?.toUpperCase()}</small></strong><div><button type="button" onClick={() => onRunnerAction("Advance", selectedRunnerBase)}>Advance</button><button type="button" onClick={() => onRunnerAction("Stolen Base", selectedRunnerBase)}>Stolen Base</button><button type="button" onClick={() => onRunnerAction("Caught Stealing", selectedRunnerBase)}>Caught</button><button type="button" onClick={() => onRunnerAction("Pickoff", selectedRunnerBase)}>Pickoff</button></div></div> : <p className="game-runner-hint">Select an occupied base to move or score that runner.</p>}
@@ -17593,12 +17472,12 @@ function GameLiveIntelligence({ game, events, allEvents, players, focusedPlayerI
       <div className="game-tendex-tabs" role="tablist" aria-label="Tendex analysis view">{(["overview", "advanced", "locations", "spray"] as const).map((item) => <button key={item} type="button" role="tab" aria-selected={view === item} className={view === item ? "active" : ""} onClick={() => setView(item)}>{item === "advanced" ? "Tendencies" : item[0].toUpperCase() + item.slice(1)}</button>)}</div>
       <div className="game-tendex-scope"><button type="button" className={scope === "game" ? "active" : ""} onClick={() => setScope("game")}>This Game</button><button type="button" className={scope === "season" ? "active" : ""} onClick={() => setScope("season")}>Season</button></div>
       <div className="game-live-filters game-live-filters--tendex">
-        <label><span>Pitcher</span><select value={pitcherFilter} onChange={(event) => setPitcherFilter(event.target.value)}><option value="all">All pitchers</option>{pitcherOptions.map((id) => <option key={id} value={id}>{players.find((player) => player.id === id)?.name ?? id}</option>)}</select></label>
-        <label><span>Batter</span><select value={batterFilter} onChange={(event) => setBatterFilter(event.target.value)}><option value="all">All batters</option>{batterOptions.map((id) => <option key={id} value={id}>{players.find((player) => player.id === id)?.name ?? id}</option>)}</select></label>
-        <label><span>Bats</span><select value={sideFilter} onChange={(event) => setSideFilter(event.target.value as typeof sideFilter)}><option value="all">Both sides</option><option value="R">Right</option><option value="L">Left</option><option value="S">Switch</option></select></label>
-        <label><span>Count state</span><select value={bucketFilter} onChange={(event) => setBucketFilter(event.target.value)}><option value="all">All counts</option>{TENDEX_COUNT_BUCKETS.map((bucket) => <option key={bucket.key} value={bucket.key}>{bucket.label}</option>)}</select></label>
-        <label><span>Pitch</span><select value={pitchTypeFilter} onChange={(event) => setPitchTypeFilter(event.target.value as PitchType | "all")}><option value="all">All pitches</option>{TENDEX_PITCH_TYPES.map((type) => <option key={type} value={type}>{PITCH_TYPE_LABELS[type]}</option>)}</select></label>
-        <label><span>Outs</span><select value={outsFilter} onChange={(event) => setOutsFilter(event.target.value)}><option value="all">All outs</option><option value="0">0 outs</option><option value="1">1 out</option><option value="2">2 outs</option></select></label>
+        <ChoiceSelect label="Pitcher" value={pitcherFilter} onChange={setPitcherFilter} searchable options={[{ value: "all", label: "All pitchers" }, ...pitcherOptions.map(id => ({ value: id, label: players.find(player => player.id === id)?.name ?? id }))]} />
+        <ChoiceSelect label="Batter" value={batterFilter} onChange={setBatterFilter} searchable options={[{ value: "all", label: "All batters" }, ...batterOptions.map(id => ({ value: id, label: players.find(player => player.id === id)?.name ?? id }))]} />
+        <ChoiceSelect label="Bats" value={sideFilter} onChange={value => setSideFilter(value as typeof sideFilter)} options={[{ value: "all", label: "Both sides" }, { value: "R", label: "Right" }, { value: "L", label: "Left" }, { value: "S", label: "Switch" }]} />
+        <ChoiceSelect label="Count state" value={bucketFilter} onChange={setBucketFilter} options={[{ value: "all", label: "All counts" }, ...TENDEX_COUNT_BUCKETS.map(bucket => ({ value: bucket.key, label: bucket.label }))]} />
+        <ChoiceSelect label="Pitch" value={pitchTypeFilter} onChange={value => setPitchTypeFilter(value as PitchType | "all")} options={[{ value: "all", label: "All pitches" }, ...TENDEX_PITCH_TYPES.map(type => ({ value: type, label: PITCH_TYPE_LABELS[type] }))]} />
+        <ChoiceSelect label="Outs" value={outsFilter} onChange={setOutsFilter} options={[{ value: "all", label: "All outs" }, { value: "0", label: "0 outs" }, { value: "1", label: "1 out" }, { value: "2", label: "2 outs" }]} />
       </div>
       <div className="game-tendex-filter-summary"><strong>{scope === "game" ? "This game" : "Season"} · n={pitches.length}</strong><span>{confidence} sample</span><button type="button" className="text-button" onClick={() => { setPitcherFilter(game.currentPitcherId ?? "all"); setBatterFilter("all"); setSideFilter("all"); setBucketFilter("all"); setPitchTypeFilter("all"); setOutsFilter("all"); }}>Reset filters</button></div>
     </div>
@@ -17744,63 +17623,22 @@ function AskClubhouseScopeSelector({
   selectedScopeKeys: string[];
   onChange: (scopeKeys: string[]) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
   const allSelected = selectedScopeKeys.includes(ASK_ALL_TEAMS_SCOPE_KEY);
-  const selectedTeams = teams.filter((team) => selectedScopeKeys.includes(askTeamScopeKey(team)));
-  const label = allSelected
-    ? "All teams"
-    : selectedTeams.length === 1 ? selectedTeams[0].teamName : `${selectedTeams.length} teams`;
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [open]);
-
-  function toggleTeam(team: TeamOption) {
-    const key = askTeamScopeKey(team);
-    if (allSelected) {
-      onChange([key]);
-      return;
-    }
-    const next = selectedScopeKeys.includes(key)
-      ? selectedScopeKeys.filter((item) => item !== key)
-      : [...selectedScopeKeys, key];
-    if (next.length) onChange(next);
-  }
-
-  return (
-    <div className="ask-scope-control" ref={rootRef}>
-      <span>Data from</span>
-      <button className="ask-scope-trigger" type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="menu">
-        <Users size={15} aria-hidden="true" />
-        <strong>{label}</strong>
-        <ChevronDown size={14} aria-hidden="true" />
-      </button>
-      {open && (
-        <div className="ask-scope-menu" role="menu" aria-label="Ask Clubhouse team scope">
-          <button type="button" role="menuitemcheckbox" aria-checked={allSelected} className={allSelected ? "active" : ""} onClick={() => onChange([ASK_ALL_TEAMS_SCOPE_KEY])}>
-            <span className="ask-scope-check">{allSelected && <Check size={13} aria-hidden="true" />}</span>
-            <span><strong>All teams</strong><small>Ask across every team you can access</small></span>
-          </button>
-          {teams.map((team) => {
-            const selected = allSelected || selectedScopeKeys.includes(askTeamScopeKey(team));
-            return (
-              <button key={askTeamScopeKey(team)} type="button" role="menuitemcheckbox" aria-checked={selected} className={selected ? "active" : ""} onClick={() => toggleTeam(team)}>
-                <span className="ask-scope-check">{selected && <Check size={13} aria-hidden="true" />}</span>
-                <OrganizationLogo name={team.organizationName} imageUrl={team.logoUrl} />
-                <span><strong>{team.teamName}</strong><small>{team.seasonName ?? "Current season"}</small></span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+  return <div className="ask-scope-control clubhouse-ask-scope-control">
+    <span>Data from</span>
+    <ClubhouseMultiSelect
+      aria-label="Ask Clubhouse team scope"
+      placeholder="All teams"
+      values={allSelected ? [] : selectedScopeKeys}
+      onApply={keys => onChange(keys.length ? keys : [ASK_ALL_TEAMS_SCOPE_KEY])}
+      searchable
+      options={teams.map(team => ({
+        value: askTeamScopeKey(team),
+        label: team.teamName,
+        description: [team.organizationName, team.seasonName ?? "Current season"].join(" · "),
+      }))}
+    />
+  </div>;
 }
 
 function PlayerProfile({
@@ -19846,19 +19684,10 @@ function ManualRosterBuilder({
           <strong>Manual Roster Entry</strong>
         </div>
         <div className="manual-status-apply">
-          <span>All new players</span>
-          <div className="manual-status-chips" role="group" aria-label="Apply roster status to all manual rows">
-            {ROSTER_STATUSES.map((status) => (
-              <button
-                key={status}
-                type="button"
-                className={sharedStatus === status ? "active" : ""}
-                onClick={() => onApplyStatus(status)}
-              >
-                {status}
-              </button>
-            ))}
-          </div>
+          <ChoiceSelect label="All new players" aria-label="Apply roster status to all manual rows"
+            value={sharedStatus} placeholder="Mixed statuses"
+            options={ROSTER_STATUSES.map(status => ({ value: status, label: status }))}
+            onChange={value => onApplyStatus(value as RosterStatus)} />
         </div>
       </div>
 

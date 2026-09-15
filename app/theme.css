@@ -14,6 +14,11 @@
   --text-primary: #ffffff;
   --text-secondary: #d6d6d6;
   --text-muted: #9a9a9a;
+  --brand-ink: #ff8ab0;
+  --success-ink: #80dba8;
+  --field-label: #ffffff;
+  --field-label-shadow: #152016;
+  --selected-foreground: var(--text-primary);
   --sidebar: #111111;
   --panel: var(--surface);
   --panel-strong: var(--surface-raised);
@@ -47,6 +52,9 @@
   --text-primary: #111111;
   --text-secondary: #3f3f3f;
   --text-muted: #6b6b6b;
+  --brand-ink: #9c2148;
+  --success-ink: #136d42;
+  --selected-foreground: var(--text-primary);
   --sidebar: #ffffff;
   --panel: var(--surface);
   --panel-strong: var(--surface-raised);
@@ -121,6 +129,13 @@ textarea::placeholder {
 .primary-button {
   border-color: color-mix(in srgb, var(--brand-primary) 74%, var(--line-strong));
   color: var(--brand-text-on-primary);
+}
+
+.text-button,
+.text-button:hover,
+.player-home-dashboard .text-button,
+.player-home-dashboard .text-button:hover {
+  color: var(--brand-ink);
 }
 
 button:disabled,
@@ -241,4 +256,15 @@ button[aria-disabled="true"] {
 
 .game-workstation-page .game-result-pad--guided button.is-impact small {
   color: rgba(255, 255, 255, 0.82);
+}
+
+.game-event-list span,
+.game-live-sequence > span,
+.game-live-last-play span,
+.game-count-patterns strong,
+.game-field-editor > button:not(.field-chart) b,
+.game-play-ledger article > b,
+.game-field-matchup > div span,
+.game-field-player b {
+  color: var(--brand-ink);
 }

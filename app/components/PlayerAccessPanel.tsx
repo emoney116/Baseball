@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
 import { CircleHelp, ShieldCheck, X } from "lucide-react";
+import { ChoiceSelect } from "./ChoiceSelect";
 import {
   PLAYER_ACCESS_MODES,
   PLAYER_MODE_DETAILS,
@@ -140,11 +141,9 @@ export function PlayerAccessPanel({
       ) : (
         <>
           <div className="player-access-default-row">
-            <label htmlFor={`${controlId}-default`}>Default Player Access</label>
-            <select id={`${controlId}-default`} value={settings.teamDefault} disabled={busy}
-              onChange={(e) => void save(e.target.value as PlayerAccessMode)}>
-              {PLAYER_ACCESS_MODES.map((mode) => <option key={mode} value={mode}>{PLAYER_MODE_DETAILS[mode].label}</option>)}
-            </select>
+            <ChoiceSelect label="Default Player Access" value={settings.teamDefault} disabled={busy}
+              onChange={(value) => void save(value as PlayerAccessMode)}
+              options={PLAYER_ACCESS_MODES.map(mode => ({ value: mode, label: PLAYER_MODE_DETAILS[mode].label }))} />
           </div>
           <p className="muted">
             {PLAYER_MODE_DETAILS[settings.teamDefault].description}
@@ -159,24 +158,18 @@ export function PlayerAccessPanel({
                 <div>
                   <strong>{p.name}</strong>
                 </div>
-                <select
+                <ChoiceSelect
                   aria-label={`Access for ${p.name}`}
                   value={p.override ?? ""}
                   disabled={busy}
-                  onChange={(e) =>
+                  onChange={(value) =>
                     void save(
-                      (e.target.value || null) as PlayerAccessMode | null,
+                      (value || null) as PlayerAccessMode | null,
                       p.playerId,
                     )
                   }
-                >
-                  <option value="">Team Default</option>
-                  {PLAYER_ACCESS_MODES.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {PLAYER_MODE_DETAILS[mode].label}
-                    </option>
-                  ))}
-                </select>
+                  options={[{ value: "", label: "Team Default" }, ...PLAYER_ACCESS_MODES.map(mode => ({ value: mode, label: PLAYER_MODE_DETAILS[mode].label }))]}
+                />
               </div>
             ))}
             {!settings.roster.length && (
@@ -185,10 +178,9 @@ export function PlayerAccessPanel({
           </details>
           <h2>Player Tracking</h2>
           <div className="player-access-default-row">
-            <label htmlFor={`${controlId}-tracking`}>Tracking Policy</label>
-            <select id={`${controlId}-tracking`} value={settings.trackingPolicy ?? "LIVE_ONLY"} disabled={busy} onChange={e => void saveTracking(e.target.value as PlayerTrackingPolicy)}>
-              {PLAYER_TRACKING_POLICIES.map(policy => <option key={policy} value={policy}>{PLAYER_TRACKING_LABELS[policy]}</option>)}
-            </select>
+            <ChoiceSelect label="Tracking Policy" value={settings.trackingPolicy ?? "LIVE_ONLY"} disabled={busy}
+              onChange={value => void saveTracking(value as PlayerTrackingPolicy)}
+              options={PLAYER_TRACKING_POLICIES.map(policy => ({ value: policy, label: PLAYER_TRACKING_LABELS[policy] }))} />
           </div>
         </>
       )}

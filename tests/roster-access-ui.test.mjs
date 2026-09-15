@@ -61,8 +61,8 @@ test("Team Settings has no roster back action and keeps access as a modular sect
 });
 
 test("default access is a labeled dropdown and player overrides begin collapsed", () => {
-  assert.match(access, /<label htmlFor=\{`\$\{controlId\}-default`\}>Default Player Access<\/label>/);
-  assert.match(access, /<select id=\{`\$\{controlId\}-default`\} value=\{settings.teamDefault\} disabled=\{busy\}/);
+  assert.match(access, /<ChoiceSelect label="Default Player Access" value=\{settings.teamDefault\} disabled=\{busy\}/);
+  assert.match(access, /<ChoiceSelect label="Tracking Policy"/);
   assert.doesNotMatch(access, /player-access-modes|aria-pressed/);
   assert.match(access, /<details className="player-access-overrides">/);
   assert.doesNotMatch(access, /<details[^>]*\bopen[\s=>]/);

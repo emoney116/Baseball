@@ -73,7 +73,9 @@ test("Ask Clubhouse exposes shared launch surfaces and authorized team scope con
   assert.match(page, /function AskClubhouseLauncher/);
   assert.match(page, /function AskClubhouseScopeSelector/);
   assert.match(page, /<span>Data from<\/span>/);
-  assert.match(page, /role="menuitemcheckbox"/);
+  assert.match(page, /<ClubhouseMultiSelect[\s\S]*?aria-label="Ask Clubhouse team scope"/);
+  assert.match(page, /keys\.length \? keys : \[ASK_ALL_TEAMS_SCOPE_KEY\]/);
+  assert.match(page, /value: askTeamScopeKey\(team\)/);
   assert.match(page, /openAskClubhouse\("clubhouse_home"\)/);
   assert.match(page, /openAskClubhouse\("team_home"\)/);
   assert.match(page, /openAskClubhouse\("practice"\)/);

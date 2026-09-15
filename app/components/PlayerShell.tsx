@@ -34,6 +34,7 @@ import { PlayerSelfTracking } from "./PlayerSelfTracking";
 import { PlayerLiveEntry } from "./PlayerLiveEntry";
 import { PlayerPersonalSessions } from "./PlayerPersonalSessions";
 import { PLAYER_MODE_DETAILS } from "../lib/playerCapabilities";
+import { currentStartedPractice } from "../lib/practiceStart";
 
 type View = "Home" | "Schedule" | "Practice" | "Games" | "Weight Room" | "Analytics" | "More";
 const VIEW_ROUTES = { Home: "teamHome", Schedule: "schedule", Practice: "practice", Games: "games", "Weight Room": "weights", Analytics: "analytics", More: "more" } as const;
@@ -227,7 +228,7 @@ export function PlayerShell({
         p = await r.json();
       if (seq !== generation.current) return;
       if (!r.ok || p.mode !== "player")
-        throw new Error(p.message ?? "Unable to switch player context.");
+        throw new Error(p.message ?? "Unable to switch teams. Please try again.");
       setSession(p);
       const url = new URL(window.location.href);
       url.searchParams.set("player", c.playerId);
@@ -259,7 +260,7 @@ export function PlayerShell({
     for (const key of ["domain", "source", "period", "start", "end", "analyticsWorkspace", "event", "events"]) url.searchParams.delete(key);
     window.history.replaceState(null, "", url);
   }
-  const activePractice = data?.practices.find(practice => !practice.endedAt);
+  const activePractice = data ? currentStartedPractice(data.practices) : undefined;
   const ownPlayer = data?.players.find(player => player.id === context?.playerId);
   const weightProfile = useMemo(() => data && ownPlayer ? buildWeightRoomPlayerProfile(data, ownPlayer) : undefined, [data, ownPlayer]);
   const selectedGame = data?.games.find(game => game.id === selectedGameId) ?? data?.games[0];
@@ -378,13 +379,13 @@ export function PlayerShell({
         onClubhouseHome={() => window.location.assign("/")}
         onSwitch={team => { const next = session.contexts.find(c => c.team.teamId === team.teamId && c.team.seasonId === team.seasonId); if (next) void switchContext(next); }}
       />}
-      <div className="player-context-caption"><strong>{context ? `${context.jersey !== undefined ? `#${context.jersey} ` : ""}${context.name}` : "My Clubhouse"}</strong>{session.access && <span>{PLAYER_MODE_DETAILS[session.access.mode].label}</span>}</div>
+      <div className="player-context-caption"><strong>{context ? `${context.jersey != null ? `#${context.jersey} ` : ""}${context.name}` : "My Clubhouse"}</strong>{session.access && <span>{PLAYER_MODE_DETAILS[session.access.mode].label}</span>}</div>
       {session.contexts.length > 1 && (
         <ChoiceSelect className="player-beta-context" label="Player Context" value={context?.membershipId ?? ""} disabled={loading} options={session.contexts.map(c => ({ value: c.membershipId, label: c.name, description: `${c.team.teamName} · ${c.team.seasonName}` }))} onChange={value => { const c = session.contexts.find(c => c.membershipId === value); if (c) void switchContext(c); }} />
       )}
       {error && <p role="alert">{error}</p>}
       {loading ? (
-        <p role="status">Loading your player context...</p>
+        <p role="status">Loading your team...</p>
       ) : !context ? (
         <PlayerAccountLinksPanel />
       ) : (
@@ -410,7 +411,7 @@ export function PlayerShell({
             </div>}
             {view === "Games" && session.access?.capabilities.canViewOwnGames && <div className="page-stack games-page player-games-page">
               <SectionHeader title="Game Center" />
-              {selectedGame ? <section className="games-layout"><GameLibrary games={data.games} selectedGameId={selectedGame.id} onGame={id => { setSelectedGameId(id); setAnalyticsRevision(value => value + 1); }} /><section className="game-console"><GameScoreRibbon game={selectedGame} teamName={context.team.teamName} /></section></section> : <p>No games available for this player context.</p>}
+              {selectedGame ? <section className="games-layout"><GameLibrary games={data.games} selectedGameId={selectedGame.id} onGame={id => { setSelectedGameId(id); setAnalyticsRevision(value => value + 1); }} /><section className="game-console"><GameScoreRibbon game={selectedGame} teamName={context.team.teamName} /></section></section> : <p>No games to show yet.</p>}
             </div>}
             {view === "Home" && <PlayerHome key={context.membershipId} session={session} preview={preview} onNavigate={navigate} onAnalytics={query => { navigate("Analytics"); setDomain(query.domain ?? "hitting"); setSource(query.source ?? "practice"); setAskQuery(query); setEventId(query.eventIds?.[0] ?? ""); setAnalyticsRevision(value => value + 1); }} onEnter={live => { navigate(live.domain === "workout" ? "Weight Room" : "Practice"); setLiveSelection(`${live.id}:${live.domain}`); }} onAsk={prompt => { setAsk(true); void askQuestion(prompt); }} onSaved={() => refreshSession.current()} />}
             {view === "Schedule" && session.access?.capabilities.canViewTeamSchedule && (
@@ -438,7 +439,7 @@ export function PlayerShell({
                   {session.access?.capabilities.canViewOwnWeightRoom && <button onClick={() => navigate("Weight Room")}><Dumbbell size={18} />Weight Room</button>}
                   {session.access?.capabilities.canViewOwnAnalytics && <button onClick={() => navigate("Analytics")}><ChartNoAxesCombined size={18} />Analytics</button>}
                 </div>
-                {session.access?.capabilities.canViewRoster && <><h2>Team Roster</h2>{session.teamRoster?.map(p => <div className="player-beta-item" key={p.playerId}><DensePlayerIdentity player={{ name: p.name, jerseyNumber: p.jersey ?? 0 }} showJersey={p.jersey !== undefined} /><span>{p.position}</span></div>)}</>}
+                {session.access?.capabilities.canViewRoster && <><h2>Team Roster</h2>{session.teamRoster?.map(p => <div className="player-beta-item" key={p.playerId}><DensePlayerIdentity player={{ name: p.name, jerseyNumber: p.jersey ?? 0 }} showJersey={p.jersey != null} /><span>{p.position}</span></div>)}</>}
                 {!preview && <PlayerAccountLinksPanel />}
               </section>
             )}
@@ -467,7 +468,7 @@ export function PlayerShell({
           scopeControl={<div className="ask-scope-control"><span>Data from</span><ChoiceSelect
             aria-label="Ask Clubhouse player team scope"
             value={askAllTeams ? "all" : context.membershipId}
-            options={[...session.contexts.map(c => ({ value: c.membershipId, label: c.team.teamName, description: `${c.name} · ${c.team.seasonName}` })), ...(session.contexts.length > 1 ? [{ value: "all", label: "All My Teams", description: "Your approved player contexts" }] : [])]}
+            options={[...session.contexts.map(c => ({ value: c.membershipId, label: c.team.teamName, description: `${c.name} · ${c.team.seasonName}` })), ...(session.contexts.length > 1 ? [{ value: "all", label: "All My Teams", description: "Your linked teams" }] : [])]}
             onChange={value => {
               resetAsk(); setAskAnalytics({});
               if (value === "all") { setAskAllTeams(true); return; }
