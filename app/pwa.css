@@ -5,3 +5,7 @@
 }
 html[data-display-mode="standalone"] body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
 html[data-display-mode="standalone"] .ops-shell { padding-top: env(safe-area-inset-top); }
+/* Portaled selectors, modal sheets and drawers temporarily own mobile navigation. */
+body:has([role="dialog"]:not(dialog):not([hidden]):not([aria-hidden="true"]), [role="alertdialog"]:not([hidden]):not([aria-hidden="true"]), dialog[open]) .bottom-nav {
+  display: none !important;
+}

@@ -35,6 +35,7 @@ import type {
   AskClubhouseUiContext,
 } from "./types.ts";
 import { composeAskClubhouseQueryPlan, type AskClubhouseQueryPlan } from "./queryPlan.ts";
+import { workoutAnswer } from "./workoutAnswers.ts";
 
 export interface AskToolPlan {
   status: AskClubhouseStatus | "data" | "provider";
@@ -222,6 +223,12 @@ export function buildAskClubhouseToolPlan(
   const trimmed = message.trim();
   const lower = trimmed.toLowerCase();
   const currentTeam = data.teamContext?.currentTeam;
+  const workout = workoutAnswer(data, trimmed, uiContext, now);
+  if (workout) return {
+    ...workout, route: "clubhouse_data", requiresWebSearch: false, toolRequests: [], actions: [],
+    followUps: ["Who was the best in each exercise completed today?", "Total amount of pushups done by our team today"],
+    knowledgeStatus: "not_needed", knowledgeItems: [], externalResearchRequired: false,
+  };
   const researchEnabled = canUseExternalResearch({
     role: currentTeam?.role === "PLAYER" ? "player" : "coach",
     teamId: currentTeam?.teamId,

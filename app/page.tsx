@@ -316,8 +316,8 @@ const ASK_CLUBHOUSE_CONTEXT_SUGGESTIONS: Record<AskClubhouseLaunchSurface, Array
   ],
   analytics: ASK_CLUBHOUSE_UI_SUGGESTIONS,
   weight_room: [
-    { label: "Who leads Weight Room Development?", icon: Dumbbell },
-    { label: "Who improved most in the Weight Room this month?", icon: TrendingUp },
+    { label: "Who was the best in each exercise completed today?", icon: Trophy },
+    { label: "Total amount of pushups done by our team today", icon: Dumbbell },
     { label: "Who has missed recent workouts?", icon: ClipboardList },
     { label: "Who completed the most workouts?", icon: BarChart3 },
   ],
@@ -4373,7 +4373,7 @@ export default function MetrolinaBaseballApp() {
             onSaveExercisePreset={saveWeightRoomExercisePreset}
             onWeighInOpen={setWeightRoomWeighInOpen}
             onSaveWeighIns={logWeightRoomWeighIns}
-            onAsk={() => openAskClubhouse("weight_room")}
+            onAsk={(date) => openAskClubhouse("weight_room", date ? { domain: "development", timeRange: "custom", customDateRange: { start: date, end: date } } : undefined)}
           />
         )}
 
@@ -12184,7 +12184,7 @@ function WeightRoomView({
   onSaveExercisePreset: (preset: WeightRoomExercisePreset) => void;
   onWeighInOpen: (open: boolean) => void;
   onSaveWeighIns: (rows: Array<{ playerId: ID; weight?: number }>, date: string) => void;
-  onAsk: () => void;
+  onAsk: (date?: string) => void;
 }) {
   const players = sortPlayersByRecent(data.players.filter((player) => !player.archived), data.settings.recentPlayerIds);
   const selected = players.find((player) => player.id === selectedPlayerId) ?? players[0];
@@ -12256,6 +12256,7 @@ function WeightRoomView({
           entriesForDate={entriesForDate}
           sessionsForDate={sessionsForDate}
           activeWorkout={sessionWorkout}
+          onAsk={() => onAsk(workoutDate)}
           onSaveSetup={onSaveSetup}
           onBack={() => onTab("Overview")}
           onAddEntry={onAddEntry}
@@ -12866,6 +12867,7 @@ function WeightRoomActiveWorkout({
   onPauseWorkout,
   onResumeWorkout,
   onCompleteWorkout,
+  onAsk,
 }: {
   data: AppData;
   players: Player[];
@@ -12883,6 +12885,7 @@ function WeightRoomActiveWorkout({
   onPauseWorkout: () => void;
   onResumeWorkout: () => void;
   onCompleteWorkout: () => void;
+  onAsk: () => void;
 }) {
   const team = data.teamContext?.currentTeam;
   const participantIds = players.map((player) => player.id);
@@ -13185,6 +13188,7 @@ function WeightRoomActiveWorkout({
   if (completed && !editingCompleted) {
     return (
       <section className="weight-room-active-shell">
+        <button type="button" className="secondary-button" onClick={onAsk}><Sparkles size={18} aria-hidden="true" />Ask Clubhouse</button>
         <WeightRoomActiveHeader
           workoutTitle={workoutTitle}
           workoutDate={workoutDate}

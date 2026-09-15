@@ -709,6 +709,9 @@ function mapWorkoutSession(row: AnyRow): WorkoutSession {
 
 function mapWorkoutEntry(row: AnyRow, exercise?: AnyRow): WorkoutEntry {
   return {
+    testConditions: row.test_conditions ?? undefined,
+    testSide: row.test_side ?? undefined,
+    testAttempt: row.test_attempt ?? undefined,
     activeWorkoutId: row.active_workout_id ?? undefined,
     workoutStationId: row.workout_station_id ?? undefined,
     workoutGroupId: row.workout_group_id ?? undefined,

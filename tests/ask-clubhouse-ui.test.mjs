@@ -79,7 +79,8 @@ test("Ask Clubhouse exposes shared launch surfaces and authorized team scope con
   assert.match(page, /openAskClubhouse\("clubhouse_home"\)/);
   assert.match(page, /openAskClubhouse\("team_home"\)/);
   assert.match(page, /openAskClubhouse\("practice"\)/);
-  assert.match(page, /openAskClubhouse\("weight_room"\)/);
+  assert.match(page, /openAskClubhouse\("weight_room", date \?/);
+  assert.match(page, /onAsk=\{\(\) => onAsk\(workoutDate\)\}/);
   assert.match(page, /openAskClubhouse\("games"\)/);
   assert.match(page, /openAskClubhouse\("analytics"/);
   assert.doesNotMatch(page, /className="ask-header__back"/);
