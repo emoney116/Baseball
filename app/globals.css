@@ -26894,6 +26894,20 @@ button.weight-room-athlete-table__row:hover {
   font-size: var(--text-table-row);
 }
 
+.weight-room-optional-load { display: flex; align-items: center; gap: 6px; min-height: 28px; font-size: 11px; color: var(--muted-strong); }
+.weight-room-optional-load input { width: 16px; height: 16px; }
+
+@media (max-width: 600px) {
+  .weight-room-active-top { padding: 12px; gap: 12px; }
+  .weight-room-active-top .weight-room-active-top__metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; width: 100%; }
+  .weight-room-active-top .weight-room-active-top__metrics > span, .weight-room-active-top .weight-room-active-top__metrics > button { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; align-content: start; justify-content: start; }
+  .weight-room-active-top__metrics svg { display: none; }
+  .weight-room-active-top .weight-room-active-top__metrics small, .weight-room-active-top .weight-room-active-top__metrics button small { grid-column: 1; font-size: 10px; white-space: normal; }
+  .weight-room-active-top__metrics strong { font-size: 14px; white-space: nowrap; }
+  .weight-room-active-top .weight-room-active-top__actions { display: flex; gap: 8px; }
+  .weight-room-active-top__actions > button { flex: 1; min-width: 0; padding-inline: 6px; font-size: 12px; }
+}
+
 .weight-room-individual-strip {
   display: flex;
   align-items: center;

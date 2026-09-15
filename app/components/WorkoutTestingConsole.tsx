@@ -6,7 +6,7 @@ import { createClient } from "../lib/supabase/client";
 import { formatTestResult, parseTestResult, testConditionLabel, type WorkoutTestConditions } from "../lib/workoutTesting";
 import type { Player } from "../types";
 import { ClubhouseSelect } from "./ClubhouseSelect";
-import { formatDensePlayerIdentity } from "../lib/densePlayerIdentity";
+import type { WeightRoomWorkoutStatus } from "./TeamTrainingViews";
 import { workoutStationSelection } from "../lib/workoutStationSelection";
 import styles from "./WorkoutTestingConsole.module.css";
 
@@ -15,7 +15,7 @@ type Group = { id: string; name: string; current_station_id: string | null };
 type Result = { id: string; player_id: string; workout_station_id: string; reps: number | null; value: number | null; test_side: string | null; test_attempt: number; test_revision: number };
 type Draft = { text: string; request: string; error?: string; resultId?: string; revision?: number; original?: number };
 
-export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "Groups", completedEdit = false }: { workoutId: string; profileId: string; players: Player[]; mode?: "Groups" | "Individual"; completedEdit?: boolean }) {
+export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "Groups", completedEdit = false, onStatus, onEditSetup }: { workoutId: string; profileId: string; players: Player[]; mode?: "Groups" | "Individual"; completedEdit?: boolean; onStatus?: (status: WeightRoomWorkoutStatus) => void; onEditSetup?: () => void }) {
   const storageKey = `clubhouse:test-drafts:v1:${profileId}:${workoutId}`;
   const [stations, setStations] = useState<Station[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -41,6 +41,7 @@ export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "G
   const [error, setError] = useState("");
   const [active, setActive] = useState<boolean | null>(null);
   const [canCorrect, setCanCorrect] = useState(false);
+  const [lifecycle, setLifecycle] = useState("");
   const [revision, setRevision] = useState(0);
   const loading = useRef(false);
   const saving = useRef(new Set<string>());
@@ -79,13 +80,15 @@ export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "G
       setMembers(memberRows.data ?? []);
       setResults(all);
       setActive(workout.data.status === "ACTIVE" && !workout.data.ended_at);
-      setCanCorrect(workout.data.status === "ACTIVE" || (completedEdit && workout.data.status === "COMPLETED"));
+      setCanCorrect((workout.data.status === "ACTIVE" && !workout.data.ended_at) || (completedEdit && workout.data.status === "COMPLETED"));
+      setLifecycle(workout.data.status);
+      onStatus?.(workout.data.status === "COMPLETED" || workout.data.ended_at ? "Completed" : workout.data.status === "ACTIVE" ? "In Progress" : "Paused");
       setRevision(workout.data.circuit_revision);
       setError("");
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not refresh results. Your unsaved entries are still here.");
     } finally { loading.current = false; }
-  }, [workoutId, completedEdit]);
+  }, [workoutId, completedEdit, onStatus]);
 
   useEffect(() => {
     void refresh();
@@ -142,11 +145,11 @@ export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "G
     finally { saving.current.delete("rotation"); setBusy(""); }
   }
 
-  return <section className={styles.console} aria-label="Testing circuit">
+  return <section className={`panel weight-room-individual-mode ${styles.console}`} aria-label="Workout result entry">
     <aside className={styles.navigation}>
       <div className={`${styles.pickers} ${mode === "Individual" ? styles.individual : ""}`}>
       {mode === "Groups" ? <ClubhouseSelect label="Group" value={selectedGroup?.id ?? ""} options={groups.map((group) => ({ value: group.id, label: group.name }))} onChange={setGroupId} /> : null}
-      <ClubhouseSelect label="Station" value={station?.id ?? ""} options={stations.map((item) => ({ value: item.id, label: item.exercise_name }))} onChange={(id) => {
+      <ClubhouseSelect label="Exercise" value={station?.id ?? ""} options={stations.map((item) => ({ value: item.id, label: item.exercise_name }))} onChange={(id) => {
         if (selectedGroup) setGroupStations(current => ({ ...current, [selectedGroup.id]: { stationId: id, revision } }));
         else setStationId(id);
       }} />
@@ -154,6 +157,7 @@ export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "G
       </div>
       {conditions?.bilateral && <ClubhouseSelect label="Side" value={side} options={[{ value: "Left", label: "Left" }, { value: "Right", label: "Right" }]} onChange={setSide} />}
       <div className={styles.actions}>
+        {onEditSetup && <button type="button" onClick={onEditSetup}>Edit Setup</button>}
         {mode === "Groups" && <button type="button" aria-label="Next Rotation" title="Next Rotation" disabled={!active || !!busy || !groups.length} onClick={() => void rotate()}><RotateCw size={18} />Next Rotation</button>}
         <button type="button" aria-label="Refresh results" title="Refresh results" onClick={() => void refresh()}><RefreshCw size={18} />Refresh</button>
       </div>
@@ -162,21 +166,25 @@ export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "G
       <header><h2>{station?.exercise_name ?? "Testing Circuit"}</h2><span>{conditions && testConditionLabel(conditions)}</span></header>
       {error && <p role="alert">{error}</p>}
       {active === null && <p role="status">Loading workout...</p>}
-      {active === false && <p role="status">Workout is not active. Saved results are preserved.</p>}
+      {active === false && <p role="status">{lifecycle === "COMPLETED" ? "Workout completed. Existing results can be corrected in Edit Workout; new attempts require a new workout." : lifecycle === "PAUSED" ? "Workout paused. Resume Workout to enter results." : "Workout is not open for new results. Saved results are preserved."}</p>}
+      <div className="weight-room-individual-box-score" role="table" aria-label={`${station?.exercise_name ?? "Workout"} athlete results`} style={{ ["--active-set-count" as string]: 1 }}>
+      <div role="row"><span role="columnheader">Athlete</span><span role="columnheader">Attempt {attempt}{conditions?.bilateral ? ` - ${side}` : ""}</span></div>
       {conditions && roster.map((player) => {
         const key = keyFor(player.id);
         const saved = results.find((result) => result.player_id === player.id && result.workout_station_id === station.id && result.test_attempt === Number(attempt) && result.test_side === (conditions.bilateral ? side : null));
         const draft = drafts[key];
-        return <div key={key} className={styles.row}>
-        <strong>{formatDensePlayerIdentity(player)}</strong>
+        return <div key={key} role="row">
+        <span role="cell" className="weight-room-box-score-athlete"><strong>{player.name}</strong></span>
+        <div role="cell" className={styles.resultCell}>
           {saved && !draft ? <button type="button" className={styles.saved} aria-label={`Edit ${player.name} result`} title="Edit result" disabled={!canCorrect} onClick={() => editResult(saved)}>{formatTestResult(saved.value ?? saved.reps, conditions)}<Pencil size={14} /></button> : <form onSubmit={(event) => { event.preventDefault(); inputs.current[player.id]?.blur(); }}>
             <input ref={(element) => { inputs.current[player.id] = element; }} aria-label={`${player.name} result`} inputMode={conditions.mode === "MAX_DURATION" ? "decimal" : "numeric"} placeholder={conditions.mode === "MAX_DURATION" ? "Seconds" : "Reps"} value={draft?.text ?? ""} disabled={!(draft?.resultId ? canCorrect : active) || saving.current.has(key)} onBlur={() => void save(player.id)} onChange={(event) => { const text = event.target.value; setDrafts((current) => ({ ...current, [key]: { ...current[key], text, request: current[key]?.request ?? crypto.randomUUID(), error: undefined } })); }} />
             {draft?.resultId && <button type="button" aria-label={`Cancel editing ${player.name}`} title="Cancel edit" onPointerDown={(event) => event.preventDefault()} onClick={() => setDrafts((current) => {const next={...current};delete next[key];return next;})}><X size={16} /></button>}
           </form>}
           {saving.current.has(key) && <p role="status">Saving...</p>}
           {draft?.error && <p role="alert">{draft.error} <button type="button" onClick={() => void save(player.id)}>Retry</button>{saved && <button type="button" onClick={() => {setDrafts((current)=>{const next={...current};delete next[key];return next;});void refresh();}}>Use latest</button>}</p>}
-        </div>;
+        </div></div>;
       })}
+      </div>
     </div>
   </section>;
 }

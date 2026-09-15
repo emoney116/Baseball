@@ -12860,7 +12860,7 @@ function WeightRoomActiveWorkout({
   exercises,
   workoutTitle,
   workoutDate,
-  workoutStatus,
+  workoutStatus: requestedWorkoutStatus,
   entriesForDate,
   sessionsForDate,
   activeWorkout,
@@ -12919,6 +12919,8 @@ function WeightRoomActiveWorkout({
   const [autoAssignment, setAutoAssignment] = useState<"Balanced" | "Random">("Balanced");
   const [individualExercise, setIndividualExercise] = useState("");
   const [editingCompleted, setEditingCompleted] = useState(false);
+  const [observedWorkoutStatus, setObservedWorkoutStatus] = useState<WeightRoomWorkoutStatus>();
+  const workoutStatus = observedWorkoutStatus ?? (activeWorkout?.status === "COMPLETED" ? "Completed" : activeWorkout?.status === "PAUSED" ? "Paused" : requestedWorkoutStatus);
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
   const [activityExpanded, setActivityExpanded] = useState(false);
   const [setupMessage, setSetupMessage] = useState("");
@@ -13324,7 +13326,7 @@ function WeightRoomActiveWorkout({
           onRemovePlayer={removePlayerFromGroup}
         />
       ) : activeWorkout && stations.some((station) => station.testConditions) ? (
-        <WorkoutTestingConsole key={activeWorkout.id} workoutId={activeWorkout.id} profileId={data.teamContext?.profile?.id ?? "local"} players={players} mode={entryMode} completedEdit={completed && editingCompleted} />
+        <WorkoutTestingConsole key={activeWorkout.id} workoutId={activeWorkout.id} profileId={data.teamContext?.profile?.id ?? "local"} players={players} mode={entryMode} completedEdit={completed && editingCompleted} onStatus={setObservedWorkoutStatus} onEditSetup={() => setSetupOpen(true)} />
       ) : (
         <section className={`weight-room-active-workspace ${paused ? "is-paused" : ""}`}>
           {entryMode === "Groups" ? (

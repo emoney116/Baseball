@@ -323,8 +323,10 @@ export function WeightRoomInlineSetCell({
   const [weight, setWeight] = useState(entry?.weight?.toString() ?? "");
   const [reps, setReps] = useState(entry?.reps?.toString() ?? "");
   const [value, setValue] = useState((station.measurementType === "RPE_ONLY" ? entry?.rpe : entry?.value)?.toString() ?? "");
-  const isWeightReps = station.measurementType === "WEIGHT_REPS";
-  const isRepsOnly = station.measurementType === "BODYWEIGHT_REPS" || station.measurementType === "REPS_ONLY" || station.measurementType === "COUNT";
+  const optionalLoad = station.targetStyle === "Max Reps" && station.testConditions?.loadLb === undefined && station.targetValue === undefined;
+  const [includeLoad, setIncludeLoad] = useState(entry?.weight !== undefined);
+  const isWeightReps = optionalLoad ? includeLoad : station.measurementType === "WEIGHT_REPS";
+  const isRepsOnly = (optionalLoad && !includeLoad) || station.measurementType === "BODYWEIGHT_REPS" || station.measurementType === "REPS_ONLY" || station.measurementType === "COUNT";
   const isWeightOnly = station.measurementType === "WEIGHT_ONLY";
   const isCompletion = station.measurementType === "COMPLETION" || station.targetStyle === "Completion";
 
@@ -362,6 +364,7 @@ export function WeightRoomInlineSetCell({
   const previousText = previousEntry ? formatWorkoutEntryValueForStation(previousEntry, station) : undefined;
   return (
     <div className={entry ? "weight-room-inline-set-cell complete" : "weight-room-inline-set-cell"} aria-label={`${station.name} ${stationAttemptLabel(station).toLowerCase()} ${cell.setNumber}`}>
+      {optionalLoad && <label className="weight-room-optional-load"><input type="checkbox" checked={includeLoad} disabled={disabled || entry?.weight !== undefined} onChange={event => setIncludeLoad(event.target.checked)} />Add load</label>}
       {isWeightReps ? (
         <div className="weight-room-inline-set-fields two">
           <label>
