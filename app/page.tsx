@@ -12298,7 +12298,7 @@ function WeightRoomView({
             {workoutActionLabel}
           </button>
         </>} />
-      {tab === "Overview" && !weighInOpen && <AskClubhouseFab onClick={onAsk} />}
+      {tab === "Overview" && !weighInOpen && <AskClubhouseFab onClick={() => onAsk()} />}
 
       {tab === "Overview" && (
         <section className="weight-room-overview-grid">

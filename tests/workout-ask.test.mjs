@@ -45,6 +45,7 @@ test('mobile nav hides for shared and portaled dialogs, and Ask retains test met
 test('review prompts are scoped and its primary Ask action follows Edit Workout',()=>{
   const page=readFileSync('app/page.tsx','utf8');
   assert.match(page,/weight_room: \[\s*\{ label: "Who leads Weight Room Development\?"/);
+  assert.match(page,/!weighInOpen && <AskClubhouseFab onClick=\{\(\) => onAsk\(\)\}/);
   assert.match(page,/suggestions=\{askLaunchContext.surface === "weight_room" && askLaunchContext.analytics\?\.customDateRange/);
   const header=page.slice(page.indexOf('function WeightRoomActiveHeader('),page.indexOf('function WeightRoomActiveWeighIns('));
   assert.match(header,/Edit Workout[\s\S]*className="primary-button"[^>]*onClick=\{onAsk\}/);
