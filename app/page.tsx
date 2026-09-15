@@ -316,8 +316,8 @@ const ASK_CLUBHOUSE_CONTEXT_SUGGESTIONS: Record<AskClubhouseLaunchSurface, Array
   ],
   analytics: ASK_CLUBHOUSE_UI_SUGGESTIONS,
   weight_room: [
-    { label: "Who was the best in each exercise completed today?", icon: Trophy },
-    { label: "Total amount of pushups done by our team today", icon: Dumbbell },
+    { label: "Who leads Weight Room Development?", icon: Dumbbell },
+    { label: "Who improved most in the Weight Room this month?", icon: TrendingUp },
     { label: "Who has missed recent workouts?", icon: ClipboardList },
     { label: "Who completed the most workouts?", icon: BarChart3 },
   ],
@@ -4450,7 +4450,11 @@ export default function MetrolinaBaseballApp() {
           stage={askStage}
           error={askError}
           scopeControl={<AskClubhouseScopeSelector teams={displayWorkspaceTeams(data.teamContext?.availableTeams ?? [])} selectedScopeKeys={resolvedAskSelectedScopeKeys} onChange={changeAskScopes} />}
-          suggestions={ASK_CLUBHOUSE_CONTEXT_SUGGESTIONS[askLaunchContext.surface]}
+          suggestions={askLaunchContext.surface === "weight_room" && askLaunchContext.analytics?.customDateRange ? [
+            { label: "Who was the best in each exercise?", icon: Trophy },
+            { label: "Total amount of pushups done by our team", icon: Dumbbell },
+            ...ASK_CLUBHOUSE_CONTEXT_SUGGESTIONS.weight_room.slice(2),
+          ] : ASK_CLUBHOUSE_CONTEXT_SUGGESTIONS[askLaunchContext.surface]}
           onClose={() => setAskOpen(false)}
           onNewChat={startNewAskChat}
           onStop={stopAskReply}
@@ -13188,7 +13192,6 @@ function WeightRoomActiveWorkout({
   if (completed && !editingCompleted) {
     return (
       <section className="weight-room-active-shell">
-        <button type="button" className="secondary-button" onClick={onAsk}><Sparkles size={18} aria-hidden="true" />Ask Clubhouse</button>
         <WeightRoomActiveHeader
           workoutTitle={workoutTitle}
           workoutDate={workoutDate}
@@ -13202,6 +13205,7 @@ function WeightRoomActiveWorkout({
           workoutVolume={workoutVolume}
           setupOpen={false}
           completedMode="summary"
+          onAsk={onAsk}
           onOpenWeighIns={() => setActiveTab("Weigh-Ins")}
           onBack={onBack}
           onPause={onPauseWorkout}
@@ -13741,6 +13745,7 @@ function WeightRoomActiveHeader({
   onResume,
   onEditCompleted,
   onFinish,
+  onAsk,
 }: {
   workoutTitle: string;
   workoutDate: string;
@@ -13760,6 +13765,7 @@ function WeightRoomActiveHeader({
   onResume: () => void;
   onEditCompleted?: () => void;
   onFinish: () => void;
+  onAsk?: () => void;
 }) {
   const completed = workoutStatus === "Completed";
   const title = completed ? workoutTitle : formatPickerDate(workoutDate);
@@ -13785,10 +13791,13 @@ function WeightRoomActiveHeader({
       </div>
       <div className="weight-room-active-top__actions">
         {completedMode === "summary" ? (
+          <>
           <button className="secondary-button" type="button" onClick={onEditCompleted}>
             <Edit3 size={16} aria-hidden="true" />
             Edit Workout
           </button>
+          {onAsk && <button className="primary-button" type="button" onClick={onAsk}><Sparkles size={16} aria-hidden="true" />Ask Clubhouse</button>}
+          </>
         ) : completedMode === "editing" ? (
           <>
             <button className="secondary-button" type="button" onClick={onEditCompleted}>
