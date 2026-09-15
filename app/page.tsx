@@ -7942,9 +7942,7 @@ function PracticeReview({
   }
 
   const activeCategory: PracticeMetricsCategory = tab === "Summary" ? "Hitting" : tab;
-  const totals = practiceTotals(data, practice.id);
-  const attendance = data.attendance.filter((row) => row.practiceId === practice.id);
-  const activeAttendance = attendance.filter((row) => row.status !== "Absent");
+  const reviewSummary = buildPracticeReviewSummary(data, practice.id);
   const hittingSessionOptions = reviewHittingSessionOptions;
   const pitchingSessionOptions = reviewPitchingSessionOptions;
   const effectiveHittingSessionFilterId = tab === "Hitting" && activeReviewHittingSessionFilterId !== "all" ? activeReviewHittingSessionFilterId : undefined;
@@ -7964,11 +7962,11 @@ function PracticeReview({
       effectiveSort,
     );
   const summaryItems = [
-    { label: "Players", value: activeAttendance.length || practice.playerIds.length },
-    { label: "Swings", value: totals.swings },
-    { label: "Pitches", value: totals.pitches },
-    { label: "Defense", value: totals.defense },
-    { label: "Live BP PA", value: totals.liveBpPas },
+    { label: "Tracked players", value: reviewSummary.participants },
+    { label: "Swings", value: reviewSummary.hitting.teamTotals?.cells.swings?.display ?? "—" },
+    { label: "Pitching", value: reviewSummary.pitching.teamTotals?.cells.pitches?.display ?? "—" },
+    { label: "Defense reps", value: reviewSummary.defense.teamTotals?.cells.reps?.display ?? "—" },
+    { label: "Live BP pitches", value: reviewSummary.liveHitting.teamTotals?.cells.opportunities?.display ?? "—" },
   ];
   const sessionRows = buildPracticeReviewSessions(data, practice.id);
   const standouts = buildPracticeStandouts(data, practice.id);
@@ -8026,7 +8024,7 @@ function PracticeReview({
       </nav>
 
       {tab === "Summary" ? (
-        <><PracticeRecap summary={buildPracticeReviewSummary(data, practice.id)} />
+        <><PracticeRecap summary={reviewSummary} />
         <section className="practice-review-layout">
           <PracticeTeamPlan key={practice.id} practice={practice} teamId={data.teamContext?.currentTeam?.teamId} canManage={Boolean(data.teamContext?.currentTeam && ["OWNER", "ADMIN", "HEAD_COACH", "ASSISTANT_COACH", "STAFF", "COACH"].includes(data.teamContext.currentTeam.role))} />
           <article className="panel practice-review-session-list">
@@ -21679,12 +21677,13 @@ function buildPracticeReviewSessions(data: AppData, practiceId: ID) {
       const isLiveBp = session.type === "Live BP";
       const hitter = playerById.get(session.hitterId);
       const events = data.hittingEvents.filter((event) => event.sessionId === session.id);
+      const swings = calculateHittingStats(events).totalSwings;
       return {
         id: `hit-${session.id}`,
         category: (isLiveBp ? "Live BP" : "Hitting") as PracticeMetricsCategory,
         title: isLiveBp ? `${liveBpThrowerSourceLabel(session.liveBpThrowerSource ?? "PLAYER")} Live BP` : session.type,
         meta: hitter ? hitter.name : "Hitting session",
-        count: `${events.length} swing${events.length === 1 ? "" : "s"}`,
+        count: `${swings} swing${swings === 1 ? "" : "s"}`,
       };
     });
   const pitchingRows = data.pitchingSessions
