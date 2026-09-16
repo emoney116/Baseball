@@ -2,6 +2,10 @@
 
 Status: IN PROGRESS. TOMORROW READY: NO. This is an acceptance ledger, not release approval.
 
+Application checkpoint `8bdd6f0` is pushed. Preview Ready: https://baseball-jui4cmpyb-emoney116s-projects.vercel.app . The Preview displays Clubhouse Login and needs an authenticated session before hosted acceptance can continue.
+Quality: build and `npm test -- --runInBand` pass (1,224 tests); `npx tsc --noEmit` and `git diff --check` pass; lint has zero errors and 26 existing warnings.
+CLU9-71, CLU9-68 and CLU9-72 updated with measured evidence, all remain In Progress.
+
 ## Base
 
 - Integration branch: `codex/practice-tomorrow-readiness`, based on `origin/main` `3f373b4`.
@@ -40,7 +44,7 @@ This is NOT a hosted microphone/UI acceptance run. Input-method labels describe 
 | BIP | 10 | 10 | 10 |
 | Player-pitcher pitches | 35 | 35 | 35 |
 | Defensive reps | 1 | 1 | 1 |
-| Velocity samples / average | 25 / 80 | 25 / 80 | Additional filter/denominator QA pending |
+| Velocity samples / average | 25 / 80 | 25 / 80 | Player-pitcher average 80; full filter QA pending |
 | Pitch locations | 25 | 25 | Hosted map readback pending |
 | EV samples / average | 10 / 90 | 10 / 90 | Average 90 |
 | Spray samples | 10 | 10 | Hosted chart readback pending |
@@ -64,6 +68,8 @@ Previously reproduced root cause: the Review link selected Practice-only and exc
 - Group commands reuse existing defense presets only; no alternate group system introduced.
 - Full requested responsive matrix and physical Safari/PWA microphone/noise check.
 - No YES readiness claim until all required gates are demonstrated.
+
+The owner has been asked to authorize the pending migration and sign into Preview. No migration, main merge or production promotion is implied by the passing local checks.
 
 ## Owner Device Check (Under Five Minutes)
 
