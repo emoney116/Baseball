@@ -6,6 +6,8 @@ import { id, asAccount } from "./helpers/playerDatabase.mjs";
 import { buildBpRunnerMove } from "../app/lib/liveBpRunnerMove.ts";
 import { interpretVoice } from "../app/lib/voiceIntent.ts";
 import { parseVoiceCommand } from "../app/lib/voiceCommands.ts";
+import { emptyData, mapPlayer, mapPlayerTeamMembership, mapPractice, mapPitchEvent, mapHittingEvent, mapDefenseEvent, mapHittingSession, mapPitchingSession, mapDefenseSession } from "../app/lib/askClubhouse/serverData.ts";
+import { buildPracticeReviewSummary } from "../app/lib/practiceReviewSummary.ts";
 import {
   buildBpPitch,
   bpBatterResults,
@@ -116,7 +118,7 @@ test("untracked and unknown positions can precede the explicitly graded receiver
   );
   assert.throws(
     () => buildBpPitch(s, r.state, { ...draft, position: "LF" }),
-    /not enabled/,
+    /Assign a fielder/,
   );
   assert.throws(
     () =>
@@ -699,11 +701,7 @@ for (const pitchMode of ["OFF", "ONE", "MULTI"])
     );
     assert.equal(
       p.hitting.pitch_type,
-      pitchMode === "OFF"
-        ? undefined
-        : pitchMode === "ONE"
-          ? "4-Seam"
-          : "Slider",
+      "Slider",
     );
   });
 test("BIP optional tracking preserves exact canonical coordinates and EV", () => {
@@ -737,7 +735,7 @@ test("disabled tracking drops stale fields; non-BIP never creates defense or EV"
   assert.equal(p.hitting.field_location, undefined);
 });
 for (const defense of ["OFF", "ALL", "SELECTED"])
-  test(`${defense}: enabled aligned defense only`, () => {
+  test(`${defense}: explicit aligned defense exceeds prompting defaults`, () => {
     const p = buildBpPitch(
       settings({ defense, positions: ["SS"], alignment: { SS: id(42) } }),
       initialBpState(),
@@ -748,11 +746,11 @@ for (const defense of ["OFF", "ALL", "SELECTED"])
         throwResult: "Accurate",
       },
     );
-    assert.equal(Boolean(p.defense), defense !== "OFF");
+    assert.equal(Boolean(p.defense), true);
     if (p.defense) assert.equal(p.defense.player_id, id(42));
   });
-test("unselected and unassigned fielders are rejected", () => {
-  assert.throws(() =>
+test("explicit unselected fielders are accepted but unassigned fielders are rejected", () => {
+  assert.doesNotThrow(() =>
     buildBpPitch(
       settings({
         defense: "SELECTED",
@@ -1109,4 +1107,102 @@ test("player endpoint and direct mutation cannot bypass linked-save boundary", a
     );
     await denied(() => call("pitch", r, {}, randomUUID()), /permission/i);
   });
+});
+
+test("continuous 50-pitch persisted mixed-input simulation with independent totals", async () => {
+  for (const [number, name] of [[43,'Andrew'],[44,'Jackson'],[45,'Aiden']]) {
+    await db.query("insert into players(id,organization_id,first_name,last_name,primary_position,bats,throws) values($1,$2,$3,'QA','SS','R','R')",[id(number),id(10),name]);
+    await db.query("insert into player_team_memberships(player_id,team_id,season_id) values($1,$2,$3)",[id(number),id(20),id(30)]);
+  }
+  const hitters = [40,42,43,44];
+  const roster = [40,41,42,43,44,45].map(n=>({id:id(n),aliases:[`Player ${n}`]}));
+  let round = await start();
+  const methods = {manual:0,voice:0,fast_voice:0,compound:0};
+  for (let index=1;index<=50;index++) {
+    const slot=index%10;
+    const method=slot===1||slot===2?'manual':slot>=3&&slot<=5?'voice':slot>=6&&slot<=8?'fast_voice':'compound';
+    methods[method]++;
+    const source=index<=10?'MACHINE':index>=41&&index<=45?'COACH':'PLAYER';
+    const hitterId=id(hitters[Math.floor((index-1)/10)%4]);
+    const pitcherId=id(index<=25?41:45);
+    const nextSettings={...round.settings,source,hitterId,pitcherId,mode:index<=10?'FREE':'AB',countTracking:index>10,alignment:{SS:id(42)}};
+    if (JSON.stringify(nextSettings)!==JSON.stringify(round.settings)) round=await call('configure',round,{settings:nextSettings,state:{...round.state,balls:0,strikes:0}});
+    const outcomes=['Ball in play','Whiff','Foul','Ball','Called Strike'];
+    const outcome=outcomes[index%5];
+    const known=index%2===0;
+    let draft={outcome,...(known?{pitchType:'Slider',velocity:80,location:{x:.5,y:.5}}:{}),...(outcome==='Ball in play'?{battedBall:'Line drive',result:'Single',ev:90,spray:{x:.5,y:.31}}:{})};
+    if (method!=='manual') {
+      const words=[known?'slider 80 middle':'',outcome==='Ball in play'?'line drive center 90 EV single':outcome].join(' ');
+      let eventText=words;
+      if (method==='compound') {
+        const named=roster.find(p=>p.id===hitterId).aliases[0];
+        const exact=parseVoiceCommand(`${named} is hitting ${words}`,roster,round.settings,round.state);
+        assert.deepEqual(exact.problems,[]);
+        round=await call('configure',round,{settings:{...round.settings,...exact.patch},state:{...round.state,...exact.statePatch}});
+        eventText=exact.eventText;
+      }
+      const intent=interpretVoice(eventText,{domain:'live-bp',settings:round.settings,state:round.state,roster,bats:'R'},randomUUID(),.99);
+      assert.deepEqual(intent.unresolvedFields,[],`pitch ${index}`);
+      draft=intent.draft;
+    }
+    // One supplied defensive rep with defaults off; all other BIP remain ungraded.
+    if(index===50) Object.assign(draft,{position:'SS',defenseResult:'Clean',throwResult:'Accurate'});
+    const before=round;
+    let request=randomUUID();
+    round=await pitch(round,draft,request);
+    if(index===25) {
+      const undone=await call('undo',round,{},randomUUID());
+      assert.deepEqual(undone.state,before.state);
+      request=randomUUID();
+      round=await pitch(undone,draft,request);
+    }
+    if(index%10===0) round=await pitch(before,draft,request);
+    const restored=(await db.query('select to_jsonb(r) row from live_bp_rounds r where id=$1',[round.id])).rows[0].row;
+    assert.deepEqual(restored,round,`authoritative reload ${index}`);
+    assert.equal((await db.query('select count(*)::int n from hitting_events')).rows[0].n,index);
+  }
+  assert.deepEqual(methods,{manual:10,voice:15,fast_voice:15,compound:10});
+  const totals=(await db.query(`select count(*)::int events,
+    count(*) filter(where action<>'Took pitch')::int swings,
+    count(*) filter(where action in ('Foul','Ball in play'))::int contacts,
+    count(*) filter(where action='Miss')::int whiffs,
+    count(*) filter(where action='Ball in play')::int bip,
+    count(velocity)::int velocity_samples,avg(velocity)::float avg_velocity,
+    count(pitch_location)::int locations,count(field_location)::int sprays,
+    count(exit_velocity_mph)::int ev_samples,avg(exit_velocity_mph)::float avg_ev,
+    count(distinct hitter_id)::int hitters from hitting_events`)).rows[0];
+  assert.deepEqual(totals,{events:50,swings:30,contacts:20,whiffs:10,bip:10,velocity_samples:25,avg_velocity:80,locations:25,sprays:10,ev_samples:10,avg_ev:90,hitters:4});
+  assert.equal((await db.query('select count(*)::int n from pitch_events')).rows[0].n,35);
+  assert.equal((await db.query('select count(distinct pitcher_id)::int n from pitch_events')).rows[0].n,2);
+  assert.equal((await db.query('select count(*)::int n from defense_events')).rows[0].n,1);
+  const readReview = async () => {
+    const currentTeam={teamId:id(20),seasonId:id(30),organizationId:id(10),role:'COACH',active:true};
+    const data=emptyData({availableTeams:[]},{id:id(1)},currentTeam);
+    data.players=(await db.query('select * from players where organization_id=$1',[id(10)])).rows.map(row=>mapPlayer(row));
+    data.playerTeamMemberships=(await db.query('select * from player_team_memberships where team_id=$1',[id(20)])).rows.map(mapPlayerTeamMembership);
+    data.practices=(await db.query('select to_jsonb(p) row from practices p where id=$1',[id(60)])).rows.map(({row})=>mapPractice(row,[]));
+    const sessions=(await db.query('select * from practice_sessions where practice_id=$1',[id(60)])).rows;
+    data.hittingSessions=sessions.filter(s=>s.category==='hitting').map(mapHittingSession);
+    data.pitchingSessions=sessions.filter(s=>s.category==='pitching').map(mapPitchingSession);
+    data.defenseSessions=sessions.filter(s=>s.category==='defense').map(mapDefenseSession);
+    for (const [table,key,mapper] of [['hitting_events','hittingEvents',mapHittingEvent],['pitch_events','pitchEvents',mapPitchEvent],['defense_events','defenseEvents',mapDefenseEvent]]) data[key]=(await db.query(`select * from ${table} where practice_id=$1`,[id(60)])).rows.map(mapper);
+    return buildPracticeReviewSummary(data,id(60));
+  };
+  const review=await readReview();
+  for (const [metric,value] of Object.entries({opportunities:50,swings:30,contacts:20,bip:10,misses:10,avgEv:90})) assert.equal(review.hitting.teamTotals.cells[metric].value,value,metric);
+  assert.equal(review.liveHitting.teamTotals.cells.opportunities.value,50);
+  assert.equal(review.pitching.teamTotals.cells.pitches.value,35);
+  assert.equal(review.defense.teamTotals.cells.reps.value,1);
+  assert.equal(review.hitting.teamTotals.cells.hardPct.value,undefined);
+  assert.equal(review.hitting.teamTotals.cells.hardPct.display,'—');
+  assert.equal(review.hitting.teamTotals.cells.evSamples.value,10);
+  assert.equal(review.pitching.teamTotals.cells.avgPitchVelo.value,80);
+  assert.equal(review.hitting.rows.reduce((sum,row)=>sum+(row.cells.opportunities?.value??0),0),50);
+  await call('end',round);
+  await db.query("update practices set ended_at=now(),status='completed' where id=$1",[id(60)]);
+  const reopened=await readReview();
+  assert.deepEqual(reopened.hitting.teamTotals,review.hitting.teamTotals);
+  assert.deepEqual(reopened.pitching.teamTotals,review.pitching.teamTotals);
+  assert.deepEqual(reopened.defense.teamTotals,review.defense.teamTotals);
+  assert.equal((await db.query('select count(*)::int n from hitting_events')).rows[0].n,50);
 });

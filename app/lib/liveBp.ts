@@ -52,6 +52,8 @@ export type BpSettings = {
   defensePresets?: BpDefensePreset[];
 };
 export type BpState = {
+  countKnown?: boolean;
+  situationKnown?: boolean;
   balls: number;
   strikes: number;
   outs: number;
@@ -61,6 +63,8 @@ export type BpState = {
   pa: number;
 };
 export type BpContext = {
+  explicitDefense?: boolean;
+  inferredRunnerOutcomes?: Record<string, string>;
   source: "Live BP";
   thrower: BpSettings["source"];
   coachName?: string;
@@ -140,7 +144,7 @@ export function bpBatterResults(
     ["Reached on Error", "Error"],
     ["Fielders Choice", "FC"],
   ];
-  if (settings.mode === "GAME" && state.outs < 2 && state.runners.length) {
+  if ((settings.mode === "GAME" || state.situationKnown) && state.outs < 2 && state.runners.length) {
     if (battedBall === "Bunt") results.push(["Sac Bunt", "SAC Bunt"]);
     else if (["Fly ball", "Line drive", "Pop up"].includes(battedBall))
       results.push(["Sac Fly", "SAC Fly"]);
@@ -149,7 +153,8 @@ export function bpBatterResults(
 }
 export const bpTracksCount = (
   settings: Pick<BpSettings, "mode" | "countTracking">,
-) => settings.countTracking ?? settings.mode !== "FREE";
+  state?: Pick<BpState, "countKnown">,
+) => Boolean(state?.countKnown) || (settings.countTracking ?? settings.mode !== "FREE");
 export const initialBpSettings = (hitterId: string): BpSettings => ({
   mode: "FREE",
   source: "MACHINE",
@@ -308,6 +313,7 @@ export function withBpRunners(state: BpState, runners: number[]): BpState {
 }
 
 export function validateBpState(s: BpState) {
+  bpAssert([s?.countKnown, s?.situationKnown].every(v => v === undefined || typeof v === "boolean"), "Check explicit situation context.");
   bpAssert(
     s &&
       Number.isInteger(s.balls) &&
@@ -392,20 +398,17 @@ export function buildBpPitch(
   bpAssert(outcomes.includes(draft.outcome), "Choose a pitch result.");
   const bip = draft.outcome === "Ball in play",
     swing = ["Whiff", "Foul", "Ball in play"].includes(draft.outcome);
-  const pitchType =
-    settings.pitchMode === "OFF"
-      ? undefined
-      : settings.pitchMode === "ONE"
-        ? settings.pitchType
-        : (draft.pitchType ?? settings.pitchType);
+  // Tracking preferences control prompts, not explicitly supplied evidence.
+  const pitchType = draft.pitchType ??
+    (settings.pitchMode === "OFF" ? undefined : settings.pitchType);
   bpAssert(
     !pitchType || TENDEX_PITCH_TYPES.includes(pitchType),
     "Choose a pitch type.",
   );
-  const location = settings.location ? point(draft.location) : undefined;
-  const velocity = settings.velocity ? speed(draft.velocity) : undefined;
-  const ev = bip && settings.ev ? speed(draft.ev) : undefined;
-  const spray = bip && settings.spray ? point(draft.spray) : undefined;
+  const location = point(draft.location);
+  const velocity = speed(draft.velocity);
+  const ev = bip ? speed(draft.ev) : undefined;
+  const spray = bip ? point(draft.spray) : undefined;
   bpAssert(
     !bip ||
       !draft.contactQuality ||
@@ -451,10 +454,10 @@ export function buildBpPitch(
       "A sacrifice requires eligible contact, a runner, and fewer than two outs.",
     );
   bpAssert(
-    !bip || settings.mode !== "GAME" || draft.result,
+    !bip || (settings.mode !== "GAME" && !before.situationKnown) || draft.result,
     "Choose the batter result before updating runners.",
   );
-  const trackedCount = bpTracksCount(settings);
+  const trackedCount = bpTracksCount(settings, before);
   const count = trackedCount
     ? advancePitchCount(before, draft.outcome)
     : { balls: 0, strikes: 0 };
@@ -471,7 +474,8 @@ export function buildBpPitch(
   if (trackedCount)
     result =
       count.balls >= 4 ? "Walk" : count.strikes >= 3 ? "Strikeout" : result;
-  if (settings.mode === "GAME" && ended) {
+  const tracksSituation = settings.mode === "GAME" || before.situationKnown;
+  if (tracksSituation && ended) {
     result =
       count.balls >= 4 ? "Walk" : count.strikes >= 3 ? "Strikeout" : result;
     const defaults: Record<string, string> = {};
@@ -499,6 +503,14 @@ export function buildBpPitch(
                 : "hold";
     if (result === "Home Run")
       for (const base of before.runners) defaults[String(base)] = "score";
+    // Clubhouse Practice default: a single forces only occupied consecutive bases.
+    if (result === "Single" && before.runners.includes(1)) {
+      defaults["1"] = "2";
+      if (before.runners.includes(2)) {
+        defaults["2"] = "3";
+        if (before.runners.includes(3)) defaults["3"] = "score";
+      }
+    }
     for (const [key, value] of Object.entries({
       ...defaults,
       ...(bip ? draft.runnerOutcomes : {}),
@@ -555,7 +567,7 @@ export function buildBpPitch(
       if (after.runnerIds) after.runnerIds = {};
     }
   }
-  if (settings.mode !== "GAME") {
+  if (!tracksSituation) {
     after.outs = 0;
     after.runners = [];
     if (after.runnerIds) after.runnerIds = {};
@@ -566,7 +578,7 @@ export function buildBpPitch(
   if (draft.runnerReasons !== undefined) {
     bpAssert(
       bip &&
-        settings.mode === "GAME" &&
+        tracksSituation &&
         draft.runnerReasons !== null &&
         typeof draft.runnerReasons === "object" &&
         !Array.isArray(draft.runnerReasons),
@@ -595,6 +607,8 @@ export function buildBpPitch(
       "Check the fielding sequence.",
     );
   const beforeSituation = {
+    ...(before.countKnown !== undefined ? { countKnown: before.countKnown } : {}),
+    ...(before.situationKnown !== undefined ? { situationKnown: before.situationKnown } : {}),
     outs: before.outs,
     runners: before.runners,
     ...(before.runnerIds ? { runnerIds: before.runnerIds } : {}),
@@ -602,6 +616,8 @@ export function buildBpPitch(
     pa: before.pa,
   };
   const afterSituation = {
+    ...(after.countKnown !== undefined ? { countKnown: after.countKnown } : {}),
+    ...(after.situationKnown !== undefined ? { situationKnown: after.situationKnown } : {}),
     outs: after.outs,
     runners: after.runners,
     ...(after.runnerIds ? { runnerIds: after.runnerIds } : {}),
@@ -609,6 +625,8 @@ export function buildBpPitch(
     pa: after.pa,
   };
   const context: BpContext = {
+    inferredRunnerOutcomes: Object.fromEntries(Object.entries(runnerOutcomes).filter(([base,to]) => base !== "batter" && base !== to && draft.runnerOutcomes?.[base] === undefined)),
+    ...(bip && draft.position && draft.defenseResult ? { explicitDefense: true } : {}),
     source: "Live BP",
     thrower: settings.source,
     ...(settings.source === "COACH" && settings.coachName
@@ -698,10 +716,10 @@ export function buildBpPitch(
         }
       : undefined;
   let defense;
-  if (bip && settings.defense !== "OFF" && draft.position) {
+  if (bip && draft.position && (settings.defense !== "OFF" || draft.defenseResult)) {
     bpAssert(
       BP_POSITIONS.includes(draft.position) &&
-        (settings.defense === "ALL" ||
+        (Boolean(draft.defenseResult) || settings.defense === "ALL" ||
           settings.positions.includes(draft.position)),
       "Defense position is not enabled.",
     );

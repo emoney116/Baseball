@@ -1,9 +1,9 @@
 "use client";
 import { useState } from 'react';
 import { VoiceEntry } from '../components/VoiceEntry';
-import { initialBpSettings, initialBpState } from '../lib/liveBp';
+import { initialBpSettings, initialBpState, type BpSettings } from '../lib/liveBp';
 export function VoiceSessionPreview() {
-  const [settings,setSettings] = useState({...initialBpSettings('h'),velocity:true,pitchType:'4-Seam' as const,pitchMode:'MULTI' as const});
+  const [settings,setSettings] = useState<BpSettings>({...initialBpSettings('h'),velocity:true,pitchType:'4-Seam',pitchMode:'MULTI'});
   const [count,setCount] = useState(0);
   return <main style={{maxWidth:1000,margin:'auto',padding:16}}>
     <h1>Voice QA</h1><output aria-label="Saved events">{count}</output>

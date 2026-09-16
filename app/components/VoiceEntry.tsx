@@ -56,7 +56,7 @@ function EnabledVoiceEntry({
     [fast, setFast] = useState(false);
   const [command, setCommand] = useState<VoiceContextCommand | null>(null);
   const [activity, setActivity] = useState<{practiceId:string;label:string}[]>([]);
-  const [continuous, setContinuous] = useState(true);
+  const [continuous, setContinuous] = useState(false);
   const pendingIntent = useRef<VoiceIntent | null>(null);
   useEffect(() => { pendingIntent.current = storedPhase === 'saved' ? null : intent; }, [intent, storedPhase]);
   const generation = useRef(0),
@@ -101,6 +101,7 @@ function EnabledVoiceEntry({
   async function receiveSessionTranscript(text: string, confidence: number | null, requestId: string): Promise<boolean> {
     if (disabled || busy.current) return false;
     const action = voiceSessionAction(text);
+    if (action === 'undo') { cancel(); onUndo(); return true; }
     if (action === 'mute') return false;
     if (action === 'discard') { cancel(); return true; }
     if (action === 'save') {
@@ -111,7 +112,7 @@ function EnabledVoiceEntry({
       }
       return (await save(pending)) === true;
     }
-    const nextCommand = parseVoiceCommand(text, context.roster, context.settings);
+    const nextCommand = parseVoiceCommand(text, context.roster, context.settings, context.state);
     const velocityChange = nextCommand?.patch.velocity === true;
     if (velocityChange && context.domain !== 'live-bp') {
       setError('Enable velocity in this station\'s tracking settings, then repeat the measurement.');
@@ -150,7 +151,7 @@ function EnabledVoiceEntry({
     }
     const previous = pendingIntent.current;
     const effectiveCommand = nextCommand ?? (previous ? command : null);
-    const snapshot = effectiveCommand ? {...context, settings:{...context.settings,...effectiveCommand.patch}, playerId:effectiveCommand.patch.hitterId ?? context.playerId} : context;
+    const snapshot = effectiveCommand ? {...context, state:{...context.state,...effectiveCommand.statePatch}, settings:{...context.settings,...effectiveCommand.patch}, playerId:effectiveCommand.patch.hitterId ?? context.playerId} : context;
     const incoming = interpretVoice(nextCommand?.eventText ?? text, snapshot, requestId, confidence);
     // A second explicit outcome is a new pitch, never an amendment to the last pitch.
     if (previous?.draft.outcome && incoming.draft.outcome) {
@@ -279,9 +280,14 @@ function EnabledVoiceEntry({
             result.message ?? "Voice unavailable - use manual entry.",
           );
         if (!valid()) return;
+        if (voiceSessionAction(result.transcript) === 'undo') {
+          cancel();
+          onUndo();
+          return;
+        }
         setPhase("interpreting");
         const interpretationStarted = performance.now();
-        const nextCommand = parseVoiceCommand(result.transcript, snapshot.roster, snapshot.settings);
+        const nextCommand = parseVoiceCommand(result.transcript, snapshot.roster, snapshot.settings, snapshot.state);
         setCommand(nextCommand);
         if(nextCommand?.kind === "context") {
           busy.current=false;
@@ -305,7 +311,7 @@ function EnabledVoiceEntry({
         }
         const parsed = interpretVoice(
           nextCommand?.eventText ?? result.transcript,
-          nextCommand ? {...snapshot,settings:{...snapshot.settings,...nextCommand.patch},playerId:nextCommand.patch.hitterId??snapshot.playerId} : snapshot,
+          nextCommand ? {...snapshot,state:{...snapshot.state,...nextCommand.statePatch},settings:{...snapshot.settings,...nextCommand.patch},playerId:nextCommand.patch.hitterId??snapshot.playerId} : snapshot,
           requestId,
           typeof result.confidence === "number" ? result.confidence : null,
         );
@@ -496,6 +502,7 @@ function EnabledVoiceEntry({
           {intent && (
             <>
               <p>{description || intent.transcript}</p>
+              {intent.inferredRunnerChanges?.map(change=><small key={change}>Runner: {change}</small>)}
               <small>Hitter: {context.roster.find(p=>p.id===intent.playerId)?.aliases[0]??"Choose hitter"} · {intent.source === "PLAYER" ? `Pitcher: ${context.roster.find(p=>p.id===intent.pitcherId)?.aliases[0]??"Choose pitcher"}` : `Source: ${intent.source === "COACH" ? "Coach" : "Machine"}`}</small>
               {location && <small>{locationLabel}</small>}
               {intent.unresolvedFields.length > 0 && (

@@ -920,6 +920,8 @@ function hittingRow(player: Player, events: HittingEvent[]): AnalyticsRow {
   const fouls = events.filter((event) => event.action === "Foul").length;
   const contacts = events.filter((event) => event.action === "Ball in play" || event.action === "Foul").length;
   const ballsInPlay = events.filter((event) => event.action === "Ball in play").length;
+  const gradedContact = events.filter(event => event.action === "Ball in play" && event.contactQuality).length;
+  const classifiedContact = events.filter(event => event.action === "Ball in play" && event.contactResult).length;
   const hard = events.filter(isPracticeHardContactEvent).length;
   const barrels = events.filter((event) => event.contactQuality === "Barrel").length;
   const evs = events.map((event) => event.exitVelocityMph).filter(isNumber);
@@ -954,20 +956,20 @@ function hittingRow(player: Player, events: HittingEvent[]): AnalyticsRow {
     zoneContactPct: rateCell(inZoneContacts.length, inZoneSwings.length, "in-zone contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
     chasePct: rateCell(chases.length, outOfZone.length, "chases", ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
     outZoneContactPct: rateCell(outOfZoneContacts.length, chases.length, "out-of-zone contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingSwings),
-    hard: countCell(hard, ballsInPlay),
-    hardPct: rateCell(hard, ballsInPlay, "hard contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-    barrelPct: rateCell(barrels, ballsInPlay, "impact contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-    lineDrivePct: rateCell(lineDrives, ballsInPlay, "line drives", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-    groundBallPct: rateCell(groundBalls, ballsInPlay, "ground balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-    flyBallPct: rateCell(flyBalls, ballsInPlay, "fly balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-    popUpPct: rateCell(popUps, ballsInPlay, "pop ups", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-    groundBalls: countCell(groundBalls, ballsInPlay),
-    lineDrives: countCell(lineDrives, ballsInPlay),
-    flyBalls: countCell(flyBalls, ballsInPlay),
-    popUps: countCell(popUps, ballsInPlay),
-    softPct: rateCell(softContact, ballsInPlay, "poor or weak contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    hard: countCell(hard, gradedContact),
+    hardPct: rateCell(hard, gradedContact, "graded hard contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    barrelPct: rateCell(barrels, gradedContact, "graded impact contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    lineDrivePct: rateCell(lineDrives, classifiedContact, "classified line drives", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    groundBallPct: rateCell(groundBalls, classifiedContact, "classified ground balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    flyBallPct: rateCell(flyBalls, classifiedContact, "classified fly balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    popUpPct: rateCell(popUps, classifiedContact, "classified pop ups", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    groundBalls: countCell(groundBalls, classifiedContact),
+    lineDrives: countCell(lineDrives, classifiedContact),
+    flyBalls: countCell(flyBalls, classifiedContact),
+    popUps: countCell(popUps, classifiedContact),
+    softPct: rateCell(softContact, gradedContact, "graded poor or weak contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     gbFbRatio: decimalRateCell(groundBalls, flyBalls, "GB/FB", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
-    airPct: rateCell(lineDrives + flyBalls + popUps, ballsInPlay, "air balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
+    airPct: rateCell(lineDrives + flyBalls + popUps, classifiedContact, "classified air balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     pullPct: rateCell(directed.filter((event) => directionBucket(event.direction) === "Pull").length, directed.length, "pull-side balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     middlePct: rateCell(directed.filter((event) => directionBucket(event.direction) === "Middle").length, directed.length, "middle-field balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     oppoPct: rateCell(directed.filter((event) => directionBucket(event.direction) === "Opposite").length, directed.length, "opposite-field balls", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),

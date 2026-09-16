@@ -112,7 +112,7 @@ export function resolveVoicePitchType(transcript: string): {
   };
 }
 
-export type VoiceIdentity = { id: string; aliases: readonly string[] };
+export type VoiceIdentity = { id: string; aliases: readonly string[]; bats?: "R" | "L" | "S" };
 
 export function resolveVoiceIdentity(
   name: string,

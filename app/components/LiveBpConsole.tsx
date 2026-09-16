@@ -248,7 +248,9 @@ export function LiveBpConsole({
     if (uncertain || busy) return;
     if (["hitterId", "pitcherId", "source", "coachName"].includes(key))
       setDraft({ outcome: "" });
-    setSettings((s) => withBpPitcherAlignment({ ...s, [key]: value }));
+    const next = withBpPitcherAlignment({ ...settings, [key]: value });
+    if (round && !optionsOpen) void write("configure", next, state);
+    else setSettings(next);
   }
   function edit<K extends keyof BpDraft>(key: K, value: BpDraft[K]) {
     if (!uncertain && !busy) setDraft((d) => ({ ...d, [key]: value }));
@@ -346,15 +348,14 @@ export function LiveBpConsole({
         setStage("pitch");
         setLastPitch(
           [
-            settings.pitchMode !== "OFF"
-              ? settings.pitchMode === "ONE"
-                ? settings.pitchType
-                : (savedDraft.pitchType ?? settings.pitchType)
-              : "",
-            settings.velocity && savedDraft.velocity
+            savedDraft.pitchType ?? (nextSettings.pitchMode !== "OFF" ? nextSettings.pitchType : ""),
+            savedDraft.velocity !== undefined
               ? `${savedDraft.velocity} mph`
               : "",
             savedDraft.outcome,
+            savedDraft.battedBall,
+            savedDraft.ev !== undefined ? `${savedDraft.ev} EV` : "",
+            savedDraft.result,
           ]
             .filter(Boolean)
             .join(" · "),
@@ -366,14 +367,8 @@ export function LiveBpConsole({
       if (operation === "start" || operation === "configure")
         setOptionsOpen(false);
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
-      if (operation === "end") {
-        refreshTimer.current = null;
-        onSaved();
-      } else
-        refreshTimer.current = setTimeout(() => {
-          refreshTimer.current = null;
-          onSavedRef.current();
-        }, 10000);
+      refreshTimer.current = null;
+      onSavedRef.current();
       return true;
     } catch (e) {
       setError(
@@ -451,7 +446,8 @@ export function LiveBpConsole({
   }
   const bip = stage === "bip";
   const ended = !active || Boolean(round?.ended_at);
-  const trackedCount = bpTracksCount(settings);
+  const trackedCount = bpTracksCount(settings, state);
+  const trackedSituation = settings.mode === "GAME" || Boolean(state.situationKnown);
   const pitcher = players.find((p) => p.id === settings.pitcherId);
   const nonBipPaEnd =
     draft.outcome === "HBP" ||
@@ -515,7 +511,7 @@ export function LiveBpConsole({
   }
   const [playResolution, setPlayResolution] = useState(false);
   const needsPlayResolution =
-    settings.mode === "GAME" || settings.defense !== "OFF";
+    trackedSituation || settings.defense !== "OFF";
   const needsPitchDetails =
     settings.velocity || settings.location || settings.pitchMode === "MULTI";
   const wizardStep =
@@ -712,13 +708,15 @@ export function LiveBpConsole({
       }
       context={{
         domain: "live-bp",
+        manualDraft: draft,
         settings,
         state,
         playerId: settings.hitterId,
         bats: players.find((p) => p.id === settings.hitterId)?.bats,
         roster: players.map((p) => ({
           id: p.id,
-          aliases: [p.name, ...p.name.split(" ").filter(Boolean), ...(p.jerseyNumber === undefined ? [] : [String(p.jerseyNumber)])],
+          bats: p.bats,
+          aliases: [p.name, ...p.name.split(" ").filter(Boolean), p.name.split(" ").filter(Boolean).map(part=>part[0]).join(""), ...(p.jerseyNumber === undefined ? [] : [String(p.jerseyNumber)])],
         })),
       }}
       onSave={async (intent) => {
@@ -741,7 +739,7 @@ export function LiveBpConsole({
       onCommand={async (command, requestId, event) => {
         if(command.problems.length)return false;
         const next={...settings,...command.patch};
-        return Boolean(await write(event?"pitch":round?"configure":"start",next,state,event?.draft,event?requestId:undefined));
+        return Boolean(await write(event?"pitch":round?"configure":"start",next,{...state,...command.statePatch},event?.draft,event?requestId:undefined));
       }}
       onEdit={(intent) => {
         if(intent.correction){setVoiceCorrection({...state,...intent.correction});return;}
@@ -848,7 +846,7 @@ export function LiveBpConsole({
                     </strong>
                   </div>
                 )}
-                {settings.mode === "GAME" && (
+                {trackedSituation && (
                   <div
                     className={styles.outsControl}
                     aria-label={`${state.outs} Outs`}
@@ -875,7 +873,7 @@ export function LiveBpConsole({
                   players={players}
                   state={state}
                   trackedCount={trackedCount}
-                  game={settings.mode === "GAME"}
+                  game={trackedSituation}
                   disabled={busy || uncertain}
                   onUndo={() => void undoPitch()}
                   onSave={(next) => saveSetup(settings, next)}
@@ -1098,7 +1096,7 @@ export function LiveBpConsole({
                 {quickView === "defense" ? (
                   <div className={styles.fieldPanel}>
                     <div className={styles.fieldToolbar}>
-                      {settings.mode === "GAME" && (
+                      {trackedSituation && (
                         <div className={styles.fieldViewToggle}>
                           <BpSegments
                             label="Field view"
@@ -1173,12 +1171,12 @@ export function LiveBpConsole({
                         showLabels={false}
                         showEmptyState={false}
                         ariaLabel={
-                          settings.mode === "GAME" && fieldView === "runners"
+                          trackedSituation && fieldView === "runners"
                             ? "Practice runners"
                             : "Defensive alignment"
                         }
                       />
-                      {settings.mode === "GAME" && fieldView === "runners" && (
+                      {trackedSituation && fieldView === "runners" && (
                         <LiveBpFieldRunners
                           state={state}
                           players={players}
@@ -1283,7 +1281,7 @@ export function LiveBpConsole({
                 </div>
               )}
               <p role="status" className={styles.notice}>
-                {notice || (lastPitch ? `Last: ${lastPitch}` : "")}
+                {[notice, lastPitch ? `Last: ${lastPitch}` : ""].filter(Boolean).join(" · ")}
               </p>
             </footer>
           )}
@@ -1577,7 +1575,8 @@ export function LiveBpConsole({
             createPlayer(
               (player) => {
                 if (participantPicker === "hitter") {
-                  update("hitterId", player.id);
+                  setSettings(s => ({...s, hitterId: player.id}));
+                  setDraft({ outcome: "" });
                 } else {
                   setSettings((s) => ({
                     ...s,

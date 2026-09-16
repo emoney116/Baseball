@@ -26,10 +26,10 @@ test('spoken velocity numbers normalize without altering four seam', () => {
   assert.equal(intent.draft.pitchType,'4-Seam');
   assert.deepEqual(intent.unresolvedFields,[]);
 });
-test('disabled velocity remains explicitly ignored, not an unknown phrase', () => {
+test('explicit velocity survives disabled manual prompting', () => {
   const intent=interpretVoice('84 mile an hour slider whiff',{...context,settings:{...context.settings,velocity:false}},'one');
-  assert.equal(intent.draft.velocity,undefined);
-  assert.ok(intent.ignoredFields.includes('Velocity'));
+  assert.equal(intent.draft.velocity,84);
+  assert.deepEqual(intent.ignoredFields,[]);
   assert.deepEqual(intent.unresolvedFields,[]);
 });
 test('conflicting velocity is not silently overwritten', () => {

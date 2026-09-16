@@ -9212,7 +9212,7 @@ function PracticeConsole({
     },
   };
   async function savePracticeVoiceCommand(command: VoiceContextCommand, _requestId: string, event?: VoiceIntent) {
-    if(!practice || practice.endedAt || event || command.problems.length)return false;
+    if(!practice || practice.endedAt || event || command.problems.length || command.statePatch)return false;
     const url=`/api/live-bp?practiceId=${encodeURIComponent(practice.id)}`;
     const read=await fetch(url,{cache:"no-store"});
     const data=await read.json();

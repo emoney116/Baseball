@@ -2,6 +2,7 @@ import type { BpDraft, BpSettings, BpState } from "./liveBp.ts";
 import { buildBpPitch, BP_POSITIONS } from "./liveBp.ts";
 import type { ZonePoint } from "../types.ts";
 import { sprayPointForLane } from "./sprayChart.ts";
+import { correctedVoiceText } from "./voiceSession.ts";
 import {
   matchVoiceVocabulary,
   normalizeVoiceText,
@@ -19,6 +20,7 @@ export type VoiceContext = {
   defenseRepType?: string;
   settings: BpSettings;
   state: BpState;
+  manualDraft?: BpDraft;
 };
 export type VoiceIntent = {
   version: 1;
@@ -32,6 +34,7 @@ export type VoiceIntent = {
   correction?: { balls?: number; strikes?: number; outs?: number };
   unresolvedFields: string[];
   ignoredFields: string[];
+  inferredRunnerChanges?: string[];
   confidence: {
     transcription: number | null;
     interpretation: number;
@@ -169,9 +172,12 @@ export function interpretVoice(
     throw new Error("Speak one short event.");
   if (!/^[a-zA-Z0-9-]{1,80}$/.test(requestId))
     throw new Error("Invalid voice request.");
-  let remaining = normalizeVoiceText(transcript);
+  let remaining = correctedVoiceText(transcript);
   const unresolved = new Set<string>();
-  const draft: BpDraft = { outcome: "" };
+  const draft: BpDraft = { outcome: "", ...Object.fromEntries(
+    ["pitchType", "velocity", "location", "ev", "spray"].filter(key => context.manualDraft?.[key as keyof BpDraft] !== undefined)
+      .map(key => [key, context.manualDraft![key as keyof BpDraft]]),
+  ) };
   const take = <T extends string>(
     key: string,
     vocabulary: Readonly<Record<string, T>>,
@@ -276,7 +282,7 @@ export function interpretVoice(
     const runnerDecision=remaining.match(/\b(?:runner (?:is )?)?(out|safe) at (first|second|third|home)\b/);
     if(runnerDecision){
       remaining=remaining.replace(runnerDecision[0]," ");
-      if(context.settings.mode!=="GAME"||context.state.runners.length!==1)unresolved.add("Which existing runner was safe or out?");
+      if((context.settings.mode!=="GAME"&&!context.state.situationKnown)||context.state.runners.length!==1)unresolved.add("Which existing runner was safe or out?");
       else draft.runnerOutcomes={[String(context.state.runners[0])]:runnerDecision[1]==="out"?"out":({first:"1",second:"2",third:"3",home:"score"})[runnerDecision[2] as "first"|"second"|"third"|"home"]};
     }
     const runner = remaining.match(
@@ -285,7 +291,7 @@ export function interpretVoice(
     if (runner) {
       remaining = remaining.replace(runner[0], " ");
       if (
-        context.settings.mode !== "GAME" ||
+        (context.settings.mode !== "GAME" && !context.state.situationKnown) ||
         (!runner[1] && context.state.runners.length !== 1) || (runner[1] && !context.state.runners.includes(({first:1,second:2,third:3})[runner[1] as "first"|"second"|"third"]))
       )
         unresolved.add("runner");
@@ -302,11 +308,11 @@ export function interpretVoice(
     const job = remaining.match(/\bjob (not done|done)\b/);
     if (job) {
       remaining = remaining.replace(job[0], " ");
-      if (context.settings.mode !== "GAME" || !context.state.job)
+      if ((context.settings.mode !== "GAME" && !context.state.situationKnown) || !context.state.job)
         unresolved.add("job");
       else draft.jobSuccess = job[1] === "done";
     }
-    draft.pitchType = take("pitch type", VOICE_PITCH_ALIASES);
+    draft.pitchType = take("pitch type", VOICE_PITCH_ALIASES) ?? draft.pitchType;
     draft.defenseResult = take("defense result", defenseResults) ?? draft.defenseResult;
     if (/fielding error/i.test(transcript)) draft.errorType = "Fielding";
     if (/throwing error/i.test(transcript)) draft.errorType = "Throwing";
@@ -318,7 +324,7 @@ export function interpretVoice(
     if (lane !== undefined) draft.spray = sprayPointForLane(Number(lane));
     const location = take("pitch location", locations);
     if (location) {
-      draft.location = voiceLocationPoint(location, context.bats);
+      draft.location = voiceLocationPoint(location, context.roster.find(p=>p.id===playerId)?.bats ?? context.bats);
       if (!draft.location) unresolved.add("batter handedness");
     }
     draft.outcome = take("pitch result", results) ?? "";
@@ -337,22 +343,19 @@ export function interpretVoice(
       draft.ev = Number(evMatches[0][1] ?? evMatches[0][2]);
     for (const m of evMatches) remaining = remaining.replace(m[0], " ");
     const velocities = [...remaining.matchAll(/\b\d{2,3}\b/g)];
-    if (velocities.length > 1 && context.settings.velocity) unresolved.add("Pitch velocity unclear: multiple numbers were spoken.");
+    if (velocities.length > 1) unresolved.add("Pitch velocity unclear: multiple numbers were spoken.");
     if (velocities.length === 1) draft.velocity = Number(velocities[0][0]);
     for (const m of velocities) remaining = remaining.replace(m[0], " ");
     if (
       draft.velocity !== undefined &&
       (draft.velocity < 25 || draft.velocity > 110)
     )
-      if(context.settings.velocity) unresolved.add("Pitch velocity unclear: expected 25 to 110 mph.");
+      unresolved.add("Pitch velocity unclear: expected 25 to 110 mph.");
     if (draft.ev !== undefined && (draft.ev < 20 || draft.ev > 130))
       unresolved.add("exit velocity");
-    if (context.settings.pitchMode === "ONE") {
-      if (draft.pitchType && draft.pitchType !== context.settings.pitchType)
-        unresolved.add("sticky pitch type");
+    if (!draft.pitchType && context.settings.pitchMode === "ONE") {
       draft.pitchType = context.settings.pitchType;
     }
-    if (context.settings.pitchMode === "OFF") draft.pitchType = undefined;
     if (context.domain !== "defense" && !draft.outcome)
       unresolved.add("pitch result");
     if (
@@ -401,16 +404,10 @@ export function interpretVoice(
     if (
       context.domain === "live-bp" &&
       draft.outcome === "Ball in play" &&
-      context.settings.mode === "GAME" &&
+      (context.settings.mode === "GAME" || context.state.situationKnown) &&
       !draft.result
     )
       unresolved.add("batter result");
-    if (
-      context.domain === "live-bp" &&
-      draft.position &&
-      context.settings.defense === "OFF"
-    )
-      unresolved.add("defense disabled");
   }
   remaining = remaining
     .replace(
@@ -420,26 +417,17 @@ export function interpretVoice(
     .replace(/\s+/g, " ")
     .trim();
   if (remaining) unresolved.add(`Couldn't interpret "${remaining.slice(0,150)}".`);
+  let inferredRunnerChanges: string[] = [];
   if (context.domain === "live-bp" && !correction && !unresolved.size) {
     try {
-      buildBpPitch(context.settings, context.state, draft);
+      const built = buildBpPitch(context.settings, context.state, draft);
+      inferredRunnerChanges = Object.entries(built.context.inferredRunnerOutcomes ?? {}).map(([from,to]) => `${from}B to ${to === "score" ? "home" : `${to}B`} (Practice default)`);
     } catch (e) {
       unresolved.add(e instanceof Error ? e.message : "event");
     }
   }
   const unresolvedFields = [...unresolved];
   const ignoredFields: string[] = [];
-  for (const [key, enabled, label] of [
-    ["velocity", context.settings.velocity, "Velocity"],
-    ["location", context.settings.location, "Pitch location"],
-    ["ev", context.settings.ev, "EV"],
-    ["spray", context.settings.spray, "Spray"],
-  ] as const) {
-    if (!enabled && draft[key] !== undefined) {
-      ignoredFields.push(label);
-      delete draft[key];
-    }
-  }
   const intent: VoiceIntent = {
     version: 1,
     requestId,
@@ -452,6 +440,7 @@ export function interpretVoice(
     correction,
     unresolvedFields,
     ignoredFields,
+    inferredRunnerChanges,
     confidence: {
       transcription:
         transcriptionConfidence !== null &&
@@ -507,6 +496,7 @@ export function assertVoiceIntent(
     "correction",
     "unresolvedFields",
     "ignoredFields",
+    "inferredRunnerChanges",
     "confidence",
   ]);
   if (
@@ -522,6 +512,7 @@ export function assertVoiceIntent(
   for (const key of ["playerId", "pitcherId"])
     if (i[key] !== undefined && !text(i[key], 100))
       throw new Error("Invalid Voice identity.");
+  if (i.inferredRunnerChanges !== undefined && (!Array.isArray(i.inferredRunnerChanges) || i.inferredRunnerChanges.length > 3 || i.inferredRunnerChanges.some(v=>!text(v,100)))) throw new Error("Invalid runner inference.");
   if (
     !Array.isArray(i.unresolvedFields) ||
     i.unresolvedFields.length > 30 ||

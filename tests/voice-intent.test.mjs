@@ -73,15 +73,15 @@ test("catcher-view named locations match manual grid centers and handedness", ()
   assert.deepEqual(voiceLocationPoint("high", "R"), { x: 0.5, y: 0.3 });
   assert.equal(voiceLocationPoint("away", "S"), undefined);
 });
-test("disabled measurements are omitted from preview and cannot Fast-save", () => {
+test("spoken measurements survive disabled prompting defaults and Fast-save", () => {
   const c = context();
   c.settings.velocity = false;
   c.settings.location = false;
   const i = interpretVoice("slider 78 middle whiff", c, "disabled", 0.99);
-  assert.equal(i.draft.velocity, undefined);
-  assert.equal(i.draft.location, undefined);
-  assert.deepEqual(i.ignoredFields, ["Velocity", "Pitch location"]);
-  assert.equal(canFastSaveVoice(i), false);
+  assert.equal(i.draft.velocity, 78);
+  assert.deepEqual(i.draft.location, { x: 0.5, y: 0.5 });
+  assert.deepEqual(i.ignoredFields, []);
+  assert.equal(canFastSaveVoice(i), true);
 });
 test("Practice hitting does not invent pitch context or unsupported batter results", () => {
   const c = context();
