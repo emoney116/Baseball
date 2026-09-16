@@ -51,9 +51,11 @@ export async function GET(request: Request) {
     const { db, practiceId } = await context(request);
     const { data, error } = await db
       .from("live_bp_rounds")
-      .select("*")
+      .select("*,hitting_events(pitch_type,velocity,exit_velocity_mph,action,live_bp_context)")
       .eq("practice_id", practiceId)
       .order("created_at", { ascending: false })
+      .order("event_number", { referencedTable: "hitting_events", ascending: false })
+      .limit(1, { referencedTable: "hitting_events" })
       .limit(30);
     if (error) throw error;
     return NextResponse.json(

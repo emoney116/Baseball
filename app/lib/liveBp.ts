@@ -63,6 +63,7 @@ export type BpState = {
   pa: number;
 };
 export type BpContext = {
+  runnerMovements?: BpRunnerMovement[];
   explicitDefense?: boolean;
   inferredRunnerOutcomes?: Record<string, string>;
   source: "Live BP";
@@ -94,6 +95,7 @@ export type BpRound = {
   ended_at: string | null;
 };
 export type BpDraft = {
+  runnerMovements?: BpRunnerMovement[];
   outcome: string;
   pitchType?: PitchType;
   velocity?: number;
@@ -112,6 +114,7 @@ export type BpDraft = {
   fieldingSequence?: BpPosition[];
   jobSuccess?: boolean;
 };
+export type BpRunnerMovement = { runnerBase: number; from: string; to: string };
 export const BP_PLAY_RUNNER_REASONS = [
   "On last play",
   "On throwing error",
@@ -593,6 +596,17 @@ export function buildBpPitch(
         "Choose a runner movement reason.",
       );
   }
+  bpAssert(draft.runnerMovements === undefined || Array.isArray(draft.runnerMovements), 'Check narrated runner movements.');
+  const runnerMovements = draft.runnerMovements ?? Object.entries(draft.runnerOutcomes ?? {}).filter(([base])=>before.runners.includes(Number(base))).map(([base,to])=>({runnerBase:Number(base),from:base,to:to==='hold'?base:to}));
+  if (runnerMovements.length) {
+    bpAssert(bip && tracksSituation && Array.isArray(runnerMovements) && runnerMovements.length <= 12, 'Check narrated runner movements.');
+    const positions: Record<string,string> = Object.fromEntries(before.runners.map(base=>[String(base),String(base)]));
+    for (const move of runnerMovements) {
+      bpAssert(move && Number.isInteger(move.runnerBase) && positions[move.runnerBase] === move.from && ['1','2','3'].includes(move.from) && ['1','2','3','score','out'].includes(move.to), 'Check narrated runner movement order.');
+      positions[move.runnerBase]=move.to;
+    }
+    for (const base of new Set(runnerMovements.map(move=>move.runnerBase))) bpAssert(positions[base] === (runnerOutcomes[base]==='hold'?String(base):runnerOutcomes[base]), 'Narrated movements must match the final runner outcome.');
+  }
   if (draft.fieldingSequence !== undefined)
     bpAssert(
       bip &&
@@ -625,6 +639,7 @@ export function buildBpPitch(
     pa: after.pa,
   };
   const context: BpContext = {
+    ...(runnerMovements.length ? {runnerMovements} : {}),
     inferredRunnerOutcomes: Object.fromEntries(Object.entries(runnerOutcomes).filter(([base,to]) => base !== "batter" && base !== to && draft.runnerOutcomes?.[base] === undefined)),
     ...(bip && draft.position && draft.defenseResult ? { explicitDefense: true } : {}),
     source: "Live BP",
@@ -638,7 +653,7 @@ export function buildBpPitch(
     after: trackedCount ? after : afterSituation,
     result,
     ...(bip && draft.battedBall ? { battedBallType: draft.battedBall } : {}),
-    ...(settings.mode === "GAME" && ended
+    ...(tracksSituation && ended
       ? {
           runnerOutcomes,
           ...(draft.runnerReasons

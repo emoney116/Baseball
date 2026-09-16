@@ -45,6 +45,7 @@ import { LiveBpFieldRunners } from "./LiveBpFieldRunners";
 import type { BpRunnerMove } from "../lib/liveBpRunnerMove";
 import styles from "./LiveBpConsole.module.css";
 import { VoiceEntry } from "./VoiceEntry";
+import { formatBpRecent, type BpRecentEvidence } from "../lib/liveBpRecent";
 
 export function LiveBpConsole({
   practiceId,
@@ -164,10 +165,11 @@ export function LiveBpConsole({
     [],
   );
   const url = `/api/live-bp?practiceId=${encodeURIComponent(practiceId)}`;
-  function adopt(r: BpRound) {
+  function adopt(r: BpRound & { hitting_events?: BpRecentEvidence[] }) {
     setRound(r);
     setSettings(withBpPitcherAlignment(r.settings));
     setState(r.state);
+    if (r.hitting_events) setLastPitch(formatBpRecent(r.hitting_events[0]));
   }
   async function reload() {
     try {
@@ -222,7 +224,6 @@ export function LiveBpConsole({
     label: densePlayerIdentityLabel(p),
   }));
   useEffect(() => {
-    if(process.env.NEXT_PUBLIC_CLUBHOUSE_VOICE_ENABLED !== "true")return;
     if(!round || busy || uncertain || draft.outcome || JSON.stringify(round.settings)!==JSON.stringify(settings) || JSON.stringify(round.state)!==JSON.stringify(state))return;
     const controller=new AbortController();
     const refresh=async()=>{
@@ -233,6 +234,7 @@ export function LiveBpConsole({
         const latest=data.rounds?.find((r:BpRound)=>r.id===round.id);
         if(response.ok && latest && latest.version!==round.version && !controller.signal.aborted){
           adopt(latest);
+          if (latest.settings.hitterId !== round.settings.hitterId || latest.settings.pitcherId !== round.settings.pitcherId || latest.settings.source !== round.settings.source) setDraft({outcome:''});
           setNotice("Practice context updated by another coach.");
         }
       }catch{/* Keep manual entry available during a connection interruption. */}
@@ -267,6 +269,7 @@ export function LiveBpConsole({
     setBusy(true);
     setError("");
     setNotice("");
+    let contextSaved = false;
     try {
       if (
         voiceRequestId &&
@@ -312,7 +315,8 @@ export function LiveBpConsole({
           throw new Error(result.message ?? "Unable to save settings.");
         }
         savedRound = result.round;
-        setRound(savedRound);
+        if (savedRound) adopt(savedRound);
+        contextSaved = true;
       }
       const res = await fetch(url, {
         method: "POST",
@@ -374,7 +378,7 @@ export function LiveBpConsole({
       setError(
         e instanceof Error &&
           !["TimeoutError", "AbortError", "TypeError"].includes(e.name)
-          ? e.message
+          ? `${contextSaved ? "Context saved; pitch not confirmed. " : ""}${e.message}`
           : pending.current
             ? "Connection interrupted. Your pitch is retained. Retry to confirm the save."
             : "Connection interrupted. Please try again.",
@@ -428,6 +432,7 @@ export function LiveBpConsole({
           ? "Last pitch and linked stats removed"
           : "Runner movement saved",
       );
+      await reload();
       onSaved();
     } catch (e) {
       setError(

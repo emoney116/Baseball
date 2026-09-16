@@ -3,7 +3,7 @@
 Status: IN PROGRESS. TOMORROW READY: NO. This is an acceptance ledger, not release approval.
 
 Application checkpoint `8bdd6f0` is pushed. Preview Ready: https://baseball-jui4cmpyb-emoney116s-projects.vercel.app . The Preview displays Clubhouse Login and needs an authenticated session before hosted acceptance can continue.
-Quality: build and `npm test -- --runInBand` pass (1,224 tests); `npx tsc --noEmit` and `git diff --check` pass; lint has zero errors and 26 existing warnings.
+Quality: build and `npm test -- --runInBand` pass (1,237 tests); `npx tsc --noEmit` and `git diff --check` pass; lint has zero errors and 26 existing warnings.
 CLU9-71, CLU9-68 and CLU9-72 updated with measured evidence, all remain In Progress.
 
 ## Base
@@ -25,10 +25,11 @@ CLU9-71, CLU9-68 and CLU9-72 updated with measured evidence, all remain In Progr
 
 ## Database Delta
 
-Live history includes `20260913140000_voice_usage` and ends at `20260915130000_workout_test_corrections`.
-New pending migration: `20260916221328_practice_explicit_evidence.sql`.
+Owner-approved migration applied exactly once through Supabase `apply_migration` on project `lvlibxghdyvtxjnddfwf`.
+Remote version: `20260916230738_practice_explicit_evidence`. Local filename reconciled to that server-assigned version; the original draft timestamp was `20260916221328`. No replay or history rewrite.
 It permits explicitly supplied graded defense beyond prompting defaults, retaining aligned-fielder, coach/team, roster, lifecycle, revision, idempotency and transactional checks.
-No live migration applied. Owner authorization requested before applying through the migration workflow.
+Read-only verification: guard installed; EXECUTE false for anon/authenticated, true for service_role. No historical records changed.
+Security advisor still lists existing unrelated search-path/definer and Auth warnings; the changed Live BP function is not listed. This is not a clean-project-security claim. See [Supabase advisor guidance](https://supabase.com/docs/guides/database/database-linter).
 
 ## 50-Pitch Persisted Core Reconciliation
 
@@ -53,6 +54,40 @@ Four hitters, two player pitchers, Machine/Coach/Player, 10 manual drafts, 15 re
 Per-event authoritative reload and raw count checked. Retry, Undo/replacement, end/reopen and player-total aggregation passed.
 This first core run does not cover every requested rich runner/error/relay scenario or provider failure/recovery.
 
+## Expanded Continuous Field Scenario Run
+
+Second continuous persisted 50-pitch run, with handwritten expected primitives in `tests/fixtures/practice-readiness-session.mjs`.
+Raw evidence and authoritative state checked after every pitch. Canonical Analytics and summed player totals checked every ten pitches. End/reopen recap totals remain identical.
+
+| Metric | Expected | Persisted / Analytics |
+| --- | ---: | ---: |
+| Opportunities | 50 | 50 |
+| Swings | 36 | 36 |
+| Contacts | 23 | 23 |
+| Whiffs | 13 | 13 |
+| BIP | 16 | 16 |
+| Player-pitcher pitches | 37 | 37 |
+| Defensive reps | 5 | 5 |
+| Velocity samples | 13 | 13 persisted |
+| Pitch locations | 11 | 11 persisted |
+| Spray samples | 10 | 10 persisted |
+| EV samples | 4 | 4 |
+| Average EV | 92 | 92 |
+| Ungraded hard contact | Not tracked | Not tracked |
+
+10 manual drafts, 15 review-parser, 15 Fast-eligible parser events and 10 compound context/event entries. Includes four hitters, two player pitchers, Machine/Coach/Player, consecutive PAs, count off/on, two-strike foul, walks, strikeouts, explicit runners, forced single defaults, double/triple/HR, bunt, throwing error, relay, catch, Off-default enrichment, missing measurements, corrections, retries and complex-event Undo/replacement.
+After pitch 15 a simulated provider exception makes no canonical change, five manual drafts follow, then parser entry resumes. This tests the isolated failure boundary, NOT actual provider outage or microphone recovery.
+
+## Additional Changes After Approval
+
+- Fixed explicit-situation event provenance outside Game-Like mode.
+- Resolve multiple named runner movements without overwriting another runner; retain ordered intermediate movements such as 2B to 3B to home.
+- Full supplied long sacrifice/error utterance now passes parser, canonical builder, persistence and atomic Undo checks. It retains pitch/location, bunt/sacrifice, batter out, scoring runner, throwing-error reason and P-1B-C sequence. Current schema grades only the primary error fielder; it does not create separate graded credits for every relay actor.
+- Added explicit pitch-type correction, count-qualified walk/strikeout, completed throw/out and catch recognition.
+- Recent event is restored from canonical event evidence in the same relational read as rounds. No invented values for absent measurements.
+- Shared context polling no longer depends on Voice being enabled; changed hitter/source clears incompatible pending measurements.
+- Partial context-save/pitch-failure keeps the saved context visible and reports that the pitch was not confirmed.
+
 ## Real Practice Forensic Audit
 
 Read-only recheck of Fall Ball Sep 10 Practice `c2da09eb-39da-4c8e-931c-c3fdd623b1ec`: 149 Live BP hitting events, 19 sessions, no pitcher events.
@@ -61,15 +96,15 @@ Previously reproduced root cause: the Review link selected Practice-only and exc
 
 ## Remaining Acceptance
 
-- Apply authorized migration; deploy and sign into integration Preview.
+- Sign into integration Preview; it is still showing the authentication form.
 - Real/provider transcription, review/Fast saves, timing, provider failure/manual recovery.
 - Full 50-pitch hosted console run with every-event screen checks and rich situations, error/relay/bunt narration.
-- Rich ordered multi-action narration is not accepted yet; current schema grades one primary defender and retains a fielding sequence.
+- Rich narration now passes persisted core tests, but hosted review/readback remains unverified. Context and event use consecutive versioned writes, not one all-or-nothing batch; a failed event does not roll back already saved context and is explicitly reported.
 - Group commands reuse existing defense presets only; no alternate group system introduced.
 - Full requested responsive matrix and physical Safari/PWA microphone/noise check.
 - No YES readiness claim until all required gates are demonstrated.
 
-The owner has been asked to authorize the pending migration and sign into Preview. No migration, main merge or production promotion is implied by the passing local checks.
+The migration authorization is fulfilled. Preview authentication and real/provider/device acceptance remain open. No main merge or production promotion has occurred.
 
 ## Owner Device Check (Under Five Minutes)
 

@@ -1,8 +1,9 @@
 import type { BpDraft, BpSettings, BpState } from "./liveBp.ts";
-import { buildBpPitch, BP_POSITIONS } from "./liveBp.ts";
+import { buildBpPitch, BP_POSITIONS, bpTracksCount } from "./liveBp.ts";
 import type { ZonePoint } from "../types.ts";
 import { sprayPointForLane } from "./sprayChart.ts";
 import { correctedVoiceText } from "./voiceSession.ts";
+import { parseVoiceRunners } from "./voiceRunners.ts";
 import {
   matchVoiceVocabulary,
   normalizeVoiceText,
@@ -260,8 +261,45 @@ export function interpretVoice(
     )
       unresolved.add("count tracking");
   } else {
+    if (/\bwalk\b/.test(remaining)) {
+      if (bpTracksCount(context.settings,context.state) && context.state.balls===3) remaining=remaining.replace(/\bwalk\b/g,'ball');
+      else unresolved.add('A walk needs a known three-ball count. Set the count first.');
+    }
+    if (/\bstrikeout (swinging|looking)\b/.test(remaining)) {
+      if (bpTracksCount(context.settings,context.state) && context.state.strikes===2) remaining=remaining.replace(/\bstrikeout swinging\b/g,'whiff').replace(/\bstrikeout looking\b/g,'called strike');
+      else unresolved.add('A strikeout needs a known two-strike count. Set the count first.');
+    }
+    remaining = remaining
+      .replace(/\bhe bunted the ball\b/g, 'bunt')
+      .replace(/\bit was (?:a )?successful sac(?:rifice)? bunt\b/g, 'sac bunt')
+      .replace(/\bsuccessful sacrifice\b/g, 'sac bunt');
+    if (/\bthrowing error\b/.test(remaining) && !context.state.runners.includes(1)) remaining=remaining.replace(/\brunner safe at first\b/g,'reached on error');
+    remaining=remaining.replace(/\bfly ball (left|center|right)(?: field)? caught\b/g,'fly ball $1 field $1 fielder caught');
+    // A named batter out is distinct from an existing runner being retired.
+    for (const alias of context.roster.find(p=>p.id===playerId)?.aliases ?? []) {
+      const name = normalizeVoiceText(alias).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const batterOut = new RegExp(`\\b${name} (?:was thrown |was |is )?out (?:(?:at )?first(?: base)?(?: by (?:the )?)?\\b|(?=pitcher to first\\b))`, 'g');
+      remaining = remaining.replace(batterOut, /\bsac(?:rifice)? bunt\b/.test(remaining) ? ' ' : 'out ');
+    }
+    const scoringError = /\brunner from (first|second|third) attempted to advance to home and was safe at home due to an error from the throw from (?:the )?(first baseman|second baseman|third baseman|shortstop|pitcher|catcher|left fielder|center fielder|right fielder) to (?:the )?(first baseman|second baseman|third baseman|shortstop|pitcher|catcher)\b/;
+    const scoredOnError = remaining.match(scoringError);
+    if (scoredOnError) {
+      remaining = remaining.replace(scoringError, 'runner from $1 to home $2 throwing error throws to $3');
+    }
+    const runners = parseVoiceRunners(remaining, context.state);
+    remaining = runners.remaining;
+    for (const problem of runners.problems) unresolved.add(problem);
+    if (Object.keys(runners.outcomes).length) {
+      draft.runnerOutcomes = runners.outcomes;
+      draft.runnerMovements = runners.movements;
+      if (scoredOnError) {
+        const scored = Object.entries(runners.outcomes).filter(([,to])=>to==='score');
+        if (scored.length===1) draft.runnerReasons = {[scored[0][0]]:'On throwing error'};
+      }
+      if (context.settings.mode !== "GAME" && !context.state.situationKnown) unresolved.add("runner situation");
+    }
     const sequence = matchVoiceVocabulary(remaining, fielders);
-    const narratedThrow = /\b(?:threw|throws?|throw)\s+to\b/.test(remaining);
+    const narratedThrow = /\b(?:threw|throws?|throw)\s+to\b/.test(remaining) || /\b(?:pitcher|shortstop|baseman) to (?:the )?(?:first|second|third|catcher)\b/.test(remaining);
     if(narratedThrow && sequence.length>1) {
       draft.fieldingSequence=sequence.map(m=>m.value).filter((value,index,all)=>index===0||all[index-1]!==value);
       const receivingError=/\b(?:drops? the tag|made an error fielding it(?: on the tag)?|fielding error)\b/.exec(remaining);
@@ -270,40 +308,16 @@ export function interpretVoice(
         draft.position=before.at(-1)?.value;
         draft.defenseResult="Error";draft.errorType="Fielding";
         remaining=remaining.replace(receivingError[0]," ".repeat(receivingError[0].length));
-      }else draft.position=sequence[0].value;
+      }else {
+        const throwingError = /\bthrowing error\b/.exec(remaining);
+        draft.position = throwingError ? sequence.filter(m=>m.start<throwingError.index).at(-1)?.value ?? sequence[0].value : sequence[0].value;
+      }
       for(const m of [...sequence].reverse()) remaining=remaining.slice(0,m.start)+" ".repeat(m.end-m.start)+remaining.slice(m.end);
     }
     const hitArea=remaining.match(/\b(?:ball (?:was )?hit|single|double) to (left|right)\b/);
     if(hitArea){
       draft.spray=sprayPointForLane(hitArea[1]==="left"?0:4);
       remaining=remaining.replace(hitArea[0],hitArea[0].startsWith("single")?"single":hitArea[0].startsWith("double")?"double":"ball in play");
-    }
-    remaining=remaining.replace(/\brunner scores\b/g,"runner to home");
-    const runnerDecision=remaining.match(/\b(?:runner (?:is )?)?(out|safe) at (first|second|third|home)\b/);
-    if(runnerDecision){
-      remaining=remaining.replace(runnerDecision[0]," ");
-      if((context.settings.mode!=="GAME"&&!context.state.situationKnown)||context.state.runners.length!==1)unresolved.add("Which existing runner was safe or out?");
-      else draft.runnerOutcomes={[String(context.state.runners[0])]:runnerDecision[1]==="out"?"out":({first:"1",second:"2",third:"3",home:"score"})[runnerDecision[2] as "first"|"second"|"third"|"home"]};
-    }
-    const runner = remaining.match(
-      /\brunner (?:(?:moves?|advances?|goes) )?(?:(first|second|third) )?to (first|second|third|home)\b/,
-    );
-    if (runner) {
-      remaining = remaining.replace(runner[0], " ");
-      if (
-        (context.settings.mode !== "GAME" && !context.state.situationKnown) ||
-        (!runner[1] && context.state.runners.length !== 1) || (runner[1] && !context.state.runners.includes(({first:1,second:2,third:3})[runner[1] as "first"|"second"|"third"]))
-      )
-        unresolved.add("runner");
-      else
-        draft.runnerOutcomes = {
-          [String(runner[1]?({first:1,second:2,third:3})[runner[1] as "first"|"second"|"third"]:context.state.runners[0])]: {
-            first: "1",
-            second: "2",
-            third: "3",
-            home: "score",
-          }[runner[2] as "first" | "second" | "third" | "home"],
-        };
     }
     const job = remaining.match(/\bjob (not done|done)\b/);
     if (job) {
@@ -313,12 +327,15 @@ export function interpretVoice(
       else draft.jobSuccess = job[1] === "done";
     }
     draft.pitchType = take("pitch type", VOICE_PITCH_ALIASES) ?? draft.pitchType;
+    if (/fielding error/.test(remaining)) draft.errorType = "Fielding";
+    if (/throwing error/.test(remaining)) draft.errorType = "Throwing";
     draft.defenseResult = take("defense result", defenseResults) ?? draft.defenseResult;
-    if (/fielding error/i.test(transcript)) draft.errorType = "Fielding";
-    if (/throwing error/i.test(transcript)) draft.errorType = "Throwing";
     draft.throwResult = take("throw result", throwResults);
-    draft.battedBall = take("batted ball", VOICE_CONTACT_ALIASES);
     draft.result = take("batter result", batterResults);
+    draft.battedBall = take("batted ball", VOICE_CONTACT_ALIASES);
+    if (draft.result === 'Sac Bunt') draft.battedBall ??= 'Bunt';
+    if (draft.result === 'Sac Fly') draft.battedBall ??= 'Fly ball';
+    if (narratedThrow && draft.position && draft.result === 'Out') draft.defenseResult ??= 'Clean';
     draft.position = take("fielder", fielders) ?? draft.position;
     const lane = take("spray", sprayLanes);
     if (lane !== undefined) draft.spray = sprayPointForLane(Number(lane));
@@ -332,6 +349,12 @@ export function interpretVoice(
       if (draft.outcome && draft.outcome !== "Ball in play")
         unresolved.add("pitch result");
       draft.outcome = "Ball in play";
+    }
+    if (draft.battedBall && draft.position && /\bcaught\b/.test(remaining)) {
+      if (draft.result && draft.result !== 'Out') unresolved.add('batter result');
+      else draft.result = 'Out';
+      draft.defenseResult ??= 'Clean';
+      remaining = remaining.replace(/\bcaught\b/g, ' ');
     }
     const evMatches = [
       ...remaining.matchAll(
@@ -550,6 +573,8 @@ export function assertVoiceIntent(
     "errorType",
     "throwResult",
     "runnerOutcomes",
+    "runnerMovements",
+    "runnerReasons",
     "fieldingSequence",
     "jobSuccess",
   ]);
@@ -589,6 +614,17 @@ export function assertVoiceIntent(
       )
     )
       throw new Error("Invalid Voice runner.");
+  }
+  if (d.runnerReasons !== undefined) {
+    const reasons = object(d.runnerReasons, ['1','2','3']);
+    if (Object.values(reasons).some(v=>v!=='On throwing error')) throw new Error('Invalid Voice runner reason.');
+  }
+  if (d.runnerMovements !== undefined) {
+    if (!Array.isArray(d.runnerMovements) || d.runnerMovements.length > 12) throw new Error('Invalid Voice runner movements.');
+    for (const step of d.runnerMovements) {
+      const move=object(step,['runnerBase','from','to']);
+      if (![1,2,3].includes(Number(move.runnerBase)) || typeof move.runnerBase !== 'number' || !['1','2','3'].includes(String(move.from)) || !['1','2','3','score','out'].includes(String(move.to))) throw new Error('Invalid Voice runner movement.');
+    }
   }
   if (i.correction !== undefined) {
     const correction = object(i.correction, ["balls", "strikes", "outs"]);

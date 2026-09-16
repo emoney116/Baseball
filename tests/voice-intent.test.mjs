@@ -256,7 +256,7 @@ test("game-like runner requires a unique existing runner and a batter result", (
       c,
       "runners",
       1,
-    ).unresolvedFields.includes("runner"),
+    ).unresolvedFields.some(field => field.startsWith("Which existing runner")),
   );
 });
 test("count corrections respect count tracking and never Fast-save", () => {
