@@ -2,7 +2,7 @@
 
 Status: IN PROGRESS. TOMORROW READY: NO. This is an acceptance ledger, not release approval.
 
-Application checkpoint `8bdd6f0` is pushed. Preview Ready: https://baseball-jui4cmpyb-emoney116s-projects.vercel.app . The Preview displays Clubhouse Login and needs an authenticated session before hosted acceptance can continue.
+Application checkpoint `0461711` is pushed. Preview Ready: https://baseball-ozwzq2n4q-emoney116s-projects.vercel.app . Stable branch URL: https://baseball-git-codex-practice-tomorrow-2cf81d-emoney116s-projects.vercel.app . The Preview displays Clubhouse Login and needs an authenticated session before hosted acceptance can continue.
 Quality: build and `npm test -- --runInBand` pass (1,237 tests); `npx tsc --noEmit` and `git diff --check` pass; lint has zero errors and 26 existing warnings.
 CLU9-71, CLU9-68 and CLU9-72 updated with measured evidence, all remain In Progress.
 
@@ -109,3 +109,32 @@ The migration authorization is fulfilled. Preview authentication and real/provid
 ## Owner Device Check (Under Five Minutes)
 
 On the isolated QA Practice: allow microphone; set hitter and Player pitcher by Voice; save a simple pitch in review; enable Fast Voice and save BIP with EV/spray; set runner/outs; Undo; save manually after Voice; switch hitter manually and speak the next pitch; end Practice and open its exact Analytics. Verify counts and attribution. Repeat one short capture from the Home Screen installation. Do not use real Practice records for this smoke test.
+
+## Acceptance Status By Surface
+
+Passing core checks are not substitutes for hosted field acceptance.
+
+| Surface | Evidence / Remaining Gate |
+| --- | --- |
+| Voice provider / latency | Authenticated hosted microphone path not exercised in this checkpoint; no measured provider latency claim |
+| Review / Fast Voice | Parser, validation and confidence gating pass; actual capture/review/automatic-save UI pending |
+| Manual + Voice interoperability | Shared drafts, versioned context and canonical persistence tested; UI alternation pending |
+| Authoritative session | Reload, revision conflicts, lifecycle/access checks and retry/Undo tests pass |
+| Screen auto-update | Immediate refresh, shared polling, recent-event restoration implemented; 50 visible UI-state checks pending |
+| Hitter / pitcher / source / PA | Persisted core scenarios pass, including Machine/Coach without pitcher evidence and consecutive PAs |
+| Pitch type / velocity / location / EV / spray | Explicit Off overrides and missing-value cases pass; hosted maps and filter controls pending |
+| Count / outs / runners / situation | Deterministic count, forced single/walk, explicit runner overrides, movements and jobs covered in core suite |
+| Defense / alignment | Graded explicit evidence Off override and alignment persistence pass; one graded primary actor per event |
+| Groups | Existing defense presets only; no new competing group model |
+| Undo / corrections | Shared SQL atomic Undo, retries, rollback and correction parser tests pass; spoken/button UI cross-method checks pending |
+| Provider failure | Isolated simulated exception preserves core state; actual provider/network outage and manual UI recovery pending |
+| 50-pitch reconciliation | Two persisted runs pass; expanded run covers common situations and rich narration. Hosted acceptance not run |
+| Practice / Player Analytics | Raw evidence, canonical team totals and summed player totals reconcile; exact hosted QA filter pending |
+| Post-Practice review | End/reopen canonical totals identical; hosted completion/reopen UI pending |
+| Last real Practice | Read-only raw + visible exact-filter audit passed; source-filter root cause established and accepted fix preserved |
+| iPhone / iPad | Full 390x844, 430x932, 820x1180, 1180x820 field-console matrix pending authentication |
+| PWA / Home Screen | Existing implementation untouched; physical microphone permission/noise acceptance pending owner device check |
+| Linear | CLU9-71, CLU9-68, CLU9-72 updated with evidence, remain In Progress |
+| Git / Preview | `0461711` pushed; latest fetched main `3f373b4` already included; no automatic main merge or production promotion |
+
+Blockers: authenticated Preview session and actual hosted/provider/field-device acceptance. Major residual risk: uninterrupted mixed-input UI behavior has not yet been demonstrated. Schema limitation: one primary graded defender, with other actors/ordered runner movements retained as event context. No claim that all requested scenarios have been accepted end to end.
