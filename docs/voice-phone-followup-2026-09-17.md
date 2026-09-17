@@ -10,4 +10,6 @@
 - Continuous controls fit a compact row. Review floats in a bounded panel instead of pushing the field offscreen. Saved context does not retain a previous pitch's details.
 - Voice saves no longer scroll the page to the top or dim the whole console. Global data refresh remains silent and saved state still reconciles.
 
-Validation: build and 1,702 automated tests passed; lint has 0 errors / 23 existing warnings. Local 430x932 visual check shows full field and Log Pitch with Continuous controls. Supplied screen recording inspected; original media unchanged and not committed. Owner-device microphone/smoothness acceptance remains necessary. No database migration.
+Measurement-unit tokens inside recognized speed phrases do not penalize the acoustic gate; numbers and pitch/EV anchors remain protected. The hosted original EV recording exposed low confidence in "miles" despite clear baseball values.
+
+Validation: build and 1,704 automated tests passed; lint has 0 errors / 23 existing warnings. Local 430x932 visual check shows full field and Log Pitch with Continuous controls. Hosted Review overlays without pushing the field down. Supplied screen recording inspected; original media unchanged and not committed. Owner-device microphone/smoothness acceptance remains necessary. No database migration.
