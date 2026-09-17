@@ -1,10 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {appendVoiceFragment, voiceSessionAction} from '../app/lib/voiceSession.ts';
+import {appendVoiceFragment, voiceSessionAction, correctedVoiceText} from '../app/lib/voiceSession.ts';
 import {interpretVoice} from '../app/lib/voiceIntent.ts';
 import {initialBpSettings, initialBpState} from '../app/lib/liveBp.ts';
 import {parseVoiceCommand} from '../app/lib/voiceCommands.ts';
 const context = {domain:'live-bp', settings:{...initialBpSettings('h'), velocity:true, pitchMode:'MULTI', pitchType:'4-Seam'}, state:initialBpState(), roster:[{id:'h',aliases:['Mylo']}], bats:'R'};
+test('actual audio correction phrases replace values without discarding alternatives',()=>{
+  const corrected=interpretVoice('Slider, 78, actually make that 81, down and away, swing and miss.',context,'corrected');
+  assert.equal(corrected.draft.velocity,81);assert.deepEqual(corrected.unresolvedFields,[]);
+  const runner=parseVoiceCommand('Runner on first-no, sorry, runner on second.',context.roster,context.settings);
+  assert.deepEqual(runner.statePatch.runners,[2]);assert.equal(runner.kind,'context');
+  const hitter=parseVoiceCommand('JP is hitting, actually wait Milo is hitting',context.roster,context.settings);
+  assert.equal(hitter.patch.hitterId,'h');assert.deepEqual(hitter.problems,[]);
+  const pitch=interpretVoice('Fastball 84, no that was a slider 84 low and away, whiff.',context,'pitch-correction');
+  assert.equal(pitch.draft.pitchType,'Slider');assert.equal(pitch.draft.velocity,84);assert.deepEqual(pitch.unresolvedFields,[]);
+  assert.equal(correctedVoiceText('82 or 84'),'82 or 84');
+});
+test('actual natural filler and fouled it off have exact baseball meaning',()=>{
+  for(const phrase of ['That was slider at 79, I think, down and away, swing and miss.','The pitch was 83, fastball, kind of up and in, he fouled it off.']) {
+    assert.deepEqual(interpretVoice(phrase,context,'filler').unresolvedFields,[]);
+  }
+});
 for (const units of ['mile an hour','miles an hour','miles per hour','mph']) test(`velocity units: ${units}`, () => {
   const intent = interpretVoice(`slider 84 ${units} swing and miss`, context, 'one');
   assert.equal(intent.draft.velocity,84);
