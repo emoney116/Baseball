@@ -25,7 +25,7 @@ test("dense player identities retain team jersey semantics without changing play
 });
 
 test("dense stat tables use the shared player identity and compact Weight Room headers", () => {
-const page = ["app/page.tsx", "app/components/TeamWorkspaceViews.tsx", "app/components/TeamTrainingViews.tsx", "app/components/TeamContextHeader.tsx"].map(path => readFileSync(path, "utf8")).join("\n");
+const page = ["app/ClubhouseWorkspace.tsx", "app/components/TeamWorkspaceViews.tsx", "app/components/TeamTrainingViews.tsx", "app/components/TeamContextHeader.tsx"].map(path => readFileSync(path, "utf8")).join("\n");
   const css = readFileSync("app/globals.css", "utf8");
   const weighInStart = page.indexOf("function WeightRoomWeighInCard");
   const weighInCard = page.slice(weighInStart, page.indexOf("\nfunction ", weighInStart + 1));

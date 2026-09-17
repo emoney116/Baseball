@@ -124,14 +124,14 @@ test('image provider uses strict structured input, no web tools and no storage',
   assert.equal(body.store,false);assert.equal(body.tools,undefined);assert.equal(body.text.format.strict,true);assert.equal(body.input[0].content[1].type,'input_image');
 });
 test('both roles reuse the same view and canonical sync does not overwrite plan columns',()=>{
-  const page=readFileSync('app/page.tsx','utf8'),player=readFileSync('app/components/PlayerShell.tsx','utf8'),repo=readFileSync('app/data/supabaseRepository.ts','utf8');
+  const page=readFileSync('app/ClubhouseWorkspace.tsx','utf8'),player=readFileSync('app/components/PlayerShell.tsx','utf8'),repo=readFileSync('app/data/supabaseRepository.ts','utf8');
   assert.match(page,/<PracticeTeamPlan/);assert.match(player,/<PracticeTeamPlan/);assert.doesNotMatch(page,/function PracticePlanCard/);
   const sync=repo.slice(repo.indexOf('async function syncPractices'),repo.indexOf('async function syncPractices')+1800);
   assert.doesNotMatch(sync,/team_plan:/);
 });
 
 test('scheduled and historical Practice review exposes the same plan without starting a session',()=>{
-  const page=readFileSync('app/page.tsx','utf8'),player=readFileSync('app/components/PlayerShell.tsx','utf8');
+  const page=readFileSync('app/ClubhouseWorkspace.tsx','utf8'),player=readFileSync('app/components/PlayerShell.tsx','utf8');
   const review=page.slice(page.indexOf('function PracticeReview('),page.indexOf('function PracticeReview(')+14000);
   assert.match(review,/<PracticeTeamPlan key=\{practice.id\} practice=\{practice\}/);
   assert.match(player,/practiceTab === "Metrics" && data.practices.filter\(practice => practice.id === eventId\).map\(practice => <PracticeTeamPlan/);

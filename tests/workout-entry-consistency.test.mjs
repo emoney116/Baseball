@@ -24,7 +24,7 @@ test('testing entries share box-score layout and retain conflict-safe RPC writes
 });
 
 test('workout header derives status from server observation and persisted completion',()=>{
-  const source=readFileSync('app/page.tsx','utf8');
+  const source=readFileSync('app/ClubhouseWorkspace.tsx','utf8');
   assert.match(source,/observedWorkoutStatus \?\? \(activeWorkout\?\.status === "COMPLETED" \? "Completed"/);
   assert.match(source,/onStatus=\{setObservedWorkoutStatus\}/);
 });

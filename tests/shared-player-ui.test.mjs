@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 const player = readFileSync("app/components/PlayerShell.tsx", "utf8");
-const staff = readFileSync("app/page.tsx", "utf8") + readFileSync("app/components/TeamWorkspaceViews.tsx", "utf8") + readFileSync("app/components/TeamTrainingViews.tsx", "utf8");
+const staff = readFileSync("app/ClubhouseWorkspace.tsx", "utf8") + readFileSync("app/components/TeamWorkspaceViews.tsx", "utf8") + readFileSync("app/components/TeamTrainingViews.tsx", "utf8");
 const drawer = readFileSync("app/components/AskClubhouseDrawer.tsx", "utf8");
 
 test("staff and player use one Ask renderer rather than independent dialogs", () => {

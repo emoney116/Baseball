@@ -6,7 +6,7 @@ import { resumableWeightRoomWorkout } from "../app/lib/weightRoom.ts";
 const workout = (id, status) => ({ id, status, title: id, date: "2026-08-15" });
 
 test("new workout and Lift share one snapshot and the referenced Lift saves first", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
   const start = page.slice(page.indexOf("function startWeightRoomWorkout("), page.indexOf("function completeWeightRoomWorkout("));
   assert.match(start, /weightRoomWorkouts: upsertById/);
   assert.match(start, /scheduleEvents: current\.scheduleEvents/);
@@ -41,7 +41,7 @@ test("preferred running workout wins and session end immediately removes resume"
 });
 
 test("coach resume does not infer a running team session from incomplete athlete sets", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
   assert.doesNotMatch(page, /openWorkoutRow/);
   assert.match(page, /const persistedActiveWorkout = resumableWeightRoomWorkout/);
   assert.match(page, /const activeWorkoutRunning = Boolean\(persistedActiveWorkout\)/);

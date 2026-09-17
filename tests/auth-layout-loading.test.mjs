@@ -30,6 +30,19 @@ test('compact signup retains every field, validation and accessible password hin
   assert.match(css, /\.account-otp__slot \{[^}]*height: 54px/);
 });
 
+test('entry modes use a stable logo frame and a distinct flat maroon selection', () => {
+  assert.match(css, /button\[aria-pressed="true"\] \{ color: #fff; background: var\(--brand-primary\);/);
+  assert.match(css, /calc\(\(100svh - 510px\) \/ 2\)/);
+  assert.match(css, /justify-content: flex-start/);
+  postcss.parse(css).walkRules(rule => {
+    if (rule.selector.includes('.account-screen__brand') && rule.selector.includes('[data-step="signup"]')) {
+      assert.ok(rule.selector.includes('[data-step="login"]'), 'logo sizing must be shared by both entry modes');
+    }
+  });
+  assert.match(form, /aria-pressed=\{step === "login"\}/);
+  assert.match(form, /aria-pressed=\{step === "signup"\}/);
+});
+
 test('preview toolbar participates in layout instead of adding a guessed height offset', () => {
   assert.match(preview, /className="auth-preview"/);
   assert.match(preview, /aria-label="Interface preview"/);

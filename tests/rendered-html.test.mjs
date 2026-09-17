@@ -7,7 +7,7 @@ test("next build contains the Clubhouse 9 app shell", async () => {
   assert.equal(existsSync(".next/server"), true);
 
   const layout = readFileSync("app/layout.tsx", "utf8");
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
   const authenticationForm = readFileSync("app/components/AuthenticationForm.tsx", "utf8");
   const branding = readFileSync("app/lib/branding.ts", "utf8");
   const repository = readFileSync("app/data/supabaseRepository.ts", "utf8");

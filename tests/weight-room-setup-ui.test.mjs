@@ -6,7 +6,7 @@ test("product logos stay light-mode safe and theme preference persists per devic
   const css = readFileSync("app/globals.css", "utf8");
   const themePreference = readFileSync("app/lib/themePreference.ts", "utf8");
   const logoSources = [
-    "app/page.tsx",
+    "app/ClubhouseWorkspace.tsx",
     "app/setup/page.tsx",
     "app/components/visuals.tsx",
     "app/join/[token]/JoinInvitationClient.tsx",
@@ -30,7 +30,7 @@ test("product logos stay light-mode safe and theme preference persists per devic
 });
 
 test("active weight room setup keeps exercise saves and preset UI clean", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
   const repository = readFileSync("app/data/supabaseRepository.ts", "utf8");
   const setupSync = repository.match(/async function syncActiveWeightRoomSetup[\s\S]*?async function syncWorkoutData/)?.[0] ?? "";
   const exerciseUpsertBlock = setupSync.match(/const exerciseRows = \[\.\.\.setupExerciseNames\][\s\S]*?const \{ data: exerciseRows/)?.[0] ?? "";
@@ -130,7 +130,7 @@ test("active weight room setup keeps exercise saves and preset UI clean", () => 
 });
 
 test("shared dropdown menus stay viewport safe inside modals and small screens", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
   const orgManage = readFileSync("app/org/[id]/manage/OrgManageClient.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
   const choiceSelect = readFileSync("app/components/ChoiceSelect.tsx", "utf8");
@@ -227,7 +227,7 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
 });
 
 test("roster dropdown controls stay shared and roster sync skips stale memberships", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
   const css = readFileSync("app/globals.css", "utf8");
   const route = readFileSync("app/api/roster/sync/route.ts", "utf8");
   const repository = readFileSync("app/data/supabaseRepository.ts", "utf8");

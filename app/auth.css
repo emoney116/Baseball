@@ -2,8 +2,9 @@
 .account-screen__brand { width: 190px; height: 64px; object-fit: contain; align-self: center; }
 .account-auth { width: 100%; display: grid; gap: 20px; color: var(--text); text-align: left; }
 .account-auth__tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
-.account-auth__tabs button { min-height: 42px; padding: 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; }
-.account-auth__tabs button[aria-pressed="true"] { color: var(--text); background: var(--bg-elevated); box-shadow: 0 1px 4px #0002; }
+.account-auth__tabs button { min-height: 44px; padding: 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--text); font-size: 13px; font-weight: 600; }
+.account-auth__tabs button[aria-pressed="true"] { color: #fff; background: var(--brand-primary); border-color: var(--brand-primary); box-shadow: none; }
+.account-auth__tabs button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .account-auth__heading { display: grid; gap: 10px; }
 .account-auth h1 { margin: 0; font-size: clamp(24px, 6vw, 30px); line-height: 1.15; letter-spacing: -.035em; outline: none; }
 .account-auth p { margin: 0; color: var(--muted-strong); font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
@@ -48,7 +49,9 @@
 .clubhouse-loading__slow button { min-height: 44px; padding: 6px 14px; }
 
 /* Only compress the entry forms. The verification layout stays unchanged. */
-.account-screen:has(.account-auth:is([data-step="login"], [data-step="signup"])) { gap: 20px; padding-block: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-bottom)); }
+/* The same entry frame anchors the original logo while fields expand below it.
+   Short screens, the keyboard and zoom can still scroll when necessary. */
+.account-screen:has(.account-auth:is([data-step="login"], [data-step="signup"])) { justify-content: flex-start; gap: 20px; padding-block: max(24px, env(safe-area-inset-top), calc((100svh - 600px) / 2)) max(24px, env(safe-area-inset-bottom)); }
 .account-auth:is([data-step="login"], [data-step="signup"]) { gap: 16px; }
 .account-auth:is([data-step="login"], [data-step="signup"]) .account-auth__heading { gap: 6px; text-align: center; }
 .account-auth:is([data-step="login"], [data-step="signup"]) fieldset { gap: 12px; }
@@ -77,7 +80,7 @@
 @keyframes clubhouse-mark-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
 @media (max-width: 360px) { .account-screen { padding-inline: 20px; gap: 22px; } .account-otp { gap: 5px; } .account-otp__slot { height: 47px; } }
 @media (max-height: 740px) {
-  .account-screen:has(.account-auth:is([data-step="login"], [data-step="signup"])) { gap: 16px; padding-block: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-bottom)); }
+  .account-screen:has(.account-auth:is([data-step="login"], [data-step="signup"])) { gap: 16px; padding-block: max(16px, env(safe-area-inset-top), calc((100svh - 510px) / 2)) max(16px, env(safe-area-inset-bottom)); }
   .account-screen:has(.account-auth:is([data-step="login"], [data-step="signup"])) .account-screen__brand { width: 160px; height: 54px; }
   .account-auth:is([data-step="login"], [data-step="signup"]) { gap: 12px; }
   .account-auth:is([data-step="login"], [data-step="signup"]) h1 { font-size: 25px; }

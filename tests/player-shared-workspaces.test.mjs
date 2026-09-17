@@ -17,7 +17,7 @@ const live = readFileSync("app/components/PlayerLiveEntry.tsx", "utf8");
 const config = getAskClubhouseConfig({});
 
 test("player team navigation uses distinct shared coach feature pages without Development hub", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
   for (const component of ["PracticeWorkspaceHeader", "PracticeWorkspaceSummary", "WeightRoomWorkspaceHeader", "GameLibrary", "GameScoreRibbon", "WeightRoomAthleteOverview"]) {
     assert.match(page, new RegExp("<" + component));
     assert.match(player, new RegExp("<" + component));
@@ -29,7 +29,7 @@ test("player team navigation uses distinct shared coach feature pages without De
 });
 
 test("coach live entry settings remain available under each tracker's More options", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
   const start = page.indexOf('<div className="practice-mode-picker-trigger">');
   const end = page.indexOf("</div>", start);
   assert.ok(start > 0);
