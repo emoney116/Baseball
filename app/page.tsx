@@ -1,4 +1,7 @@
 "use client";
+import { AuthenticationForm } from "./components/AuthenticationForm";
+import { AppLoading, BusyIndicator } from "./components/AppLoading";
+import { createClient as createAuthClient } from "./lib/supabase/client";
 import { PracticeRecap } from "./components/PracticeRecap";
 import { WorkoutTestingConsole } from "./components/WorkoutTestingConsole";
 import { BASELINE_TESTING_CIRCUIT } from "./lib/workoutTesting";
@@ -1185,6 +1188,8 @@ function rosterFileSignature(file: File) {
 export default function MetrolinaBaseballApp() {
   const [data, setData] = useState<AppData | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [loadingLabel, setLoadingLabel] = useState("Checking your session");
+  const loadSequenceRef = useRef(0);
   const [authState, setAuthState] = useState<AuthState>({ status: "anonymous" });
   const [playerSession, setPlayerSession] = useState<PlayerSession | null>(null);
   const [loadError, setLoadError] = useState<PersistenceError | Error | null>(null);
@@ -1320,10 +1325,27 @@ export default function MetrolinaBaseballApp() {
 
   useEffect(() => {
     let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+    if (!isLocalDevAuthBypass()) {
+      try {
+        const { data } = createAuthClient().auth.onAuthStateChange((event) => {
+          if (event === "PASSWORD_RECOVERY") {
+            cancelled = true;
+            window.location.replace("/auth/reset-password");
+          }
+          if (event === "SIGNED_OUT") {
+            loadSequenceRef.current++;
+            setData(null); setPlayerSession(null); setAuthState({ status: "anonymous" }); setLoadError(null); setHydrated(true);
+          }
+        });
+        unsubscribe = () => data.subscription.unsubscribe();
+      } catch { /* The configuration state is rendered by loadApplicationData. */ }
+    }
     void loadApplicationData(() => cancelled);
 
     return () => {
       cancelled = true;
+      unsubscribe?.();
     };
   // Load once on app boot; route/popstate changes are handled by dedicated navigation effects.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1616,17 +1638,28 @@ export default function MetrolinaBaseballApp() {
   }
 
   async function loadApplicationData(
-    isCancelled: () => boolean = () => false,
+    externallyCancelled: () => boolean = () => false,
     selectedTeamId?: ID,
     selectedSeasonId?: ID,
     options: { silent?: boolean } = {},
   ) {
+    const sequence = ++loadSequenceRef.current;
+    const isCancelled = () => externallyCancelled() || sequence !== loadSequenceRef.current;
+    const deadline = window.setTimeout(() => {
+      if (isCancelled()) return;
+      loadSequenceRef.current++;
+      setLoadError(new Error("Loading took too long. Check your connection and try again."));
+      setHydrated(true);
+    }, 30000);
     if (!options.silent) setHydrated(false);
+    setLoadingLabel("Checking your session");
     setLoadError(null);
     setSaveError(null);
 
+    try {
     if (isLocalDevAuthBypass()) {
       const loaded = withStoredThemePreference(await loadLocalPreviewData());
+      if (isCancelled()) return;
       const params = new URLSearchParams(window.location.search);
       setAuthState(localPreviewAuthState());
       setData(loaded);
@@ -1650,7 +1683,7 @@ export default function MetrolinaBaseballApp() {
       return;
     }
 
-    try {
+      setLoadingLabel("Opening your Clubhouse");
       const params = new URLSearchParams(window.location.search);
       const playerParams=new URLSearchParams();
       if (params.get('workspace') === 'player') playerParams.set('workspace', 'player');
@@ -1676,6 +1709,7 @@ export default function MetrolinaBaseballApp() {
       setPlayerSession(null);
       const requestedTeam = selectedTeamId ?? params.get("team");
       const requestedSeason = selectedSeasonId ?? params.get("season");
+      setLoadingLabel("Loading your team");
       const loaded = withStoredThemePreference(await supabaseAppRepository.load(requestedTeam ?? undefined, requestedSeason ?? undefined));
       if (loaded.teamContext && Array.isArray(sessionPayload.playerContexts)) {
         loaded.teamContext.availableTeams = [...loaded.teamContext.availableTeams, ...sessionPayload.playerContexts.map((c: NonNullable<PlayerSession['context']>) => ({ ...c.team, playerContextId: c.playerId, playerContextName: c.name }))];
@@ -1694,6 +1728,8 @@ export default function MetrolinaBaseballApp() {
       setLoadError(error instanceof Error ? error : new Error(`Unable to load ${APP_NAME} data.`));
       if (!options.silent) setData(null);
       setHydrated(true);
+    } finally {
+      window.clearTimeout(deadline);
     }
   }
 
@@ -3909,13 +3945,7 @@ export default function MetrolinaBaseballApp() {
   }
 
   if (!hydrated) {
-    return (
-      <main className="loading-screen">
-        <img className="brand-wordmark brand-wordmark--product" src={BRAND_ASSETS.wordmark} alt="" />
-        <img className="asset-preload" src="/brand/metrolina-warriors-alpha.png" alt="" aria-hidden="true" />
-        <strong>{APP_TAGLINE}</strong>
-      </main>
-    );
+    return <AppLoading label={loadingLabel} onRetry={() => void loadApplicationData()} />;
   }
 
   if (authState.status !== "authenticated" || loadError) {
@@ -3931,12 +3961,7 @@ export default function MetrolinaBaseballApp() {
   if (playerSession) return <PlayerShell initialSession={playerSession} />;
 
   if (!data) {
-    return (
-      <main className="loading-screen">
-        <img className="brand-wordmark brand-wordmark--product" src={BRAND_ASSETS.wordmark} alt="" />
-        <strong>{APP_NAME}</strong>
-      </main>
-    );
+    return <AppLoading onRetry={() => void loadApplicationData()} />;
   }
 
   const inTeamContext = searchInTeamContext;
@@ -4688,155 +4713,34 @@ export default function MetrolinaBaseballApp() {
 }
 
 function AuthGate({
-  authState,
-  error,
-  onSignedIn,
-}: {
-  authState: AuthState;
-  error: Error | null;
-  onSignedIn: () => void;
-}) {
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  authState, error, onSignedIn,
+}: { authState: AuthState; error: Error | null; onSignedIn: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [signOutError, setSignOutError] = useState("");
   const needsMembership = error instanceof PersistenceError && error.code === "membership-required";
-
-  async function signIn() {
-    setBusy(true);
-    setMessage(null);
-    try {
-      await authRepository.signIn(email, password);
-      onSignedIn();
-    } catch (signInError) {
-      setMessage(signInError instanceof Error ? signInError.message : "Unable to sign in.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function createAccount() {
-    if (!firstName.trim() || !lastName.trim()) {
-      setMessage("First and last name are required.");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setMessage("Passwords do not match.");
-      return;
-    }
-    setBusy(true);
-    setMessage(null);
-    try {
-      await authRepository.signUp({ email, password, firstName, lastName });
-      setMessage("Account created. Sign in to continue if you are not signed in automatically.");
-      await onSignedIn();
-    } catch (signUpError) {
-      setMessage(signUpError instanceof Error ? signUpError.message : "Unable to create account.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function sendPasswordReset() {
-    if (!email) {
-      setMessage("Enter your email first.");
-      return;
-    }
-    setBusy(true);
-    setMessage(null);
-    try {
-      await authRepository.resetPassword(email);
-      setMessage("Password reset email sent.");
-    } catch (resetError) {
-      setMessage(resetError instanceof Error ? resetError.message : "Unable to send password reset email.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
+  const confirmationFailed = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("authError");
   async function signOut() {
-    setBusy(true);
-    await authRepository.signOut();
-    window.location.reload();
+    setBusy(true); setSignOutError("");
+    try { await authRepository.signOut(); await onSignedIn(); }
+    catch { setSignOutError("Unable to sign out. Please try again."); }
+    finally { setBusy(false); }
   }
-
-  return (
-    <main className="loading-screen auth-screen">
-      <img className="brand-wordmark brand-wordmark--product" src={BRAND_ASSETS.wordmark} alt="" />
-      <strong>{APP_TAGLINE}</strong>
-
-      {authState.status === "not-configured" && <p className="auth-message">{authState.message}</p>}
-      {error && !needsMembership && <p className="auth-message">{error.message}</p>}
-      {message && <p className="auth-message">{message}</p>}
-
-      {authState.status === "anonymous" && (
-        <>
-          <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
-            <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Log In</button>
-            <button type="button" className={mode === "signup" ? "active" : ""} onClick={() => setMode("signup")}>Create Account</button>
-          </div>
-          <form
-            className="auth-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void (mode === "login" ? signIn() : createAccount());
-            }}
-          >
-            {mode === "signup" && (
-              <div className="auth-name-grid">
-                <label>
-                  <span>First name</span>
-                  <input value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" />
-                </label>
-                <label>
-                  <span>Last name</span>
-                  <input value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" />
-                </label>
-              </div>
-            )}
-            <label>
-              <span>Email</span>
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" />
-            </label>
-            <label>
-              <span>Password</span>
-              <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} />
-            </label>
-            {mode === "signup" && (
-              <label>
-                <span>Confirm password</span>
-                <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" />
-              </label>
-            )}
-            <button className="primary-button stretch-button" type="submit" disabled={busy || !email || !password || (mode === "signup" && (!firstName || !lastName || !confirmPassword))}>
-              {busy ? "Working..." : mode === "login" ? "Sign In" : "Create Account"}
-            </button>
-            {mode === "login" && (
-              <button className="auth-link-button" type="button" onClick={() => void sendPasswordReset()} disabled={busy || !email}>
-                Forgot password?
-              </button>
-            )}
-          </form>
-        </>
-      )}
-
-      {authState.status === "authenticated" && needsMembership && (
-        <section className="auth-form no-team-card">
-          <span>Welcome to {APP_NAME}</span>
-          <h1>Your account is ready.</h1>
-          <p>You are not connected to a team yet. Team invitations will appear here once a coach/admin grants access.</p>
-          <button className="secondary-button stretch-button" type="button" onClick={() => void signOut()} disabled={busy}>
-            <LogOut size={16} aria-hidden="true" />
-            Sign Out
-          </button>
-        </section>
-      )}
-    </main>
-  );
+  return <main className="account-screen">
+    <img className="account-screen__brand brand-wordmark--product" src={BRAND_ASSETS.wordmark} alt="Clubhouse 9" />
+    {confirmationFailed && <p className="account-auth__error" role="alert">This email link could not be confirmed. It may have expired or been opened in another browser. Sign in below, or request a new code if your email still needs confirmation.</p>}
+    {authState.status === "anonymous" && <>
+      {error && <div className="account-auth__error" role="alert">{error.message}<button type="button" className="auth-link-button" onClick={() => void onSignedIn()}>Try again</button></div>}
+      <AuthenticationForm onSignedIn={onSignedIn} />
+    </>}
+    {authState.status === "not-configured" && <section className="account-auth"><h1>Sign-in is unavailable</h1><p>Please try again shortly.</p><button className="primary-button" onClick={() => void onSignedIn()}>Try again</button></section>}
+    {authState.status === "authenticated" && <section className="account-auth">
+      <h1>{needsMembership ? "Your account is ready" : "We couldn’t open your Clubhouse"}</h1>
+      <p>{needsMembership ? "You are not connected to a team yet. Open your invitation, or ask your coach to invite you." : error?.message ?? "Please try again."}</p>
+      {!needsMembership && <button className="primary-button" onClick={() => void onSignedIn()}>Try again</button>}
+      {signOutError && <p role="alert">{signOutError}</p>}
+      <button className="auth-link-button" type="button" onClick={() => void signOut()} disabled={busy}>{busy && <BusyIndicator />}Sign out</button>
+    </section>}
+  </main>;
 }
 
 function SyncStatusBanner({ status, error }: { status: "idle" | "saving" | "saved" | "error"; error: string | null }) {

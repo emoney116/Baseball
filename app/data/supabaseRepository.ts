@@ -2,6 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { liveSyncDelta } from "../lib/liveSyncDelta";
+import { emailAuth } from "../lib/emailAuthClient";
 import { currentStartedPractice } from "../lib/practiceStart";
 import { readAllRows } from "../lib/readAllRows";
 import { liveBpPitchContactQuality } from "../lib/liveBp";
@@ -64,7 +65,6 @@ import type {
   WorkoutSession,
 } from "../types";
 import { APP_NAME } from "../lib/branding";
-import { absoluteUrl, browserSiteUrl } from "../lib/siteUrl";
 import { createClient } from "../lib/supabase/client";
 import { exactRosterWorkingData } from "../lib/exactRosterIdentity.ts";
 
@@ -125,71 +125,30 @@ export const authRepository = {
     }
 
     const { data, error } = await supabase.auth.getUser();
+    if (error && error.name !== "AuthSessionMissingError" && error.status !== 401 && error.status !== 403) throw error;
     if (error || !data.user) return { status: "anonymous" };
     return { status: "authenticated", email: data.user.email ?? undefined };
   },
 
   async signIn(email: string, password: string) {
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) throw new PersistenceError("auth-required", error.message);
+    return emailAuth.signIn(email, password);
   },
 
   async signUp(
-    emailOrInput:
-      | string
-      | {
-          email: string;
-          password: string;
-          firstName?: string;
-          lastName?: string;
-        },
+    emailOrInput: string | { email: string; password: string; firstName?: string; lastName?: string; next?: string },
     maybePassword?: string,
   ) {
-    const input =
-      typeof emailOrInput === "string"
-        ? { email: emailOrInput, password: maybePassword ?? "" }
-        : emailOrInput;
-    const supabase = createClient();
-    const firstName = input.firstName?.trim() ?? "";
-    const lastName = input.lastName?.trim() ?? "";
-    const displayName = [firstName, lastName].filter(Boolean).join(" ").trim() || input.email;
-    const redirectTo = absoluteUrl("/auth/callback", browserSiteUrl());
-    const { data, error } = await supabase.auth.signUp({
-      email: input.email,
-      password: input.password,
-      options: {
-        emailRedirectTo: redirectTo,
-        data: {
-          first_name: firstName || null,
-          last_name: lastName || null,
-          display_name: displayName,
-          avatar_url: null,
-        },
-      },
-    });
-    if (error) throw new PersistenceError("auth-required", error.message);
-    if (data.user) {
-      await ensureOwnProfile(supabase, {
-        id: data.user.id,
-        email: input.email,
-        firstName,
-        lastName,
-        displayName,
-      }).catch(() => undefined);
-    }
+    return emailAuth.signUp(typeof emailOrInput === "string" ? { email: emailOrInput, password: maybePassword ?? "" } : emailOrInput);
   },
 
   async signOut() {
     const supabase = createClient();
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
   },
 
   async resetPassword(email: string) {
-    const supabase = createClient();
-    const redirectTo = absoluteUrl("/", browserSiteUrl());
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
-    if (error) throw new PersistenceError("auth-required", error.message);
+    return emailAuth.resetPassword(email);
   },
 
   async updateProfile(input: { firstName?: string; lastName?: string; displayName?: string; avatarUrl?: string }) {
