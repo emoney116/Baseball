@@ -31,6 +31,18 @@ Branch-only follow-up to the owner's iPhone findings. Production promotion is no
 - Migration `20260917133122_live_bp_standalone_defense` applied once through the migration tool. Normalized repository/live SQL MD5 both `ba9259be65c2ece0d7f225821c379383`. Existing Voice migrations were not replayed.
 - Hosted real-audio and owner touch acceptance are recorded below after execution. PCM pause tests are not a claim of physical iPhone microphone acceptance.
 
+### Hosted evidence
+
+- Implementation commit `9f39422`; Preview deployment `baseball-hjsr6tkuz-emoney116s-projects.vercel.app` reached Ready. Main remained `42e05f4`, untouched.
+- Full suite: 1,769 passing. Separate build, TypeScript and diff check passed. Lint: zero errors, 23 existing warnings.
+- Isolated Practice `a4970d43-7657-4ce2-9028-04f76623bb8e` (Rep Capture and Presets QA). Five actual provider requests, all completed with `gpt-4o-transcribe` verified in operational records. No expected-text substitution.
+- Original `04.wav`: actual transcript "Line drive center field, 94 miles an hour exit velocity." Fast-saved 94 EV with pitch velocity null.
+- `continuous-four.wav`: four captures, four resolved in order, zero dropped, maximum queue two. Actual transcripts: "Jackson Pierce is now playing first."; "Count is one and one."; "Hard line drive."; "Line drive center field, 94 miles an hour exit velocity." Alignment and count visibly updated without refresh. Hard LD correctly parsed but required acoustic confirmation (0.6126); the fourth capture waited, then saved after confirmation. Three of four continuous commands Fast-saved; no observed false saves in this small smoke.
+- Continuous client transcription times: 2,981 / 2,086 / 2,253 / 1,540 ms (median 2,169.5 ms, nearest-rank p95 2,981 ms; sample size four, not a performance benchmark). Physical microphone-ready latency was not measured.
+- Created QA Team1 with Jackson at 1B and Team 2 with Jackson at 3B. Quick picker switched both directions; visible alignment followed and Darren remained pitcher. Spoken name variants are deterministic parser tests, not newly recorded audio claims.
+- Ended isolated Practice after queue drained. Raw records, post-Practice and exact Practice Analytics show three BIP, two EV samples of 94, one tagged Hard sample, and no pitch velocity. Context/preset actions created no extra pitches. Deep link opened the correct Practice filter.
+- Exact new paused A/B audio and physical hold gestures remain owner acceptance. This smoke does not establish background-noise or broad field readiness.
+
 ## Owner retest
 
 A. Hold: "Line drive to right"; pause two seconds; "94 exit"; pause two seconds; "single"; release. One LD/RF/94-EV/Single event.
