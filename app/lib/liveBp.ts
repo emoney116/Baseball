@@ -403,7 +403,7 @@ export function buildBpPitch(
     swing = ["Whiff", "Foul", "Ball in play"].includes(draft.outcome);
   // Tracking preferences control prompts, not explicitly supplied evidence.
   const pitchType = draft.pitchType ??
-    (settings.pitchMode === "OFF" ? undefined : settings.pitchType);
+    (settings.pitchMode === "ONE" ? settings.pitchType : undefined);
   bpAssert(
     !pitchType || TENDEX_PITCH_TYPES.includes(pitchType),
     "Choose a pitch type.",

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Mic, Square, Pencil, X, Undo2 } from "lucide-react";
-import { encodeVoiceWav, VOICE_MAX_SECONDS } from "../lib/voiceAudio";
+import { encodeVoiceWav, validateVoiceWav, VOICE_MAX_BYTES, VOICE_MAX_SECONDS } from "../lib/voiceAudio";
 import { bpBatterResults } from "../lib/liveBp";
 import { reportVoiceMetrics } from "../lib/voiceMetrics";
 import { getSprayLane } from "../lib/sprayChart";
@@ -55,6 +55,7 @@ function EnabledVoiceEntry({
     [error, setError] = useState(""),
     [fast, setFast] = useState(false);
   const [command, setCommand] = useState<VoiceContextCommand | null>(null);
+  const [qaTranscript, setQaTranscript] = useState("");
   const [activity, setActivity] = useState<{practiceId:string;label:string}[]>([]);
   const [continuous, setContinuous] = useState(false);
   const pendingIntent = useRef<VoiceIntent | null>(null);
@@ -211,7 +212,7 @@ function EnabledVoiceEntry({
       busy.current = false;
     }
   }
-  async function start() {
+  async function start(recording?: File) {
     if (disabled || busy.current) return;
     busy.current = true;
     setCaptureKey(contextKey);
@@ -250,7 +251,7 @@ function EnabledVoiceEntry({
       cleanup();
       if (!valid()) return;
       try {
-        if (samples < sampleRate * 0.2)
+        if (!recording && samples < sampleRate * 0.2)
           throw new Error("No speech captured. Try again or use manual entry.");
         const merged = new Float32Array(samples);
         let offset = 0;
@@ -267,7 +268,7 @@ function EnabledVoiceEntry({
           {
             method: "POST",
             headers: { "Content-Type": "audio/wav" },
-            body: encodeVoiceWav(merged, sampleRate),
+            body: recording ?? encodeVoiceWav(merged, sampleRate),
             signal: AbortSignal.any([
               controller.signal,
               AbortSignal.timeout(20000),
@@ -279,6 +280,7 @@ function EnabledVoiceEntry({
           throw new Error(
             result.message ?? "Voice unavailable - use manual entry.",
           );
+        if (recording && valid()) setQaTranscript(result.transcript);
         if (!valid()) return;
         if (voiceSessionAction(result.transcript) === 'undo') {
           cancel();
@@ -346,6 +348,12 @@ function EnabledVoiceEntry({
       }
     }
     try {
+      if (recording) {
+        if (recording.size > VOICE_MAX_BYTES) throw new Error("Audio must be at most 12 seconds.");
+        validateVoiceWav(new Uint8Array(await recording.arrayBuffer()));
+        await finish();
+        return;
+      }
       if (!navigator.mediaDevices?.getUserMedia)
         throw new Error("Voice unavailable - use manual entry.");
       stream = await navigator.mediaDevices.getUserMedia({
@@ -445,6 +453,13 @@ function EnabledVoiceEntry({
   return (
     <section className={styles.root} aria-label="Voice stat entry">
       <div className={styles.toolbar}>
+        {process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' && <label>
+          QA audio
+          <input type="file" accept="audio/wav,.wav" aria-label="QA voice recording" disabled={disabled || !['idle','saved','error'].includes(phase)} onChange={e => {
+            const file=e.target.files?.[0]; e.target.value='';
+            if(file) void start(file);
+          }} />
+        </label>}
         <label><input type="checkbox" checked={continuous} disabled={phase === 'saving'} onChange={e => { cancel(); setContinuous(e.target.checked); }} />Continuous</label>
         {continuous ? <SessionVoiceCapture key={`${practiceId}:${Boolean(disabled)}`} practiceId={practiceId} contextKey={contextKey} disabled={disabled} onTranscript={receiveSessionTranscript} /> :
         <button
@@ -481,6 +496,7 @@ function EnabledVoiceEntry({
           Fast Voice
         </label>
       </div>
+      {process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' && qaTranscript && <output aria-label="QA actual transcript">{qaTranscript}</output>}
       {activity.some(row=>row.practiceId===practiceId) && <ol aria-label="Recent Voice activity">{activity.filter(row=>row.practiceId===practiceId).map((row,index)=><li key={index}>{row.label}</li>)}</ol>}
       {phase !== "idle" && (
         <div className={styles.preview} aria-live="polite">

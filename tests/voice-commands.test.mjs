@@ -4,6 +4,41 @@ import {parseVoiceCommand} from '../app/lib/voiceCommands.ts';
 import {interpretVoice} from '../app/lib/voiceIntent.ts';
 import {initialBpSettings,initialBpState} from '../app/lib/liveBp.ts';
 const roster=[{id:'d',aliases:['Darren Adams','Darren','Adams','3']},{id:'m',aliases:['Mylo White','Mylo','White']},{id:'j',aliases:['JP Smith','JP','Smith']}];
+for (const [phrase, source, pitch] of [
+  ['Coach is pitching fastballs only.', 'COACH', '4-Seam'],
+  ['Coach is throwing fastballs only.', 'COACH', '4-Seam'],
+  ['Fastballs only.', 'MACHINE', '4-Seam'],
+  ["We're throwing sliders only now.", 'MACHINE', 'Slider'],
+  ['Darren is throwing changeups only.', 'PLAYER', 'Changeup'],
+  ['Machine is throwing fastballs.', 'MACHINE', '4-Seam'],
+  ['Machine fastballs only.', 'MACHINE', '4-Seam'],
+]) test(`persistent pitch program: ${phrase}`, () => {
+  const settings=initialBpSettings('m');
+  const c=parseVoiceCommand(phrase,roster,settings);
+  assert.equal(c?.kind,'context'); assert.deepEqual(c.problems,[]);
+  const next={...settings,...c.patch};
+  assert.equal(next.source,source); assert.equal(next.pitchMode,'ONE'); assert.equal(next.pitchType,pitch);
+  const event=interpretVoice('84 low and away swing and miss',{domain:'live-bp',settings:next,state:initialBpState(),roster},'test');
+  assert.equal(event.draft.pitchType,pitch); assert.equal(event.draft.velocity,84);
+});
+for (const phrase of ['We are now in multi pitch mode.','Multiple pitches now.','Mix pitches.',"We're mixing pitches.",'Pitchers can throw anything now.']) test(`multi mode clears event inheritance: ${phrase}`,()=>{
+  const settings={...initialBpSettings('m'),pitchMode:'ONE',pitchType:'4-Seam'};
+  const c=parseVoiceCommand(phrase,roster,settings);
+  assert.equal(c?.kind,'context'); assert.equal(c.patch.pitchMode,'MULTI');
+  const event=interpretVoice('79 down and away whiff',{domain:'live-bp',settings:{...settings,...c.patch},state:initialBpState(),roster},'test');
+  assert.equal(event.draft.pitchType,undefined);
+});
+test('source, hitter, PA and situation changes preserve pitch program',()=>{
+  let settings={...initialBpSettings('m'),pitchMode:'ONE',pitchType:'Slider'};
+  let state=initialBpState();
+  for(const phrase of ['Coach is pitching','Machine is pitching','Darren is pitching','JP is hitting now','Mylo gets another at bat','Reset the count','Start the count one and one','Runner on second with one out']) {
+    const c=parseVoiceCommand(phrase,roster,settings,state);
+    assert.equal(c.kind,'context'); assert.deepEqual(c.problems,[]);
+    settings={...settings,...c.patch}; state={...state,...c.statePatch};
+    assert.equal(settings.pitchMode,'ONE'); assert.equal(settings.pitchType,'Slider');
+  }
+  assert.deepEqual(state.runners,[2]); assert.equal(state.outs,1); assert.equal(state.balls,1); assert.equal(state.strikes,1);
+});
 for(const [phrase,key,value] of [['Darren is pitching','pitcherId','d'],['Mylo is hitting','hitterId','m'],['JP is now hitting','hitterId','j'],["Mylo's hitting",'hitterId','m'],['Mylo is up','hitterId','m'],['Put Mylo in','hitterId','m'],['Coach is pitching','source','COACH'],['Machine is pitching','source','MACHINE'],['#3 is pitching','pitcherId','d']])test(phrase,()=>{const c=parseVoiceCommand(phrase,roster,initialBpSettings('m'));assert.equal(c.kind,'context');assert.equal(c.patch[key],value);assert.deepEqual(c.problems,[]);assert.equal(c.eventText,'');});
 test('context survives hitter-only change, event resolves current identities',()=>{let settings=initialBpSettings('m');for(const phrase of ['Darren is pitching','Mylo is hitting','JP is now hitting'])settings={...settings,...parseVoiceCommand(phrase,roster,settings).patch};assert.equal(settings.pitcherId,'d');assert.equal(settings.hitterId,'j');const i=interpretVoice('Slider 79 down and away swing and miss',{domain:'live-bp',roster,settings,state:initialBpState(),bats:'R'},'test');assert.equal(i.playerId,'j');assert.equal(i.pitcherId,'d');assert.equal(i.draft.outcome,'Whiff');});
 test('compound separates context from exactly one event',()=>{const c=parseVoiceCommand('JP is hitting, four seam 84 middle called strike',roster,initialBpSettings('m'));assert.equal(c.kind,'compound');assert.equal(c.patch.hitterId,'j');assert.equal(c.eventText,'four seam 84 middle called strike');});

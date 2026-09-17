@@ -1,5 +1,5 @@
 import { initialBpState, type BpSettings, type BpState, type BpPosition } from "./liveBp.ts";
-import { normalizeVoiceText, type VoiceIdentity } from "./voiceVocabulary.ts";
+import { normalizeVoiceText, VOICE_PITCH_ALIASES, type VoiceIdentity } from "./voiceVocabulary.ts";
 import { correctedVoiceText } from "./voiceSession.ts";
 
 export type VoiceContextCommand = {
@@ -40,7 +40,39 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
   }
   const number = (value: string) => ({zero:0,one:1,two:2,three:3,nobody:0}[value] ?? Number(value));
   for(let n=0;n<12;n++) {
-    remaining = remaining.replace(/^(?:and |then )/, "").trim();
+    remaining = remaining.replace(/^(?:and |then |with )/, "").trim();
+    if (/^(?:(?:we are|we're) (?:now )?in )?multi(?:ple)? pitch(?:es| mode)?(?: now)?$|^(?:mix pitches|we're mixing pitches|we are mixing pitches|pitchers can throw anything)(?: now)?$/.test(remaining)) {
+      recognized = true;
+      command.patch.pitchMode = "MULTI";
+      command.confirmations.push("Pitch mode: Multi");
+      remaining = "";
+      break;
+    }
+    const program = remaining.match(/^(?:(.+?) (?:is (?:pitching|throwing)|(?:are|we're) throwing) |(?:we're|we are) throwing )?(.+?)(?: only)(?: now)?$/)
+      ?? remaining.match(/^(machine) is throwing (.+?)(?: now)?$/);
+    if (program) {
+      const shortMachine = !program[1] && program[2].startsWith("machine ");
+      const pitch = VOICE_PITCH_ALIASES[program[2].replace(/^machine /, "").replace(/s$/, "")];
+      if (pitch) {
+        recognized = true;
+        const name = shortMachine ? "machine" : program[1];
+        if (name && name !== "we") {
+          if (name === "coach" || name === "machine") {
+            command.patch.source = name === "coach" ? "COACH" : "MACHINE";
+            command.patch.pitcherId = undefined;
+          } else {
+            const matches = roster.filter(p => p.aliases.some(alias => normalizeVoiceText(alias) === name));
+            if (matches.length !== 1) command.problems.push(`Which player is "${name}"?`);
+            else { command.patch.source = "PLAYER"; command.patch.pitcherId = matches[0].id; }
+          }
+        }
+        command.patch.pitchMode = "ONE";
+        command.patch.pitchType = pitch;
+        command.confirmations.push(`Pitch mode: Single ${pitch}`);
+        remaining = "";
+        break;
+      }
+    }
     const alignment = remaining.match(/^(?:(?:put|move) (.+?) (?:at|to)|(.+?) is (?:at|in)) (short(?:stop)?|center(?: field)?|left(?: field)?|right(?: field)?|first(?: base)?|second(?: base)?|third(?: base)?|catcher)\b/);
     if (alignment) {
       recognized = true;
@@ -59,7 +91,7 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
       remaining = remaining.slice(alignment[0].length).trim();
       continue;
     }
-    const count = remaining.match(/^(?:(?:set )?count(?: is)?|start(?: him)?) (zero|one|two|three|[0-3]) (?:and )?(zero|one|two|[0-2])\b/);
+    const count = remaining.match(/^(?:(?:set )?count(?: is)?|start(?: him| the count)?) (zero|one|two|three|[0-3]) (?:and )?(zero|one|two|[0-2])\b/);
     const reset = remaining.match(/^reset (?:the )?count\b/);
     const outs = remaining.match(/^(nobody|zero|one|two|[0-2]) outs?\b/);
     const runners = remaining.match(/^(?:runners? on (first|second|third)(?: base)?(?: and (first|second|third))?(?: base)?|bases (loaded|empty))\b/);
