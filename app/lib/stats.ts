@@ -197,6 +197,9 @@ export function calculateHittingStats(events: HittingEvent[]): HittingStats {
   const swings = events.filter((event) => event.action !== "Took pitch").length;
   const misses = events.filter((event) => event.action === "Miss").length;
   const ballsInPlay = events.filter((event) => event.action === "Ball in play").length;
+  const gradedContact = events.filter((event) => event.action === "Ball in play" && event.contactQuality).length;
+  const classifiedContact = events.filter((event) => event.action === "Ball in play" && event.contactResult).length;
+  const directedContact = events.filter((event) => event.action === "Ball in play" && event.direction).length;
   const contacts = events.filter((event) => event.action === "Ball in play" || event.action === "Foul").length;
   const hard = events.filter(isPracticeHardContactEvent).length;
   const barrels = events.filter((event) => event.contactQuality === "Barrel").length;
@@ -228,15 +231,15 @@ export function calculateHittingStats(events: HittingEvent[]): HittingStats {
     swingPct: pct(swings, pitchesSeen),
     contactPct: pct(contacts, swings),
     whiffPct: pct(misses, swings),
-    hardHitPct: pct(hard, ballsInPlay),
-    barrelPct: pct(barrels, ballsInPlay),
-    lineDrivePct: pct(lines, ballsInPlay),
-    groundBallPct: pct(ground, ballsInPlay),
-    flyBallPct: pct(fly, ballsInPlay),
-    pullPct: pct(pull, ballsInPlay),
-    middlePct: pct(middle, ballsInPlay),
-    oppositePct: pct(oppo, ballsInPlay),
-    qualityContactPct: pct(hard + events.filter((event) => event.contactQuality === "Solid").length, ballsInPlay),
+    hardHitPct: pct(hard, gradedContact),
+    barrelPct: pct(barrels, gradedContact),
+    lineDrivePct: pct(lines, classifiedContact),
+    groundBallPct: pct(ground, classifiedContact),
+    flyBallPct: pct(fly, classifiedContact),
+    pullPct: pct(pull, directedContact),
+    middlePct: pct(middle, directedContact),
+    oppositePct: pct(oppo, directedContact),
+    qualityContactPct: pct(hard + events.filter((event) => event.contactQuality === "Solid").length, gradedContact),
     liveBpHits: liveHits,
     liveBpAtBats: liveAtBats,
     liveBpAvg: liveAvg,

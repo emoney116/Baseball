@@ -20,6 +20,14 @@ test('generated initials never override another explicit roster name',()=>{
 const roster=[{id:'j',aliases:['Jackson Pierce','Jackson','JP'],bats:'R'},{id:'m',aliases:['Mylo'],bats:'R'}];
 const settings={...initialBpSettings('m'),pitchMode:'MULTI',pitchType:'4-Seam',source:'MACHINE',mode:'FREE'};
 const context={domain:'live-bp',roster,settings,state:initialBpState(),bats:'R'};
+
+test('standalone baseball homophone preserves Multi unknown pitch and low acoustic review',()=>{
+  const parsed=interpretVoice('Fowl',context,'qa',.305);
+  assert.equal(parsed.draft.outcome,'Foul');
+  assert.equal(parsed.draft.pitchType,undefined);
+  assert.deepEqual(parsed.unresolvedFields,[]);
+  assert.equal(canFastSaveVoice(parsed),false);
+});
 test('alignment pitcher assignment also changes canonical pitch source',()=>{
   const parsed=parseVoiceCommand('Jackson is playing pitcher',roster,settings);
   assert.equal(parsed.patch.source,'PLAYER');assert.equal(parsed.patch.pitcherId,'j');

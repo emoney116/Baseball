@@ -555,7 +555,7 @@ function EnabledVoiceEntry({
                   review: continuous ? (context.domain === 'live-bp' ? 'Pending pitch' : 'Pending event') : fast ? "Needs review" : "Voice event",
                   saving: "Saving...",
                   saved: command?.kind === "context" ? command.confirmations.join(" · ") : "Event saved",
-                  error: "Voice unavailable",
+                  error: command?.problems.length ? "Needs Review" : "Voice unavailable",
                 } as Record<string, string>
               )[phase]
             }

@@ -22,6 +22,7 @@ export const VOICE_QUALITY = {
 
 export function normalizeBaseballLanguage(text: string): string {
   return text
+    .replace(/^fowl(?: ball)?$/, 'foul')
     .replace(/\b(hard|soft|weak)(line|ground|fly)\b/g, '$1 $2')
     .replace(/\b(?:liner|lined it)\b/g, 'line drive')
     .replace(/\b(?:grounder|grounded it)\b/g, 'ground ball')

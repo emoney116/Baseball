@@ -85,6 +85,18 @@ test("practice hitting metrics preserve sample denominators", () => {
   assert.equal(Math.round(stats.lineDrivePct), 33);
 });
 
+test("partial Voice contact uses actual quality, type and spray availability", () => {
+  const stats=calculateHittingStats([
+    hittingEvent('known','Ball in play','Line drive','Hard','Middle'),
+    hittingEvent('unknown','Ball in play',undefined,undefined,undefined),
+  ]);
+  assert.equal(stats.ballsInPlay,2);
+  assert.equal(stats.hardHitPct,100);
+  assert.equal(stats.qualityContactPct,100);
+  assert.equal(stats.lineDrivePct,100);
+  assert.equal(stats.middlePct,100);
+});
+
 test("practice hitting taxonomy centralizes hard-contact outcomes", () => {
   const events = PRACTICE_HITTING_RESULT_OPTIONS.map((option, index) => hittingEvent(
     `he-tax-${index}`,
