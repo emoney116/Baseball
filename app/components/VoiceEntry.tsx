@@ -493,7 +493,9 @@ function EnabledVoiceEntry({
         <input type="file" accept="audio/wav,.wav" aria-label="QA voice recording" disabled={disabled || !['idle','saved','error'].includes(phase)} onChange={e => {
           const file=e.target.files?.[0]; e.target.value=''; if(file) void start(file);
         }} />
-      </label>{qaTranscript && <output aria-label="QA actual transcript">{qaTranscript}</output>}</details>}
+      </label>{qaTranscript && <output aria-label="QA actual transcript">{qaTranscript}</output>}
+        {intent && <output aria-label="QA transcription confidence">Transcription confidence: {intent.confidence.transcription === null ? 'Unavailable' : intent.confidence.transcription.toFixed(4)}</output>}
+      </details>}
       {activity.some(row=>row.practiceId===practiceId) && <details className={styles.activity}><summary>Recent Voice activity</summary><ol aria-label="Recent Voice activity">{activity.filter(row=>row.practiceId===practiceId).map((row,index)=><li key={index}>{row.label}</li>)}</ol></details>}
       {phase !== "idle" && (
         <div className={styles.preview} aria-live="polite">
@@ -504,7 +506,7 @@ function EnabledVoiceEntry({
                   listening: "Listening...",
                   transcribing: "Transcribing...",
                   interpreting: "Interpreting...",
-                  review: continuous ? (context.domain === 'live-bp' ? 'Pending pitch' : 'Pending event') : "Voice event",
+                  review: continuous ? (context.domain === 'live-bp' ? 'Pending pitch' : 'Pending event') : fast ? "Needs review" : "Voice event",
                   saving: "Saving...",
                   saved: command?.kind === "context" ? command.confirmations.join(" · ") : "Event saved",
                   error: "Voice unavailable",
@@ -521,6 +523,7 @@ function EnabledVoiceEntry({
               {intent.unresolvedFields.length > 0 && (
                 <p>Review: {intent.unresolvedFields.join(", ")}</p>
               )}
+              {phase === 'review' && fast && !intent.unresolvedFields.length && (intent.confidence.transcription === null || intent.confidence.transcription < 0.97) && <small>Speech confidence needs confirmation before saving.</small>}
               {phase === "review" &&
                 intent.unresolvedFields.includes("batter result") && (
                   <div
