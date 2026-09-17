@@ -75,6 +75,14 @@ test("real audio pop flight variant keeps pop-up and second baseman", () => {
   assert.equal(intent.draft.position,'2B');
   assert.equal(intent.draft.result,'Out');
 });
+test("double and triple never silently leave a preceding runner behind the batter",()=>{
+  const c=context();c.state={...c.state,situationKnown:true,runners:[1]};
+  for(const result of ['Double','Triple']) {
+    const draft={outcome:'Ball in play',result};
+    assert.throws(()=>buildBpPitch(c.settings,c.state,draft),/Choose advancement/);
+    assert.doesNotThrow(()=>buildBpPitch(c.settings,c.state,{...draft,runnerOutcomes:{1:'score'}}));
+  }
+});
 
 test("strict intent contract rejects extra fields, invalid taxonomy and confidence", () => {
   const good = interpretVoice(

@@ -528,6 +528,14 @@ export function buildBpPitch(
       );
       runnerOutcomes[key] = value;
     }
+    if (result === "Double" || result === "Triple") {
+      const batterBase = Number(runnerOutcomes.batter);
+      for (const base of before.runners) {
+        const destination = runnerOutcomes[base] === "hold" ? base : Number(runnerOutcomes[base]);
+        bpAssert(!(destination >= 1 && destination <= batterBase),
+          `Choose advancement for runner on ${base}B; a ${result.toLowerCase()} cannot leave that runner behind the batter.`);
+      }
+    }
     if (result === "Sac Bunt")
       bpAssert(
         before.runners.some(
