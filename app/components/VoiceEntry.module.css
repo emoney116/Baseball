@@ -1,8 +1,10 @@
 .root {
   min-width: 0;
   margin-block: 0;
-  border-bottom: 1px solid var(--line);
-  padding: 6px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 8px;
 }
 .toolbar,
 .actions {
@@ -42,6 +44,19 @@
   color: var(--text);
   font-size: 12px;
 }
+.toolbar > .micButton { flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 2px solid var(--brand-primary); background: var(--brand-soft); color: var(--brand-primary); border-radius: 50%; }
+.voiceStatus { flex: 1; min-width: 0; font-size: 14px; }
+.toolbar > .fastToggle { position: relative; margin-left: auto; min-height: 38px; gap: 4px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 11px; cursor: pointer; }
+.fastToggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.fastToggle:focus-within { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.fastToggle:has(input:checked) { background: var(--brand-soft); border-color: var(--brand-primary); }
+.options { position: relative; flex: 0 0 24px; }
+.options > summary { display: grid; place-items: center; cursor: pointer; list-style: none; height: 38px; }
+.options > summary::-webkit-details-marker { display: none; }
+.optionsPanel { position: absolute; z-index: 15; top: 42px; right: 0; width: min(280px, calc(100vw - 40px)); padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-strong); box-shadow: 0 8px 24px #0003; }
+.optionsPanel .qa { margin-top: 8px; }
+.optionsPanel .qaPanel { position: static; width: 100%; box-shadow: none; padding: 6px 0; border: 0; }
+.root[data-phase="listening"] .micButton { background: #087747; color: white; border-color: #19d988; }
 .preview {
   margin-top: 8px;
   border: 0;

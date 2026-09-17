@@ -1,6 +1,9 @@
 import type { BpContext } from './liveBp.ts';
+import type { ZonePoint } from '../types.ts';
 
 export type BpRecentEvidence = {
+  event_number?: number | null;
+  pitch_location?: ZonePoint | null;
   pitch_type?: string | null;
   velocity?: number | null;
   exit_velocity_mph?: number | null;

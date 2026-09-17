@@ -11,6 +11,8 @@ import {
   ChevronRight,
   Cpu,
   UserRound,
+  Crosshair,
+  CircleDot,
 } from "lucide-react";
 import type { Player, ZonePoint } from "../types";
 import {
@@ -65,7 +67,9 @@ export function LiveBpConsole({
   sheet,
   createPlayer,
   onAsk,
+  visualPreview = false,
 }: {
+  visualPreview?: boolean;
   practiceId: string;
   onAsk: (playerId: string, side: "hitting" | "pitching") => void;
   players: Player[];
@@ -92,6 +96,8 @@ export function LiveBpConsole({
     hitterId: string,
   ) => ReactNode;
 }) {
+  const localVisual = process.env.NODE_ENV === "development" && visualPreview;
+  const [recentEvidence, setRecentEvidence] = useState<BpRecentEvidence | undefined>(localVisual ? {event_number: 5, pitch_location: {x: 0.3, y: 0.1}, pitch_type: "Slider", velocity: 79} : undefined);
   const [round, setRound] = useState<BpRound | null>(null),
     [settings, setSettings] = useState<BpSettings>(() => {
       const hitterId =
@@ -107,11 +113,12 @@ export function LiveBpConsole({
         ...initialBpSettings(hitterId),
         source: initialSource ?? "MACHINE",
         pitcherId,
+        ...(localVisual ? { source: "MACHINE" as const, pitchMode: "ONE" as const, pitchType: "4-Seam" as const, countTracking: true } : {}),
       });
     });
-  const [state, setState] = useState(initialBpState),
+  const [state, setState] = useState(() => localVisual ? {...initialBpState(), balls: 1, strikes: 2, outs: 1, countKnown: true, situationKnown: true, runners: [2] as BpState["runners"]} : initialBpState()),
     [draft, setDraft] = useState<BpDraft>({ outcome: "" });
-  const [loading, setLoading] = useState(true),
+  const [loading, setLoading] = useState(!localVisual),
     [presetsOpen, setPresetsOpen] = useState(false),
     [optionsOpen, setOptionsOpen] = useState(false),
     [chartsOpen, setChartsOpen] = useState(false),
@@ -134,7 +141,7 @@ export function LiveBpConsole({
     [playerEditor, setPlayerEditor] = useState(false),
     [contactFinished, setContactFinished] = useState(false),
     [setupStep, setSetupStep] = useState(0),
-    [lastPitch, setLastPitch] = useState(""),
+    [lastPitch, setLastPitch] = useState(localVisual ? "Slider · 79 mph · Up / Inside · Foul" : ""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
@@ -172,9 +179,10 @@ export function LiveBpConsole({
     setRound(r);
     setSettings(withBpPitcherAlignment(r.settings));
     setState(r.state);
-    if (r.hitting_events) setLastPitch(formatBpRecent(r.hitting_events[0]));
+    if (r.hitting_events) { setLastPitch(formatBpRecent(r.hitting_events[0])); setRecentEvidence(r.hitting_events[0]); }
   }
   async function reload() {
+    if (localVisual) return;
     try {
       const res = await fetch(url, { cache: "no-store" });
       const p = await res.json();
@@ -200,6 +208,7 @@ export function LiveBpConsole({
     }
   }
   useEffect(() => {
+    if (localVisual) return;
     const controller = new AbortController();
     fetch(url, { cache: "no-store", signal: controller.signal })
       .then(async (response) => {
@@ -221,7 +230,7 @@ export function LiveBpConsole({
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [url]);
+  }, [url, localVisual]);
   const roster = players.map((p) => ({
     value: p.id,
     label: densePlayerIdentityLabel(p),
@@ -267,6 +276,7 @@ export function LiveBpConsole({
     voiceDraft?: BpDraft,
     voiceRequestId?: string,
   ) {
+    if (localVisual) { setNotice("Local visual preview: no records saved."); return false; }
     if (lock.current) return;
     lock.current = true;
     setBusy(true);
@@ -345,6 +355,7 @@ export function LiveBpConsole({
       adopt(p.round);
       if (operation === "pitch") {
         const savedDraft = pending.current?.draft ?? draft;
+        setRecentEvidence({pitch_location: savedDraft.location, pitch_type: savedDraft.pitchType ?? (nextSettings.pitchMode === "ONE" ? nextSettings.pitchType : null), velocity: savedDraft.velocity});
         pending.current = null;
         // Only Single-mode settings persist a pitch program across completed events.
         setDraft({ outcome: "" });
@@ -712,7 +723,7 @@ export function LiveBpConsole({
     <VoiceEntry
       practiceId={practiceId}
       disabled={
-        !active || busy || uncertain || loading || Boolean(round?.ended_at)
+        localVisual || !active || busy || uncertain || loading || Boolean(round?.ended_at)
       }
       context={{
         domain: "live-bp",
@@ -816,7 +827,6 @@ export function LiveBpConsole({
                     <ChevronRight size={16} aria-hidden="true" />
                   </button>
                 </div>
-                <small>{players.find(p => p.id === settings.hitterId)?.bats ?? "--"} batter</small>
               </div>
               <span className={styles.vs}>VS</span>
               <div className={styles.athlete}>
@@ -846,7 +856,6 @@ export function LiveBpConsole({
                   )}
                   <ChevronRight size={16} aria-hidden="true" />
                 </button>
-                <small>{settings.pitchMode === "ONE" ? `${settings.pitchType} only` : settings.pitchMode === "MULTI" ? "Multiple pitches" : "Pitch type optional"}</small>
               </div>
             </div>
             <div className={styles.statusRow}>
@@ -1082,9 +1091,12 @@ export function LiveBpConsole({
                   )}
                 {voiceEntry}
                 {lastPitch && <div role="status" className={styles.lastEvent}>
-                  <span>Last Pitch</span>
-                  <strong>{lastPitch}</strong>
-                  {notice && <small>{notice}</small>}
+                  <span className={styles.pitchBadge}>{recentEvidence?.event_number ?? <CircleDot size={20} />}</span>
+                  <div className={styles.pitchCopy}><span>Last Pitch</span><strong>{lastPitch.split(" · ").slice(0,2).join(" · ")}</strong><small>{lastPitch.split(" · ").slice(2).join(" · ")}</small></div>
+                  {trackedCount && <strong className={styles.lastCount} aria-label={`Current count ${state.balls}-${state.strikes}`}>{state.balls}-{state.strikes}</strong>}
+                  <div className={styles.miniLocation} aria-label={recentEvidence?.pitch_location ? "Last pitch location" : "Last pitch location not tracked"}>
+                    {recentEvidence?.pitch_location ? <i style={{left: `${recentEvidence.pitch_location.x*100}%`, top: `${recentEvidence.pitch_location.y*100}%`}} /> : <Crosshair size={18} />}
+                  </div>
                 </div>}
                 <div
                   className="practice-hitting-inline-pitch"
@@ -1201,11 +1213,22 @@ export function LiveBpConsole({
                         BP_POSITIONS.map((position) => {
                           const [left, top] =
                             CLUBHOUSE_FIELD_POSITION_COORDINATES[position];
+                          const runnerView = trackedSituation && fieldView === "runners";
+                          const runnerPositions: Partial<Record<typeof position, readonly [number, number]>> = {
+                            LF: [22, 29], RF: [78, 29],
+                            SS: [25, 43], "2B": [75, 43],
+                            "3B": [15, 55], "1B": [85, 55], P: [50, 64], C: [50, 77],
+                          };
+                          const [markerLeft, markerTop] = runnerView
+                            ? runnerPositions[position] ?? [left, top]
+                            : [left, top];
                           return (
                             <button
                               key={position}
                               type="button"
-                              style={{ left: `${left}%`, top: `${top}%` }}
+                              style={{ left: `${markerLeft}%`, top: `${markerTop}%` }}
+                              data-runner-view={runnerView}
+                              data-position={position}
                               data-tracked={bpPositionTracked(
                                 settings,
                                 position,

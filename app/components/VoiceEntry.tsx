@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, Square, Pencil, X, Undo2, FlaskConical } from "lucide-react";
+import { Mic, Square, Pencil, X, Undo2, FlaskConical, ChevronDown, Zap } from "lucide-react";
 import { encodeVoiceWav, validateVoiceWav, VOICE_MAX_BYTES, VOICE_MAX_SECONDS } from "../lib/voiceAudio";
 import { bpBatterResults } from "../lib/liveBp";
 import { reportVoiceMetrics } from "../lib/voiceMetrics";
@@ -453,11 +453,10 @@ function EnabledVoiceEntry({
   return (
     <section className={styles.root} aria-label="Voice stat entry" data-phase={phase}>
       <div className={styles.toolbar}>
-        <label><input type="checkbox" checked={continuous} disabled={phase === 'saving'} onChange={e => { cancel(); setContinuous(e.target.checked); }} />Continuous</label>
         {continuous ? <SessionVoiceCapture key={`${practiceId}:${Boolean(disabled)}`} practiceId={practiceId} contextKey={contextKey} disabled={disabled} onTranscript={receiveSessionTranscript} /> :
         <button
           type="button"
-          className="secondary-button"
+          className={styles.micButton}
           disabled={
             disabled ||
             ["transcribing", "interpreting", "saving"].includes(phase)
@@ -473,11 +472,11 @@ function EnabledVoiceEntry({
             phase === "listening" ? "Stop voice capture" : "Record voice event"
           }
         >
-          {phase === "listening" ? <Square size={18} /> : <Mic size={18} />}
-          <span>{phase === "listening" ? "Stop" : "Voice"}</span>
+          {phase === "listening" ? <Square size={24} /> : <Mic size={24} />}
         </button>
         }
-        <label>
+        {!continuous && <strong className={styles.voiceStatus}>{phase === "listening" ? "Listening..." : phase === "transcribing" ? "Transcribing..." : phase === "interpreting" ? "Interpreting..." : phase === "saving" ? "Saving..." : phase === "review" ? "Review" : "Voice"}</strong>}
+        <label className={styles.fastToggle}>
           <input
             type="checkbox"
             checked={fast}
@@ -486,8 +485,10 @@ function EnabledVoiceEntry({
             }
             onChange={(e) => setFast(e.target.checked)}
           />
-          Fast Voice
+          <Zap size={16} aria-hidden="true" /> Fast Voice
         </label>
+        <details className={styles.options}><summary aria-label="Voice options" title="Voice options"><ChevronDown size={16} /></summary><div className={styles.optionsPanel}>
+        <label><input type="checkbox" checked={continuous} disabled={phase === 'saving'} onChange={e => { cancel(); setContinuous(e.target.checked); }} />Continuous</label>
       {process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' && <details className={styles.qa}><summary aria-label="Audio QA" title="Audio QA"><FlaskConical size={16} /></summary><div className={styles.qaPanel}><label>
         <input type="file" accept="audio/wav,.wav" aria-label="QA voice recording" disabled={disabled || !['idle','saved','error'].includes(phase)} onChange={e => {
           const file=e.target.files?.[0]; e.target.value=''; if(file) void start(file);
@@ -495,8 +496,9 @@ function EnabledVoiceEntry({
       </label>{qaTranscript && <output aria-label="QA actual transcript">{qaTranscript}</output>}
         {intent && <output aria-label="QA transcription confidence">Transcription confidence: {intent.confidence.transcription === null ? 'Unavailable' : intent.confidence.transcription.toFixed(4)}</output>}
       </div></details>}
+        {activity.some(row=>row.practiceId===practiceId) && <details className={styles.activity}><summary>Recent Voice activity</summary><ol aria-label="Recent Voice activity">{activity.filter(row=>row.practiceId===practiceId).map((row,index)=><li key={index}>{row.label}</li>)}</ol></details>}
+        </div></details>
       </div>
-      {activity.some(row=>row.practiceId===practiceId) && <details className={styles.activity}><summary>Recent Voice activity</summary><ol aria-label="Recent Voice activity">{activity.filter(row=>row.practiceId===practiceId).map((row,index)=><li key={index}>{row.label}</li>)}</ol></details>}
       {phase !== "idle" && (
         <div className={styles.preview} aria-live="polite">
           <strong>

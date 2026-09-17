@@ -9286,6 +9286,7 @@ function PracticeConsole({
 
       {mode === "Live BP" && practice ? (
         <LiveBpConsole key={practice.id} practiceId={practice.id} players={data.players} active={Boolean(practice.startedAt) && !practice.endedAt}
+          visualPreview={process.env.NODE_ENV === "development" && isLocalDevAuthBypass()}
           initialHitterId={liveBpHitter?.id ?? player.id} initialPitcherId={liveBpPitcher?.id} initialSource={liveBpThrowerSource}
           createPlayer={createLiveBpPlayer}
           coaches={(data.staffMembers ?? []).filter(member => member.active && (data.staffTeamMemberships ?? []).some(link => link.active && link.staffMemberId === member.id && link.teamId === data.teamContext?.currentTeam?.teamId)).map(member => member.displayName)}
