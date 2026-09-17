@@ -1,14 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
+import { AuthenticationForm } from "../../../components/AuthenticationForm";
+import { BusyIndicator } from "../../../components/AppLoading";
 import { createClient } from "../../../lib/supabase/client";
 import { BRAND_ASSETS } from "../../../lib/branding";
 
 export default function PlayerInvitationClient({ token }: { token: string }) {
-  const [email, setEmail] = useState(""),
-    [password, setPassword] = useState(""),
-    [name, setName] = useState("");
   const [account, setAccount] = useState<string | null>(null),
-    [signup, setSignup] = useState(false),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
   useEffect(() => {
@@ -43,35 +41,6 @@ export default function PlayerInvitationClient({ token }: { token: string }) {
       unsubscribe?.();
     };
   }, []);
-  async function authenticate(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setMessage("");
-    try {
-      const db = createClient();
-      const returnUrl = new URL("/auth/callback", window.location.origin);
-      returnUrl.searchParams.set("next", window.location.pathname);
-      const result = signup
-        ? await db.auth.signUp({
-            email,
-            password,
-            options: {
-              emailRedirectTo: returnUrl.toString(),
-              data: { display_name: name },
-            },
-          })
-        : await db.auth.signInWithPassword({ email, password });
-      if (result.error) throw result.error;
-      if (!result.data.session)
-        setMessage(
-          "Check your email to confirm your account, then return to this invitation.",
-        );
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to sign in.");
-    } finally {
-      setBusy(false);
-    }
-  }
   async function accept() {
     setBusy(true);
     setMessage("");
@@ -115,71 +84,22 @@ export default function PlayerInvitationClient({ token }: { token: string }) {
             disabled={busy}
             onClick={() => void accept()}
           >
-            Accept Player Invitation
+            {busy && <BusyIndicator />} Accept Player Invitation
           </button>
           <button
             className="ghost-button"
-            onClick={() => void createClient().auth.signOut()}
+            disabled={busy}
+            onClick={() => void createClient().auth.signOut().then(({ error }) => { if (error) setMessage("Unable to sign out. Please try again."); })}
           >
             Use a Different Account
           </button>
         </>
       ) : (
-        <form onSubmit={authenticate} className="player-beta-form">
-          <div className="segmented">
-            <button
-              type="button"
-              className={!signup ? "active" : ""}
-              aria-pressed={!signup}
-              onClick={() => setSignup(false)}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              className={signup ? "active" : ""}
-              aria-pressed={signup}
-              onClick={() => setSignup(true)}
-            >
-              Create Account
-            </button>
-          </div>
-          {signup && (
-            <label>
-              Name
-              <input
-                required
-                autoComplete="name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </label>
-          )}
-          <label>
-            Invited Email
-            <input
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </label>
-          <label>
-            Password
-            <input
-              type="password"
-              minLength={8}
-              required
-              autoComplete={signup ? "new-password" : "current-password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-          <button className="primary-button" disabled={busy}>
-            {busy ? "Please wait..." : signup ? "Create Account" : "Sign In"}
-          </button>
-        </form>
+        <AuthenticationForm next={`/join/player/${token}`} onSignedIn={async () => {
+          const { data, error } = await createClient().auth.getUser();
+          if (error) throw error;
+          setAccount(data.user?.email ?? null);
+        }} />
       )}
       {message && <p role="status">{message}</p>}
     </main>
