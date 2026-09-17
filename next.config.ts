@@ -11,7 +11,7 @@ function buildVersion() {
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_CLUBHOUSE_BUILD: buildVersion(),
-    NEXT_PUBLIC_CLUBHOUSE_VOICE_ENABLED: String(voiceDeploymentEnabled(process.env.VERCEL_ENV, process.env.NODE_ENV)),
+    NEXT_PUBLIC_CLUBHOUSE_VOICE_ENABLED: String(voiceDeploymentEnabled(process.env.VERCEL_ENV, process.env.NODE_ENV, process.env.VOICE_ENABLED)),
   },
   async headers() {
     return [{ source: "/manifest.webmanifest", headers: [{ key: "Cache-Control", value: "public, max-age=0, must-revalidate" }] }];

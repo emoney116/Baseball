@@ -6,6 +6,8 @@ import {
 } from "../../../lib/playerAccountLinks";
 import { validateVoiceWav, VOICE_MAX_BYTES, VOICE_MAX_SECONDS } from "../../../lib/voiceAudio";
 import { voiceTokenConfidence } from "../../../lib/voiceTranscriptionConfidence";
+import { voiceDeploymentEnabled } from "../../../lib/voiceAvailability";
+import { voiceTranscriptionModel } from "../../../lib/voiceModel";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -15,7 +17,7 @@ const reply = (body: unknown, status = 200) =>
     headers: { "Cache-Control": "private, no-store" },
   });
 export async function POST(request: Request) {
-  if (process.env.NEXT_PUBLIC_CLUBHOUSE_VOICE_ENABLED !== "true")
+  if (process.env.NEXT_PUBLIC_CLUBHOUSE_VOICE_ENABLED !== "true" || !voiceDeploymentEnabled(process.env.VERCEL_ENV, process.env.NODE_ENV, process.env.VOICE_ENABLED))
     return reply({ message: "Voice unavailable - use manual entry." }, 503);
   const started = Date.now();
   let reservation:
@@ -102,13 +104,13 @@ export async function POST(request: Request) {
     reservation = { id, db };
     const form = new FormData();
     form.append("file", new Blob([bytes], { type: "audio/wav" }), "event.wav");
-    const model = process.env.VERCEL_ENV === "preview" ? "gpt-4o-transcribe" : "whisper-1";
+    const model = voiceTranscriptionModel(process.env.OPENAI_VOICE_TRANSCRIBE_MODEL);
     form.append("model", model);
     form.append("language", "en");
     // Very short control phrases can otherwise echo the vocabulary prompt as speech.
     if (seconds > 3) form.append("prompt", "Baseball practice vocabulary: hitting, pitching, at-bat, fastball, four-seam, slider, changeup, curveball, cutter, swing and miss, whiff, called strike, foul, exit velo, left center, right field.");
-    form.append("response_format", model === "whisper-1" ? "verbose_json" : "json");
-    if (model !== "whisper-1") form.append("include[]", "logprobs");
+    form.append("response_format", "json");
+    form.append("include[]", "logprobs");
     const response = await fetch(
       "https://api.openai.com/v1/audio/transcriptions",
       {
@@ -127,21 +129,7 @@ export async function POST(request: Request) {
       /baseball practice vocabulary/i.test(result.text)
     )
       throw new Error("transcript");
-    const segments = Array.isArray(result.segments) ? result.segments : [];
-    const confidence = model !== "whisper-1" ? voiceTokenConfidence(result.logprobs) :
-      segments.length &&
-      segments.every(
-        (s: { avg_logprob?: number; no_speech_prob?: number }) =>
-          typeof s.avg_logprob === "number" &&
-          typeof s.no_speech_prob === "number",
-      )
-        ? Math.min(
-            ...segments.map(
-              (s: { avg_logprob: number; no_speech_prob: number }) =>
-                Math.min(Math.exp(s.avg_logprob), 1 - s.no_speech_prob),
-            ),
-          )
-        : null;
+    const confidence = voiceTokenConfidence(result.logprobs);
     const costPerMinute = Number(process.env.VOICE_COST_USD_PER_MINUTE);
     await db
       .from("voice_usage")

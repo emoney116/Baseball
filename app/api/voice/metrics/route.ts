@@ -1,9 +1,10 @@
 import { createClient } from "../../../lib/supabase/server";
 import { createAdminClient } from "../../../lib/supabase/admin";
 import { validateVoiceMetrics } from "../../../lib/voiceMetrics";
+import { voiceDeploymentEnabled } from "../../../lib/voiceAvailability";
 
 export async function POST(request: Request) {
-  if (process.env.NEXT_PUBLIC_CLUBHOUSE_VOICE_ENABLED !== "true")
+  if (process.env.NEXT_PUBLIC_CLUBHOUSE_VOICE_ENABLED !== "true" || !voiceDeploymentEnabled(process.env.VERCEL_ENV, process.env.NODE_ENV, process.env.VOICE_ENABLED))
     return new Response(null, { status: 503 });
   if (request.headers.get("origin") !== new URL(request.url).origin)
     return new Response(null, { status: 403 });
