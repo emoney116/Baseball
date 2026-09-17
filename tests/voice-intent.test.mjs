@@ -48,6 +48,14 @@ const pitches = [
   ["splitter", "Splitter"],
 ];
 
+test("hosted transcription compound linedrive preserves the spaced canonical interpretation", () => {
+  const phrase = "Fastball 85 middle, linedrive left center, 94 exit velo, single.";
+  assert.deepEqual(
+    { ...interpretVoice(phrase, context(), "compound-contact", .99), transcript: phrase.replace("linedrive", "line drive") },
+    interpretVoice(phrase.replace("linedrive", "line drive"), context(), "compound-contact", .99),
+  );
+});
+
 test("real ambiguous narration identifies missing baseball information without vague filler warnings", () => {
   for (const [transcript, message] of [
     ["He made an error.", "Identify the fielder"],
