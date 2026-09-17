@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const page = fs.readFileSync(new URL("../app/ClubhouseWorkspace.tsx", import.meta.url), "utf8");
 const fieldLayout = fs.readFileSync(new URL("../app/lib/baseballFieldLayout.ts", import.meta.url), "utf8");
 const css = fs.readFileSync(new URL("../app/game-session.css", import.meta.url), "utf8");
 const globalCss = fs.readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");

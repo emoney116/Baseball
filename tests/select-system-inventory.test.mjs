@@ -14,13 +14,13 @@ test('native selects are limited to documented rapid-entry and development excep
   assert.deepEqual(actual,{
     'app/components/DemoDataQaPanel.tsx':3,
     'app/components/PlayerLiveEntry.tsx':1,
-    'app/page.tsx':3,
+    'app/ClubhouseWorkspace.tsx':3,
     'app/player-live-preview/preview.tsx':3,
     'app/player-personal-preview/preview.tsx':2,
   });
 });
 test('Practice and profile context menus use the shared positioned overlay',()=>{
-  const page=readFileSync('app/page.tsx','utf8');
+  const page=readFileSync('app/ClubhouseWorkspace.tsx','utf8');
   assert.match(page,/<ClubhouseOptionSheet title="Start hitting session"/);
   assert.match(page,/<ClubhouseOptionSheet title="My account"/);
   assert.match(page,/<ClubhouseOptionSheet title="Game commands"/);
@@ -28,7 +28,7 @@ test('Practice and profile context menus use the shared positioned overlay',()=>
   assert.doesNotMatch(page,/className="(?:profile-menu__panel|practice-hitting-start-popover)"/);
 });
 test('Game Center identifies the selected team rather than a hard-coded organization',()=>{
-  const page=readFileSync('app/page.tsx','utf8');
+  const page=readFileSync('app/ClubhouseWorkspace.tsx','utf8');
   assert.match(page,/const currentGameTeamName = data\.teamContext\?\.currentTeam\?\.teamName \?\? "Our team"/);
   assert.match(page,/<GameScoreRibbon game=\{game\} teamName=\{currentGameTeamName\}/);
   assert.doesNotMatch(page,/<strong>Metrolina <em>vs<\/em>/);
@@ -46,7 +46,7 @@ test('Analytics filter sheet does not insert a second handle into its content gr
   assert.match(css,/\.analytics-filter-sheet::before\s*\{\s*content: none;/);
 });
 test('bottom navigation menus dismiss hidden triggers and follow the visual viewport',()=>{
-  const page=readFileSync('app/page.tsx','utf8');
+  const page=readFileSync('app/ClubhouseWorkspace.tsx','utf8');
   const hook=page.slice(page.indexOf('function useBottomNavMenuStyle('),page.indexOf('type WeightRoomSetDraft'));
   assert.match(hook,/if \(!rect\.width \|\| !rect\.height\)\s*\{\s*setOpen\(false\)/);
   assert.match(hook,/visualViewport\?\.addEventListener\("resize", updatePosition\)/);

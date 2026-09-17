@@ -67,5 +67,5 @@ test("install dismissal persists and update never refreshes automatically", () =
   assert.match(source, /confirmRefresh \?/);
   assert.equal((source.match(/window.location.reload\(/g) ?? []).length, 1);
   assert.doesNotMatch(source, /serviceWorker|caches\.|beforeinstallprompt/);
-  assert.match(read("app/page.tsx"), /canRefresh=\{saveStatus !== "saving" && saveStatus !== "error" && !practiceTrackingOpen\}/);
+  assert.match(read("app/ClubhouseWorkspace.tsx"), /canRefresh=\{saveStatus !== "saving" && saveStatus !== "error" && !practiceTrackingOpen\}/);
 });

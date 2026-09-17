@@ -50,9 +50,9 @@ test('organization management uses shared location controls instead of state/cit
   assert.match(source, /locationId: addTeamDraft.locationId/);
 });
 test('scheduled practice and game creation retain canonical location references', () => {
-  const source = readFileSync('app/page.tsx', 'utf8').split('function ScheduleEventModal(')[1].split('function ')[0];
+  const source = readFileSync('app/ClubhouseWorkspace.tsx', 'utf8').split('function ScheduleEventModal(')[1].split('function ')[0];
   assert.match(source, /setLocationId/);
-  const page = readFileSync('app/page.tsx', 'utf8');
+  const page = readFileSync('app/ClubhouseWorkspace.tsx', 'utf8');
   assert.doesNotMatch(page, /placeholder="Varsity Field or address"/);
   assert.match(page, /global-score-row--/);
 });
@@ -63,7 +63,7 @@ test('saved location display remains identifiable after reload without fetching 
   assert.doesNotMatch(picker, /localStorage|sessionStorage/);
 });
 test('switching creation modes clears location selected under the previous scope', () => {
-  const page = readFileSync('app/page.tsx', 'utf8');
+  const page = readFileSync('app/ClubhouseWorkspace.tsx', 'utf8');
   assert.match(page, /if \(mode !== "organization"\) setTeamLocation\(undefined\)/);
   assert.match(page, /if \(mode !== "existing"\) setTeamLocation\(undefined\)/);
 });

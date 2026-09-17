@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 test("completed workouts render as a read-only box score with correction controls", () => {
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
   const styles = readFileSync("app/globals.css", "utf8");
 
   assert.match(page, /function WeightRoomCompletedWorkoutSummary/);

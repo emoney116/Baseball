@@ -12,7 +12,7 @@ test('public locality entry has no provider dependency or automatic confirmation
 });
 
 test('creation and management bind locality to existing first-party fields', () => {
-  const page = readFileSync('app/page.tsx', 'utf8');
+  const page = readFileSync('app/ClubhouseWorkspace.tsx', 'utf8');
   const manage = readFileSync('app/org/[id]/manage/OrgManageClient.tsx', 'utf8');
   assert.match(page, /PublicLocalityFields city=\{form.organizationCity\}/);
   assert.match(page, /PublicLocalityFields city=\{form.teamCity\}/);

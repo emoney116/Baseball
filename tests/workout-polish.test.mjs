@@ -37,7 +37,7 @@ test('group mode follows authoritative station and individual mode omits group p
 });
 
 test('drilldown places actual before target and row width accommodates all columns',()=>{
-  const source=readFileSync('app/page.tsx','utf8');
+  const source=readFileSync('app/ClubhouseWorkspace.tsx','utf8');
   assert.match(source,/<span>Athlete<\/span><span>Actual<\/span><span>Target<\/span>/);
   const css=readFileSync('app/weight-room-polish.css','utf8');
   assert.match(css,/width: max\(100%,1000px\)/);

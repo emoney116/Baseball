@@ -593,6 +593,12 @@ async function ensureOwnProfile(
     display_name: displayName,
   };
 
+  // Opening or switching teams is a read. Avoid an unchanged write and a
+  // second profile fetch on every load; retain the existing role/avatar too.
+  if (existing && (Object.keys(row) as Array<keyof typeof row>).every(key => existing[key] === row[key])) {
+    return mapProfile(existing);
+  }
+
   const { error: upsertError } = await supabase.from("profiles").upsert(row, { onConflict: "id" });
   if (upsertError) throw new PersistenceError("load-failed", upsertError.message);
 
@@ -621,16 +627,16 @@ async function loadTeamContext(
   requestedTeamId?: string,
   requestedSeasonId?: string,
 ): Promise<TeamContext> {
-  const { data: memberships, error: membershipError } = await supabase
-    .from("profile_team_memberships")
-    .select("id,profile_id,team_id,season_id,role,title,active")
-    .eq("profile_id", profile.id)
-    .eq("active", true);
+  const [{ data: memberships, error: membershipError }, organizations] = await Promise.all([
+    supabase.from("profile_team_memberships")
+      .select("id,profile_id,team_id,season_id,role,title,active")
+      .eq("profile_id", profile.id).eq("active", true),
+    loadOrganizationContext(supabase, profile.id),
+  ]);
 
   if (membershipError) throw new PersistenceError("load-failed", membershipError.message);
 
   const rows = memberships ?? [];
-  const organizations = await loadOrganizationContext(supabase, profile.id);
   if (rows.length === 0) return { profile, organizations, availableTeams: [] };
 
   const teamIds = [...new Set(rows.map((row: any) => row.team_id).filter(Boolean))];
@@ -823,6 +829,18 @@ async function readPracticeRows(supabase:SupabaseClient,table:string,practiceIds
   return {data,error:null};
 }
 
+async function readPlateAppearanceRows(supabase: SupabaseClient, gameIds: string[], practiceIds: string[]) {
+  // Plate appearances belong to games OR practices. Keep both without loading
+  // the other teams' history, and deduplicate a row that names both parents.
+  const results = await Promise.all([
+    readPracticeRows(supabase, "plate_appearances", gameIds, "game_id"),
+    readPracticeRows(supabase, "plate_appearances", practiceIds),
+  ]);
+  const error = results.find(result => result.error)?.error;
+  if (error) return { data: null, error };
+  return { data: [...new Map(results.flatMap(result => result.data ?? []).map(row => [row.id, row])).values()], error: null };
+}
+
 async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Promise<AppData> {
   if (!foundation.teamId || !foundation.seasonId) {
     const [profileFollows, profileFollowExclusions, profileTeamPins, publicDirectory] = await Promise.all([
@@ -882,13 +900,9 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
   const playerIds = [...new Set(memberships.map((membership: any) => membership.player_id).filter(Boolean))];
   const playerIdsSet = new Set(playerIds);
 
-  const playersResult =
-    playerIds.length > 0
-      ? await supabase.from("players").select("*").in("id", playerIds)
-      : { data: [], error: null };
-
   const organizationScoped = Boolean(foundation.organizationId);
   const [
+    playersResult,
     practicesResult,
     exercisesResult,
     workoutSessionsResult,
@@ -898,7 +912,17 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     gamesResult,
     notesResult,
     goalsResult,
+    rosterImports,
+    scheduleEvents,
+    staffData,
+    profileFollows,
+    profileFollowExclusions,
+    profileTeamPins,
+    publicDirectory,
   ] = await Promise.all([
+    playerIds.length
+      ? supabase.from("players").select("*").in("id", playerIds)
+      : Promise.resolve({ data: [], error: null }),
     readAllRows<any>(after => {
       const query=supabase.from("practices").select("*").eq("team_id",foundation.teamId).eq("season_id", foundation.seasonId).order("id").limit(500);
       return after ? query.gt("id",after) : query;
@@ -952,6 +976,13 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
           .select("*")
           .eq("team_id", foundation.teamId)
           .order("created_at", { ascending: false }),
+    loadRosterImports(supabase, foundation),
+    loadScheduleEvents(supabase, foundation),
+    loadStaffData(supabase, foundation),
+    loadProfileFollows(supabase, foundation.teamContext.profile?.id),
+    loadProfileFollowExclusions(supabase, foundation.teamContext.profile?.id),
+    loadProfileTeamPins(supabase, foundation.teamContext.profile?.id),
+    loadPublicDirectory(),
   ]);
 
   const practiceRows = (practicesResult.data ?? []).sort((a:any,b:any)=>String(b.practice_date).localeCompare(String(a.practice_date)));
@@ -980,6 +1011,17 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     exercisePresetItemsResult,
     groupPresetGroupsResult,
     groupPresetMembersResult,
+    attendanceResult,
+    sessionsResult,
+    sessionContributorsResult,
+    pitchEventsResult,
+    hittingEventsResult,
+    defenseEventsResult,
+    workoutSetsResult,
+    gameLineupsResult,
+    gameEventsResult,
+    plateAppearancesResult,
+    approvedLinks,
   ] = await Promise.all([
     weightRoomWorkoutIds.size
       ? supabase.from("weight_room_workout_stations").select("*").in("workout_id", [...weightRoomWorkoutIds])
@@ -999,20 +1041,6 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     groupPresetIds.size
       ? supabase.from("weight_room_group_preset_members").select("*").in("preset_id", [...groupPresetIds])
       : Promise.resolve({ data: [], error: null }),
-  ]);
-
-  const [
-    attendanceResult,
-    sessionsResult,
-    sessionContributorsResult,
-    pitchEventsResult,
-    hittingEventsResult,
-    defenseEventsResult,
-    workoutSetsResult,
-    gameLineupsResult,
-    gameEventsResult,
-    plateAppearancesResult,
-  ] = await Promise.all([
     readPracticeRows(supabase,"practice_attendance",[...practiceIds]),
     readPracticeRows(supabase,"practice_sessions",[...practiceIds]),
     supabase.from("practice_session_contributors").select("*"),
@@ -1020,9 +1048,14 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     readPracticeRows(supabase,"hitting_events",[...practiceIds]),
     readPracticeRows(supabase,"defense_events",[...practiceIds]),
     readPracticeRows(supabase, "workout_sets", workoutSessionRows.map((row: any) => row.id), "workout_session_id"),
-    supabase.from("game_lineups").select("*"),
-    supabase.from("game_pitch_events").select("*").order("created_at", { ascending: false }),
-    supabase.from("plate_appearances").select("*"),
+    gameIds.size
+      ? supabase.from("game_lineups").select("*").in("game_id", [...gameIds])
+      : Promise.resolve({ data: [], error: null }),
+    readPracticeRows(supabase, "game_pitch_events", [...gameIds], "game_id"),
+    readPlateAppearanceRows(supabase, [...gameIds], [...practiceIds]),
+    playersResult.data?.length
+      ? supabase.from("profile_player_links").select("player_id").in("player_id", playersResult.data.map(p => p.id)).eq("status", "APPROVED").eq("relationship_type", "PLAYER")
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   const results = [
@@ -1080,19 +1113,6 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     (!row.session_id || sessionIds.has(row.session_id)),
   );
   const goalsRows = (goalsResult.data ?? []).filter((row: any) => playerIdsSet.has(row.player_id));
-  const rosterImports = await loadRosterImports(supabase, foundation);
-  const scheduleEvents = await loadScheduleEvents(supabase, foundation);
-  const staffData = await loadStaffData(supabase, foundation);
-  const [profileFollows, profileFollowExclusions, profileTeamPins, publicDirectory] = await Promise.all([
-    loadProfileFollows(supabase, foundation.teamContext.profile?.id),
-    loadProfileFollowExclusions(supabase, foundation.teamContext.profile?.id),
-    loadProfileTeamPins(supabase, foundation.teamContext.profile?.id),
-    loadPublicDirectory(),
-  ]);
-
-  const approvedLinks = players.length
-    ? await supabase.from("profile_player_links").select("player_id").in("player_id", players.map(p => p.id)).eq("status", "APPROVED").eq("relationship_type", "PLAYER")
-    : { data: [], error: null };
   if (approvedLinks.error) throw new PersistenceError("load-failed", "Unable to load roster account status.");
   return exactRosterWorkingData({
     teamContext: foundation.teamContext,
