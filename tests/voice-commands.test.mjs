@@ -4,6 +4,13 @@ import {parseVoiceCommand} from '../app/lib/voiceCommands.ts';
 import {interpretVoice} from '../app/lib/voiceIntent.ts';
 import {initialBpSettings,initialBpState} from '../app/lib/liveBp.ts';
 const roster=[{id:'d',aliases:['Darren Adams','Darren','Adams','3']},{id:'m',aliases:['Mylo White','Mylo','White']},{id:'j',aliases:['JP Smith','JP','Smith']}];
+test('real provider ordinal and source article transcripts are context only',()=>{
+  const settings=initialBpSettings('m');
+  const runner=parseVoiceCommand('Runner on 2nd with 1 out.',roster,settings);
+  assert.equal(runner.kind,'context'); assert.deepEqual(runner.statePatch.runners,[2]); assert.equal(runner.statePatch.outs,1);
+  const source=parseVoiceCommand('The machine is pitching.',roster,settings);
+  assert.equal(source.kind,'context'); assert.equal(source.patch.source,'MACHINE'); assert.deepEqual(source.problems,[]);
+});
 for (const [phrase, source, pitch] of [
   ['Coach is pitching fastballs only.', 'COACH', '4-Seam'],
   ['Coach is throwing fastballs only.', 'COACH', '4-Seam'],

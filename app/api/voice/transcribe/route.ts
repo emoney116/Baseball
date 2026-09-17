@@ -103,6 +103,7 @@ export async function POST(request: Request) {
     form.append("file", new Blob([bytes], { type: "audio/wav" }), "event.wav");
     form.append("model", "whisper-1");
     form.append("language", "en");
+    form.append("prompt", "Baseball practice vocabulary: hitting, pitching, at-bat, fastball, four-seam, slider, changeup, curveball, cutter, swing and miss, whiff, called strike, foul, exit velo, left center, right field.");
     form.append("response_format", "verbose_json");
     const response = await fetch(
       "https://api.openai.com/v1/audio/transcriptions",

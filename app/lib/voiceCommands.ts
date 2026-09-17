@@ -14,6 +14,7 @@ export type VoiceContextCommand = {
 
 export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[], settings: BpSettings, state: BpState = initialBpState()): VoiceContextCommand | null {
   let remaining = correctedVoiceText(text.replace(/['’]s\b/g," is"))
+    .replace(/^the (machine|coach)\b/, '$1')
     .replace(/\bthere is (?:a |one )?(?:guy|runner) on\b/g, 'runner on');
   const command: VoiceContextCommand = {kind:"context",patch:{},eventText:"",confirmations:[],problems:[]};
   const setting = remaining.match(/^(start tracking|stop tracking|track|dont track|do not track|enable|disable|turn on|turn off|turn) (?:pitch )?(velocity|locations?|location tracking|counts?|count tracking|defense|exit velo(?:city)?|ev|spray)(?: (on|off|now))?$/);
