@@ -172,7 +172,7 @@
   min-width: 0;
 }
 .live {
-  color: var(--brand-primary);
+  color: var(--brand-ink);
   background: var(--brand-soft);
   border-radius: 4px;
   font-size: 10px;

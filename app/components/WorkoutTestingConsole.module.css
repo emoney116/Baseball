@@ -22,7 +22,7 @@
 .row form button { flex: 0 0 32px; border: 0; background: transparent; color: var(--muted-strong); }
 .actions { display: flex; gap: 8px; }
 .actions button { min-height: 44px; padding: 8px 12px; white-space: nowrap; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--text); }
-.actions button:hover:not(:disabled), .row .saved:hover:not(:disabled) { color: var(--burgundy); background: color-mix(in srgb, var(--burgundy) 10%, transparent); }
+.actions button:hover:not(:disabled), .row .saved:hover:not(:disabled) { color: var(--brand-ink); background: color-mix(in srgb, var(--burgundy) 10%, transparent); }
 .actions button:disabled { opacity: .45; }
 .row p button { display: inline-flex; min-height: 44px; padding: 8px; border: 0; background: transparent; color: var(--text); text-decoration: underline; }
 .resultCell form { display: flex; gap: 6px; }

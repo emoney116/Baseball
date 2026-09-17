@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ArrowLeft, Check, Mail } from "lucide-react";
 import { OTPInput, REGEXP_ONLY_DIGITS } from "input-otp";
 import { emailAuth } from "../lib/emailAuthClient";
@@ -23,6 +23,7 @@ export function AuthenticationForm({ onSignedIn, initialEmail = "", lockedEmail 
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [remaining, setRemaining] = useState(0);
+  const passwordHintId = useId();
   const resendAt = useRef(0);
   const inFlight = useRef(false);
   const completed = useRef(false);
@@ -83,7 +84,7 @@ export function AuthenticationForm({ onSignedIn, initialEmail = "", lockedEmail 
     });
   }
   const title = { login: "Welcome back", signup: "Create your account", verify: "Check your email", forgot: "Reset your password", "reset-sent": "Check your inbox" }[step];
-  return <section className="account-auth" aria-label="Account access">
+  return <section className="account-auth" data-step={step} aria-label="Account access">
     {(step === "login" || step === "signup") && <div className="account-auth__tabs" aria-label="Authentication mode">
       <button type="button" aria-pressed={step === "login"} disabled={!!busy} onClick={() => changeStep("login")}>Sign in</button>
       <button type="button" aria-pressed={step === "signup"} disabled={!!busy} onClick={() => changeStep("signup")}>Create account</button>
@@ -102,8 +103,13 @@ export function AuthenticationForm({ onSignedIn, initialEmail = "", lockedEmail 
           <label>Last name<input autoComplete="family-name" required value={lastName} onChange={event => setLastName(event.target.value)} /></label>
         </div>}
         {step !== "verify" && <label>Email<input type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required readOnly={lockedEmail} value={email} onChange={event => setEmail(event.target.value)} /></label>}
-        {(step === "login" || step === "signup") && <label>Password<input type="password" autoComplete={step === "login" ? "current-password" : "new-password"} minLength={step === "signup" ? 8 : undefined} required value={password} onChange={event => setPassword(event.target.value)} />{step === "signup" && <small>At least 8 characters.</small>}</label>}
-        {step === "signup" && <label>Confirm password<input type="password" autoComplete="new-password" minLength={8} required value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} /></label>}
+        {(step === "login" || step === "signup") && <div className="account-auth__passwords">
+          <label>Password<input type="password" autoComplete={step === "login" ? "current-password" : "new-password"} aria-describedby={step === "signup" ? passwordHintId : undefined} minLength={step === "signup" ? 8 : undefined} required value={password} onChange={event => setPassword(event.target.value)} /></label>
+          {step === "signup" && <>
+            <label>Confirm password<input type="password" autoComplete="new-password" aria-describedby={passwordHintId} minLength={8} required value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} /></label>
+            <small id={passwordHintId}>At least 8 characters. Both passwords must match.</small>
+          </>}
+        </div>}
         {step === "verify" && <div className="account-auth__verification">
           <label htmlFor="clubhouse-email-code">Verification code</label>
           <OTPInput id="clubhouse-email-code" aria-label="Six-digit email verification code" aria-describedby="clubhouse-code-hint" aria-invalid={!!error} autoComplete="one-time-code" inputMode="numeric" maxLength={EMAIL_CODE_LENGTH} minLength={EMAIL_CODE_LENGTH} pattern={REGEXP_ONLY_DIGITS} required value={code} onChange={setCode} disabled={!!busy} pasteTransformer={text => text.replace(/\D/g, "")} pushPasswordManagerStrategy="none" containerClassName="account-otp" render={({ slots }) => <>{slots.map((slot, index) => <span key={index} className={`account-otp__slot${slot.isActive ? " is-active" : ""}`} aria-hidden="true">{slot.char}{slot.hasFakeCaret && <span className="account-otp__caret" />}</span>)}</>} />

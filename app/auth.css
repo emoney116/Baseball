@@ -1,4 +1,4 @@
-.account-screen { width: min(100%, 440px); min-height: 100svh; margin: 0 auto; padding: max(32px, env(safe-area-inset-top)) 24px max(32px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; justify-content: center; gap: 28px; }
+.account-screen { width: min(100%, 440px); min-height: 100svh; min-height: 100dvh; margin: 0 auto; padding: max(32px, env(safe-area-inset-top)) 24px max(32px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; justify-content: center; gap: 28px; }
 .account-screen__brand { width: 190px; height: 64px; object-fit: contain; align-self: center; }
 .account-auth { width: 100%; display: grid; gap: 20px; color: var(--text); text-align: left; }
 .account-auth__tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
@@ -16,6 +16,9 @@
 .account-auth input[readonly] { color: var(--muted); }
 .account-auth small { font-size: 12px; color: var(--muted); line-height: 1.5; font-weight: 400; }
 .account-auth__names { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.account-auth__passwords { display: grid; gap: 8px 12px; min-width: 0; }
+.account-auth[data-step="signup"] .account-auth__passwords { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.account-auth__passwords > small { grid-column: 1 / -1; }
 .account-auth__submit { width: 100%; min-height: 48px; justify-content: center; gap: 10px; margin-top: 4px; border-radius: 10px; }
 .account-auth .auth-link-button { min-height: 36px; display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; padding: 4px; }
 .account-auth__error { padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--danger, #ef6b73) 35%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--danger, #ef6b73) 7%, var(--panel)); color: var(--text) !important; font-size: 14px; line-height: 1.5; }
@@ -27,15 +30,70 @@
 .account-otp__slot.is-active { border-color: var(--text); box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 15%, transparent); }
 .account-otp__caret { width: 2px; height: 24px; background: var(--text); animation: auth-caret 1s steps(2) infinite; }
 .auth-spinner { flex: 0 0 auto; display: inline-block; width: 17px; height: 17px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: auth-spin .8s linear infinite; }
-.clubhouse-loading { min-height: 100svh; display: grid; place-items: center; padding: 24px; background: var(--bg); color: var(--text); }
-.clubhouse-loading__content { display: grid; justify-items: center; gap: 22px; width: min(100%, 280px); text-align: center; }
-.clubhouse-loading__content > img { width: 64px; height: 64px; object-fit: contain; border-radius: 16px; }
-.clubhouse-loading__content > p { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 13px; color: var(--muted-strong); }
-.clubhouse-loading__track { width: 112px; height: 3px; border-radius: 10px; overflow: hidden; background: var(--line); }
-.clubhouse-loading__track > span { display: block; height: 100%; width: 50%; background: var(--text); border-radius: inherit; animation: auth-progress 1.6s ease-in-out infinite; }
+.clubhouse-loading { min-height: 100svh; min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--bg); color: var(--text); }
+.clubhouse-loading__content { position: relative; display: grid; place-items: center; width: min(100%, 320px); text-align: center; }
+.clubhouse-loading__diamond { position: relative; width: clamp(160px, 29dvh, 216px); aspect-ratio: 1; display: grid; place-items: center; }
+.clubhouse-loading__diamond > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.clubhouse-loading__baseline { stroke: var(--line-strong); stroke-width: 1; }
+.clubhouse-loading__runner { stroke: var(--brand-primary); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 18 82; animation: clubhouse-run-bases 4s linear infinite; }
+.clubhouse-loading__bases > path { fill: var(--bg); stroke: var(--line-strong); stroke-width: 1.5; animation: clubhouse-base-beat 4s ease-in-out infinite; }
+.clubhouse-loading__bases > path:nth-child(2) { animation-delay: 1s; }
+.clubhouse-loading__bases > path:nth-child(3) { animation-delay: 2s; }
+.clubhouse-loading__bases > path:nth-child(4) { animation-delay: 3s; }
+.clubhouse-loading__mark { width: 38%; height: auto; object-fit: contain; animation: clubhouse-mark-breathe 4s ease-in-out infinite; }
+/* Recovery sits below the centered diamond, outside its layout flow. */
+.clubhouse-loading__help { position: absolute; top: calc(100% + 24px); left: 0; width: 100%; }
 .clubhouse-loading__slow { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.clubhouse-loading__slow p { margin: 0 0 8px; }
+.clubhouse-loading__slow button { min-height: 44px; padding: 6px 14px; }
+
+/* Only compress the entry forms. The verification layout stays unchanged. */
+.account-screen:has(.account-auth:is([data-step="login"], [data-step="signup"])) { gap: 20px; padding-block: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-bottom)); }
+.account-auth:is([data-step="login"], [data-step="signup"]) { gap: 16px; }
+.account-auth:is([data-step="login"], [data-step="signup"]) .account-auth__heading { gap: 6px; text-align: center; }
+.account-auth:is([data-step="login"], [data-step="signup"]) fieldset { gap: 12px; }
+.account-auth:is([data-step="login"], [data-step="signup"]) label { gap: 6px; line-height: 1.25; }
+.account-auth:is([data-step="login"], [data-step="signup"]) .account-auth__error { padding: 6px 10px; font-size: 13px; line-height: 1.4; }
+
+/* The preview toolbar occupies its real height, never an estimated offset. */
+.auth-preview { min-height: 100svh; min-height: 100dvh; display: grid; grid-template-rows: auto 1fr; }
+.auth-preview > :is(.account-screen, .clubhouse-loading) { min-height: 0; }
+/* Loading previews match the viewport center used by the real app. */
+.auth-preview:has(> .clubhouse-loading) { position: relative; display: block; }
+.auth-preview > .clubhouse-loading { min-height: 100svh; min-height: 100dvh; }
+.auth-preview:has(> .clubhouse-loading) > .auth-preview__toolbar { position: absolute; inset: 0 0 auto; z-index: 1; }
+.auth-preview__toolbar { display: flex; align-items: center; justify-content: center; gap: 16px; padding: max(6px, env(safe-area-inset-top)) 12px 6px; border-bottom: 1px solid var(--line); }
+.auth-preview__toolbar > span { font-size: 11px; line-height: 1.4; color: var(--muted-strong); }
+.auth-preview__toolbar small { display: block; font-size: 10px; color: var(--muted); white-space: nowrap; }
+.auth-preview__toolbar > div { display: flex; gap: 4px; }
+.auth-preview__toolbar button { min-height: 36px; padding: 4px 8px; background: transparent; color: var(--muted); border: 1px solid transparent; border-radius: 7px; font-size: 11px; text-transform: capitalize; }
+.auth-preview__toolbar button[aria-pressed="true"] { color: var(--text); background: var(--panel); border-color: var(--line-strong); }
+.auth-preview__toolbar button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
 @keyframes auth-spin { to { transform: rotate(360deg); } }
 @keyframes auth-caret { 50% { opacity: 0; } }
-@keyframes auth-progress { 0% { transform: translateX(-110%); } 100% { transform: translateX(310%); } }
+@keyframes clubhouse-run-bases { to { stroke-dashoffset: -100; } }
+@keyframes clubhouse-base-beat { 0%, 18%, 100% { fill: var(--bg); stroke: var(--line-strong); } 6%, 12% { fill: var(--brand-primary); stroke: var(--brand-primary); } }
+@keyframes clubhouse-mark-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
 @media (max-width: 360px) { .account-screen { padding-inline: 20px; gap: 22px; } .account-otp { gap: 5px; } .account-otp__slot { height: 47px; } }
-@media (prefers-reduced-motion: reduce) { .auth-spinner, .account-otp__caret, .clubhouse-loading__track > span { animation: none; } .clubhouse-loading__track > span { width: 100%; opacity: .5; } }
+@media (max-height: 740px) {
+  .account-screen:has(.account-auth:is([data-step="login"], [data-step="signup"])) { gap: 16px; padding-block: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-bottom)); }
+  .account-screen:has(.account-auth:is([data-step="login"], [data-step="signup"])) .account-screen__brand { width: 160px; height: 54px; }
+  .account-auth:is([data-step="login"], [data-step="signup"]) { gap: 12px; }
+  .account-auth:is([data-step="login"], [data-step="signup"]) h1 { font-size: 25px; }
+  .account-auth:is([data-step="login"], [data-step="signup"]) .account-auth__heading p { font-size: 13px; }
+  .account-auth:is([data-step="login"], [data-step="signup"]) fieldset { gap: 10px; }
+  .account-auth:is([data-step="login"], [data-step="signup"]) input { height: 44px; }
+  .account-auth:is([data-step="login"], [data-step="signup"]) .account-auth__submit { min-height: 44px; margin-top: 0; }
+}
+@media (max-height: 600px) {
+  .account-screen:has(.account-auth:is([data-step="login"], [data-step="signup"])) { gap: 10px; padding-block: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-bottom)); }
+  .account-screen:has(.account-auth:is([data-step="login"], [data-step="signup"])) .account-screen__brand { width: 130px; height: 44px; }
+  .account-auth:is([data-step="login"], [data-step="signup"]) .account-auth__heading p { display: none; }
+  .account-auth:is([data-step="login"], [data-step="signup"]) { gap: 10px; }
+}
+/* Do not lock overflow: keyboard users, zoom and errors must stay reachable. */
+@media (prefers-reduced-motion: reduce) {
+  .auth-spinner, .account-otp__caret, .clubhouse-loading__runner, .clubhouse-loading__bases > path, .clubhouse-loading__mark { animation: none; }
+  .clubhouse-loading__runner { stroke-dasharray: none; opacity: .8; }
+}
