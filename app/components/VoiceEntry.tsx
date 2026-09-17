@@ -58,6 +58,7 @@ function EnabledVoiceEntry({
     [fast, setFast] = useState(false);
   const [command, setCommand] = useState<VoiceContextCommand | null>(null);
   const [qaTranscript, setQaTranscript] = useState("");
+  const [qaConfidenceEvidence, setQaConfidenceEvidence] = useState('');
   const [activity, setActivity] = useState<{practiceId:string;label:string}[]>([]);
   const [continuous, setContinuous] = useState(false);
   const pendingIntent = useRef<VoiceIntent | null>(null);
@@ -282,7 +283,7 @@ function EnabledVoiceEntry({
           throw new Error(
             result.message ?? "Voice unavailable - use manual entry.",
           );
-        if (recording && valid()) setQaTranscript(result.transcript);
+        if (recording && valid()) { setQaTranscript(result.transcript); setQaConfidenceEvidence(result.confidenceEvidence ?? ''); }
         if (!valid()) return;
         if (voiceSessionAction(result.transcript) === 'undo') {
           cancel();
@@ -496,6 +497,7 @@ function EnabledVoiceEntry({
           const file=e.target.files?.[0]; e.target.value=''; if(file) void start(file);
         }} />
       </label>{qaTranscript && <output aria-label="QA actual transcript">{qaTranscript}</output>}
+        {qaConfidenceEvidence && <output aria-label="QA confidence evidence">{qaConfidenceEvidence}</output>}
         {intent && <output aria-label="QA transcription confidence">Transcription confidence: {intent.confidence.transcription === null ? 'Unavailable' : intent.confidence.transcription.toFixed(4)}</output>}
       </div></details>}
         {activity.some(row=>row.practiceId===practiceId) && <details className={styles.activity}><summary>Recent Voice activity</summary><ol aria-label="Recent Voice activity">{activity.filter(row=>row.practiceId===practiceId).map((row,index)=><li key={index}>{row.label}</li>)}</ol></details>}

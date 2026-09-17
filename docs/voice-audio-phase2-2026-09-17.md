@@ -130,3 +130,26 @@ Held initially. New parser preserves Sac Bunt,84/4-Seam/LowAway, ordered2->3->sc
 55 corrected audio replay c08c5d5 (.9397) saved Slider81/DownAway/Whiff, no78; CountOff stayedoff.56 replay `Runner on first. No, sorry, runner on second.` saved2B-only context.
 
 Continuous-capture audit found save-busy remounting the mic. Capture lifecycle now separate from transient save busy; no fixed total Practice listening timeout. Hard30s speech-turn bound remains, silence separates turns; physical long-running microphone test still required.
+
+54 real replay fd0b308 (.0600) saved after Review; actual wording `84 mile an hour`/`to the first baseman`, all semantic fields survived. SQL event103 confirms2->3->score, SacBunt, P->1B->C, countTrackedfalse, explicitDefense. No player pitching evidence for Machine.
+57 replay selected Mylo only.58 (.5100) savedSlider84 only.59 (.3146) savedSlider79/DownAway/Whiff, no filler warnings.60 (.9955) actualFastVoice auto-saved83/4-Seam/UpInside/Foul; voice_usage confirmsauto_savedtrue/latency1324ms.71 replay persistedEV+spraytrue/version104;72 persisteddefenseALL/version105.
+
+### Continuous 73-87 (same round; in progress)
+
+|#|Actual transcript|Confidence|Result|
+|---|---|---:|---|
+|73|Darren is pitching|context|Darren/player, version106|
+|74|Milo is hitting|context|Mylo/Darren, aliases safely resolved|
+|75|Slider 78 down and away, swing and miss.|.9705|Fast auto-save event109, Mylo/Darren|
+|76|fastball 84 up foul|.1192|Correct Review, confirmed, event111|
+|77|Changeup 75 low ball|.6729|Correct Review, confirmed, event113|
+|78|Slider 79 down swing and miss.|.6745|Correct Review, confirmed, event115|
+|79|Milo gets another at-bat.|context|PA23->24, same participants, version116|
+|80|Runner on first, one out.|context|1B/1out, version117|
+|81|Fastball 85 middle, line drive left center, 94 exit velo single.|.7305|Review confirmed; displayed inferred1B->2B; event119|
+|82-83|JP is hitting now. Aidan is pitching.|context|One naturally joined segment; atomic context JP/Aiden, version120, no stat|
+|84|Curveball 72 up and in, called strike.|.9392|Review confirmed; JP/Aiden, event122|
+|85|Ground ball to short, shortstop throws to first, out.|.6788|Review confirmed; JP/Aiden,2outs, basesheld|
+|86|provider echoed vocabulary prompt; retry `context:`|.9398/.2130|No change saved; transcription failure, short-control prompt fix queued|
+
+Every accepted command above visibly updated the console without manual refresh. CountOff stayedoff throughout.83 was not a missing command: it shares segment22 with82. No reset between73 and86. Remaining87 awaits successful86 replay.

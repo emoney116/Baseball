@@ -161,6 +161,12 @@ export async function POST(request: Request) {
       model,
       requestId: id,
       latencyMs: Date.now() - started,
+      ...(process.env.VERCEL_ENV === 'preview' && Array.isArray(result.logprobs) ? {
+        confidenceEvidence: result.logprobs
+          .filter((token: {token?: string; logprob?: number}) => typeof token.token === 'string' && /[a-z0-9]/i.test(token.token) && typeof token.logprob === 'number' && Number.isFinite(token.logprob))
+          .sort((a: {logprob:number}, b: {logprob:number}) => a.logprob-b.logprob).slice(0,5)
+          .map((token: {token:string;logprob:number}) => `${JSON.stringify(token.token)} ${Math.exp(token.logprob).toFixed(4)}`).join('; '),
+      } : {}),
     });
   } catch (error) {
     if (reservation)
