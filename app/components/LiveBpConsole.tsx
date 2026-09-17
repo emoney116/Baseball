@@ -50,6 +50,7 @@ import { LiveBpFieldRunners } from "./LiveBpFieldRunners";
 import type { BpRunnerMove } from "../lib/liveBpRunnerMove";
 import styles from "./LiveBpConsole.module.css";
 import { VoiceEntry } from "./VoiceEntry";
+import { practiceActionQueue, rebasePracticeEdit } from '../lib/practiceActionQueue';
 import { formatBpRecent, type BpRecentEvidence } from "../lib/liveBpRecent";
 
 export function LiveBpConsole({
@@ -161,6 +162,8 @@ export function LiveBpConsole({
   const [fieldRetry, setFieldRetry] = useState(false);
   const [undoOpen, setUndoOpen] = useState(false);
   const [voiceCorrection, setVoiceCorrection] = useState<BpState | null>(null);
+  const authoritative = useRef({round,settings,state});
+  const actionQueue = practiceActionQueue(practiceId);
   const onSavedRef = useRef(onSaved);
   useEffect(() => {
     onSavedRef.current = onSaved;
@@ -176,6 +179,7 @@ export function LiveBpConsole({
   );
   const url = `/api/live-bp?practiceId=${encodeURIComponent(practiceId)}`;
   function adopt(r: BpRound & { hitting_events?: BpRecentEvidence[] }) {
+    authoritative.current={round:r,settings:withBpPitcherAlignment(r.settings),state:r.state};
     setRound(r);
     setSettings(withBpPitcherAlignment(r.settings));
     setState(r.state);
@@ -275,7 +279,15 @@ export function LiveBpConsole({
     nextState = state,
     voiceDraft?: BpDraft,
     voiceRequestId?: string,
-  ) {
+    ordered = false,
+  ): Promise<boolean | undefined> {
+    if (!ordered) {
+      const base={settings,state};
+      return actionQueue.enqueue(base,async()=>{
+        const current=authoritative.current;
+        return write(operation,rebasePracticeEdit(base.settings,nextSettings,current.settings),rebasePracticeEdit(base.state,nextState,current.state),voiceDraft ?? (operation==='pitch'?draft:undefined),voiceRequestId,true);
+      });
+    }
     if (localVisual) { setNotice("Local visual preview: no records saved."); return false; }
     if (lock.current) return;
     lock.current = true;
@@ -301,7 +313,7 @@ export function LiveBpConsole({
         };
       }
       startId.current ??= crypto.randomUUID();
-      let savedRound = round;
+      let savedRound = authoritative.current.round;
       if (
         operation === "pitch" &&
         (!savedRound ||
@@ -372,6 +384,7 @@ export function LiveBpConsole({
               : "",
             savedDraft.outcome,
             savedDraft.battedBall,
+            savedDraft.contactQuality,
             savedDraft.ev !== undefined ? `${savedDraft.ev} EV` : "",
             savedDraft.result,
           ]
@@ -406,8 +419,11 @@ export function LiveBpConsole({
   async function fieldAction(
     operation: "undo" | "runner",
     move?: BpRunnerMove,
-  ) {
-    if (!round || lock.current || uncertain) return;
+    ordered = false,
+  ): Promise<boolean | undefined> {
+    if(!ordered)return actionQueue.enqueue({operation,move},()=>fieldAction(operation,move,true));
+    const round=authoritative.current.round;
+    if (!round || lock.current || uncertain) return false;
     if (!fieldRequest.current)
       fieldRequest.current = {
         operation,
@@ -448,6 +464,7 @@ export function LiveBpConsole({
       );
       await reload();
       onSaved();
+      return true;
     } catch (e) {
       setError(
         e instanceof Error
@@ -750,16 +767,16 @@ export function LiveBpConsole({
             await write("configure", settings, {
               ...state,
               ...intent.correction,
-            }),
+            }, undefined, undefined, true),
           );
         return Boolean(
-          await write("pitch", settings, state, intent.draft, intent.requestId),
+          await write("pitch", settings, state, intent.draft, intent.requestId, true),
         );
       }}
       onCommand={async (command, requestId, event) => {
         if(command.problems.length)return false;
         const next={...settings,...command.patch};
-        return Boolean(await write(event?"pitch":round?"configure":"start",next,{...state,...command.statePatch},event?.draft,event?requestId:undefined));
+        return Boolean(await write(event?"pitch":round?"configure":"start",next,{...state,...command.statePatch},event?.draft,event?requestId:undefined,true));
       }}
       onEdit={(intent) => {
         if(intent.correction){setVoiceCorrection({...state,...intent.correction});return;}
@@ -767,7 +784,7 @@ export function LiveBpConsole({
         setDraft(intent.draft);
         setStage(needsPitchDetails ? "details" : "result");
       }}
-      onUndo={() => setUndoOpen(true)}
+      onUndo={async () => Boolean(await fieldAction('undo',undefined,true))}
     />
   );
 

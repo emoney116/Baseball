@@ -4,6 +4,7 @@ import type { ZonePoint } from "../types.ts";
 import { sprayPointForLane } from "./sprayChart.ts";
 import { correctedVoiceText } from "./voiceSession.ts";
 import { parseVoiceRunners } from "./voiceRunners.ts";
+import { VOICE_QUALITY, anchorContactMeasurements } from './voiceBaseballLanguage.ts';
 import {
   matchVoiceVocabulary,
   normalizeVoiceText,
@@ -174,8 +175,11 @@ export function interpretVoice(
     throw new Error("Speak one short event.");
   if (!/^[a-zA-Z0-9-]{1,80}$/.test(requestId))
     throw new Error("Invalid voice request.");
-  let remaining = correctedVoiceText(transcript);
+  let remaining = anchorContactMeasurements(correctedVoiceText(transcript));
   const unresolved = new Set<string>();
+  remaining = remaining.replace(/\b(?:launch angle (\d{1,3})|(\d{1,3}) degrees?(?: launch angle)?)\b/g,()=>{
+    unresolved.add('Launch angle is not supported in Live BP; no velocity inferred from degrees.');return ' ';
+  });
   const draft: BpDraft = { outcome: "", ...Object.fromEntries(
     ["pitchType", "velocity", "location", "ev", "spray"].filter(key => context.manualDraft?.[key as keyof BpDraft] !== undefined)
       .map(key => [key, context.manualDraft![key as keyof BpDraft]]),
@@ -362,6 +366,7 @@ export function interpretVoice(
     draft.defenseResult = take("defense result", defenseResults) ?? draft.defenseResult;
     draft.throwResult = take("throw result", throwResults);
     draft.result = take("batter result", batterResults);
+    draft.contactQuality = take("contact quality", VOICE_QUALITY);
     draft.battedBall = take("batted ball", VOICE_CONTACT_ALIASES);
     if (draft.result === 'Sac Bunt') draft.battedBall ??= 'Bunt';
     if (draft.result === 'Sac Fly') draft.battedBall ??= 'Fly ball';
@@ -388,7 +393,7 @@ export function interpretVoice(
     }
     const evMatches = [
       ...remaining.matchAll(
-        /\b(\d{2,3})\s*(?:exit velo(?:city)?|ev|exit)\b|\b(?:exit velo(?:city)?|ev)\s*(\d{2,3})\b/g,
+        /\b(\d{2,3})\s*(?:(?:mph|miles? (?:per|an?) hour)\s*)?(?:exit velo(?:city)?|ev|exit|off the bat)\b|\b(?:exit velo(?:city)?|ev|came off at|hit it)\s*(\d{2,3})\b/g,
       ),
     ];
     if (evMatches.length > 1) unresolved.add("exit velocity");
@@ -607,6 +612,7 @@ export function assertVoiceIntent(
     "ev",
     "spray",
     "battedBall",
+    "contactQuality",
     "result",
     "position",
     "defenseResult",
@@ -622,6 +628,7 @@ export function assertVoiceIntent(
     outcome: ["", ...Object.values(results)],
     pitchType: Object.values(VOICE_PITCH_ALIASES),
     battedBall: Object.values(VOICE_CONTACT_ALIASES),
+    contactQuality: Object.values(VOICE_QUALITY),
     result: Object.values(batterResults),
     position: BP_POSITIONS,
     defenseResult: Object.values(defenseResults),
@@ -682,12 +689,19 @@ export function canFastSaveVoice(intent: VoiceIntent): boolean {
   } catch {
     return false;
   }
+  const text=correctedVoiceText(intent.transcript);
+  const simplePitch=!intent.draft.battedBall&&!intent.draft.result&&!intent.draft.position&&!intent.draft.runnerOutcomes
+    &&['Whiff','Foul','Ball','Called Strike'].includes(intent.draft.outcome)
+    &&text.split(' ').length<=14&&!/\b(?:or|not|maybe|actually|no|sorry)\b/.test(text);
+  // Complete deterministic short commands may rely on authoritative identities/program.
+  // Numbers need stronger acoustic evidence than a lone result; rich narration retains the strict gate.
+  const threshold=simplePitch?(intent.draft.velocity!==undefined?0.85:0.8):0.97;
   return (
     !intent.correction &&
     intent.ignoredFields.length === 0 &&
     intent.unresolvedFields.length === 0 &&
     intent.confidence.transcription !== null &&
-    intent.confidence.transcription >= 0.97 &&
+    intent.confidence.transcription >= threshold &&
     intent.confidence.interpretation === 1 &&
     intent.confidence.identity === 1 &&
     intent.confidence.critical === 1

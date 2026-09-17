@@ -1,6 +1,7 @@
 import { initialBpState, type BpSettings, type BpState, type BpPosition } from "./liveBp.ts";
 import { normalizeVoiceText, voiceIdentityMatches, VOICE_PITCH_ALIASES, type VoiceIdentity } from "./voiceVocabulary.ts";
 import { correctedVoiceText } from "./voiceSession.ts";
+import { matchAlignmentLanguage, normalizeCountLanguage } from './voiceBaseballLanguage.ts';
 
 export type VoiceContextCommand = {
   kind: "context" | "compound";
@@ -13,12 +14,31 @@ export type VoiceContextCommand = {
 };
 
 export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[], settings: BpSettings, state: BpState = initialBpState()): VoiceContextCommand | null {
-  let remaining = correctedVoiceText(text.replace(/['’]s\b/g," is"))
+  let remaining = normalizeCountLanguage(correctedVoiceText(text.replace(/['’]s\b/g," is")))
+    .replace(/\b(?:is )?batting\b/g,'is hitting')
+    .replace(/\bis at the plate\b/g,'is hitting')
+    .replace(/\banother ab\b/g,'another at bat')
+    .replace(/^dont /,'do not ')
+    .replace(/^don't /,'do not ')
+    .replace(/^(track|start tracking|stop tracking|do not track) velo$/,'$1 velocity')
+    .replace(/^(track|start tracking|stop tracking) exit$/,'$1 exit velo')
+    .replace(/^stop locations$/,'stop tracking locations')
     .replace(/^the (machine|coach)\b/, '$1')
     .replace(/\bbase is (loaded|empty)\b/g, 'bases $1')
     .replace(/\brunners? at (first|second|third)\b/g, 'runner on $1')
     .replace(/\bthere is (?:a |one )?(?:guy|runner) on\b/g, 'runner on');
   const command: VoiceContextCommand = {kind:"context",patch:{},eventText:"",confirmations:[],problems:[]};
+  const swap=remaining.match(/^swap (.+?) and (.+)$/);
+  if(swap){
+    const identities=swap.slice(1).map(name=>roster.filter(player=>voiceIdentityMatches(player,name)));
+    const positions=identities.map(matches=>matches.length===1?Object.entries(settings.alignment??{}).filter(([,id])=>id===matches[0].id):[]);
+    if(positions.some(found=>found.length!==1)||identities[0][0]?.id===identities[1][0]?.id||positions.some(found=>found[0]?.[0]==='P'))command.problems.push('Swap needs two distinct, assigned fielders; change the pitcher using pitcher controls.');
+    else {command.patch.alignment={...settings.alignment,[positions[0][0][0]]:identities[1][0].id,[positions[1][0][0]]:identities[0][0].id};command.confirmations.push(`Swap ${swap[1]} and ${swap[2]}`);}
+    return command;
+  }
+  if(/^(?:same hitter|new at bat|start a new ab)$/.test(remaining)){
+    command.statePatch={balls:0,strikes:0,pa:state.pa+1};command.confirmations.push('Same hitter: new at-bat');return command;
+  }
   const combinedSettings = remaining.match(/^(start tracking|stop tracking|track|turn) (.+?) and (.+?)(?: (on|off))?$/);
   if (combinedSettings) {
     const suffix = combinedSettings[4] ? ` ${combinedSettings[4]}` : '';
@@ -60,15 +80,16 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
   const number = (value: string) => ({zero:0,one:1,two:2,three:3,nobody:0}[value] ?? Number(value));
   for(let n=0;n<12;n++) {
     remaining = remaining.replace(/^(?:and |then |with )/, "").trim();
-    if (/^(?:(?:we are|we're) (?:now )?in )?multi(?:ple)? pitch(?:es| mode)?(?: now)?$|^(?:mix pitches|we're mixing pitches|we are mixing pitches|pitchers can throw anything)(?: now)?$/.test(remaining)) {
+    if (/^(?:(?:we are|we're) (?:now )?in )?multi(?:ple)? pitch(?:es| mode)?(?: now)?$|^(?:mix pitches|we're mixing(?: pitches)?|we are mixing pitches|pitchers can throw anything|throw anything)(?: now)?$/.test(remaining)) {
       recognized = true;
       command.patch.pitchMode = "MULTI";
       command.confirmations.push("Pitch mode: Multi");
       remaining = "";
       break;
     }
+    remaining=remaining.replace(/^(?:all|back to) (fastballs|sliders|changeups|curveballs|cutters)$/,'$1 only');
     const program = remaining.match(/^(?:(.+?) (?:is (?:pitching|throwing)|(?:are|we're) throwing) |(?:we're|we are) throwing )?(.+?)(?: only)(?: now)?$/)
-      ?? remaining.match(/^(machine) is throwing (.+?)(?: now)?$/);
+      ?? remaining.match(/^(machine|coach) is throwing (.+?)(?: now)?$/);
     if (program) {
       const shortMachine = !program[1] && program[2].startsWith("machine ");
       const pitch = VOICE_PITCH_ALIASES[program[2].replace(/^machine /, "").replace(/s$/, "")];
@@ -92,22 +113,21 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
         break;
       }
     }
-    const alignment = remaining.match(/^(?:(?:put|move) (.+?) (?:at|to)|(.+?) is (?:at|in)) (short(?:stop)?|center(?: field)?|left(?: field)?|right(?: field)?|first(?: base)?|second(?: base)?|third(?: base)?|catcher)\b/);
+    const alignment = matchAlignmentLanguage(remaining);
     if (alignment) {
       recognized = true;
-      const name = alignment[1] ?? alignment[2];
+      const name = alignment.name;
       const matches = roster.filter(p=>voiceIdentityMatches(p,name));
       if (matches.length !== 1) command.problems.push(`Which player is "${name}"?`);
       else {
-        const positions: Record<string,BpPosition> = {short:'SS',shortstop:'SS',center:'CF',left:'LF',right:'RF',first:'1B',second:'2B',third:'3B',catcher:'C'};
-        const position = positions[alignment[3].split(' ')[0]];
+        const position = alignment.position;
         const current = {...settings.alignment,...command.patch.alignment};
         for (const key of Object.keys(current) as BpPosition[]) if(current[key]===matches[0].id) delete current[key];
         if (settings.source==='PLAYER' && settings.pitcherId===matches[0].id) command.problems.push('Change the current pitcher before assigning that player elsewhere.');
         else command.patch.alignment = {...current,[position]:matches[0].id};
         command.confirmations.push(`${matches[0].aliases[0]}: ${position}`);
       }
-      remaining = remaining.slice(alignment[0].length).trim();
+      remaining = remaining.slice(alignment.length).trim();
       continue;
     }
     if (/^ball (?:four|4)$/.test(remaining)) {

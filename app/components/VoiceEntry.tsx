@@ -18,6 +18,7 @@ import styles from "./VoiceEntry.module.css";
 import { parseVoiceCommand, type VoiceContextCommand } from "../lib/voiceCommands";
 import { SessionVoiceCapture } from './SessionVoiceCapture';
 import { appendVoiceFragment, voiceSessionAction } from '../lib/voiceSession';
+import { validateVoiceProposal } from '../lib/voiceInterpretationProposal';
 
 type Phase =
   | "idle"
@@ -49,7 +50,7 @@ function EnabledVoiceEntry({
   captureDisabled?: boolean;
   onSave: (intent: VoiceIntent) => Promise<boolean>;
   onEdit: (intent: VoiceIntent) => void;
-  onUndo: () => void;
+  onUndo: () => void | Promise<boolean>;
   onCommand?: (command: VoiceContextCommand, requestId: string, event?: VoiceIntent) => Promise<boolean>;
 }) {
   const [storedPhase, setPhase] = useState<Phase>("idle"),
@@ -59,8 +60,12 @@ function EnabledVoiceEntry({
   const [command, setCommand] = useState<VoiceContextCommand | null>(null);
   const [qaTranscript, setQaTranscript] = useState("");
   const [qaConfidenceEvidence, setQaConfidenceEvidence] = useState('');
+  const [interpretingProposal,setInterpretingProposal]=useState(false);
   const [activity, setActivity] = useState<{practiceId:string;label:string}[]>([]);
   const [continuous, setContinuous] = useState(false);
+  const reviewCompletion = useRef<((saved:boolean)=>void)|null>(null);
+  function finishReview(saved:boolean) {const resolve=reviewCompletion.current;reviewCompletion.current=null;resolve?.(saved);}
+  function waitForReview() {return new Promise<boolean>(resolve=>{reviewCompletion.current=resolve;});}
   const pendingIntent = useRef<VoiceIntent | null>(null);
   useEffect(() => { pendingIntent.current = storedPhase === 'saved' ? null : intent; }, [intent, storedPhase]);
   const generation = useRef(0),
@@ -71,7 +76,7 @@ function EnabledVoiceEntry({
   const contextKey = JSON.stringify({ practiceId, context });
   const [captureKey, setCaptureKey] = useState(contextKey);
   const phase =
-    (captureKey === contextKey && !disabled) || storedPhase === "saving"
+    continuous || (captureKey === contextKey && !disabled) || storedPhase === "saving"
       ? storedPhase
       : "idle";
   const currentKey = useRef(contextKey);
@@ -85,13 +90,15 @@ function EnabledVoiceEntry({
   }, []);
   useEffect(() => {
     currentKey.current = contextKey;
+    if (continuous) return;
     generation.current++;
     abort.current?.abort();
     stopCapture.current?.();
     busy.current = false;
     pendingIntent.current = null;
-  }, [contextKey, disabled]);
+  }, [contextKey, disabled, continuous]);
   function cancel() {
+    finishReview(false);
     generation.current++;
     abort.current?.abort();
     stopCapture.current?.();
@@ -105,14 +112,14 @@ function EnabledVoiceEntry({
   async function receiveSessionTranscript(text: string, confidence: number | null, requestId: string): Promise<boolean> {
     if (disabled || busy.current) return false;
     const action = voiceSessionAction(text);
-    if (action === 'undo') { cancel(); onUndo(); return true; }
+    if (action === 'undo') { cancel(); return (await onUndo()) !== false; }
     if (action === 'mute') return false;
     if (action === 'discard') { cancel(); return true; }
     if (action === 'save') {
       const pending = pendingIntent.current;
       if (!pending || pending.unresolvedFields.length) {
         setError('Nothing complete to save. Finish or edit the pending pitch.');
-        return false;
+        return continuous ? waitForReview() : false;
       }
       return (await save(pending)) === true;
     }
@@ -134,7 +141,7 @@ function EnabledVoiceEntry({
       if (nextCommand.problems.length || !onCommand) {
         setPhase('error');
         setError(nextCommand.problems.join(' ') || 'This context change is unavailable here.');
-        return false;
+        return continuous ? waitForReview() : false;
       }
       busy.current = true; setPhase('saving');
       try {
@@ -153,7 +160,7 @@ function EnabledVoiceEntry({
         return saved;
       } finally { busy.current = false; }
     }
-    const previous = pendingIntent.current;
+    const previous = continuous ? null : pendingIntent.current;
     const effectiveCommand = nextCommand ?? (previous ? command : null);
     const snapshot = effectiveCommand ? {...context, state:{...context.state,...effectiveCommand.statePatch}, settings:{...context.settings,...effectiveCommand.patch}, playerId:effectiveCommand.patch.hitterId ?? context.playerId} : context;
     const incoming = interpretVoice(nextCommand?.eventText ?? text, snapshot, requestId, confidence);
@@ -168,10 +175,12 @@ function EnabledVoiceEntry({
     if (nextCommand) parsed.unresolvedFields.push(...nextCommand.problems, ...(!onCommand ? ['Context changes are unavailable here.'] : []));
     pendingIntent.current = parsed;
     setCommand(effectiveCommand); setIntent(parsed); setPhase('review');
-    if (!effectiveCommand && fast && canFastSaveVoice(parsed)) return (await save(parsed, true)) === true;
-    return true;
+    if (!effectiveCommand && fast && canFastSaveVoice(parsed)) {
+      if(await save(parsed, true, effectiveCommand)) return true;
+    }
+    return continuous ? waitForReview() : true;
   }
-  async function save(value: VoiceIntent, automatic = false) {
+  async function save(value: VoiceIntent, automatic = false, savingCommand = command) {
     if (
       busy.current ||
       disabled ||
@@ -180,12 +189,12 @@ function EnabledVoiceEntry({
     )
       return;
     assertVoiceIntent(value);
-    if(command?.problems.length)return;
+    if(savingCommand?.problems.length)return;
     busy.current = true;
     setPhase("saving");
     const saveStarted = performance.now();
     try {
-      const saved = command && onCommand ? await onCommand(command, value.requestId, value) : await onSave(value);
+      const saved = savingCommand && onCommand ? await onCommand(savingCommand, value.requestId, value) : await onSave(value);
       if(saved) setActivity(rows=>[...rows.filter(r=>r.practiceId===practiceId),{practiceId,label:[...(command?.confirmations??[]), value.draft.pitchType,value.draft.velocity,value.draft.outcome].filter(Boolean).join(" · ")}].slice(-5));
       if (saved)
         reportVoiceMetrics(value.requestId, {
@@ -197,7 +206,7 @@ function EnabledVoiceEntry({
         });
       await new Promise((resolve) => setTimeout(resolve, 0));
       if (mounted.current) {
-        if (saved) { setCaptureKey(currentKey.current); pendingIntent.current = null; }
+        if (saved) { setCaptureKey(currentKey.current); pendingIntent.current = null; finishReview(true); }
         setPhase(saved ? "saved" : "review");
         if (!saved)
           setError(
@@ -214,6 +223,23 @@ function EnabledVoiceEntry({
     } finally {
       busy.current = false;
     }
+  }
+  async function interpretProposal() {
+    if(!intent||interpretingProposal)return;
+    setInterpretingProposal(true);setError('');
+    try {
+      const response=await fetch('/api/voice/interpret',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({practiceId,requestId:intent.requestId,transcript:intent.transcript}),signal:AbortSignal.timeout(25000)});
+      const result=await response.json();if(!response.ok)throw new Error(result.message);
+      const proposal=validateVoiceProposal({normalized:result.normalized,warnings:result.warnings},intent.transcript);
+      const parsed=interpretVoice(proposal.normalized,context,intent.requestId,null);
+      for(const [key,value] of Object.entries(intent.draft)) {
+        if(value!==undefined&&value!==''&&JSON.stringify(parsed.draft[key as keyof typeof parsed.draft])!==JSON.stringify(value))throw new Error(`Interpretation conflicts with known ${key}. Edit manually.`);
+      }
+      parsed.unresolvedFields.push(...proposal.warnings);
+      setIntent(parsed);pendingIntent.current=parsed;setPhase('review');
+      setError('AI interpretation: confirm against your original speech before saving.');
+    }catch(error){setError(error instanceof Error?error.message:'Interpretation unavailable. Edit manually.');}
+    finally{setInterpretingProposal(false);}
   }
   async function start(recording?: File) {
     if (disabled || busy.current) return;
@@ -425,6 +451,7 @@ function EnabledVoiceEntry({
           : "",
         intent.draft.outcome === 'Whiff' ? 'Swing & Miss' : intent.draft.outcome,
         intent.draft.battedBall,
+        intent.draft.contactQuality,
         intent.draft.ev !== undefined ? `${intent.draft.ev} EV` : "",
         intent.draft.result,
         intent.draft.position,
@@ -491,7 +518,7 @@ function EnabledVoiceEntry({
           <Zap size={16} aria-hidden="true" /> Fast Voice
         </label>
         <details className={styles.options}><summary aria-label="Voice options" title="Voice options"><ChevronDown size={16} /></summary><div className={styles.optionsPanel}>
-        <label><input type="checkbox" checked={continuous} disabled={phase === 'saving'} onChange={e => { cancel(); setContinuous(e.target.checked); }} />Continuous</label>
+        <label><input type="checkbox" checked={continuous} disabled={continuous || phase === 'saving'} onChange={e => { cancel(); setContinuous(e.target.checked); }} />Continuous</label>
       {process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' && <details className={styles.qa}><summary aria-label="Audio QA" title="Audio QA"><FlaskConical size={16} /></summary><div className={styles.qaPanel}><label>
         <input type="file" accept="audio/wav,.wav" aria-label="QA voice recording" disabled={disabled || !['idle','saved','error'].includes(phase)} onChange={e => {
           const file=e.target.files?.[0]; e.target.value=''; if(file) void start(file);
@@ -529,7 +556,7 @@ function EnabledVoiceEntry({
               {intent.unresolvedFields.length > 0 && (
                 <p>Review: {intent.unresolvedFields.join(", ")}</p>
               )}
-              {phase === 'review' && fast && !intent.unresolvedFields.length && (intent.confidence.transcription === null || intent.confidence.transcription < 0.97) && <small>Speech confidence needs confirmation before saving.</small>}
+              {phase === 'review' && fast && !intent.unresolvedFields.length && !canFastSaveVoice(intent) && <small>Speech evidence needs confirmation before saving.</small>}
               {phase === "review" &&
                 intent.unresolvedFields.includes("batter result") && (
                   <div
@@ -565,6 +592,7 @@ function EnabledVoiceEntry({
             </>
           )}
           {error && <p role="alert">{error}</p>}
+          {phase==='review'&&intent?.unresolvedFields.some(field=>field.startsWith("Couldn't interpret"))&&<button type="button" className="secondary-button" disabled={interpretingProposal} onClick={()=>void interpretProposal()}>{interpretingProposal?'Interpreting...':'Interpret phrase'}</button>}
           {phase === "review" &&
             intent?.unresolvedFields.includes("player") && (
               <ChoiceSelect

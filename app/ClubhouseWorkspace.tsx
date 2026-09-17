@@ -117,6 +117,7 @@ import type {
 } from "./lib/askClubhouse/types";
 import { APP_NAME, APP_TAGLINE, BRAND_ASSETS } from "./lib/branding";
 import { VoiceEntry } from "./components/VoiceEntry";
+import { practiceActionQueue } from './lib/practiceActionQueue';
 import type { VoiceContextCommand } from "./lib/voiceCommands";
 import type { BpRound } from "./lib/liveBp";
 import { initialBpSettings, initialBpState } from "./lib/liveBp";
@@ -1302,6 +1303,7 @@ export default function MetrolinaBaseballApp() {
       mutate?: (url: URL) => void;
     } = {},
   ) {
+    if(practice && practiceActionQueue(practice.id).pending){window.alert('Resolve pending Practice actions before leaving Live BP.');return;}
     setView(nextView);
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
@@ -1531,6 +1533,7 @@ export default function MetrolinaBaseballApp() {
   }
 
   function writePracticeHubRoute(tab: PracticeHubTab = practiceHubTab, options: { replace?: boolean } = {}) {
+    if(practice && practiceActionQueue(practice.id).pending){window.alert('Resolve pending Voice actions before leaving tracking.');return;}
     setPracticeTrackingOpen(false);
     setPracticeDrilldown({ kind: "hub" });
     setPracticeHubTab(tab);
@@ -3090,11 +3093,13 @@ export default function MetrolinaBaseballApp() {
 
   function endPractice() {
     if (!practice) return;
+    if(practiceActionQueue(practice.id).pending){window.alert('Voice or manual actions are still pending. Resolve them before ending Practice.');return;}
     setPracticeSummaryOpen(true);
   }
 
   function savePracticeSummary() {
     if (!practice) return;
+    if(practiceActionQueue(practice.id).pending){window.alert('Voice or manual actions are still pending. Resolve them before ending Practice.');return;}
     const endedAt = new Date().toISOString();
     commit((current) => ({
       ...current,

@@ -1,4 +1,5 @@
 import { normalizeVoiceText, VOICE_PITCH_ALIASES } from './voiceVocabulary.ts';
+import { normalizeBaseballLanguage } from './voiceBaseballLanguage.ts';
 
 /** Resolve only explicit, local replacements; ambiguous alternatives stay unresolved. */
 export function correctedVoiceText(text: string): string {
@@ -15,10 +16,10 @@ export function correctedVoiceText(text: string): string {
     corrected = corrected.replace(replacement[0], replacement[1]);
     corrected = corrected.replace(new RegExp(`\\b${replacement[2]}\\b`, 'g'), replacement[1]);
   }
-  return corrected
+  return normalizeBaseballLanguage(corrected
     .replace(/\b(?:that was|kind of|i think)\b/g, ' ')
     .replace(/\b(?:he )?fouled (?:it )?off\b/g, 'foul')
-    .replace(/\s+/g, ' ').trim();
+    .replace(/\s+/g, ' ').trim());
 }
 
 /** Preserve fragments until an explicit save; a speech pause is not a pitch boundary. */

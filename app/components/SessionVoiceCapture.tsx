@@ -1,169 +1,136 @@
 "use client";
-
 import { useEffect, useRef, useState } from 'react';
 import { Mic, MicOff, Square } from 'lucide-react';
 import type { MicVAD } from '@ricky0123/vad-web';
 import { encodeVoiceWav, VOICE_MAX_SECONDS, VOICE_SAMPLE_RATE } from '../lib/voiceAudio';
+import { practiceActionQueue, type PracticeActionTicket } from '../lib/practiceActionQueue';
 
+type Capture = {ticket:PracticeActionTicket;samples:Float32Array;requestId:string;status:'captured'|'transcribing'|'waiting'|'review'|'failed';error?:string};
 export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTranscript }: {
-  practiceId: string;
-  contextKey: string;
-  disabled?: boolean;
-  onTranscript: (text: string, confidence: number | null, requestId: string) => Promise<boolean>;
+  practiceId:string;contextKey:string;disabled?:boolean;
+  onTranscript:(text:string,confidence:number|null,requestId:string)=>Promise<boolean>;
 }) {
-  const [state, setState] = useState<'off' | 'starting' | 'listening' | 'muted'>('off');
-  const [pending, setPending] = useState(0);
-  const [error, setError] = useState('');
-  const vad = useRef<MicVAD | null>(null);
-  const stream = useRef<MediaStream | null>(null);
-  const epoch = useRef(0);
-  const queue = useRef<{samples:Float32Array; key:string}[]>([]);
-  const currentContext = useRef(contextKey);
-  useEffect(() => { currentContext.current = contextKey; }, [contextKey]);
-  const running = useRef(false);
-  const listening = useRef(false);
-  const pausing = useRef(false);
-  const request = useRef<AbortController | null>(null);
-  const handler = useRef(onTranscript);
-  useEffect(() => { handler.current = onTranscript; }, [onTranscript]);
-
-  function stop() {
-    listening.current = false;
-    epoch.current++;
-    request.current?.abort();
-    queue.current.length = 0;
-    stream.current?.getTracks().forEach(track => track.stop());
-    stream.current = null;
-    const old = vad.current;
-    vad.current = null;
-    if (old) void old.destroy().catch(() => undefined);
-  }
-  async function mute() {
-    if (pausing.current) return;
-    pausing.current = true;
-    setState('muted');
-    stream.current?.getTracks().forEach(track => track.stop());
-    const detector = vad.current;
-    vad.current = null;
-    try {
-      // Flush the current speech turn, but do not cancel already submitted audio.
-      detector?.setOptions({submitUserSpeechOnPause:true});
-      await detector?.pause();
-    } catch {
-      setError('Microphone muted. The final phrase could not be captured; check the pending pitch.');
-    } finally {
-      listening.current = false;
-      try { await detector?.destroy(); } finally { pausing.current = false; }
+  const [state,setState]=useState<'off'|'starting'|'listening'|'muted'>('off');
+  const [items,setItems]=useState<Capture[]>([]),[error,setError]=useState('');
+  const captures=useRef<Capture[]>([]),vad=useRef<MicVAD|null>(null),stream=useRef<MediaStream|null>(null);
+  const handler=useRef(onTranscript),currentContext=useRef(contextKey);
+  const mounted=useRef(true),active=useRef(false),workers=useRef(0),generation=useRef(0);
+  const speech=useRef<PracticeActionTicket|null>(null),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
+  const timeline=practiceActionQueue(practiceId);
+  const playback=useRef<AudioContext|null>(null);
+  const [qaResults,setQaResults]=useState<{sequence:number;transcript:string;transcriptionMs:number;completed:boolean}[]>([]);
+  useEffect(()=>{handler.current=onTranscript;currentContext.current=contextKey;},[onTranscript,contextKey]);
+  function publish(){if(mounted.current)setItems([...captures.current]);}
+  async function mute(end=false) {
+    active.current=false;generation.current++;clearTimeout(timer.current);
+    const detector=vad.current;vad.current=null;
+    // Stop capture only: flushing, transcription, Review and accepted work survive mute.
+    try {detector?.setOptions({submitUserSpeechOnPause:true});await detector?.pause();}
+    catch {if(mounted.current)setError('Final phrase could not be captured. Earlier queued phrases are retained.');}
+    finally {
+      stream.current?.getTracks().forEach(track=>track.stop());stream.current=null;
+      await playback.current?.close().catch(()=>undefined);playback.current=null;
+      await detector?.destroy().catch(()=>undefined);
+      if(speech.current){timeline.discard(speech.current);speech.current=null;}
+      if(mounted.current)setState(end?'off':'muted');
     }
   }
-  useEffect(() => {
-    const hidden = () => {
-      if (document.hidden) {
-        stop();
-        setState('muted');
-        setPending(0);
-      }
-    };
-    document.addEventListener('visibilitychange', hidden);
-    return () => { stop(); document.removeEventListener('visibilitychange', hidden); };
-  }, [practiceId, disabled]);
-
-  async function drain(token: number) {
-    if (running.current) return;
-    running.current = true;
-    try {
-      while (queue.current.length && epoch.current === token) {
-        const {samples, key} = queue.current.shift()!;
-        const requestId = crypto.randomUUID();
-        const controller = new AbortController();
-        request.current = controller;
-        const response = await fetch(`/api/voice/transcribe?practiceId=${encodeURIComponent(practiceId)}&requestId=${requestId}`, {
-          method: 'POST', headers: { 'Content-Type': 'audio/wav' },
-          body: encodeVoiceWav(samples, VOICE_SAMPLE_RATE),
-          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]),
-        });
-        const result = await response.json();
-        if (epoch.current !== token) return;
-        if (currentContext.current !== key) throw new Error('Practice context changed while you were speaking. Check the participants and repeat the last phrase.');
-        if (!response.ok) throw new Error(result.message || 'Transcription failed. Microphone muted; manual entry is available.');
-        if (!(await handler.current(result.transcript, typeof result.confidence === 'number' ? result.confidence : null, requestId))) {
-          stop(); setState('muted'); setPending(0); return;
-        }
-        if (epoch.current === token) setPending(queue.current.length);
-      }
-    } catch (e) {
-      if (epoch.current === token) {
-        stop(); setState('muted'); setPending(0);
-        setError(e instanceof Error ? e.message : 'Voice unavailable. Manual entry remains available.');
-      }
-    } finally { running.current = false; }
+  useEffect(()=>{
+    mounted.current=true;
+    const hidden=()=>{if(document.hidden)void mute();};
+    const unloading=(event:BeforeUnloadEvent)=>{if(captures.current.length){event.preventDefault();event.returnValue='';}};
+    document.addEventListener('visibilitychange',hidden);window.addEventListener('beforeunload',unloading);
+    return()=>{mounted.current=false;void mute();document.removeEventListener('visibilitychange',hidden);window.removeEventListener('beforeunload',unloading);};
+  // Capture lifecycle is tied to Practice, never a pending save or a context render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[practiceId]);
+  function pump() {
+    while(workers.current<3) {
+      const item=captures.current.find(row=>row.status==='captured');if(!item)break;
+      item.status='transcribing';workers.current++;publish();void transcribe(item);
+    }
   }
-
-  async function start() {
-    if (disabled || state === 'starting' || pausing.current) return;
-    if (running.current) { setError('Finishing the last phrase. Unmute when transcription completes.'); return; }
-    stop();
-    const token = epoch.current;
-    setState('starting'); setError(''); setPending(0);
+  async function transcribe(item:Capture) {
+    const started=performance.now();
     try {
-      // Obtain permission in the user gesture, before loading the local VAD model.
-      const mic = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
-      if (epoch.current !== token) { mic.getTracks().forEach(track => track.stop()); return; }
-      stream.current = mic;
-      mic.getAudioTracks().forEach(track => track.addEventListener('ended', () => {
-        if (epoch.current === token) { stop(); setState('muted'); setError('Microphone interrupted. Unmute to resume.'); }
-      }));
-      const { MicVAD } = await import('@ricky0123/vad-web');
-      if (epoch.current !== token) return;
-      let speechTimer: ReturnType<typeof setTimeout> | undefined;
-      let speechContext = currentContext.current;
-      const detector = await MicVAD.new({
-        model: 'v5', startOnLoad: false, baseAssetPath: '/voice-assets/', onnxWASMBasePath: '/voice-assets/',
-        getStream: async () => mic, submitUserSpeechOnPause: false,
-        redemptionMs: 900, minSpeechMs: 300, preSpeechPadMs: 300,
-        onSpeechStart: () => {
-          speechContext = currentContext.current;
-          clearTimeout(speechTimer);
-          speechTimer = setTimeout(() => {
-            if (epoch.current === token && listening.current) {
-              stop(); setState('muted'); setPending(0);
-              setError(`Speech exceeded ${VOICE_MAX_SECONDS} seconds without a pause. Nothing from that segment was saved.`);
-            }
-          }, VOICE_MAX_SECONDS * 1000);
+      let response:Response|undefined;
+      for(let attempt=0;attempt<3;attempt++) {
+        response=await fetch(`/api/voice/transcribe?practiceId=${encodeURIComponent(practiceId)}&requestId=${item.requestId}`,{
+          method:'POST',headers:{'Content-Type':'audio/wav'},body:encodeVoiceWav(item.samples,VOICE_SAMPLE_RATE),signal:AbortSignal.timeout(25000),
+        });
+        if(response.status!==429||attempt===2)break;
+        await new Promise(resolve=>setTimeout(resolve,1000*2**attempt));
+      }
+      const result=await response!.json();
+      if(!response!.ok)throw new Error(result.message||'Transcription failed. Audio retained; retry or discard.');
+      item.status='waiting';publish();workers.current--;pump();
+      if(process.env.NEXT_PUBLIC_VERCEL_ENV==='preview')setQaResults(rows=>[...rows,{sequence:item.ticket.sequence,transcript:result.transcript,transcriptionMs:Math.round(performance.now()-started),completed:false}]);
+      await timeline.execute(item.ticket,async()=>{
+        item.status='review';publish();
+        const accepted=await handler.current(result.transcript,typeof result.confidence==='number'?result.confidence:null,item.requestId);
+        if(!accepted&&mounted.current)setError('Phrase was not saved. Review the console before continuing.');
+      });
+      captures.current=captures.current.filter(row=>row!==item);publish();
+      if(process.env.NEXT_PUBLIC_VERCEL_ENV==='preview')setQaResults(rows=>rows.map(row=>row.sequence===item.ticket.sequence?{...row,completed:true}:row));
+    } catch(e) {
+      if(item.status==='transcribing'){workers.current--;pump();}
+      item.status='failed';item.error=e instanceof Error?e.message:'Voice failed. Audio retained.';publish();
+    }
+  }
+  async function start(recording?:File) {
+    if(disabled||state==='starting'||active.current)return;
+    if(captures.current.length>=24){setError('24 Voice phrases pending. Resolve Review before unmuting.');return;}
+    setState('starting');setError('');const token=++generation.current;
+    try {
+      let source:AudioBufferSourceNode|undefined;
+      let mic:MediaStream;
+      if(recording&&process.env.NEXT_PUBLIC_VERCEL_ENV==='preview') {
+        if(recording.size>20*1024*1024)throw new Error('QA recording is too large.');
+        const audio=new AudioContext();playback.current=audio;
+        const decoded=await audio.decodeAudioData(await recording.arrayBuffer());
+        const destination=audio.createMediaStreamDestination();source=audio.createBufferSource();source.buffer=decoded;source.connect(destination);
+        mic=destination.stream;
+      } else mic=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+      if(token!==generation.current){mic.getTracks().forEach(track=>track.stop());return;}
+      stream.current=mic;
+      const {MicVAD}=await import('@ricky0123/vad-web');
+      const detector=await MicVAD.new({
+        model:'v5',startOnLoad:false,baseAssetPath:'/voice-assets/',onnxWASMBasePath:'/voice-assets/',getStream:async()=>mic,
+        submitUserSpeechOnPause:true,redemptionMs:450,minSpeechMs:180,preSpeechPadMs:300,
+        onSpeechStart:()=>{
+          if(!active.current)return;
+          try {speech.current=timeline.reserve(currentContext.current);}
+          catch(e){setError((e as Error).message);void mute();return;}
+          clearTimeout(timer.current);
+          timer.current=setTimeout(()=>{setError(`Voice paused at ${VOICE_MAX_SECONDS} seconds. Resolve the captured narration before continuing.`);void mute();},(VOICE_MAX_SECONDS-1)*1000);
         },
-        onVADMisfire: () => clearTimeout(speechTimer),
-        onSpeechEnd: samples => {
-          clearTimeout(speechTimer);
-          if (epoch.current !== token || !listening.current) return;
-          if (samples.length > VOICE_MAX_SECONDS * VOICE_SAMPLE_RATE || queue.current.length >= 3) {
-            stop(); setState('muted'); setPending(0);
-            setError('Voice paused before audio could be processed. Review the pending pitch before continuing.');
-            return;
-          }
-          queue.current.push({samples,key:speechContext});
-          setPending(queue.current.length + (running.current ? 1 : 0));
-          void drain(token);
+        onVADMisfire:()=>{clearTimeout(timer.current);if(speech.current)timeline.discard(speech.current);speech.current=null;},
+        onSpeechEnd:samples=>{
+          clearTimeout(timer.current);const ticket=speech.current;speech.current=null;if(!ticket)return;
+          captures.current.push({ticket,samples,requestId:crypto.randomUUID(),status:'captured'});publish();pump();
+          if(captures.current.length>=24){setError('24 Voice phrases pending. Capture paused; all captured phrases retained.');void mute();}
         },
       });
-      if (epoch.current !== token) { await detector.destroy(); return; }
-      vad.current = detector;
-      listening.current = true;
-      await detector.start();
-      if (epoch.current === token) setState('listening');
-    } catch {
-      if (epoch.current === token) {
-        stop(); setState('muted'); setError('Microphone could not start. Check microphone permission, then unmute.');
-      }
-    }
+      if(token!==generation.current){await detector.destroy();return;}
+      vad.current=detector;active.current=true;await detector.start();setState('listening');
+      if(source){source.onended=()=>{setTimeout(()=>void mute(),1200);};await playback.current?.resume();source.start();}
+    } catch {await mute();setError('Microphone could not start. Check permission; manual entry remains available.');}
   }
+  const reviews=items.filter(item=>item.status==='review').length;
   return <div>
-    <button type="button" className="secondary-button" disabled={disabled}
-      onClick={() => { if (state === 'listening') void mute(); else if (state === 'starting') { stop(); setState('muted'); setPending(0); } else void start(); }}>
-      {state === 'listening' ? <MicOff size={18} /> : <Mic size={18} />}
-      {state === 'off' ? 'Start listening' : state === 'starting' ? 'Cancel microphone' : state === 'listening' ? 'Mute' : 'Unmute'}
+    <button type="button" className="secondary-button" disabled={disabled&&state!=='listening'} onClick={()=>{if(state==='listening'||state==='starting')void mute();else void start();}}>
+      {state==='listening'?<MicOff size={18}/>:<Mic size={18}/>}{state==='listening'?'Mute':state==='starting'?'Cancel microphone':state==='off'?'Start listening':'Unmute'}
     </button>
-    {state !== 'off' && <button type="button" className="icon-button" title="End Voice session" aria-label="End Voice session" onClick={() => { stop(); setState('off'); setPending(0); }}><Square size={18} /></button>}
-    <span role="status">{state === 'listening' ? (pending ? 'Listening / transcribing' : 'Listening') : state === 'muted' ? (pending ? 'Microphone muted / transcribing' : 'Microphone muted') : state === 'starting' ? 'Starting microphone' : ''}</span>
-    {error && <p role="alert">{error}</p>}
+    {state!=='off'&&<button type="button" className="icon-button" aria-label="End Voice session" title="End Voice session" onClick={()=>void mute(true)}><Square size={18}/></button>}
+    <span role="status">{state==='listening'?'Voice Live':state==='starting'?'Starting microphone':'Voice muted'} · {reviews?`${reviews} needs review`:items.length?`${items.length} processing`:'Caught up'}</span>
+    {error&&<p role="alert">{error}</p>}
+    {process.env.NEXT_PUBLIC_VERCEL_ENV==='preview'&&<details><summary>Continuous audio QA</summary>
+      <input type="file" accept="audio/wav,.wav" aria-label="QA continuous recording" disabled={state==='listening'||state==='starting'} onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)void start(file);}}/>
+      <output aria-label="QA capture results">{JSON.stringify(qaResults)}</output>
+    </details>}
+    {items.filter(item=>item.status==='failed').map(item=><div key={item.requestId} role="alert">{item.error}
+      <button type="button" onClick={()=>{item.requestId=crypto.randomUUID();item.status='captured';item.error=undefined;pump();}}>Retry</button>
+      <button type="button" onClick={()=>{timeline.discard(item.ticket);captures.current=captures.current.filter(row=>row!==item);publish();}}>Discard phrase</button>
+    </div>)}
   </div>;
 }
