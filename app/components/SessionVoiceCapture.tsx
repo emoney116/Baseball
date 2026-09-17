@@ -1,25 +1,27 @@
 "use client";
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Mic, MicOff, Square } from 'lucide-react';
 import type { MicVAD } from '@ricky0123/vad-web';
 import { encodeVoiceWav, VOICE_MAX_SECONDS, VOICE_SAMPLE_RATE } from '../lib/voiceAudio';
 import { practiceActionQueue, type PracticeActionTicket } from '../lib/practiceActionQueue';
 
 type Capture = {ticket:PracticeActionTicket;samples:Float32Array;requestId:string;status:'captured'|'transcribing'|'waiting'|'review'|'failed';error?:string};
-export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTranscript }: {
+export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTranscript, canProcess }: {
   practiceId:string;contextKey:string;disabled?:boolean;
   onTranscript:(text:string,confidence:number|null,requestId:string)=>Promise<boolean>;
+  canProcess:()=>boolean;
 }) {
   const [state,setState]=useState<'off'|'starting'|'listening'|'muted'>('off');
   const [items,setItems]=useState<Capture[]>([]),[error,setError]=useState('');
   const captures=useRef<Capture[]>([]),vad=useRef<MicVAD|null>(null),stream=useRef<MediaStream|null>(null);
   const handler=useRef(onTranscript),currentContext=useRef(contextKey);
+  const ready=useRef(canProcess);
   const mounted=useRef(true),active=useRef(false),workers=useRef(0),generation=useRef(0);
   const speech=useRef<PracticeActionTicket|null>(null),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
   const timeline=practiceActionQueue(practiceId);
   const playback=useRef<AudioContext|null>(null);
   const [qaResults,setQaResults]=useState<{sequence:number;transcript:string;transcriptionMs:number;completed:boolean}[]>([]);
-  useEffect(()=>{handler.current=onTranscript;currentContext.current=contextKey;},[onTranscript,contextKey]);
+  useLayoutEffect(()=>{handler.current=onTranscript;currentContext.current=contextKey;ready.current=canProcess;},[onTranscript,contextKey,canProcess]);
   function publish(){if(mounted.current)setItems(captures.current.map(item=>({...item})));}
   function retry(requestId:string) {
     const item=captures.current.find(row=>row.requestId===requestId);if(!item)return;
@@ -76,6 +78,11 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
       item.status='waiting';publish();workers.current--;pump();
       if(process.env.NEXT_PUBLIC_VERCEL_ENV==='preview')setQaResults(rows=>[...rows,{sequence:item.ticket.sequence,transcript:result.transcript,transcriptionMs:Math.round(performance.now()-started),completed:false}]);
       await timeline.execute(item.ticket,async()=>{
+        // A predecessor can finish its network write before React publishes the
+        // reconciled context. Never treat that brief busy window as a discard.
+        await new Promise(resolve=>setTimeout(resolve,0));
+        while(mounted.current && !ready.current())await new Promise(resolve=>setTimeout(resolve,25));
+        if(!mounted.current)throw new Error('Voice view closed with an unresolved capture.');
         item.status='review';publish();
         const accepted=await handler.current(result.transcript,typeof result.confidence==='number'?result.confidence:null,item.requestId);
         if(!accepted&&mounted.current)setError('Phrase was not saved. Review the console before continuing.');

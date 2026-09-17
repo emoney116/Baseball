@@ -134,12 +134,12 @@ function EnabledVoiceEntry({
     const velocityChange = nextCommand?.patch.velocity === true;
     if (velocityChange && context.domain !== 'live-bp') {
       setError('Enable velocity in this station\'s tracking settings, then repeat the measurement.');
-      return false;
+      setPhase('error');return continuous ? waitForReview() : false;
     }
     const retained = velocityChange ? pendingIntent.current : null;
     if (nextCommand && pendingIntent.current && !velocityChange) {
       setError(`Save or discard the pending pitch before changing participants. Not applied: "${text}"`);
-      return false;
+      setPhase('error');return continuous ? waitForReview() : false;
     }
     setCaptureKey(contextKey);
     setError('');
@@ -164,6 +164,7 @@ function EnabledVoiceEntry({
         }
         if (saved) setActivity(rows => [...rows.filter(row => row.practiceId === practiceId), {practiceId, label:nextCommand.confirmations.join(' · ')}].slice(-5));
         else setError('Context change was not confirmed. Check the console.');
+        if(!saved && continuous){busy.current=false;return waitForReview();}
         return saved;
       } finally { busy.current = false; }
     }
@@ -174,7 +175,7 @@ function EnabledVoiceEntry({
     // A second explicit outcome is a new pitch, never an amendment to the last pitch.
     if (previous?.draft.outcome && incoming.draft.outcome) {
       setError(`A pitch is still awaiting review. Next pitch not saved: "${text}"`);
-      return false;
+      setPhase('error');return continuous ? waitForReview() : false;
     }
     const combined = previous ? appendVoiceFragment(previous.transcript, text) : nextCommand?.eventText ?? text;
     const parsed = interpretVoice(combined, snapshot, previous?.requestId ?? requestId,
@@ -490,7 +491,7 @@ function EnabledVoiceEntry({
   return (
     <section className={styles.root} aria-label="Voice stat entry" data-phase={phase}>
       <div className={styles.toolbar}>
-        {continuous ? <SessionVoiceCapture key={practiceId} practiceId={practiceId} contextKey={contextKey} disabled={captureDisabled ?? disabled} onTranscript={receiveSessionTranscript} /> :
+        {continuous ? <SessionVoiceCapture key={practiceId} practiceId={practiceId} contextKey={contextKey} disabled={captureDisabled ?? disabled} canProcess={()=>!disabled&&!busy.current} onTranscript={receiveSessionTranscript} /> :
         <button
           type="button"
           className={styles.micButton}
