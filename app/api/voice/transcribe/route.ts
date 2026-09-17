@@ -105,7 +105,8 @@ export async function POST(request: Request) {
     const model = process.env.VERCEL_ENV === "preview" ? "gpt-4o-transcribe" : "whisper-1";
     form.append("model", model);
     form.append("language", "en");
-    form.append("prompt", "Baseball practice vocabulary: hitting, pitching, at-bat, fastball, four-seam, slider, changeup, curveball, cutter, swing and miss, whiff, called strike, foul, exit velo, left center, right field.");
+    // Very short control phrases can otherwise echo the vocabulary prompt as speech.
+    if (seconds > 3) form.append("prompt", "Baseball practice vocabulary: hitting, pitching, at-bat, fastball, four-seam, slider, changeup, curveball, cutter, swing and miss, whiff, called strike, foul, exit velo, left center, right field.");
     form.append("response_format", model === "whisper-1" ? "verbose_json" : "json");
     if (model !== "whisper-1") form.append("include[]", "logprobs");
     const response = await fetch(
@@ -122,7 +123,8 @@ export async function POST(request: Request) {
     if (
       typeof result.text !== "string" ||
       !result.text.trim() ||
-      result.text.length > 700
+      result.text.length > 700 ||
+      /baseball practice vocabulary/i.test(result.text)
     )
       throw new Error("transcript");
     const segments = Array.isArray(result.segments) ? result.segments : [];
