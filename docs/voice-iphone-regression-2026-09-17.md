@@ -217,3 +217,65 @@ the separately authorized production process after owner acceptance.
 
 If Voice is unreliable: Mute, continue manually in the SAME Practice, resolve any
 retained Review items, and re-enable later. Do not restart or create a second session.
+
+## Final verification
+
+Runtime candidate: `8d718deb9152bbe6e48e0f63036c6be1fc8c4e45` (subsequent evidence-only
+commit does not change runtime). Hosted Preview reached Ready and `/api/app-version`
+matched. Build, TypeScript, diff-check and 1,686 tests passed; lint has zero errors
+and 23 existing warnings. Natural-language corpus: 342/342 passing. No tests skipped.
+Client static assets contain no OpenAI credential variable references.
+
+Final Multi replay again transcribed `Fowl`; bounded standalone homophone handling
+produced Foul with unknown pitch type and low-confidence Review. It saved with an
+empty canonical pitch type, not stale Slider. A manual 1B runner followed by real
+Single audio showed the explicit Practice default 1B-to-2B in Review and the saved
+field showed 1B+2B. Source remained manually selected Aiden.
+
+### Final reconciliation
+
+Practice was safely ended after queue drain, then its recap was reopened. Its
+View Full Practice Analytics link carried the exact Practice ID in both `practiceId`
+and `events`, with Practice/Live BP sources. Raw records, Hitting, Pitching, Live BP,
+Practice Summary and reopened Post-Practice agree:
+
+| Measure | Canonical / displayed |
+|---|---|
+| Pitch records / hitting evidence | 25 / 25 |
+| Distinct pitch idempotency keys | 25 |
+| Swings / takes / contacts / BIP | 19 / 6 / 13 / 7 |
+| Pitcher attribution | Darren 19, Aiden 6 |
+| Hitter attribution | Mylo 14, JP 7, Andrew 4 |
+| Pitch velocity | 12 samples, mean 79.75 (display 79.8), max 84 |
+| EV | 5 samples, mean 92.8, max 94 |
+| Contact quality | 2 graded, both Hard: 100%, not 2/7 |
+| Spray / pitch location | 5 / 11 recorded samples |
+| Defense | 0; alignment changes created no fake reps |
+
+49 hosted transcription requests completed using gpt-4o-transcribe. This is an
+HTTP/provider completion count including retries/replays, NOT a claim that 49
+transcripts were semantically correct. Cohort semantic results and failed trials
+are reported above. Five/ten successful bursts captured 15/15 utterances and
+committed 14 pitches plus one context command. Across those 14 pitches: two
+Fast-saved, twelve reviewed, four required manual acoustic correction, zero known
+false Fast saves. Not a statistical guarantee beyond this controlled sample.
+
+Server instrumentation for this isolated QA run:
+- Transcription median 1005 ms; p95 1878.2 ms.
+- Deterministic parse median 2 ms; p95 4 ms (AI proposals excluded).
+- Save median 1248.5 ms; p95 1729.4 ms.
+- Canonical validation is included in save time, not separately instrumented.
+- Screen sync was verified sequentially without refresh, but paint latency was not
+  independently measured. Physical mic-ready latency remains owner-device work.
+- Maximum observed retained depth ten; final five/ten acceptance loss zero.
+
+Responsive browser verification: 430x932 and 820x1180, no horizontal overflow,
+field visible and Log Pitch inside the viewport. These are browser viewport checks,
+not physical iPhone/iPad microphone, Safari backgrounding or Home Screen tests.
+
+Ready for owner iPhone retest: YES. Tomorrow ready: NO until the five owner tests
+pass. No known remaining repository stat-integrity blocker in the exercised paths.
+Meaningful remaining limits: short-word acoustics can require Review; long paused
+corrections should use tap/Review; field noise and background/lock behavior remain
+unvalidated; unsent client audio is not durable across tab closure. Manual fallback
+remains available in the same Practice. No unrelated feature or UI redesign added.
