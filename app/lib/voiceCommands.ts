@@ -1,5 +1,5 @@
 import { initialBpState, type BpSettings, type BpState, type BpPosition } from "./liveBp.ts";
-import { normalizeVoiceText, VOICE_PITCH_ALIASES, type VoiceIdentity } from "./voiceVocabulary.ts";
+import { normalizeVoiceText, voiceIdentityMatches, VOICE_PITCH_ALIASES, type VoiceIdentity } from "./voiceVocabulary.ts";
 import { correctedVoiceText } from "./voiceSession.ts";
 
 export type VoiceContextCommand = {
@@ -15,6 +15,7 @@ export type VoiceContextCommand = {
 export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[], settings: BpSettings, state: BpState = initialBpState()): VoiceContextCommand | null {
   let remaining = correctedVoiceText(text.replace(/['’]s\b/g," is"))
     .replace(/^the (machine|coach)\b/, '$1')
+    .replace(/\bbase is (loaded|empty)\b/g, 'bases $1')
     .replace(/\bthere is (?:a |one )?(?:guy|runner) on\b/g, 'runner on');
   const command: VoiceContextCommand = {kind:"context",patch:{},eventText:"",confirmations:[],problems:[]};
   const setting = remaining.match(/^(start tracking|stop tracking|track|dont track|do not track|enable|disable|turn on|turn off|turn) (?:pitch )?(velocity|locations?|location tracking|counts?|count tracking|defense|exit velo(?:city)?|ev|spray)(?: (on|off|now))?$/);
@@ -62,7 +63,7 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
             command.patch.source = name === "coach" ? "COACH" : "MACHINE";
             command.patch.pitcherId = undefined;
           } else {
-            const matches = roster.filter(p => p.aliases.some(alias => normalizeVoiceText(alias) === name));
+            const matches = roster.filter(p => voiceIdentityMatches(p, name));
             if (matches.length !== 1) command.problems.push(`Which player is "${name}"?`);
             else { command.patch.source = "PLAYER"; command.patch.pitcherId = matches[0].id; }
           }
@@ -78,7 +79,7 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
     if (alignment) {
       recognized = true;
       const name = alignment[1] ?? alignment[2];
-      const matches = roster.filter(p=>p.aliases.some(alias=>normalizeVoiceText(alias)===name));
+      const matches = roster.filter(p=>voiceIdentityMatches(p,name));
       if (matches.length !== 1) command.problems.push(`Which player is "${name}"?`);
       else {
         const positions: Record<string,BpPosition> = {short:'SS',shortstop:'SS',center:'CF',left:'LF',right:'RF',first:'1B',second:'2B',third:'3B',catcher:'C'};
@@ -110,7 +111,7 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
         Object.assign(patch, {runners:runners[3] === "loaded" ? [1,2,3] : runners[3] === "empty" ? [] : [...new Set([runners[1],runners[2]].filter(Boolean).map(b=>bases[b]))],runnerIds:{},situationKnown:true});
       }
       if (another) {
-        const matches = roster.filter(p=>p.aliases.some(alias=>normalizeVoiceText(alias)===another[1]));
+        const matches = roster.filter(p=>voiceIdentityMatches(p,another[1]));
         if (matches.length !== 1) command.problems.push(`Which player is "${another[1]}"?`);
         else command.patch.hitterId = matches[0].id;
         Object.assign(patch, {balls:0,strikes:0,pa:state.pa+1});
@@ -131,7 +132,7 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
       command.patch.pitcherId=undefined;
       command.confirmations.push(`Source: ${name === "coach" ? "Coach" : "Machine"}`);
     } else {
-      const matches=roster.filter(p=>p.aliases.some(alias=>normalizeVoiceText(alias)===name));
+      const matches=roster.filter(p=>voiceIdentityMatches(p,name));
       if(matches.length!==1)command.problems.push(matches.length?`Which player is "${name}"?`:`Couldn't match player "${name}".`);
       else {
         const p=matches[0];

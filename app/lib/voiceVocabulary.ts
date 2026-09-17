@@ -115,6 +115,12 @@ export function resolveVoicePitchType(transcript: string): {
 
 export type VoiceIdentity = { id: string; aliases: readonly string[]; bats?: "R" | "L" | "S" };
 
+// A known spoken-name spelling equivalence; callers still reject multiple roster matches.
+export function voiceIdentityMatches(player: VoiceIdentity, name: string): boolean {
+  const key = (value: string) => normalizeVoiceText(value).replace(/\bmilo\b/g, 'mylo');
+  return player.aliases.some(alias => key(alias) === key(name));
+}
+
 export function resolveVoiceIdentity(
   name: string,
   roster: readonly VoiceIdentity[],
