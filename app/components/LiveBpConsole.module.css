@@ -437,6 +437,10 @@
 }
 .fieldPanel > .fieldToolbar > * { pointer-events: auto; }
 .fieldPanel .fieldViewToggle { background: var(--panel-strong); border-radius: 6px; padding: 2px; }
+.quickPreset { position: absolute; left: 38px; top: 0; width: calc(100% - 175px); max-width: 160px; }
+.quickPreset :global(.choice-select__button) { min-height: 32px; height: 32px; padding: 4px; font-size: 11px; background: var(--panel); }
+.presetRow .presetChoice { display: flex; justify-content: space-between; align-items: center; flex: 1; min-width: 0; text-align: left; padding: 8px; background: transparent; color: var(--text); border: 1px solid transparent; border-radius: 6px; }
+.presetRow .presetChoice[aria-pressed="true"] { border-color: var(--brand-primary); background: var(--brand-soft); }
 .fieldToolbar,
 .console :global(.practice-hitting-live-charts__head) {
   position: relative;
@@ -1471,6 +1475,13 @@
   }
 }
 @media (max-width: 440px) {
+  .fields { gap: 6px; }
+  .athlete { padding: 4px 8px; }
+  .athlete > span { font-size: 9px; }
+  .athlete > small:empty { display: none; }
+  .statusRow { padding-block: 4px; }
+  .lastEvent { padding: 6px 8px; min-height: 50px; }
+  .manualBar > button { min-height: 44px; }
   .location {
     max-width: 225px;
   }

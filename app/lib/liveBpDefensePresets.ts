@@ -4,6 +4,17 @@ import {
   type BpDefensePreset,
 } from "./liveBp.ts";
 
+export function defensePresetNameKey(name:string):string {
+  const numbers:Record<string,string>={one:'1',two:'2',three:'3',four:'4',five:'5',six:'6',seven:'7',eight:'8',nine:'9',ten:'10',eleven:'11',twelve:'12'};
+  return name.toLowerCase().replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/g,word=>numbers[word]).replace(/[^a-z0-9]/g,'');
+}
+
+export function defensePresetIsActive(settings:BpSettings,preset:BpDefensePreset):boolean {
+  const current=captureDefensePreset(settings,'','');
+  const entries=(value:BpDefensePreset)=>JSON.stringify(Object.entries(value.alignment).sort(([a],[b])=>a.localeCompare(b)));
+  return entries(current)===entries(preset) && current.defense===preset.defense && [...current.positions].sort().join() === [...preset.positions].sort().join();
+}
+
 export function captureDefensePreset(
   settings: BpSettings,
   id: string,

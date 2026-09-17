@@ -2,6 +2,10 @@ import { initialBpState, type BpSettings, type BpState, type BpPosition } from "
 import { normalizeVoiceText, voiceIdentityMatches, VOICE_PITCH_ALIASES, type VoiceIdentity } from "./voiceVocabulary.ts";
 import { correctedVoiceText } from "./voiceSession.ts";
 import { matchAlignmentLanguage, normalizeCountLanguage, VOICE_POSITIONS } from './voiceBaseballLanguage.ts';
+import { normalizeNamedRunners, parseVoiceRunners } from './voiceRunners.ts';
+import { buildBpRunnerMove, type BpRunnerMove } from './liveBpRunnerMove.ts';
+import { buildBpDefenseRep, type BpDefenseRep } from './liveBpDefenseRep.ts';
+import { applyDefensePreset, defensePresetNameKey } from './liveBpDefensePresets.ts';
 
 export type VoiceContextCommand = {
   kind: "context" | "compound";
@@ -11,6 +15,7 @@ export type VoiceContextCommand = {
   confirmations: string[];
   problems: string[];
   group?: { names: string[]; station: string };
+  action?: {kind:'runner';move:BpRunnerMove} | {kind:'defense';rep:BpDefenseRep} | {kind:'amend';ev:number};
 };
 
 export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[], settings: BpSettings, state: BpState = initialBpState()): VoiceContextCommand | null {
@@ -30,6 +35,34 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
     .replace(/\brunners? at (first|second|third)\b/g, 'runner on $1')
     .replace(/\bthere is (?:a |one )?(?:guy|runner) on\b/g, 'runner on');
   const command: VoiceContextCommand = {kind:"context",patch:{},eventText:"",confirmations:[],problems:[]};
+  const explicitLast=/\b(?:on (?:that|the) last (?:play|one)|on that|that was)\b/.test(normalizeVoiceText(text));
+  if(explicitLast && /^\d{2,3} (?:exit(?: velo(?:city)?)?|ev)(?: on (?:(?:that|the) last (?:play|one)|that))?$/.test(remaining)) {
+    const ev=Number(remaining.match(/^\d+/)?.[0]);
+    if(ev<20||ev>130)command.problems.push('Exit velocity must be between 20 and 130.');
+    else{command.action={kind:'amend',ev};command.confirmations.push(`Last BIP: ${ev} EV`);}
+    return command;
+  }
+  const named=normalizeNamedRunners(remaining,roster,state);
+  const runner=parseVoiceRunners(named.text,state);
+  if((runner.movements.length || runner.problems.length || named.problems.length) && !runner.remaining.replace(/\b(?:and|on that|on the last one)\b/g,'').trim()) {
+    command.problems.push(...named.problems,...runner.problems);
+    if(runner.movements.length!==1)command.problems.push('Specify one runner movement.');
+    else {
+      const movement=runner.movements[0];
+      const move:BpRunnerMove={from:movement.runnerBase,to:movement.to==='score'?4:movement.to==='out'?movement.runnerBase:Number(movement.to),outcome:movement.to==='out'?'out':'safe',reason:/last play|last one|on that/.test(remaining)?'On last play':'Other'};
+      try{buildBpRunnerMove(settings,state,move);command.action={kind:'runner',move};command.confirmations.push(`Runner from ${move.from} ${move.to===4?'scores':move.outcome==='out'?'out':`to ${move.to}`}`);}catch(e){command.problems.push((e as Error).message);}
+    }
+    return command;
+  }
+  const defensive=remaining.replace(/ on (?:(?:that|the) last (?:play|one)|that)$/,'').match(/^(?:the )?(.+?) (?:(fielding|throwing|decision) error(?: error)?|(?:made|makes) (?:an? |the )?error|booted it|bobbled it|clean play|great play)$/);
+  if(defensive && VOICE_POSITIONS[defensive[1]]) {
+    const rep:BpDefenseRep={position:VOICE_POSITIONS[defensive[1]],result:/clean play\b/.test(remaining)?'Clean':/great play\b/.test(remaining)?'Great Play':'Error',errorType:defensive[2]?({fielding:'Fielding',throwing:'Throwing',decision:'Decision'} as const)[defensive[2]]:undefined,...(explicitLast?{lastPlay:true}:{})};
+    try{buildBpDefenseRep(settings,state,rep);command.action={kind:'defense',rep};command.confirmations.push(`${rep.position}: ${rep.result}`);}catch(e){command.problems.push((e as Error).message);}
+    return command;
+  }
+  if(explicitLast && /\b(?:last play|last one|on that)\b/.test(remaining)) {
+    command.problems.push('Last-play correction needs a uniquely identified runner or an explicit exit velocity. Edit the last play manually for other changes.');return command;
+  }
   const substitution=remaining.match(/^(?:put )?(.+?) (?:in for|replaces) (.+?) at (.+)$/);
   if(substitution){
     const position=VOICE_POSITIONS[substitution[3]];
@@ -76,6 +109,15 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
     return command;
   }
   let recognized = false;
+  const presetRequest=remaining.match(/^(?:switch|go|back) to (.+?)(?: on defense)?$/)
+    ?? remaining.match(/^(?:use|load) (.+?)(?: defense)?$/)
+    ?? remaining.match(/^(.+?) (?:is |are )?on defense$/);
+  if(presetRequest) {
+    const presets=(settings.defensePresets??[]).filter(p=>defensePresetNameKey(p.name)===defensePresetNameKey(presetRequest[1]));
+    if(presets.length===1){const next=applyDefensePreset(settings,presets[0],roster.map(p=>p.id));command.patch={alignment:next.alignment,defense:next.defense,positions:next.positions};command.confirmations.push(`Defense: ${presets[0].name}`);return command;}
+    if(/^teams?\b/.test(presetRequest[1]))command.group={names:presetRequest[1].split(/\s+and\s+/),station:'defense'};
+    command.problems.push(presets.length?'More than one defense preset matches. Choose the preset manually.':`No saved defense preset matches "${presetRequest[1]}".`);return command;
+  }
   const group = remaining.match(/^(teams? .+?) (?:is |are )?(?:on |in )?(defense|hitting|cages)$/);
   if (group || remaining === "next rotation") {
     command.group = {names: group ? group[1].split(/\s+and\s+/) : [], station:group?.[2] ?? "next rotation"};

@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
-import { Download, Save, Trash2 } from "lucide-react";
+import { Check, Save, Trash2 } from "lucide-react";
 import type { BpSettings } from "../lib/liveBp";
 import {
   applyDefensePreset,
   captureDefensePreset,
+  defensePresetNameKey,
+  defensePresetIsActive,
 } from "../lib/liveBpDefensePresets";
 import type { BpSheet } from "./LiveBpControls";
 import styles from "./LiveBpConsole.module.css";
@@ -51,7 +53,7 @@ export function LiveBpDefensePresets({
             !name.trim() ||
             presets.length >= 12 ||
             presets.some(
-              (p) => p.name.toLowerCase() === name.trim().toLowerCase(),
+              (p) => defensePresetNameKey(p.name) === defensePresetNameKey(name),
             )
           }
           onClick={() =>
@@ -69,17 +71,17 @@ export function LiveBpDefensePresets({
         </button>
         {presets.map((preset) => (
           <div className={styles.presetRow} key={preset.id}>
-            <strong>{preset.name}</strong>
             <button
               type="button"
-              className="icon-button"
+              className={styles.presetChoice}
               aria-label={`Load ${preset.name}`}
               title={`Load ${preset.name}`}
+              aria-pressed={defensePresetIsActive(settings,preset)}
               onClick={() =>
                 onLoad(applyDefensePreset(settings, preset, playerIds))
               }
             >
-              <Download size={18} />
+              <strong>{preset.name}</strong>{defensePresetIsActive(settings,preset)&&<Check size={18}/>}
             </button>
             <button
               type="button"

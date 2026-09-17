@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "../../lib/supabase/server";
 import { createAdminClient } from "../../lib/supabase/admin";
 import { buildBpRunnerMove } from "../../lib/liveBpRunnerMove";
+import { buildBpDefenseRep } from "../../lib/liveBpDefenseRep";
 import {
   assertPlayerLinkTeamManager,
   PlayerLinkError,
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
       throw new PlayerLinkError("Live BP request is too large.");
     const body = JSON.parse(text);
     if (
-      !["start", "configure", "pitch", "end", "undo", "runner"].includes(
+      !["start", "configure", "pitch", "end", "undo", "runner", "defense", "amend"].includes(
         body.operation,
       ) ||
       !/^[0-9a-f-]{36}$/i.test(body.roundId)
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
       } else if (body.operation === "undo") {
         if (!/^[0-9a-f-]{36}$/i.test(body.requestId))
           throw new Error("Invalid undo request.");
-      } else if (body.operation === "pitch" || body.operation === "runner") {
+      } else if (["pitch", "runner", "defense", "amend"].includes(body.operation)) {
         if (!/^[0-9a-f-]{36}$/i.test(body.requestId))
           throw new Error("Invalid pitch request.");
         const read = await db
@@ -103,6 +104,7 @@ export async function POST(request: Request) {
           .single();
         if (read.error) throw new PlayerLinkError("Round unavailable.", 404);
         const round = read.data as BpRound;
+        if(body.operation==='amend' && (!Number.isFinite(body.ev)||body.ev<20||body.ev>130))throw new Error('Exit velocity must be between 20 and 130.');
         // A committed BIP may have advanced the runners. Check its identity before
         // validating an uncertain retry against the newer situation.
         const prior = await db
@@ -120,6 +122,9 @@ export async function POST(request: Request) {
         payload =
           round.version !== body.version
             ? {}
+            : body.operation === "amend" ? {ev:body.ev}
+            : body.operation === "defense"
+              ? buildBpDefenseRep(round.settings, round.state, body.rep)
             : body.operation === "runner"
               ? buildBpRunnerMove(round.settings, round.state, body.move)
               : prior.data
@@ -152,6 +157,8 @@ export async function POST(request: Request) {
           ? "Your roster or coach access changed. Reload before continuing."
           : error.code === "P0002"
             ? "No pitch to undo."
+            : error.code === "PT409" && /recent|Last.play/i.test(error.message)
+              ? "That last-play correction cannot be safely matched now. Review the last play manually."
             : error.code === "PT409" || error.code === "40001"
               ? "This round changed elsewhere. Reload before continuing."
               : "Unable to save this pitch. Your draft is still available.",

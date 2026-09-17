@@ -3,7 +3,7 @@ import { buildBpPitch, BP_POSITIONS, bpTracksCount } from "./liveBp.ts";
 import type { ZonePoint } from "../types.ts";
 import { sprayPointForLane } from "./sprayChart.ts";
 import { correctedVoiceText } from "./voiceSession.ts";
-import { parseVoiceRunners } from "./voiceRunners.ts";
+import { parseVoiceRunners, normalizeNamedRunners } from "./voiceRunners.ts";
 import { VOICE_QUALITY, anchorContactMeasurements } from './voiceBaseballLanguage.ts';
 import {
   matchVoiceVocabulary,
@@ -179,6 +179,9 @@ export function interpretVoice(
     throw new Error("Invalid voice request.");
   let remaining = anchorContactMeasurements(correctedVoiceText(transcript));
   const unresolved = new Set<string>();
+  const namedRunners = normalizeNamedRunners(remaining, context.roster, context.state);
+  remaining = namedRunners.text;
+  namedRunners.problems.forEach(problem=>unresolved.add(problem));
   remaining = remaining.replace(/\b(?:launch angle (\d{1,3})|(\d{1,3}) degrees?(?: launch angle)?)\b/g,()=>{
     unresolved.add('Launch angle is not supported in Live BP; no velocity inferred from degrees.');return ' ';
   });
@@ -349,8 +352,8 @@ export function interpretVoice(
       }
       for(const m of [...sequence].reverse()) remaining=remaining.slice(0,m.start)+" ".repeat(m.end-m.start)+remaining.slice(m.end);
     }
-    remaining = remaining.replace(/\b(ground ball|line drive|fly ball|pop fly|bunt) to (left|right)\b(?! (?:center|field))/g, '$1 to $2 field');
-    const hitArea=remaining.match(/\b(?:ball (?:was )?hit|single|double) to (left|right)\b(?! (?:center|field))/);
+    remaining = remaining.replace(/\b(ground ball|line drive|fly ball|pop fly|bunt)(?: to)? (left|right)\b(?! (?:center|field))/g, '$1 to $2 field');
+    const hitArea=remaining.match(/\b(?:ball (?:was )?hit|single|double)(?: to)? (left|right)\b(?! (?:center|field))/);
     if(hitArea){
       draft.spray=sprayPointForLane(hitArea[1]==="left"?0:4);
       remaining=remaining.replace(hitArea[0],hitArea[0].startsWith("single")?"single":hitArea[0].startsWith("double")?"double":"ball in play");
@@ -465,6 +468,7 @@ export function interpretVoice(
       context.domain === "live-bp" &&
       draft.outcome === "Ball in play" &&
       (context.settings.mode === "GAME" || context.state.situationKnown) &&
+      Object.keys(draft.runnerOutcomes??{}).length > 0 &&
       !draft.result
     )
       unresolved.add("batter result");

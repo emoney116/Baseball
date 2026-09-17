@@ -1,6 +1,8 @@
 "use client";
+import type { BpDefenseRep } from '../lib/liveBpDefenseRep';
+import { applyDefensePreset, defensePresetIsActive } from '../lib/liveBpDefensePresets';
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   BarChart3,
   Settings,
@@ -154,11 +156,27 @@ export function LiveBpConsole({
     startId = useRef<string | null>(null);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fieldSettings = useRef<HTMLDetailsElement>(null);
+  const fieldPanelRef=useRef<HTMLDivElement>(null),manualBarRef=useRef<HTMLDivElement>(null);
+  useLayoutEffect(()=>{
+    const field=fieldPanelRef.current,bar=manualBarRef.current;
+    if(!field||!bar)return;
+    const fit=()=>{
+      const height=window.visualViewport?.height??window.innerHeight;
+      const available=height-field.getBoundingClientRect().top-bar.getBoundingClientRect().height-12;
+      const size=window.innerWidth<=520?Math.max(250,Math.min(480,available)):480;
+      if(field.style.maxWidth!==`${size}px`)field.style.maxWidth=`${size}px`;
+    };
+    fit();const observer=new ResizeObserver(fit);observer.observe(field.parentElement!);observer.observe(bar);
+    window.addEventListener('resize',fit);window.visualViewport?.addEventListener('resize',fit);
+    return()=>{observer.disconnect();window.removeEventListener('resize',fit);window.visualViewport?.removeEventListener('resize',fit);};
+  },[loading,quickView,round?.id]);
   const fieldRequest = useRef<{
-    operation: "undo" | "runner";
+    operation: "undo" | "runner" | "defense" | "amend";
     id: string;
     version: number;
     move?: BpRunnerMove;
+    rep?: BpDefenseRep;
+    ev?: number;
   } | null>(null);
   const [fieldRetry, setFieldRetry] = useState(false);
   const [undoOpen, setUndoOpen] = useState(false);
@@ -419,11 +437,13 @@ export function LiveBpConsole({
     }
   }
   async function fieldAction(
-    operation: "undo" | "runner",
+    operation: "undo" | "runner" | "defense" | "amend",
     move?: BpRunnerMove,
     ordered = false,
+    rep?: BpDefenseRep,
+    ev?: number,
   ): Promise<boolean | undefined> {
-    if(!ordered)return actionQueue.enqueue({operation,move},()=>fieldAction(operation,move,true));
+    if(!ordered)return actionQueue.enqueue({operation,move,rep,ev},()=>fieldAction(operation,move,true,rep,ev));
     const round=authoritative.current.round;
     if (!round || lock.current || uncertain) return false;
     if (!fieldRequest.current)
@@ -432,6 +452,8 @@ export function LiveBpConsole({
         id: crypto.randomUUID(),
         version: round.version,
         move,
+        rep,
+        ev,
       };
     lock.current = true;
     setBusy(true);
@@ -448,6 +470,8 @@ export function LiveBpConsole({
           requestId: request.id,
           version: request.version,
           move: request.move,
+          rep: request.rep,
+          ev: request.ev,
         }),
       });
       const result = await res.json();
@@ -458,11 +482,10 @@ export function LiveBpConsole({
       adopt(result.round);
       fieldRequest.current = null;
       setDraft({ outcome: "" });
-      setLastPitch("");
       setNotice(
         operation === "undo"
           ? "Last pitch and linked stats removed"
-          : "Runner movement saved",
+          : operation === "amend" ? "Last pitch updated" : operation === "defense" ? "Defensive rep saved" : "Runner movement saved",
       );
       await reload();
       onSaved();
@@ -784,8 +807,13 @@ export function LiveBpConsole({
       }}
       onCommand={async (command, requestId, event) => {
         if(command.problems.length)return false;
+        if(command.action?.kind==='runner')return Boolean(await fieldAction('runner',command.action.move,true));
+        if(command.action?.kind==='defense')return Boolean(await fieldAction('defense',undefined,true,command.action.rep));
+        if(command.action?.kind==='amend')return Boolean(await fieldAction('amend',undefined,true,undefined,command.action.ev));
         const next={...settings,...command.patch};
-        return Boolean(await write(event?"pitch":round?"configure":"start",next,{...state,...command.statePatch},event?.draft,event?requestId:undefined,true));
+        const saved=Boolean(await write(event?"pitch":round?"configure":"start",next,{...state,...command.statePatch},event?.draft,event?requestId:undefined,true));
+        if(saved && command.patch.alignment){setQuickView('defense');setFieldView('defense');}
+        return saved;
       }}
       onEdit={(intent) => {
         if(intent.correction){setVoiceCorrection({...state,...intent.correction});return;}
@@ -823,7 +851,7 @@ export function LiveBpConsole({
       ) : (
         <>
           <fieldset
-            disabled={busy || fieldRetry}
+            disabled={fieldRetry}
             className={styles.fields}
             ref={fields}
           >
@@ -1146,8 +1174,13 @@ export function LiveBpConsole({
                   ))}
                 </div>
                 {quickView === "defense" ? (
-                  <div className={styles.fieldPanel}>
+                  <div ref={fieldPanelRef} className={styles.fieldPanel}>
                     <div className={styles.fieldToolbar}>
+                      {Boolean(settings.defensePresets?.length)&&<div className={styles.quickPreset}><ChoiceSelect label="Active defense preset" disabled={busy||uncertain}
+                        value={settings.defensePresets?.find(p=>defensePresetIsActive(settings,p))?.id??''}
+                        options={[{value:'',label:'Custom defense'},...(settings.defensePresets??[]).map(p=>({value:p.id,label:p.name}))]}
+                        onChange={value=>{const preset=settings.defensePresets?.find(p=>p.id===value);if(!preset)return;const next=applyDefensePreset(settings,preset,players.filter(p=>!p.archived).map(p=>p.id));void write(round?'configure':'start',next,state).then(saved=>{if(saved)setFieldView('defense');});}} />
+                      </div>}
                       {trackedSituation && (
                         <div className={styles.fieldViewToggle}>
                           <BpSegments
@@ -1298,7 +1331,7 @@ export function LiveBpConsole({
                     quickView === "location" ? "location" : "spray",
                   )
                 )}
-                <div className={styles.manualBar}>
+                <div ref={manualBarRef} className={styles.manualBar}>
                   <button type="button" className="primary-button"
                     onClick={() => setStage(uncertain ? "result" : needsPitchDetails ? "details" : "result")}>
                     <Plus size={20} />{uncertain ? "Retry Pitch" : "Log Pitch"}

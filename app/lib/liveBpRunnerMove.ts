@@ -12,6 +12,7 @@ export const BP_RUNNER_REASONS = [
   "Defensive indifference",
   "On throw",
   "On error",
+  "On last play",
   "Tag up",
   "Other",
   "Pickoff attempt",
@@ -33,7 +34,7 @@ export function buildBpRunnerMove(
 ) {
   validateBpState(state);
   if (
-    settings.mode !== "GAME" ||
+    (settings.mode !== "GAME" && !state.situationKnown) ||
     !move ||
     !state.runners.includes(move.from) ||
     !Number.isInteger(move.to) ||

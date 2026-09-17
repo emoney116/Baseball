@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { fullPlayerDatabase } from "./helpers/fullPlayerDatabase.mjs";
 import { id, asAccount } from "./helpers/playerDatabase.mjs";
 import { buildBpRunnerMove } from "../app/lib/liveBpRunnerMove.ts";
+import { buildBpDefenseRep } from "../app/lib/liveBpDefenseRep.ts";
 import { interpretVoice, canFastSaveVoice } from "../app/lib/voiceIntent.ts";
 import { practiceReadinessSession } from './fixtures/practice-readiness-session.mjs';
 import { parseVoiceCommand } from "../app/lib/voiceCommands.ts";
@@ -888,6 +889,55 @@ async function readPracticeReview() {
   for(const [table,key,mapper] of [['hitting_events','hittingEvents',mapHittingEvent],['pitch_events','pitchEvents',mapPitchEvent],['defense_events','defenseEvents',mapDefenseEvent]]) data[key]=(await db.query(`select * from ${table} where practice_id=$1`,[id(60)])).rows.map(mapper);
   return buildPracticeReviewSummary(data,id(60));
 }
+
+test('standalone defense uses canonical evidence, idempotency and shared Undo without a pitch',async()=>{
+  const r=await start(settings({mode:'GAME',alignment:{RF:id(42)}}),{...initialBpState(),runners:[1,2],runnerIds:{1:id(40),2:id(41)}});
+  const request=randomUUID(),payload=buildBpDefenseRep(r.settings,r.state,{position:'RF',result:'Error'});
+  const saved=await call('defense',r,payload,request);
+  assert.deepEqual(saved.state,r.state);
+  assert.equal((await db.query('select * from hitting_events')).rows.length,0);
+  assert.equal((await db.query('select * from pitch_events')).rows.length,0);
+  assert.equal((await db.query('select * from defense_events')).rows.length,1);
+  assert.equal((await db.query('select rep_type from defense_events')).rows[0].rep_type,null);
+  await call('defense',r,payload,request);
+  assert.equal((await db.query('select * from defense_events')).rows.length,1);
+  await call('undo',saved,{},randomUUID());
+  assert.equal((await db.query('select * from defense_events')).rows.length,0);
+  await call('defense',r,payload,request);
+  assert.equal((await db.query('select * from defense_events')).rows.length,0);
+});
+
+test('recent EV enrichment is audited, idempotent and cannot create another pitch',async()=>{
+  const r=await start(settings({mode:'FREE'})),saved=await pitch(r,{outcome:'Ball in play',battedBall:'Line drive'});
+  const request=randomUUID(),updated=await call('amend',saved,{ev:94},request);
+  assert.deepEqual(updated.state,saved.state);
+  assert.equal(Number((await db.query('select exit_velocity_mph from hitting_events')).rows[0].exit_velocity_mph),94);
+  assert.equal((await db.query("select detail->>'pitchId' target from clubhouse_private.live_bp_actions where kind='amend'")).rows.length,1);
+  await call('amend',saved,{ev:94},request);
+  assert.equal((await db.query('select * from hitting_events')).rows.length,1);
+  await call('undo',updated,{},randomUUID());
+  assert.equal((await db.query('select * from hitting_events')).rows.length,0);
+});
+test('recent defensive enrichment links the exact BIP without another pitch or batter movement',async()=>{
+  const r=await start(settings({mode:'FREE',alignment:{RF:id(42)}})),saved=await pitch(r,{outcome:'Ball in play',battedBall:'Line drive'});
+  const request=randomUUID(),payload=buildBpDefenseRep(saved.settings,saved.state,{position:'RF',result:'Error',lastPlay:true});
+  const updated=await call('defense',saved,payload,request);
+  assert.deepEqual(updated.state,saved.state);
+  assert.equal((await db.query('select * from hitting_events')).rows.length,1);
+  assert.equal((await db.query('select d.id=h.id linked from defense_events d join hitting_events h using(live_bp_round_id)')).rows[0].linked,true);
+  await call('defense',saved,payload,request);
+  await call('undo',updated,{},randomUUID());
+  assert.equal((await db.query('select * from defense_events')).rows.length,0);
+  assert.equal((await db.query('select * from hitting_events')).rows.length,0);
+});
+test('stale or incompatible last-event enrichment fails without changing evidence',async()=>{
+  const r=await start(),saved=await pitch(r,{outcome:'Whiff'});
+  await denied(()=>call('amend',saved,{ev:94},randomUUID()),/compatible/);
+  const bip=await pitch(saved,{outcome:'Ball in play',battedBall:'Line drive'});
+  await db.exec("update hitting_events set created_at=now()-interval '2 minutes'");
+  await denied(()=>call('amend',bip,{ev:94},randomUUID()),/compatible/);
+  assert.equal((await db.query('select * from hitting_events where exit_velocity_mph is not null')).rows.length,0);
+});
 
 for (const [spoken, pitchType] of [["slider","Slider"],["heater","4-Seam"],["four seam","4-Seam"],["two seam","2-Seam"],["sinker","Sinker"],["changeup","Changeup"],["curve","Curveball"],["cutter","Cutter"],["splitter","Splitter"]]) {
   for (const [spokenResult,outcome] of [["whiff","Whiff"],["swing and miss","Whiff"],["called strike","Called Strike"],["strike looking","Called Strike"],["ball","Ball"],["foul","Foul"]]) {

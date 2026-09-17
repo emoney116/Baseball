@@ -457,7 +457,7 @@ export function buildBpPitch(
       "A sacrifice requires eligible contact, a runner, and fewer than two outs.",
     );
   bpAssert(
-    !bip || (settings.mode !== "GAME" && !before.situationKnown) || draft.result,
+    !bip || (settings.mode !== "GAME" && !before.situationKnown) || !Object.keys(draft.runnerOutcomes??{}).length || draft.result,
     "Choose the batter result before updating runners.",
   );
   const trackedCount = bpTracksCount(settings, before);
@@ -507,7 +507,7 @@ export function buildBpPitch(
     if (result === "Home Run")
       for (const base of before.runners) defaults[String(base)] = "score";
     // Clubhouse Practice default: a single forces only occupied consecutive bases.
-    if (result === "Single" && before.runners.includes(1)) {
+    if (["Single", "Reached on Error"].includes(result) && before.runners.includes(1)) {
       defaults["1"] = "2";
       if (before.runners.includes(2)) {
         defaults["2"] = "3";

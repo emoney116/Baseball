@@ -83,8 +83,15 @@
 .capture > span { font-size: 11px; flex: 1 1 100px; }
 .capture > button { min-height: 36px; padding: 6px 8px; }
 .capture > p { margin: 4px 0; font-size: 12px; }
+.capture .holdButton { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--panel); }
+.capture .holdButton[aria-pressed="true"] { background: #087747; color: white; border-color: #19d988; }
 .preview { position: absolute; z-index: 25; top: 100%; left: 0; right: 0; max-height: min(260px, 40dvh); overflow-y: auto; overscroll-behavior: contain; padding: 10px; margin-top: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 8px 20px #0003; }
 .preview p { margin: 4px 0; }
 .preview small { margin-bottom: 4px; }
 .preview .actions { gap: 4px; margin-top: 4px; }
 .preview .actions button { min-height: 36px; padding: 6px 10px; }
+.preview > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; min-height: 32px; font-size: 12px; }
+.preview > summary::-webkit-details-marker { display: none; }
+.preview > summary span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview:not([open]) { padding: 4px 8px; }
+.preview[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 8px; padding-bottom: 6px; }

@@ -1,6 +1,26 @@
 import type { BpState, BpRunnerMovement } from './liveBp.ts';
+import { normalizeVoiceText, voiceIdentityMatches, type VoiceIdentity } from './voiceVocabulary.ts';
 
 const bases: Record<string, string> = { first: '1', second: '2', third: '3', home: 'score' };
+
+/** Resolve named runners before generic hitter-name extraction. */
+export function normalizeNamedRunners(text: string, roster: readonly VoiceIdentity[], state: BpState) {
+  const problems: string[] = [];
+  const aliases = [...new Set(roster.flatMap(player => player.aliases.map(normalizeVoiceText)))].filter(Boolean).sort((a,b)=>b.length-a.length);
+  if (!aliases.length) return {text, problems};
+  const names = aliases.map(name=>name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
+  const pattern = new RegExp(`\\b(${names}) (?=(?:scores?\\b|scored\\b|(?:moves?|moved|advances?|advanced|goes|went) (?:to )?(?:first|second|third|home)\\b))`, 'g');
+  text = text.replace(pattern, (_, name: string) => {
+    const matches = roster.filter(player=>voiceIdentityMatches(player,name));
+    const occupied = state.runners.filter(base=>matches.some(player=>player.id===state.runnerIds?.[base]));
+    if (occupied.length !== 1) {
+      problems.push(`Which occupied base is ${name} on?`);
+      return 'unresolved runner ';
+    }
+    return `runner from ${['','first','second','third'][occupied[0]]} `;
+  }).replace(/\b(scored|scores) (?:on )?(?:that|the) last play\b/g,'$1');
+  return {text, problems};
+}
 
 /** Keep original runner keys while applying explicitly narrated movements in order. */
 export function parseVoiceRunners(text: string, state: BpState) {

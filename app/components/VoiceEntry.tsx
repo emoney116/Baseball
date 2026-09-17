@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, Square, Pencil, X, FlaskConical, ChevronDown, Zap } from "lucide-react";
+import { Pencil, X, FlaskConical, ChevronDown, Zap } from "lucide-react";
 import { encodeVoiceWav, validateVoiceWav, VOICE_MAX_BYTES, VOICE_MAX_SECONDS } from "../lib/voiceAudio";
 import { bpBatterResults } from "../lib/liveBp";
 import { reportVoiceMetrics } from "../lib/voiceMetrics";
@@ -17,9 +17,10 @@ import {
 import styles from "./VoiceEntry.module.css";
 import { parseVoiceCommand, type VoiceContextCommand } from "../lib/voiceCommands";
 import { SessionVoiceCapture } from './SessionVoiceCapture';
-import { appendVoiceFragment, isVoiceDetailFragment, voiceSessionAction } from '../lib/voiceSession';
+import { voiceSessionAction } from '../lib/voiceSession';
 import { validateVoiceProposal } from '../lib/voiceInterpretationProposal';
 import { practiceActionQueue } from '../lib/practiceActionQueue';
+import { voiceFragmentRelation, mergeVoiceDetail } from '../lib/voiceEventAssembler';
 
 type Phase =
   | "idle"
@@ -84,7 +85,7 @@ function EnabledVoiceEntry({
   const contextKey = JSON.stringify({ practiceId, context });
   const [captureKey, setCaptureKey] = useState(contextKey);
   const phase =
-    continuous || (captureKey === contextKey && !disabled) || storedPhase === "saving"
+    continuous || queuedActions > 0 || (captureKey === contextKey && !disabled) || storedPhase === "saving"
       ? storedPhase
       : "idle";
   const currentKey = useRef(contextKey);
@@ -98,13 +99,13 @@ function EnabledVoiceEntry({
   }, []);
   useEffect(() => {
     currentKey.current = contextKey;
-    if (continuous) return;
+    if (continuous || practiceActionQueue(practiceId).pending) return;
     generation.current++;
     abort.current?.abort();
     stopCapture.current?.();
     busy.current = false;
     pendingIntent.current = null;
-  }, [contextKey, disabled, continuous]);
+  }, [contextKey, disabled, continuous, practiceId]);
   function cancel() {
     finishReview(false);
     generation.current++;
@@ -128,7 +129,7 @@ function EnabledVoiceEntry({
       const pending = pendingIntent.current;
       if (!pending || pending.unresolvedFields.length) {
         setError('Nothing complete to save. Finish or edit the pending pitch.');
-        return continuous ? waitForReview() : false;
+        return waitForReview();
       }
       return (await save(pending)) === true;
     }
@@ -137,12 +138,12 @@ function EnabledVoiceEntry({
     const velocityChange = nextCommand?.patch.velocity === true;
     if (velocityChange && context.domain !== 'live-bp') {
       setError('Enable velocity in this station\'s tracking settings, then repeat the measurement.');
-      setPhase('error');return continuous ? waitForReview() : false;
+      setPhase('error');return waitForReview();
     }
     const retained = velocityChange ? pendingIntent.current : null;
     if (nextCommand && pendingIntent.current && !velocityChange) {
       setError(`Save or discard the pending pitch before changing participants. Not applied: "${text}"`);
-      setPhase('error');return continuous ? waitForReview() : false;
+      setPhase('error');return waitForReview();
     }
     setCaptureKey(contextKey);
     setError('');
@@ -153,7 +154,7 @@ function EnabledVoiceEntry({
       if (nextCommand.problems.length || !onCommand) {
         setPhase('error');
         setError(nextCommand.problems.join(' ') || 'This context change is unavailable here.');
-        return continuous ? waitForReview() : false;
+        return waitForReview();
       }
       busy.current = true; setPhase('saving');
       try {
@@ -171,22 +172,13 @@ function EnabledVoiceEntry({
         }
         if (saved) setActivity(rows => [...rows.filter(row => row.practiceId === practiceId), {practiceId, label:nextCommand.confirmations.join(' · ')}].slice(-5));
         else setError('Context change was not confirmed. Check the console.');
-        if(!saved && continuous){busy.current=false;return waitForReview();}
+        if(!saved){busy.current=false;return waitForReview();}
         return saved;
       } finally { busy.current = false; }
     }
-    const previous = continuous ? null : pendingIntent.current;
-    const effectiveCommand = nextCommand ?? (previous ? command : null);
+    const effectiveCommand = nextCommand;
     const snapshot = effectiveCommand ? {...context, state:{...context.state,...effectiveCommand.statePatch}, settings:{...context.settings,...effectiveCommand.patch}, playerId:effectiveCommand.patch.hitterId ?? context.playerId} : context;
-    const incoming = interpretVoice(nextCommand?.eventText ?? text, snapshot, requestId, confidence);
-    // A second explicit outcome is a new pitch, never an amendment to the last pitch.
-    if (previous?.draft.outcome && incoming.draft.outcome) {
-      setError(`A pitch is still awaiting review. Next pitch not saved: "${text}"`);
-      setPhase('error');return continuous ? waitForReview() : false;
-    }
-    const combined = previous ? appendVoiceFragment(previous.transcript, text) : nextCommand?.eventText ?? text;
-    const parsed = interpretVoice(combined, snapshot, previous?.requestId ?? requestId,
-      previous ? (confidence === null || previous.confidence.transcription === null ? null : Math.min(confidence, previous.confidence.transcription)) : confidence);
+    const parsed = interpretVoice(nextCommand?.eventText ?? text, snapshot, requestId, confidence);
     if (nextCommand) parsed.unresolvedFields.push(...nextCommand.problems, ...(!onCommand ? ['Context changes are unavailable here.'] : []));
     reportVoiceMetrics(requestId,{interpretation_ms:Math.round(performance.now()-parseStarted),confidence_band:parsed.unresolvedFields.length?'low':canFastSaveVoice(parsed)?'high':'review'});
     pendingIntent.current = parsed;
@@ -194,7 +186,7 @@ function EnabledVoiceEntry({
     if (!effectiveCommand && fast && canFastSaveVoice(parsed)) {
       if(await save(parsed, true, effectiveCommand)) return true;
     }
-    return continuous ? waitForReview() : true;
+    return waitForReview();
   }
   async function save(value: VoiceIntent, automatic = false, savingCommand = command) {
     if (
@@ -242,12 +234,12 @@ function EnabledVoiceEntry({
   }
   async function receiveDetail(text:string,confidence:number|null):Promise<boolean> {
     const previous=pendingIntent.current;
-    if(storedPhase!=='review'||busy.current||command||!previous||!isVoiceDetailFragment(text))return false;
-    const parsed=interpretVoice(appendVoiceFragment(previous.transcript,text),context,previous.requestId,
+    if(storedPhase!=='review'||busy.current||command||!previous||voiceFragmentRelation(previous.transcript,text)!=='detail')return false;
+    const parsed=interpretVoice(mergeVoiceDetail(previous.transcript,text),context,previous.requestId,
       confidence===null||previous.confidence.transcription===null?null:Math.min(confidence,previous.confidence.transcription));
     // Never overwrite an existing value or increase ambiguity by attaching speech.
-    if(parsed.unresolvedFields.length>=previous.unresolvedFields.length && previous.unresolvedFields.length)return false;
-    if(!previous.unresolvedFields.length)return false;
+    if(parsed.unresolvedFields.some(field=>!previous.unresolvedFields.includes(field)))return false;
+    if(JSON.stringify(parsed.draft)===JSON.stringify(previous.draft))return false;
     pendingIntent.current=parsed;setIntent(parsed);setError('');
     if(fast&&canFastSaveVoice(parsed))await save(parsed,true,null);
     return true;
@@ -512,29 +504,7 @@ function EnabledVoiceEntry({
   return (
     <section className={styles.root} aria-label="Voice stat entry" data-phase={phase}>
       <div className={styles.toolbar}>
-        {continuous ? <SessionVoiceCapture key={practiceId} practiceId={practiceId} contextKey={contextKey} disabled={captureDisabled ?? disabled} canProcess={()=>!disabled&&!busy.current} onTranscript={receiveSessionTranscript} onDetail={receiveDetail} /> :
-        <button
-          type="button"
-          className={styles.micButton}
-          disabled={
-            disabled ||
-            ["transcribing", "interpreting", "saving"].includes(phase)
-          }
-          onClick={() =>
-            phase === "listening"
-              ? stopCapture.current
-                ? stopCapture.current()
-                : cancel()
-              : void start()
-          }
-          aria-label={
-            phase === "listening" ? "Stop voice capture" : "Record voice event"
-          }
-        >
-          {phase === "listening" ? <Square size={24} /> : <Mic size={24} />}
-        </button>
-        }
-        {!continuous && <strong className={styles.voiceStatus}>{phase === "listening" ? "Listening..." : phase === "transcribing" ? "Transcribing..." : phase === "interpreting" ? "Interpreting..." : phase === "saving" ? "Saving..." : phase === "review" ? "Review" : "Voice"}</strong>}
+        <SessionVoiceCapture key={practiceId} practiceId={practiceId} contextKey={contextKey} continuousEnabled={continuous} disabled={captureDisabled ?? disabled} canProcess={()=>!disabled&&!busy.current} onTranscript={receiveSessionTranscript} onDetail={receiveDetail} />
         <label className={styles.fastToggle}>
           <input
             type="checkbox"
@@ -560,7 +530,8 @@ function EnabledVoiceEntry({
         </div></details>
       </div>
       {(phase === "review" || phase === "error") && (
-        <div className={styles.preview} aria-live="polite">
+        <details className={styles.preview} aria-live="polite">
+          <summary aria-label="Review pending Voice event"><strong>Review</strong><span>{intent?.unresolvedFields[0] ?? command?.problems[0] ?? (error || 'Confirm event')}</span><ChevronDown size={16}/></summary>
           <strong>
             {
               (
@@ -678,7 +649,7 @@ function EnabledVoiceEntry({
                       manual_correction: true,
                     });
                     const editing=onEdit(intent);
-                    if(continuous && editing) {
+                    if(editing) {
                       setPhase('saving');
                       void editing.then(saved=>{finishReview(saved);setIntent(null);setCommand(null);setPhase(saved?'saved':'idle');});
                     } else cancel();
@@ -697,7 +668,7 @@ function EnabledVoiceEntry({
                 <X size={18} />
               </button>
           </div>
-        </div>
+        </details>
       )}
     </section>
   );
