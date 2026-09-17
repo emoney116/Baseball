@@ -81,3 +81,15 @@ Runner-at phrasing was not recognized as context, so none saved. a642dc1 fixes b
 - Initial segment 04 combined commands46/47 across a 0.73s pause. No save. Split at original timestamp18.208206; now11 segments in43_53.
 - 46 separated real transcript `Ground ball to second, clean play, accurate throw to first, out.` (.9525). Saved; visible outs1, basesempty. Canonical review GB/Out/2B/Clean/Accurate.
 - 47 separated real transcript `Ball hit to left, left fielder throws to second, second baseman drops the tag, runner safe.` (.9935). Held: current bases empty and batter outcome unspecified. Known LF->2B/receiving error retained in draft; cannot invent runner or batter outcome.
+- 44 hosted replay639742c: same transcript (.9396), saved GB/Reached on Error/3B/Throwing error; UI bases2B+1B.
+- 45 hosted replay639742c: same transcript (.9397), saved FB/CF/Clean/Out; UI outs1, runnersheld.
+- 48 actual `Single to right, right fielder throws to third, runner is out at third.` (.9915). Empty bases correctly held. Manual2B then replay(.9888) resolved runner but missed explicit defensive rep. Added canonical Clean for explicitly narrated throw retiring a runner; replay pending.
+- 49 actual `Ball to left center, center fielder cuts it off, then throws to shortstop, runner holds at second.` (.8175). Held. Fix retains BIP (not Ball), LCF, CF->SS and explicit hold. Missing batter result remains review. Schema has actor sequence but no discrete cutoff-action metric; explicit limitation shown instead of vague unknown words.
+- 50 actual `Runner on second, nobody out, Andrew is hitting.` Context persisted: Andrew/Machine/2B/0outs; no pitch.
+- 51 actual `Fastball 84 low and away bunt successful sac runner moves to third Andrew out pitcher to first.` (.4859). Held `successful sac`; normalization fixed in3ca62c5, real replay pending. P defense requires a player fielder, not a fictitious machine player.
+- 52 actual `Runner on third, one out, job is to score the runner.` (.9858). Initially held unrecognized job. Replay3ca62c5 persisted3B/1out/job with no baseball event.
+- 53 actual `Ground ball to second, runner scores, batter out at first, job done.` (.9241). Initially held batter/first as fielder. Replay3ca62c5 saved; UI2outs/empty. Read-only SQL confirms event85 `jobSuccess:true`, runner3->score, batterout.
+- 32 guard real replay3ca62c5: correct triple/88/97EV/RCF, .8493; save now held with precise required runner-advancement message.
+- 40 replay transcript changed to `Runner at first base. Doubled to left center.` (.7064); held unknown doubled. Added inflected baseball synonym; real replay pending.
+- New migration20260917032146 changes only voice_usage audio_seconds bound12->30. Local complete-chain database tests169passed; owner approval requested before any hosted apply. Read-only hosted constraint still12confirmed.
+- Full regression after initial defense/job/audio changes:1269passed. Subsequent tiny normalization changes need final rerun.

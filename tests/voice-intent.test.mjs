@@ -112,6 +112,18 @@ test("explicit throw retiring an existing runner preserves defense on a single",
   assert.deepEqual(intent.draft.runnerOutcomes,{'2':'out'});
 });
 
+test("cutoff narration retains BIP, spray, relay and explicit hold without inventing outcome",()=>{
+  const c=context();c.state={...c.state,situationKnown:true,runners:[2]};
+  const intent=interpretVoice('Ball to left center, center fielder cuts it off, then throws to shortstop, runner holds at second.',c,'cutoff',.8175);
+  assert.equal(intent.draft.outcome,'Ball in play');
+  assert.deepEqual(intent.draft.runnerOutcomes,{'2':'2'});
+  assert.deepEqual(intent.draft.fieldingSequence,['CF','SS']);
+  assert.deepEqual(intent.draft.spray,sprayPointForLane(1));
+  assert.equal(intent.draft.result,undefined);
+  assert.ok(intent.unresolvedFields.includes('batter result'));
+  assert.ok(!intent.unresolvedFields.some(f=>f.includes("Couldn't interpret")));
+});
+
 test("strict intent contract rejects extra fields, invalid taxonomy and confidence", () => {
   const good = interpretVoice(
     "slider 78 middle whiff",

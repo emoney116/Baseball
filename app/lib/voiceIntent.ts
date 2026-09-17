@@ -48,6 +48,7 @@ const results = { ...VOICE_RESULT_ALIASES, strike: "Called Strike" };
 const batterResults = {
   single: "Single",
   double: "Double",
+  doubled: "Double",
   triple: "Triple",
   "home run": "Home Run",
   homer: "Home Run",
@@ -312,6 +313,10 @@ export function interpretVoice(
     remaining = remaining.replace(/\bdown (?:the )?(first|third) base\s*line\b/g,
       (_, base: string) => base === "first" ? "right field line" : "left field line");
     const sequence = matchVoiceVocabulary(remaining, fielders);
+    if (/\bcuts? it off\b/.test(remaining)) {
+      unresolved.add('Cutoff action has no separate canonical metric; review the fielding sequence and batter result.');
+      remaining = remaining.replace(/\bcuts? it off\b/g, value => ' '.repeat(value.length));
+    }
     const narratedThrow = /\b(?:threw|throws?|throw)\s+to\b/.test(remaining) || /\b(?:pitcher|shortstop|baseman) to (?:the )?(?:first|second|third|catcher)\b/.test(remaining);
     if(narratedThrow && sequence.length>1) {
       draft.fieldingSequence=sequence.map(m=>m.value).filter((value,index,all)=>index===0||all[index-1]!==value);

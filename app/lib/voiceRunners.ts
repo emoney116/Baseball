@@ -4,6 +4,7 @@ const bases: Record<string, string> = { first: '1', second: '2', third: '3', hom
 
 /** Keep original runner keys while applying explicitly narrated movements in order. */
 export function parseVoiceRunners(text: string, state: BpState) {
+  text = text.replace(/\brunner holds? at (first|second|third)(?: base)?\b/g, 'runner on $1 to $1');
   const outcomes: Record<string, string> = {};
   const movements: BpRunnerMovement[] = [];
   const problems: string[] = [];
