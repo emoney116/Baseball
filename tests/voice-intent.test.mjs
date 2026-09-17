@@ -102,6 +102,16 @@ test("real audio center fielder makes the catch records an out and clean rep", (
   assert.ok(!intent.unresolvedFields.some(field=>/batter result|interpret/.test(field)));
 });
 
+test("explicit throw retiring an existing runner preserves defense on a single", () => {
+  const c=context();c.state={...c.state,situationKnown:true,runners:[2]};c.settings.alignment={RF:'pitcher'};
+  const intent=interpretVoice('Single to right, right fielder throws to third, runner is out at third.',c,'runner-throw',.9888);
+  assert.deepEqual(intent.unresolvedFields,[]);
+  assert.equal(intent.draft.result,'Single');
+  assert.equal(intent.draft.defenseResult,'Clean');
+  assert.deepEqual(intent.draft.fieldingSequence,['RF','3B']);
+  assert.deepEqual(intent.draft.runnerOutcomes,{'2':'out'});
+});
+
 test("strict intent contract rejects extra fields, invalid taxonomy and confidence", () => {
   const good = interpretVoice(
     "slider 78 middle whiff",
@@ -331,4 +341,10 @@ test("actual PCM duration is bounded and malformed audio rejected", () => {
   assert.throws(() => validateVoiceWav(new Uint8Array(500000)));
   wav[22] = 2;
   assert.throws(() => validateVoiceWav(wav));
+});
+
+test("rich narration keeps all 22 seconds with a hard 30-second bound",()=>{
+  const wav=new Uint8Array(encodeVoiceWav(new Float32Array(16000*22.19),16000));
+  assert.equal(validateVoiceWav(wav),22.19);
+  assert.throws(()=>validateVoiceWav(new Uint8Array(44+16000*2*31)));
 });

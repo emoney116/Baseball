@@ -933,7 +933,8 @@ test("Voice metering is service-only, bounded and deduplicated",async()=>{
   for(let n=1;n<30;n++)assert.equal((await reserve()).rows[0].accepted,true);
   assert.equal((await reserve()).rows[0].accepted,false);
   await db.exec("update voice_usage set created_at=now()-interval '2 minutes'");
-  await denied(()=>reserve(randomUUID(),13),/constraint/);
+  assert.equal((await reserve(randomUUID(),22.19)).rows[0].accepted,true);
+  await denied(()=>reserve(randomUUID(),31),/constraint/);
   for(const role of ["anon","authenticated"]){
     await db.exec(`savepoint voice_role; set local role ${role}`);
     await assert.rejects(reserve,/permission denied/);

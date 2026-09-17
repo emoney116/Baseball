@@ -127,7 +127,7 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
           speechTimer = setTimeout(() => {
             if (epoch.current === token && listening.current) {
               stop(); setState('muted'); setPending(0);
-              setError('Speech exceeded 12 seconds without a pause. Nothing from that segment was saved.');
+              setError(`Speech exceeded ${VOICE_MAX_SECONDS} seconds without a pause. Nothing from that segment was saved.`);
             }
           }, VOICE_MAX_SECONDS * 1000);
         },

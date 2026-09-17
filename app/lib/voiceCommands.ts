@@ -101,6 +101,14 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
       remaining = 'ball';
       break;
     }
+    const job = remaining.match(/^job (?:is )?(?:to )?(score (?:the )?runner|move (?:the )?runner|sacrifice bunt)\b/);
+    if (job) {
+      recognized = true;
+      command.statePatch = {...command.statePatch, job:job[1], situationKnown:true};
+      command.confirmations.push(`Job: ${job[1]}`);
+      remaining = remaining.slice(job[0].length).trim();
+      continue;
+    }
     const count = remaining.match(/^(?:(?:set )?count(?: is)?|start(?: him| the count)?) (zero|one|two|three|[0-3]) (?:and )?(zero|one|two|[0-2])\b/);
     const reset = remaining.match(/^reset (?:the )?count\b/);
     const outs = remaining.match(/^(nobody|zero|one|two|[0-2]) outs?\b/);

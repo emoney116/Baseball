@@ -1,10 +1,10 @@
-export const VOICE_MAX_SECONDS = 12;
+export const VOICE_MAX_SECONDS = 30;
 export const VOICE_SAMPLE_RATE = 16000;
 export const VOICE_MAX_BYTES = 44 + VOICE_SAMPLE_RATE * 2 * VOICE_MAX_SECONDS;
 
 export function validateVoiceWav(bytes: Uint8Array): number {
   if (bytes.length < 46 || bytes.length > VOICE_MAX_BYTES)
-    throw new Error("Audio must be at most 12 seconds.");
+    throw new Error(`Audio must be at most ${VOICE_MAX_SECONDS} seconds.`);
   const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const tag = (offset: number, length: number) =>
     new TextDecoder().decode(bytes.subarray(offset, offset + length));

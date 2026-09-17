@@ -4,6 +4,18 @@ import {parseVoiceCommand} from '../app/lib/voiceCommands.ts';
 import {interpretVoice} from '../app/lib/voiceIntent.ts';
 import {initialBpSettings,initialBpState} from '../app/lib/liveBp.ts';
 const roster=[{id:'d',aliases:['Darren Adams','Darren','Adams','3']},{id:'m',aliases:['Mylo White','Mylo','White']},{id:'j',aliases:['JP Smith','JP','Smith']}];
+
+test('real situational job narration establishes context without a pitch',()=>{
+  const settings=initialBpSettings('m');
+  const command=parseVoiceCommand('Runner on third, one out, job is to score the runner.',roster,settings);
+  assert.equal(command.kind,'context');assert.equal(command.eventText,'');
+  assert.deepEqual(command.statePatch.runners,[3]);assert.equal(command.statePatch.outs,1);
+  assert.equal(command.statePatch.job,'score the runner');
+  const intent=interpretVoice('Ground ball to second, runner scores, batter out at first, job done.',{domain:'live-bp',settings,state:{...initialBpState(),...command.statePatch},roster},'job-complete');
+  assert.deepEqual(intent.unresolvedFields,[]);assert.equal(intent.draft.position,'2B');
+  assert.equal(intent.draft.result,'Out');assert.equal(intent.draft.jobSuccess,true);
+  assert.deepEqual(intent.draft.runnerOutcomes,{'3':'score'});
+});
 test('real audio runner-at-base compounds establish state before event interpretation',()=>{
   const settings=initialBpSettings('m');
   for(const [text,bases] of [['Runner at first base, single to left.',[1]],['Runners at first base and second base. Single to center, runner from second scores, runner from first goes to second.',[1,2]]]) {

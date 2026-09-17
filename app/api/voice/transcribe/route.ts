@@ -4,7 +4,7 @@ import {
   assertPlayerLinkTeamManager,
   PlayerLinkError,
 } from "../../../lib/playerAccountLinks";
-import { validateVoiceWav, VOICE_MAX_BYTES } from "../../../lib/voiceAudio";
+import { validateVoiceWav, VOICE_MAX_BYTES, VOICE_MAX_SECONDS } from "../../../lib/voiceAudio";
 import { voiceTokenConfidence } from "../../../lib/voiceTranscriptionConfidence";
 
 export const runtime = "nodejs";
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       length += part.value.length;
       if (length > VOICE_MAX_BYTES) {
         await reader.cancel();
-        return reply({ message: "Audio must be at most 12 seconds." }, 413);
+        return reply({ message: `Audio must be at most ${VOICE_MAX_SECONDS} seconds.` }, 413);
       }
       chunks.push(part.value);
     }
@@ -145,6 +145,7 @@ export async function POST(request: Request) {
       .from("voice_usage")
       .update({
         status: "completed",
+        model,
         latency_ms: Date.now() - started,
         estimated_cost_usd:
           Number.isFinite(costPerMinute) && costPerMinute > 0

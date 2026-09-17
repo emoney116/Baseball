@@ -349,7 +349,7 @@ function EnabledVoiceEntry({
     }
     try {
       if (recording) {
-        if (recording.size > VOICE_MAX_BYTES) throw new Error("Audio must be at most 12 seconds.");
+        if (recording.size > VOICE_MAX_BYTES) throw new Error(`Audio must be at most ${VOICE_MAX_SECONDS} seconds.`);
         validateVoiceWav(new Uint8Array(await recording.arrayBuffer()));
         await finish();
         return;

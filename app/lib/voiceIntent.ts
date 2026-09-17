@@ -272,8 +272,10 @@ export function interpretVoice(
     remaining = remaining
       .replace(/\bhe bunted the ball\b/g, 'bunt')
       .replace(/\bit was (?:a )?successful sac(?:rifice)? bunt\b/g, 'sac bunt')
-      .replace(/\bsuccessful sacrifice\b/g, 'sac bunt')
+      .replace(/\bsuccessful (?:sacrifice|sac)\b(?: bunt)?/g, 'sac bunt')
       .replace(/\bmakes? (?:the |a )?catch\b/g, 'caught');
+    remaining = remaining.replace(/^ball to (?=(?:left|right|center)\b)/, 'ball in play to ');
+    remaining = remaining.replace(/\bbatter (?:is |was )?out at first(?: base)?\b/g, 'out');
     if (/\b(?:throwing|fielding) error\b/.test(remaining)) {
       remaining = remaining.replace(/\bbatter (?:is |was )?safe at first(?: base)?\b/g, 'reached on error')
         .replace(/\bmakes? (?:a )?(?=(?:throwing|fielding) error\b)/g, '');
@@ -347,7 +349,7 @@ export function interpretVoice(
     draft.battedBall = take("batted ball", VOICE_CONTACT_ALIASES);
     if (draft.result === 'Sac Bunt') draft.battedBall ??= 'Bunt';
     if (draft.result === 'Sac Fly') draft.battedBall ??= 'Fly ball';
-    if (narratedThrow && draft.position && draft.result === 'Out') draft.defenseResult ??= 'Clean';
+    if (narratedThrow && draft.position && (draft.result === 'Out' || Object.values(draft.runnerOutcomes ?? {}).includes('out'))) draft.defenseResult ??= 'Clean';
     draft.position = take("fielder", fielders) ?? draft.position;
     const lane = take("spray", sprayLanes);
     if (lane !== undefined) draft.spray = sprayPointForLane(Number(lane));
