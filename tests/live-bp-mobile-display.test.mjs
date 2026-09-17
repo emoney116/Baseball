@@ -2,6 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+test('Live BP bounds its mobile scroll container so the sticky manual bar stays visible', () => {
+  const css = readFileSync('app/globals.css', 'utf8');
+  assert.match(css, /\.ops-main--practice-tracking:has\(\.practice-console--live-bp\)\s*\{[^}]*height: 100dvh;[^}]*min-height: 0;[^}]*padding-bottom: 0;[^}]*overflow-y: auto;/);
+});
+
 test('pitch map distinguishes located pitches from tracked hard-contact samples', () => {
   const page = readFileSync('app/ClubhouseWorkspace.tsx', 'utf8');
   assert.match(page, /action === "Ball in play" && entry\.event\.contactQuality\) stats\.hardSamples \+= 1/);

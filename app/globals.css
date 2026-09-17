@@ -37577,6 +37577,14 @@ body[data-ask-clubhouse-open="true"] .bottom-nav--persistent { display: none !im
 }
 
 /* Live BP keeps navigation in the header so the field stays in the first viewport. */
+@media (max-width: 820px) {
+  .ops-main--practice-tracking:has(.practice-console--live-bp) {
+    height: 100dvh;
+    min-height: 0;
+    padding-bottom: 0;
+    overflow-y: auto;
+  }
+}
 .practice-console--live-bp { gap: 8px; }
 .practice-console--live-bp .practice-tracker-header {
   padding: 6px 8px;
