@@ -559,7 +559,7 @@ function EnabledVoiceEntry({
         {activity.some(row=>row.practiceId===practiceId) && <details className={styles.activity}><summary>Recent Voice activity</summary><ol aria-label="Recent Voice activity">{activity.filter(row=>row.practiceId===practiceId).map((row,index)=><li key={index}>{row.label}</li>)}</ol></details>}
         </div></details>
       </div>
-      {phase !== "idle" && phase !== "saved" && (
+      {(phase === "review" || phase === "error") && (
         <div className={styles.preview} aria-live="polite">
           <strong>
             {
@@ -689,7 +689,6 @@ function EnabledVoiceEntry({
                 </button>
               </>
             )}
-            {phase !== "saving" && (
               <button
                 className="icon-button"
                 aria-label="Cancel voice entry"
@@ -697,7 +696,6 @@ function EnabledVoiceEntry({
               >
                 <X size={18} />
               </button>
-            )}
           </div>
         </div>
       )}
