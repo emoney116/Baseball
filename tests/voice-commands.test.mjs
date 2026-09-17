@@ -4,6 +4,16 @@ import {parseVoiceCommand} from '../app/lib/voiceCommands.ts';
 import {interpretVoice} from '../app/lib/voiceIntent.ts';
 import {initialBpSettings,initialBpState} from '../app/lib/liveBp.ts';
 const roster=[{id:'d',aliases:['Darren Adams','Darren','Adams','3']},{id:'m',aliases:['Mylo White','Mylo','White']},{id:'j',aliases:['JP Smith','JP','Smith']}];
+test('real combined tracking and defense tracking phrases change defaults only',()=>{
+  const settings=initialBpSettings('m');
+  const combined=parseVoiceCommand('Start tracking exit velo and spray.',roster,settings);
+  assert.equal(combined.kind,'context');assert.equal(combined.eventText,'');
+  assert.deepEqual(combined.patch,{ev:true,spray:true});
+  const defense=parseVoiceCommand('Turn defense tracking on.',roster,settings);
+  assert.deepEqual(defense.patch,{defense:'ALL'});
+  const unknown=parseVoiceCommand('Start tracking exit velo and guesses.',roster,settings);
+  assert.ok(unknown.problems.length);assert.deepEqual(unknown.patch,{});
+});
 
 test('real situational job narration establishes context without a pitch',()=>{
   const settings=initialBpSettings('m');

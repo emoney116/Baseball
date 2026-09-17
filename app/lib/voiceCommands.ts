@@ -19,6 +19,22 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
     .replace(/\brunners? at (first|second|third)\b/g, 'runner on $1')
     .replace(/\bthere is (?:a |one )?(?:guy|runner) on\b/g, 'runner on');
   const command: VoiceContextCommand = {kind:"context",patch:{},eventText:"",confirmations:[],problems:[]};
+  const combinedSettings = remaining.match(/^(start tracking|stop tracking|track|turn) (.+?) and (.+?)(?: (on|off))?$/);
+  if (combinedSettings) {
+    const suffix = combinedSettings[4] ? ` ${combinedSettings[4]}` : '';
+    const parts = [combinedSettings[2],combinedSettings[3]].map(field => parseVoiceCommand(`${combinedSettings[1]} ${field}${suffix}`,roster,settings,state));
+    if (parts.every(part => part?.kind === 'context' && !part.problems.length && part.confirmations.some(value=>value.includes('tracking')))) {
+      for (const part of parts) {
+        Object.assign(command.patch,part!.patch);
+        if (part!.statePatch) command.statePatch={...command.statePatch,...part!.statePatch};
+        command.confirmations.push(...part!.confirmations);
+      }
+      return command;
+    }
+    command.problems.push('Choose the tracking settings to change.');
+    return command;
+  }
+  remaining = remaining.replace(/\b(defense|velocity|spray|exit velo(?:city)?) tracking\b/g, '$1');
   const setting = remaining.match(/^(start tracking|stop tracking|track|dont track|do not track|enable|disable|turn on|turn off|turn) (?:pitch )?(velocity|locations?|location tracking|counts?|count tracking|defense|exit velo(?:city)?|ev|spray)(?: (on|off|now))?$/);
   if (setting) {
     const enabled = !["stop tracking", "dont track", "do not track", "disable", "turn off"].includes(setting[1]) && setting[3] !== "off";
