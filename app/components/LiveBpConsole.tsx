@@ -1080,22 +1080,6 @@ export function LiveBpConsole({
                       {nonBipPaEnd && job}
                     </section>,
                   )}
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={() =>
-                    setStage(
-                      uncertain
-                        ? "result"
-                        : needsPitchDetails
-                          ? "details"
-                          : "result",
-                    )
-                  }
-                >
-                  <Plus size={20} />
-                  {uncertain ? "Retry Pitch" : "Log Pitch"}
-                </button>
                 {voiceEntry}
                 {lastPitch && <div role="status" className={styles.lastEvent}>
                   <span>Last Pitch</span>
@@ -1263,6 +1247,12 @@ export function LiveBpConsole({
                     quickView === "location" ? "location" : "spray",
                   )
                 )}
+                <div className={styles.manualBar}>
+                  <button type="button" className="primary-button"
+                    onClick={() => setStage(uncertain ? "result" : needsPitchDetails ? "details" : "result")}>
+                    <Plus size={20} />{uncertain ? "Retry Pitch" : "Log Pitch"}
+                  </button>
+                </div>
               </>
             )}
           </fieldset>

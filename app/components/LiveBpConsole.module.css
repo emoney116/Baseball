@@ -57,14 +57,14 @@
   grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
-  padding: 4px 0 12px;
+  padding: 0;
 }
 .athlete {
   display: grid;
   min-width: 0;
   gap: 4px;
   text-align: left;
-  padding: 12px;
+  padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -76,7 +76,7 @@
   font-weight: 750;
 }
 .athlete > small {
-  min-height: 20px;
+  min-height: 14px;
   display: grid;
   align-items: center;
   color: var(--muted);
@@ -187,7 +187,7 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  padding: 10px 0;
+  padding: 6px 0;
   border-block: 1px solid var(--line);
 }
 .live {
@@ -361,16 +361,23 @@
 .scoreboard { flex: 1; }
 @media (max-width: 520px) {
   .matchup { gap: 5px; grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr); }
-  .athlete { padding: 10px; }
+  .athlete { padding: 6px 8px; gap: 0; }
   .matchupAvatar { display: none; }
   .rotation > .participantName, .sourceButton strong, .sourceButton :global(.dense-player-identity) { font-size: 15px; }
-  .statusRow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
-  .scoreboard { grid-column: 1 / -1; justify-content: space-around; padding-bottom: 8px; }
-  .scoreboard > div + div { padding-left: 24px; }
+  .statusRow { display: flex; gap: 4px; }
+  .scoreboard { gap: 8px; padding: 0; justify-content: flex-start; }
+  .scoreboard > div + div { padding-left: 8px; }
+  .numericCount { min-width: 34px; }
+  .scoreboard strong { font-size: 20px; }
+  .scoreboard span { font-size: 9px; }
+  .baseDiamond { grid-template-columns: repeat(2, 8px); grid-template-rows: repeat(2, 8px); gap: 2px; }
   .toolbarCorrections { display: contents; }
-  .statusRow > button, .statusRow > button:last-child, .toolbarCorrections .corrections > button { width: 100%; height: 46px; }
+  .statusRow > button, .statusRow > button:last-child, .toolbarCorrections .corrections > button { width: 44px; min-width: 44px; flex: 0 0 44px; height: 44px; }
   .statusRow .status { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; }
 }
+.manualBar { position: sticky; bottom: 0; z-index: 7; background: var(--background, var(--panel)); padding: 8px 0 max(8px, env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+.manualBar > button { width: 100%; min-height: 46px; }
+.fields { gap: 8px; }
 .wizardMatchup {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;

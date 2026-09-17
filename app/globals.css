@@ -37573,3 +37573,40 @@ body[data-ask-clubhouse-open="true"] .bottom-nav--persistent { display: none !im
   line-height: 1.35;
   color: var(--muted);
 }
+
+/* Live BP keeps navigation in the header so the field stays in the first viewport. */
+.practice-console--live-bp { gap: 8px; }
+.practice-console--live-bp .practice-tracker-header {
+  padding: 6px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.practice-console--live-bp .practice-tracker-title { min-width: 0; gap: 6px; }
+.practice-console--live-bp .practice-tracker-title > div { min-width: 0; }
+.practice-console--live-bp .practice-mode-picker-trigger {
+  display: block;
+  width: fit-content;
+  min-height: 0;
+  background: transparent;
+  border: 0;
+}
+.practice-console--live-bp .practice-mode-picker-trigger .choice-select__button {
+  min-height: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.practice-console--live-bp .practice-mode-picker-trigger .choice-select__icon svg { color: #19b975; }
+.practice-console--live-bp .practice-tracker-tabs { display: none; }
+.practice-console--live-bp .practice-header__buttons { flex-wrap: nowrap; gap: 5px; }
+.practice-console--live-bp .practice-header__buttons button { min-height: 38px; padding: 6px 10px; }
+@media (max-width: 520px) {
+  .practice-console--live-bp .practice-tracker-title > div > span { font-size: 12px; }
+  .practice-console--live-bp .practice-tracker-title .icon-button { width: 32px; min-width: 32px; height: 38px; }
+  .practice-console--live-bp .practice-header__buttons button { padding: 6px 8px; }
+}

@@ -9229,6 +9229,11 @@ function PracticeConsole({
   const practiceVoice=practice&&mode!=="Live BP"?<VoiceEntry practiceId={practice.id} context={practiceVoiceContext} disabled={Boolean(practice.endedAt)} onSave={saveVoicePractice} onCommand={savePracticeVoiceCommand} onEdit={editVoicePractice} onUndo={onUndo}/>:null;
 
   const sessionStarted = currentSession?.startedAt ? formatTime(currentSession.startedAt) : practice ? formatTime(practice.startedAt) : "--";
+  const trackingModePicker = <div className="practice-mode-picker-trigger">
+    <ChoiceSelect value={mode} options={practiceModeOptions} onChange={(value) => changeMode(value as PracticeMode)}
+      className="practice-mode-select" open={practiceModePickerOpen} onOpenChange={setPracticeModePickerOpen}
+      showSelectedDescription={false} mobilePresentation="popover" aria-label="Practice tracking mode" />
+  </div>;
 
   return (
     <div className={`page-stack practice-console practice-console--active practice-console--${practiceModeClass(mode)}`}>
@@ -9239,7 +9244,7 @@ function PracticeConsole({
           </button>
           <div>
             <span>Practice {practice ? `- ${fullDate(practice.date)}` : ""}</span>
-            <h2>{practice ? `${practice.location || "No location"} - ${formatPracticeTimeRange(practice)}` : "Active Practice"}</h2>
+            {mode === "Live BP" ? trackingModePicker : <h2>{practice ? `${practice.location || "No location"} - ${formatPracticeTimeRange(practice)}` : "Active Practice"}</h2>}
           </div>
         </div>
         {practice ? (
@@ -9268,19 +9273,7 @@ function PracticeConsole({
         )}
       </section>
 
-      <div className="practice-mode-picker-trigger">
-        <ChoiceSelect
-          value={mode}
-          options={practiceModeOptions}
-          onChange={(value) => changeMode(value as PracticeMode)}
-          className="practice-mode-select"
-          open={practiceModePickerOpen}
-          onOpenChange={setPracticeModePickerOpen}
-          showSelectedDescription={false}
-          mobilePresentation="popover"
-          aria-label="Practice tracking mode"
-        />
-      </div>
+      {mode !== "Live BP" && trackingModePicker}
 
       <nav className="practice-tracker-tabs panel" aria-label="Practice tracker modes">
         {(["Hitting", "Pitching", "Defense", "Live BP"] as PracticeMode[]).map((tab) => (
