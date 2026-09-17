@@ -451,15 +451,8 @@ function EnabledVoiceEntry({
       ].join(" / ")
     : "";
   return (
-    <section className={styles.root} aria-label="Voice stat entry">
+    <section className={styles.root} aria-label="Voice stat entry" data-phase={phase}>
       <div className={styles.toolbar}>
-        {process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' && <label>
-          QA audio
-          <input type="file" accept="audio/wav,.wav" aria-label="QA voice recording" disabled={disabled || !['idle','saved','error'].includes(phase)} onChange={e => {
-            const file=e.target.files?.[0]; e.target.value='';
-            if(file) void start(file);
-          }} />
-        </label>}
         <label><input type="checkbox" checked={continuous} disabled={phase === 'saving'} onChange={e => { cancel(); setContinuous(e.target.checked); }} />Continuous</label>
         {continuous ? <SessionVoiceCapture key={`${practiceId}:${Boolean(disabled)}`} practiceId={practiceId} contextKey={contextKey} disabled={disabled} onTranscript={receiveSessionTranscript} /> :
         <button
@@ -496,8 +489,12 @@ function EnabledVoiceEntry({
           Fast Voice
         </label>
       </div>
-      {process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' && qaTranscript && <output aria-label="QA actual transcript">{qaTranscript}</output>}
-      {activity.some(row=>row.practiceId===practiceId) && <ol aria-label="Recent Voice activity">{activity.filter(row=>row.practiceId===practiceId).map((row,index)=><li key={index}>{row.label}</li>)}</ol>}
+      {process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' && <details className={styles.qa}><summary>Audio QA</summary><label>
+        <input type="file" accept="audio/wav,.wav" aria-label="QA voice recording" disabled={disabled || !['idle','saved','error'].includes(phase)} onChange={e => {
+          const file=e.target.files?.[0]; e.target.value=''; if(file) void start(file);
+        }} />
+      </label>{qaTranscript && <output aria-label="QA actual transcript">{qaTranscript}</output>}</details>}
+      {activity.some(row=>row.practiceId===practiceId) && <details className={styles.activity}><summary>Recent Voice activity</summary><ol aria-label="Recent Voice activity">{activity.filter(row=>row.practiceId===practiceId).map((row,index)=><li key={index}>{row.label}</li>)}</ol></details>}
       {phase !== "idle" && (
         <div className={styles.preview} aria-live="polite">
           <strong>

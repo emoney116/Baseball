@@ -8,6 +8,9 @@ import {
   Plus,
   Undo2,
   LayoutList,
+  ChevronRight,
+  Cpu,
+  UserRound,
 } from "lucide-react";
 import type { Player, ZonePoint } from "../types";
 import {
@@ -803,12 +806,17 @@ export function LiveBpConsole({
                       }
                     }}
                   >
+                    <span className={styles.matchupAvatar} aria-hidden="true"><UserRound size={22} /></span>
+                    <span className={styles.matchupName}>
                     {formatDensePlayerIdentity(
                       players.find((p) => p.id === settings.hitterId) ??
                         players[0],
                     ).replace(/(^| )(\S)\. /, "$1$2 ")}
+                    </span>
+                    <ChevronRight size={16} aria-hidden="true" />
                   </button>
                 </div>
+                <small>{players.find(p => p.id === settings.hitterId)?.bats ?? "--"} batter</small>
               </div>
               <span className={styles.vs}>VS</span>
               <div className={styles.athlete}>
@@ -824,6 +832,7 @@ export function LiveBpConsole({
                     }
                   }}
                 >
+                  {settings.source !== "PLAYER" && <span className={styles.matchupAvatar} aria-hidden="true">{settings.source === "MACHINE" ? <Cpu size={22} /> : <UserRound size={22} />}</span>}
                   {settings.source === "PLAYER" && pitcher ? (
                     <DensePlayerIdentity
                       player={{ ...pitcher, identityLabel: undefined }}
@@ -835,7 +844,9 @@ export function LiveBpConsole({
                         : (settings.coachName ?? "Coach BP")}
                     </strong>
                   )}
+                  <ChevronRight size={16} aria-hidden="true" />
                 </button>
+                <small>{settings.pitchMode === "ONE" ? `${settings.pitchType} only` : settings.pitchMode === "MULTI" ? "Multiple pitches" : "Pitch type optional"}</small>
               </div>
             </div>
             <div className={styles.statusRow}>
@@ -860,6 +871,10 @@ export function LiveBpConsole({
                     <strong>{state.outs}</strong>
                   </div>
                 )}
+                {trackedSituation && <div className={styles.baseStatus} aria-label={`Bases: ${state.runners.length ? state.runners.map(base => `${base}B`).join(', ') : 'empty'}`}>
+                  <span>Bases</span>
+                  <div className={styles.baseDiamond} aria-hidden="true">{([2,3,1] as const).map(base => <i key={base} data-occupied={state.runners.includes(base)} />)}</div>
+                </div>}
               </div>
               <div className={styles.toolbarCorrections}>
                 <button
@@ -871,6 +886,7 @@ export function LiveBpConsole({
                   onClick={() => void undoPitch()}
                 >
                   <Undo2 size={18} />
+                  <span className={styles.toolLabel}>Undo</span>
                 </button>
                 <LiveBpCorrections
                   editState={voiceCorrection}
@@ -893,6 +909,7 @@ export function LiveBpConsole({
                 onClick={() => setup(1)}
               >
                 <Settings size={18} />
+                <span className={styles.toolLabel}>Setup</span>
               </button>
               <button
                 type="button"
@@ -907,6 +924,7 @@ export function LiveBpConsole({
                 }}
               >
                 <BarChart3 size={18} />
+                <span className={styles.toolLabel}>Stats</span>
               </button>
             </div>
             {bip ? (
@@ -1079,6 +1097,11 @@ export function LiveBpConsole({
                   {uncertain ? "Retry Pitch" : "Log Pitch"}
                 </button>
                 {voiceEntry}
+                {lastPitch && <div role="status" className={styles.lastEvent}>
+                  <span>Last Pitch</span>
+                  <strong>{lastPitch}</strong>
+                  {notice && <small>{notice}</small>}
+                </div>}
                 <div
                   className="practice-hitting-inline-pitch"
                   aria-label="Live BP quick charts"
@@ -1205,7 +1228,7 @@ export function LiveBpConsole({
                               )}
                               aria-label={
                                 position === "P"
-                                  ? `Change pitcher: ${settings.source === "PLAYER" ? roster.find((p) => p.value === settings.pitcherId)?.label : settings.source === "COACH" ? settings.coachName : "Machine"}`
+                                  ? `Change pitcher: ${settings.source === "PLAYER" ? roster.find((p) => p.value === settings.pitcherId)?.label : settings.source === "COACH" ? settings.coachName ?? "Coach" : "Machine"}`
                                   : `Change ${position}: ${roster.find((p) => p.value === settings.alignment[position])?.label ?? "Unassigned"}`
                               }
                               onClick={() => {
@@ -1285,9 +1308,7 @@ export function LiveBpConsole({
                   )}
                 </div>
               )}
-              <p role="status" className={styles.notice}>
-                {[notice, lastPitch ? `Last: ${lastPitch}` : ""].filter(Boolean).join(" · ")}
-              </p>
+              {!lastPitch && <p role="status" className={styles.notice}>{notice}</p>}
             </footer>
           )}
           {undoOpen &&

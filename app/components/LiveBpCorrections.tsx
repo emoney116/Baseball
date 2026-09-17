@@ -85,6 +85,7 @@ export function LiveBpCorrections({
         onClick={() => setOpen(!open)}
       >
         <SlidersHorizontal size={18} />
+        <span className={styles.toolLabel}>Adjust</span>
       </button>
       {open && (
         <div

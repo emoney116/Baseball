@@ -1,6 +1,8 @@
 .root {
   min-width: 0;
   margin-block: 8px;
+  border-block: 1px solid var(--line);
+  padding: 12px 0;
 }
 .toolbar,
 .actions {
@@ -17,6 +19,16 @@
   align-items: center;
   justify-content: center;
 }
+.toolbar > button { order: -1; min-height: 54px; padding: 10px 18px; background: var(--panel); border-color: var(--line); font-weight: 750; }
+.toolbar > label { min-height: 44px; margin-left: auto; }
+.toolbar > label:has(input[type="checkbox"]:checked) { color: var(--brand-primary); }
+.root[data-phase="listening"] .toolbar > button { color: #16c77a; border-color: #16c77a; }
+.root[data-phase="listening"] { border-top-color: #16c77a; }
+.activity, .qa { margin-top: 10px; color: var(--muted); font-size: 12px; }
+.activity summary, .qa summary { cursor: pointer; min-height: 28px; }
+.activity ol { margin: 4px 0 0; padding-left: 22px; line-height: 1.7; color: var(--text); }
+.qa input { max-width: 100%; }
+.qa output { display: block; overflow-wrap: anywhere; margin-top: 8px; }
 .toolbar label {
   display: inline-flex;
   align-items: center;
@@ -26,11 +38,12 @@
 }
 .preview {
   margin-top: 8px;
-  border: 1px solid var(--line);
-  background: var(--panel);
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
   color: var(--text);
-  padding: 12px;
-  border-radius: 8px;
+  padding: 12px 0 0;
+  border-radius: 0;
   overflow-wrap: anywhere;
 }
 .preview p {
