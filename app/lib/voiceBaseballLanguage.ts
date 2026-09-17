@@ -22,6 +22,7 @@ export const VOICE_QUALITY = {
 
 export function normalizeBaseballLanguage(text: string): string {
   return text
+    .replace(/\b(left|center|right)field(er)?\b/g, '$1 field$2')
     .replace(/\bball (?:one|two|three|[1-3])\b/g, 'ball')
     .replace(/\b(left|center|right) field (?:made|makes) (?:an? )?error\b/g, '$1 fielder fielding error error')
     .replace(/\b(left|center|right) fielder (?:made|makes) (?:an? )?error\b/g, '$1 fielder fielding error error')
