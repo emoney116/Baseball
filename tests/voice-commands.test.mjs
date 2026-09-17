@@ -22,6 +22,7 @@ test('explicit ball four establishes terminal count without changing tracking pr
 });
 test('real tag-up narration keeps catch, batter out, and explicit runner score',()=>{
   const settings=initialBpSettings('m');
+  settings.alignment.CF='d';
   const command=parseVoiceCommand('Runner at third base, one out. Fly ball to center, caught, runner tags and scores.',roster,settings);
   const intent=interpretVoice(command.eventText,{domain:'live-bp',settings,state:{...initialBpState(),...command.statePatch},roster},'tag-up');
   assert.deepEqual(intent.unresolvedFields,[]);

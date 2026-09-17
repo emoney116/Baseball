@@ -624,7 +624,7 @@ export function assertVoiceIntent(
   }
   if (d.runnerReasons !== undefined) {
     const reasons = object(d.runnerReasons, ['1','2','3']);
-    if (Object.values(reasons).some(v=>v!=='On throwing error')) throw new Error('Invalid Voice runner reason.');
+    if (Object.values(reasons).some(v=>v!=='On throwing error' && v!=='Tag up')) throw new Error('Invalid Voice runner reason.');
   }
   if (d.runnerMovements !== undefined) {
     if (!Array.isArray(d.runnerMovements) || d.runnerMovements.length > 12) throw new Error('Invalid Voice runner movements.');
