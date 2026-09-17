@@ -10,6 +10,16 @@ export function defensePresetNameKey(name:string):string {
 }
 
 export function defensePresetIsActive(settings:BpSettings,preset:BpDefensePreset):boolean {
+  return activeDefensePresetId(settings) === preset.id;
+}
+
+export function activeDefensePresetId(settings:BpSettings):string {
+  const matches=(settings.defensePresets??[]).filter(preset=>defensePresetMatches(settings,preset));
+  // Equal layouts need the explicit selection, not the first matching name.
+  return matches.find(preset=>preset.id===settings.activeDefensePresetId)?.id ?? (matches.length===1?matches[0].id:'');
+}
+
+function defensePresetMatches(settings:BpSettings,preset:BpDefensePreset):boolean {
   const current=captureDefensePreset(settings,'','');
   const entries=(value:BpDefensePreset)=>JSON.stringify(Object.entries(value.alignment).sort(([a],[b])=>a.localeCompare(b)));
   return entries(current)===entries(preset) && current.defense===preset.defense && [...current.positions].sort().join() === [...preset.positions].sort().join();
@@ -43,6 +53,7 @@ export function applyDefensePreset(
   );
   return withBpPitcherAlignment({
     ...settings,
+    activeDefensePresetId: preset.id,
     alignment,
     defense: preset.defense,
     positions: [...preset.positions],

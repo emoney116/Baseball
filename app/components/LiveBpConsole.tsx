@@ -1176,7 +1176,7 @@ export function LiveBpConsole({
                 {quickView === "defense" ? (
                   <div ref={fieldPanelRef} className={styles.fieldPanel}>
                     <div className={styles.fieldToolbar}>
-                      {Boolean(settings.defensePresets?.length)&&<div className={styles.quickPreset}><ChoiceSelect label="Active defense preset" disabled={busy||uncertain}
+                      {Boolean(settings.defensePresets?.length)&&<div className={styles.quickPreset}><ChoiceSelect aria-label="Defense preset" disabled={busy||uncertain}
                         value={settings.defensePresets?.find(p=>defensePresetIsActive(settings,p))?.id??''}
                         options={[{value:'',label:'Custom defense'},...(settings.defensePresets??[]).map(p=>({value:p.id,label:p.name}))]}
                         onChange={value=>{const preset=settings.defensePresets?.find(p=>p.id===value);if(!preset)return;const next=applyDefensePreset(settings,preset,players.filter(p=>!p.archived).map(p=>p.id));void write(round?'configure':'start',next,state).then(saved=>{if(saved)setFieldView('defense');});}} />

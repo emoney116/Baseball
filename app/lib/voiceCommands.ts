@@ -114,7 +114,7 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
     ?? remaining.match(/^(.+?) (?:is |are )?on defense$/);
   if(presetRequest) {
     const presets=(settings.defensePresets??[]).filter(p=>defensePresetNameKey(p.name)===defensePresetNameKey(presetRequest[1]));
-    if(presets.length===1){const next=applyDefensePreset(settings,presets[0],roster.map(p=>p.id));command.patch={alignment:next.alignment,defense:next.defense,positions:next.positions};command.confirmations.push(`Defense: ${presets[0].name}`);return command;}
+    if(presets.length===1){const next=applyDefensePreset(settings,presets[0],roster.map(p=>p.id));command.patch={alignment:next.alignment,defense:next.defense,positions:next.positions,activeDefensePresetId:next.activeDefensePresetId};command.confirmations.push(`Defense: ${presets[0].name}`);return command;}
     if(/^teams?\b/.test(presetRequest[1]))command.group={names:presetRequest[1].split(/\s+and\s+/),station:'defense'};
     command.problems.push(presets.length?'More than one defense preset matches. Choose the preset manually.':`No saved defense preset matches "${presetRequest[1]}".`);return command;
   }
@@ -123,7 +123,7 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
     command.group = {names: group ? group[1].split(/\s+and\s+/) : [], station:group?.[2] ?? "next rotation"};
     if(group?.[2] === "defense") {
       const presets = (settings.defensePresets ?? []).filter(p=>normalizeVoiceText(p.name) === group[1]);
-      if(presets.length===1){const p=presets[0];command.patch={alignment:p.alignment,defense:p.defense,positions:p.positions};command.confirmations.push(`Defense: ${p.name}`);return command;}
+      if(presets.length===1){const p=presets[0];const next=applyDefensePreset(settings,p,roster.map(player=>player.id));command.patch={alignment:next.alignment,defense:next.defense,positions:next.positions,activeDefensePresetId:p.id};command.confirmations.push(`Defense: ${p.name}`);return command;}
     }
     command.problems.push(`Practice groups are not available yet: ${remaining}. Choose an existing defense preset manually.`);
     return command;

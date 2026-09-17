@@ -50,6 +50,7 @@ export type BpSettings = {
   positions: BpPosition[];
   alignment: Partial<Record<BpPosition, string>>;
   defensePresets?: BpDefensePreset[];
+  activeDefensePresetId?: string;
 };
 export type BpState = {
   countKnown?: boolean;
@@ -225,6 +226,7 @@ export function validateBpSettings(s: BpSettings) {
     "Invalid count tracking setting.",
   );
   const assigned = Object.values(s.alignment).filter(Boolean);
+  bpAssert(s.activeDefensePresetId === undefined || (typeof s.activeDefensePresetId === 'string' && s.activeDefensePresetId.length <= 80), 'Invalid active defense preset.');
   if (s.defensePresets !== undefined) {
     bpAssert(
       Array.isArray(s.defensePresets) && s.defensePresets.length <= 12,

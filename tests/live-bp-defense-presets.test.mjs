@@ -4,7 +4,34 @@ import { initialBpSettings, validateBpSettings } from "../app/lib/liveBp.ts";
 import {
   captureDefensePreset,
   applyDefensePreset,
+  activeDefensePresetId,
+  defensePresetIsActive,
 } from "../app/lib/liveBpDefensePresets.ts";
+import {parseVoiceCommand} from '../app/lib/voiceCommands.ts';
+import {initialBpState} from '../app/lib/liveBp.ts';
+
+test('Voice preserves Team 2 selection when presets have identical assignments, including reload',()=>{
+  const base={...initialBpSettings('hitter'),source:'COACH',alignment:{SS:'fielder'}};
+  const settings={...base,defensePresets:[captureDefensePreset(base,'one','Team1'),captureDefensePreset(base,'two','Team 2')]};
+  const command=parseVoiceCommand('team two on defense',[{id:'fielder',aliases:['Alex']}],settings,initialBpState());
+  assert.deepEqual(command.problems,[]);
+  const saved=JSON.parse(JSON.stringify({...settings,...command.patch}));
+  validateBpSettings(saved);
+  assert.equal(activeDefensePresetId(saved),'two');
+  assert.equal(defensePresetIsActive(saved,settings.defensePresets[0]),false);
+  assert.equal(defensePresetIsActive(saved,settings.defensePresets[1]),true);
+  assert.equal(activeDefensePresetId(applyDefensePreset(saved,settings.defensePresets[0],['fielder'])),'one');
+});
+
+test('legacy identical layouts do not arbitrarily select Team1; changed or deleted selection is not stale',()=>{
+  const base={...initialBpSettings('hitter'),alignment:{SS:'fielder'}};
+  const settings={...base,defensePresets:[captureDefensePreset(base,'one','Team1'),captureDefensePreset(base,'two','Team 2')]};
+  assert.equal(activeDefensePresetId(settings),'');
+  assert.equal(activeDefensePresetId({...settings,activeDefensePresetId:'two',alignment:{SS:'other'}}),'');
+  assert.equal(activeDefensePresetId({...settings,activeDefensePresetId:'two',defensePresets:[]}), '');
+  assert.equal(activeDefensePresetId({...settings,defensePresets:[settings.defensePresets[0]]}),'one');
+  assert.throws(()=>validateBpSettings({...settings,activeDefensePresetId:42}));
+});
 
 test("defense presets preserve matchup and tracking dimensions while swapping fielders", () => {
   const s = {
