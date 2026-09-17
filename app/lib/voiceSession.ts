@@ -4,6 +4,7 @@ import { normalizeBaseballLanguage } from './voiceBaseballLanguage.ts';
 /** Resolve only explicit, local replacements; ambiguous alternatives stay unresolved. */
 export function correctedVoiceText(text: string): string {
   let corrected = normalizeVoiceText(text)
+    .replace(/^bal(?= (?:outside|away|inside|high|low|up|down|one|two|three|four)\b|$)/, 'ball')
     .replace(/\b(?:uh|um)\b/g, ' ')
     .replace(/\s+/g, ' ').trim()
     .replace(/\b(\d{2,3}) (?:actually (?:make that )?|no (?:sorry )?|make that )(\d{2,3})\b/g, '$2')

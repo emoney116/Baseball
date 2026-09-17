@@ -108,7 +108,7 @@ export async function POST(request: Request) {
     form.append("model", model);
     form.append("language", "en");
     // Very short control phrases can otherwise echo the vocabulary prompt as speech.
-    if (seconds > 3) form.append("prompt", "Baseball practice vocabulary: hitting, pitching, at-bat, fastball, four-seam, slider, changeup, curveball, cutter, swing and miss, whiff, called strike, foul, exit velo, left center, right field.");
+    if (seconds > 3) form.append("prompt", "Baseball practice vocabulary: hitting, pitching, at-bat, ball, ball outside, ball away, fastball, four-seam, slider, changeup, curveball, cutter, swing and miss, whiff, called strike, foul, exit velo, left center, right field.");
     form.append("response_format", "json");
     form.append("include[]", "logprobs");
     const response = await fetch(

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { Pencil, X, FlaskConical, ChevronDown, Zap } from "lucide-react";
 import { encodeVoiceWav, validateVoiceWav, VOICE_MAX_BYTES, VOICE_MAX_SECONDS } from "../lib/voiceAudio";
 import { bpBatterResults } from "../lib/liveBp";
@@ -18,6 +18,7 @@ import styles from "./VoiceEntry.module.css";
 import { parseVoiceCommand, type VoiceContextCommand } from "../lib/voiceCommands";
 import { SessionVoiceCapture } from './SessionVoiceCapture';
 import { voiceSessionAction } from '../lib/voiceSession';
+import { voiceSpeechSuggestions } from '../lib/voiceSpeechRecovery';
 import { validateVoiceProposal } from '../lib/voiceInterpretationProposal';
 import { practiceActionQueue } from '../lib/practiceActionQueue';
 import { voiceFragmentRelation, mergeVoiceDetail } from '../lib/voiceEventAssembler';
@@ -187,6 +188,25 @@ function EnabledVoiceEntry({
       if(await save(parsed, true, effectiveCommand)) return true;
     }
     return waitForReview();
+  }
+  async function confirmSpeechSuggestion(event: MouseEvent<HTMLButtonElement>) {
+    const text=event.currentTarget.value;
+    if (!intent || busy.current || disabled || currentKey.current !== contextKey) return;
+    const proposed=parseVoiceCommand(text,context.roster,context.settings,context.state);
+    if(proposed?.kind==='context' && !proposed.problems.length && onCommand) {
+      busy.current=true;setPhase('saving');
+      try {
+        const saved=await onCommand(proposed,intent.requestId);
+        if(saved){setCommand(proposed);setIntent(null);pendingIntent.current=null;setError('');setCaptureKey(currentKey.current);setPhase('saved');finishReview(true);}
+        else {setPhase('review');setError('Change was not confirmed. Try again.');}
+      } catch {setPhase('review');setError('Change was not confirmed. Try again.');}
+      finally {busy.current=false;}
+      return;
+    }
+    if(proposed)return;
+    const corrected=interpretVoice(text,context,intent.requestId,1);
+    setIntent(corrected);pendingIntent.current=corrected;setError('');
+    if(!corrected.unresolvedFields.length)await save(corrected,false,null);
   }
   async function save(value: VoiceIntent, automatic = false, savingCommand = command) {
     if (
@@ -592,6 +612,10 @@ function EnabledVoiceEntry({
             </>
           )}
           {error && <p role="alert">{error}</p>}
+          {phase==='review' && intent && voiceSpeechSuggestions(intent.transcript,context.roster).length>0 &&
+            <div aria-label="Confirm speech correction">
+              {voiceSpeechSuggestions(intent.transcript,context.roster).map(text=><button key={text} type="button" value={text} className="secondary-button" disabled={disabled} onClick={confirmSpeechSuggestion}>Confirm: {text}</button>)}
+            </div>}
           {phase === 'error' && command?.problems.some(problem=>/^(Which player|Couldn't match player)/.test(problem)) && onCommand &&
             <ChoiceSelect label="Choose roster player" value="" options={context.roster.map(player=>({value:player.id,label:player.aliases[0]??player.id}))}
               onChange={playerId=>{
