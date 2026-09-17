@@ -72,6 +72,19 @@ test("real audio baseline wording is spray, not conflicting pitch location or fi
   }
 });
 
+test("real successful sacrifice with pitcher-to-first throw preserves clean defensive evidence", () => {
+  const ctx = context();
+  ctx.roster[0].aliases.push("Andrew");
+  ctx.settings.defense = "ALL";
+  ctx.state = {...ctx.state, runners:[2], outs:0, situationKnown:true};
+  const intent = interpretVoice("Fastball, 84 low and away bunt, successful sac, runner moves to third, Andrew out pitcher to first.", ctx, "sac-real-audio", .5077);
+  assert.equal(intent.draft.result, "Sac Bunt");
+  assert.equal(intent.draft.defenseResult, "Clean");
+  assert.deepEqual(intent.draft.fieldingSequence, ["P", "1B"]);
+  assert.deepEqual(intent.draft.runnerOutcomes, {2:"3"});
+  assert.ok(!intent.unresolvedFields.includes("Choose the defensive result."));
+});
+
 test("bare left/right batted-ball directions map to canonical spray without guessing ambiguous EV", () => {
   const intent = interpretVoice('Fastball 89 middle fly ball to left 101 exit velo home run',context(),'bare-left',.6794);
   assert.deepEqual(intent.unresolvedFields,[]);

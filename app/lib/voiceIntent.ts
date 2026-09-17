@@ -365,7 +365,7 @@ export function interpretVoice(
     draft.battedBall = take("batted ball", VOICE_CONTACT_ALIASES);
     if (draft.result === 'Sac Bunt') draft.battedBall ??= 'Bunt';
     if (draft.result === 'Sac Fly') draft.battedBall ??= 'Fly ball';
-    if (narratedThrow && draft.position && (draft.result === 'Out' || Object.values(draft.runnerOutcomes ?? {}).includes('out'))) draft.defenseResult ??= 'Clean';
+    if (narratedThrow && draft.position && (draft.result === 'Out' || draft.result === 'Sac Bunt' || Object.values(draft.runnerOutcomes ?? {}).includes('out'))) draft.defenseResult ??= 'Clean';
     draft.position = take("fielder", fielders) ?? draft.position;
     const lane = take("spray", sprayLanes);
     if (lane !== undefined) draft.spray = sprayPointForLane(Number(lane));
