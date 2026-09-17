@@ -84,6 +84,24 @@ test("double and triple never silently leave a preceding runner behind the batte
   }
 });
 
+test("real audio throwing error preserves fielder and explicit batter safe at first", () => {
+  const c=context();
+  c.settings.alignment={'3B':'pitcher'};
+  const intent=interpretVoice('Ground ball to third. Third baseman makes a throwing error. Batter safe at first.',c,'third-error',.9352);
+  assert.equal(intent.draft.position,'3B');
+  assert.equal(intent.draft.errorType,'Throwing');
+  assert.equal(intent.draft.result,'Reached on Error');
+  assert.ok(!intent.unresolvedFields.some(field=>/fielder|batter result|interpret/.test(field)));
+});
+
+test("real audio center fielder makes the catch records an out and clean rep", () => {
+  const intent=interpretVoice('Fly ball to center, center fielder makes the catch.',context(),'center-catch',.9397);
+  assert.equal(intent.draft.position,'CF');
+  assert.equal(intent.draft.result,'Out');
+  assert.equal(intent.draft.defenseResult,'Clean');
+  assert.ok(!intent.unresolvedFields.some(field=>/batter result|interpret/.test(field)));
+});
+
 test("strict intent contract rejects extra fields, invalid taxonomy and confidence", () => {
   const good = interpretVoice(
     "slider 78 middle whiff",

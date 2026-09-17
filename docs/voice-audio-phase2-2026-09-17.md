@@ -72,3 +72,12 @@ Runner-at phrasing was not recognized as context, so none saved. a642dc1 fixes b
 - Command54 is 22.19 seconds, exceeding existing 12-second Voice limit. Must preserve whole narration, not silently truncate.
 - Fast Voice currently compares exponentiated Whisper segment average log probability against .97. Field-level reliability audit pending; no threshold weakened.
 - Remaining commands, raw reconciliation, post-Practice, and device acceptance not yet completed.
+
+### Defense block in progress
+
+- 43 actual `Ground ball to short. Shortstop throws to first. Out.` (.8807). Initially held for unassigned SS. Assigned isolated QA fielders manually; real replay saved GB/Out/SS/Clean. Visible third out cleared bases/outs.
+- 44 actual `Ground ball to third. Third baseman makes a throwing error. Batter safe at first.` (.9352). Held: `makes batter safe` unresolved and first base mistaken for a second fielder. Repository normalization fix pending hosted replay.
+- 45 actual `Fly ball to center, center fielder makes the catch.` (.9397). Held: `makes catch` unresolved. Repository catch wording fix pending hosted replay.
+- Initial segment 04 combined commands46/47 across a 0.73s pause. No save. Split at original timestamp18.208206; now11 segments in43_53.
+- 46 separated real transcript `Ground ball to second, clean play, accurate throw to first, out.` (.9525). Saved; visible outs1, basesempty. Canonical review GB/Out/2B/Clean/Accurate.
+- 47 separated real transcript `Ball hit to left, left fielder throws to second, second baseman drops the tag, runner safe.` (.9935). Held: current bases empty and batter outcome unspecified. Known LF->2B/receiving error retained in draft; cannot invent runner or batter outcome.

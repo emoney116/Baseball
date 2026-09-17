@@ -272,8 +272,13 @@ export function interpretVoice(
     remaining = remaining
       .replace(/\bhe bunted the ball\b/g, 'bunt')
       .replace(/\bit was (?:a )?successful sac(?:rifice)? bunt\b/g, 'sac bunt')
-      .replace(/\bsuccessful sacrifice\b/g, 'sac bunt');
-    if (/\bthrowing error\b/.test(remaining) && !context.state.runners.includes(1)) remaining=remaining.replace(/\brunner safe at first\b/g,'reached on error');
+      .replace(/\bsuccessful sacrifice\b/g, 'sac bunt')
+      .replace(/\bmakes? (?:the |a )?catch\b/g, 'caught');
+    if (/\b(?:throwing|fielding) error\b/.test(remaining)) {
+      remaining = remaining.replace(/\bbatter (?:is |was )?safe at first(?: base)?\b/g, 'reached on error')
+        .replace(/\bmakes? (?:a )?(?=(?:throwing|fielding) error\b)/g, '');
+      if (!context.state.runners.includes(1)) remaining=remaining.replace(/\brunner safe at first\b/g,'reached on error');
+    }
     remaining=remaining.replace(/\bfly ball (?:to )?(left|center|right)(?: field)? caught\b/g,'fly ball $1 field $1 fielder caught');
     // A named batter out is distinct from an existing runner being retired.
     for (const alias of context.roster.find(p=>p.id===playerId)?.aliases ?? []) {

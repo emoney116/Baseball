@@ -14,6 +14,9 @@ for (const file of ['28_42','43_53','54','55-60','61-87','88_93']) {
   const duration = Number(h)*3600 + Number(m)*60 + Number(s);
   const pauses = [...result.stderr.matchAll(/silence_start: ([\d.-]+)\s*\n[^\n]*silence_end: ([\d.]+)/g)].map(x => [Number(x[1]),Number(x[2])]);
   const boundaries = file === '54' ? [0,duration] : [0,...pauses.filter(([a,b])=>a>0.2 && b<duration-0.2).map(([a,b])=>(a+b)/2),duration];
+  // Hosted transcript identified two commands around this shorter 0.73s pause.
+  if (file === '43_53') boundaries.push(18.208206);
+  boundaries.sort((a,b)=>a-b);
   fs.mkdirSync(path.join(out,file), {recursive:true});
   const segments = [];
   for(let i=0;i<boundaries.length-1;i++) {
