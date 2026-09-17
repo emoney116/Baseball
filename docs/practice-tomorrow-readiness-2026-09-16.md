@@ -2,6 +2,14 @@
 
 Status: IN PROGRESS. TOMORROW READY: NO. This is an acceptance ledger, not release approval.
 
+## Latest Hosted Audio Update (September 17 UTC)
+
+Owner-authenticated Preview and dedicated hosted Voice key now work. The earlier authentication/key gate below is historical, not current. Real `1_27.m4a` supplied 26 meaningful utterances: all context/review commands passed after fixes; the named Coach variant was owner-confirmed. Corpus raw/live reconciliation: 14 pitches, 9 swings, 67% contact, 10 velocity samples averaging 79.9, 9 locations, 2 EV samples averaging 90.5, 2 spray locations, no Machine pitcher attribution. Single/Multi manual-to-Voice persistence and reload passed. Live BP visual refresh checked at phone/tablet sizes. See [complete audio and UI evidence](voice-audio-1-27-2026-09-17.md).
+
+Real audio Fast Voice fell back safely to review at provider confidence 0.42-0.64; auto-save field-speed acceptance remains unproven. Physical microphone/Home Screen acceptance and broader hosted scenario coverage are still open. Do not treat this update as all 61 gates passed.
+
+## Earlier Integration Checkpoint
+
 Application checkpoint `0461711` is pushed. Preview Ready: https://baseball-ozwzq2n4q-emoney116s-projects.vercel.app . Stable branch URL: https://baseball-git-codex-practice-tomorrow-2cf81d-emoney116s-projects.vercel.app . The Preview displays Clubhouse Login and needs an authenticated session before hosted acceptance can continue.
 Quality: build and `npm test -- --runInBand` pass (1,237 tests); `npx tsc --noEmit` and `git diff --check` pass; lint has zero errors and 26 existing warnings.
 CLU9-71, CLU9-68 and CLU9-72 updated with measured evidence, all remain In Progress.

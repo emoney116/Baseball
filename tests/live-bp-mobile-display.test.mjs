@@ -2,6 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
+test('pitch map distinguishes located pitches from tracked hard-contact samples', () => {
+  const page = readFileSync('app/page.tsx', 'utf8');
+  assert.match(page, /action === "Ball in play" && entry\.event\.contactQuality\) stats\.hardSamples \+= 1/);
+  assert.match(page, /stats\.hardSamples \? formatPct\(pct\(stats\.hard, stats\.hardSamples\), 0\) : "--"/);
+  assert.match(page, /\$\{stats\.count\} pitches/);
+  assert.match(page, /hard contact not tracked/);
+});
+
+test('completed Live BP drafts do not carry optional pitch type into the next event', () => {
+  const source = readFileSync('app/components/LiveBpConsole.tsx', 'utf8');
+  assert.match(source, /setDraft\(\{\s*outcome: ""\s*\}\)/);
+  assert.doesNotMatch(source, /setDraft\(\{[^}]*pitchType: savedDraft\.pitchType/);
+});
+
 test('Live BP pitch map sizes to its square stage and menus follow the theme', () => {
   const css = readFileSync('app/components/LiveBpConsole.module.css', 'utf8');
   assert.match(css, /\.console :global\(\.practice-hitting-live-charts \.practice-pitch-location-grid\)\s*\{[^}]*height: auto;[^}]*max-height: none;/);

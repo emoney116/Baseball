@@ -11483,10 +11483,11 @@ function PracticeHittingPitchLocationGrid({
   const bucketStats = entries.reduce<Partial<Record<PitchLocationGridZoneId, HittingPitchLocationBucketStats>>>((totals, entry) => {
     const bucket = pitchLocationBucketFromPoint(entry.point);
     if (!bucket) return totals;
-    const stats = totals[bucket.id] ?? { count: 0, contacts: 0, hard: 0, exitVelocities: [] };
+    const stats = totals[bucket.id] ?? { count: 0, contacts: 0, hard: 0, hardSamples: 0, exitVelocities: [] };
     stats.count += 1;
     if (entry.event.action === "Ball in play" || entry.event.action === "Foul") stats.contacts += 1;
     if (isPracticeHardContactEvent(entry.event)) stats.hard += 1;
+    if (entry.event.action === "Ball in play" && entry.event.contactQuality) stats.hardSamples += 1;
     if (entry.event.exitVelocityMph !== undefined) stats.exitVelocities.push(entry.event.exitVelocityMph);
     totals[bucket.id] = stats;
     return totals;
@@ -11606,6 +11607,7 @@ type HittingPitchLocationBucketStats = {
   count: number;
   contacts: number;
   hard: number;
+  hardSamples: number;
   exitVelocities: number[];
 };
 
@@ -11619,7 +11621,7 @@ function hittingPitchLocationHeatOpacity(stats: HittingPitchLocationBucketStats 
 function hittingPitchLocationHeatColor(stats: HittingPitchLocationBucketStats | undefined) {
   if (!stats?.count) return "var(--pitch-heat-empty)";
   const contactRate = stats.contacts / stats.count;
-  const hardRate = stats.hard / stats.count;
+  const hardRate = stats.hardSamples ? stats.hard / stats.hardSamples : 0;
   const avgEv = stats.exitVelocities.length
     ? stats.exitVelocities.reduce((sum, value) => sum + value, 0) / stats.exitVelocities.length
     : undefined;
@@ -11634,7 +11636,7 @@ function hittingPitchLocationHeatColor(stats: HittingPitchLocationBucketStats | 
 
 function hittingPitchLocationBucketMetricLabel(mode: PracticeChartMetricMode, stats?: HittingPitchLocationBucketStats) {
   if (mode === "heat" || mode === "dots" || !stats?.count) return "";
-  if (mode === "percent") return formatPct(pct(stats.hard, stats.count), 0);
+  if (mode === "percent") return stats.hardSamples ? formatPct(pct(stats.hard, stats.hardSamples), 0) : "--";
   return String(stats.count);
 }
 
@@ -11672,11 +11674,12 @@ function hittingPitchLocationLabelFromBucket(bucket: PitchLocationBucket, hitter
 }
 
 function hittingPitchLocationBucketDetail(bucket: PitchLocationBucket, stats?: HittingPitchLocationBucketStats, hitter?: Player) {
-  if (!stats?.count) return `${hittingPitchLocationLabelFromBucket(bucket, hitter)} - no swings`;
+  if (!stats?.count) return `${hittingPitchLocationLabelFromBucket(bucket, hitter)} - no pitches`;
   const avgEv = stats.exitVelocities.length
     ? ` - ${formatNumber(stats.exitVelocities.reduce((sum, value) => sum + value, 0) / stats.exitVelocities.length, 1)} avg EV`
     : "";
-  return `${hittingPitchLocationLabelFromBucket(bucket, hitter)} - ${stats.count} swings - ${formatPct(pct(stats.hard, stats.count), 0)} hard${avgEv}`;
+  const hard = stats.hardSamples ? `${formatPct(pct(stats.hard, stats.hardSamples), 0)} hard (${stats.hardSamples} tracked)` : "hard contact not tracked";
+  return `${hittingPitchLocationLabelFromBucket(bucket, hitter)} - ${stats.count} pitches - ${hard}${avgEv}`;
 }
 
 type PitchLocationGridMode = "entry" | "live" | "analytics";
