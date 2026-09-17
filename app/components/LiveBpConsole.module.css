@@ -159,9 +159,9 @@
 .baseDiamond i { background: var(--line); border: 1px solid var(--muted); }
 .baseDiamond i:first-child { grid-column: 2; }
 .baseDiamond i[data-occupied="true"] { background: #e8b44c; border-color: #e8b44c; }
-.lastEvent { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; padding: 12px 14px; border-left: 3px solid var(--brand-primary); background: var(--brand-soft); min-width: 0; }
+.lastEvent { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; padding: 7px 10px; border-left: 3px solid var(--brand-primary); background: var(--brand-soft); min-width: 0; }
 .lastEvent > span { color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; }
-.lastEvent strong { grid-row: 2; grid-column: 1 / -1; font-size: 16px; line-height: 1.4; overflow-wrap: anywhere; }
+.lastEvent strong { grid-row: 2; grid-column: 1 / -1; font-size: 14px; line-height: 1.3; overflow-wrap: anywhere; }
 .lastEvent small { grid-row: 1; grid-column: 2; color: var(--muted); font-size: 11px; }
 .sourceButton > svg,
 .participantName > svg {
@@ -411,12 +411,23 @@
   padding: 1px;
 }
 .fieldPanel {
+  position: relative;
   display: grid;
   gap: 8px;
   width: 100%;
   max-width: 480px;
   margin-inline: auto;
 }
+.fieldPanel > .fieldToolbar {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  z-index: 6;
+  pointer-events: none;
+}
+.fieldPanel > .fieldToolbar > * { pointer-events: auto; }
+.fieldPanel .fieldViewToggle { background: var(--panel-strong); border-radius: 6px; padding: 2px; }
 .fieldToolbar,
 .console :global(.practice-hitting-live-charts__head) {
   position: relative;

@@ -24,8 +24,14 @@
 .toolbar > label:has(input[type="checkbox"]:checked) { color: var(--brand-primary); }
 .root[data-phase="listening"] .toolbar > button { color: #16c77a; border-color: #16c77a; }
 .root[data-phase="listening"] { border-top-color: #16c77a; }
-.activity, .qa { margin-top: 4px; color: var(--muted); font-size: 11px; }
-.activity summary, .qa summary { cursor: pointer; min-height: 20px; }
+.activity { margin-top: 4px; color: var(--muted); font-size: 11px; }
+.activity summary { cursor: pointer; min-height: 20px; }
+.qa { position: relative; flex: 0 0 32px; color: var(--muted); font-size: 11px; }
+.qa summary { list-style: none; cursor: pointer; width: 32px; height: 44px; display: grid; place-items: center; }
+.qa summary::-webkit-details-marker { display: none; }
+.qaPanel { position: absolute; z-index: 12; right: 0; top: 44px; width: min(310px, calc(100vw - 40px)); padding: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-strong); box-shadow: 0 6px 24px #0003; }
+.toolbar { column-gap: 6px; }
+.toolbar label { font-size: 11px; }
 .activity ol { margin: 4px 0 0; padding-left: 22px; line-height: 1.7; color: var(--text); }
 .qa input { max-width: 100%; }
 .qa output { display: block; overflow-wrap: anywhere; margin-top: 8px; }
