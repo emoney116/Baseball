@@ -274,7 +274,7 @@ export function interpretVoice(
       .replace(/\bit was (?:a )?successful sac(?:rifice)? bunt\b/g, 'sac bunt')
       .replace(/\bsuccessful sacrifice\b/g, 'sac bunt');
     if (/\bthrowing error\b/.test(remaining) && !context.state.runners.includes(1)) remaining=remaining.replace(/\brunner safe at first\b/g,'reached on error');
-    remaining=remaining.replace(/\bfly ball (left|center|right)(?: field)? caught\b/g,'fly ball $1 field $1 fielder caught');
+    remaining=remaining.replace(/\bfly ball (?:to )?(left|center|right)(?: field)? caught\b/g,'fly ball $1 field $1 fielder caught');
     // A named batter out is distinct from an existing runner being retired.
     for (const alias of context.roster.find(p=>p.id===playerId)?.aliases ?? []) {
       const name = normalizeVoiceText(alias).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -286,12 +286,15 @@ export function interpretVoice(
     if (scoredOnError) {
       remaining = remaining.replace(scoringError, 'runner from $1 to home $2 throwing error throws to $3');
     }
+    const taggedRunner = /\brunner tags and scores\b/.test(remaining);
+    remaining = remaining.replace(/\brunner tags and scores\b/g, 'runner scores');
     const runners = parseVoiceRunners(remaining, context.state);
     remaining = runners.remaining;
     for (const problem of runners.problems) unresolved.add(problem);
     if (Object.keys(runners.outcomes).length) {
       draft.runnerOutcomes = runners.outcomes;
       draft.runnerMovements = runners.movements;
+      if (taggedRunner && runners.movements.length === 1) draft.runnerReasons = {[runners.movements[0].runnerBase]:'Tag up'};
       if (scoredOnError) {
         const scored = Object.entries(runners.outcomes).filter(([,to])=>to==='score');
         if (scored.length===1) draft.runnerReasons = {[scored[0][0]]:'On throwing error'};
@@ -318,7 +321,7 @@ export function interpretVoice(
       for(const m of [...sequence].reverse()) remaining=remaining.slice(0,m.start)+" ".repeat(m.end-m.start)+remaining.slice(m.end);
     }
     remaining = remaining.replace(/\b(ground ball|line drive|fly ball|pop fly|bunt) to (left|right)\b(?! (?:center|field))/g, '$1 to $2 field');
-    const hitArea=remaining.match(/\b(?:ball (?:was )?hit|single|double) to (left|right)\b/);
+    const hitArea=remaining.match(/\b(?:ball (?:was )?hit|single|double) to (left|right)\b(?! (?:center|field))/);
     if(hitArea){
       draft.spray=sprayPointForLane(hitArea[1]==="left"?0:4);
       remaining=remaining.replace(hitArea[0],hitArea[0].startsWith("single")?"single":hitArea[0].startsWith("double")?"double":"ball in play");

@@ -4,6 +4,30 @@ import {parseVoiceCommand} from '../app/lib/voiceCommands.ts';
 import {interpretVoice} from '../app/lib/voiceIntent.ts';
 import {initialBpSettings,initialBpState} from '../app/lib/liveBp.ts';
 const roster=[{id:'d',aliases:['Darren Adams','Darren','Adams','3']},{id:'m',aliases:['Mylo White','Mylo','White']},{id:'j',aliases:['JP Smith','JP','Smith']}];
+test('real audio runner-at-base compounds establish state before event interpretation',()=>{
+  const settings=initialBpSettings('m');
+  for(const [text,bases] of [['Runner at first base, single to left.',[1]],['Runners at first base and second base. Single to center, runner from second scores, runner from first goes to second.',[1,2]]]) {
+    const command=parseVoiceCommand(text,roster,settings);
+    assert.equal(command.kind,'compound');assert.deepEqual(command.statePatch.runners,bases);
+    const intent=interpretVoice(command.eventText,{domain:'live-bp',settings,state:{...initialBpState(),...command.statePatch},roster},'runner-at');
+    assert.deepEqual(intent.unresolvedFields,[]);
+  }
+});
+test('explicit ball four establishes terminal count without changing tracking preference',()=>{
+  const settings=initialBpSettings('m');settings.countTracking=false;
+  const command=parseVoiceCommand('Bases loaded, ball four.',roster,settings);
+  assert.equal(command.kind,'compound');assert.equal(command.eventText,'ball');
+  assert.equal(command.statePatch.balls,3);assert.equal(command.statePatch.countKnown,true);
+  assert.equal(command.patch.countTracking,undefined);
+});
+test('real tag-up narration keeps catch, batter out, and explicit runner score',()=>{
+  const settings=initialBpSettings('m');
+  const command=parseVoiceCommand('Runner at third base, one out. Fly ball to center, caught, runner tags and scores.',roster,settings);
+  const intent=interpretVoice(command.eventText,{domain:'live-bp',settings,state:{...initialBpState(),...command.statePatch},roster},'tag-up');
+  assert.deepEqual(intent.unresolvedFields,[]);
+  assert.equal(intent.draft.result,'Out');assert.equal(intent.draft.position,'CF');
+  assert.equal(intent.draft.runnerOutcomes['3'],'score');assert.equal(intent.draft.runnerReasons['3'],'Tag up');
+});
 test('real provider ordinal and source article transcripts are context only',()=>{
   const settings=initialBpSettings('m');
   const runner=parseVoiceCommand('Runner on 2nd with 1 out.',roster,settings);
