@@ -722,6 +722,7 @@ export function LiveBpConsole({
   const voiceEntry = (
     <VoiceEntry
       practiceId={practiceId}
+      captureDisabled={localVisual || !active || uncertain || loading || Boolean(round?.ended_at)}
       disabled={
         localVisual || !active || busy || uncertain || loading || Boolean(round?.ended_at)
       }

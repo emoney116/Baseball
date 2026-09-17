@@ -277,6 +277,10 @@ export function interpretVoice(
       .replace(/\bmakes? (?:the |a )?catch\b/g, 'caught');
     remaining = remaining.replace(/^ball to (?=(?:left|right|center)\b)/, 'ball in play to ');
     remaining = remaining.replace(/\bbatter (?:is |was )?out at first(?: base)?\b/g, 'out');
+    for (const alias of context.roster.find(p=>p.id===playerId)?.aliases ?? []) {
+      const name = normalizeVoiceText(alias).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      remaining = remaining.replace(new RegExp(`\\b${name} bunted the ball\\b`, 'g'), 'bunt');
+    }
     if (/\b(?:throwing|fielding) error\b/.test(remaining)) {
       remaining = remaining.replace(/\bbatter (?:is |was )?safe at first(?: base)?\b/g, 'reached on error')
         .replace(/\bmakes? (?:a )?(?=(?:throwing|fielding) error\b)/g, '');
@@ -294,6 +298,9 @@ export function interpretVoice(
     if (scoredOnError) {
       remaining = remaining.replace(scoringError, 'runner from $1 to home $2 throwing error throws to $3');
     }
+    const receivingScoreError = /\brunner from (first|second|third) attempted to advance (?:to )?home and was safe at home after (?:the )?(first baseman|second baseman|third baseman|shortstop|pitcher|catcher|left fielder|center fielder|right fielder) threw to (?:the )?(first baseman|second baseman|third baseman|shortstop|pitcher|catcher) and (?:the )?(first baseman|second baseman|third baseman|shortstop|pitcher|catcher) made an error on the play\b/;
+    const scoredOnReceivingError = remaining.match(receivingScoreError);
+    if (scoredOnReceivingError) remaining = remaining.replace(receivingScoreError, 'runner from $1 to home $2 throws to $3 $4 made an error on the play');
     const taggedRunner = /\brunner tags and scores\b/.test(remaining);
     remaining = remaining.replace(/\brunner tags and scores\b/g, 'runner scores');
     const runners = parseVoiceRunners(remaining, context.state);
@@ -306,6 +313,10 @@ export function interpretVoice(
       if (scoredOnError) {
         const scored = Object.entries(runners.outcomes).filter(([,to])=>to==='score');
         if (scored.length===1) draft.runnerReasons = {[scored[0][0]]:'On throwing error'};
+      }
+      if (scoredOnReceivingError) {
+        const scored = Object.entries(runners.outcomes).filter(([,to])=>to==='score');
+        if (scored.length===1) draft.runnerReasons = {[scored[0][0]]:'Other'};
       }
       if (context.settings.mode !== "GAME" && !context.state.situationKnown) unresolved.add("runner situation");
     }
@@ -320,11 +331,11 @@ export function interpretVoice(
     const narratedThrow = /\b(?:threw|throws?|throw)\s+to\b/.test(remaining) || /\b(?:pitcher|shortstop|baseman) to (?:the )?(?:first|second|third|catcher)\b/.test(remaining);
     if(narratedThrow && sequence.length>1) {
       draft.fieldingSequence=sequence.map(m=>m.value).filter((value,index,all)=>index===0||all[index-1]!==value);
-      const receivingError=/\b(?:drops? the tag|made an error fielding it(?: on the tag)?|fielding error)\b/.exec(remaining);
+      const receivingError=/\b(?:drops? the tag|made an error fielding it(?: on the tag)?|fielding error|made an error on the play)\b/.exec(remaining);
       if(receivingError){
         const before=sequence.filter(m=>m.start<receivingError.index);
         draft.position=before.at(-1)?.value;
-        draft.defenseResult="Error";draft.errorType="Fielding";
+        draft.defenseResult="Error";draft.errorType=receivingError[0]==='made an error on the play'?undefined:"Fielding";
         remaining=remaining.replace(receivingError[0]," ".repeat(receivingError[0].length));
       }else {
         const throwingError = /\bthrowing error\b/.exec(remaining);
@@ -636,7 +647,7 @@ export function assertVoiceIntent(
   }
   if (d.runnerReasons !== undefined) {
     const reasons = object(d.runnerReasons, ['1','2','3']);
-    if (Object.values(reasons).some(v=>v!=='On throwing error' && v!=='Tag up')) throw new Error('Invalid Voice runner reason.');
+    if (Object.values(reasons).some(v=>v!=='On throwing error' && v!=='Other' && v!=='Tag up')) throw new Error('Invalid Voice runner reason.');
   }
   if (d.runnerMovements !== undefined) {
     if (!Array.isArray(d.runnerMovements) || d.runnerMovements.length > 12) throw new Error('Invalid Voice runner movements.');

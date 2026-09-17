@@ -4,6 +4,19 @@ import {parseVoiceCommand} from '../app/lib/voiceCommands.ts';
 import {interpretVoice} from '../app/lib/voiceIntent.ts';
 import {initialBpSettings,initialBpState} from '../app/lib/liveBp.ts';
 const roster=[{id:'d',aliases:['Darren Adams','Darren','Adams','3']},{id:'m',aliases:['Mylo White','Mylo','White']},{id:'j',aliases:['JP Smith','JP','Smith']}];
+test('actual 54 transcript preserves sacrifice, ordered runner legs and catcher error',()=>{
+  const players=[...roster,{id:'a',aliases:['Andrew']},{id:'c',aliases:['Catcher']}];
+  const settings={...initialBpSettings('m'),alignment:{C:'c','1B':'d'}};
+  const transcript='Andrew is hitting now. There is a runner on second base with nobody out. 84 mph fastball low and away. Andrew bunted the ball. It was a successful sacrifice bunt. The runner moved to third. Andrew was thrown out at first by the pitcher to first baseman. The runner from third attempted to advance home and was safe at home after the first baseman threw to the catcher and the catcher made an error on the play.';
+  const command=parseVoiceCommand(transcript,players,settings);
+  const intent=interpretVoice(command.eventText,{domain:'live-bp',bats:'R',roster:players,settings:{...settings,...command.patch},state:{...initialBpState(),...command.statePatch}},'complex-54',.4168);
+  assert.deepEqual(intent.unresolvedFields,[]);
+  assert.equal(intent.draft.result,'Sac Bunt');assert.equal(intent.draft.velocity,84);
+  assert.equal(intent.draft.position,'C');assert.equal(intent.draft.defenseResult,'Error');
+  assert.equal(intent.draft.errorType,undefined);
+  assert.deepEqual(intent.draft.fieldingSequence,['P','1B','C']);
+  assert.deepEqual(intent.draft.runnerMovements,[{runnerBase:2,from:'2',to:'3'},{runnerBase:2,from:'3',to:'score'}]);
+});
 test('real combined tracking and defense tracking phrases change defaults only',()=>{
   const settings=initialBpSettings('m');
   const combined=parseVoiceCommand('Start tracking exit velo and spray.',roster,settings);

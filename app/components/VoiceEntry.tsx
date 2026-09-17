@@ -37,6 +37,7 @@ function EnabledVoiceEntry({
   practiceId,
   context,
   disabled,
+  captureDisabled,
   onSave,
   onEdit,
   onUndo,
@@ -45,6 +46,7 @@ function EnabledVoiceEntry({
   practiceId: string;
   context: VoiceContext;
   disabled?: boolean;
+  captureDisabled?: boolean;
   onSave: (intent: VoiceIntent) => Promise<boolean>;
   onEdit: (intent: VoiceIntent) => void;
   onUndo: () => void;
@@ -453,7 +455,7 @@ function EnabledVoiceEntry({
   return (
     <section className={styles.root} aria-label="Voice stat entry" data-phase={phase}>
       <div className={styles.toolbar}>
-        {continuous ? <SessionVoiceCapture key={`${practiceId}:${Boolean(disabled)}`} practiceId={practiceId} contextKey={contextKey} disabled={disabled} onTranscript={receiveSessionTranscript} /> :
+        {continuous ? <SessionVoiceCapture key={practiceId} practiceId={practiceId} contextKey={contextKey} disabled={captureDisabled ?? disabled} onTranscript={receiveSessionTranscript} /> :
         <button
           type="button"
           className={styles.micButton}

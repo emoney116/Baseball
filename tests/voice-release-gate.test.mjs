@@ -23,3 +23,13 @@ test("Voice UI and server endpoints fail closed before capture or provider work"
     assert.ok(source.indexOf('NEXT_PUBLIC_CLUBHOUSE_VOICE_ENABLED !== "true"') < source.indexOf("auth.getUser()"));
   }
 });
+
+test("continuous Live BP capture is not remounted by transient save busy state",()=>{
+  const ui=readFileSync('app/components/VoiceEntry.tsx','utf8');
+  const console=readFileSync('app/components/LiveBpConsole.tsx','utf8');
+  assert.match(ui,/<SessionVoiceCapture key=\{practiceId\}/);
+  assert.match(ui,/disabled=\{captureDisabled \?\? disabled\}/);
+  const capture=console.match(/captureDisabled=\{([^}]+)\}/)?.[1];
+  assert.ok(capture);assert.doesNotMatch(capture,/\bbusy\b/);
+  assert.match(capture,/!active/);assert.match(capture,/uncertain/);
+});

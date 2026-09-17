@@ -93,3 +93,40 @@ Runner-at phrasing was not recognized as context, so none saved. a642dc1 fixes b
 - 40 replay transcript changed to `Runner at first base. Doubled to left center.` (.7064); held unknown doubled. Added inflected baseball synonym; real replay pending.
 - New migration20260917032146 changes only voice_usage audio_seconds bound12->30. Local complete-chain database tests169passed; owner approval requested before any hosted apply. Read-only hosted constraint still12confirmed.
 - Full regression after initial defense/job/audio changes:1269passed. Subsequent tiny normalization changes need final rerun.
+
+### Corrections and settings initial pass
+
+54 full22.19s upload accepted by new client, blocked before provider by hosted12s usage constraint. Migration approval remains pending; no truncated replacement used. Shorter cases continued while waiting.
+
+|#|Actual transcript|Confidence|Initial result|
+|---|---|---:|---|
+|55|Slider, 78, actually make that 81, down and away, swing and miss.|.8803|Held multiple numbers; fixed c08c5d5|
+|56|Runner on first-no, sorry, runner on second.|.9816|Held correction wording; fixed c08c5d5|
+|57|JP is hitting, actually wait Milo is hitting|not displayed|Held unresolved wait milo; fixed c08c5d5|
+|58|Fastball 84, no that was a slider 84 low and away, whiff.|.5156|Held conflicting pitch/number; fixed c08c5d5|
+|59|That was slider at 79, I think, down and away, swing and miss.|.6701|Held filler; fixed c08c5d5|
+|60|The pitch was 83, fastball, kind of up and in, he fouled it off.|.9937|Held natural foul wording; fixed c08c5d5|
+|61|Undo.|not displayed|Canonical dialog, confirmed; event85 removed, state3B/1out restored|
+|62|Undo that.|not displayed|Same dialog, confirmed; event83 removed, state2B+1B/0out restored|
+|63|undo last pitch|not displayed|Same dialog, confirmed; event82 removed, state2B/0out restored|
+|64|Take that back.|not displayed|Same dialog, confirmed; event79 removed, empty/0out restored|
+|65|Start tracking velocity.|not displayed|Persisted velocitytrue; manual Setup switch checked|
+|66|Stop tracking velocity.|not displayed|Persisted velocityfalse version91|
+|67|Turn pitch locations on|not displayed|Persisted locationtrue version92|
+|68|Stop tracking locations|not displayed|Persisted locationfalse version93|
+|69|Turn counts on|not displayed|Persisted countTrackingtrue version94|
+|70|Turn counts off|not displayed|Persisted countTrackingfalse/countKnownfalse version95|
+|71|Start tracking exit velo and spray.|.8143|Held, compound settings fix47da0aa awaiting replay|
+|72|Turn defense tracking on.|.9519|Held, tracking-word fix47da0aa awaiting replay|
+
+No stat event saved from failed correction or setting commands. Read-only SQL confirms canonical Undo removals. Ordinary Undo includes the existing manual confirmation dialog, not silent deletion.
+
+Owner approved duration migration. Applied once via Supabase apply_migration, resulting version20260917033707; local filename aligned to that history. Read-only check confirms <=30. No permissions/rate limits/baseball records changed. Existing advisor warnings remain outside this change ([remediation guidance](https://supabase.com/docs/guides/database/database-linter)).
+
+54 actual full hosted transcript (.4168): `Andrew is hitting now. There is a runner on second base with nobody out. 84 mph fastball low and away. Andrew bunted the ball. It was a successful sacrifice bunt. The runner moved to third. Andrew was thrown out at first by the pitcher to first baseman. The runner from third attempted to advance home and was safe at home after the first baseman threw to the catcher and the catcher made an error on the play.`
+
+Held initially. New parser preserves Sac Bunt,84/4-Seam/LowAway, ordered2->3->score, P->1B->C and C error with unknown error type (not invented throwing/fielding subtype). Real replay still required.
+
+55 corrected audio replay c08c5d5 (.9397) saved Slider81/DownAway/Whiff, no78; CountOff stayedoff.56 replay `Runner on first. No, sorry, runner on second.` saved2B-only context.
+
+Continuous-capture audit found save-busy remounting the mic. Capture lifecycle now separate from transient save busy; no fixed total Practice listening timeout. Hard30s speech-turn bound remains, silence separates turns; physical long-running microphone test still required.
