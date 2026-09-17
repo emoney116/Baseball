@@ -342,9 +342,9 @@ export function LiveBpConsole({
       adopt(p.round);
       if (operation === "pitch") {
         const savedDraft = pending.current?.draft ?? draft;
-        const pitchType = savedDraft.pitchType;
         pending.current = null;
-        setDraft({ outcome: "", pitchType });
+        // Only Single-mode settings persist a pitch program across completed events.
+        setDraft({ outcome: "" });
         requestAnimationFrame(() =>
           fields.current?.scrollIntoView({ block: "start" }),
         );
@@ -352,7 +352,7 @@ export function LiveBpConsole({
         setStage("pitch");
         setLastPitch(
           [
-            savedDraft.pitchType ?? (nextSettings.pitchMode !== "OFF" ? nextSettings.pitchType : ""),
+            savedDraft.pitchType ?? (nextSettings.pitchMode === "ONE" ? nextSettings.pitchType : ""),
             savedDraft.velocity !== undefined
               ? `${savedDraft.velocity} mph`
               : "",
