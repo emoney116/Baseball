@@ -175,3 +175,55 @@ Every accepted command above visibly updated the console without manual refresh.
 
 Live Andrew Analytics readback independently reconciles raw records:24swings=(16BIP+4Foul+4Miss),20/24contact=83%,7EVsamples avg92.4286/max101,12spray points,17located pitches. Historical failed QA triple beforeguard remains in isolated fixture and is not represented as a clean initial acceptance pass.
 Fast confidence diagnostic replay76: `Fastball, 84, up, foul.` .9044, weakest tokenFast=.9044;up=.9987,ball=.9994,foul=.9999,84=1. No blanket threshold lowered. Correct parser/identity/completeness, provider-token gate alone causes Review.
+
+### Final hosted readback (4274ed9)
+
+51 same real clip replay afterabda7ee: `Fastball, 84 low and away bunt, successful sac, runner moves to third, Andrew out, pitcher to first.` (.6501). Saved event138:Andrew/Darren,84/4-Seam/LowAway,SacBunt,P Clean,P->1B,runner2->3,1out. SQL confirms linked pitcher and defense evidence. Unassigned first baseman remains unidentified rather than invented.
+91 real replay .9999 held with `Identify the fielder who made the error and confirm the batter result.`
+92 real replay .9820 held with `Specify which runner advanced and the destination base.`
+Manual foul saved after Voice, then real86clip returned `Undo that.` (.9998) and canonical Undo removed it, restoring event138. No input-method-specific Undo.
+
+End Practice initially exposed a legacy confirmation-summary bug: untracked contact quality produced0% hard/impact highlights.4274ed9 switches that modal and standout ranking to canonical Practice Analytics. Real hosted End -> Save Practice Summary -> Practice Complete -> reload -> exact Practice Analytics all verified.
+
+|Metric|Read-only raw canonical records|Completed Practice / exact Practice Analytics|
+|---|---:|---:|
+|Live BP pitch opportunities|42|42|
+|Swings|34|34|
+|Contacts|26|26;76%|
+|Whiffs|8|24% of34swings|
+|BIP|20|20|
+|EV samples / average / max|9 /92.3333 /101|92.3 /101.0|
+|Recorded pitch velocities / locations / sprays|29 /28 /15|Only recorded points included; Andrew spot-check17locations/12sprays before final sacrifice|
+|Player-pitcher events|9|9: Darren6,Aiden3|
+|Player strikes / swings / whiffs / called strikes|8 /7 /2 /1|89%strike,29%whiff,33%CSW|
+|Player velocity samples / average / max|8 /80 /85|80.0 /85.0|
+|Machine/Coach pitcher evidence|0|No fabricated pitcher rows|
+|Defensive reps / clean / errors|5 /4 /1|5 /80% /1|
+|Hard contact / throw accuracy|Not supplied|Not tracked, not0%|
+
+This42-event hosted round includes prior1-27 and retained diagnostic retries. It is NOT represented as a fresh50-pitch hosted run. The separate deterministic50-pitch transactional regression passes, including independent per-event raw/Analytics checks and six defensive reps after fixing the narrated sacrifice.
+
+Defense limitation: one primary defensive stat row per canonical pitch; ordered multi-fielder sequence is preserved in context, but individual relay throws/receivers are not separate stat reps. Throws/accuracy currently require the existing graded throw primitive; an ungraded narrated throw remains in the event graph, not invented as Accurate. No separate cutoff metric exists.47/49 retain review for unresolved batter/runner or unsupported cutoff detail.
+
+### Fast Voice and remaining gates
+
+Observed ordinary Fast-enabled subset:9eligible events (60,75-78,81,84-85,87);3auto-saved (60,75,87),6reviewed solely for provider-token confidence. Identity, classification, required-result and unresolved-field gates also apply. Optional missing metrics are not penalties.88-92did not auto-save even with high transcription confidence;93uniquely resolved roster context. Confidence evidence is exposed only in Preview QA. Field-level transcription calibration remains incomplete; no lowered global threshold used to inflate coverage.
+
+Provider errors observed: short Undo vocabulary-prompt echo (fixed by removing prompt for<=3sec, actualclip retested);51Andrew occasionally transcribed `and you're` (held, unchanged audio retry correct); long54correct transcript had weak token confidence (.0600) and requiredReview. Audio proves provider parsing, NOT iPhone microphone/noise/endurance.
+
+User-approved migration applied once:20260917033707_voice_long_narration_bound,12->30sec per utterance only. Continuous mode has no whole-Practice time cutoff and supports mute/unmute; each silence-delimited turn remains bounded30sec. Existing30requests/min and1000/day unchanged. Continuous mic no longer remounts on save-busy. Physical long-running/queued-turn endurance remains unverified; a context change while queued speech is transcribing safely pauses Voice rather than applying stale context.
+
+Quality:1278tests passed; build passed; TypeScript passed; lint0errors/26existingwarnings; diffcheck clean. Current direction/UI preserved. Phone390x844 completed-review spot-check readable in dark mode. No new physicaliPhone/iPad/PWA acceptance claimed. Main not merged; productionVoice gate remains off.
+
+### Owner device check (under5minutes)
+
+On the integration Preview and an isolated active QA Practice:
+1. Allow mic; say the hitter and Player pitcher names. Confirm both visibly change.
+2. Say `Slider79down away whiff`; verify Review/Save, then enableFastVoice and repeat.
+3. Say `Runner on first, one out`; then `Fastball84middle line drive left center92exit velo single`. Check bases,EV,spray.
+4. Say `Undo that`, confirm, and verify bases/lastpitch restore.
+5. Log a manualFoul, then speak aWhiff; confirm sameparticipants/context.
+6. EnableContinuous, speak with pauses, mute/unmute, and verify manualcontrols stayavailable.
+7. EndQA Practice and comparePracticeComplete to exactPracticeAnalytics.
+
+Readiness: device spot-test is useful now, but TomorrowReady=NO pending practicalFastVoice coverage, microphone/field-noise/endurance acceptance, and the documented advanced-defense representation limits. The latest real production Practice forensic audit was not re-executed in this Phase2isolatedQA pass.
