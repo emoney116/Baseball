@@ -763,7 +763,8 @@ test("expanded tracked metrics preserve source boundaries and qualification evid
   assert.equal(jacob.cells.gbFbRatio.display, "1.000");
   assert.equal(jacob.cells.medianEv.display, "90.0");
   assert.equal(jacob.cells.ev90.kind, "insufficient-sample");
-  assert.equal(result.availableColumns.some((column) => column.metricId === "avg"), false);
+  assert.equal(result.availableColumns.some((column) => column.metricId === "avg"), true);
+  assert.equal(jacob.cells.avg.kind, "not-tracked");
 });
 
 test("game spray visuals adapt historical game field coordinates without changing query scope", () => {
@@ -949,6 +950,25 @@ test("Machine hitter count and RISP filters use durable round context without pi
   assert.notEqual(empty.teamTotals.cells.swings.value,1);
   const pitching=executeAnalyticsQuery(data,query('pitching','live-bp'));
   assert.notEqual(pitching.teamTotals.cells.pitches.value,1);
+});
+
+test('Practice batting and recap attribute runs to runners and RBI to hitter', () => {
+  const data=structuredClone(baseData);
+  data.hittingEvents=[hittingEvent('scored-double','practice-aug-19','live-hit-1','p-jacob','Ball in play',{
+    isLiveBp:true,liveBpContext:{result:'Double',before:{outs:0,runnerIds:{2:'p-jackson'}},runnerOutcomes:{batter:'2',2:'score'}}
+  })];
+  const result=executeAnalyticsQuery(data,query('hitting','live-bp'));
+  assert.equal(row(result,'p-jacob').cells.hits.value,1);
+  assert.equal(row(result,'p-jacob').cells.rbi.value,1);
+  assert.equal(row(result,'p-jackson').cells.runs.value,1);
+  assert.equal(row(result,'p-jackson').cells.hits.kind,'not-tracked');
+  const filtered=executeAnalyticsQuery(data,{...query('hitting','live-bp'),playerIds:['p-jackson']});
+  assert.equal(row(filtered,'p-jackson').cells.runs.value,1);
+  const recap=buildPracticeReviewSummary(data,'practice-aug-19');
+  assert.equal(recap.liveHitting.teamTotals.cells.rbi.value,1);
+  assert.equal(recap.hitting.teamTotals.cells.runs.value,1);
+  data.hittingEvents=[];
+  assert.equal(buildPracticeReviewSummary(data,'practice-aug-19').hitting.teamTotals.cells.hits.kind,'not-tracked');
 });
 
 function query(domain, source) {

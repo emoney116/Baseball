@@ -7,7 +7,7 @@ export function PracticeRecap({summary}:{summary:ReturnType<typeof buildPractice
     {name:'Hitting',result:summary.hitting,metrics:[['swings','Swings'],['takes','Takes'],['contactPct','Contact %'],['swingMissPct','Whiff %'],['avgEv','Avg EV'],['maxEv','Max EV'],['hardPct','Hard %'],['bip','BIP']]},
     {name:'Pitching',result:summary.pitching,metrics:[['pitches','Pitches'],['strikePct','Strike %'],['whiffPct','Whiff %'],['cswPct','CSW %'],['avgPitchVelo','Avg velocity'],['maxPitchVelo','Max velocity']]},
     {name:'Defense',result:summary.defense,metrics:[['reps','Reps'],['cleanPct','Clean %'],['errors','Errors'],['throws','Throws'],['throwAcc','Throw accuracy'],['greatPlays','Great plays']]},
-    {name:'Live BP',result:summary.liveHitting,metrics:[['opportunities','Pitches'],['swings','Swings'],['bip','BIP'],['contactPct','Contact %']]},
+    {name:'Live BP',result:summary.liveHitting,metrics:[['opportunities','Pitches'],['ab','AB'],['hits','Hits'],['runs','Runs'],['rbi','RBI'],['walks','Walks'],['avg','AVG'],['bip','BIP']]},
   ];
   return <section aria-label="Recorded Practice metrics" className={styles.root}>
     <div className={styles.meta}>

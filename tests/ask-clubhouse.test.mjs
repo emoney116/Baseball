@@ -18,6 +18,15 @@ import { ASK_CLUBHOUSE_INTELLIGENCE_QA } from "./fixtures/ask-clubhouse-intellig
 import { canonicalizeAppDataPlayerIdentities } from "../app/lib/playerIdentity.ts";
 
 const now = "2026-08-20T12:00:00.000Z";
+
+test('Practice RBI questions include canonical Live BP without official games',()=>{
+  const config=getAskClubhouseConfig({});
+  const plan=buildAskClubhouseToolPlan(data,'Does Jackson Pierce have any RBIs during practice?',undefined,config);
+  const request=plan.toolRequests.find(r=>r.metricIds.includes('rbi'));
+  assert.ok(request);
+  assert.deepEqual(request.query.fieldSources,['practice','live-bp']);
+  assert.equal(request.playerId,'p-jackson');
+});
 const players = [
   player("p-jacob", "Jacob Seamon", 1, "CF"),
   player("p-jake", "Jake Seamon", 11, "SS"),

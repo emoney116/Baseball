@@ -1,3 +1,4 @@
+import {practiceBatting, PRACTICE_BATTING_METRICS} from './practiceBatting.ts';
 import type {
   AppData,
   BattedBallType,
@@ -448,10 +449,12 @@ function buildHittingResult(
     };
   }
 
-  const trackedRows = currentRosterPlayers(data).map((player) => hittingRow(player, trackedEvents.filter((event) => event.hitterId === player.id)));
+  trackedMetricIds.push(...PRACTICE_BATTING_METRICS);
+  const runnerEvents=includesTrackedSwings?filterHittingEvents(data,{...query,playerIds:undefined},today):[];
+  const trackedRows = currentRosterPlayers(data).map((player) => hittingRow(player, trackedEvents.filter((event) => event.hitterId === player.id),runnerEvents));
   const trackedTeamTotals = hittingTeamRow(data, trackedEvents);
   if (includesGames) {
-    warnings.push("Mixed field sources keep tracked swing metrics and completed game plate-appearance metrics in their own columns.");
+    warnings.push("Mixed field sources combine recorded batting outcomes; swing and contact metrics retain their own measured samples.");
     const gameRows = currentRosterPlayers(data).map((player) => gameHittingRow(player, gameEventsForHitter(player.id, gameEvents), data.plateAppearances));
     const gameTeamTotals = gameHittingTeamRow(data, gameEvents);
     const rows = trackedRows.map((trackedRow, index) => mergeCompatibleHittingRows(trackedRow, gameRows[index]));
@@ -487,11 +490,13 @@ function mergeAnalyticsRows(left: AnalyticsRow, right: AnalyticsRow): AnalyticsR
 }
 
 const COMBINABLE_HITTING_COUNT_METRICS = new Set([
+  ...PRACTICE_BATTING_METRICS.filter(id=>!['avg','obp','slg','ops'].includes(id)),
   "opportunities", "takes", "swings", "contacts", "bip", "misses", "fouls",
   "groundBalls", "lineDrives", "flyBalls", "popUps",
 ]);
 
 const COMBINABLE_HITTING_RATE_METRICS = new Set([
+  'avg','obp','slg',
   "swingPct", "takePct", "contactPct", "swingMissPct", "foulPct", "bipPct",
   "zoneSwingPct", "zoneContactPct", "chasePct", "outZoneContactPct",
   "groundBallPct", "lineDrivePct", "flyBallPct", "popUpPct", "gbFbRatio", "airPct",
@@ -503,6 +508,7 @@ function mergeCompatibleHittingRows(left: AnalyticsRow, right: AnalyticsRow): An
   for (const metricId of COMBINABLE_HITTING_COUNT_METRICS) {
     const leftCell = left.cells[metricId];
     const rightCell = right.cells[metricId];
+    if(typeof leftCell?.value==='number' && typeof rightCell?.value!=='number'){merged.cells[metricId]=leftCell;continue;}
     if (typeof leftCell?.value !== "number" || typeof rightCell?.value !== "number") continue;
     merged.cells[metricId] = cellFromNumber(
       leftCell.value + rightCell.value,
@@ -514,6 +520,7 @@ function mergeCompatibleHittingRows(left: AnalyticsRow, right: AnalyticsRow): An
   for (const metricId of COMBINABLE_HITTING_RATE_METRICS) {
     const leftCell = left.cells[metricId];
     const rightCell = right.cells[metricId];
+    if(typeof leftCell?.value==='number' && typeof rightCell?.value!=='number'){merged.cells[metricId]=leftCell;continue;}
     const leftNumerator = leftCell?.sample?.numerator;
     const rightNumerator = rightCell?.sample?.numerator;
     const leftDenominator = leftCell?.sample?.denominator;
@@ -523,9 +530,12 @@ function mergeCompatibleHittingRows(left: AnalyticsRow, right: AnalyticsRow): An
     const numerator = leftNumerator + rightNumerator;
     const denominator = leftDenominator + rightDenominator;
     const minimumSample = definition?.minimumSample ?? 1;
-    if (definition?.format === "ratio") merged.cells[metricId] = ratioCell(numerator, denominator, definition.label, minimumSample);
+    if (definition?.format === 'decimal') merged.cells[metricId] = decimalRateCell(numerator,denominator,definition.label,minimumSample);
+    else if (definition?.format === "ratio") merged.cells[metricId] = ratioCell(numerator, denominator, definition.label, minimumSample);
     else merged.cells[metricId] = rateCell(numerator, denominator, definition?.label ?? metricId, minimumSample);
   }
+  const obp=merged.cells.obp?.value,slg=merged.cells.slg?.value;
+  if(typeof obp==='number'&&typeof slg==='number')merged.cells.ops=cellFromNumber(obp+slg,'decimal','available');
   return merged;
 }
 
@@ -708,7 +718,7 @@ function applyAnalyticsView(data: AppData, result: AnalyticsResult, today?: stri
       const groups = groupItems(events, (event) => practiceHittingGroup(data, event, groupBy));
       totalEvents = events.length;
       groupedEvents = groupSize(groups);
-      rows = [...groups.entries()].map(([key, group], index) => groupAnalyticsRow(hittingRow(groupPlayer(data, key, index), group.items), key, group.label));
+      rows = [...groups.entries()].map(([key, group], index) => groupAnalyticsRow(hittingRow(groupPlayer(data, key, index), group.items,group.items,null), key, group.label));
     }
   } else if (result.query.domain === "pitching") {
     const sources = analyticsFieldSources(result.query);
@@ -913,7 +923,18 @@ function assembleResult(
   };
 }
 
-function hittingRow(player: Player, events: HittingEvent[]): AnalyticsRow {
+function hittingRow(player: Player, events: HittingEvent[], runnerEvents: HittingEvent[]=events, scorePlayerId:string|null=player.id==='team-total'?null:player.id): AnalyticsRow {
+  const totals=practiceBatting(events,runnerEvents,scorePlayerId??undefined);
+  const scoring:Record<string,AnalyticsCell>={};
+  for(const id of PRACTICE_BATTING_METRICS) {
+    if(['avg','obp','slg','ops'].includes(id))continue;
+    const value=totals[id as keyof typeof totals];
+    scoring[id]=countCell(value,id==='runs'?totals.runSamples:id==='rbi'?totals.rbiSamples:totals.pa);
+  }
+  scoring.avg=decimalRateCell(totals.hits,totals.ab,'AVG');
+  scoring.obp=decimalRateCell(totals.hits+totals.walks+totals.hitByPitch,totals.ab+totals.walks+totals.hitByPitch+totals.sacrificeFlies,'OBP');
+  scoring.slg=decimalRateCell(totals.totalBases,totals.ab,'SLG');
+  scoring.ops=typeof scoring.obp.value==='number'&&typeof scoring.slg.value==='number'?cellFromNumber(scoring.obp.value+scoring.slg.value,'decimal','available'):cell('—',undefined,'not-tracked');
   const swings = events.filter((event) => event.action !== "Took pitch").length;
   const takes = events.filter((event) => event.action === "Took pitch").length;
   const misses = events.filter((event) => event.action === "Miss").length;
@@ -939,6 +960,7 @@ function hittingRow(player: Player, events: HittingEvent[]): AnalyticsRow {
   const softContact = events.filter((event) => event.contactQuality === "Poor" || event.contactQuality === "Weak").length;
   const directed = events.filter((event) => event.action === "Ball in play" && event.direction);
   return makeRow(player, {
+    ...scoring,
     opportunities: countCell(events.length, events.length),
     takes: countCell(takes, events.length),
     swings: countCell(swings, events.length),

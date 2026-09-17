@@ -213,6 +213,11 @@ function inferMetric(lower: string, domain: AnalyticsQuery["domain"], source: An
     if (/\b(csw)\b/.test(lower)) return "cswPct";
     return "strikePct";
   }
+  if (/\b(rbi|rbis|runs batted in)\b/.test(lower)) return "rbi";
+  if (/\b(home runs?|homers?)\b/.test(lower)) return "homeRuns";
+  if (/\b(runs|scored)\b/.test(lower)) return "runs";
+  if (/\b(hits)\b/.test(lower) && !/\bhard hits\b/.test(lower)) return "hits";
+  if (/\b(batting average|avg)\b/.test(lower)) return "avg";
   if (source === "games") {
     if (/\b(slg|slug)\b/.test(lower)) return "slg";
     if (/\b(extra|xbh)\b/.test(lower)) return "xbh";

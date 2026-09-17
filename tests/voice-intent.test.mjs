@@ -113,7 +113,8 @@ test("double and triple never silently leave a preceding runner behind the batte
   const c=context();c.state={...c.state,situationKnown:true,runners:[1]};
   for(const result of ['Double','Triple']) {
     const draft={outcome:'Ball in play',result};
-    assert.throws(()=>buildBpPitch(c.settings,c.state,draft),/Choose advancement/);
+    assert.doesNotThrow(()=>buildBpPitch(c.settings,c.state,draft));
+    assert.throws(()=>buildBpPitch(c.settings,c.state,{...draft,runnerOutcomes:{1:'hold'}}),/Choose advancement/);
     assert.doesNotThrow(()=>buildBpPitch(c.settings,c.state,{...draft,runnerOutcomes:{1:'score'}}));
   }
 });

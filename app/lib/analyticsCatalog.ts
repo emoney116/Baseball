@@ -1,4 +1,5 @@
 import type { PitchType } from "../types.ts";
+import {PRACTICE_BATTING_METRICS} from './practiceBatting.ts';
 import type {
   AnalyticsColumn,
   AnalyticsDomain,
@@ -530,6 +531,10 @@ function metric(
 ): AnalyticsMetricDefinition {
   if (domain === "defense" && supportedSources.includes("practice")) supportedSources = [...supportedSources, "live-bp"];
   if (supportedSources.includes("practice")) supportedSources = [...supportedSources, "personal"];
+  if(domain==='hitting' && (PRACTICE_BATTING_METRICS as readonly string[]).includes(id)) {
+    supportedSources=[...new Set([...supportedSources,'practice','live-bp'] as AnalyticsSource[])];
+    definition += ' Practice/Live BP uses recorded canonical outcomes only; unrecorded outcomes and runner identities remain unknown.';
+  }
   return {
     id,
     key: metricKey(id),

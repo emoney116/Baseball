@@ -803,6 +803,8 @@ function analyticsRequest(
     name,
     query: {
       ...query,
+      ...(query.domain === 'hitting' && query.source === 'practice' && metricIds.some(id => ['hits','runs','rbi','homeRuns','avg'].includes(id))
+        ? {fieldSources: ['practice', 'live-bp'] as const} : {}),
       playerIds: playerId ? [playerId] : query.playerIds,
       metrics: undefined,
       filters: query.mode === "situational" ? query.filters ?? {} : {},

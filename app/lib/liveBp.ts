@@ -508,6 +508,11 @@ export function buildBpPitch(
                 : "hold";
     if (result === "Home Run")
       for (const base of before.runners) defaults[String(base)] = "score";
+    // Deterministic Practice advancement; explicit runner outcomes override below.
+    if (result === "Double" || result === "Triple") {
+      const bases = result === "Double" ? 2 : 3;
+      for (const base of before.runners) defaults[String(base)] = base + bases >= 4 ? "score" : String(base + bases);
+    }
     // Clubhouse Practice default: a single forces only occupied consecutive bases.
     if (["Single", "Reached on Error"].includes(result) && before.runners.includes(1)) {
       defaults["1"] = "2";

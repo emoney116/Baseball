@@ -703,7 +703,10 @@ export function canFastSaveVoice(intent: VoiceIntent): boolean {
   // Numbers need stronger acoustic evidence than a lone result; rich narration retains the strict gate.
   const simpleContact=!!intent.draft.battedBall && !intent.draft.position && !intent.draft.runnerOutcomes
     && text.split(' ').length<=18 && !/\b(?:or|not|maybe|actually|no|sorry)\b/.test(text);
-  const threshold=simplePitch?(intent.draft.velocity!==undefined?0.85:0.8):simpleContact?0.9:0.97;
+  const simpleDefense=!!intent.draft.battedBall && !!intent.draft.position && !!intent.draft.defenseResult
+    && !intent.draft.runnerOutcomes && !intent.draft.runnerMovements?.length && (intent.draft.fieldingSequence?.length??0)<=1
+    && text.split(' ').length<=24 && !/\b(?:or|not|maybe|actually|no|sorry)\b/.test(text);
+  const threshold=simplePitch?(intent.draft.velocity!==undefined?0.85:0.8):simpleContact||simpleDefense?0.9:0.97;
   return (
     !intent.correction &&
     intent.ignoredFields.length === 0 &&
