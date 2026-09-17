@@ -5,6 +5,7 @@ import {
   PlayerLinkError,
 } from "../../../lib/playerAccountLinks";
 import { validateVoiceWav, VOICE_MAX_BYTES } from "../../../lib/voiceAudio";
+import { voiceTokenConfidence } from "../../../lib/voiceTranscriptionConfidence";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -101,10 +102,12 @@ export async function POST(request: Request) {
     reservation = { id, db };
     const form = new FormData();
     form.append("file", new Blob([bytes], { type: "audio/wav" }), "event.wav");
-    form.append("model", "whisper-1");
+    const model = process.env.VERCEL_ENV === "preview" ? "gpt-4o-transcribe" : "whisper-1";
+    form.append("model", model);
     form.append("language", "en");
     form.append("prompt", "Baseball practice vocabulary: hitting, pitching, at-bat, fastball, four-seam, slider, changeup, curveball, cutter, swing and miss, whiff, called strike, foul, exit velo, left center, right field.");
-    form.append("response_format", "verbose_json");
+    form.append("response_format", model === "whisper-1" ? "verbose_json" : "json");
+    if (model !== "whisper-1") form.append("include[]", "logprobs");
     const response = await fetch(
       "https://api.openai.com/v1/audio/transcriptions",
       {
@@ -123,7 +126,7 @@ export async function POST(request: Request) {
     )
       throw new Error("transcript");
     const segments = Array.isArray(result.segments) ? result.segments : [];
-    const confidence =
+    const confidence = model !== "whisper-1" ? voiceTokenConfidence(result.logprobs) :
       segments.length &&
       segments.every(
         (s: { avg_logprob?: number; no_speech_prob?: number }) =>
@@ -152,6 +155,7 @@ export async function POST(request: Request) {
     return reply({
       transcript: result.text,
       confidence,
+      model,
       requestId: id,
       latencyMs: Date.now() - started,
     });

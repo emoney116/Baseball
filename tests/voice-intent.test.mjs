@@ -59,6 +59,23 @@ test("real audio baseline wording is spray, not conflicting pitch location or fi
   }
 });
 
+test("bare left/right batted-ball directions map to canonical spray without guessing ambiguous EV", () => {
+  const intent = interpretVoice('Fastball 89 middle fly ball to left 101 exit velo home run',context(),'bare-left',.6794);
+  assert.deepEqual(intent.unresolvedFields,[]);
+  assert.deepEqual(intent.draft.spray,sprayPointForLane(0));
+  const ambiguous = interpretVoice('Fastball 89 middle fly ball to left one-on-one exit velo home run',context(),'ambiguous-ev',.6794);
+  assert.ok(ambiguous.unresolvedFields.length);
+  assert.equal(ambiguous.draft.ev,undefined);
+});
+
+test("real audio pop flight variant keeps pop-up and second baseman", () => {
+  const intent=interpretVoice('Pop Flight a Second, out.',context(),'pop-flight',.4115);
+  assert.deepEqual(intent.unresolvedFields,[]);
+  assert.equal(intent.draft.battedBall,'Pop up');
+  assert.equal(intent.draft.position,'2B');
+  assert.equal(intent.draft.result,'Out');
+});
+
 test("strict intent contract rejects extra fields, invalid taxonomy and confidence", () => {
   const good = interpretVoice(
     "slider 78 middle whiff",

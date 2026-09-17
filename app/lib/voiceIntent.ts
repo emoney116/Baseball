@@ -317,6 +317,7 @@ export function interpretVoice(
       }
       for(const m of [...sequence].reverse()) remaining=remaining.slice(0,m.start)+" ".repeat(m.end-m.start)+remaining.slice(m.end);
     }
+    remaining = remaining.replace(/\b(ground ball|line drive|fly ball|pop fly|bunt) to (left|right)\b(?! (?:center|field))/g, '$1 to $2 field');
     const hitArea=remaining.match(/\b(?:ball (?:was )?hit|single|double) to (left|right)\b/);
     if(hitArea){
       draft.spray=sprayPointForLane(hitArea[1]==="left"?0:4);

@@ -43,6 +43,7 @@ export const VOICE_CONTACT_ALIASES = {
   "fly ball": "Fly ball",
   "pop up": "Pop up",
   "pop fly": "Pop up",
+  "pop flight": "Pop up",
   bunt: "Bunt",
 } as const;
 

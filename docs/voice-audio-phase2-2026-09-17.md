@@ -29,6 +29,12 @@ Provider: authenticated Preview `/api/voice/transcribe`, whisper-1. Actual audio
 
 ## Open Findings
 
+- 31 real-provider rerun after a642dc1 produced the same transcript/.6861, correctly Low/Right/Double. Loaded-base conflict held safely. After explicit manual Clear bases, the same audio saved and showed runner2B (manual -> Voice verified).
+- 32 actual: `Fastball, 88 middle, line drive, right center, 97 exit velo, triple.` confidence .6351. Saved; resulting bases2B+3B (existing runner held, no discretionary score invented).
+- 33 actual: `Fastball, 89 middle, fly ball to left, one-on-one exit velo, home run.` confidence .6794. Held unsaved: transcript renders101 as `one-on-one`, and bare `fly ball to left` leaves left unresolved. Transcription/normalization issue, not save failure.
+- 34 actual: `Pop Flight a Second, out.` confidence .4115. Held unsaved; pop-flight baseball alias fix staged, real retest pending.
+- 35 actual: `Line drive right center, 90 for exit velo.` confidence .5636. Held unsaved. Provider's94 ->90 for loses EV structure; parser incorrectly displays90 as pitch velocity, but unresolved `for exit` and missing batter result prevent save. Must not silently replace with expected94.
+
 - Command54 is 22.19 seconds, exceeding existing 12-second Voice limit. Must preserve whole narration, not silently truncate.
 - Fast Voice currently compares exponentiated Whisper segment average log probability against .97. Field-level reliability audit pending; no threshold weakened.
 - Remaining commands, raw reconciliation, post-Practice, and device acceptance not yet completed.
