@@ -194,7 +194,7 @@ test("shared dropdown menus stay viewport safe inside modals and small screens",
   assert.match(css, /--canvas:\s*#101315/);
   assert.match(css, /--surface:\s*rgba\(23, 28, 32, 0\.82\)/);
   assert.match(css, /--surface-raised:\s*rgba\(29, 34, 39, 0\.86\)/);
-  assert.match(css, /--surface-selected:\s*rgba\(194, 47, 98, 0\.18\)/);
+  assert.match(css, /--surface-selected:\s*rgba\(118, 14, 30, 0\.18\)/);
   assert.match(css, /\.ui-switch\s*\{/);
   assert.match(css, /\.ui-switch\.is-on/);
   assert.match(css, /\.weight-room-group-editor\.is-disabled \.weight-room-group-editor__content/);

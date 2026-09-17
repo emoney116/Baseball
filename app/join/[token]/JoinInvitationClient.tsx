@@ -1,5 +1,7 @@
 "use client";
 
+import { AuthenticationForm } from "../../components/AuthenticationForm";
+import { BusyIndicator } from "../../components/AppLoading";
 import { Check, LogOut } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -20,18 +22,13 @@ type InvitationLookup = {
 export default function JoinInvitationClient({ token }: { token: string }) {
   const [invitation, setInvitation] = useState<InvitationLookup | null>(null);
   const [authState, setAuthState] = useState<AuthState>({ status: "anonymous" });
-  const [mode, setMode] = useState<"login" | "signup">("login");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [accepted, setAccepted] = useState(false);
 
   useEffect(() => {
-    void loadInvitation();
-    void authRepository.getState().then(setAuthState);
+    void loadInvitation().catch(() => setMessage("Unable to load this invitation. Check your connection and reload."));
+    void authRepository.getState().then(setAuthState).catch(() => setMessage("Unable to check your account. Please try again."));
     // The invite token is immutable for this route instance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -49,52 +46,6 @@ export default function JoinInvitationClient({ token }: { token: string }) {
       return;
     }
     setInvitation(payload.invitation);
-  }
-
-  async function signIn() {
-    if (!invitation) return;
-    setBusy(true);
-    setMessage("");
-    try {
-      await authRepository.signIn(invitation.email, password);
-      const auth = await authRepository.getState();
-      setAuthState(auth);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to sign in.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function createAccount() {
-    if (!invitation) return;
-    if (!firstName.trim() || !lastName.trim()) {
-      setMessage("First and last name are required.");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setMessage("Passwords do not match.");
-      return;
-    }
-    setBusy(true);
-    setMessage("");
-    try {
-      await authRepository.signUp({
-        email: invitation.email,
-        password,
-        firstName,
-        lastName,
-      });
-      const auth = await authRepository.getState();
-      setAuthState(auth);
-      if (auth.status !== "authenticated") {
-        setMessage("Account created. Check your email if confirmation is required, then return to this invite link.");
-      }
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to create account.");
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function acceptInvite() {
@@ -120,9 +71,9 @@ export default function JoinInvitationClient({ token }: { token: string }) {
 
   async function signOut() {
     setBusy(true);
-    await authRepository.signOut();
-    setAuthState({ status: "anonymous" });
-    setBusy(false);
+    try { await authRepository.signOut(); setAuthState({ status: "anonymous" }); }
+    catch { setMessage("Unable to sign out. Please try again."); }
+    finally { setBusy(false); }
   }
 
   const expiredOrClosed = invitation && invitation.status !== "PENDING";
@@ -133,7 +84,8 @@ export default function JoinInvitationClient({ token }: { token: string }) {
       <strong>Staff invitation</strong>
       <span>{APP_NAME}</span>
 
-      {message && <p className="auth-message">{message}</p>}
+      {!invitation && !message && <p role="status"><BusyIndicator /> Loading your invitation…</p>}
+      {message && <p className="auth-message" role="status">{message}</p>}
 
       {invitation && (
         <section className="auth-form no-team-card join-card">
@@ -155,49 +107,7 @@ export default function JoinInvitationClient({ token }: { token: string }) {
           )}
 
           {!expiredOrClosed && authState.status !== "authenticated" && (
-            <>
-              <div className="auth-tabs" role="tablist" aria-label="Join mode">
-                <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Sign In</button>
-                <button type="button" className={mode === "signup" ? "active" : ""} onClick={() => setMode("signup")}>Create Account</button>
-              </div>
-              <form
-                className="auth-form join-auth-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void (mode === "login" ? signIn() : createAccount());
-                }}
-              >
-                {mode === "signup" && (
-                  <div className="auth-name-grid">
-                    <label>
-                      <span>First name</span>
-                      <input value={firstName} onChange={(event) => setFirstName(event.target.value)} autoComplete="given-name" />
-                    </label>
-                    <label>
-                      <span>Last name</span>
-                      <input value={lastName} onChange={(event) => setLastName(event.target.value)} autoComplete="family-name" />
-                    </label>
-                  </div>
-                )}
-                <label>
-                  <span>Email</span>
-                  <input type="email" value={invitation.email} disabled autoComplete="email" />
-                </label>
-                <label>
-                  <span>Password</span>
-                  <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} />
-                </label>
-                {mode === "signup" && (
-                  <label>
-                    <span>Confirm password</span>
-                    <input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" />
-                  </label>
-                )}
-                <button className="primary-button stretch-button" type="submit" disabled={busy || !password || (mode === "signup" && (!firstName || !lastName || !confirmPassword))}>
-                  {busy ? "Working..." : mode === "login" ? "Sign In" : "Create Account"}
-                </button>
-              </form>
-            </>
+            <AuthenticationForm initialEmail={invitation.email} lockedEmail next={`/join/${token}`} onSignedIn={async () => setAuthState(await authRepository.getState())} />
           )}
 
           {!expiredOrClosed && authState.status === "authenticated" && !accepted && (

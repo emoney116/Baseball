@@ -6,7 +6,7 @@
   --surface-raised: rgba(29, 34, 39, 0.86);
   --surface-interactive: rgba(34, 40, 46, 0.88);
   --surface-hover: rgba(43, 50, 57, 0.9);
-  --surface-selected: rgba(194, 47, 98, 0.18);
+  --surface-selected: rgba(118, 14, 30, 0.18);
   --surface-overlay: #1c2227;
   --input: rgba(12, 16, 19, 0.92);
   --border: rgba(232, 237, 244, 0.07);
@@ -14,12 +14,13 @@
   --text-primary: #f8fafc;
   --text-secondary: #cdd4de;
   --text-muted: #96a0ad;
-  --brand-primary: #c22f62;
-  --brand-hover: #d43b70;
-  --brand-active: #98244d;
-  --brand-light: #f05286;
-  --brand-soft: rgba(194, 47, 98, 0.15);
-  --brand-border: rgba(194, 47, 98, 0.34);
+  /* Sampled from the NINE lettering in the Clubhouse wordmark. */
+  --brand-primary: #760e1e;
+  --brand-hover: #8a1527;
+  --brand-active: #5f0b18;
+  --brand-light: #8a1527;
+  --brand-soft: rgba(118, 14, 30, 0.15);
+  --brand-border: rgba(118, 14, 30, 0.6);
   --brand-text-on-primary: #ffffff;
   --brand-mark-bg-start: #151a20;
   --brand-mark-bg-end: #0d1012;
@@ -39,7 +40,7 @@
   --info: #72a4ec;
   --info-soft: rgba(114, 164, 236, 0.1);
   --info-border: rgba(114, 164, 236, 0.26);
-  --focus: var(--brand-hover);
+  --focus: #d6d6d6;
   --chart-primary: var(--brand-primary);
   --chart-success: var(--success);
   --chart-info: var(--info);
@@ -111,8 +112,8 @@
   --avatar-ring: rgba(236, 242, 249, 0.13);
   --avatar-neutral-tint: rgba(143, 154, 168, 0.18);
   --avatar-neutral-border: rgba(194, 203, 214, 0.16);
-  --avatar-maroon-tint: rgba(148, 42, 79, 0.34);
-  --avatar-maroon-border: rgba(191, 76, 117, 0.28);
+  --avatar-maroon-tint: rgba(118, 14, 30, 0.34);
+  --avatar-maroon-border: rgba(118, 14, 30, 0.28);
   --avatar-steel-tint: rgba(74, 99, 119, 0.3);
   --avatar-steel-border: rgba(111, 137, 158, 0.24);
   --avatar-forest-tint: rgba(55, 91, 75, 0.28);
@@ -172,7 +173,7 @@
   --surface-raised: #fbfaf8;
   --surface-interactive: #f0eee9;
   --surface-hover: #e8e4dd;
-  --surface-selected: rgba(185, 43, 89, 0.1);
+  --surface-selected: rgba(118, 14, 30, 0.1);
   --surface-overlay: #ffffff;
   --input: #fffdfb;
   --border: rgba(30, 34, 42, 0.1);
@@ -180,12 +181,12 @@
   --text-primary: #171a1f;
   --text-secondary: #3e4650;
   --text-muted: #69727e;
-  --brand-primary: #b92b59;
-  --brand-hover: #c93669;
-  --brand-active: #8f2144;
-  --brand-light: #d94175;
-  --brand-soft: rgba(185, 43, 89, 0.1);
-  --brand-border: rgba(185, 43, 89, 0.26);
+  --brand-primary: #760e1e;
+  --brand-hover: #8a1527;
+  --brand-active: #5f0b18;
+  --brand-light: #8a1527;
+  --brand-soft: rgba(118, 14, 30, 0.1);
+  --brand-border: rgba(118, 14, 30, 0.3);
   --brand-text-on-primary: #ffffff;
   --brand-mark-bg-start: #151a20;
   --brand-mark-bg-end: #0d1012;
@@ -679,7 +680,7 @@ textarea:focus-visible {
 }
 
 .auth-tabs button.active {
-  background: var(--panel-strong);
+  background: var(--brand-primary);
   color: var(--text);
 }
 
@@ -738,7 +739,7 @@ textarea:focus-visible {
   width: 100%;
   margin: 0;
   padding: 10px 12px;
-  border: 1px solid rgba(159, 36, 76, 0.28);
+  border: 1px solid rgba(118, 14, 30, 0.28);
   border-radius: var(--radius);
   background: var(--burgundy-soft);
   color: var(--text);
@@ -850,7 +851,7 @@ textarea:focus-visible {
 .public-follow-button--active {
   border-color: color-mix(in srgb, var(--burgundy) 50%, var(--line));
   background: var(--burgundy-soft);
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .public-follow-button:disabled {
@@ -885,7 +886,7 @@ textarea:focus-visible {
 .public-follow-button--compact.public-follow-button--active {
   border-color: var(--line);
   background: transparent;
-  color: var(--burgundy);
+  color: var(--brand-ink);
   box-shadow: none;
 }
 
@@ -1706,8 +1707,8 @@ textarea:focus-visible {
 
 .public-team-tabs a.active {
   border-bottom-color: var(--burgundy);
-  background: linear-gradient(to bottom, var(--burgundy-soft), transparent);
-  color: var(--burgundy-strong);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
 }
 
 .public-team-view {
@@ -1755,7 +1756,7 @@ textarea:focus-visible {
 }
 
 .public-team-panel__heading a {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   text-decoration: none;
   font-weight: 850;
 }
@@ -2094,8 +2095,7 @@ textarea:focus-visible {
   border: 1px solid var(--line);
   border-radius: 18px;
   background:
-    radial-gradient(circle at center, color-mix(in srgb, var(--burgundy) 11%, transparent), transparent 48%),
-    linear-gradient(135deg, var(--panel), var(--panel-soft));
+    var(--panel);
   box-shadow: var(--shadow);
 }
 
@@ -2103,7 +2103,7 @@ textarea:focus-visible {
   position: absolute;
   top: 14px;
   left: 24px;
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.06em;
@@ -2202,7 +2202,7 @@ textarea:focus-visible {
 }
 
 .public-game-scoreline span {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   font-size: 12px;
   font-weight: 950;
   letter-spacing: 0.08em;
@@ -2240,8 +2240,8 @@ textarea:focus-visible {
 
 .public-game-tabs a.active {
   border-bottom-color: var(--burgundy);
-  background: linear-gradient(to bottom, var(--burgundy-soft), transparent);
-  color: var(--burgundy-strong);
+  background: var(--brand-soft);
+  color: var(--brand-ink);
 }
 
 .public-game-view {
@@ -3076,7 +3076,7 @@ textarea:focus-visible {
 }
 
 .context-back-button svg {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .sidebar-brand .context-back-button {
@@ -3268,7 +3268,7 @@ textarea:focus-visible {
 }
 
 .rail-nav button.active svg {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .rail-card {
@@ -3576,7 +3576,7 @@ textarea:focus-visible {
 
 .team-identity-switcher__button:focus-visible {
   outline: 0;
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .team-identity-switcher__panel {
@@ -3659,7 +3659,7 @@ textarea:focus-visible {
 }
 
 .team-switcher-group button.active svg {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .team-switcher-home-row {
@@ -3709,7 +3709,7 @@ textarea:focus-visible {
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .field-control {
@@ -4253,7 +4253,6 @@ textarea:focus-visible {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background:
-    linear-gradient(135deg, rgba(159, 36, 76, 0.22), rgba(255, 255, 255, 0.035)),
     var(--panel);
   box-shadow: var(--shadow);
   padding: 18px;
@@ -4314,8 +4313,8 @@ textarea:focus-visible {
 }
 
 .setup-steps span.ready {
-  color: var(--burgundy-strong);
-  border-color: rgba(159, 36, 76, 0.28);
+  color: var(--brand-ink);
+  border-color: rgba(118, 14, 30, 0.28);
   background: var(--burgundy-soft);
 }
 
@@ -4396,12 +4395,12 @@ textarea:focus-visible {
 }
 
 .action-card:hover {
-  border-color: rgba(159, 36, 76, 0.32);
+  border-color: rgba(118, 14, 30, 0.32);
   background: var(--burgundy-soft);
 }
 
 .action-card > svg:first-child {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .action-card strong,
@@ -4596,7 +4595,7 @@ textarea:focus-visible {
 }
 
 .weight-leader {
-  background: linear-gradient(145deg, rgba(67, 198, 172, 0.08), rgba(159, 36, 76, 0.06)), var(--panel);
+  background: var(--panel);
 }
 
 .recent-performance {
@@ -4728,7 +4727,7 @@ textarea:focus-visible {
 }
 
 .status-varsity {
-  border-color: rgba(159, 36, 76, 0.28);
+  border-color: rgba(118, 14, 30, 0.28);
 }
 
 .status-jv {
@@ -5190,7 +5189,7 @@ textarea:focus-visible {
 .team-creator-segment button.active {
   background: var(--burgundy);
   color: #fff;
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--burgundy) 22%, transparent);
+  box-shadow: none;
 }
 
 .team-creator-grid {
@@ -5484,7 +5483,7 @@ textarea:focus-visible {
 .global-home-organizations .organization-card { padding: 10px; }
 .global-home-organizations .organization-open-button { display: none; }
 .global-empty-state { display: grid; justify-items: center; gap: 16px; padding: 40px 16px; text-align: center; }
-.global-empty-state > svg { color: var(--burgundy); }
+.global-empty-state > svg { color: var(--brand-ink); }
 .global-empty-state p { margin: 0; color: var(--muted); max-width: 32ch; }
 .global-empty-state button { min-height: 44px; }
 .global-activity-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) 18px; align-items: center; gap: 10px; padding: 10px; width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); text-align: left; cursor: pointer; }
@@ -5549,7 +5548,7 @@ textarea:focus-visible {
 .global-notifications-panel { position: fixed; inset: 78px 16px auto auto; margin: 0; width: min(300px, calc(100vw - 32px)); padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--text); box-shadow: 0 8px 24px #0003; }
 .global-notifications-panel p { margin: 12px 0 0; color: var(--muted); font-size: 14px; }
 .global-notifications-empty { display: flex; align-items: center; gap: 12px; padding-block: 16px 4px; }
-.global-notifications-empty > svg { flex-shrink: 0; color: var(--burgundy); }
+.global-notifications-empty > svg { flex-shrink: 0; color: var(--brand-ink); }
 .global-notifications-empty p { margin: 0 0 4px; color: var(--text); }
 .global-notifications-empty small { color: var(--muted); }
 .global-dev-notice { margin: 4px 0 0; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 6px; color: var(--muted); font-size: 12px; line-height: 1.4; }
@@ -5793,7 +5792,7 @@ textarea:focus-visible {
 }
 
 .organization-team-card__main:hover strong {
-  color: var(--brand-light);
+  color: var(--brand-ink);
 }
 
 .organization-team-card__header strong,
@@ -5872,7 +5871,7 @@ textarea:focus-visible {
 }
 
 .public-follow-team-card:hover .public-follow-team-card__main strong {
-  color: var(--brand-light);
+  color: var(--brand-ink);
 }
 
 .organization-team-card__main span,
@@ -5968,12 +5967,12 @@ textarea:focus-visible {
 .pin-team-button:hover,
 .pin-team-button:focus-visible {
   border-color: color-mix(in srgb, var(--burgundy) 44%, var(--line));
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   background: var(--panel-strong);
 }
 
 .pin-team-button--active {
-  color: var(--burgundy);
+  color: var(--brand-ink);
   border-color: color-mix(in srgb, var(--burgundy) 40%, var(--line));
   background: color-mix(in srgb, var(--burgundy) 18%, var(--panel-soft));
 }
@@ -6046,7 +6045,7 @@ textarea:focus-visible {
 }
 
 .managed-team-card:hover .managed-team-card__main strong {
-  color: var(--brand-light);
+  color: var(--brand-ink);
 }
 
 .managed-team-card__chevron {
@@ -6113,7 +6112,7 @@ textarea:focus-visible {
 }
 
 .team-card-main-button:hover strong {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .team-workspace-card:hover,
@@ -6248,12 +6247,12 @@ textarea:focus-visible {
 .follow-heart:hover,
 .follow-heart:focus-visible {
   border-color: color-mix(in srgb, var(--burgundy) 45%, var(--line));
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   background: var(--panel-soft);
 }
 
 .follow-heart--active {
-  color: var(--burgundy);
+  color: var(--brand-ink);
   border-color: var(--line);
   background: var(--panel-soft);
   box-shadow: none;
@@ -6271,7 +6270,7 @@ textarea:focus-visible {
 }
 
 .follow-heart--active.follow-heart--locked {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   background: var(--panel-soft);
   box-shadow: none;
 }
@@ -6346,7 +6345,7 @@ textarea:focus-visible {
 }
 
 .team-mini-row__main:hover strong {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .global-discover-search {
@@ -6377,7 +6376,7 @@ textarea:focus-visible {
 }
 
 .team-row.active {
-  border-color: rgba(159, 36, 76, 0.24);
+  border-color: rgba(118, 14, 30, 0.24);
   background: var(--burgundy-soft);
 }
 
@@ -6734,7 +6733,7 @@ textarea:focus-visible {
 }
 
 .file-drop svg {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .import-summary {
@@ -7740,12 +7739,12 @@ select option {
 }
 
 .station-grid button:hover {
-  border-color: rgba(159, 36, 76, 0.32);
+  border-color: rgba(118, 14, 30, 0.32);
   transform: translateY(-1px);
 }
 
 .station-grid svg {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .station-grid strong {
@@ -7868,7 +7867,7 @@ select option {
 }
 
 .practice-team-picker button.active {
-  border-color: rgba(159, 36, 76, 0.42);
+  border-color: rgba(118, 14, 30, 0.42);
   background: var(--burgundy-soft);
 }
 
@@ -8083,7 +8082,7 @@ select option {
 
 .switcher-list button.active,
 .compact-player-grid button.active {
-  border-color: rgba(159, 36, 76, 0.36);
+  border-color: rgba(118, 14, 30, 0.36);
   background: var(--burgundy-soft);
 }
 
@@ -8958,7 +8957,7 @@ select option {
 }
 
 .defense-visual svg {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .defense-visual h3 {
@@ -9082,7 +9081,7 @@ select option {
 
 .count-badge {
   text-align: center;
-  border-color: rgba(159, 36, 76, 0.24);
+  border-color: rgba(118, 14, 30, 0.24);
   background: var(--burgundy-soft);
 }
 
@@ -9119,8 +9118,7 @@ select option {
   padding: 12px;
   border-color: color-mix(in srgb, var(--burgundy) 22%, var(--line));
   background:
-    linear-gradient(135deg, rgba(159, 36, 76, 0.09), rgba(255, 255, 255, 0.025)),
-    rgba(255, 255, 255, 0.025);
+    var(--panel-soft);
 }
 
 .live-bp-thrower-card strong,
@@ -9165,7 +9163,7 @@ select option {
 .mini-player-pills button.active,
 .direction-row button.active,
 .pitch-type-row button.active {
-  border-color: rgba(159, 36, 76, 0.45);
+  border-color: rgba(118, 14, 30, 0.45);
   background: var(--burgundy-soft);
   color: var(--text);
 }
@@ -10174,7 +10172,7 @@ button.analytics-box-score__row:hover {
 }
 
 .ask-evidence-list a {
-  color: var(--brand-light);
+  color: var(--brand-ink);
   font-size: 12px;
   font-weight: 860;
   text-decoration: none;
@@ -10433,7 +10431,7 @@ button.analytics-box-score__row:hover {
 }
 
 .ask-clubhouse-launcher svg {
-  color: var(--brand-light);
+  color: var(--brand-ink);
 }
 
 .ask-clubhouse-launcher--compact {
@@ -10651,7 +10649,7 @@ button.analytics-box-score__row:hover {
   height: 40px;
   border-radius: 999px;
   background: var(--brand-soft);
-  color: var(--brand-light);
+  color: var(--brand-ink);
   display: grid;
   place-items: center;
 }
@@ -10712,7 +10710,7 @@ button.analytics-box-score__row:hover {
 }
 
 .ask-suggestion-stack button svg:first-child {
-  color: var(--brand-light);
+  color: var(--brand-ink);
 }
 
 .ask-suggestion-stack button svg:last-child,
@@ -10773,7 +10771,7 @@ button.analytics-box-score__row:hover {
 }
 
 .ask-message__meta span {
-  color: var(--brand-light);
+  color: var(--brand-ink);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -10884,7 +10882,7 @@ button.analytics-box-score__row:hover {
 }
 
 .ask-thinking-block strong {
-  color: var(--brand-light);
+  color: var(--brand-ink);
   font-size: 14px;
   font-weight: 850;
 }
@@ -10908,7 +10906,7 @@ button.analytics-box-score__row:hover {
 }
 
 .analytics-ask-drawer .ask-action-list button svg:first-child {
-  color: var(--brand-light);
+  color: var(--brand-ink);
 }
 
 .analytics-ask-drawer .ask-followup-list {
@@ -11176,7 +11174,7 @@ button.analytics-box-score__row:hover {
   height: 26px;
   border-radius: 999px;
   background: var(--brand-soft);
-  color: var(--brand-light);
+  color: var(--brand-ink);
   display: grid;
   place-items: center;
   font-size: 10px;
@@ -11256,7 +11254,7 @@ button.analytics-box-score__row:hover {
 .ask-bar-compare i {
   height: 20px;
   border-radius: 0 5px 5px 0;
-  background: linear-gradient(90deg, var(--brand-active), var(--brand-light));
+  background: var(--brand-primary);
 }
 
 .ask-bar-compare div:nth-of-type(2) i {
@@ -11798,7 +11796,7 @@ button.analytics-box-score__row:hover {
 }
 
 .entry-list button:hover {
-  border-color: rgba(159, 36, 76, 0.28);
+  border-color: rgba(118, 14, 30, 0.28);
   background: var(--burgundy-soft);
 }
 
@@ -12477,7 +12475,7 @@ button.analytics-box-score__row:hover {
 .weight-room-pulse-metric--sets .weight-room-pulse-icon {
   border-color: var(--brand-border);
   background: var(--brand-soft);
-  color: var(--brand-light);
+  color: var(--brand-ink);
 }
 
 .weight-room-pulse-metric--volume .weight-room-pulse-icon {
@@ -13449,7 +13447,7 @@ button.analytics-box-score__row:hover {
 }
 
 .games-list button.active {
-  border-color: rgba(159, 36, 76, 0.38);
+  border-color: rgba(118, 14, 30, 0.38);
   background: var(--burgundy-soft);
 }
 
@@ -15273,8 +15271,7 @@ button[aria-disabled="true"] {
 
 body {
   background:
-    radial-gradient(circle at 18% -10%, var(--brand-soft), transparent 28rem),
-    var(--bg);
+    var(--canvas);
 }
 
 [data-theme="light"] body {
@@ -15356,7 +15353,7 @@ body {
 
 .rail-nav button.active,
 .rail-nav button:hover {
-  background: rgba(159, 36, 76, 0.18);
+  background: rgba(118, 14, 30, 0.18);
   color: var(--text);
 }
 
@@ -15529,7 +15526,7 @@ body {
 .primary-button {
   background: var(--burgundy);
   border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 10px 22px rgba(159, 36, 76, 0.2);
+  box-shadow: none;
 }
 
 .secondary-button,
@@ -15540,7 +15537,7 @@ body {
 }
 
 .text-button {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .page-stack {
@@ -15645,7 +15642,7 @@ body {
 }
 
 .home-info-card b {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   font-size: 12px;
   font-weight: 800;
 }
@@ -16305,7 +16302,7 @@ body {
 }
 
 .schedule-input-shell svg {
-  color: var(--burgundy-bright);
+  color: var(--brand-ink);
 }
 
 .schedule-input-shell input {
@@ -16489,7 +16486,7 @@ body {
   border: 1px solid color-mix(in srgb, var(--burgundy) 34%, transparent);
   border-radius: 10px;
   background: color-mix(in srgb, var(--burgundy) 12%, transparent);
-  color: var(--burgundy-bright);
+  color: var(--brand-ink);
   cursor: pointer;
   font-size: 12px;
   font-weight: 860;
@@ -16616,7 +16613,7 @@ body {
 .schedule-map-link {
   border: 1px solid color-mix(in srgb, var(--burgundy) 36%, transparent);
   border-radius: 999px;
-  color: var(--burgundy-bright);
+  color: var(--brand-ink);
   font-size: 11px;
   font-weight: 850;
   line-height: 1;
@@ -16766,7 +16763,7 @@ body {
   height: 28px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--burgundy) 24%, transparent);
-  color: var(--burgundy-bright);
+  color: var(--brand-ink);
   display: grid;
   place-items: center;
 }
@@ -16802,7 +16799,7 @@ body {
 }
 
 .schedule-team-pill svg {
-  color: var(--burgundy-bright);
+  color: var(--brand-ink);
 }
 
 .schedule-team-pill strong {
@@ -16906,7 +16903,6 @@ body {
 
 .weight-leader {
   background:
-    linear-gradient(145deg, rgba(47, 196, 154, 0.06), transparent 60%),
     var(--panel);
   min-height: 100%;
   align-content: start;
@@ -17207,7 +17203,7 @@ body {
 }
 
 .roster-sort-button.active svg {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .roster-table-row {
@@ -17654,7 +17650,7 @@ body {
 }
 
 .staff-team-picker button.active svg {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .staff-team-picker strong,
@@ -19564,7 +19560,7 @@ body,
 }
 
 .practice-tabs button.active {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   border-bottom-color: var(--burgundy-strong);
 }
 
@@ -19589,9 +19585,9 @@ body,
   border-radius: 999px;
   display: grid;
   place-items: center;
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   background: var(--burgundy-soft);
-  border: 1px solid rgba(159, 36, 76, 0.28);
+  border: 1px solid rgba(118, 14, 30, 0.28);
 }
 
 .practice-summary-strip__identity small {
@@ -19697,7 +19693,7 @@ body,
   min-height: 58px;
   border: 1px solid color-mix(in srgb, var(--burgundy) 42%, var(--line));
   border-radius: var(--radius);
-  background: linear-gradient(135deg, rgba(159, 36, 76, 0.18), rgba(255, 255, 255, 0.035));
+  background: var(--panel);
   color: var(--text);
   display: flex;
   align-items: center;
@@ -19798,7 +19794,7 @@ body,
   border: 1px solid color-mix(in srgb, var(--burgundy) 42%, var(--line));
   border-radius: 999px;
   background: var(--burgundy-soft);
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   padding: 2px 7px;
   font-size: 10px;
   line-height: 1.1;
@@ -20206,7 +20202,7 @@ body,
 .practice-activity-card:hover,
 .practice-activity-card:focus-visible {
   transform: translateY(-1px);
-  border-color: rgba(159, 36, 76, 0.42);
+  border-color: rgba(118, 14, 30, 0.42);
 }
 
 .practice-activity-card > span {
@@ -20216,7 +20212,7 @@ body,
   display: grid;
   place-items: center;
   background: var(--burgundy-soft);
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .practice-activity-card--compact > span {
@@ -20497,7 +20493,7 @@ body,
 }
 
 .practice-drill-card > span {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   font-size: 12px;
   font-weight: 900;
 }
@@ -21562,7 +21558,7 @@ body,
 }
 
 .game-count-number {
-  color: var(--brand-primary);
+  color: var(--brand-ink);
   font-size: 2.25rem;
   line-height: 1;
 }
@@ -21822,7 +21818,7 @@ body,
   padding: 5px 2px;
 }
 .game-event-list > div:first-child { border-top: 0; }
-.game-event-list span { color: var(--brand-primary); font-size: 0.7rem; font-weight: 900; }
+.game-event-list span { color: var(--brand-ink); font-size: 0.7rem; font-weight: 900; }
 .game-event-list strong { font-size: 0.78rem; }
 .game-event-list small { color: var(--muted); font-size: 0.68rem; text-align: right; }
 
@@ -21837,14 +21833,14 @@ body,
   width: fit-content;
 }
 .game-workspace-tabs button { background: transparent; border: 0; border-radius: 9px; color: var(--muted); font-size: 0.74rem; font-weight: 850; padding: 8px 13px; }
-.game-workspace-tabs button.active { background: var(--brand-primary); color: white; box-shadow: 0 5px 16px color-mix(in srgb, var(--brand-primary) 25%, transparent); }
+.game-workspace-tabs button.active { background: var(--brand-primary); color: white; box-shadow: none; }
 .game-play-step { align-items: baseline; display: flex; gap: 9px; margin-bottom: 9px; }
 .game-play-step strong { font-size: 0.76rem; }
 .game-play-step span { color: var(--muted); font-size: 0.68rem; }
 .game-contact-types { display: grid; gap: 7px; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-bottom: 13px; }
 .game-contact-types button { background: var(--surface); border: 1px solid var(--line); border-radius: 9px; color: var(--text); font-size: 0.7rem; font-weight: 760; padding: 8px; }
 .game-contact-types button.active,
-.game-bip-outcomes button.active { background: var(--brand-soft); border-color: var(--brand-primary); color: var(--brand-primary); }
+.game-bip-outcomes button.active { background: var(--brand-soft); border-color: var(--brand-primary); color: var(--brand-ink); }
 .game-play-resolution { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 15px; }
 .game-runner-resolution-list { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .game-runner-resolution-list label { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 11px; display: grid; gap: 9px; grid-template-columns: minmax(0, 1fr) minmax(130px, 0.8fr); padding: 9px 10px; }
@@ -21884,7 +21880,7 @@ body,
 .game-live-player-row { display: grid; gap: 9px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .game-live-player-row button { background: var(--surface); border: 1px solid var(--line); border-radius: 11px; color: var(--text); display: flex; flex-direction: column; gap: 3px; padding: 11px; text-align: left; }
 .game-live-player-row span,
-.game-live-sequence > span { color: var(--brand-primary); font-size: 0.62rem; font-weight: 850; letter-spacing: 0.06em; text-transform: uppercase; }
+.game-live-sequence > span { color: var(--brand-ink); font-size: 0.62rem; font-weight: 850; letter-spacing: 0.06em; text-transform: uppercase; }
 .game-live-player-row strong { font-size: 0.82rem; }
 .game-live-player-row small { color: var(--muted); font-size: 0.66rem; }
 .game-live-sequence { margin-top: 14px; }
@@ -21895,7 +21891,7 @@ body,
 .game-live-sequence i strong { font-size: 0.72rem; }
 .game-live-sequence i small { color: var(--muted); font-size: 0.58rem; max-width: 86px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .game-live-last-play { background: color-mix(in srgb, var(--brand-soft) 46%, var(--surface)); border-left: 3px solid var(--brand-primary); border-radius: 8px; display: grid; gap: 3px; grid-column: 1 / -1; margin-top: 1px; padding: 9px 11px; }
-.game-live-last-play span { color: var(--brand-primary); font-size: 0.6rem; font-weight: 850; letter-spacing: 0.06em; text-transform: uppercase; }
+.game-live-last-play span { color: var(--brand-ink); font-size: 0.6rem; font-weight: 850; letter-spacing: 0.06em; text-transform: uppercase; }
 .game-live-last-play strong { font-size: 0.76rem; }
 .game-live-last-play small { color: var(--muted); font-size: 0.65rem; }
 .game-live-zone .strike-zone { margin: 0 auto; max-width: 245px; }
@@ -21911,7 +21907,7 @@ body,
 .game-pitch-mix-list strong { font-size: 0.68rem; text-align: right; }
 .game-count-patterns { display: grid; gap: 6px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .game-count-patterns > div { background: var(--surface); border: 1px solid var(--line); border-radius: 9px; display: flex; flex-direction: column; gap: 2px; padding: 8px; }
-.game-count-patterns strong { color: var(--brand-primary); font-size: 0.76rem; }
+.game-count-patterns strong { color: var(--brand-ink); font-size: 0.76rem; }
 .game-count-patterns span { font-size: 0.68rem; font-weight: 750; }
 .game-count-patterns small { color: var(--muted); font-size: 0.58rem; }
 .game-live-insights { grid-column: 1 / -1; }
@@ -21930,7 +21926,7 @@ body,
 .game-field-editor > .field-chart { cursor: default; max-width: none; width: 100%; }
 .game-field-editor > button:not(.field-chart) { align-items: center; background: color-mix(in srgb, var(--panel) 92%, transparent); border: 2px solid var(--line); border-radius: 999px; box-shadow: 0 7px 18px rgba(0,0,0,.18); color: var(--text); display: flex; flex-direction: column; min-height: 48px; min-width: 68px; padding: 6px 9px; position: absolute; transform: translate(-50%, -50%); z-index: 2; }
 .game-field-editor > button:not(.field-chart):hover, .game-field-editor > button.selected { border-color: var(--brand-primary); background: var(--brand-soft); }
-.game-field-editor > button:not(.field-chart) b { color: var(--brand-primary); font-size: .58rem; }
+.game-field-editor > button:not(.field-chart) b { color: var(--brand-ink); font-size: .58rem; }
 .game-field-editor > button:not(.field-chart) span { font-size: .66rem; font-weight: 850; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .game-field-selection { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; display: flex; gap: 8px; margin-top: 10px; padding: 9px 11px; }
 .game-field-selection span { color: var(--muted); font-size: .62rem; font-weight: 800; text-transform: uppercase; }
@@ -21952,7 +21948,7 @@ body,
 .game-play-ledger { display: grid; gap: 6px; }
 .game-play-ledger article { align-items: start; border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 10px; grid-template-columns: 38px minmax(0,1fr) auto; padding: 10px; }
 .game-play-ledger article.voided { opacity: .55; text-decoration: line-through; }
-.game-play-ledger article > b { color: var(--brand-primary); font-size: .68rem; }
+.game-play-ledger article > b { color: var(--brand-ink); font-size: .68rem; }
 .game-play-ledger article > span { display: grid; gap: 3px; }
 .game-play-ledger article strong { font-size: .74rem; }
 .game-play-ledger article small, .game-play-ledger article em { color: var(--muted); font-size: .62rem; font-style: normal; }
@@ -21978,14 +21974,14 @@ body,
 .game-field-matchup > button strong { font-size: .74rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .game-field-matchup > button small { color: var(--muted); font-size: .59rem; }
 .game-field-matchup > div { align-content: center; display: grid; min-width: 72px; text-align: center; }
-.game-field-matchup > div span { color: var(--brand-primary); font-size: .66rem; font-weight: 900; text-transform: uppercase; }
+.game-field-matchup > div span { color: var(--brand-ink); font-size: .66rem; font-weight: 900; text-transform: uppercase; }
 .game-field-matchup > div strong { font-size: .68rem; }
 .game-field-command__body { align-items: center; display: flex; height: 100%; justify-content: center; margin: 0 auto; max-width: 100%; min-height: 0; position: relative; width: 100%; }
 .game-field-command__surface { aspect-ratio: 10 / 7; flex: 0 1 auto; height: auto; margin: 0 auto; max-height: 680px; max-width: 100%; position: relative; width: min(100%, 970px); }
 .game-field-command__surface > .field-chart { inset: 0; max-width: none; position: absolute; width: 100%; }
 .game-field-player { align-items: center; background: color-mix(in srgb, var(--panel) 90%, transparent); border: 1px solid var(--line-strong); border-radius: 999px; box-shadow: 0 5px 14px rgba(0,0,0,.22); color: var(--text); display: flex; flex-direction: column; min-height: 44px; min-width: 58px; padding: 4px 7px; position: absolute; transform: translate(-50%,-50%); z-index: 8; }
 .game-field-player:hover, .game-field-player.selected { background: var(--brand-soft); border-color: var(--brand-primary); }
-.game-field-player b { color: var(--brand-primary); font-size: .53rem; }
+.game-field-player b { color: var(--brand-ink); font-size: .53rem; }
 .game-field-player span { font-size: .59rem; font-weight: 850; max-width: 66px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .game-field-pitch-ball { align-items: center; background: transparent; border: 0; border-radius: 50%; box-shadow: none; color: #111; display: grid; height: 64px; justify-items: center; left: 50%; padding: 0; position: absolute; top: 62.5%; transform: translate(-50%,-50%); width: 64px; z-index: 7; }
 .game-field-pitch-ball img { display: block; height: 52px; object-fit: contain; width: 52px; }
@@ -22039,7 +22035,7 @@ body,
 .game-field-contact-instruction small { color: var(--muted); font-size: .62rem; }
 .game-object-sheet { background: var(--panel); border: 1px solid var(--line-strong); border-radius: 14px; bottom: 84px; box-shadow: 0 18px 55px rgba(0,0,0,.35); display: grid; gap: 7px; left: 50%; padding: 12px; position: absolute; transform: translateX(-50%); width: min(390px,calc(100% - 20px)); z-index: 20; }
 .game-object-sheet > div { display: grid; gap: 2px; }
-.game-object-sheet > div span { color: var(--brand-primary); font-size: .58rem; font-weight: 900; text-transform: uppercase; }
+.game-object-sheet > div span { color: var(--brand-ink); font-size: .58rem; font-weight: 900; text-transform: uppercase; }
 .game-object-sheet > div strong { font-size: .82rem; }
 .game-object-sheet > div small { color: var(--muted); font-size: .62rem; }
 .game-object-sheet > button { background: var(--control-bg); border: 1px solid var(--line); border-radius: 9px; color: var(--text); min-height: 44px; }
@@ -22058,7 +22054,7 @@ body,
 .game-context-sheet__bar { align-items: center; background: var(--background); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; margin: -2px -2px 10px; padding: 4px 4px 10px; position: sticky; top: -10px; z-index: 50; }
 .game-context-sheet--analysis .game-context-sheet__bar { position: relative; top: auto; z-index: 1; }
 .game-context-sheet__bar > div { display: grid; gap: 2px; }
-.game-context-sheet__bar span { color: var(--brand-primary); font-size: .58rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.game-context-sheet__bar span { color: var(--brand-ink); font-size: .58rem; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 .game-context-sheet__bar strong { font-size: .8rem; }
 .game-context-sheet__bar > button { align-items: center; background: var(--control-bg); border: 1px solid var(--line); border-radius: 9px; color: var(--text); display: flex; height: 42px; justify-content: center; width: 42px; }
 .game-context-sheet .game-scorekeeper-layout { display: block; }
@@ -22066,14 +22062,14 @@ body,
 .game-context-sheet .game-scorekeeper-layout > .game-bases-console { display: none; }
 .game-session-bottom-nav { background: color-mix(in srgb, var(--panel) 96%, transparent); border: 1px solid var(--line); border-radius: 12px; bottom: 0; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); min-height: 62px; overflow: hidden; position: sticky; z-index: 60; }
 .game-session-bottom-nav button { align-items: center; background: transparent; border: 0; color: var(--muted); display: flex; flex-direction: column; font-size: .56rem; font-weight: 800; gap: 3px; justify-content: center; min-height: 58px; padding: 5px 2px; }
-.game-session-bottom-nav button.active { background: var(--control-selected); color: var(--brand-primary); }
+.game-session-bottom-nav button.active { background: var(--control-selected); color: var(--brand-ink); }
 .game-opponent-workbench { margin: 0 auto; max-width: 780px; }
 .game-opponent-tabs { background: var(--control-bg); border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 4px; grid-template-columns: repeat(2,minmax(0,1fr)); margin-bottom: 12px; padding: 4px; }
 .game-opponent-tabs button { background: transparent; border: 0; border-radius: 8px; color: var(--muted); min-height: 42px; }
 .game-opponent-tabs button.active { background: var(--brand-primary); color: var(--brand-text-on-primary); }
 .game-opponent-actors { display: grid; gap: 8px; grid-template-columns: repeat(2,minmax(0,1fr)); margin-bottom: 12px; }
 .game-opponent-actors article, .game-opponent-empty { background: var(--control-bg); border: 1px solid var(--line); border-radius: 10px; display: grid; gap: 4px; padding: 12px; }
-.game-opponent-actors span { color: var(--brand-primary); font-size: .59rem; font-weight: 900; text-transform: uppercase; }
+.game-opponent-actors span { color: var(--brand-ink); font-size: .59rem; font-weight: 900; text-transform: uppercase; }
 .game-opponent-actors strong { font-size: .78rem; }
 .game-opponent-actors small, .game-opponent-empty p { color: var(--muted); font-size: .62rem; line-height: 1.45; }
 
@@ -22090,7 +22086,7 @@ body,
 .game-flow-stage { animation: game-stage-in 180ms ease-out; display: grid; gap: 13px; min-height: 390px; }
 @keyframes game-stage-in { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
 .game-stage-heading { display: grid; gap: 3px; }
-.game-stage-heading > span { color: var(--brand-primary); font-size: 0.65rem; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+.game-stage-heading > span { color: var(--brand-ink); font-size: 0.65rem; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
 .game-stage-heading h3 { font-size: clamp(1.25rem, 2vw, 1.7rem); margin: 0; }
 .game-stage-heading small { color: var(--muted); font-size: 0.72rem; }
 .game-pitch-type-grid--guided { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -22121,7 +22117,7 @@ body,
 .game-current-pa-strip > span { color: var(--muted); font-size: 0.62rem; font-weight: 850; letter-spacing: .07em; text-transform: uppercase; }
 .game-current-pa-strip > div { display: flex; gap: 6px; overflow-x: auto; }
 .game-current-pa-strip i { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; display: grid; flex: 0 0 auto; font-style: normal; gap: 2px; min-width: 78px; padding: 7px; }
-.game-current-pa-strip i b { color: var(--brand-primary); font-size: .58rem; }
+.game-current-pa-strip i b { color: var(--brand-ink); font-size: .58rem; }
 .game-current-pa-strip i strong { font-size: .68rem; }
 .game-current-pa-strip i small { color: var(--muted); font-size: .58rem; }
 
@@ -22138,7 +22134,7 @@ body,
 .game-tendex-filter-summary button { margin-left: auto; }
 .game-tendex-overview { display: grid; gap: 12px; grid-template-columns: minmax(0, 1.1fr) minmax(340px, .9fr); }
 .game-tendex-quality, .game-live-tendencies { min-width: 0; }
-.game-tendex-prediction-card { background: linear-gradient(145deg, color-mix(in srgb, var(--brand-soft) 72%, var(--panel)), var(--panel)); }
+.game-tendex-prediction-card { background: var(--panel); }
 .game-prediction-confidence { border: 1px solid var(--line); border-radius: 999px; font-size: .63rem; font-weight: 900; padding: 6px 9px; text-transform: uppercase; }
 .game-prediction-confidence--strong { border-color: #36b77a; color: #36b77a; }
 .game-prediction-confidence--medium { border-color: #f0b44d; color: #f0b44d; }
@@ -22147,7 +22143,7 @@ body,
 .game-prediction-hero > div:first-child { display: grid; gap: 4px; }
 .game-prediction-hero > div:first-child span { color: var(--muted); font-size: .62rem; text-transform: uppercase; }
 .game-prediction-hero > div:first-child strong { font-size: clamp(1.35rem, 2.4vw, 2.2rem); }
-.game-prediction-hero > div:first-child b { color: var(--brand-primary); font-size: 1.4rem; }
+.game-prediction-hero > div:first-child b { color: var(--brand-ink); font-size: 1.4rem; }
 .game-prediction-bars { display: grid; gap: 7px; }
 .game-prediction-bars > div { align-items: center; display: grid; gap: 7px; grid-template-columns: 82px minmax(0,1fr) 36px; }
 .game-prediction-bars span, .game-prediction-bars strong { font-size: .64rem; }
@@ -22466,8 +22462,7 @@ body,
   padding: 18px;
   border-color: color-mix(in srgb, var(--burgundy) 20%, var(--line));
   background:
-    linear-gradient(145deg, color-mix(in srgb, var(--burgundy) 11%, transparent), transparent 44%),
-    color-mix(in srgb, var(--bg-elevated) 72%, transparent);
+    var(--bg-elevated);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.26);
 }
 
@@ -22484,9 +22479,9 @@ body,
 }
 
 .auth-tabs button.active {
-  background: color-mix(in srgb, var(--burgundy) 88%, #ffffff 4%);
+  background: var(--brand-primary);
   color: #ffffff;
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--burgundy) 28%, transparent);
+  box-shadow: none;
 }
 
 .auth-form label {
@@ -22524,10 +22519,10 @@ body,
 
 .auth-form .primary-button.stretch-button {
   min-height: 46px;
-  border-color: color-mix(in srgb, var(--burgundy-strong) 90%, #ffffff 8%);
+  border-color: var(--brand-primary);
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--burgundy-strong), color-mix(in srgb, var(--burgundy) 78%, #11151b));
-  box-shadow: 0 14px 34px color-mix(in srgb, var(--burgundy) 34%, transparent);
+  background: var(--brand-primary);
+  box-shadow: none;
 }
 
 .auth-link-button {
@@ -22786,8 +22781,7 @@ body,
   min-height: 0;
   overflow: hidden;
   background:
-    linear-gradient(145deg, color-mix(in srgb, var(--burgundy) 8%, transparent), transparent 42%),
-    color-mix(in srgb, var(--panel) 92%, transparent);
+    var(--panel);
 }
 
 .weight-room-player-list__header {
@@ -22978,7 +22972,7 @@ body,
 }
 
 .weight-room-athlete-tabs button.active {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   font-weight: var(--weight-selected);
 }
 
@@ -23032,7 +23026,7 @@ body,
 }
 
 .weight-room-week-summary__metrics svg {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .weight-room-week-summary__metrics small,
@@ -23091,7 +23085,7 @@ body,
 
 .weight-room-focus-panel span,
 .weight-room-next-workout span {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   font-size: var(--text-label);
   font-weight: var(--weight-selected);
   letter-spacing: 0.04em;
@@ -23126,7 +23120,7 @@ body,
 }
 
 .weight-room-next-workout svg {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .weight-room-next-workout strong {
@@ -23610,7 +23604,7 @@ button.weight-room-athlete-table__row:hover {
 
 .weight-room-progress-insight svg {
   flex: 0 0 auto;
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .positive {
@@ -24585,7 +24579,7 @@ button.weight-room-athlete-table__row:hover {
   place-items: center;
   border-radius: 999px;
   background: color-mix(in srgb, var(--burgundy) 22%, var(--panel-strong));
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--burgundy) 30%, transparent);
 }
 
@@ -25233,7 +25227,7 @@ button.weight-room-athlete-table__row:hover {
   border: 1px solid color-mix(in srgb, var(--burgundy) 35%, var(--line));
   border-radius: 999px;
   background: color-mix(in srgb, var(--burgundy) 15%, transparent);
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   padding: 0 8px;
   font-size: var(--text-label);
   font-weight: var(--weight-selected);
@@ -25299,7 +25293,7 @@ button.weight-room-athlete-table__row:hover {
 
 .weight-room-active-top__metrics button:hover strong,
 .weight-room-active-top__metrics button:focus-visible strong {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .weight-room-active-top__metrics small,
@@ -25423,8 +25417,7 @@ button.weight-room-athlete-table__row:hover {
 .weight-room-group-strip article.active {
   border-color: color-mix(in srgb, var(--burgundy) 58%, var(--line));
   background:
-    linear-gradient(140deg, color-mix(in srgb, var(--burgundy) 16%, transparent), transparent 66%),
-    color-mix(in srgb, var(--panel-strong) 58%, transparent);
+    var(--brand-soft);
 }
 
 .weight-room-group-strip article > button {
@@ -25851,7 +25844,7 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .weight-room-builder-empty > svg {
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
 }
 
 .weight-room-builder-empty strong {
@@ -26273,8 +26266,7 @@ button.weight-room-athlete-table__row:hover {
 .weight-room-group-editor__list section.is-athlete-drop-target {
   border-color: color-mix(in srgb, var(--burgundy) 68%, var(--line));
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--burgundy) 13%, transparent), transparent 62%),
-    color-mix(in srgb, var(--bg) 42%, transparent);
+    var(--brand-soft);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--burgundy) 20%, transparent);
 }
 
@@ -29000,7 +28992,7 @@ button.weight-room-athlete-table__row:hover {
 .velocity-picker-field__clear {
   border: 0;
   background: transparent;
-  color: var(--brand-primary);
+  color: var(--brand-ink);
   font-size: 12px;
   font-weight: 900;
 }
@@ -30931,7 +30923,7 @@ button.weight-room-athlete-table__row:hover {
   border: 1px solid var(--line);
   border-radius: 50%;
   padding: 9px;
-  color: var(--burgundy-strong);
+  color: var(--brand-ink);
   background: var(--burgundy-soft);
 }
 
@@ -32239,8 +32231,6 @@ button.weight-room-athlete-table__row:hover {
 html,
 body {
   background:
-    radial-gradient(circle at 88% -12%, color-mix(in srgb, var(--burgundy) 10%, transparent), transparent 36rem),
-    radial-gradient(circle at 12% 0%, rgba(255, 255, 255, 0.025), transparent 30rem),
     var(--canvas);
 }
 
@@ -32310,15 +32300,27 @@ body {
 }
 
 .primary-button {
-  border-color: color-mix(in srgb, var(--burgundy-strong) 82%, white 8%);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--burgundy-strong) 90%, white 4%), var(--burgundy));
-  box-shadow: 0 12px 26px color-mix(in srgb, var(--burgundy) 22%, transparent);
+  border-color: var(--brand-primary);
+  background: var(--brand-primary);
+  box-shadow: none;
 }
 
 .primary-button:hover,
+.primary-button:focus-visible,
+.auth-form .primary-button.stretch-button:hover,
+.auth-form .primary-button.stretch-button:focus-visible {
+  background: var(--brand-hover);
+  transform: none;
+}
+
+.primary-button:active,
+.auth-form .primary-button.stretch-button:active {
+  background: var(--brand-active);
+}
+
 .primary-button:focus-visible {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--burgundy-strong) 96%, white 6%), color-mix(in srgb, var(--burgundy) 92%, #000));
-  transform: translateY(-1px);
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
 }
 
 .secondary-button,
@@ -32691,7 +32693,7 @@ textarea:focus,
 .mobile-more-menu__row:hover svg,
 .mobile-more-menu__row:focus-visible svg,
 .mobile-more-menu__row.active svg {
-  color: var(--brand-primary);
+  color: var(--brand-ink);
 }
 
 .mobile-more-menu__row.with-divider {
@@ -35255,7 +35257,7 @@ textarea:focus,
   justify-content: center;
   gap: 8px;
   padding: 0 16px;
-  box-shadow: 0 14px 28px color-mix(in srgb, var(--brand-primary) 30%, transparent), 0 0 0 4px color-mix(in srgb, var(--brand-primary) 10%, transparent);
+  box-shadow: none;
   cursor: pointer;
   transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
@@ -35263,8 +35265,8 @@ textarea:focus,
 .ask-clubhouse-fab:hover,
 .ask-clubhouse-fab:focus-visible {
   background: var(--brand-hover);
-  box-shadow: 0 16px 32px color-mix(in srgb, var(--brand-primary) 38%, transparent), 0 0 0 5px color-mix(in srgb, var(--brand-primary) 13%, transparent);
-  transform: translateY(-2px);
+  box-shadow: none;
+  transform: none;
 }
 
 .ask-clubhouse-fab:active {
@@ -35939,7 +35941,7 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
 }
 
 .analytics-filter-section__toggle small {
-  color: var(--brand-light);
+  color: var(--brand-ink);
   font-size: 10px;
   font-weight: 850;
   letter-spacing: 0;
@@ -36323,7 +36325,7 @@ body:has(.modal-backdrop) .ask-clubhouse-fab {
 }
 
 .analytics-chart-player-select__menu button.active svg {
-  color: var(--brand-light);
+  color: var(--brand-ink);
 }
 
 .analytics-chart-player-select__menu span {

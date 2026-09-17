@@ -8,6 +8,7 @@ test("next build contains the Clubhouse 9 app shell", async () => {
 
   const layout = readFileSync("app/layout.tsx", "utf8");
   const page = readFileSync("app/page.tsx", "utf8");
+  const authenticationForm = readFileSync("app/components/AuthenticationForm.tsx", "utf8");
   const branding = readFileSync("app/lib/branding.ts", "utf8");
   const repository = readFileSync("app/data/supabaseRepository.ts", "utf8");
   const profileRoute = readFileSync("app/api/profile/route.ts", "utf8");
@@ -24,7 +25,8 @@ test("next build contains the Clubhouse 9 app shell", async () => {
   assert.match(page, /BRAND_ASSETS/);
   assert.match(page, /supabaseAppRepository/);
   assert.doesNotMatch(page, /localPracticeRepository\.load/);
-  assert.match(page, /Create Account/);
+  assert.match(page, /<AuthenticationForm/);
+  assert.match(authenticationForm, /Create account/);
   assert.match(page, /TeamSwitcher/);
   assert.match(page, /Your account is ready/);
   assert.doesNotMatch(repository, /claim_initial_metrolina_admin/);

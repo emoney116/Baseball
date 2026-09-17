@@ -36,7 +36,7 @@ test("production Player Access routes enforce anonymous boundaries and hide QA f
       const response = await fetch(`${base}${path}`, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
       assert.equal(response.status, 401, await response.text());
     });
-    for (const path of ["/player-preview?access=FULL_PLAYER", "/player-access-preview"]) {
+    for (const path of ["/player-preview?access=FULL_PLAYER", "/player-access-preview", "/auth-preview"]) {
       await t.test(`${path} is unavailable in production`, async () => {
         assert.equal((await fetch(`${base}${path}`)).status, 404);
       });

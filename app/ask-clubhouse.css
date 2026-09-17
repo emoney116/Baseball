@@ -24,11 +24,11 @@
 .ask-experience .ask-message--user .ask-message__meta { display: none; }
 .ask-experience .ask-user-question { padding: 11px 16px; border: 1px solid var(--line); background: var(--panel-soft); border-radius: 18px 18px 5px 18px; font-size: 15px; font-weight: 450; line-height: 1.55; overflow-wrap: anywhere; }
 .ask-experience .ask-message__meta span { color: var(--text); font-weight: 600; font-size: 12px; gap: 8px; }
-.ask-experience .ask-message__meta svg { color: var(--brand-light); }
+.ask-experience .ask-message__meta svg { color: var(--brand-ink); }
 .ask-experience .ask-message__meta time { display: none; }
 .ask-experience .ask-empty-state { width: 100%; margin: auto 0; gap: 24px; padding: 20px 0; }
 .ask-experience .ask-empty-state__intro { gap: 12px; padding: 0; }
-.ask-experience .ask-mark { width: 44px; height: 44px; background: var(--brand-soft); color: var(--brand-light); }
+.ask-experience .ask-mark { width: 44px; height: 44px; background: var(--brand-soft); color: var(--brand-ink); }
 .ask-experience .ask-empty-state h3 { display: none; }
 .ask-experience .ask-empty-state strong { margin: 0; font-size: clamp(23px, 4vw, 29px); font-weight: 580; letter-spacing: -.9px; line-height: 1.2; }
 .ask-experience .ask-empty-state p { font-size: 13px; font-weight: 400; line-height: 1.6; max-width: 340px; }
@@ -74,7 +74,7 @@
 .ask-markdown ul, .ask-markdown ol { margin: 8px 0 16px; padding-left: 22px; }
 .ask-markdown li { padding: 2px 0 2px 3px; }
 .ask-markdown li > p { margin: 0; }
-.ask-markdown a { color: var(--brand-light); text-decoration: underline; text-underline-offset: 3px; }
+.ask-markdown a { color: var(--brand-ink); text-decoration: underline; text-underline-offset: 3px; }
 .ask-markdown blockquote { margin: 14px 0; padding: 2px 0 2px 14px; border-left: 2px solid var(--line-strong); color: var(--muted-strong); }
 .ask-markdown code { background: var(--panel-soft); border: 1px solid var(--line); border-radius: 4px; font-size: .88em; padding: 1px 4px; }
 .ask-markdown pre { overflow: auto; max-width: 100%; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); }
@@ -108,7 +108,7 @@
 .analytics-ask-drawer.ask-experience .ask-stop-button { background: var(--text); color: var(--bg); }
 .ask-composer__hint { font-size: 10px; line-height: 1.4; color: var(--muted); font-weight: 400; text-align: center; margin: 9px 0 0; }
 .ask-jump-latest { position: absolute; left: 50%; top: -40px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; height: 32px; border: 1px solid var(--line-strong); border-radius: 30px; background: var(--surface-overlay); color: var(--text); box-shadow: 0 2px 12px rgb(0 0 0 / .12); padding: 0 11px; cursor: pointer; font-size: 11px; }
-.ask-experience button:focus-visible, .ask-experience a:focus-visible, .ask-markdown__table:focus-visible { outline: 2px solid var(--brand-light); outline-offset: 3px; }
+.ask-experience button:focus-visible, .ask-experience a:focus-visible, .ask-markdown__table:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .ask-experience button:disabled { cursor: default; }
 
 @keyframes ask-dot-wave { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-4px); opacity: 1; } }

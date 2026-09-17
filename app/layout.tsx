@@ -13,6 +13,7 @@ import "./ask-clubhouse.css";
 import "./select-system.css";
 import "./pwa.css";
 import "./weight-room-polish.css";
+import "./auth.css";
 
 const geist = Geist({
   subsets: ["latin"],
