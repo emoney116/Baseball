@@ -84,7 +84,7 @@ test("Live BP uses a numeric count and one shared correction control", () => {
 });
 
 test("Live BP is embedded inside the shared Practice tracker, with compact entry controls", () => {
-  const page = fs.readFileSync("app/page.tsx", "utf8");
+  const page = fs.readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
   assert.equal(
     page
       .slice(0, page.indexOf("function PracticeConsole("))
@@ -122,7 +122,7 @@ test("Live BP is embedded inside the shared Practice tracker, with compact entry
 });
 
 test("Practice mode switch delegates one route transition without stale station callbacks", () => {
-  const page = fs.readFileSync("app/page.tsx", "utf8");
+  const page = fs.readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
   const callback = page.slice(
     page.indexOf("function changeMode(nextMode:"),
     page.indexOf("function selectSession(row:"),

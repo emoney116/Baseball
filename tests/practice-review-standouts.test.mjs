@@ -17,7 +17,7 @@ test('Practice highlights rank qualifying recorded samples, never unknown contac
 });
 
 test('End Practice dialog uses the same canonical recap as completed Practice review', () => {
-  const page=readFileSync(new URL('../app/page.tsx',import.meta.url),'utf8');
+  const page=readFileSync(new URL('../app/ClubhouseWorkspace.tsx',import.meta.url),'utf8');
   const modal=page.slice(page.indexOf('function PracticeSummaryModal('),page.indexOf('function HomeInfoCard('));
   assert.match(modal,/buildPracticeReviewSummary\(data, practice.id\)/);
   assert.match(modal,/<PracticeRecap summary=\{reviewSummary\}/);

@@ -19,8 +19,10 @@ export async function GET(request: NextRequest) {
     const q = request.nextUrl.searchParams;
     const playerId = q.get("playerId") ?? q.get("player") ?? undefined;
     const teamId = q.get("teamId") ?? q.get("team") ?? undefined;
-    const contexts = await listPlayerContexts(db, user.id);
-    const staff = await hasStaffAccess(db, user.id);
+    const [contexts, staff] = await Promise.all([
+      listPlayerContexts(db, user.id),
+      hasStaffAccess(db, user.id),
+    ]);
     // An explicit self-context still requires its approved link, even for staff.
     if (staff && q.get("workspace") !== "player")
       return NextResponse.json(

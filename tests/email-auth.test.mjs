@@ -64,7 +64,7 @@ test('UI contains OTP accessibility, busy guards, recovery and reduced motion', 
   for (const text of ['OTPInput', 'one-time-code', 'inputMode="numeric"', 'pasteTransformer', 'inFlight.current', 'resendAt.current', 'result.status === "authenticated"', 'email_not_confirmed']) assert.ok(form.includes(text), text);
   const css = readFileSync(new URL('../app/auth.css', import.meta.url), 'utf8');
   assert.match(css, /prefers-reduced-motion/);
-  const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
+  const page = readFileSync(new URL('../app/ClubhouseWorkspace.tsx', import.meta.url), 'utf8');
   assert.match(page, /loadSequenceRef/); assert.match(page, /30000/); assert.match(page, /<AppLoading/);
   const preview = readFileSync(new URL('../app/auth-preview/page.tsx', import.meta.url), 'utf8');
   assert.match(preview, /NODE_ENV !== "development"/);

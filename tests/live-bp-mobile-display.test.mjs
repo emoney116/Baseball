@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 test('pitch map distinguishes located pitches from tracked hard-contact samples', () => {
-  const page = readFileSync('app/page.tsx', 'utf8');
+  const page = readFileSync('app/ClubhouseWorkspace.tsx', 'utf8');
   assert.match(page, /action === "Ball in play" && entry\.event\.contactQuality\) stats\.hardSamples \+= 1/);
   assert.match(page, /stats\.hardSamples \? formatPct\(pct\(stats\.hard, stats\.hardSamples\), 0\) : "--"/);
   assert.match(page, /\$\{stats\.count\} pitches/);

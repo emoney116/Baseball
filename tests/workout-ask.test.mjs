@@ -43,7 +43,7 @@ test('mobile nav hides for shared and portaled dialogs, and Ask retains test met
   for(const field of ['test_conditions','test_side','test_attempt']) assert.ok(mapper.includes(`row.${field}`));
 });
 test('review prompts are scoped and its primary Ask action follows Edit Workout',()=>{
-  const page=readFileSync('app/page.tsx','utf8');
+  const page=readFileSync('app/ClubhouseWorkspace.tsx','utf8');
   assert.match(page,/weight_room: \[\s*\{ label: "Who leads Weight Room Development\?"/);
   assert.match(page,/!weighInOpen && <AskClubhouseFab onClick=\{\(\) => onAsk\(\)\}/);
   assert.match(page,/suggestions=\{askLaunchContext.surface === "weight_room" && askLaunchContext.analytics\?\.customDateRange/);

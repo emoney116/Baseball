@@ -41,6 +41,6 @@ test("picker omits redundant inputs and Home keeps empty states", () => {
   const picker = readFileSync("app/components/ClubhouseLocationPicker.tsx", "utf8");
   assert.doesNotMatch(picker, /City \(optional\)|State \(optional\)|Enter venue name|>Cancel</);
   assert.match(picker, /Previous Locations/);
-  const home = readFileSync("app/page.tsx", "utf8");
+  const home = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
   assert.match(home, /Nothing on your schedule/); assert.match(home, /No recent game scores/);
 });

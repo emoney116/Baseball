@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
 test('Individual workout is exercise-first with every athlete and configured set', () => {
-  const page = readFileSync('app/page.tsx', 'utf8');
+  const page = readFileSync('app/ClubhouseWorkspace.tsx', 'utf8');
   const component = page.slice(page.indexOf('function WeightRoomIndividualWorkout('), page.indexOf('function WeightRoomActiveActivity('));
   assert.match(component, /aria-label="Workout exercise"/);
   assert.doesNotMatch(component, /Workout athlete|onPlayer|individual-strip|playerId: ID/);

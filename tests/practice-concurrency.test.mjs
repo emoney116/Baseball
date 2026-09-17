@@ -5,7 +5,7 @@ import test from "node:test";
 test("practice architecture supports concurrent sessions and append-only events", () => {
   const migration = readFileSync("supabase/migrations/20260813190000_practice_concurrency.sql", "utf8");
   const repository = readFileSync("app/data/supabaseRepository.ts", "utf8");
-  const page = readFileSync("app/page.tsx", "utf8");
+  const page = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
   const helpers = readFileSync("app/lib/practiceConcurrency.ts", "utf8");
   const styles = readFileSync("app/globals.css", "utf8");
 

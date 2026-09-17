@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const page = readFileSync(new URL("../app/ClubhouseWorkspace.tsx", import.meta.url), "utf8");
 const claims = readFileSync(new URL("../app/components/PlayerAccountLinksPanel.tsx", import.meta.url), "utf8");
 const access = readFileSync(new URL("../app/components/PlayerAccessPanel.tsx", import.meta.url), "utf8");
 const invites = readFileSync(new URL("../app/components/PlayerInvitationsPanel.tsx", import.meta.url), "utf8");

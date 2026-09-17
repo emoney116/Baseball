@@ -4,7 +4,7 @@ import test from "node:test";
 
 const css = fs.readFileSync(new URL("../app/theme.css", import.meta.url), "utf8");
 const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
-const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const page = fs.readFileSync(new URL("../app/ClubhouseWorkspace.tsx", import.meta.url), "utf8");
 
 test("theme palette uses true white and #111111 neutral canvases", () => {
   assert.match(layout, /import "\.\/globals\.css";\s*import "\.\/theme\.css";/);
