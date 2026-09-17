@@ -48,6 +48,17 @@ const pitches = [
   ["splitter", "Splitter"],
 ];
 
+test("real audio baseline wording is spray, not conflicting pitch location or fielder", () => {
+  for (const [phrase, lane] of [["first baseline",4],["first base line",4],["third baseline",0]]) {
+    const intent = interpretVoice(`changeup, 75 low, ground ball down the ${phrase}, double.`, context(), "baseline-audio", .6861);
+    assert.deepEqual(intent.unresolvedFields, []);
+    assert.deepEqual(intent.draft.location, voiceLocationPoint("low", "R"));
+    assert.deepEqual(intent.draft.spray, sprayPointForLane(lane));
+    assert.equal(intent.draft.position, undefined);
+    assert.equal(intent.draft.result, "Double");
+  }
+});
+
 test("strict intent contract rejects extra fields, invalid taxonomy and confidence", () => {
   const good = interpretVoice(
     "slider 78 middle whiff",

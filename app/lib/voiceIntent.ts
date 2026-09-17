@@ -298,6 +298,9 @@ export function interpretVoice(
       }
       if (context.settings.mode !== "GAME" && !context.state.situationKnown) unresolved.add("runner situation");
     }
+    // Consume foul-line spray phrases before "down" and base names become pitch/fielder data.
+    remaining = remaining.replace(/\bdown (?:the )?(first|third) base\s*line\b/g,
+      (_, base: string) => base === "first" ? "right field line" : "left field line");
     const sequence = matchVoiceVocabulary(remaining, fielders);
     const narratedThrow = /\b(?:threw|throws?|throw)\s+to\b/.test(remaining) || /\b(?:pitcher|shortstop|baseman) to (?:the )?(?:first|second|third|catcher)\b/.test(remaining);
     if(narratedThrow && sequence.length>1) {
