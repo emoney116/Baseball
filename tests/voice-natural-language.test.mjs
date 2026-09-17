@@ -4,10 +4,31 @@ import {parseVoiceCommand} from '../app/lib/voiceCommands.ts';
 import {interpretVoice,assertVoiceIntent,canFastSaveVoice} from '../app/lib/voiceIntent.ts';
 import {initialBpSettings,initialBpState} from '../app/lib/liveBp.ts';
 import {VOICE_POSITIONS} from '../app/lib/voiceBaseballLanguage.ts';
+import {voiceIdentityMatches,voiceRosterAliases} from '../app/lib/voiceVocabulary.ts';
+
+test('real audio: full-name vowel spelling variant remains roster bounded',()=>{
+  assert.equal(voiceIdentityMatches({id:'j',aliases:['Jackson Pierce']},'Jackson Pearce'),true);
+  assert.equal(voiceIdentityMatches({id:'j',aliases:['Jackson Pierce']},'Jackson Price'),false);
+  assert.equal(voiceIdentityMatches({id:'j',aliases:['Jackson Pierce']},'Jackson'),false);
+});
+test('generated initials never override another explicit roster name',()=>{
+  const players=[{id:'j',name:'Jackson Pierce'},{id:'jp',name:'JP HostedQA'}];
+  assert.equal(voiceRosterAliases(players[0],players).includes('JP'),false);
+  assert.equal(voiceRosterAliases(players[1],players).includes('JP'),true);
+});
 
 const roster=[{id:'j',aliases:['Jackson Pierce','Jackson','JP'],bats:'R'},{id:'m',aliases:['Mylo'],bats:'R'}];
 const settings={...initialBpSettings('m'),pitchMode:'MULTI',pitchType:'4-Seam',source:'MACHINE',mode:'FREE'};
 const context={domain:'live-bp',roster,settings,state:initialBpState(),bats:'R'};
+test('real audio: count as one and one',()=>{
+  const parsed=parseVoiceCommand('Count as one and one.',roster,settings);
+  assert.equal(parsed.statePatch.balls,1);assert.equal(parsed.statePatch.strikes,1);
+});
+test('real audio: joined hardline drive',()=>{
+  const parsed=interpretVoice('Hardline drive.',context,'qa',.44);
+  assert.equal(parsed.draft.battedBall,'Line drive');assert.equal(parsed.draft.contactQuality,'Hard');
+  assert.deepEqual(parsed.unresolvedFields,[]);assert.equal(canFastSaveVoice(parsed),false);
+});
 for(const [position,canonical] of Object.entries(VOICE_POSITIONS)) {
   for(const phrase of [`Jackson Pierce is now playing ${position}`,`Put Jackson at ${position}`,`Jackson at ${position}`,`Move Jackson to ${position}`,`Jackson goes to ${position}`]) {
     test(`alignment: ${phrase}`,()=>{

@@ -20,7 +20,15 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
   const playback=useRef<AudioContext|null>(null);
   const [qaResults,setQaResults]=useState<{sequence:number;transcript:string;transcriptionMs:number;completed:boolean}[]>([]);
   useEffect(()=>{handler.current=onTranscript;currentContext.current=contextKey;},[onTranscript,contextKey]);
-  function publish(){if(mounted.current)setItems([...captures.current]);}
+  function publish(){if(mounted.current)setItems(captures.current.map(item=>({...item})));}
+  function retry(requestId:string) {
+    const item=captures.current.find(row=>row.requestId===requestId);if(!item)return;
+    item.requestId=crypto.randomUUID();item.status='captured';item.error=undefined;pump();
+  }
+  function discard(requestId:string) {
+    const item=captures.current.find(row=>row.requestId===requestId);if(!item)return;
+    timeline.discard(item.ticket);captures.current=captures.current.filter(row=>row!==item);publish();
+  }
   async function mute(end=false) {
     active.current=false;generation.current++;clearTimeout(timer.current);
     const detector=vad.current;vad.current=null;
@@ -51,6 +59,8 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
     }
   }
   async function transcribe(item:Capture) {
+    // Invoked only by capture/retry event workers, never during rendering.
+    // eslint-disable-next-line react-hooks/purity
     const started=performance.now();
     try {
       let response:Response|undefined;
@@ -74,6 +84,8 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
       if(process.env.NEXT_PUBLIC_VERCEL_ENV==='preview')setQaResults(rows=>rows.map(row=>row.sequence===item.ticket.sequence?{...row,completed:true}:row));
     } catch(e) {
       if(item.status==='transcribing'){workers.current--;pump();}
+      // Worker records live in captures.current; publish creates immutable UI snapshots.
+      // eslint-disable-next-line react-hooks/immutability
       item.status='failed';item.error=e instanceof Error?e.message:'Voice failed. Audio retained.';publish();
     }
   }
@@ -129,8 +141,8 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
       <output aria-label="QA capture results">{JSON.stringify(qaResults)}</output>
     </details>}
     {items.filter(item=>item.status==='failed').map(item=><div key={item.requestId} role="alert">{item.error}
-      <button type="button" onClick={()=>{item.requestId=crypto.randomUUID();item.status='captured';item.error=undefined;pump();}}>Retry</button>
-      <button type="button" onClick={()=>{timeline.discard(item.ticket);captures.current=captures.current.filter(row=>row!==item);publish();}}>Discard phrase</button>
+      <button type="button" onClick={()=>retry(item.requestId)}>Retry</button>
+      <button type="button" onClick={()=>discard(item.requestId)}>Discard phrase</button>
     </div>)}
   </div>;
 }

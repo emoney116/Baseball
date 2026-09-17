@@ -20,7 +20,7 @@ for(const [begin,end] of [...pauses,[total,total]]) {
 }
 for(const [index,segment] of segments.entries()) {
   segment.file=join(destination,`${String(index+1).padStart(2,'0')}.wav`);
-  const converted=spawnSync(ffmpeg,['-y','-i',source,'-ss',String(segment.start),'-t',String(segment.end-segment.start),'-ar','16000','-ac','1','-c:a','pcm_s16le',segment.file],{encoding:'utf8'});
+  const converted=spawnSync(ffmpeg,['-y','-i',source,'-ss',String(segment.start),'-t',String(segment.end-segment.start),'-ar','16000','-ac','1','-c:a','pcm_s16le','-fflags','+bitexact','-flags:a','+bitexact','-map_metadata','-1',segment.file],{encoding:'utf8'});
   if(converted.status!==0)throw new Error(converted.stderr);
 }
 const manifest={source,duration:total,segmentation:'Silence proposals; verify transcript boundaries before acceptance.',segments};

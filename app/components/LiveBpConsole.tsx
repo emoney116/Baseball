@@ -50,6 +50,7 @@ import { LiveBpFieldRunners } from "./LiveBpFieldRunners";
 import type { BpRunnerMove } from "../lib/liveBpRunnerMove";
 import styles from "./LiveBpConsole.module.css";
 import { VoiceEntry } from "./VoiceEntry";
+import { voiceRosterAliases } from '../lib/voiceVocabulary';
 import { practiceActionQueue, rebasePracticeEdit } from '../lib/practiceActionQueue';
 import { formatBpRecent, type BpRecentEvidence } from "../lib/liveBpRecent";
 
@@ -162,6 +163,7 @@ export function LiveBpConsole({
   const [fieldRetry, setFieldRetry] = useState(false);
   const [undoOpen, setUndoOpen] = useState(false);
   const [voiceCorrection, setVoiceCorrection] = useState<BpState | null>(null);
+  const [voiceEdit,setVoiceEdit] = useState<{requestId:string;resolve:(saved:boolean)=>void}|null>(null);
   const authoritative = useRef({round,settings,state});
   const actionQueue = practiceActionQueue(practiceId);
   const onSavedRef = useRef(onSaved);
@@ -267,7 +269,7 @@ export function LiveBpConsole({
     if (["hitterId", "pitcherId", "source", "coachName"].includes(key))
       setDraft({ outcome: "" });
     const next = withBpPitcherAlignment({ ...settings, [key]: value });
-    if (round && !optionsOpen) void write("configure", next, state);
+    if (!optionsOpen) void write(round ? "configure" : "start", next, state);
     else setSettings(next);
   }
   function edit<K extends keyof BpDraft>(key: K, value: BpDraft[K]) {
@@ -597,7 +599,10 @@ export function LiveBpConsole({
     return sheet(
       "Log Pitch",
       () => {
-        if (!busy) setStage("pitch");
+        if (!busy) {
+          setStage("pitch");
+          voiceEdit?.resolve(false);setVoiceEdit(null);
+        }
       },
       <>
         <div className={styles.wizardMatchup}>
@@ -695,7 +700,11 @@ export function LiveBpConsole({
     );
   }
   function submitPitch() {
-    void write("pitch");
+    const edit=voiceEdit;
+    if(edit)void write('pitch',settings,state,draft,edit.requestId,true).then(saved=>{
+      if(saved){setVoiceEdit(null);edit.resolve(true);}
+    });
+    else void write("pitch");
   }
   const job =
     settings.mode === "GAME" && state.job ? (
@@ -753,7 +762,7 @@ export function LiveBpConsole({
         roster: players.map((p) => ({
           id: p.id,
           bats: p.bats,
-          aliases: [p.name, ...p.name.split(" ").filter(Boolean), p.name.split(" ").filter(Boolean).map(part=>part[0]).join(""), ...(p.jerseyNumber === undefined ? [] : [String(p.jerseyNumber)])],
+          aliases: voiceRosterAliases(p, players),
         })),
       }}
       onSave={async (intent) => {
@@ -783,6 +792,7 @@ export function LiveBpConsole({
         if(intent.playerId && intent.playerId !== settings.hitterId) update("hitterId", intent.playerId);
         setDraft(intent.draft);
         setStage(needsPitchDetails ? "details" : "result");
+        return new Promise<boolean>(resolve=>{setVoiceEdit({requestId:intent.requestId,resolve});});
       }}
       onUndo={async () => Boolean(await fieldAction('undo',undefined,true))}
     />

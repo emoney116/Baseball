@@ -120,7 +120,22 @@ export type VoiceIdentity = { id: string; aliases: readonly string[]; bats?: "R"
 // A known spoken-name spelling equivalence; callers still reject multiple roster matches.
 export function voiceIdentityMatches(player: VoiceIdentity, name: string): boolean {
   const key = (value: string) => normalizeVoiceText(value).replace(/\bmilo\b/g, 'mylo').replace(/\baidan\b/g, 'aiden').replace(/\b(?:[a-z] ){1,}[a-z]\b/g, initials => initials.replace(/ /g, ''));
-  return player.aliases.some(alias => key(alias) === key(name));
+  return player.aliases.some(alias => {
+    if (key(alias) === key(name)) return true;
+    const actual = key(alias).split(' '), spoken = key(name).split(' ');
+    // Full-name vowel spelling variants require an exact first name. Callers
+    // still reject multiple candidates; short names and initials stay exact.
+    return actual.length === 2 && spoken.length === 2 && actual[0] === spoken[0]
+      && actual[1].length >= 5 && spoken[1].length >= 5
+      && actual[1].replace(/ie|ea/g, 'ee') === spoken[1].replace(/ie|ea/g, 'ee');
+  });
+}
+
+export function voiceRosterAliases(player: {id:string;name:string;jerseyNumber?:number}, roster: readonly {id:string;name:string}[]): string[] {
+  const parts=player.name.split(' ').filter(Boolean);
+  const initials=parts.map(part=>part[0]).join('');
+  const collides=roster.some(other=>other.id!==player.id && other.name.split(' ').some(part=>normalizeVoiceText(part)===normalizeVoiceText(initials)));
+  return [player.name,...parts,...(collides?[]:[initials]),...(player.jerseyNumber===undefined?[]:[String(player.jerseyNumber)])];
 }
 
 export function resolveVoiceIdentity(

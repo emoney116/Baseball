@@ -23,7 +23,7 @@ export async function POST(request:Request){
     await assertPlayerLinkTeamManager(db,data.user.id,practice.data.team_id);
     if(practice.data.ended_at||practice.data.status!=='active'||Date.parse(practice.data.starts_at)>Date.now())return reply({message:'Practice is not active.'},409);
     // One bounded fallback per successful authorized transcription, not an unrestricted AI endpoint.
-    const claim=await db.from('voice_usage').update({interpretation_ms:0}).eq('request_id',body.requestId).eq('actor_id',data.user.id).eq('practice_id',body.practiceId).eq('status','completed').is('interpretation_ms',null).select('request_id').maybeSingle();
+    const claim=await db.from('voice_usage').update({interpretation_requested_at:new Date().toISOString()}).eq('request_id',body.requestId).eq('actor_id',data.user.id).eq('practice_id',body.practiceId).eq('status','completed').is('interpretation_requested_at',null).select('request_id').maybeSingle();
     if(claim.error||!claim.data)return reply({message:'Interpretation already requested or transcription unavailable. Use manual review.'},429);
     const provider=new OpenAIProvider({apiKey:process.env.OPENAI_VOICE_API_KEY,model:'gpt-5-mini'});
     const started=Date.now();

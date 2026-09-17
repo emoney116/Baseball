@@ -19,6 +19,7 @@ import { parseVoiceCommand, type VoiceContextCommand } from "../lib/voiceCommand
 import { SessionVoiceCapture } from './SessionVoiceCapture';
 import { appendVoiceFragment, voiceSessionAction } from '../lib/voiceSession';
 import { validateVoiceProposal } from '../lib/voiceInterpretationProposal';
+import { practiceActionQueue } from '../lib/practiceActionQueue';
 
 type Phase =
   | "idle"
@@ -49,7 +50,7 @@ function EnabledVoiceEntry({
   disabled?: boolean;
   captureDisabled?: boolean;
   onSave: (intent: VoiceIntent) => Promise<boolean>;
-  onEdit: (intent: VoiceIntent) => void;
+  onEdit: (intent: VoiceIntent) => void | Promise<boolean>;
   onUndo: () => void | Promise<boolean>;
   onCommand?: (command: VoiceContextCommand, requestId: string, event?: VoiceIntent) => Promise<boolean>;
 }) {
@@ -63,6 +64,12 @@ function EnabledVoiceEntry({
   const [interpretingProposal,setInterpretingProposal]=useState(false);
   const [activity, setActivity] = useState<{practiceId:string;label:string}[]>([]);
   const [continuous, setContinuous] = useState(false);
+  const [queuedActions,setQueuedActions]=useState(0);
+  useEffect(()=>{
+    const queue=practiceActionQueue(practiceId);
+    const sync=()=>setQueuedActions(queue.pending);sync();
+    return queue.subscribe(sync);
+  },[practiceId]);
   const reviewCompletion = useRef<((saved:boolean)=>void)|null>(null);
   function finishReview(saved:boolean) {const resolve=reviewCompletion.current;reviewCompletion.current=null;resolve?.(saved);}
   function waitForReview() {return new Promise<boolean>(resolve=>{reviewCompletion.current=resolve;});}
@@ -518,7 +525,7 @@ function EnabledVoiceEntry({
           <Zap size={16} aria-hidden="true" /> Fast Voice
         </label>
         <details className={styles.options}><summary aria-label="Voice options" title="Voice options"><ChevronDown size={16} /></summary><div className={styles.optionsPanel}>
-        <label><input type="checkbox" checked={continuous} disabled={continuous || phase === 'saving'} onChange={e => { cancel(); setContinuous(e.target.checked); }} />Continuous</label>
+        <label><input type="checkbox" checked={continuous} disabled={queuedActions > 0 || phase === 'saving'} onChange={e => { cancel(); setContinuous(e.target.checked); }} />Continuous</label>
       {process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview' && <details className={styles.qa}><summary aria-label="Audio QA" title="Audio QA"><FlaskConical size={16} /></summary><div className={styles.qaPanel}><label>
         <input type="file" accept="audio/wav,.wav" aria-label="QA voice recording" disabled={disabled || !['idle','saved','error'].includes(phase)} onChange={e => {
           const file=e.target.files?.[0]; e.target.value=''; if(file) void start(file);
@@ -633,8 +640,11 @@ function EnabledVoiceEntry({
                     reportVoiceMetrics(intent.requestId, {
                       manual_correction: true,
                     });
-                    onEdit(intent);
-                    cancel();
+                    const editing=onEdit(intent);
+                    if(continuous && editing) {
+                      setPhase('saving');
+                      void editing.then(saved=>{finishReview(saved);setIntent(null);setCommand(null);setPhase(saved?'saved':'idle');});
+                    } else cancel();
                   }}
                 >
                   <Pencil size={16} />

@@ -22,6 +22,7 @@ export const VOICE_QUALITY = {
 
 export function normalizeBaseballLanguage(text: string): string {
   return text
+    .replace(/\b(hard|soft|weak)(line|ground|fly)\b/g, '$1 $2')
     .replace(/\b(?:liner|lined it)\b/g, 'line drive')
     .replace(/\b(?:grounder|grounded it)\b/g, 'ground ball')
     .replace(/\b(?:popup|popped it up)\b/g, 'pop up')
@@ -68,7 +69,7 @@ export function normalizeCountLanguage(text: string): string {
   if (/^new count$/.test(text)) return 'reset count';
   const number = '(zero|oh|nothing|no|one|two|three|[0-3])';
   const explicit = text.match(new RegExp(`^${number} balls? (?:and )?${number} strikes?$`));
-  const pair = explicit ?? text.match(new RegExp(`^(?:(?:it is|it's|he is|he's|count(?: is)?|start him) )?${number} (?:and )?${number}$`));
+  const pair = explicit ?? text.match(new RegExp(`^(?:(?:it is|it's|he is|he's|count(?: is| as)?|start him) )?${number} (?:and )?${number}$`));
   if (!pair) return text;
   const value = (word: string) => ({zero:0,oh:0,nothing:0,no:0,one:1,two:2,three:3}[word] ?? Number(word));
   const balls = value(pair[1]), strikes = value(pair[2]);
