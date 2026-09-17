@@ -3,7 +3,7 @@ import { PracticeRecap } from "./components/PracticeRecap";
 import { WorkoutTestingConsole } from "./components/WorkoutTestingConsole";
 import { BASELINE_TESTING_CIRCUIT } from "./lib/workoutTesting";
 import { workoutMvp } from "./lib/workoutMvp";
-import { buildPracticeReviewSummary } from "./lib/practiceReviewSummary";
+import { buildPracticeReviewSummary, practiceReviewStandouts } from "./lib/practiceReviewSummary";
 import { LiveBpConsole } from "./components/LiveBpConsole";
 import { practiceDirectionForPoint } from "./lib/sprayChart";
 import { ClubhouseLocationPicker } from "./components/ClubhouseLocationPicker";
@@ -20244,27 +20244,15 @@ function PracticeSummaryModal({
   onSave: () => void;
   onOpenPlayer: (playerId: ID) => void;
 }) {
-  const totals = practiceTotals(data, practice.id);
-  const standouts = buildPracticeStandouts(data, practice.id);
-  const practiceHittingStats = calculateHittingStats(data.hittingEvents.filter((event) => event.practiceId === practice.id));
+  const reviewSummary = buildPracticeReviewSummary(data, practice.id);
+  const standouts = practiceReviewStandouts(reviewSummary);
 
   return (
     <ModalFrame title="Practice Summary" onClose={onClose}>
       <div className="summary-hero">
         <span>{shortDate(practice.date)}</span>
         <h2>{practice.name}</h2>
-        <div className="mini-stat-grid">
-          <StatTile label="Players" value={practice.playerIds.length} />
-          <StatTile label="Total Reps" value={totals.pitches + totals.swings + totals.defense} accent />
-          <StatTile label="Hitting" value={totals.hittingSessions} sub={`${totals.swings} swings`} />
-          <StatTile label="Pitching" value={totals.pitchingSessions} sub={`${totals.pitches} pitches`} />
-          {practiceHittingStats.exitVelocityRecorded > 0 && (
-            <StatTile label="Avg EV" value={`${formatNumber(practiceHittingStats.avgExitVelocity, 1)} mph`} sub={`${practiceHittingStats.exitVelocityRecorded} recorded`} />
-          )}
-          {practiceHittingStats.maxExitVelocity !== undefined && (
-            <StatTile label="Max EV" value={`${formatNumber(practiceHittingStats.maxExitVelocity, 1)} mph`} />
-          )}
-        </div>
+        <PracticeRecap summary={reviewSummary} />
       </div>
       <section className="practice-standout-list">
         <div className="panel-heading tight">
@@ -21583,34 +21571,7 @@ function buildPracticeReviewSessions(data: AppData, practiceId: ID) {
 }
 
 function buildPracticeStandouts(data: AppData, practiceId: ID) {
-  const players = data.players.filter((player) => !player.archived);
-  const hitterRows = players.map((player) => {
-    const stats = calculateHittingStats(data.hittingEvents.filter((event) => event.practiceId === practiceId && event.hitterId === player.id));
-    return { player, stats };
-  });
-  const pitcherRows = players.map((player) => {
-    const stats = calculatePitchingStats(data.pitchEvents.filter((event) => event.practiceId === practiceId && event.pitcherId === player.id));
-    return { player, stats };
-  });
-  const defenderRows = players.map((player) => {
-    const events = data.defenseEvents.filter((event) => event.practiceId === practiceId && event.playerId === player.id);
-    return { player, events, clean: events.filter((event) => event.outcome !== "Error").length };
-  });
-  const hardHit = hitterRows.filter((row) => row.stats.totalSwings >= 8).sort((a, b) => b.stats.hardHitPct - a.stats.hardHitPct)[0];
-  const impact = hitterRows.filter((row) => row.stats.totalSwings >= 8).sort((a, b) => b.stats.barrelPct - a.stats.barrelPct)[0];
-  const maxExitVelocity = hitterRows.filter((row) => row.stats.maxExitVelocity !== undefined).sort((a, b) => (b.stats.maxExitVelocity ?? 0) - (a.stats.maxExitVelocity ?? 0))[0];
-  const strike = pitcherRows.filter((row) => row.stats.totalPitches >= 12).sort((a, b) => b.stats.strikePct - a.stats.strikePct)[0];
-  const command = pitcherRows.filter((row) => row.stats.totalPitches >= 12).sort((a, b) => b.stats.intendedTargetHitPct - a.stats.intendedTargetHitPct)[0];
-  const defense = defenderRows.filter((row) => row.events.length >= 6).sort((a, b) => b.clean - a.clean)[0];
-
-  return [
-    hardHit && { label: "Top Hard-Hit %", player: hardHit.player, value: `${formatPct(hardHit.stats.hardHitPct)} / ${hardHit.stats.totalSwings} swings` },
-    impact && { label: "Top Impact %", player: impact.player, value: `${formatPct(impact.stats.barrelPct)} / ${impact.stats.totalSwings} swings` },
-    maxExitVelocity && { label: "Top EV", player: maxExitVelocity.player, value: `${formatNumber(maxExitVelocity.stats.maxExitVelocity, 1)} mph / ${maxExitVelocity.stats.exitVelocityRecorded} recorded` },
-    strike && { label: "Best Strike %", player: strike.player, value: `${formatPct(strike.stats.strikePct)} / ${strike.stats.totalPitches} pitches` },
-    command && command.stats.intendedTargetHitPct > 0 && { label: "Best Command %", player: command.player, value: `${formatPct(command.stats.intendedTargetHitPct)} target hit` },
-    defense && { label: "Clean Defensive Reps", player: defense.player, value: `${defense.clean}/${defense.events.length} clean` },
-  ].filter(Boolean) as Array<{ label: string; player: Player; value: string }>;
+  return practiceReviewStandouts(buildPracticeReviewSummary(data, practiceId));
 }
 
 function isMachineHittingStation(station: HittingSession["type"]) {

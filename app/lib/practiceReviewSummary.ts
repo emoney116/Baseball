@@ -19,3 +19,22 @@ export function buildPracticeReviewSummary(data:AppData, practiceId:ID) {
   return {hitting,pitching,defense,liveHitting,livePitching,participants:participantIds.size,sessions:sessionIds.size,
     durationMinutes:elapsed!==undefined&&Number.isFinite(elapsed)&&elapsed>=0?Math.round(elapsed/60000):undefined};
 }
+
+export function practiceReviewStandouts(summary: ReturnType<typeof buildPracticeReviewSummary>) {
+  const metrics = [
+    {result:summary.hitting, key:'hardPct', label:'Top Hard-Hit %', minimum:8},
+    {result:summary.hitting, key:'barrelPct', label:'Top Impact %', minimum:8},
+    {result:summary.hitting, key:'maxEv', label:'Top EV', minimum:1},
+    {result:summary.pitching, key:'strikePct', label:'Best Strike %', minimum:12},
+    {result:summary.defense, key:'cleanPct', label:'Clean Defensive Reps', minimum:6},
+  ];
+  return metrics.flatMap(({result,key,label,minimum}) => {
+    const best = result.rows.filter(row => !row.player.archived &&
+      typeof row.cells[key]?.value === 'number' &&
+      (row.cells[key].sample?.denominator ?? 0) >= minimum)
+      .sort((a,b) => Number(b.cells[key].value)-Number(a.cells[key].value))[0];
+    if (!best) return [];
+    const cell = best.cells[key];
+    return [{label,player:best.player,value:`${cell.display} / ${cell.sample?.denominator} recorded`}];
+  });
+}

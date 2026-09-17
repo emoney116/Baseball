@@ -41,7 +41,7 @@ export const practiceReadinessSession = [
   ['compound','Walk',{outcome:'Ball'},{balls:3,runners:[1,2,3]}],
   ['voice','Strikeout looking',{outcome:'Called Strike'},{strikes:2,outs:2,runners:[2]}],
   ['fast_voice','Foul',{outcome:'Foul'},{balls:1,strikes:2}],
-  ['compound','Fastball 84 low away bunt successful sacrifice runner moves to third Andrew out pitcher to first',{outcome:'Ball in play',velocity:84,result:'Sac Bunt'},{runners:[2]}],
+  ['compound','Fastball 84 low away bunt successful sacrifice runner moves to third Andrew out pitcher to first',{outcome:'Ball in play',velocity:84,result:'Sac Bunt',defenseResult:'Clean'},{runners:[2]}],
   ['compound',richPracticeNarration,{outcome:'Ball in play',velocity:84,result:'Sac Bunt'},{runners:[2]}],
   ['voice','Ground ball to short shortstop throws to first out',{outcome:'Ball in play',result:'Out'},{}],
   ['fast_voice','Single to left',{outcome:'Ball in play',result:'Single'},{}],

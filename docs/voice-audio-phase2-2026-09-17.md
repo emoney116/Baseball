@@ -153,3 +153,25 @@ Continuous-capture audit found save-busy remounting the mic. Capture lifecycle n
 |86|provider echoed vocabulary prompt; retry `context:`|.9398/.2130|No change saved; transcription failure, short-control prompt fix queued|
 
 Every accepted command above visibly updated the console without manual refresh. CountOff stayedoff throughout.83 was not a missing command: it shares segment22 with82. No reset between73 and86. Remaining87 awaits successful86 replay.
+
+### Completed continuous sequence and safety replay
+
+86 same real clip after3f1ac5b returned `Undo that.`. Confirmed canonical Undo; raw state restored to PA25/1out/bases2B+1B/version125 and latest event122. No reload/reset during73-87.
+87 actual `Fastball 83 low, line drive to right, 90 exit velo, single.` (.9705) Fast-saved event127. UI and SQL agree JP/Aiden,4-Seam83,LD/RF90EV,Single,PA26/1out/bases2B+3B+1B. Runner1->2 and2->3 are marked Practice defaults. Reload afterward restored all context.
+
+|#|Actual transcript|Confidence|Result|
+|---|---|---:|---|
+|88|Darren or Aidan is pitching.|context|Held unresolved identity; Aiden unchanged|
+|89|It was like 82 or 84.|.9907|Save disabled: multiple velocity values and missing result|
+|90|Line drive left center.|.8515|Review missing batter result; no invented outcome|
+|91|He made an error.|.9999|Held unknown fielder; specific message fix7048271 awaiting real replay|
+|92|Runner advanced.|.9770|Held unknown runner/destination; specific message fix7048271 awaiting real replay|
+|93|Jackson is hitting.|context|Unique QA roster Jackson selected; pitcher/situation unchanged|
+
+40 real replay `Runner at first base, double to left center.` (.9018) correctly held: choose1B runner advancement; Double cannot leave runner behind batter. No partial context/event persisted.
+49 real replay `Ball to left center, center fielder cuts it off, then throws to shortstop, runner holds at second.` (.8519) retains BIP/LCF/CF->SS/2Bhold and holds precise cutoff-metric limitation plus missing batter result.
+48 manual2B-only runner and DarrenRF assignment, actual `Single to right, right fielder throws to third, runner is out at third.` (.9888), saved Single/RF/Clean with existing runner retired; UI2outs/1B. Manual runner/defense -> Voice interoperability verified.
+51 manual hitterAndrew, pitcherDarren,2B/0outs. First retranscription misheard Andrew as `and you're` (.1813), held; unchanged real clip retry correctly heardAndrew (.5077). Revealed missing clean result for successfulSacBunt/P->1B. Fixedabda7ee; hosted real replay still required.
+
+Live Andrew Analytics readback independently reconciles raw records:24swings=(16BIP+4Foul+4Miss),20/24contact=83%,7EVsamples avg92.4286/max101,12spray points,17located pitches. Historical failed QA triple beforeguard remains in isolated fixture and is not represented as a clean initial acceptance pass.
+Fast confidence diagnostic replay76: `Fastball, 84, up, foul.` .9044, weakest tokenFast=.9044;up=.9987,ball=.9994,foul=.9999,84=1. No blanket threshold lowered. Correct parser/identity/completeness, provider-token gate alone causes Review.
