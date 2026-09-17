@@ -469,6 +469,16 @@ export function interpretVoice(
     )
     .replace(/\s+/g, " ")
     .trim();
+  if (/^(?:he|she) made an?$/.test(remaining) && draft.result === "Reached on Error") {
+    unresolved.add("Identify the fielder who made the error and confirm the batter result.");
+    remaining = "";
+  } else if (/^runner advanced$/.test(remaining)) {
+    unresolved.delete("pitch result");
+    unresolved.add("Specify which runner advanced and the destination base.");
+    remaining = "";
+  } else if (remaining === "it like or" && unresolved.has("Pitch velocity unclear: multiple numbers were spoken.")) {
+    remaining = "";
+  }
   if (remaining) unresolved.add(`Couldn't interpret "${remaining.slice(0,150)}".`);
   let inferredRunnerChanges: string[] = [];
   if (context.domain === "live-bp" && !correction && !unresolved.size) {

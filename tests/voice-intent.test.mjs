@@ -48,6 +48,19 @@ const pitches = [
   ["splitter", "Splitter"],
 ];
 
+test("real ambiguous narration identifies missing baseball information without vague filler warnings", () => {
+  for (const [transcript, message] of [
+    ["He made an error.", "Identify the fielder"],
+    ["Runner advanced.", "Specify which runner"],
+    ["It was like 82 or 84.", "Pitch velocity unclear"],
+  ]) {
+    const intent = interpretVoice(transcript, context(), "ambiguous-real-audio", .9999);
+    assert.ok(intent.unresolvedFields.some(value => value.startsWith(message)));
+    assert.ok(!intent.unresolvedFields.some(value => value.startsWith("Couldn't interpret")));
+    assert.equal(canFastSaveVoice(intent), false);
+  }
+});
+
 test("real audio baseline wording is spray, not conflicting pitch location or fielder", () => {
   for (const [phrase, lane] of [["first baseline",4],["first base line",4],["third baseline",0]]) {
     const intent = interpretVoice(`changeup, 75 low, ground ball down the ${phrase}, double.`, context(), "baseline-audio", .6861);
