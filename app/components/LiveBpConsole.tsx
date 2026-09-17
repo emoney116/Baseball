@@ -964,6 +964,7 @@ export function LiveBpConsole({
                 <span className={styles.toolLabel}>Stats</span>
               </button>
             </div>
+            {voiceEntry}
             {bip ? (
               flow(
                 playResolution ? (
@@ -1117,7 +1118,6 @@ export function LiveBpConsole({
                       {nonBipPaEnd && job}
                     </section>,
                   )}
-                {voiceEntry}
                 {lastPitch && <div role="status" className={styles.lastEvent}>
                   <span className={styles.pitchBadge}>{recentEvidence?.event_number ?? <CircleDot size={20} />}</span>
                   <div className={styles.pitchCopy}><span>Last Pitch</span><strong>{lastPitch.split(" · ").slice(0,2).join(" · ")}</strong><small>{lastPitch.split(" · ").slice(2).join(" · ")}</small></div>

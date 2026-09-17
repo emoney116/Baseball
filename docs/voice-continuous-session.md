@@ -25,22 +25,23 @@ https://developers.openai.com/api/docs/guides/realtime-transcription .
 
 - Start listening is explicit. Mute, End Voice, navigation, backgrounding, and
   disabled/ended Practice stop media tracks. Unmute requires another user action.
-- Capture continues during transcription. Processing is serial with at most three
-  waiting segments. Provider errors/backpressure mute with visible feedback;
-  they do not retry or manufacture events.
-- A speech segment is still limited to 12 seconds. Continuous does not mean an
+- Capture continues during transcription and Review. Three transcription workers
+  run concurrently; canonical interpretation and commits follow reserved action order.
+  The client retains up to 24 audio segments; the shared manual/Voice timeline caps
+  at 32 actions. Reaching a cap pauses capture visibly without dropping captured work.
+- A speech segment is limited to 30 seconds. Continuous does not mean an
   unlimited monologue: speaking without a pause beyond the cap mutes explicitly.
-- A speech pause does not save a pitch. Fragments accumulate in one pending draft:
-  `84 mile an hour`, then `slider swing and miss` retains velocity 84.
-- Review mode supports Save/Edit/Cancel and spoken `save pitch` / `discard pitch`.
-  A second result before reviewing the first pauses rather than merging two pitches.
-  Fast Voice remains opt-in and uses the existing conservative confidence gates.
-- Context commands persist through the existing round command path. A pending
-  pitch blocks participant changes. Context changes during transcription invalidate
-  that segment rather than attributing it to different participants.
+- Each continuous utterance is a distinct queue item. Speak one complete pitch per
+  utterance; separate short phrases are not silently merged into one baseball event.
+- Review supports Save/Edit/Cancel while later audio is captured and transcribed.
+  Dependent commits wait behind Review. Fast Voice remains opt-in and requires
+  unambiguous validated fields, authoritative identity, and speech evidence.
+- Context commands persist through the existing round command path. Manual actions
+  share the ordered timeline. A hitter change made after capture waits behind that
+  pitch, and only explicitly edited manual fields are rebased on preceding state.
 - Velocity units include mile/miles an/per hour and MPH; spoken tens normalize.
-  Disabled tracking remains respected. Live BP offers an explicit enable action
-  that reparses the retained draft. Other stations keep their existing settings UI.
+  Explicit event data survives disabled prompting defaults. Missing optional values
+  remain unknown and never become zero or inherited velocity.
 - Compound commands retain their participant patch while collecting further details.
 
 ## Privacy And Limits
@@ -51,16 +52,24 @@ No microphone is started on page load. Existing authentication, timeout, duratio
 rate limits and usage accounting apply to every segment. No Ask quota is consumed.
 Context/control chatter creates no baseball Analytics events.
 
+The authorized continuous limit is 90 requests/minute and 3,000/day per actor.
+429 responses back off for 1 then 2 seconds, with at most three attempts. Network
+failure/timeout retains the capture for explicit Retry/Discard; it is never Saved.
+Capture-time context and sequence are local ordering evidence, not permission to
+bypass server version checks. Audio is not durably stored: reload/tab closure can
+lose unsubmitted audio and prompts a warning. End Practice/navigation is blocked
+while actions are pending. Mute stops new capture, not existing queue processing.
+
 VAD detects speech, not the coach's identity. Nearby conversation may be transcribed.
 Review is the default safeguard; noisy-field acceptance is not established by unit tests.
 No background/locked-screen Safari recording guarantee is made.
 
 ## Acceptance Evidence
 
-Local browser fixture uses the actual VAD/model/worklet with synthetic speech and
-mocked transcription/save endpoints. It is not hosted canonical persistence evidence.
-Checked fragment accumulation, spoken save once, microphone track release, and
-390x844 / 430x932 / 820x1180 / 1180x820 light/dark overflow.
+The September 17 iPhone regression run uses private human recordings replayed
+through the actual local VAD and hosted gpt-4o-transcribe endpoint. The Preview-only
+audio replay control is absent in production. See voice-iphone-regression-2026-09-17.md
+for successful trials, failed trials, transcription limitations, and raw reconciliation.
 
 Owner-device acceptance remains: real mic permission/recovery, quiet and field noise,
 latency, continuous Fast mode across several pitches, context switches, and canonical

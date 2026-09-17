@@ -930,7 +930,7 @@ test("Voice metering is service-only, bounded and deduplicated",async()=>{
   const key=randomUUID();
   assert.equal((await reserve(key)).rows[0].accepted,true);
   assert.equal((await reserve(key)).rows[0].accepted,false);
-  for(let n=1;n<30;n++)assert.equal((await reserve()).rows[0].accepted,true);
+  for(let n=1;n<90;n++)assert.equal((await reserve()).rows[0].accepted,true);
   assert.equal((await reserve()).rows[0].accepted,false);
   await db.exec("update voice_usage set created_at=now()-interval '2 minutes'");
   assert.equal((await reserve(randomUUID(),22.19)).rows[0].accepted,true);

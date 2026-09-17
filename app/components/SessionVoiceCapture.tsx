@@ -4,6 +4,7 @@ import { Mic, MicOff, Square } from 'lucide-react';
 import type { MicVAD } from '@ricky0123/vad-web';
 import { encodeVoiceWav, VOICE_MAX_SECONDS, VOICE_SAMPLE_RATE } from '../lib/voiceAudio';
 import { practiceActionQueue, type PracticeActionTicket } from '../lib/practiceActionQueue';
+import { requestVoiceTranscription } from '../lib/voiceTranscriptionRequest';
 
 type Capture = {ticket:PracticeActionTicket;samples:Float32Array;requestId:string;status:'captured'|'transcribing'|'waiting'|'review'|'failed';error?:string};
 export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTranscript, canProcess }: {
@@ -66,17 +67,13 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
     // eslint-disable-next-line react-hooks/purity
     const started=performance.now();
     try {
-      let response:Response|undefined;
-      for(let attempt=0;attempt<3;attempt++) {
-        response=await fetch(`/api/voice/transcribe?practiceId=${encodeURIComponent(practiceId)}&requestId=${item.requestId}`,{
+      const result=await requestVoiceTranscription({
+        request:()=>fetch(`/api/voice/transcribe?practiceId=${encodeURIComponent(practiceId)}&requestId=${item.requestId}`,{
           method:'POST',headers:{'Content-Type':'audio/wav'},body:encodeVoiceWav(item.samples,VOICE_SAMPLE_RATE),signal:AbortSignal.timeout(25000),
-        });
-        if(response.status!==429||attempt===2)break;
-        await new Promise(resolve=>setTimeout(resolve,1000*2**attempt));
-        item.requestId=crypto.randomUUID();
-      }
-      const result=await response!.json();
-      if(!response!.ok)throw new Error(result.message||'Transcription failed. Audio retained; retry or discard.');
+        }),
+        wait:ms=>new Promise(resolve=>setTimeout(resolve,ms)),
+        renewRequest:()=>{item.requestId=crypto.randomUUID();},
+      });
       item.status='waiting';publish();workers.current--;pump();
       if(process.env.NEXT_PUBLIC_VERCEL_ENV==='preview')setQaResults(rows=>[...rows,{sequence:item.ticket.sequence,transcript:result.transcript,transcriptionMs:Math.round(performance.now()-started),completed:false}]);
       const saved=await timeline.execute(item.ticket,async()=>{
@@ -144,7 +141,7 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
       {state==='listening'?<MicOff size={18}/>:<Mic size={18}/>}{state==='listening'?'Mute':state==='starting'?'Cancel microphone':state==='off'?'Start listening':'Unmute'}
     </button>
     {state!=='off'&&<button type="button" className="icon-button" aria-label="End Voice session" title="End Voice session" onClick={()=>void mute(true)}><Square size={18}/></button>}
-    <span role="status">{state==='listening'?'Voice Live':state==='starting'?'Starting microphone':'Voice muted'} · {reviews?`${reviews} needs review`:items.length?`${items.length} processing`:'Caught up'}</span>
+    <span role="status">{state==='listening'?'Voice Live':state==='starting'?'Starting microphone':'Voice muted'} · {reviews?`${reviews} needs review${items.length>reviews?` · ${items.length-reviews} waiting`:''}`:items.length?`${items.length} processing`:'Caught up'}</span>
     {error&&<p role="alert">{error}</p>}
     {process.env.NEXT_PUBLIC_VERCEL_ENV==='preview'&&<details><summary>Continuous audio QA</summary>
       <input type="file" accept="audio/wav,.wav" aria-label="QA continuous recording" disabled={state==='listening'||state==='starting'} onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)void start(file);}}/>

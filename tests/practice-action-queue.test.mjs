@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {PracticeActionQueue,rebasePracticeEdit} from '../app/lib/practiceActionQueue.ts';
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
+test('Voice capture remains mounted outside the BIP/manual form branch',()=>{
+  const source=readFileSync(new URL('../app/components/LiveBpConsole.tsx',import.meta.url),'utf8');
+  assert.match(source,/\{voiceEntry\}\s*\{bip \? \(/);
+  assert.equal(source.match(/\{voiceEntry\}/g).length,1);
+});
 for(const size of [5,10])test(`${size} captured actions commit in capture order despite reverse response order`,async()=>{
   const queue=new PracticeActionQueue(),saved=[];
   const tickets=Array.from({length:size},(_,i)=>queue.reserve({hitter:'Mylo',i}));
