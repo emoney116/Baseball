@@ -20,6 +20,17 @@ test('generated initials never override another explicit roster name',()=>{
 const roster=[{id:'j',aliases:['Jackson Pierce','Jackson','JP'],bats:'R'},{id:'m',aliases:['Mylo'],bats:'R'}];
 const settings={...initialBpSettings('m'),pitchMode:'MULTI',pitchType:'4-Seam',source:'MACHINE',mode:'FREE'};
 const context={domain:'live-bp',roster,settings,state:initialBpState(),bats:'R'};
+test('alignment pitcher assignment also changes canonical pitch source',()=>{
+  const parsed=parseVoiceCommand('Jackson is playing pitcher',roster,settings);
+  assert.equal(parsed.patch.source,'PLAYER');assert.equal(parsed.patch.pitcherId,'j');
+});
+for(const phrase of ['Put Jackson in for Mylo at short','Jackson replaces Mylo at short']) {
+  test(`safe substitution: ${phrase}`,()=>{
+    const parsed=parseVoiceCommand(phrase,roster,{...settings,alignment:{SS:'m'}});
+    assert.deepEqual(parsed.problems,[]);assert.equal(parsed.patch.alignment.SS,'j');
+    assert.ok(parseVoiceCommand(phrase,roster,settings).problems.length);
+  });
+}
 test('real audio: count as one and one',()=>{
   const parsed=parseVoiceCommand('Count as one and one.',roster,settings);
   assert.equal(parsed.statePatch.balls,1);assert.equal(parsed.statePatch.strikes,1);

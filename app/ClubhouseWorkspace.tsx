@@ -1196,6 +1196,7 @@ export default function MetrolinaBaseballApp() {
   const [loadError, setLoadError] = useState<PersistenceError | Error | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [voiceQueueNotice,setVoiceQueueNotice]=useState('');
   const [view, setView] = useState<ViewKey>("home");
   const [selectedPlayerId, setSelectedPlayerId] = useState<ID>("p-jackson-smith");
   const [rosterFilter, setRosterFilter] = useState<RosterFilter>("All");
@@ -1303,7 +1304,7 @@ export default function MetrolinaBaseballApp() {
       mutate?: (url: URL) => void;
     } = {},
   ) {
-    if(practice && practiceActionQueue(practice.id).pending){window.alert('Resolve pending Practice actions before leaving Live BP.');return;}
+    if(practice && practiceActionQueue(practice.id).pending){setVoiceQueueNotice('Resolve pending Practice actions before leaving Live BP.');return;}
     setView(nextView);
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
@@ -1533,7 +1534,7 @@ export default function MetrolinaBaseballApp() {
   }
 
   function writePracticeHubRoute(tab: PracticeHubTab = practiceHubTab, options: { replace?: boolean } = {}) {
-    if(practice && practiceActionQueue(practice.id).pending){window.alert('Resolve pending Voice actions before leaving tracking.');return;}
+    if(practice && practiceActionQueue(practice.id).pending){setVoiceQueueNotice('Resolve pending Voice actions before leaving tracking.');return;}
     setPracticeTrackingOpen(false);
     setPracticeDrilldown({ kind: "hub" });
     setPracticeHubTab(tab);
@@ -3093,13 +3094,14 @@ export default function MetrolinaBaseballApp() {
 
   function endPractice() {
     if (!practice) return;
-    if(practiceActionQueue(practice.id).pending){window.alert('Voice or manual actions are still pending. Resolve them before ending Practice.');return;}
+    if(practiceActionQueue(practice.id).pending){setVoiceQueueNotice('Voice or manual actions are still pending. Resolve them before ending Practice.');return;}
+    setVoiceQueueNotice('');
     setPracticeSummaryOpen(true);
   }
 
   function savePracticeSummary() {
     if (!practice) return;
-    if(practiceActionQueue(practice.id).pending){window.alert('Voice or manual actions are still pending. Resolve them before ending Practice.');return;}
+    if(practiceActionQueue(practice.id).pending){setVoiceQueueNotice('Voice or manual actions are still pending. Resolve them before ending Practice.');return;}
     const endedAt = new Date().toISOString();
     commit((current) => ({
       ...current,
@@ -4051,6 +4053,7 @@ export default function MetrolinaBaseballApp() {
         )}
 
         <SyncStatusBanner status={saveStatus} error={saveError} />
+        {voiceQueueNotice && <div role="alert">{voiceQueueNotice}<button type="button" className="secondary-button" onClick={()=>setVoiceQueueNotice('')}>Dismiss</button></div>}
 
         {!inTeamContext && (
           <header className="global-home-banner" aria-label="Clubhouse">

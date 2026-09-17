@@ -20,9 +20,10 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
   const speech=useRef<PracticeActionTicket|null>(null),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
   const timeline=practiceActionQueue(practiceId);
   const playback=useRef<AudioContext|null>(null);
-  const [qaResults,setQaResults]=useState<{sequence:number;transcript:string;transcriptionMs:number;completed:boolean}[]>([]);
+  const [qaResults,setQaResults]=useState<{sequence:number;transcript:string;transcriptionMs:number;completed:boolean;saved?:boolean}[]>([]);
+  const [maximumDepth,setMaximumDepth]=useState(0);
   useLayoutEffect(()=>{handler.current=onTranscript;currentContext.current=contextKey;ready.current=canProcess;},[onTranscript,contextKey,canProcess]);
-  function publish(){if(mounted.current)setItems(captures.current.map(item=>({...item})));}
+  function publish(){if(mounted.current){setItems(captures.current.map(item=>({...item})));setMaximumDepth(value=>Math.max(value,captures.current.length));}}
   function retry(requestId:string) {
     const item=captures.current.find(row=>row.requestId===requestId);if(!item)return;
     item.requestId=crypto.randomUUID();item.status='captured';item.error=undefined;pump();
@@ -72,12 +73,13 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
         });
         if(response.status!==429||attempt===2)break;
         await new Promise(resolve=>setTimeout(resolve,1000*2**attempt));
+        item.requestId=crypto.randomUUID();
       }
       const result=await response!.json();
       if(!response!.ok)throw new Error(result.message||'Transcription failed. Audio retained; retry or discard.');
       item.status='waiting';publish();workers.current--;pump();
       if(process.env.NEXT_PUBLIC_VERCEL_ENV==='preview')setQaResults(rows=>[...rows,{sequence:item.ticket.sequence,transcript:result.transcript,transcriptionMs:Math.round(performance.now()-started),completed:false}]);
-      await timeline.execute(item.ticket,async()=>{
+      const saved=await timeline.execute(item.ticket,async()=>{
         // A predecessor can finish its network write before React publishes the
         // reconciled context. Never treat that brief busy window as a discard.
         await new Promise(resolve=>setTimeout(resolve,0));
@@ -86,9 +88,10 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
         item.status='review';publish();
         const accepted=await handler.current(result.transcript,typeof result.confidence==='number'?result.confidence:null,item.requestId);
         if(!accepted&&mounted.current)setError('Phrase was not saved. Review the console before continuing.');
+        return accepted;
       });
       captures.current=captures.current.filter(row=>row!==item);publish();
-      if(process.env.NEXT_PUBLIC_VERCEL_ENV==='preview')setQaResults(rows=>rows.map(row=>row.sequence===item.ticket.sequence?{...row,completed:true}:row));
+      if(process.env.NEXT_PUBLIC_VERCEL_ENV==='preview')setQaResults(rows=>rows.map(row=>row.sequence===item.ticket.sequence?{...row,completed:true,saved}:row));
     } catch(e) {
       if(item.status==='transcribing'){workers.current--;pump();}
       // Worker records live in captures.current; publish creates immutable UI snapshots.
@@ -115,7 +118,7 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
       const {MicVAD}=await import('@ricky0123/vad-web');
       const detector=await MicVAD.new({
         model:'v5',startOnLoad:false,baseAssetPath:'/voice-assets/',onnxWASMBasePath:'/voice-assets/',getStream:async()=>mic,
-        submitUserSpeechOnPause:true,redemptionMs:450,minSpeechMs:180,preSpeechPadMs:300,
+        submitUserSpeechOnPause:true,redemptionMs:350,minSpeechMs:80,preSpeechPadMs:300,
         onSpeechStart:()=>{
           if(!active.current)return;
           try {speech.current=timeline.reserve(currentContext.current);}
@@ -146,6 +149,7 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
     {process.env.NEXT_PUBLIC_VERCEL_ENV==='preview'&&<details><summary>Continuous audio QA</summary>
       <input type="file" accept="audio/wav,.wav" aria-label="QA continuous recording" disabled={state==='listening'||state==='starting'} onChange={event=>{const file=event.target.files?.[0];event.target.value='';if(file)void start(file);}}/>
       <output aria-label="QA capture results">{JSON.stringify(qaResults)}</output>
+      <output aria-label="QA maximum queue depth">{maximumDepth}</output>
     </details>}
     {items.filter(item=>item.status==='failed').map(item=><div key={item.requestId} role="alert">{item.error}
       <button type="button" onClick={()=>retry(item.requestId)}>Retry</button>

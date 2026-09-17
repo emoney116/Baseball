@@ -120,7 +120,13 @@ export async function POST(request: Request) {
         signal: AbortSignal.any([request.signal, AbortSignal.timeout(15000)]),
       },
     );
-    if (!response.ok) throw new Error("provider");
+    if (!response.ok) {
+      if(response.status===429){
+        await db.from('voice_usage').update({status:'failed',failure_code:'rate_limited',latency_ms:Date.now()-started}).eq('request_id',id);
+        return reply({message:'Voice provider is busy. Captured audio can be retried; manual entry remains available.'},429);
+      }
+      throw new Error("provider");
+    }
     const result = await response.json();
     if (
       typeof result.text !== "string" ||

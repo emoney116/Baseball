@@ -1,7 +1,7 @@
 import { initialBpState, type BpSettings, type BpState, type BpPosition } from "./liveBp.ts";
 import { normalizeVoiceText, voiceIdentityMatches, VOICE_PITCH_ALIASES, type VoiceIdentity } from "./voiceVocabulary.ts";
 import { correctedVoiceText } from "./voiceSession.ts";
-import { matchAlignmentLanguage, normalizeCountLanguage } from './voiceBaseballLanguage.ts';
+import { matchAlignmentLanguage, normalizeCountLanguage, VOICE_POSITIONS } from './voiceBaseballLanguage.ts';
 
 export type VoiceContextCommand = {
   kind: "context" | "compound";
@@ -18,6 +18,8 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
     .replace(/\b(?:is )?batting\b/g,'is hitting')
     .replace(/\bis at the plate\b/g,'is hitting')
     .replace(/\banother ab\b/g,'another at bat')
+    .replace(/\bis still pitching\b/g,'is pitching')
+    .replace(/\b(?:is taking defense|are defending|is defending)\b/g,'on defense')
     .replace(/^dont /,'do not ')
     .replace(/^don't /,'do not ')
     .replace(/^(track|start tracking|stop tracking|do not track) velo$/,'$1 velocity')
@@ -28,6 +30,13 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
     .replace(/\brunners? at (first|second|third)\b/g, 'runner on $1')
     .replace(/\bthere is (?:a |one )?(?:guy|runner) on\b/g, 'runner on');
   const command: VoiceContextCommand = {kind:"context",patch:{},eventText:"",confirmations:[],problems:[]};
+  const substitution=remaining.match(/^(?:put )?(.+?) (?:in for|replaces) (.+?) at (.+)$/);
+  if(substitution){
+    const position=VOICE_POSITIONS[substitution[3]];
+    const replaced=roster.filter(player=>voiceIdentityMatches(player,substitution[2]));
+    if(!position||replaced.length!==1||settings.alignment?.[position]!==replaced[0].id){command.problems.push('Substitution needs a known player at the spoken position.');return command;}
+    remaining=`${substitution[1]} at ${substitution[3]}`;
+  }
   const swap=remaining.match(/^swap (.+?) and (.+)$/);
   if(swap){
     const identities=swap.slice(1).map(name=>roster.filter(player=>voiceIdentityMatches(player,name)));
@@ -123,7 +132,10 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
         const position = alignment.position;
         const current = {...settings.alignment,...command.patch.alignment};
         for (const key of Object.keys(current) as BpPosition[]) if(current[key]===matches[0].id) delete current[key];
-        if (settings.source==='PLAYER' && settings.pitcherId===matches[0].id) command.problems.push('Change the current pitcher before assigning that player elsewhere.');
+        if (position==='P') {
+          command.patch.source='PLAYER';command.patch.pitcherId=matches[0].id;
+          command.patch.alignment={...current,P:matches[0].id};
+        } else if (settings.source==='PLAYER' && settings.pitcherId===matches[0].id) command.problems.push('Change the current pitcher before assigning that player elsewhere.');
         else command.patch.alignment = {...current,[position]:matches[0].id};
         command.confirmations.push(`${matches[0].aliases[0]}: ${position}`);
       }

@@ -130,6 +130,7 @@ function EnabledVoiceEntry({
       }
       return (await save(pending)) === true;
     }
+    const parseStarted=performance.now();
     const nextCommand = parseVoiceCommand(text, context.roster, context.settings, context.state);
     const velocityChange = nextCommand?.patch.velocity === true;
     if (velocityChange && context.domain !== 'live-bp') {
@@ -144,6 +145,7 @@ function EnabledVoiceEntry({
     setCaptureKey(contextKey);
     setError('');
     if (nextCommand?.kind === 'context') {
+      reportVoiceMetrics(requestId,{interpretation_ms:Math.round(performance.now()-parseStarted),confidence_band:nextCommand.problems.length?'low':'high'});
       setCommand(nextCommand);
       if (nextCommand.problems.length || !onCommand) {
         setPhase('error');
@@ -152,7 +154,9 @@ function EnabledVoiceEntry({
       }
       busy.current = true; setPhase('saving');
       try {
+        const saveStarted=performance.now();
         const saved = await onCommand(nextCommand, requestId);
+        if(saved)reportVoiceMetrics(requestId,{save_latency_ms:Math.min(120000,Math.round(performance.now()-saveStarted))});
         await new Promise(resolve => setTimeout(resolve, 0));
         if (!mounted.current) return false;
         setCaptureKey(currentKey.current);
@@ -181,6 +185,7 @@ function EnabledVoiceEntry({
     const parsed = interpretVoice(combined, snapshot, previous?.requestId ?? requestId,
       previous ? (confidence === null || previous.confidence.transcription === null ? null : Math.min(confidence, previous.confidence.transcription)) : confidence);
     if (nextCommand) parsed.unresolvedFields.push(...nextCommand.problems, ...(!onCommand ? ['Context changes are unavailable here.'] : []));
+    reportVoiceMetrics(requestId,{interpretation_ms:Math.round(performance.now()-parseStarted),confidence_band:parsed.unresolvedFields.length?'low':canFastSaveVoice(parsed)?'high':'review'});
     pendingIntent.current = parsed;
     setCommand(effectiveCommand); setIntent(parsed); setPhase('review');
     if (!effectiveCommand && fast && canFastSaveVoice(parsed)) {
