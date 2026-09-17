@@ -29,6 +29,12 @@ export function appendVoiceFragment(previous: string, next: string): string {
   return combined;
 }
 
+/** Only missing detail fragments may extend an unsaved event, never another pitch. */
+export function isVoiceDetailFragment(text:string):boolean {
+  const value=correctedVoiceText(text);
+  return /^(?:single|double|triple|home run|out|reached on error|(?:left|right)(?: center)?(?: field)?|center(?: field)?|\d{2,3} (?:exit|exit velo|exit velocity|ev)|(?:exit velo|exit velocity|ev) \d{2,3})$/.test(value);
+}
+
 export function voiceSessionAction(text: string): 'save' | 'discard' | 'mute' | 'undo' | null {
   const normalized = normalizeVoiceText(text);
   if (/^(undo(?: that| last pitch)?|take that back)$/.test(normalized)) return 'undo';

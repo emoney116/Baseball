@@ -22,6 +22,9 @@ export const VOICE_QUALITY = {
 
 export function normalizeBaseballLanguage(text: string): string {
   return text
+    .replace(/\bball (?:one|two|three|[1-3])\b/g, 'ball')
+    .replace(/\b(left|center|right) field (?:made|makes) (?:an? )?error\b/g, '$1 fielder fielding error error')
+    .replace(/\b(left|center|right) fielder (?:made|makes) (?:an? )?error\b/g, '$1 fielder fielding error error')
     .replace(/^fowl(?: ball)?$/, 'foul')
     .replace(/\b(hard|soft|weak)(line|ground|fly)\b/g, '$1 $2')
     .replace(/\b(?:liner|lined it)\b/g, 'line drive')
@@ -62,7 +65,17 @@ export function anchorContactMeasurements(text:string):string {
   const contact=/\b(?:line drive|ground ball|fly ball|pop up|bunt)\b/.exec(text);
   if(!contact)return text;
   const head=text.slice(0,contact.index),tail=text.slice(contact.index);
-  return head+tail.replace(/\bat (\d{2,3})(?!\d)(?! (?:exit|ev|mph|mile|degree))/g,'$1 exit');
+  // A later explicit pitch anchor starts a new measurement scope. Never label
+  // pitch speed or launch angle as EV merely because contact appeared earlier.
+  const pitch = /\b(?:fastball|four seam|two seam|slider|curve(?:ball)?|changeup|cutter|sinker|pitch)\b/.exec(tail);
+  const contactTail = pitch ? tail.slice(0, pitch.index) : tail;
+  const rest = pitch ? tail.slice(pitch.index) : '';
+  return head+contactTail.replace(/\b(?:at )?(\d{2,3})\b(?: mph)?/g,(match, number:string, offset:number)=>{
+    const before=contactTail.slice(0,offset),after=contactTail.slice(offset+match.length);
+    if (/(?:exit(?: velo(?:city)?)?|ev|came off at|hit it|launch angle)\s*$/.test(before)
+      || /^\s*(?:(?:miles? (?:per|an?) hour)\s*)?(?:exit|ev|off the bat|degrees?)\b/.test(after)) return match;
+    return `${number} exit`;
+  })+rest;
 }
 
 export function normalizeCountLanguage(text: string): string {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Mic, Square, Pencil, X, Undo2, FlaskConical, ChevronDown, Zap } from "lucide-react";
+import { Mic, Square, Pencil, X, FlaskConical, ChevronDown, Zap } from "lucide-react";
 import { encodeVoiceWav, validateVoiceWav, VOICE_MAX_BYTES, VOICE_MAX_SECONDS } from "../lib/voiceAudio";
 import { bpBatterResults } from "../lib/liveBp";
 import { reportVoiceMetrics } from "../lib/voiceMetrics";
@@ -17,7 +17,7 @@ import {
 import styles from "./VoiceEntry.module.css";
 import { parseVoiceCommand, type VoiceContextCommand } from "../lib/voiceCommands";
 import { SessionVoiceCapture } from './SessionVoiceCapture';
-import { appendVoiceFragment, voiceSessionAction } from '../lib/voiceSession';
+import { appendVoiceFragment, isVoiceDetailFragment, voiceSessionAction } from '../lib/voiceSession';
 import { validateVoiceProposal } from '../lib/voiceInterpretationProposal';
 import { practiceActionQueue } from '../lib/practiceActionQueue';
 
@@ -60,6 +60,7 @@ function EnabledVoiceEntry({
     [fast, setFast] = useState(false);
   const [command, setCommand] = useState<VoiceContextCommand | null>(null);
   const [qaTranscript, setQaTranscript] = useState("");
+  const commandTranscript = useRef('');
   const [qaConfidenceEvidence, setQaConfidenceEvidence] = useState('');
   const [interpretingProposal,setInterpretingProposal]=useState(false);
   const [activity, setActivity] = useState<{practiceId:string;label:string}[]>([]);
@@ -118,6 +119,7 @@ function EnabledVoiceEntry({
   }
   async function receiveSessionTranscript(text: string, confidence: number | null, requestId: string): Promise<boolean> {
     if (disabled || busy.current) return false;
+    commandTranscript.current = text;
     const action = voiceSessionAction(text);
     if (action === 'undo') { cancel(); return (await onUndo()) !== false; }
     if (action === 'mute') return false;
@@ -147,6 +149,7 @@ function EnabledVoiceEntry({
     if (nextCommand?.kind === 'context') {
       reportVoiceMetrics(requestId,{interpretation_ms:Math.round(performance.now()-parseStarted),confidence_band:nextCommand.problems.length?'low':'high'});
       setCommand(nextCommand);
+      setIntent(null); pendingIntent.current = null;
       if (nextCommand.problems.length || !onCommand) {
         setPhase('error');
         setError(nextCommand.problems.join(' ') || 'This context change is unavailable here.');
@@ -236,6 +239,18 @@ function EnabledVoiceEntry({
     } finally {
       busy.current = false;
     }
+  }
+  async function receiveDetail(text:string,confidence:number|null):Promise<boolean> {
+    const previous=pendingIntent.current;
+    if(storedPhase!=='review'||busy.current||command||!previous||!isVoiceDetailFragment(text))return false;
+    const parsed=interpretVoice(appendVoiceFragment(previous.transcript,text),context,previous.requestId,
+      confidence===null||previous.confidence.transcription===null?null:Math.min(confidence,previous.confidence.transcription));
+    // Never overwrite an existing value or increase ambiguity by attaching speech.
+    if(parsed.unresolvedFields.length>=previous.unresolvedFields.length && previous.unresolvedFields.length)return false;
+    if(!previous.unresolvedFields.length)return false;
+    pendingIntent.current=parsed;setIntent(parsed);setError('');
+    if(fast&&canFastSaveVoice(parsed))await save(parsed,true,null);
+    return true;
   }
   async function interpretProposal() {
     if(!intent||interpretingProposal)return;
@@ -330,6 +345,7 @@ function EnabledVoiceEntry({
           return;
         }
         setPhase("interpreting");
+        commandTranscript.current=result.transcript;
         const interpretationStarted = performance.now();
         const nextCommand = parseVoiceCommand(result.transcript, snapshot.roster, snapshot.settings, snapshot.state);
         setCommand(nextCommand);
@@ -496,7 +512,7 @@ function EnabledVoiceEntry({
   return (
     <section className={styles.root} aria-label="Voice stat entry" data-phase={phase}>
       <div className={styles.toolbar}>
-        {continuous ? <SessionVoiceCapture key={practiceId} practiceId={practiceId} contextKey={contextKey} disabled={captureDisabled ?? disabled} canProcess={()=>!disabled&&!busy.current} onTranscript={receiveSessionTranscript} /> :
+        {continuous ? <SessionVoiceCapture key={practiceId} practiceId={practiceId} contextKey={contextKey} disabled={captureDisabled ?? disabled} canProcess={()=>!disabled&&!busy.current} onTranscript={receiveSessionTranscript} onDetail={receiveDetail} /> :
         <button
           type="button"
           className={styles.micButton}
@@ -543,7 +559,7 @@ function EnabledVoiceEntry({
         {activity.some(row=>row.practiceId===practiceId) && <details className={styles.activity}><summary>Recent Voice activity</summary><ol aria-label="Recent Voice activity">{activity.filter(row=>row.practiceId===practiceId).map((row,index)=><li key={index}>{row.label}</li>)}</ol></details>}
         </div></details>
       </div>
-      {phase !== "idle" && (
+      {phase !== "idle" && phase !== "saved" && (
         <div className={styles.preview} aria-live="polite">
           <strong>
             {
@@ -605,6 +621,21 @@ function EnabledVoiceEntry({
             </>
           )}
           {error && <p role="alert">{error}</p>}
+          {phase === 'error' && command?.problems.some(problem=>/^(Which player|Couldn't match player)/.test(problem)) && onCommand &&
+            <ChoiceSelect label="Choose roster player" value="" options={context.roster.map(player=>({value:player.id,label:player.aliases[0]??player.id}))}
+              onChange={playerId=>{
+                const problem=command.problems.find(value=>/^(Which player|Couldn't match player)/.test(value))??'';
+                const name=problem.match(/"([^"]+)"/)?.[1];
+                const player=context.roster.find(value=>value.id===playerId);
+                if(!name||!player)return;
+                // The failed identity command does not retain a guessed role.
+                // Reparse the actual utterance after an explicit coach selection.
+                const original=commandTranscript.current;
+                const corrected=parseVoiceCommand(original.replace(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i'),player.aliases[0]),context.roster,context.settings,context.state);
+                if(!corrected||corrected.problems.length||corrected.kind!=='context')return;
+                void onCommand(corrected,crypto.randomUUID()).then(saved=>{if(saved){setCommand(corrected);setError('');setPhase('saved');finishReview(true);}});
+              }}/>
+          }
           {phase==='review'&&intent?.unresolvedFields.some(field=>field.startsWith("Couldn't interpret"))&&<button type="button" className="secondary-button" disabled={interpretingProposal} onClick={()=>void interpretProposal()}>{interpretingProposal?'Interpreting...':'Interpret phrase'}</button>}
           {phase === "review" &&
             intent?.unresolvedFields.includes("player") && (
@@ -657,22 +688,6 @@ function EnabledVoiceEntry({
                   Edit
                 </button>
               </>
-            )}
-            {phase === "saved" && intent && !intent.correction && (
-              <button
-                className="secondary-button"
-                onClick={() => {
-                  if (intent)
-                    reportVoiceMetrics(intent.requestId, {
-                      undo_requested: true,
-                    });
-                  onUndo();
-                  cancel();
-                }}
-              >
-                <Undo2 size={16} />
-                Undo
-              </button>
             )}
             {phase !== "saving" && (
               <button

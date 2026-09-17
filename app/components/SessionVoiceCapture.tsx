@@ -5,17 +5,20 @@ import type { MicVAD } from '@ricky0123/vad-web';
 import { encodeVoiceWav, VOICE_MAX_SECONDS, VOICE_SAMPLE_RATE } from '../lib/voiceAudio';
 import { practiceActionQueue, type PracticeActionTicket } from '../lib/practiceActionQueue';
 import { requestVoiceTranscription } from '../lib/voiceTranscriptionRequest';
+import styles from './VoiceEntry.module.css';
 
 type Capture = {ticket:PracticeActionTicket;samples:Float32Array;requestId:string;status:'captured'|'transcribing'|'waiting'|'review'|'failed';error?:string};
-export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTranscript, canProcess }: {
+export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTranscript, onDetail, canProcess }: {
   practiceId:string;contextKey:string;disabled?:boolean;
   onTranscript:(text:string,confidence:number|null,requestId:string)=>Promise<boolean>;
+  onDetail?:(text:string,confidence:number|null)=>Promise<boolean>;
   canProcess:()=>boolean;
 }) {
   const [state,setState]=useState<'off'|'starting'|'listening'|'muted'>('off');
   const [items,setItems]=useState<Capture[]>([]),[error,setError]=useState('');
   const captures=useRef<Capture[]>([]),vad=useRef<MicVAD|null>(null),stream=useRef<MediaStream|null>(null);
   const handler=useRef(onTranscript),currentContext=useRef(contextKey);
+  const detail=useRef(onDetail);
   const ready=useRef(canProcess);
   const mounted=useRef(true),active=useRef(false),workers=useRef(0),generation=useRef(0);
   const speech=useRef<PracticeActionTicket|null>(null),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
@@ -23,7 +26,7 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
   const playback=useRef<AudioContext|null>(null);
   const [qaResults,setQaResults]=useState<{sequence:number;transcript:string;transcriptionMs:number;completed:boolean;saved?:boolean}[]>([]);
   const [maximumDepth,setMaximumDepth]=useState(0);
-  useLayoutEffect(()=>{handler.current=onTranscript;currentContext.current=contextKey;ready.current=canProcess;},[onTranscript,contextKey,canProcess]);
+  useLayoutEffect(()=>{handler.current=onTranscript;detail.current=onDetail;currentContext.current=contextKey;ready.current=canProcess;},[onTranscript,onDetail,contextKey,canProcess]);
   function publish(){if(mounted.current){setItems(captures.current.map(item=>({...item})));setMaximumDepth(value=>Math.max(value,captures.current.length));}}
   function retry(requestId:string) {
     const item=captures.current.find(row=>row.requestId===requestId);if(!item)return;
@@ -76,6 +79,20 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
       });
       item.status='waiting';publish();workers.current--;pump();
       if(process.env.NEXT_PUBLIC_VERCEL_ENV==='preview')setQaResults(rows=>[...rows,{sequence:item.ticket.sequence,transcript:result.transcript,transcriptionMs:Math.round(performance.now()-started),completed:false}]);
+      // Only the immediately adjacent capture can supply missing details. A
+      // manual action or another pitch between them forbids stitching.
+      let predecessor=captures.current.find(row=>row.ticket.sequence===item.ticket.sequence-1);
+      while(mounted.current && predecessor && predecessor.status!=='review' && predecessor.status!=='failed') {
+        await new Promise(resolve=>setTimeout(resolve,25));
+        predecessor=captures.current.find(row=>row.ticket.sequence===item.ticket.sequence-1);
+      }
+      if(predecessor?.status==='review' && item.ticket.capturedAt-predecessor.ticket.capturedAt<=15000
+        && detail.current && await detail.current(result.transcript,result.confidence)) {
+        timeline.discard(item.ticket);
+        captures.current=captures.current.filter(row=>row!==item);publish();
+        if(process.env.NEXT_PUBLIC_VERCEL_ENV==='preview')setQaResults(rows=>rows.map(row=>row.sequence===item.ticket.sequence?{...row,completed:true}:row));
+        return;
+      }
       const saved=await timeline.execute(item.ticket,async()=>{
         // A predecessor can finish its network write before React publishes the
         // reconciled context. Never treat that brief busy window as a discard.
@@ -84,7 +101,7 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
         if(!mounted.current)throw new Error('Voice view closed with an unresolved capture.');
         item.status='review';publish();
         const accepted=await handler.current(result.transcript,typeof result.confidence==='number'?result.confidence:null,item.requestId);
-        if(!accepted&&mounted.current)setError('Phrase was not saved. Review the console before continuing.');
+        if(accepted&&mounted.current)setError('');
         return accepted;
       });
       captures.current=captures.current.filter(row=>row!==item);publish();
@@ -136,7 +153,7 @@ export function SessionVoiceCapture({ practiceId, contextKey, disabled, onTransc
     } catch {await mute();setError('Microphone could not start. Check permission; manual entry remains available.');}
   }
   const reviews=items.filter(item=>item.status==='review').length;
-  return <div>
+  return <div className={styles.capture}>
     <button type="button" className="secondary-button" disabled={disabled&&state!=='listening'} onClick={()=>{if(state==='listening'||state==='starting')void mute();else void start();}}>
       {state==='listening'?<MicOff size={18}/>:<Mic size={18}/>}{state==='listening'?'Mute':state==='starting'?'Cancel microphone':state==='off'?'Start listening':'Unmute'}
     </button>

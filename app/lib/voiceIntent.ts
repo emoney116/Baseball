@@ -93,6 +93,8 @@ const throwResults = {
   "no throw": "No Throw",
 };
 const sprayLanes = {
+  "left center field": "1",
+  "right center field": "3",
   "left field line": "0",
   "left field": "0",
   "left center": "1",
@@ -695,7 +697,9 @@ export function canFastSaveVoice(intent: VoiceIntent): boolean {
     &&text.split(' ').length<=14&&!/\b(?:or|not|maybe|actually|no|sorry)\b/.test(text);
   // Complete deterministic short commands may rely on authoritative identities/program.
   // Numbers need stronger acoustic evidence than a lone result; rich narration retains the strict gate.
-  const threshold=simplePitch?(intent.draft.velocity!==undefined?0.85:0.8):0.97;
+  const simpleContact=!!intent.draft.battedBall && !intent.draft.position && !intent.draft.runnerOutcomes
+    && text.split(' ').length<=18 && !/\b(?:or|not|maybe|actually|no|sorry)\b/.test(text);
+  const threshold=simplePitch?(intent.draft.velocity!==undefined?0.85:0.8):simpleContact?0.9:0.97;
   return (
     !intent.correction &&
     intent.ignoredFields.length === 0 &&

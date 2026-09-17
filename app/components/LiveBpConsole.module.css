@@ -38,7 +38,7 @@
   align-self: start;
 }
 .fields:disabled {
-  opacity: 0.75;
+  opacity: 1;
 }
 .console h2 {
   font-size: 18px;

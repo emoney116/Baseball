@@ -1,0 +1,18 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {interpretVoice,canFastSaveVoice} from '../app/lib/voiceIntent.ts';
+import {parseVoiceCommand} from '../app/lib/voiceCommands.ts';
+import {initialBpSettings,initialBpState} from '../app/lib/liveBp.ts';
+import {isVoiceDetailFragment} from '../app/lib/voiceSession.ts';
+import {getSprayLane} from '../app/lib/sprayChart.ts';
+const roster=[{id:'a',aliases:['Alex Goltsch','Alex','Goltsch'],bats:'R'},{id:'c',aliases:['Camdyn Smith','Camdyn'],bats:'R'}];
+const context={domain:'live-bp',roster,settings:{...initialBpSettings('a'),source:'COACH',pitchMode:'ONE',pitchType:'4-Seam',mode:'FREE'},state:initialBpState(),bats:'R'};
+const parse=text=>interpretVoice(text,context,'phone',.94);
+for(const phrase of ['ball one outside','ball two away','ball three low','ball 1 outside'])test(phrase,()=>{const p=parse(phrase);assert.equal(p.draft.outcome,'Ball');assert.deepEqual(p.unresolvedFields,[]);assert.equal(canFastSaveVoice(p),true);});
+for(const phrase of ['line drive 94','line drive center field 94','hard line drive 94 mph','line drive 94 exit velocity','line drive exit velocity 94'])test(phrase,()=>{const p=parse(phrase);assert.equal(p.draft.ev,94);assert.equal(p.draft.velocity,undefined);assert.deepEqual(p.unresolvedFields,[]);assert.equal(canFastSaveVoice(p),true);});
+test('pitch-only and two speeds remain distinct',()=>{assert.equal(parse('fastball 89').draft.velocity,89);const p=parse('fastball 89 line drive 94');assert.equal(p.draft.velocity,89);assert.equal(p.draft.ev,94);});
+for(const [phrase,label] of [['line drive left-center field','Left Center'],['fly ball right-center field','Right Center']])test(phrase,()=>{const p=parse(phrase);assert.deepEqual(p.unresolvedFields,[]);assert.equal(getSprayLane(p.draft.spray).physicalLabel,label);});
+test('explicit CF error is not stale SS context',()=>{const p=interpretVoice('line drive center field center field made an error',{...context,settings:{...context.settings,alignment:{CF:'c'}},manualDraft:{position:'SS'}},'phone',.99);assert.equal(p.draft.position,'CF');assert.equal(p.draft.defenseResult,'Error');assert.equal(p.draft.result,'Reached on Error');assert.deepEqual(p.unresolvedFields,[]);});
+test('unassigned explicit CF error requests assignment, never invents a player',()=>{assert.deepEqual(parse('line drive center field center field made an error').unresolvedFields,['Assign a fielder to this position.']);});
+test('Camden matches unique roster Camdyn but collisions review',()=>{const p=parseVoiceCommand('Camden is hitting',roster,context.settings);assert.equal(p.patch.hitterId,'c');assert.deepEqual(p.problems,[]);assert.ok(parseVoiceCommand('Camden hitting',[...roster,{id:'d',aliases:['Camden']}],context.settings).problems.length);});
+test('detail continuation cannot swallow a new pitch or identity',()=>{for(const t of ['single','94 exit','left center field'])assert.equal(isVoiceDetailFragment(t),true);for(const t of ['ball','fastball 89 whiff','Camdyn hitting','line drive 94','undo'])assert.equal(isVoiceDetailFragment(t),false);});

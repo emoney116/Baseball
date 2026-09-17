@@ -373,7 +373,7 @@ export function LiveBpConsole({
         pending.current = null;
         // Only Single-mode settings persist a pitch program across completed events.
         setDraft({ outcome: "" });
-        requestAnimationFrame(() =>
+        if (!voiceRequestId) requestAnimationFrame(() =>
           fields.current?.scrollIntoView({ block: "start" }),
         );
         setNotice("Pitch saved");

@@ -119,7 +119,7 @@ export type VoiceIdentity = { id: string; aliases: readonly string[]; bats?: "R"
 
 // A known spoken-name spelling equivalence; callers still reject multiple roster matches.
 export function voiceIdentityMatches(player: VoiceIdentity, name: string): boolean {
-  const key = (value: string) => normalizeVoiceText(value).replace(/\bmilo\b/g, 'mylo').replace(/\baidan\b/g, 'aiden').replace(/\b(?:[a-z] ){1,}[a-z]\b/g, initials => initials.replace(/ /g, ''));
+  const key = (value: string) => normalizeVoiceText(value).replace(/\bmilo\b/g, 'mylo').replace(/\baidan\b/g, 'aiden').replace(/\bcamd[ey]n\b/g, 'camden').replace(/\b(?:[a-z] ){1,}[a-z]\b/g, initials => initials.replace(/ /g, ''));
   return player.aliases.some(alias => {
     if (key(alias) === key(name)) return true;
     const actual = key(alias).split(' '), spoken = key(name).split(' ');
