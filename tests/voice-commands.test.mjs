@@ -16,6 +16,13 @@ test('real provider ordinal and source article transcripts are context only',()=
   assert.equal(name.patch.hitterId,'m'); assert.deepEqual(name.problems,[]);
   const ambiguous=parseVoiceCommand('Milo is hitting.',[...roster,{id:'other',aliases:['Milo']}],settings);
   assert.ok(ambiguous.problems.length); assert.equal(ambiguous.patch.hitterId,undefined);
+  const initials=parseVoiceCommand('J.P. is hitting now.',roster,settings);
+  assert.equal(initials.patch.hitterId,'j'); assert.deepEqual(initials.problems,[]);
+  const coach=parseVoiceCommand('Coach Darren is pitching.',roster,settings);
+  assert.equal(coach.patch.source,'COACH'); assert.equal(coach.patch.pitcherId,undefined); assert.deepEqual(coach.problems,[]);
+  const pitcher=parseVoiceCommand('Aidan is pitching now.',[{id:'a',aliases:['Aiden']}],settings);
+  assert.equal(pitcher.patch.pitcherId,'a');
+  assert.ok(parseVoiceCommand('Aidan is pitching now.',[{id:'a',aliases:['Aiden']},{id:'b',aliases:['Aidan']}],settings).problems.length);
 });
 for (const [phrase, source, pitch] of [
   ['Coach is pitching fastballs only.', 'COACH', '4-Seam'],

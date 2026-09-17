@@ -127,10 +127,10 @@ export function parseVoiceCommand(text: string, roster: readonly VoiceIdentity[]
     recognized=true;
     const name=(match[1]??match[2]??match[4]).trim(), role=match[3]??match[5]??"hitting";
     const pitching=role==="pitching";
-    if(pitching && ["coach","machine"].includes(name)) {
-      command.patch.source=name==="coach"?"COACH":"MACHINE";
+    if(pitching && (name === "machine" || /^coach(?: |$)/.test(name))) {
+      command.patch.source=name==="machine"?"MACHINE":"COACH";
       command.patch.pitcherId=undefined;
-      command.confirmations.push(`Source: ${name === "coach" ? "Coach" : "Machine"}`);
+      command.confirmations.push(`Source: ${name === "machine" ? "Machine" : "Coach"}`);
     } else {
       const matches=roster.filter(p=>voiceIdentityMatches(p,name));
       if(matches.length!==1)command.problems.push(matches.length?`Which player is "${name}"?`:`Couldn't match player "${name}".`);
