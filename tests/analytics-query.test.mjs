@@ -964,11 +964,26 @@ test('Practice batting and recap attribute runs to runners and RBI to hitter', (
   assert.equal(row(result,'p-jackson').cells.hits.kind,'not-tracked');
   const filtered=executeAnalyticsQuery(data,{...query('hitting','live-bp'),playerIds:['p-jackson']});
   assert.equal(row(filtered,'p-jackson').cells.runs.value,1);
+  assert.equal(filtered.teamTotals.cells.runs.value,1);
   const recap=buildPracticeReviewSummary(data,'practice-aug-19');
   assert.equal(recap.liveHitting.teamTotals.cells.rbi.value,1);
   assert.equal(recap.hitting.teamTotals.cells.runs.value,1);
   data.hittingEvents=[];
   assert.equal(buildPracticeReviewSummary(data,'practice-aug-19').hitting.teamTotals.cells.hits.kind,'not-tracked');
+});
+
+test('standalone runner actions share Analytics and recap totals without polluting EV/contact samples',()=>{
+  const data=structuredClone(baseData);
+  data.practiceRunnerActions=[{id:'a',practiceId:'practice-aug-19',roundId:'round',version:1,createdAt:'2026-08-19',from:3,to:4,outcome:'safe',reason:'On error',runnerId:'p-jackson'},
+    {id:'b',practiceId:'practice-aug-19',roundId:'round',version:2,createdAt:'2026-08-19',from:2,to:4,outcome:'safe',reason:'On throw'}];
+  const before=executeAnalyticsQuery({...data,practiceRunnerActions:[]},query('hitting','live-bp'));
+  const after=executeAnalyticsQuery(data,query('hitting','live-bp'));
+  assert.equal(after.teamTotals.cells.runs.value,(before.teamTotals.cells.runs.value??0)+2);
+  assert.equal(buildPracticeReviewSummary(data,'practice-aug-19').liveHitting.teamTotals.cells.runs.value,2);
+  for(const key of ['swings','contactPct','hardPct','evSamples','bip'])assert.deepEqual(after.teamTotals.cells[key],before.teamTotals.cells[key]);
+  assert.equal(row(after,'p-jackson').cells.runs.value,1);
+  const filtered=executeAnalyticsQuery(data,{...query('hitting','live-bp'),filters:{pitchVelocityMin:80}});
+  assert.equal(filtered.teamTotals.cells.runs.kind,'not-tracked');
 });
 
 function query(domain, source) {

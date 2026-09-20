@@ -1,4 +1,5 @@
 "use client";
+import {startLiveBpPolling} from '../lib/liveBpPolling';
 import type { BpDefenseRep } from '../lib/liveBpDefenseRep';
 import { applyDefensePreset, defensePresetIsActive } from '../lib/liveBpDefensePresets';
 
@@ -261,23 +262,22 @@ export function LiveBpConsole({
   }));
   useEffect(() => {
     if(!round || busy || uncertain || draft.outcome || JSON.stringify(round.settings)!==JSON.stringify(settings) || JSON.stringify(round.state)!==JSON.stringify(state))return;
-    const controller=new AbortController();
-    const refresh=async()=>{
-      if(document.visibilityState!=="visible")return;
+    return startLiveBpPolling(async(signal)=>{
       try{
-        const response=await fetch(url,{cache:"no-store",signal:controller.signal});
+        const response=await fetch(url,{cache:"no-store",signal});
         const data=await response.json();
         const latest=data.rounds?.find((r:BpRound)=>r.id===round.id);
-        if(response.ok && latest && latest.version!==round.version && !controller.signal.aborted){
+        if(response.ok && latest && latest.version!==round.version && !signal.aborted){
           adopt(latest);
           if (latest.settings.hitterId !== round.settings.hitterId || latest.settings.pitcherId !== round.settings.pitcherId || latest.settings.source !== round.settings.source) setDraft({outcome:''});
           setNotice("Practice context updated by another coach.");
         }
       }catch{/* Keep manual entry available during a connection interruption. */}
-    };
-    const timer=setInterval(()=>void refresh(),5000);
-    window.addEventListener("focus",refresh);
-    return()=>{controller.abort();clearInterval(timer);window.removeEventListener("focus",refresh);};
+    },{
+      visible:()=>document.visibilityState==='visible',
+      interval:(tick,ms)=>{const timer=setInterval(tick,ms);return()=>clearInterval(timer);},
+      focus:tick=>{window.addEventListener('focus',tick);return()=>window.removeEventListener('focus',tick);},
+    });
   },[url,round,settings,state,busy,uncertain,draft.outcome]);
   const hitters = players.filter(
     (p) => settings.source !== "PLAYER" || p.id !== settings.pitcherId,

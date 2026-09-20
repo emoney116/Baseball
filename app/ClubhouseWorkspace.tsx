@@ -1768,9 +1768,14 @@ export default function MetrolinaBaseballApp() {
       if (reading || document.visibilityState !== "visible") return;
       reading = true;
       try {
-        const remote = await supabaseAppRepository.load(team.teamId, team.seasonId);
+        const scopedPractice=view==='practice'?activePractice(snapshot):undefined;
+        const remote = scopedPractice
+          ? await supabaseAppRepository.loadLiveBpPractice(scopedPractice.id)
+          : await supabaseAppRepository.load(team.teamId, team.seasonId);
         // Never replace a coach edit made while this read was in flight.
-        if (!cancelled && sequence === persistSequenceRef.current) setData(current => current === snapshot ? mergeLiveRefresh(current, remote) : current);
+        if (!cancelled && sequence === persistSequenceRef.current) setData(current => current === snapshot
+          ? scopedPractice?mergeLiveBpPracticeSnapshot(current,remote,scopedPractice.id):mergeLiveRefresh(current,remote as AppData)
+          : current);
       } catch { /* Keep the current screen and normal save-error handling on read failure. */ }
       finally { reading = false; }
     };

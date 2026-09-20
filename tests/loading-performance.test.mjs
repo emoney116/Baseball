@@ -6,10 +6,11 @@ import ts from 'typescript';
 import { gzipSync } from 'node:zlib';
 import { readAllRows } from '../app/lib/readAllRows.ts';
 import { currentStartedPractice } from '../app/lib/practiceStart.ts';
+import {readPracticeRunnerActions} from '../app/lib/practiceRunnerActions.ts';
 
 const source = readFileSync('app/data/supabaseRepository.ts', 'utf8');
 function repository() {
-  const context = { exports: {}, require: () => ({ readAllRows, currentStartedPractice, APP_NAME: 'Clubhouse 9', exactRosterWorkingData: data => data }),
+  const context = { exports: {}, require: () => ({ readPracticeRunnerActions, readAllRows, currentStartedPractice, APP_NAME: 'Clubhouse 9', exactRosterWorkingData: data => data }),
     fetch: async () => ({ ok: true, json: async () => ({ organizations: [], teams: [] }) }) };
   vm.runInNewContext(ts.transpileModule(`${source}\nexport { ensureOwnProfile, loadAppData };`, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -21,7 +22,7 @@ const profile = { id: 'profile', email: 'coach@example.test', first_name: 'Test'
 function database(fixtures = {}, errors = {}) {
   const calls = [], events = [];
   const rows = structuredClone(fixtures);
-  return { calls, events, auth: {}, from(table) {
+  return { calls, events, auth: {}, rpc(name,args) { calls.push({table:name,args});return {order:()=>({range:async()=>({data:[],error:null})})}; }, from(table) {
     const call = { table, filters: [], orders: [] }; calls.push(call);
     const query = {
       select() { return query; }, eq(key, value) { call.filters.push(['eq', key, value]); return query; },

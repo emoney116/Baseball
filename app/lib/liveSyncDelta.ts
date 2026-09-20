@@ -1,8 +1,9 @@
 import type { AppData } from "../types";
 
-export type LiveBpPracticeSnapshot = Pick<AppData,'practices'|'attendance'|'hittingSessions'|'pitchingSessions'|'defenseSessions'|'hittingEvents'|'pitchEvents'|'defenseEvents'>;
+export type LiveBpPracticeSnapshot = Pick<AppData,'practices'|'attendance'|'hittingSessions'|'pitchingSessions'|'defenseSessions'|'hittingEvents'|'pitchEvents'|'defenseEvents'|'practiceRunnerActions'>;
 export function mergeLiveBpPracticeSnapshot(current:AppData,remote:LiveBpPracticeSnapshot,practiceId:string):AppData {
   const next={...current,practices:current.practices.map(p=>p.id===practiceId?(remote.practices.find(r=>r.id===practiceId)??p):p)};
+  next.practiceRunnerActions=[...(current.practiceRunnerActions??[]).filter(a=>a.practiceId!==practiceId),...(remote.practiceRunnerActions??[]).filter(a=>a.practiceId===practiceId)];
   for(const key of ['attendance','hittingSessions','pitchingSessions','defenseSessions','hittingEvents','pitchEvents','defenseEvents'] as const){
     Object.assign(next,{[key]:[...current[key].filter(r=>r.practiceId!==practiceId),...remote[key].filter(r=>r.practiceId===practiceId)]});
   }
@@ -18,6 +19,7 @@ export function changedRows<T extends { id: string }>(
 }
 export function mergeLiveRefresh(current: AppData, remote: AppData): AppData {
   const next = { ...current };
+  next.practiceRunnerActions=remote.practiceRunnerActions;
   for (const key of [
     "practices",
     "attendance",

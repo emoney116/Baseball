@@ -1,4 +1,5 @@
 import {practiceBatting, PRACTICE_BATTING_METRICS} from './practiceBatting.ts';
+import type {PracticeRunnerAction} from './practiceRunnerActions.ts';
 import type {
   AppData,
   BattedBallType,
@@ -451,8 +452,9 @@ function buildHittingResult(
 
   trackedMetricIds.push(...PRACTICE_BATTING_METRICS);
   const runnerEvents=includesTrackedSwings?filterHittingEvents(data,{...query,playerIds:undefined},today):[];
-  const trackedRows = currentRosterPlayers(data).map((player) => hittingRow(player, trackedEvents.filter((event) => event.hitterId === player.id),runnerEvents));
-  const trackedTeamTotals = hittingTeamRow(data, trackedEvents);
+  const runnerActions=filterRunnerActions(data,query,runnerEvents,today);
+  const trackedRows = currentRosterPlayers(data).map((player) => hittingRow(player, trackedEvents.filter((event) => event.hitterId === player.id),runnerEvents,player.id,runnerActions));
+  const trackedTeamTotals = hittingTeamRow(data, trackedEvents,runnerActions,runnerEvents,query.playerIds);
   if (includesGames) {
     warnings.push("Mixed field sources combine recorded batting outcomes; swing and contact metrics retain their own measured samples.");
     const gameRows = currentRosterPlayers(data).map((player) => gameHittingRow(player, gameEventsForHitter(player.id, gameEvents), data.plateAppearances));
@@ -902,7 +904,10 @@ function assembleResult(
       return column ? [column] : [];
     })
     : availableColumns;
-  const sampleCount = rows.reduce((total, row) => total + row.sampleCount, 0);
+  // Runner outcomes are evidence samples, not additional hitting opportunities.
+  const sampleCount = query.domain==='hitting'&&!analyticsFieldSources(query).includes('games')
+    ? Number(teamTotals?.cells.opportunities?.value??0)
+    : rows.reduce((total, row) => total + row.sampleCount, 0);
   const playersWithData = rows.filter((row) => row.sampleCount > 0).length;
   return {
     query,
@@ -923,13 +928,13 @@ function assembleResult(
   };
 }
 
-function hittingRow(player: Player, events: HittingEvent[], runnerEvents: HittingEvent[]=events, scorePlayerId:string|null=player.id==='team-total'?null:player.id): AnalyticsRow {
-  const totals=practiceBatting(events,runnerEvents,scorePlayerId??undefined);
+function hittingRow(player: Player, events: HittingEvent[], runnerEvents: HittingEvent[]=events, scorePlayerId:string|string[]|null=player.id==='team-total'?null:player.id, actions:PracticeRunnerAction[]=[]): AnalyticsRow {
+  const totals=practiceBatting(events,runnerEvents,scorePlayerId??undefined,actions);
   const scoring:Record<string,AnalyticsCell>={};
   for(const id of PRACTICE_BATTING_METRICS) {
     if(['avg','obp','slg','ops'].includes(id))continue;
     const value=totals[id as keyof typeof totals];
-    scoring[id]=countCell(value,id==='runs'?totals.runSamples:id==='rbi'?totals.rbiSamples:totals.pa);
+    scoring[id]=countCell(value,['runs','runnerAdvances','runnerOuts'].includes(id)?totals.runSamples:id==='rbi'?totals.rbiSamples:totals.pa);
   }
   scoring.avg=decimalRateCell(totals.hits,totals.ab,'AVG');
   scoring.obp=decimalRateCell(totals.hits+totals.walks+totals.hitByPitch,totals.ab+totals.walks+totals.hitByPitch+totals.sacrificeFlies,'OBP');
@@ -1004,9 +1009,26 @@ function hittingRow(player: Player, events: HittingEvent[], runnerEvents: Hittin
   });
 }
 
-function hittingTeamRow(data: AppData, events: HittingEvent[]): AnalyticsRow {
+function hittingTeamRow(data: AppData, events: HittingEvent[], actions:PracticeRunnerAction[]=[],runnerEvents:HittingEvent[]=events,playerIds?:string[]): AnalyticsRow {
   const eligibleIds = currentRosterPlayerIdSet(data);
-  return hittingRow(teamPlayer(data), events.filter((event) => eligibleIds.has(event.hitterId)));
+  const eligible=events.filter((event) => eligibleIds.has(event.hitterId));
+  return hittingRow(teamPlayer(data), eligible,runnerEvents,playerIds?.length?playerIds:null,actions);
+}
+
+function filterRunnerActions(data:AppData,query:AnalyticsQuery,events:HittingEvent[],today?:string):PracticeRunnerAction[] {
+  if(!analyticsFieldSources(query).includes('live-bp'))return [];
+  const range=resolveDateRange(data,query,today);
+  const eventIds=new Set(events.map(e=>e.id));
+  return (data.practiceRunnerActions??[]).filter(a=>{
+    const p=data.practices.find(p=>p.id===a.practiceId);
+    if(!p||!dateInRange(p.date,range))return false;
+    if(query.playerIds?.length&&(!a.runnerId||!query.playerIds.includes(a.runnerId)))return false;
+    if(a.pitchId)return eventIds.has(a.pitchId);
+    if(query.eventIds?.length&&!query.eventIds.includes(a.practiceId))return false;
+    if(query.filters?.liveBpThrowerSources?.length&&!query.filters.liveBpThrowerSources.includes(a.source as LiveBpThrowerSource))return false;
+    // Pitch-specific filters cannot be applied to an unlinked movement without evidence.
+    return !Object.entries(query.filters??{}).some(([key,value])=>key!=='liveBpThrowerSources'&&value!==undefined&&(Array.isArray(value)?value.length>0:true));
+  });
 }
 
 function gameEventsForHitter(playerId: ID, events: GameEvent[]): GameEvent[] {

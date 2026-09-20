@@ -2,6 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { liveSyncDelta } from "../lib/liveSyncDelta";
+import {readPracticeRunnerActions} from '../lib/practiceRunnerActions';
 import { emailAuth } from "../lib/emailAuthClient";
 import { currentStartedPractice } from "../lib/practiceStart";
 import { readAllRows } from "../lib/readAllRows";
@@ -208,7 +209,8 @@ export const supabaseAppRepository = {
       readPracticeRows(supabase,'practice_attendance',[practiceId]),
     ]);
     if([sessions,hitting,pitching,defense,attendance].some(r=>r.error||!r.data))throw new PersistenceError('load-failed','Practice refresh unavailable.');
-    return {practices:[mapPractice(practice.data,attendance.data??[])],attendance:(attendance.data??[]).map(mapAttendance),
+    const practiceRunnerActions=await readPracticeRunnerActions(supabase,[practiceId]);
+    return {practiceRunnerActions,practices:[mapPractice(practice.data,attendance.data??[])],attendance:(attendance.data??[]).map(mapAttendance),
       hittingSessions:(sessions.data??[]).filter(s=>s.category==='hitting').map(mapHittingSession),
       pitchingSessions:(sessions.data??[]).filter(s=>s.category==='pitching').map(mapPitchingSession),
       defenseSessions:(sessions.data??[]).filter(s=>s.category==='defense').map(mapDefenseSession),
@@ -1152,6 +1154,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     pitchEvents: (pitchEventsResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && sessionIds.has(row.session_id)).map(mapPitchEvent),
     hittingSessions: sessionRows.filter((row: any) => row.category === "hitting").map(mapHittingSession),
     hittingEvents: (hittingEventsResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && sessionIds.has(row.session_id)).map(mapHittingEvent),
+    practiceRunnerActions: await readPracticeRunnerActions(supabase,[...practiceIds]),
     defenseSessions: sessionRows.filter((row: any) => row.category === "defense").map(mapDefenseSession),
     defenseEvents: (defenseEventsResult.data ?? []).filter((row: any) => practiceIds.has(row.practice_id) && sessionIds.has(row.session_id)).map(mapDefenseEvent),
     weightRoomExercises: (exercisesResult.data ?? []).map(mapWeightRoomExerciseDefinition),

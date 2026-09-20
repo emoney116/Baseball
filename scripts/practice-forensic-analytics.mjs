@@ -2,6 +2,9 @@ import {readFileSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {emptyData,mapPlayer,mapPlayerTeamMembership,mapPractice,mapHittingEvent,mapPitchEvent,mapDefenseEvent,mapHittingSession,mapPitchingSession,mapDefenseSession} from '../app/lib/askClubhouse/serverData.ts';
 import {buildPracticeReviewSummary} from '../app/lib/practiceReviewSummary.ts';
+import {mapPracticeRunnerAction,projectPracticeRunners} from '../app/lib/practiceRunnerActions.ts';
+import {buildAskClubhouseToolPlan,runAskClubhouseTools} from '../app/lib/askClubhouse/tools.ts';
+import {getAskClubhouseConfig} from '../app/lib/askClubhouse/config.ts';
 const directory=process.argv[2];
 const read=n=>JSON.parse(readFileSync(join(directory,n),'utf8'));
 const raw=read('canonical-readonly.json'),support=read('supporting-readonly.json');
@@ -14,9 +17,17 @@ data.hittingSessions=support.sessions.filter(s=>s.category==='hitting').map(mapH
 data.pitchingSessions=support.sessions.filter(s=>s.category==='pitching').map(mapPitchingSession);
 data.defenseSessions=support.sessions.filter(s=>s.category==='defense').map(mapDefenseSession);
 data.hittingEvents=raw.hitting.map(mapHittingEvent);
+data.practiceRunnerActions=(raw.actions??[]).filter(a=>a.kind==='runner'&&!a.undone).map(a=>mapPracticeRunnerAction({
+  ...a,practice_id:p.id,movement:{...a.detail,runnerId:a.detail.runnerId??a.before_state?.runnerIds?.[a.detail.from]}
+}));
 data.pitchEvents=(support.pitch_events??[]).map(mapPitchEvent);
 data.defenseEvents=(raw.defense??[]).map(mapDefenseEvent);
 const summary=buildPracticeReviewSummary(data,p.id);
+const config=getAskClubhouseConfig({});
+const plan=buildAskClubhouseToolPlan(data,'How many runs scored in Practice?',undefined,config);
+const requests=plan.toolRequests.map(r=>({...r,query:{...r.query,eventIds:[p.id],timeRange:'custom',customDateRange:{start:data.practices[0].date,end:data.practices[0].date}}}));
+writeFileSync(join(directory,'ask-run-reconciliation.json'),JSON.stringify({requests,results:runAskClubhouseTools(data,requests,config)},null,2));
+writeFileSync(join(directory,'runner-reconciliation.json'),JSON.stringify({standalone:data.practiceRunnerActions,primitives:projectPracticeRunners(data.hittingEvents,data.practiceRunnerActions),runs:summary.liveHitting.teamTotals?.cells.runs},null,2));
 writeFileSync(join(directory,'analytics-reconciliation.json'),JSON.stringify(summary,null,2));
 writeFileSync(join(directory,'private-app-data.json'),JSON.stringify(data,null,2));
 console.log(JSON.stringify({participants:summary.participants,sessions:summary.sessions,durationMinutes:summary.durationMinutes,hitting:summary.hitting.teamTotals,liveBp:summary.liveHitting.teamTotals},null,2));

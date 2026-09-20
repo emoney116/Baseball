@@ -10,6 +10,7 @@ import { practiceReadinessSession } from './fixtures/practice-readiness-session.
 import { parseVoiceCommand } from "../app/lib/voiceCommands.ts";
 import { emptyData, mapPlayer, mapPlayerTeamMembership, mapPractice, mapPitchEvent, mapHittingEvent, mapDefenseEvent, mapHittingSession, mapPitchingSession, mapDefenseSession } from "../app/lib/askClubhouse/serverData.ts";
 import { buildPracticeReviewSummary } from "../app/lib/practiceReviewSummary.ts";
+import {mapPracticeRunnerAction} from '../app/lib/practiceRunnerActions.ts';
 import {
   buildBpPitch,
   bpBatterResults,
@@ -833,6 +834,24 @@ test("invalid coordinates, duplicate runners, same hitter/pitcher are rejected",
   );
 });
 
+test('runner Analytics projection is coach-scoped, read-only, narrow, and excludes undone actions',async()=>{
+  let r=await start(settings({mode:'GAME'}),{...initialBpState(),runners:[3],runnerIds:{3:id(42)}});
+  r=await pitch(r,{outcome:'Ball'});
+  r=await call('runner',r,buildBpRunnerMove(r.settings,r.state,{from:3,to:4,reason:'On error'}),randomUUID());
+  await asAccount(db,id(1),async()=>{
+    const rows=(await db.query('select * from public.read_practice_runner_actions($1)',[[id(60)]])).rows;
+    assert.equal(rows.length,1);assert.equal(rows[0].movement.runnerId,id(42));
+    assert.equal(rows[0].movement.to,4);assert.equal(rows[0].actor,undefined);assert.equal(rows[0].before_state,undefined);
+  });
+  const summary=await readPracticeReview();
+  assert.equal(summary.liveHitting.teamTotals.cells.runs.value,1);
+  assert.equal(summary.liveHitting.rows.find(row=>row.player.id===id(42)).cells.runs.value,1);
+  await asAccount(db,id(2),()=>denied(()=>db.query('select * from public.read_practice_runner_actions($1)',[[id(60)]]),/unavailable/));
+  await asAccount(db,id(1),()=>denied(()=>db.query('select * from public.read_practice_runner_actions($1)',[[id(999)]]),/unavailable/));
+  await call('undo',r,{},randomUUID());
+  await asAccount(db,id(1),async()=>assert.equal((await db.query('select * from public.read_practice_runner_actions($1)',[[id(60)]])).rows.length,0));
+});
+
 let db;
 before(async () => {
   db = await fullPlayerDatabase();
@@ -879,6 +898,7 @@ async function pitch(r, draft = { outcome: "Whiff" }, request = randomUUID()) {
 async function readPracticeReview() {
   const currentTeam={teamId:id(20),seasonId:id(30),organizationId:id(10),role:'COACH',active:true};
   const data=emptyData({availableTeams:[]},{id:id(1)},currentTeam);
+  await asAccount(db,id(1),async()=>{data.practiceRunnerActions=(await db.query('select * from public.read_practice_runner_actions($1)',[[id(60)]])).rows.map(mapPracticeRunnerAction);});
   data.players=(await db.query('select * from players where organization_id=$1',[id(10)])).rows.map(mapPlayer);
   data.playerTeamMemberships=(await db.query('select * from player_team_memberships where team_id=$1',[id(20)])).rows.map(mapPlayerTeamMembership);
   data.practices=(await db.query('select to_jsonb(p) row from practices p where id=$1',[id(60)])).rows.map(({row})=>mapPractice(row,[]));

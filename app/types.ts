@@ -1163,6 +1163,7 @@ export interface AppData {
   pitchEvents: PitchEvent[];
   hittingSessions: HittingSession[];
   hittingEvents: HittingEvent[];
+  practiceRunnerActions?: import('./lib/practiceRunnerActions').PracticeRunnerAction[];
   defenseSessions: DefenseSession[];
   defenseEvents: DefenseEvent[];
   weightRoomExercises?: WeightRoomExerciseDefinition[];

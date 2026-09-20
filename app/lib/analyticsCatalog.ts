@@ -95,6 +95,7 @@ export const ANALYTICS_VIEW_CATALOG: AnalyticsViewDefinition[] = [
 ];
 
 const METRIC_FULL_NAMES: Record<string, string> = {
+  runnerAdvances:'Runner Advances',runnerOuts:'Runner Outs',
   opportunities: "Opportunities", takes: "Taken Pitches", swings: "Swings", contacts: "Contacts", bip: "Balls in Play", misses: "Swing and Misses", fouls: "Foul Balls",
   swingPct: "Swing Percentage", bipPct: "Balls in Play Percentage", contactPct: "Contact Percentage", swingMissPct: "Whiff Percentage", foulPct: "Foul Percentage", takePct: "Take Percentage",
   zoneSwingPct: "Zone Swing Percentage", zoneContactPct: "Zone Contact Percentage", chasePct: "Chase Percentage", outZoneContactPct: "Out-of-Zone Contact Percentage",
@@ -196,6 +197,8 @@ export const ANALYTICS_METRICS: AnalyticsMetricDefinition[] = [
   metric("tbPerAb", "TB/AB", "hitting", "decimal", ["games"], "Total bases divided by supported at-bats."),
   metric("gamesPlayed", "GP", "hitting", "integer", ["games"], "Distinct confirmed games with a batter or baserunner event."),
   metric("runs", "R", "hitting", "integer", ["games"], "Confirmed runner movements to home for the player."),
+  metric("runnerAdvances", "R Adv", "hitting", "integer", ["live-bp"], "Canonical safe advances by existing runners, deduplicated across linked pitch and runner actions; not bases gained."),
+  metric("runnerOuts", "R Out", "hitting", "integer", ["live-bp"], "Canonical runner outs, excluding batter outs."),
   metric("rbi", "RBI", "hitting", "integer", ["games"], "Confirmed runs batted in recorded on the batter's event."),
   metric("sacrificeFlies", "SF", "hitting", "integer", ["games"], "Confirmed sacrifice fly outcomes."),
   metric("sacrificeBunts", "SH", "hitting", "integer", ["games"], "Confirmed sacrifice bunt outcomes."),
@@ -405,6 +408,7 @@ export const ANALYTICS_COLUMN_PRESETS: Record<Exclude<AnalyticsColumnPreset, "cu
     "avgPitchVelo", "medianPitchVelo", "p90PitchVelo", "minPitchVelo", "maxPitchVelo", "veloSpread",
   ],
   baserunning: [
+    "runnerAdvances", "runnerOuts",
     "stolenBases", "caughtStealing", "stolenBaseAttempts", "stolenBasePct",
   ],
   "pitch-mix": [

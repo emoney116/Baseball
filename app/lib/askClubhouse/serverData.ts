@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {readPracticeRunnerActions} from '../practiceRunnerActions.ts';
 import { liveBpPitchContactQuality } from "../liveBp.ts";
 import type {
   AppData,
@@ -137,6 +138,7 @@ function mergeTeamData(datasets: AppData[], teamContext: TeamContext, profile: A
     pitchEvents: uniqueRows(datasets.flatMap((data) => data.pitchEvents)),
     hittingSessions: uniqueRows(datasets.flatMap((data) => data.hittingSessions)),
     hittingEvents: uniqueRows(datasets.flatMap((data) => data.hittingEvents)),
+    practiceRunnerActions: uniqueRows(datasets.flatMap(data=>data.practiceRunnerActions??[])),
     defenseSessions: uniqueRows(datasets.flatMap((data) => data.defenseSessions)),
     defenseEvents: uniqueRows(datasets.flatMap((data) => data.defenseEvents)),
     workoutSessions: uniqueRows(datasets.flatMap((data) => data.workoutSessions)),
@@ -347,6 +349,7 @@ async function loadTeamData(supabase: SupabaseClient, teamContext: TeamContext, 
     pitchEvents: pitchRows.map(mapPitchEvent),
     hittingSessions: sessionRows.filter((session) => session.category === "hitting").map(mapHittingSession),
     hittingEvents: hittingRows.map(mapHittingEvent),
+    practiceRunnerActions: await readPracticeRunnerActions(supabase,practiceIds),
     defenseSessions: sessionRows.filter((session) => session.category === "defense").map(mapDefenseSession),
     defenseEvents: defenseRows.map(mapDefenseEvent),
     workoutSessions: workoutRows.map(mapWorkoutSession),

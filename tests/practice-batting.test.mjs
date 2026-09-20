@@ -22,7 +22,8 @@ test('explicit runner override wins over double default',()=>{
   const built=buildBpPitch(settings,{...state,runners:[1]},{outcome:'Ball in play',result:'Double',runnerOutcomes:{1:'score'}});
   assert.deepEqual(built.stateAfter.runners,[2]);
 });
-const event=(result,runnerOutcomes,extra={})=>({hitterId:'batter',liveBpContext:{result,before:{outs:0,runnerIds:{2:'runner'}},runnerOutcomes,...extra}});
+let sequence=0;
+const event=(result,runnerOutcomes,extra={})=>({id:`pitch-${++sequence}`,practiceId:'practice',liveBpRoundId:'round',hitterId:'batter',liveBpContext:{result,before:{outs:0,runnerIds:{2:'runner'}},runnerOutcomes,...extra}});
 test('canonical outcomes yield hits runs RBI and exclude errors from RBI',()=>{
   const events=[event('Double',{batter:'2',2:'score'}),event('Reached on Error',{batter:'1',2:'score'}),event('Ball in play'),event('Home Run',{batter:'score'}),event('Walk',{batter:'1'})];
   const batting=practiceBatting(events,events,'batter');
