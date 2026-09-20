@@ -8,5 +8,5 @@
 .grid dl { margin: 0; }
 .grid dl > div { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; }
 .grid dt { color: var(--muted); overflow-wrap: anywhere; }
-.grid dd { margin: 0; font-variant-numeric: tabular-nums; }
+.grid dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; overflow-wrap: anywhere; }
 @media (max-width: 480px) { .grid { grid-template-columns: minmax(0, 1fr); } }

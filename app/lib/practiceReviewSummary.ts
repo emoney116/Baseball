@@ -16,7 +16,12 @@ export function buildPracticeReviewSummary(data:AppData, practiceId:ID) {
     ...data.defenseEvents.filter(e=>e.practiceId===practiceId&&participantIds.has(e.playerId)),
   ].map(e=>e.sessionId));
   const elapsed=practice?.endedAt?Date.parse(practice.endedAt)-Date.parse(practice.startedAt):undefined;
+  const recordedEvents=[...data.hittingEvents,...data.pitchEvents,...data.defenseEvents].filter(e=>e.practiceId===practiceId);
+  const timestamps=recordedEvents.map(e=>Date.parse(e.createdAt)).filter(Number.isFinite);
+  const recordedSpanMinutes=timestamps.length>1?Math.round((Math.max(...timestamps)-Math.min(...timestamps))/60000):undefined;
+  const liveBpRounds=new Set(recordedEvents.map(e=>e.liveBpRoundId).filter(Boolean)).size;
   return {hitting,pitching,defense,liveHitting,livePitching,participants:participantIds.size,sessions:sessionIds.size,
+    recordedSpanMinutes,liveBpRounds,
     durationMinutes:elapsed!==undefined&&Number.isFinite(elapsed)&&elapsed>=0?Math.round(elapsed/60000):undefined};
 }
 

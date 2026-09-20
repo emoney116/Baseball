@@ -135,7 +135,7 @@ import {
   resolvePracticeHittingPitchType,
   type PracticeHittingResultOption,
 } from "./lib/hittingTaxonomy";
-import { mergeLiveRefresh } from "./lib/liveSyncDelta";
+import { mergeLiveRefresh, mergeLiveBpPracticeSnapshot } from "./lib/liveSyncDelta";
 import type { PlayerSession } from "./lib/playerAccess";
 import { deriveConcurrentPracticeTotals, nextSessionSequence, touchSessionContributor } from "./lib/practiceConcurrency";
 import { localPracticeStartFields, validatePracticeStart } from "./lib/practiceStart";
@@ -1257,6 +1257,7 @@ export default function MetrolinaBaseballApp() {
   const [topAccountMenuOpen, setTopAccountMenuOpen] = useState(false);
   const [sidebarAccountMenuOpen, setSidebarAccountMenuOpen] = useState(false);
   const lastGlobalRefreshRef = useRef(0);
+  const liveBpRefreshSequenceRef = useRef(0);
   const persistQueueRef = useRef<Promise<void>>(Promise.resolve());
   const persistSequenceRef = useRef(0);
   const searchInTeamContext = TEAM_CONTEXT_VIEWS.has(view);
@@ -2141,6 +2142,18 @@ export default function MetrolinaBaseballApp() {
     lastGlobalRefreshRef.current = now;
     const current = data?.teamContext?.currentTeam;
     await loadApplicationData(() => false, current?.teamId, current?.seasonId, { silent: true });
+  }
+
+  async function refreshLiveBpPractice(practiceId:ID) {
+    if(isLocalDevAuthBypass())return;
+    const request=++liveBpRefreshSequenceRef.current;
+    const editSequence=persistSequenceRef.current;
+    const teamId=data?.teamContext?.currentTeam?.teamId;
+    try {
+      const snapshot=await supabaseAppRepository.loadLiveBpPractice(practiceId);
+      if(request!==liveBpRefreshSequenceRef.current||editSequence!==persistSequenceRef.current)return;
+      setData(current=>current&&current.teamContext?.currentTeam?.teamId===teamId?mergeLiveBpPracticeSnapshot(current,snapshot,practiceId):current);
+    } catch { /* The saved round remains visible; regular refresh can retry. */ }
   }
 
   async function inviteStaff(input: {
@@ -4348,7 +4361,7 @@ export default function MetrolinaBaseballApp() {
             onLiveBpHitter={selectLiveBpHitter}
             onLiveBpThrowerSource={changeLiveBpThrowerSource}
             onLogLiveBpPitch={logLiveBpPitch}
-            onLiveBpSaved={() => { void refreshGlobalData(); }}
+            onLiveBpSaved={practiceId => { void refreshLiveBpPractice(practiceId); }}
             createLiveBpPlayer={(onCreated, onClose) => <PlayerEditorModal onClose={onClose} onSave={player => { commit(current => playerRepository.upsert(current, player)); onCreated(player); }} />}
             onCompleteLiveBpPa={completeLiveBpPa}
             onNextLiveBpHitter={advanceLiveBpHitter}
@@ -8329,7 +8342,7 @@ function PracticeConsole({
   onLiveBpHitter: (playerId: ID) => void;
   onLiveBpThrowerSource: (source: LiveBpThrowerSource) => void;
   onLogLiveBpPitch: (outcome: PitchOutcome, battedBall?: BattedBallType) => void;
-  onLiveBpSaved: () => void;
+  onLiveBpSaved: (practiceId:ID) => void;
   createLiveBpPlayer: (onCreated: (player: Player) => void, onClose: () => void) => React.ReactNode;
   onCompleteLiveBpPa: (outcome: LiveBpOutcomeLabel) => void;
   onNextLiveBpHitter: () => void;
@@ -9223,7 +9236,7 @@ function PracticeConsole({
           }}
           sheet={(title, close, children, options) => <ModalFrame title={title} onClose={close} onBack={options?.onBack} panelClassName={`live-bp-sheet ${options?.panelClassName ?? ""}`}>{isValidElement<{children: React.ReactNode}>(children) && children.type === Fragment ? children.props.children : children}</ModalFrame>}
           pitchLocationControl={(point, onSelect, hitterId) => <PracticeHittingPitchLocationGrid events={[]} hitter={data.players.find(p => p.id === hitterId)} activePoint={point} onSelect={onSelect} />}
-          onExit={onExitTracking} onSaved={onLiveBpSaved} onAsk={onAskLiveBp} />
+          onExit={onExitTracking} onSaved={()=>onLiveBpSaved(practice.id)} onAsk={onAskLiveBp} />
       ) : mode === "Hitting" ? (
         <>
           <section className="practice-hitting-shell">

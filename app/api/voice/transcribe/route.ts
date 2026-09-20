@@ -8,6 +8,7 @@ import { validateVoiceWav, VOICE_MAX_BYTES, VOICE_MAX_SECONDS } from "../../../l
 import { voiceTokenConfidence } from "../../../lib/voiceTranscriptionConfidence";
 import { voiceDeploymentEnabled } from "../../../lib/voiceAvailability";
 import { voiceTranscriptionModel } from "../../../lib/voiceModel";
+import {VOICE_TRANSCRIPTION_PROMPT,isVoicePromptEcho} from '../../../lib/voiceTranscriptionPrompt';
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
     form.append("model", model);
     form.append("language", "en");
     // Very short control phrases can otherwise echo the vocabulary prompt as speech.
-    if (seconds > 3) form.append("prompt", "Baseball practice vocabulary: hitting, pitching, at-bat, ball, ball outside, ball away, fastball, four-seam, slider, changeup, curveball, cutter, swing and miss, whiff, called strike, foul, exit velo, left center, right field.");
+    if (seconds > 3) form.append("prompt", VOICE_TRANSCRIPTION_PROMPT);
     form.append("response_format", "json");
     form.append("include[]", "logprobs");
     const response = await fetch(
@@ -132,7 +133,7 @@ export async function POST(request: Request) {
       typeof result.text !== "string" ||
       !result.text.trim() ||
       result.text.length > 700 ||
-      /baseball practice vocabulary/i.test(result.text)
+      isVoicePromptEcho(result.text)
     )
       throw new Error("transcript");
     const confidence = voiceTokenConfidence(result.logprobs);

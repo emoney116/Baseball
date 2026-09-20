@@ -195,6 +195,25 @@ export const authRepository = {
 };
 
 export const supabaseAppRepository = {
+  async loadLiveBpPractice(practiceId:string) {
+    const supabase=createClient();
+    // RLS remains authoritative; no service key or unrelated workspace reads.
+    const practice=await supabase.from('practices').select('*').eq('id',practiceId).maybeSingle();
+    if(practice.error||!practice.data)throw new PersistenceError('load-failed','Practice unavailable.');
+    const [sessions,hitting,pitching,defense,attendance]=await Promise.all([
+      readPracticeRows(supabase,'practice_sessions',[practiceId]),
+      readPracticeRows(supabase,'hitting_events',[practiceId]),
+      readPracticeRows(supabase,'pitch_events',[practiceId]),
+      readPracticeRows(supabase,'defense_events',[practiceId]),
+      readPracticeRows(supabase,'practice_attendance',[practiceId]),
+    ]);
+    if([sessions,hitting,pitching,defense,attendance].some(r=>r.error||!r.data))throw new PersistenceError('load-failed','Practice refresh unavailable.');
+    return {practices:[mapPractice(practice.data,attendance.data??[])],attendance:(attendance.data??[]).map(mapAttendance),
+      hittingSessions:(sessions.data??[]).filter(s=>s.category==='hitting').map(mapHittingSession),
+      pitchingSessions:(sessions.data??[]).filter(s=>s.category==='pitching').map(mapPitchingSession),
+      defenseSessions:(sessions.data??[]).filter(s=>s.category==='defense').map(mapDefenseSession),
+      hittingEvents:(hitting.data??[]).map(mapHittingEvent),pitchEvents:(pitching.data??[]).map(mapPitchEvent),defenseEvents:(defense.data??[]).map(mapDefenseEvent)};
+  },
   async load(selectedTeamId?: string, selectedSeasonId?: string): Promise<AppData> {
     const supabase = createClient();
     const { data: userData, error: userError } = await supabase.auth.getUser();
