@@ -652,7 +652,13 @@ function buildDefenseResult(
   const events = filterDefenseEvents(data, query, today);
   const rows = currentRosterPlayers(data).map((player) => defenseRow(player, events.filter((event) => event.playerId === player.id)));
   const teamTotals = defenseTeamRow(data, events);
-  return assembleResult("Team Defense", data, query, sourceLabel, rows, teamTotals, ["positionWorked", "reps", "cleanReps", "errors", "fieldingErrors", "throwingErrors", "decisionErrors", "missedReps", "errorPct", "cleanPct", "throwAcc", "throws", "accurateThrows", "inaccurateThrows", "greatPlays"], warnings, availableEvents, filterDefinitions, scopeLabel);
+  // ROE proves an error play, not a fielder's rep/error. Never attribute it to the hitter.
+  const actorScoped = Boolean(query.playerIds?.length || Object.entries(query.filters ?? {}).some(([key,value]) => key.startsWith("defense") && Array.isArray(value) && value.length));
+  const errorPlays = actorScoped ? [] : filterHittingEvents(data, query, today).filter(event => event.liveBpContext?.result === "Reached on Error");
+  const uniqueErrorPlays = new Set(errorPlays.map(event => event.id));
+  teamTotals.cells.errorPlays = {...countCell(uniqueErrorPlays.size, uniqueErrorPlays.size), metricId: "errorPlays"};
+  teamTotals.sampleCount = Math.max(teamTotals.sampleCount, uniqueErrorPlays.size);
+  return assembleResult("Team Defense", data, query, sourceLabel, rows, teamTotals, ["positionWorked", "reps", "cleanReps", "errors", "errorPlays", "fieldingErrors", "throwingErrors", "decisionErrors", "missedReps", "errorPct", "cleanPct", "throwAcc", "throws", "accurateThrows", "inaccurateThrows", "greatPlays"], warnings, availableEvents, filterDefinitions, scopeLabel);
 }
 
 function buildDevelopmentResult(
@@ -1571,7 +1577,7 @@ function buildSummary(data: AppData, query: AnalyticsQuery, rows: AnalyticsRow[]
       : query.domain === "pitching"
         ? ["pitches", "strikePct", "zonePct", "avgPitchVelo"]
         : query.domain === "defense"
-          ? ["reps", "cleanPct", "errors", "throwAcc"]
+          ? ["reps", "cleanPct", "errors", "errorPlays", "throwAcc"]
           : ["workouts", "attendancePct", "practiceReps"];
     for (const metricId of metricIds) {
       const metricItem = metricById(metricId);

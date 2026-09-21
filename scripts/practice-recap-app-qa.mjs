@@ -25,10 +25,11 @@ for(const theme of ['dark','light'])for(const [width,height] of [[390,844],[430,
     const check=JSON.parse(JSON.parse(raw));
     if(check.theme!==theme)throw new Error(`Theme not applied: ${check.theme}`);
     if(check.overflow||check.overflows.length)throw new Error(`Overflow ${tab} ${width} ${theme}`);
-    if(tab==='Defense'&&!check.text.includes('Not tracked'))throw new Error('Defense availability');
+    if(tab==='Defense'&&!check.metrics.some(m=>m[0]==='Error plays'&&m[1]==='2'))throw new Error('Defense error-play evidence missing');
     for(const [label,value] of tab==='Situational'?[['Runs','5'],['Runner advances','16'],['Runner outs','2']]:tab==='Hitting'?[['Hitting events','86'],['BIP','46']]:[])
       if(!check.metrics.some(m=>m[0]===label&&m[1]===value))throw new Error(`Wrong ${label}`);
-    if(tab==='Hitting'&&(!check.text.includes('20 measured')||!check.text.includes('24 / 46')))throw new Error('Sample mismatch');
+    if(/\d+ measured|\d+ \/ \d+ BIP tracked/.test(check.text))throw new Error('Sample subtext clutter');
+    if(tab==='Hitting'&&!check.text.includes('Team Spray Chart'))throw new Error('Shared spray chart missing');
     if(tab==='Summary'&&width<500&&check.height>height*2)throw new Error(`Overview too tall ${check.height}`);
     run('screenshot',join(directory,`recap-app-${tab}-${width}-${theme}.png`),'--full');
     results.push({tab,width,height,theme,...check});

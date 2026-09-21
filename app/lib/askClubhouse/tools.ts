@@ -863,7 +863,7 @@ function sampleText(sample: AnalyticsRow["cells"][string]["sample"]): string | u
 
 function primaryMetricsFor(domain: AnalyticsQuery["domain"], source: AnalyticsSource, metricId: string): string[] {
   if (domain === "development") return unique(["weightScore", "workouts", "practiceReps", metricId]);
-  if (domain === "defense") return unique(["reps", "cleanPct", "errors", "throwAcc", metricId]);
+  if (domain === "defense") return unique(["reps", "cleanPct", "errors", "errorPlays", "throwAcc", metricId]);
   if (domain === "pitching") return unique(["pitches", "strikePct", "zonePct", "avgPitchVelo", "maxPitchVelo", metricId]);
   if (source === "games") return unique(["trackedBip", "hits", "avg", "slg", "babip", metricId]);
   return unique(["swings", "contactPct", "hardPct", "avgEv", "maxEv", metricId]);

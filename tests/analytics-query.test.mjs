@@ -57,6 +57,37 @@ test("Live BP recap preserves the observed 149-opportunity distribution without 
 
 const now = "2026-08-20T12:00:00.000Z";
 
+test("ROE evidence is visible in shared Defense without fabricating fielder stats", () => {
+  const data=structuredClone(baseData);
+  data.defenseEvents=[];
+  const event=hittingEvent('roe','practice-aug-19','live-hit-1','p-jacob','Ball in play',{isLiveBp:true,liveBpContext:{result:'Reached on Error',before:{outs:0,runners:[],pa:1},after:{outs:0,runners:[1],pa:2}}});
+  data.hittingEvents=[event,{...event}];
+  const summary=buildPracticeReviewSummary(data,'practice-aug-19');
+  assert.equal(summary.defense.teamTotals.cells.errorPlays.value,1);
+  assert.equal(summary.defense.teamTotals.cells.reps.value,undefined);
+  assert.equal(summary.defense.teamTotals.cells.errors.value,undefined);
+  assert.equal(summary.defense.teamTotals.cells.cleanPct.value,undefined);
+  assert.ok(summary.defense.rows.every(row=>row.cells.errorPlays===undefined));
+});
+
+test("unattributed error plays obey Practice/source scopes and never attach to a hitter or position", () => {
+  const data=structuredClone(baseData);
+  data.hittingEvents=[hittingEvent('roe','practice-aug-19','live-hit-1','p-jacob','Ball in play',{isLiveBp:true,liveBpContext:{result:'Reached on Error',before:{outs:0,runners:[],pa:1},after:{outs:0,runners:[1],pa:2}}})];
+  const q={...query('defense','all'),fieldSources:['practice','live-bp'],eventIds:['practice-aug-19']};
+  assert.equal(executeAnalyticsQuery(data,q).teamTotals.cells.errorPlays.value,1);
+  for(const scope of [{eventIds:['other']},{playerIds:['p-jacob']},{filters:{defensePositions:['SS']}},{fieldSources:['practice']}])
+    assert.equal(executeAnalyticsQuery(data,{...q,...scope}).teamTotals.cells.errorPlays.value,undefined);
+});
+
+test("explicit defensive reps retain their denominators when ROE play evidence is added", () => {
+  const data=structuredClone(baseData);
+  const before=buildPracticeReviewSummary(data,'practice-aug-19').defense;
+  data.hittingEvents=[hittingEvent('roe','practice-aug-19','live-hit-1','p-jacob','Ball in play',{isLiveBp:true,liveBpContext:{result:'Reached on Error',before:{outs:0,runners:[],pa:1},after:{outs:0,runners:[1],pa:2}}})];
+  const after=buildPracticeReviewSummary(data,'practice-aug-19').defense;
+  for(const key of ['reps','errors','cleanPct','throwAcc'])assert.deepEqual(after.teamTotals.cells[key],before.teamTotals.cells[key]);
+  assert.equal(after.teamTotals.cells.errorPlays.value,1);
+});
+
 const players = [
   player("p-jacob", "Jacob Seamon", 1, "CF"),
   player("p-mylo", "Mylo White", 2, "LHP", { throws: "L", isPitcher: true }),
@@ -404,7 +435,7 @@ test("defense query uses worked position, structured filters, and weighted team 
   const jacob = row(result, "p-jacob");
 
   assert.equal(result.filterDefinitions.some((definition) => definition.id === "defensePositions"), true);
-  assert.deepEqual(result.columns.map((column) => column.metricId), ["positionWorked", "reps", "cleanReps", "errors", "fieldingErrors", "throwingErrors", "decisionErrors", "missedReps", "errorPct", "cleanPct", "throwAcc", "throws", "accurateThrows", "inaccurateThrows", "greatPlays"]);
+  assert.deepEqual(result.columns.map((column) => column.metricId), ["positionWorked", "reps", "cleanReps", "errors", "errorPlays", "fieldingErrors", "throwingErrors", "decisionErrors", "missedReps", "errorPct", "cleanPct", "throwAcc", "throws", "accurateThrows", "inaccurateThrows", "greatPlays"]);
   assert.equal(jacob.cells.positionWorked.display, "SS");
   assert.equal(jacob.cells.reps.display, "8");
   assert.equal(jacob.cells.cleanReps.display, "7");

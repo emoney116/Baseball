@@ -199,7 +199,7 @@ export function MiniLineChart({ values, labels }: { values: number[]; labels?: s
   );
 }
 
-export function DonutChart({ items }: { items: Array<{ label: string; value: number; color: string }> }) {
+export function DonutChart({ items, label = "Pitch mix donut chart" }: { items: Array<{ label: string; value: number; color: string }>; label?: string }) {
   const total = items.reduce((sum, item) => sum + item.value, 0) || 1;
   const slices = items.reduce<Array<{ label: string; color: string; length: number; offset: number }>>((segments, item) => {
     const used = segments.reduce((sum, segment) => sum + segment.length, 0);
@@ -209,7 +209,7 @@ export function DonutChart({ items }: { items: Array<{ label: string; value: num
 
   return (
     <div className="donut-wrap">
-      <svg className="donut" viewBox="0 0 42 42" aria-label="Pitch mix donut chart">
+      <svg className="donut" viewBox="0 0 42 42" aria-label={label}>
         <circle className="donut__base" cx="21" cy="21" r="15.915" />
         {slices.map((item) => (
           <circle

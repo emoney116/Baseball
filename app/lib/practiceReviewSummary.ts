@@ -36,11 +36,11 @@ export function practiceReviewTakeaways(summary: ReturnType<typeof buildPractice
   ] as const) {
     const cell=cells[key];
     if(typeof cell?.value==='number'&&(cell.sample?.denominator??0)>=minimum)
-      observations.push({id:key,title,text:`${cell.display} ${description} (${cell.sample!.denominator} measured).`,evidence:[{domain:'hitting',metric:key,value:cell.value,sample:cell.sample!.denominator}]});
+      observations.push({id:key,title,text:`${cell.display} ${description}.`,evidence:[{domain:'hitting',metric:key,value:cell.value,sample:cell.sample!.denominator}]});
   }
   const ev=cells.avgEv;
   if(typeof ev?.value==='number'&&(ev.sample?.denominator??0)>=5)
-    observations.push({id:'ev',title:'Exit velocity',text:`${ev.display} average across ${ev.sample!.denominator} measured BIP.`,evidence:[{domain:'hitting',metric:'avgEv',value:ev.value,sample:ev.sample!.denominator}]});
+    observations.push({id:'ev',title:'Exit velocity',text:`${ev.display} average; ${cells.maxEv?.display ?? '—'} maximum.`,evidence:[{domain:'hitting',metric:'avgEv',value:ev.value,sample:ev.sample!.denominator},{domain:'hitting',metric:'maxEv',value:cells.maxEv?.value??'—'}]});
   const runs=cells.runs,advances=cells.runnerAdvances;
   if(typeof runs?.value==='number'&&typeof advances?.value==='number')
     observations.push({id:'runners',title:'Runners',text:`${runs.display} runs and ${advances.display} runner advances recorded.`,evidence:[{domain:'hitting',metric:'runs',value:runs.value},{domain:'hitting',metric:'runnerAdvances',value:advances.value}]});
@@ -63,6 +63,6 @@ export function practiceReviewStandouts(summary: ReturnType<typeof buildPractice
       .sort((a,b) => Number(b.cells[key].value)-Number(a.cells[key].value))[0];
     if (!best) return [];
     const cell = best.cells[key];
-    return [{label,player:best.player,value:`${cell.display} / ${cell.sample?.denominator} recorded`}];
+    return [{label,player:best.player,value:cell.display}];
   });
 }

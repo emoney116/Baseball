@@ -11,7 +11,7 @@ test('Practice highlights rank qualifying recorded samples, never unknown contac
     pitching:result({strikePct:{value:50,display:'50%',sample:{denominator:4}}}),
     defense:result({cleanPct:{value:80,display:'80%',sample:{denominator:5}}}),
   };
-  assert.deepEqual(practiceReviewStandouts(summary), [{label:'Top EV',player,value:'101.0 mph / 7 recorded'}]);
+  assert.deepEqual(practiceReviewStandouts(summary), [{label:'Top EV',player,value:'101.0 mph'}]);
   summary.hitting.rows[0].cells.hardPct = {value:0,display:'0%',sample:{denominator:8}};
   assert.equal(practiceReviewStandouts(summary)[0].label, 'Top Hard-Hit %');
 });

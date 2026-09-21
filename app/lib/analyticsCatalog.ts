@@ -95,6 +95,7 @@ export const ANALYTICS_VIEW_CATALOG: AnalyticsViewDefinition[] = [
 ];
 
 const METRIC_FULL_NAMES: Record<string, string> = {
+  errorPlays: "Recorded Reached-on-Error Plays",
   situationalReps:'Completed Situational Repetitions',jobsCompleted:'Successful Evaluated Jobs',jobSuccessPct:'Evaluated Job Success Percentage',
   runnerAdvances:'Runner Advances',runnerOuts:'Runner Outs',
   opportunities: "Opportunities", takes: "Taken Pitches", swings: "Swings", contacts: "Contacts", bip: "Balls in Play", misses: "Swing and Misses", fouls: "Foul Balls",
@@ -308,6 +309,7 @@ export const ANALYTICS_METRICS: AnalyticsMetricDefinition[] = [
   metric("cleanReps", "Clean", "defense", "integer", ["all", "practice"], "Clean, good, or great reps."),
   metric("cleanPct", "Clean%", "defense", "percentage", ["all", "practice"], "Clean, good, or great reps divided by reps.", ANALYTICS_SAMPLE_THRESHOLDS.defenseReps),
   metric("errors", "Err", "defense", "integer", ["all", "practice"], "Logged defensive errors."),
+  metric("errorPlays", "Error plays", "defense", "integer", ["all", "practice", "live-bp"], "Distinct recorded Live BP reached-on-error plays. Not a fielder error count, rep denominator, or player attribution."),
   metric("fieldingErrors", "Fld Err", "defense", "integer", ["all", "practice"], "Errors recorded as fielding errors."),
   metric("throwingErrors", "Thr Err", "defense", "integer", ["all", "practice"], "Errors recorded as throwing errors."),
   metric("decisionErrors", "Dec Err", "defense", "integer", ["all", "practice"], "Errors recorded as decision errors."),
@@ -424,6 +426,7 @@ export const ANALYTICS_COLUMN_PRESETS: Record<Exclude<AnalyticsColumnPreset, "cu
     "cleanPct", "throwAcc", "greatPlays", "missedReps", "weightScore", "workoutCompletionPct", "attendancePct", "practiceReps",
   ],
   position: [
+    "errorPlays",
     "positionWorked", "reps", "cleanReps", "cleanPct", "errors", "fieldingErrors", "throwingErrors", "decisionErrors", "missedReps", "errorPct", "greatPlays", "throws", "accurateThrows", "inaccurateThrows", "throwAcc",
   ],
 };

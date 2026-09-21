@@ -4096,7 +4096,7 @@ export default function MetrolinaBaseballApp() {
           </header>
         )}
 
-        {inTeamContext && (
+        {inTeamContext && !(view === "practice" && practiceDrilldown.kind === "review" && !practiceTrackingOpen) && (
           <TeamWorkspaceHeader
             context={data.teamContext}
             view={view}
@@ -7947,18 +7947,16 @@ function PracticeReview({
 
   return (
     <div className="page-stack practice-review-page">
-      <section className="practice-review-hero panel">
+      <section className="practice-review-hero">
         <button className="icon-button" type="button" onClick={onBack} aria-label="Back to practice">
           <ChevronLeft size={18} aria-hidden="true" />
         </button>
         <div>
-          <span>{practice.endedAt ? "Practice Complete" : "Practice Review"}</span>
-          <h1>{shortDate(practice.date)} · {data.teamContext?.currentTeam?.teamName ?? "Team Practice"}</h1>
-          <p>{[practice.type, practice.location, formatPracticeTimeRange(practice)].filter(Boolean).join(" · ")}</p>
+          <h1>{shortDate(practice.date)} Practice</h1>
+          <p>{[data.teamContext?.currentTeam?.teamName, formatPracticeTimeRange(practice)].filter(Boolean).join(" · ")}</p>
         </div>
-        <button className="primary-button" type="button" onClick={() => onOpenAnalytics(activeCategory, undefined, activeReviewAnalyticsSessionId)}>
+        <button className="icon-button" type="button" aria-label="View Full Practice Analytics" title="View Full Practice Analytics" onClick={() => onOpenAnalytics(activeCategory, undefined, activeReviewAnalyticsSessionId)}>
           <BarChart3 size={16} aria-hidden="true" />
-          View Full Practice Analytics
         </button>
       </section>
 
