@@ -1761,7 +1761,8 @@ export default function MetrolinaBaseballApp() {
 
   useEffect(() => {
     const team = data?.teamContext?.currentTeam;
-    if (!data || !team || !hydrated || isLocalDevAuthBypass() || (view !== "practice" && view !== "weights") || saveStatus === "saving" || saveStatus === "error") return;
+    if (!data || !team?.seasonId || !hydrated || isLocalDevAuthBypass() || (view !== "practice" && view !== "weights") || saveStatus === "saving" || saveStatus === "error") return;
+    const seasonId = team.seasonId;
     let cancelled = false, reading = false;
     const snapshot = data, sequence = persistSequenceRef.current;
     const refresh = async () => {
@@ -1771,7 +1772,9 @@ export default function MetrolinaBaseballApp() {
         const scopedPractice=view==='practice'?activePractice(snapshot):undefined;
         const remote = scopedPractice
           ? await supabaseAppRepository.loadLiveBpPractice(scopedPractice.id)
-          : await supabaseAppRepository.load(team.teamId, team.seasonId);
+          : view === 'weights'
+            ? { ...snapshot, ...await supabaseAppRepository.loadWeightRoom(team.teamId, seasonId) }
+            : { ...snapshot, ...await supabaseAppRepository.loadPracticeOverview(team.teamId, seasonId) };
         // Never replace a coach edit made while this read was in flight.
         if (!cancelled && sequence === persistSequenceRef.current) setData(current => current === snapshot
           ? scopedPractice?mergeLiveBpPracticeSnapshot(current,remote,scopedPractice.id):mergeLiveRefresh(current,remote as AppData)

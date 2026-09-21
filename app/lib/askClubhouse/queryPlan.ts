@@ -64,6 +64,9 @@ export function composeAskClubhouseQueryPlan(
   const source = inferSource(lower, resolvedContext, domain, comparison);
   const metric = inferMetric(lower, domain, source);
   const requestedDay = inferRequestedDay(lower, uiContext?.timeZone, now);
+  const selectedEvent = /\b(?:this|that|current|selected) (?:practice|session|game)\b/.test(lower)
+    && Boolean(resolvedContext?.analytics?.eventIds?.length);
+  const retainScope = visualFollowUp || selectedEvent;
   const pitchTypes = inferPitchTypes(lower);
   const filters: AnalyticsFilters = { ...(resolvedContext?.analytics?.filters ?? {}) };
   if (pitchTypes.length) filters.pitchTypes = pitchTypes;
@@ -114,9 +117,9 @@ export function composeAskClubhouseQueryPlan(
     metric,
     scope: {
       source,
-      timeRange: requestedDay ? "custom" : visualFollowUp ? resolvedContext?.analytics?.timeRange ?? inferTimeRange(lower) : inferTimeRange(lower),
-      customDateRange: requestedDay ? { start: requestedDay, end: requestedDay } : visualFollowUp ? resolvedContext?.analytics?.customDateRange : undefined,
-      eventIds: requestedDay ? undefined : visualFollowUp ? resolvedContext?.analytics?.eventIds : undefined,
+      timeRange: requestedDay ? "custom" : retainScope ? resolvedContext?.analytics?.timeRange ?? inferTimeRange(lower) : inferTimeRange(lower),
+      customDateRange: requestedDay ? { start: requestedDay, end: requestedDay } : retainScope ? resolvedContext?.analytics?.customDateRange : undefined,
+      eventIds: requestedDay ? undefined : retainScope ? resolvedContext?.analytics?.eventIds : undefined,
     },
     filters,
     playerId: player?.id,

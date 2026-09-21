@@ -367,6 +367,16 @@ test("explicit today replaces a prior visual's date and event restriction", () =
   assert.equal(plan.scope.eventIds,undefined);
 });
 
+test("Ask this Practice retains the selected canonical event without requiring a visual follow-up", () => {
+  const context={analytics:{domain:'hitting',source:'all',timeRange:'season',eventIds:['selected-practice']}};
+  const plan=composeAskClubhouseQueryPlan('How many runs scored in this Practice?',context);
+  assert.deepEqual(plan.scope.eventIds,['selected-practice']);
+  assert.equal(plan.metric,'runs');
+  assert.equal(composeAskClubhouseQueryPlan('How many runs scored in Practice this season?',context).scope.eventIds,undefined);
+  assert.equal(composeAskClubhouseQueryPlan('How many runs scored in this Practice today?',context).scope.eventIds,undefined);
+  assert.equal(composeAskClubhouseQueryPlan('How many runs scored in this Practice?').scope.eventIds,undefined);
+});
+
 test("Ask today tool evidence excludes older player Practice swings", async () => {
   const fixture = structuredClone(data);
   fixture.practices.push(practice("today-practice", "2026-08-20"));
@@ -383,6 +393,21 @@ test("Ask today tool evidence excludes older player Practice swings", async () =
   assert.equal(metrics.find(m=>m.metricId==="swings")?.value,2);
   assert.equal(metrics.find(m=>m.metricId==="contactPct")?.value,50);
   assert.ok(result.toolParams.every(p=>!p.query || p.query.timeRange==="custom"));
+});
+
+test('Ask selected Practice tools exclude other Practice runs from canonical evidence', async () => {
+  const fixture = structuredClone(data);
+  fixture.practices.push(practice('other-practice', '2026-08-18'));
+  fixture.practiceRunnerActions = ['practice-1', 'other-practice', 'other-practice'].map((practiceId, index) => ({
+    id: `run-${index}`, practiceId, roundId: 'round', version: index + 1, createdAt: now,
+    from: 3, to: 4, outcome: 'safe', reason: 'Advance', runnerId: 'p-jacob',
+  }));
+  const result = await generateAskClubhouseReply({ data: fixture, message: 'How many runs scored in this Practice?', uiContext: { analytics: { domain: 'hitting', source: 'all', timeRange: 'season', eventIds: ['practice-1'] } }, now: new Date(now), config: getAskClubhouseConfig({}) });
+  assert.ok(result.toolParams.length);
+  assert.ok(result.toolParams.filter(p => p.query).every(p => p.query.eventIds.length === 1 && p.query.eventIds[0] === 'practice-1'));
+  const runs = result.toolResults.flatMap(r => r.rows ?? []).flatMap(row => row.metrics ?? []).filter(metric => metric.metricId === 'runs');
+  assert.ok(runs.length);
+  assert.equal(runs.reduce((sum, metric) => sum + (metric.value ?? 0), 0), 1);
 });
 
 for (const message of ["Compare Jacob's fastballs vs sliders today", "Compare Jacob vs LHP and RHP today"]) {

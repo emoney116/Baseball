@@ -196,6 +196,50 @@ export const authRepository = {
 };
 
 export const supabaseAppRepository = {
+  async loadPracticeOverview(teamId: string, seasonId: string) {
+    const supabase = createClient();
+    const practices = await readAllRows<any>(after => {
+      const query = supabase.from('practices').select('*').eq('team_id', teamId).eq('season_id', seasonId).order('id').limit(500);
+      return after ? query.gt('id', after) : query;
+    });
+    if (practices.error) throw new PersistenceError('load-failed', 'Practice overview unavailable.');
+    const attendance = await readPracticeRows(supabase, 'practice_attendance', (practices.data ?? []).map(row => row.id));
+    if (attendance.error) throw new PersistenceError('load-failed', 'Practice attendance unavailable.');
+    return { practices: (practices.data ?? []).map(row => mapPractice(row, attendance.data ?? [])), attendance: (attendance.data ?? []).map(mapAttendance) };
+  },
+  async loadWeightRoom(teamId: string, seasonId: string) {
+    const supabase = createClient();
+    const [workouts, sessions] = await Promise.all([
+      readAllRows<any>(after => {
+        const query = supabase.from('weight_room_workouts').select('*').eq('team_id', teamId).eq('season_id', seasonId).order('id').limit(500);
+        return after ? query.gt('id', after) : query;
+      }),
+      readAllRows<any>(after => {
+        const query = supabase.from('workout_sessions').select('*').eq('team_id', teamId).eq('season_id', seasonId).order('id').limit(500);
+        return after ? query.gt('id', after) : query;
+      }),
+    ]);
+    if (workouts.error || sessions.error) throw new PersistenceError('load-failed', 'Workout refresh unavailable.');
+    const workoutIds = (workouts.data ?? []).map(row => row.id);
+    const [stations, groups, members, sets] = await Promise.all([
+      readPracticeRows(supabase, 'weight_room_workout_stations', workoutIds, 'workout_id'),
+      readPracticeRows(supabase, 'weight_room_workout_groups', workoutIds, 'workout_id'),
+      readPracticeRows(supabase, 'weight_room_workout_group_members', workoutIds, 'workout_id'),
+      readPracticeRows(supabase, 'workout_sets', (sessions.data ?? []).map(row => row.id), 'workout_session_id'),
+    ]);
+    if ([stations, groups, members, sets].some(result => result.error)) throw new PersistenceError('load-failed', 'Workout refresh unavailable.');
+    const exercises = await readPracticeRows(supabase, 'exercises', [...new Set((sets.data ?? []).map(row => row.exercise_id).filter(Boolean))], 'id');
+    if (exercises.error) throw new PersistenceError('load-failed', 'Workout exercises unavailable.');
+    const byId = new Map((exercises.data ?? []).map(row => [row.id, row]));
+    return {
+      weightRoomWorkouts: (workouts.data ?? []).map(mapWeightRoomWorkout),
+      weightRoomWorkoutStations: (stations.data ?? []).map(mapWeightRoomWorkoutStation),
+      weightRoomWorkoutGroups: (groups.data ?? []).map(mapWeightRoomWorkoutGroup),
+      weightRoomWorkoutGroupMembers: (members.data ?? []).map(mapWeightRoomWorkoutGroupMember),
+      workoutSessions: (sessions.data ?? []).map(mapWorkoutSession),
+      workoutEntries: (sets.data ?? []).map(row => mapWorkoutEntry(row, byId.get(row.exercise_id))),
+    };
+  },
   async loadLiveBpPractice(practiceId:string) {
     const supabase=createClient();
     // RLS remains authoritative; no service key or unrelated workspace reads.
@@ -972,7 +1016,7 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
           .or(`team_id.eq.${foundation.teamId},team_id.is.null`)
           .order("created_at", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
-    supabase.from("games").select("*").eq("season_id", foundation.seasonId).order("game_date", { ascending: false }),
+    supabase.from("games").select("*").eq("team_id", foundation.teamId).eq("season_id", foundation.seasonId).order("game_date", { ascending: false }),
     organizationScoped
       ? supabase
           .from("player_notes")
@@ -1034,7 +1078,6 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
     groupPresetMembersResult,
     attendanceResult,
     sessionsResult,
-    sessionContributorsResult,
     pitchEventsResult,
     hittingEventsResult,
     defenseEventsResult,
@@ -1064,7 +1107,6 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
       : Promise.resolve({ data: [], error: null }),
     readPracticeRows(supabase,"practice_attendance",[...practiceIds]),
     readPracticeRows(supabase,"practice_sessions",[...practiceIds]),
-    supabase.from("practice_session_contributors").select("*"),
     readPracticeRows(supabase,"pitch_events",[...practiceIds]),
     readPracticeRows(supabase,"hitting_events",[...practiceIds]),
     readPracticeRows(supabase,"defense_events",[...practiceIds]),
@@ -1078,6 +1120,8 @@ async function loadAppData(supabase: SupabaseClient, foundation: Foundation): Pr
       ? supabase.from("profile_player_links").select("player_id").in("player_id", playersResult.data.map(p => p.id)).eq("status", "APPROVED").eq("relationship_type", "PLAYER")
       : Promise.resolve({ data: [], error: null }),
   ]);
+
+  const sessionContributorsResult = await readPracticeRows(supabase, 'practice_session_contributors', (sessionsResult.data ?? []).map(row => row.id), 'session_id');
 
   const results = [
     playersResult,
