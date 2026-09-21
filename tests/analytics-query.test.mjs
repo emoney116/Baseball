@@ -70,6 +70,25 @@ test("ROE evidence is visible in shared Defense without fabricating fielder stat
   assert.ok(summary.defense.rows.every(row=>row.cells.errorPlays===undefined));
 });
 
+test("event-time defense participation is shared by Analytics and Practice recap",()=>{
+  const data=structuredClone(baseData);
+  const event=data.hittingEvents.find(e=>e.id==='he-live-1');
+  event.liveBpContext={result:'Out',before:{balls:0,strikes:0,outs:0,runners:[]},after:{balls:0,strikes:0,outs:1,runners:[]},defensiveActions:[
+    {playerId:'p-mylo',position:'SS',roles:['field','throw'],result:'Clean',attribution:'event-alignment'},
+    {playerId:'p-jackson',position:'1B',roles:['receive'],result:'Clean',attribution:'event-alignment'},
+  ]};
+  const result=executeAnalyticsQuery(data,{...query('defense','all'),eventIds:['practice-aug-19']});
+  assert.equal(result.teamTotals.cells.reps.value,2);
+  assert.equal(result.teamTotals.cells.fieldingActions.value,1);
+  assert.equal(result.teamTotals.cells.throwActions.value,1);
+  assert.equal(result.teamTotals.cells.receiveActions.value,1);
+  assert.equal(result.teamTotals.cells.throwAcc.value,undefined);
+  assert.equal(row(result,'p-jackson').cells.reps.value,1);
+  const recap=buildPracticeReviewSummary(data,'practice-aug-19');
+  assert.equal(recap.defense.teamTotals.cells.reps.value,2);
+  assert.equal(recap.defense.teamTotals.cells.receiveActions.value,1);
+});
+
 test("unattributed error plays obey Practice/source scopes and never attach to a hitter or position", () => {
   const data=structuredClone(baseData);
   data.hittingEvents=[hittingEvent('roe','practice-aug-19','live-hit-1','p-jacob','Ball in play',{isLiveBp:true,liveBpContext:{result:'Reached on Error',before:{outs:0,runners:[],pa:1},after:{outs:0,runners:[1],pa:2}}})];

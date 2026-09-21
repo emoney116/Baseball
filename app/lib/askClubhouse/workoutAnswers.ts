@@ -5,6 +5,7 @@ import { formatTestResult, testComparisonKey, testConditionLabel } from "../work
 import { resolveAskClubhousePlayer } from "./entityResolution.ts";
 import { workoutProgressAnswer, hasWorkoutExercise, workoutExerciseMatches } from "./workoutProgress.ts";
 import { workoutPeriods } from "./workoutPeriods.ts";
+import { buildWeightRoomLeaders } from "../weightRoomLeaders.ts";
 
 const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
 
@@ -17,7 +18,8 @@ export function workoutAnswer(data: AppData, question: string, context: AskClubh
   const best = /\b(best|leader|leaders|highest|most|longest)\b/i.test(question) && (/\b(each|every|per) exercise\b/i.test(question) || namedExercise);
   const average = /\b(average|mean)\b/i.test(question) && (namedExercise || /\bexercises?\b/i.test(question));
   const total = /\b(total|how many|sum)\b/i.test(question) && /\b(push[ -]?ups?|pull[ -]?ups?|reps|repetitions)\b/i.test(question);
-  if (!best && !total && !average) return undefined;
+  const volume = /\b(volume|pounds lifted|lbs lifted|lb-reps)\b/i.test(question);
+  if (!best && !total && !average && !volume) return undefined;
   const player = resolveAskClubhousePlayer({ data, message: question, route: "clubhouse_data", uiContext: context });
   if (player.status === "ambiguous") return { status: "needs_clarification" as const, answer: `Which player: ${player.players.map(p => p.name).join(", ")}?` };
   const plan = composeAskClubhouseQueryPlan(question, context, undefined, now);
@@ -35,6 +37,11 @@ export function workoutAnswer(data: AppData, question: string, context: AskClubh
     return true;
   });
   if (namedExercise) entries = entries.filter(e => workoutExerciseMatches(e.exercise, question, names));
+  if (volume) {
+    const model = buildWeightRoomLeaders(data.players, data.workoutSessions.filter(s => sessions.has(s.id)), entries);
+    const leaders = model.volumeLeaders.slice(0, 5).map(row => `- ${row.player.name}: ${row.volume.toLocaleString("en-US")} lb-reps`).join("\n");
+    return { status: "completed" as const, answer: `Recorded volume for ${start} through ${end}: ${model.volume.toLocaleString("en-US")} lb-reps.\n${leaders}\nVolume is external load × reps × sets, not an overall strength ranking. Leaders require at least two loaded entries; timed holds and unloaded reps are excluded.` };
+  }
   if (total) {
     const requested = /push[ -]?ups?/i.test(question) ? "pushup" : /pull[ -]?ups?/i.test(question) ? "pullup" : undefined;
     const names = [...new Set(entries.map(e => e.exercise))].filter(name => normalize(question).includes(normalize(name)));

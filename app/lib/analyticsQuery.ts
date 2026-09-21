@@ -1,4 +1,5 @@
 import {practiceBatting, PRACTICE_BATTING_METRICS} from './practiceBatting.ts';
+import {projectPracticeDefense,practiceDefenseRoles} from './practiceDefense.ts';
 import type {PracticeRunnerAction} from './practiceRunnerActions.ts';
 import type {
   AppData,
@@ -1523,12 +1524,16 @@ function gameTotalBases(outcome: CompletedGamePlateAppearance["outcome"]): numbe
 
 function defenseRow(player: Player, events: DefenseEvent[]): AnalyticsRow {
   const stats = calculateDefenseStats(events);
+  const roles = events.map(practiceDefenseRoles).filter((value): value is NonNullable<typeof value> => value !== undefined);
   const positions = events.map((event) => defenseEventPosition(event, "")).filter(Boolean);
   const position = mostCommonString(positions) ?? (events.length ? player.primaryPosition : "—");
   return makeRow(player, {
     positionWorked: cell(position, position, events.length ? "available" : "not-tracked"),
     reps: countCell(stats.totalReps, stats.totalReps),
     cleanReps: countCell(stats.cleanReps, stats.totalReps),
+    fieldingActions: countCell(roles.filter(value=>value.includes('field')).length, roles.length),
+    throwActions: countCell(roles.filter(value=>value.includes('throw')).length, roles.length),
+    receiveActions: countCell(roles.filter(value=>value.includes('receive')).length, roles.length),
     cleanPct: rateCell(stats.cleanReps, stats.totalReps, "clean reps", ANALYTICS_SAMPLE_THRESHOLDS.defenseReps),
     errors: countCell(stats.errors, stats.totalReps),
     fieldingErrors: countCell(events.filter((event) => event.outcome === "Error" && event.errorType === "Fielding").length, stats.totalReps),
@@ -1668,7 +1673,7 @@ function filterPitchEvents(data: AppData, query: AnalyticsQuery, today?: string)
 
 function filterDefenseEvents(data: AppData, query: AnalyticsQuery, today?: string): DefenseEvent[] {
   const dateRange = resolveDateRange(data, query, today);
-  return data.defenseEvents.filter((event) => {
+  return projectPracticeDefense(data.hittingEvents,data.defenseEvents).filter((event) => {
     const practice = data.practices.find((item) => item.id === event.practiceId);
     const personal = event.personalSessionId ? data.personalSessions?.find(s => s.id === event.personalSessionId && s.domain === "defense") : undefined;
     if (!analyticsFieldSources(query).includes(event.personalSessionId ? "personal" : event.liveBpRoundId ? "live-bp" : "practice")) return false;

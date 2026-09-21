@@ -53,7 +53,7 @@ export function buildWeightRoomLeaderboard(
   anchorDate?: string,
 ): WeightRoomScoredPlayer[] {
   return buildWeightRoomScoreRows(players, sessions, entries, window, anchorDate)
-    .filter((result) => result.qualified)
+    .filter((result) => result.qualified && result.score > 0)
     .sort(sortWeightRoomScoreRows);
 }
 
@@ -80,13 +80,14 @@ export function calculateWeightRoomScore(_player: Player, sessions: WorkoutSessi
   const completedSessions = sessions.filter((session) => session.completed).length;
   const completedEntries = entries.filter((entry) => (entry.status ?? "Completed") !== "Skipped");
   const setCount = completedEntries.reduce((sum, entry) => sum + Math.max(1, entry.sets ?? 1), 0);
-  const qualified = completedSessions >= WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS || setCount >= WEIGHT_ROOM_MIN_TRACKED_SETS;
+  const qualified = (completedSessions >= WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS || setCount >= WEIGHT_ROOM_MIN_TRACKED_SETS)
+    && (completedSessions >= WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS || completedEntries.some(entry => !entry.testConditions));
   const volume = completedEntries.reduce((sum, entry) => sum + workoutEntryVolume(entry), 0);
   const progressPct = cappedAverageImprovement(completedEntries);
   const completionPct = sessions.length ? percent(completedSessions, sessions.length) : 0;
   const recentBodyWeight = latestValidBodyWeight(sessions);
   const relativeValues = completedEntries
-    .filter((entry) => typeof entry.weight === "number" && typeof recentBodyWeight === "number" && recentBodyWeight > 0)
+    .filter((entry) => !entry.testConditions && typeof entry.weight === "number" && typeof recentBodyWeight === "number" && recentBodyWeight > 0)
     .map((entry) => (entry.weight ?? 0) / Math.max(1, recentBodyWeight ?? 1));
   const relativeScore = relativeValues.length ? Math.min(100, average(relativeValues) * 62) : undefined;
   const rpeValues = completedEntries.filter((entry) => typeof entry.rpe === "number").map((entry) => entry.rpe ?? 0);
@@ -150,8 +151,7 @@ export function workoutEntryVolume(entry: WorkoutEntry) {
       : 0;
   }
   if (typeof entry.weight === "number" && typeof entry.reps === "number") return entry.weight * entry.reps * Math.max(1, entry.sets ?? 1);
-  if (typeof entry.value === "number") return entry.value * Math.max(1, entry.sets ?? 1);
-  if (typeof entry.reps === "number") return entry.reps * Math.max(1, entry.sets ?? 1);
+  // Reps, seconds and inches are not pounds of external-load volume.
   return 0;
 }
 

@@ -71,7 +71,10 @@ export function PracticeRecap({summary,view='Overview'}:{summary:Summary;view?:'
       {view==='Defense'&&<section aria-label="Defense summary"><h2>Defense</h2>
         {defense?<><Metrics result={summary.defense} metrics={[
           ['reps','Reps'],['cleanPct','Clean %'],['errors','Errors'],['throwAcc','Throw accuracy'],['greatPlays','Great plays'],
-        ]}/><ProfileChart result={summary.defense} label="Defensive outcomes" metrics={ [['cleanReps','Clean'],['errors','Errors'],['missedReps','Missed']]}/></>:Number(summary.defense.teamTotals?.cells.errorPlays?.value)>0?<><Metrics result={summary.defense} metrics={[['errorPlays','Error plays']]}/><p className={styles.note}>Batter reached on error. Fielder and error type were not recorded.</p></>:<p className={styles.note}>Not tracked</p>}
+        ]}/><ProfileChart result={summary.defense} label="Defensive outcomes" metrics={ [['cleanReps','Clean'],['errors','Errors'],['missedReps','Missed']]}/>
+        <details><summary>Player participation</summary><Metrics result={summary.defense} metrics={ [['fieldingActions','Fielding actions'],['throwActions','Throw actions'],['receiveActions','Receives']]}/>
+          <ul>{summary.defense.rows.filter(row=>Number(row.cells.reps?.value)>0).map(row=><li key={row.player.id}>{row.player.name} · {row.cells.positionWorked?.display} · {row.cells.reps?.display} reps · {row.cells.errors?.display} errors</li>)}</ul>
+        </details></>:Number(summary.defense.teamTotals?.cells.errorPlays?.value)>0?<><Metrics result={summary.defense} metrics={[['errorPlays','Error plays']]}/><p className={styles.note}>Batter reached on error. Fielder and error type were not recorded.</p></>:<p className={styles.note}>Not tracked</p>}
       </section>}
       {view==='Situational'&&<section aria-label="Situational summary"><h2>Situational</h2>
         <Metrics result={summary.hitting} metrics={[

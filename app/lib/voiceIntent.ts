@@ -205,6 +205,26 @@ export function interpretVoice(
   };
   let playerId =
     context.domain === "live-bp" ? context.settings.hitterId : context.playerId;
+  if(context.domain==='live-bp') {
+    const aliases=new Map<string,string[]>();
+    for(const player of context.roster)for(const alias of player.aliases) {
+      const key=normalizeVoiceText(alias);
+      if(key&&!(key in fielders))aliases.set(key,[...new Set([...(aliases.get(key)??[]),player.id])]);
+    }
+    const vocabulary=Object.fromEntries([...aliases.keys()].map(key=>[key,key]));
+    for(const match of matchVoiceVocabulary(remaining,vocabulary).reverse()) {
+      const suffix=remaining.slice(match.end).match(/^\s+(made (?:the play|an error)|booted it|dropped it|made the catch)\b/);
+      if(!suffix)continue;
+      const ids=aliases.get(match.value)!;
+      const positions=ids.length===1?BP_POSITIONS.filter(position=>context.settings.alignment[position]===ids[0]):[];
+      if(positions.length!==1){unresolved.add('defensive player');continue;}
+      if(draft.defenderId&&draft.defenderId!==ids[0]){unresolved.add('defensive player');continue;}
+      draft.defenderId=ids[0];
+      draft.position=positions[0];
+      const result=/error|booted|dropped/.test(suffix[1])?'error':'clean play';
+      remaining=remaining.slice(0,match.start)+result+remaining.slice(match.end+suffix[0].length);
+    }
+  }
   const named: { id: string; phrase: string }[] = [];
   for (const player of context.roster)
     for (const alias of player.aliases) {
@@ -621,6 +641,7 @@ export function assertVoiceIntent(
     "contactQuality",
     "result",
     "position",
+    "defenderId",
     "defenseResult",
     "errorType",
     "throwResult",
@@ -641,6 +662,7 @@ export function assertVoiceIntent(
     errorType: ["Fielding", "Throwing", "Decision"],
     throwResult: Object.values(throwResults),
   };
+  if(d.defenderId!==undefined&&!text(d.defenderId,100))throw new Error('Invalid Voice defender.');
   if(d.fieldingSequence !== undefined && (!Array.isArray(d.fieldingSequence)||d.fieldingSequence.length>20||d.fieldingSequence.some(p=>!BP_POSITIONS.includes(p))))throw new Error("Invalid Voice fielding sequence.");
   for (const [key, allowed] of Object.entries(enums))
     if (

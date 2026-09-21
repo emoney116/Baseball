@@ -3,6 +3,8 @@ import { AuthenticationForm } from "./components/AuthenticationForm";
 import { AppLoading, BusyIndicator } from "./components/AppLoading";
 import { createClient as createAuthClient } from "./lib/supabase/client";
 import { PracticeRecap } from "./components/PracticeRecap";
+import {WeightRoomLeaders} from './components/WeightRoomLeaders';
+import {projectPracticeDefense} from './lib/practiceDefense';
 import { WorkoutTestingConsole } from "./components/WorkoutTestingConsole";
 import { BASELINE_TESTING_CIRCUIT } from "./lib/workoutTesting";
 import { workoutMvp } from "./lib/workoutMvp";
@@ -6507,7 +6509,6 @@ function FormSnapshot({ title, primary, secondary }: { title: string; primary: s
 function HomeDashboard({
   data,
   weeklyMvp,
-  weightLeader,
   onView,
   onOpenPlayer,
   onStartPractice,
@@ -6537,8 +6538,6 @@ function HomeDashboard({
   const recentGames = data.games
     .slice()
     .sort((left, right) => right.date.localeCompare(left.date) || (right.startsAt ?? "").localeCompare(left.startsAt ?? ""))
-    .slice(0, 5);
-  const weightLeaderRows = buildScoredWeightRoomLeaderboard(activeRoster, data.workoutSessions, data.workoutEntries, "This Season")
     .slice(0, 5);
 
   return (
@@ -6575,7 +6574,7 @@ function HomeDashboard({
 
       <section className="home-secondary-grid">
         <AwardCard title="Player of the Week" award={weeklyMvp} onOpenPlayer={onOpenPlayer} icon={Trophy} />
-        <WeightLeaderCard leader={weightLeader} leaders={weightLeaderRows} onOpenPlayer={onOpenPlayer} />
+        <WeightRoomLeaders data={data} onPlayer={onOpenPlayer}/>
         <UpcomingScheduleCard items={nextItems} onView={onView} />
         <RecentGamesCard games={recentGames} onView={onView} />
       </section>
@@ -12055,7 +12054,6 @@ function practicePitchTypeLabel(pitchType: PitchType) {
 function WeightRoomView({
   data,
   selectedPlayerId,
-  leader,
   tab,
   workoutDate,
   workoutTitle,
@@ -12120,8 +12118,6 @@ function WeightRoomView({
   const sessionsForDate = data.workoutSessions.filter((session) => session.date === workoutDate);
   const entriesForDate = data.workoutEntries.filter((entry) => entrySessionDate(data, entry) === workoutDate);
   const teamOverview = buildWeightRoomTeamOverview(data, players, workoutDate);
-  const leaderboard = buildScoredWeightRoomLeaderboard(players, data.workoutSessions, data.workoutEntries, "This Season");
-  const leaderRows = leaderboard.length ? leaderboard.slice(0, 5) : leader ? [leader] : [];
   const workoutByActiveId = (data.weightRoomWorkouts ?? []).find((workout) => workout.id === activeWorkoutId);
   const persistedActiveWorkout = resumableWeightRoomWorkout(data.weightRoomWorkouts ?? [], activeWorkoutId);
   const sessionWorkout = workoutByActiveId ?? persistedActiveWorkout;
@@ -12225,7 +12221,7 @@ function WeightRoomView({
 
       {tab === "Overview" && (
         <section className="weight-room-overview-grid">
-          <WeightLeaderCard leaders={leaderRows} onOpenPlayer={onOpenPlayer} />
+          <WeightRoomLeaders data={data} onPlayer={onOpenPlayer}/>
           <WeightRoomWeighInCard data={data} players={players} date={workoutDate} onOpen={() => onWeighInOpen(true)} />
           <WeightRoomRecentWorkouts
             data={data}
@@ -12306,7 +12302,7 @@ function WeightRoomView({
       )}
 
       {tab === "Leaderboard" && (
-        <WeightRoomLeaderboardPanel players={players} sessions={data.workoutSessions} entries={data.workoutEntries} onPlayer={onPlayer} onTab={onTab} />
+        <><WeightRoomLeaders data={data} onPlayer={onPlayer}/><details><summary>Development score detail</summary><WeightRoomLeaderboardPanel players={players} sessions={data.workoutSessions} entries={data.workoutEntries} onPlayer={onPlayer} onTab={onTab} /></details></>
       )}
 
       {weighInOpen && (
@@ -17737,7 +17733,7 @@ function PlayerProfile({
 }) {
   const pitchEvents = playerPitchEvents(data, player.id);
   const hittingEvents = playerHittingEvents(data, player.id);
-  const defenseEvents = data.defenseEvents.filter((event) => event.playerId === player.id);
+  const defenseEvents = projectPracticeDefense(data.hittingEvents,data.defenseEvents).filter((event) => event.playerId === player.id);
   const pitchStats = calculatePitchingStats(pitchEvents);
   const hitStats = calculateHittingStats(hittingEvents);
   const workoutMetrics = buildWeightMetrics(data, player.id);
@@ -17783,7 +17779,7 @@ function PlayerProfile({
             <div className="recent-form-grid">
               <FormSnapshot title="Hitting" primary={hitStats.totalSwings ? formatPct(hitStats.hardHitPct) : "--"} secondary={hitStats.totalSwings ? `${formatPct(hitStats.contactPct)} contact` : "No tracked swings"} />
               <FormSnapshot title="Pitching" primary={pitchStats.totalPitches ? formatPct(pitchStats.strikePct) : "--"} secondary={pitchStats.totalPitches ? `${formatPct(pitchStats.zonePct)} zone` : "No tracked pitches"} />
-              <FormSnapshot title="Weight Room" primary={workoutMetrics?.score ? String(workoutMetrics.score) : "--"} secondary={workoutMetrics?.score ? `${workoutMetrics.trend.length} logged entries` : "No workouts yet"} />
+              <FormSnapshot title="Weight Room" primary={workoutMetrics?.score ? String(workoutMetrics.score) : "--"} secondary={workoutMetrics?.trend.length ? `${workoutMetrics.trend.length} logged entries` : "No workouts yet"} />
             </div>
             {hitStats.totalSwings > 0 && (
               <MiniLineChart values={trendByPractice(data.practices, hittingEvents, (events) => calculateHittingStats(events).hardHitPct).map((item) => item.value)} />
@@ -21673,7 +21669,7 @@ function buildPracticeMetricRows(data: AppData, category: PracticeMetricsCategor
         && pitchingSessionTypeById.get(event.sessionId) !== "Live BP"
       ));
       const pitchingStats = calculatePitchingStats(pitchEvents);
-      const defenseEvents = data.defenseEvents.filter((event) => event.playerId === player.id && (!practiceId || event.practiceId === practiceId));
+      const defenseEvents = projectPracticeDefense(data.hittingEvents,data.defenseEvents).filter((event) => event.playerId === player.id && (!practiceId || event.practiceId === practiceId));
       const defenseStats = calculateDefenseStats(defenseEvents);
       const liveBpPitchEvents = data.pitchEvents.filter((event) => event.pitcherId === player.id && (!practiceId || event.practiceId === practiceId) && pitchingSessionTypeById.get(event.sessionId) === "Live BP");
       const liveBpHittingEvents = data.hittingEvents.filter((event) => (
@@ -21761,7 +21757,7 @@ function practiceMetricSummary(data: AppData, category: PracticeMetricsCategory,
     ];
   }
   if (category === "Defense") {
-    const events = data.defenseEvents.filter((event) => !practiceId || event.practiceId === practiceId);
+    const events = projectPracticeDefense(data.hittingEvents,data.defenseEvents).filter((event) => !practiceId || event.practiceId === practiceId);
     const stats = calculateDefenseStats(events);
     return [
       { label: "Reps", value: stats.totalReps },

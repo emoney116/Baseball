@@ -120,7 +120,7 @@ test("active weight room setup keeps exercise saves and preset UI clean", () => 
   assert.match(page, /Save Exercise/);
   assert.match(page, /placeholder="Enter exercise\.\.\."/);
   assert.match(page, /formatWorkoutEntryValueForStation/);
-  assert.match(page, /leaders=\{weightLeaderRows\}/);
+  assert.match(page, /<WeightRoomLeaders data=\{data\} onPlayer=\{onOpenPlayer\}/);
   assert.doesNotMatch(page, /Exercise View/);
   assert.doesNotMatch(page, /`\$\{presets\.length\} saved`/);
   assert.doesNotMatch(page, /exercisePresetsFromTemplates/);

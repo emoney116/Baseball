@@ -1,4 +1,5 @@
 import type { ZonePoint, PitchType, ContactQuality } from "../types.ts";
+import {resolvePracticeDefender,type DefensiveParticipation} from './practiceDefense.ts';
 
 export function liveBpPitchContactQuality(
   value?: string,
@@ -64,6 +65,8 @@ export type BpState = {
   pa: number;
 };
 export type BpContext = {
+  defenseSnapshot?: import('./practiceDefense').DefenseSnapshot;
+  defensiveActions?: import('./practiceDefense').DefensiveParticipation[];
   runnerMovements?: BpRunnerMovement[];
   explicitDefense?: boolean;
   inferredRunnerOutcomes?: Record<string, string>;
@@ -107,6 +110,7 @@ export type BpDraft = {
   contactQuality?: string;
   result?: string;
   position?: BpPosition;
+  defenderId?: string;
   defenseResult?: string;
   errorType?: string;
   throwResult?: string;
@@ -654,6 +658,7 @@ export function buildBpPitch(
     pa: after.pa,
   };
   const context: BpContext = {
+    defenseSnapshot: {alignment:{...settings.alignment},groupId:settings.activeDefensePresetId},
     ...(runnerMovements.length ? {runnerMovements} : {}),
     inferredRunnerOutcomes: Object.fromEntries(Object.entries(runnerOutcomes).filter(([base,to]) => base !== "batter" && base !== to && draft.runnerOutcomes?.[base] === undefined)),
     ...(bip && draft.position && draft.defenseResult ? { explicitDefense: true } : {}),
@@ -689,6 +694,20 @@ export function buildBpPitch(
         }
       : {}),
   };
+  if(bip) {
+    bpAssert(draft.defenderId===undefined||(draft.position!==undefined&&settings.alignment[draft.position]===draft.defenderId),'Named defender conflicts with active alignment.');
+    const sequence=draft.fieldingSequence?.length?draft.fieldingSequence:draft.position?[draft.position]:[];
+    context.defensiveActions=sequence.flatMap((position,index):DefensiveParticipation[]=>{
+      const resolved=resolvePracticeDefender(context.defenseSnapshot!,position,position===draft.position?draft.defenderId:undefined);
+      if(!resolved)return [];
+      const explicit=position===draft.position?draft.defenseResult:undefined;
+      const outcome=explicit??(result==='Out'?'Clean':sequence.length===1&&result==='Reached on Error'?'Error':undefined);
+      if(!outcome||!['Clean','Error','Great Play','Missed Rep'].includes(outcome))return [];
+      return [{position,playerId:resolved.playerId,attribution:resolved.attribution,
+        roles:index===0?sequence.length>1?['field','throw']:['field']:index===sequence.length-1?['receive']:['receive','throw'],
+        result:outcome as DefensiveParticipation['result'],errorType:outcome==='Error'?draft.errorType as DefensiveParticipation['errorType']:undefined}];
+    });
+  }
   // Preserve the richer choice in provenance without adding unsupported analytics categories.
   const contactType =
     !bip || draft.battedBall === "Bunt"

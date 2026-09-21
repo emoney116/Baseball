@@ -30625,6 +30625,14 @@ button.weight-room-athlete-table__row:hover {
   background: var(--panel);
 }
 
+.weight-results .weight-leader-list button {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.weight-results .metric-bar__label {
+  flex-wrap: wrap;
+}
+
 .practice-review-quick-links { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 12px 0; }
 .practice-review-quick-links h2 { font-size: 16px; margin: 0; }
 .practice-review-page > details > summary { padding: 10px 0; color: var(--muted); cursor: pointer; }

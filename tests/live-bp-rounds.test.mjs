@@ -1384,7 +1384,8 @@ test('continuous 50-pitch field scenarios preserve canonical evidence, state, re
   assert.deepEqual((await db.query('select count(velocity)::int velocity_samples,count(pitch_location)::int locations,count(field_location)::int sprays,count(exit_velocity_mph)::int ev_samples,avg(exit_velocity_mph)::float avg_ev from hitting_events')).rows[0],{velocity_samples:13,locations:11,sprays:10,ev_samples:4,avg_ev:92});
   const review=await readPracticeReview();
   assert.equal(review.hitting.teamTotals.cells.avgEv.value,92);
-  assert.equal(review.defense.teamTotals.cells.reps.value,6);
+  // The SS-to-1B out includes the receiver, not only the persisted primary fielder.
+  assert.equal(review.defense.teamTotals.cells.reps.value,7);
   assert.equal(review.hitting.teamTotals.cells.hardPct.display,'—');
   await call('end',round);
   await db.query("update practices set ended_at=now(),status='completed' where id=$1",[id(60)]);

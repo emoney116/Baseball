@@ -240,7 +240,7 @@ export function WeightRoomRecentWorkouts({
   const openRows = allWorkoutRows.filter((row) => !row.completed);
   const workoutRows = expanded
     ? [...openRows, ...completedRows].slice(0, 8)
-    : completedRows.slice(0, 1);
+    : (completedRows.length ? completedRows : openRows).slice(0, 1);
   const totalRows = lifts.length + workoutRows.length;
   const activeRunning = activeWorkout?.status === "In Progress" || activeWorkout?.status === "Paused";
   const presetNames = new Set((data.weightRoomExercisePresets ?? []).filter((preset) => !preset.archivedAt).map((preset) => preset.name.toLowerCase()));
