@@ -937,6 +937,9 @@ function hittingRow(player: Player, events: HittingEvent[], runnerEvents: Hittin
     scoring[id]=countCell(value,['runs','runnerAdvances','runnerOuts'].includes(id)?totals.runSamples:id==='rbi'?totals.rbiSamples:totals.pa);
   }
   scoring.avg=decimalRateCell(totals.hits,totals.ab,'AVG');
+  scoring.situationalReps=countCell(totals.situationalReps,totals.situationalReps);
+  scoring.jobsCompleted=countCell(totals.jobsCompleted,totals.jobsEvaluated);
+  scoring.jobSuccessPct=rateCell(totals.jobsCompleted,totals.jobsEvaluated,'evaluated jobs',1);
   scoring.obp=decimalRateCell(totals.hits+totals.walks+totals.hitByPitch,totals.ab+totals.walks+totals.hitByPitch+totals.sacrificeFlies,'OBP');
   scoring.slg=decimalRateCell(totals.totalBases,totals.ab,'SLG');
   scoring.ops=typeof scoring.obp.value==='number'&&typeof scoring.slg.value==='number'?cellFromNumber(scoring.obp.value+scoring.slg.value,'decimal','available'):cell('—',undefined,'not-tracked');

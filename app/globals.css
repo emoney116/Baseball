@@ -30609,15 +30609,24 @@ button.weight-room-athlete-table__row:hover {
 }
 
 .practice-review-tabs {
-  display: inline-flex;
-  flex-wrap: wrap;
+  display: flex;
+  flex-wrap: nowrap;
   gap: 6px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: color-mix(in srgb, var(--panel-soft) 76%, transparent);
   padding: 5px;
-  width: fit-content;
+  width: 100%;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  overflow-x: auto;
+  background: var(--panel);
 }
+
+.practice-review-quick-links { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 12px 0; }
+.practice-review-quick-links h2 { font-size: 16px; margin: 0; }
+.practice-review-page > details > summary { padding: 10px 0; color: var(--muted); cursor: pointer; }
 
 .practice-review-tabs button {
   min-height: 38px;
@@ -32150,7 +32159,11 @@ button.weight-room-athlete-table__row:hover {
   }
 
   .practice-review-tabs button {
-    flex: 1 1 84px;
+    flex: 1 0 auto;
+    min-width: 0;
+    padding: 0 6px;
+    font-size: 12px;
+    white-space: nowrap;
   }
 
   .practice-review-summary-strip {

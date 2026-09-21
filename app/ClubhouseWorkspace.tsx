@@ -276,7 +276,7 @@ type PracticeHubTab = "Overview" | "Metrics" | "History";
 type PracticeMetricsScope = "Team" | "Players";
 type PracticeMetricsCategory = "Hitting" | "Pitching" | "Defense" | "Live BP";
 type PracticeMetricsSortKey = "player" | "swings" | "contact" | "hard" | "avgEv" | "maxEv" | "pitches" | "strike" | "zone" | "avgVelo" | "maxVelo" | "positionWorked" | "reps" | "cleanReps" | "clean" | "errors" | "greatPlays" | "throws" | "accurateThrows" | "throwAcc" | "defenseSessions" | "liveBpPitches" | "liveBpSwings" | "liveBpPas";
-type PracticeReviewTab = "Summary" | PracticeMetricsCategory;
+type PracticeReviewTab = "Summary" | "Situational" | PracticeMetricsCategory;
 type PracticeDrilldown = { kind: "hub" } | { kind: "attendance" } | { kind: "review"; practiceId: ID };
 type LiveBpOutcomeLabel = "K" | "BB" | "HBP" | "1B" | "2B" | "3B" | "HR" | "Out" | "Error" | "FC";
 type AppIcon = React.ComponentType<{ size?: number | string; "aria-hidden"?: boolean | "true" | "false"; className?: string }>;
@@ -916,7 +916,7 @@ const ANALYTICS_ROUTE_PARAM_KEYS = [
 ];
 const PRACTICE_MODE_PARAM_VALUES: PracticeMode[] = ["Hitting", "Pitching", "Defense", "Live BP"];
 const PRACTICE_HUB_TAB_VALUES: PracticeHubTab[] = ["Overview", "Metrics", "History"];
-const PRACTICE_REVIEW_TAB_VALUES: PracticeReviewTab[] = ["Summary", "Hitting", "Pitching", "Defense", "Live BP"];
+const PRACTICE_REVIEW_TAB_VALUES: PracticeReviewTab[] = ["Summary", "Hitting", "Pitching", "Defense", "Situational", "Live BP"];
 const LIVE_BP_THROWER_SOURCE_VALUES: LiveBpThrowerSource[] = ["PLAYER", "COACH", "MACHINE"];
 
 function clearPracticeRouteParams(url: URL) {
@@ -4275,6 +4275,7 @@ export default function MetrolinaBaseballApp() {
             onTab={(tab) => writePracticeReviewRoute(practiceDrilldown.practiceId, tab)}
             onBack={() => writePracticeHubRoute("History", { replace: true })}
             onOpenAnalytics={(category, playerId, eventId) => openPracticeAnalytics(practiceDrilldown.practiceId, category, playerId, eventId)}
+            onAsk={() => openAskClubhouse("practice", {domain:"hitting",source:"all",fieldSources:["practice","live-bp"],mode:"box-score",timeRange:"season",groupBy:"player",eventIds:[practiceDrilldown.practiceId]})}
           />
         )}
 
@@ -7869,6 +7870,7 @@ function PracticeReview({
   onTab,
   onBack,
   onOpenAnalytics,
+  onAsk,
 }: {
   data: AppData;
   practice?: Practice;
@@ -7876,6 +7878,7 @@ function PracticeReview({
   onTab: (tab: PracticeReviewTab) => void;
   onBack: () => void;
   onOpenAnalytics: (category: PracticeMetricsCategory, playerId?: ID, eventId?: ID) => void;
+  onAsk: () => void;
 }) {
   const [liveBpSide, setLiveBpSide] = useState<"Hitters" | "Pitchers">("Hitters");
   const [sort, setSort] = useState<{ key: PracticeMetricsSortKey; direction: SortDirection }>({ key: "swings", direction: "desc" });
@@ -7901,33 +7904,26 @@ function PracticeReview({
     );
   }
 
-  const activeCategory: PracticeMetricsCategory = tab === "Summary" ? "Hitting" : tab;
+  const activeCategory: PracticeMetricsCategory = tab === "Summary" || tab === "Situational" ? "Hitting" : tab;
   const reviewSummary = buildPracticeReviewSummary(data, practice.id);
   const hittingSessionOptions = reviewHittingSessionOptions;
   const pitchingSessionOptions = reviewPitchingSessionOptions;
   const effectiveHittingSessionFilterId = tab === "Hitting" && activeReviewHittingSessionFilterId !== "all" ? activeReviewHittingSessionFilterId : undefined;
   const effectivePitchingSessionFilterId = tab === "Pitching" && activeReviewPitchingSessionFilterId !== "all" ? activeReviewPitchingSessionFilterId : undefined;
   const activeReviewAnalyticsSessionId = tab === "Pitching" ? effectivePitchingSessionFilterId : tab === "Hitting" ? effectiveHittingSessionFilterId : undefined;
-  const columns = tab === "Summary" ? [] : practiceMetricColumns(tab);
+  const columns = tab === "Summary" ? [] : practiceMetricColumns(activeCategory);
   const effectiveSort = tab !== "Summary" && !columns.some((column) => column.key === sort.key)
-    ? { key: defaultPracticeMetricSort(tab), direction: "desc" as SortDirection }
+    ? { key: defaultPracticeMetricSort(activeCategory), direction: "desc" as SortDirection }
     : sort;
   const rows = tab === "Summary"
     ? []
     : sortPracticeMetricRows(
-      buildPracticeMetricRows(data, tab, practice.id, effectiveHittingSessionFilterId, effectivePitchingSessionFilterId).filter((row) => (
+      buildPracticeMetricRows(data, activeCategory, practice.id, effectiveHittingSessionFilterId, effectivePitchingSessionFilterId).filter((row) => (
         tab !== "Live BP"
           || (liveBpSide === "Hitters" ? row.liveBpSwings > 0 || row.liveBpPas > 0 : row.liveBpPitches > 0)
       )),
       effectiveSort,
     );
-  const summaryItems = [
-    { label: "Tracked players", value: reviewSummary.participants },
-    { label: "Swings", value: reviewSummary.hitting.teamTotals?.cells.swings?.display ?? "—" },
-    { label: "Pitching", value: reviewSummary.pitching.teamTotals?.cells.pitches?.display ?? "—" },
-    { label: "Defense reps", value: reviewSummary.defense.teamTotals?.cells.reps?.display ?? "—" },
-    { label: "Live BP pitches", value: reviewSummary.liveHitting.teamTotals?.cells.opportunities?.display ?? "—" },
-  ];
   const sessionRows = buildPracticeReviewSessions(data, practice.id);
   const standouts = buildPracticeStandouts(data, practice.id);
   const selectedPlayerRows = selectedPlayer ? {
@@ -7945,7 +7941,7 @@ function PracticeReview({
   }
 
   function changeTab(nextTab: PracticeReviewTab) {
-    if (nextTab !== "Summary") setSort({ key: defaultPracticeMetricSort(nextTab), direction: "desc" });
+    if (nextTab !== "Summary" && nextTab !== "Situational") setSort({ key: defaultPracticeMetricSort(nextTab), direction: "desc" });
     onTab(nextTab);
   }
 
@@ -7966,25 +7962,17 @@ function PracticeReview({
         </button>
       </section>
 
-      <section className="practice-review-summary-strip panel" aria-label="Practice recap">
-        {summaryItems.map((item) => (
-          <span key={item.label}>
-            <strong>{item.value}</strong>
-            <small>{item.label}</small>
-          </span>
-        ))}
-      </section>
-
       <nav className="practice-review-tabs" aria-label="Completed practice views">
-        {(["Summary", "Hitting", "Pitching", "Defense", "Live BP"] as PracticeReviewTab[]).map((item) => (
+        {(["Summary", "Hitting", "Pitching", "Defense", "Situational"] as PracticeReviewTab[]).map((item) => (
           <button key={item} type="button" className={tab === item ? "active" : ""} onClick={() => changeTab(item)}>
-            {item}
+            {item==='Summary'?'Overview':item}
           </button>
         ))}
       </nav>
 
-      {tab === "Summary" ? (
+      {tab === "Situational" ? <PracticeRecap summary={reviewSummary} view="Situational" /> : tab === "Summary" ? (
         <><PracticeRecap summary={reviewSummary} />
+        <details><summary>Sessions, plan &amp; notes</summary>
         <section className="practice-review-layout">
           <PracticeTeamPlan key={practice.id} practice={practice} teamId={data.teamContext?.currentTeam?.teamId} canManage={Boolean(data.teamContext?.currentTeam && ["OWNER", "ADMIN", "HEAD_COACH", "ASSISTANT_COACH", "STAFF", "COACH"].includes(data.teamContext.currentTeam.role))} />
           <article className="panel practice-review-session-list">
@@ -8030,9 +8018,10 @@ function PracticeReview({
             </div>
           </article>
         </section>
-        </>
+        </details></>
       ) : (
-        <section className="panel practice-review-table-card">
+        <><PracticeRecap summary={reviewSummary} view={tab==='Live BP'?'Hitting':tab} />
+        <details><summary>See all players and sessions</summary><section className="panel practice-review-table-card">
           <div className="panel-heading tight">
             <div>
               <h2>{tab} Box Score</h2>
@@ -8060,7 +8049,7 @@ function PracticeReview({
                   ))}
                 </div>
               )}
-              <button className="text-button" type="button" onClick={() => onOpenAnalytics(tab, undefined, activeReviewAnalyticsSessionId)}>
+              <button className="text-button" type="button" onClick={() => onOpenAnalytics(activeCategory, undefined, activeReviewAnalyticsSessionId)}>
                 View Analytics
                 <ChevronRight size={15} aria-hidden="true" />
               </button>
@@ -8087,7 +8076,13 @@ function PracticeReview({
             {!rows.length && <CompactEmpty title={`No ${tab.toLowerCase()} data for this practice`} />}
           </div>
         </section>
+        </details></>
       )}
+
+      <section className="practice-review-quick-links"><h2>Quick Links</h2>
+        <button className="text-button" type="button" onClick={()=>onOpenAnalytics(activeCategory)}><BarChart3 size={16} aria-hidden="true" /> View Full Practice Analytics</button>
+        <button className="text-button" type="button" onClick={onAsk}>Ask Clubhouse <ChevronRight size={16} aria-hidden="true" /></button>
+      </section>
 
       {selectedPlayer && selectedPlayerRows && (
         <ModalFrame title={`${selectedPlayer.name} · Practice Review`} onClose={() => setSelectedPlayerId(undefined)} panelClassName="practice-player-review-sheet">

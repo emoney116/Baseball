@@ -95,6 +95,7 @@ export const ANALYTICS_VIEW_CATALOG: AnalyticsViewDefinition[] = [
 ];
 
 const METRIC_FULL_NAMES: Record<string, string> = {
+  situationalReps:'Completed Situational Repetitions',jobsCompleted:'Successful Evaluated Jobs',jobSuccessPct:'Evaluated Job Success Percentage',
   runnerAdvances:'Runner Advances',runnerOuts:'Runner Outs',
   opportunities: "Opportunities", takes: "Taken Pitches", swings: "Swings", contacts: "Contacts", bip: "Balls in Play", misses: "Swing and Misses", fouls: "Foul Balls",
   swingPct: "Swing Percentage", bipPct: "Balls in Play Percentage", contactPct: "Contact Percentage", swingMissPct: "Whiff Percentage", foulPct: "Foul Percentage", takePct: "Take Percentage",
@@ -199,6 +200,9 @@ export const ANALYTICS_METRICS: AnalyticsMetricDefinition[] = [
   metric("runs", "R", "hitting", "integer", ["games"], "Confirmed runner movements to home for the player."),
   metric("runnerAdvances", "R Adv", "hitting", "integer", ["live-bp"], "Canonical safe advances by existing runners, deduplicated across linked pitch and runner actions; not bases gained."),
   metric("runnerOuts", "R Out", "hitting", "integer", ["live-bp"], "Canonical runner outs, excluding batter outs."),
+  metric("situationalReps", "Jobs", "hitting", "integer", ["live-bp"], "Completed Practice batter outcomes with a canonical assigned job; pitches within an unfinished PA are not extra jobs."),
+  metric("jobsCompleted", "Jobs completed", "hitting", "integer", ["live-bp"], "Explicit successful job evaluations; unknown evaluations are not failures."),
+  metric("jobSuccessPct", "Job success %", "hitting", "percentage", ["live-bp"], "Successful jobs divided by explicitly evaluated jobs, not all assigned jobs."),
   metric("rbi", "RBI", "hitting", "integer", ["games"], "Confirmed runs batted in recorded on the batter's event."),
   metric("sacrificeFlies", "SF", "hitting", "integer", ["games"], "Confirmed sacrifice fly outcomes."),
   metric("sacrificeBunts", "SH", "hitting", "integer", ["games"], "Confirmed sacrifice bunt outcomes."),
@@ -408,7 +412,7 @@ export const ANALYTICS_COLUMN_PRESETS: Record<Exclude<AnalyticsColumnPreset, "cu
     "avgPitchVelo", "medianPitchVelo", "p90PitchVelo", "minPitchVelo", "maxPitchVelo", "veloSpread",
   ],
   baserunning: [
-    "runnerAdvances", "runnerOuts",
+    "runnerAdvances", "runnerOuts", "situationalReps", "jobsCompleted", "jobSuccessPct",
     "stolenBases", "caughtStealing", "stolenBaseAttempts", "stolenBasePct",
   ],
   "pitch-mix": [
