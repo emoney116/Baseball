@@ -1,5 +1,9 @@
 # P0 hosted acceptance checkpoint
 
+## Resumed acceptance
+
+Authenticated correctness passed on `91e8937`: Sept. 17 Analytics/recap/Ask = 5 runs; Analytics = 16 runner advances / 2 runner outs; 86 events, 46 BIP, 20 EV, 24 spray; exact deep link and unchanged history verified. Ask's selected-Practice scope defect was fixed during acceptance. See [PostgREST forensic report](p0-postgrest-forensics.md) for measured page/idle/single-event traffic, scoped-refresh fixes and remaining historical billing attribution. The 50-event hosted test was not run; the new dashboard evidence supersedes that old plan. The original checkpoint below is retained as history.
+
 ## Candidate and Preview
 
 - Candidate: `43851cc6832952fa0cbafd6b705c075c38b311a0`.
