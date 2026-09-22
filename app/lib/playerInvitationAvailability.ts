@@ -3,12 +3,13 @@ import { PlayerLinkError } from "./playerAccountLinks.ts";
 
 // Application preflight complements the database's exact-player redemption lock.
 export async function assertPlayerInvitationAvailable(db: SupabaseClient, input: {
-  playerId: string; teamId: string; seasonId: string; email: string;
+  playerId: string; teamId: string; seasonId: string; email?: string;
 }, now = new Date()) {
   const { data: linked, error: linkError } = await db.from("profile_player_links")
     .select("player_id").eq("player_id", input.playerId).eq("relationship_type", "PLAYER").eq("status", "APPROVED").limit(1);
   if (linkError) throw new PlayerLinkError("Unable to verify player access.", 503);
   if (linked?.length) throw new PlayerLinkError("This player already has an approved account.", 409);
+  if (!input.email) return;
 
   const email = input.email.trim().toLowerCase();
   const { data: invitations, error: inviteError } = await db.from("player_invitations")

@@ -3,8 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Mail, RefreshCw, X } from "lucide-react";
 
 export type InvitationRosterEntry = { membershipId: string; playerId: string; name: string; linked: boolean };
-type Invite = { id: string; player_id: string; membership_id: string; invited_email: string; status: string; expires_at: string };
-export type PlayerInvitationData = { roster: InvitationRosterEntry[]; invitations: Invite[] };
+type Invite = { id: string; player_id: string; membership_id: string; invited_email: string | null; delivery_mode?: "EMAIL" | "QR"; status: string; expires_at: string };
+export type PlayerInvitationData = { roster: InvitationRosterEntry[]; invitations: Invite[]; teamName?: string };
 
 export function usePlayerInvitationRoster(teamId?: string, seasonId?: string, previewData?: PlayerInvitationData) {
   const [data, setData] = useState<PlayerInvitationData>();
@@ -46,7 +46,7 @@ export function PlayerInvitationsPanel({ teamId, seasonId, player, data, onChang
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const invitations = data.invitations.filter(i => i.player_id === player.playerId);
+  const invitations = data.invitations.filter(i => i.player_id === player.playerId && i.delivery_mode !== "QR");
   async function submit(body: object) {
     if (preview) return;
     setBusy(true);

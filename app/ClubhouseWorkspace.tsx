@@ -6925,6 +6925,7 @@ function RosterView({
         title="Roster"
         action={
           <div className="section-actions roster-title-actions">
+            {section === "Players" && team?.seasonId && <a className="secondary-button" href={`/player-invites?team=${encodeURIComponent(team.teamId)}&season=${encodeURIComponent(team.seasonId)}`}>Player Invites</a>}
             <button className="icon-button" type="button" onClick={onImport} aria-label="Import roster" title="Import Roster">
               <Upload size={16} aria-hidden="true" />
             </button>

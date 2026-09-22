@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       error,
     } = await (await createClient()).auth.getUser();
     if (error || !user)
-      throw new PlayerLinkError("Sign in with the invited email.", 401);
+      throw new PlayerLinkError("Sign in before joining.", 401);
     if (!user.email || !user.email_confirmed_at)
       throw new PlayerLinkError(
         "Verify your email before accepting this invitation.",

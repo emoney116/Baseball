@@ -11,7 +11,7 @@ import {
 } from "./playerAccountLinks";
 
 export const playerInviteFields =
-  "id,player_id,membership_id,team_id,season_id,invited_email,status,created_at,expires_at,accepted_at,revoked_at";
+  "id,player_id,membership_id,team_id,season_id,invited_email,delivery_mode,status,created_at,expires_at,accepted_at,revoked_at";
 export function validatePlayerInviteEmail(value: unknown) {
   const email = typeof value === "string" ? value.trim().toLowerCase() : "";
   if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
@@ -26,11 +26,13 @@ export async function createPlayerInvitation(
     teamId: string;
     seasonId: string;
     membershipId: string;
-    email: string;
+    email?: string;
+    deliveryMode?: "EMAIL" | "QR";
   },
 ) {
   await assertPlayerLinkTeamManager(db, actorId, input.teamId);
-  const email = validatePlayerInviteEmail(input.email);
+  const mode = input.deliveryMode ?? "EMAIL";
+  const email = mode === "EMAIL" ? validatePlayerInviteEmail(input.email) : undefined;
   const { data: membership, error } = await db
     .from("player_team_memberships")
     .select("id,player_id,team_id,season_id")
@@ -59,7 +61,8 @@ export async function createPlayerInvitation(
       membership_id: membership.id,
       team_id: input.teamId,
       season_id: input.seasonId,
-      invited_email: email,
+      invited_email: email ?? null,
+      delivery_mode: mode,
       token_hash: hashInviteToken(token),
       expires_at: expiresAt,
       invited_by: actorId,
@@ -90,7 +93,7 @@ export async function changePlayerInvitation(
     const { data: current, error } = await db.from("player_invitations").select(playerInviteFields)
       .eq("id", input.id).eq("team_id", input.teamId).eq("status", "PENDING").maybeSingle();
     if (error || !current) throw new PlayerLinkError("Invitation is no longer pending.", 409);
-    await assertPlayerInvitationAvailable(db, { playerId: current.player_id, teamId: current.team_id, seasonId: current.season_id, email: current.invited_email });
+    await assertPlayerInvitationAvailable(db, { playerId: current.player_id, teamId: current.team_id, seasonId: current.season_id, email: current.invited_email ?? undefined });
   }
   const token = createInviteToken();
   const patch =

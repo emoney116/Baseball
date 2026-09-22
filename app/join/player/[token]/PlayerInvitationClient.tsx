@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { AuthenticationForm } from "../../../components/AuthenticationForm";
 import { BusyIndicator } from "../../../components/AppLoading";
 import { createClient } from "../../../lib/supabase/client";
@@ -9,6 +10,19 @@ export default function PlayerInvitationClient({ token }: { token: string }) {
   const [account, setAccount] = useState<string | null>(null),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
+  const [invite, setInvite] = useState<{ teamName: string; playerName: string; jersey: number | null }>();
+  const [unavailable, setUnavailable] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/player-invitations/preview", { method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }), signal: controller.signal })
+      .then(async response => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.message);
+        if (!controller.signal.aborted) setInvite(payload);
+      }).catch(error => { if (!controller.signal.aborted) setUnavailable(error instanceof Error ? error.message : "Invitation unavailable."); });
+    return () => controller.abort();
+  }, [token]);
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
     let cancelled = false;
@@ -75,8 +89,9 @@ export default function PlayerInvitationClient({ token }: { token: string }) {
         src={BRAND_ASSETS.wordmark}
         alt="Clubhouse 9"
       />
-      <h1>Your Player Invitation</h1>
-      {account ? (
+      <h1>{invite?.teamName ?? "Your Player Invitation"}</h1>
+      {invite && <><p>You&apos;ve been invited to join Clubhouse 9.</p><p>Joining as <strong>{invite.playerName}</strong>{invite.jersey != null ? ` #${invite.jersey}` : ""}</p></>}
+      {unavailable ? <><p role="status">{unavailable}</p><Link className="secondary-button" href="/">Open Clubhouse / Log In</Link></> : !invite ? <BusyIndicator /> : account ? (
         <>
           <p>Signed in as {account}</p>
           <button
@@ -84,7 +99,7 @@ export default function PlayerInvitationClient({ token }: { token: string }) {
             disabled={busy}
             onClick={() => void accept()}
           >
-            {busy && <BusyIndicator />} Accept Player Invitation
+            {busy && <BusyIndicator />} Join My Player Profile
           </button>
           <button
             className="ghost-button"
@@ -101,6 +116,7 @@ export default function PlayerInvitationClient({ token }: { token: string }) {
           setAccount(data.user?.email ?? null);
         }} />
       )}
+      {invite && !unavailable && <Link className="ghost-button" href="/">This isn&apos;t me</Link>}
       {message && <p role="status">{message}</p>}
     </main>
   );

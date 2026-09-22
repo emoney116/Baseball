@@ -23,10 +23,12 @@ export async function GET(request: NextRequest) {
     const db = createAdminClient(),
       teamId = request.nextUrl.searchParams.get("teamId") ?? "";
     await assertPlayerLinkTeamManager(db, user.id, teamId);
+    const { data: team } = await db.from("teams").select("name").eq("id", teamId).single();
     const { data, error } = await db
       .from("player_invitations")
       .select(playerInviteFields)
       .eq("team_id", teamId)
+      .eq("season_id", request.nextUrl.searchParams.get("seasonId") ?? "")
       .order("created_at", { ascending: false })
       .limit(200);
     if (error) throw new PlayerLinkError("Unable to load invitations.", 503);
@@ -69,7 +71,7 @@ export async function GET(request: NextRequest) {
         : [];
     });
     return NextResponse.json(
-      { invitations: data, roster },
+      { invitations: data, roster, teamName: team?.name },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
@@ -88,6 +90,11 @@ export async function POST(request: NextRequest) {
       throw new PlayerLinkError("Choose a team.");
     if (body.action === "revoke" || body.action === "resend") {
       const result = await changePlayerInvitation(db, user.id, body);
+      if (result.token && result.invitation.delivery_mode === "QR") {
+        return NextResponse.json({ invitation: result.invitation,
+          url: `${requestSiteUrl(request)}/join/player/${result.token}` },
+          { headers: { "Cache-Control": "no-store" } });
+      }
       const email = result.token
         ? await sendPlayerInviteEmail(
             result.invitation.invited_email,
@@ -106,6 +113,7 @@ export async function POST(request: NextRequest) {
       throw new PlayerLinkError("Select between 1 and 60 roster players.");
     // Validate authority before processing any batch entry; each result is explicit.
     await assertPlayerLinkTeamManager(db, user.id, body.teamId);
+    const qr = body.action === "generate-qr";
     const results = [];
     for (const entry of entries) {
       try {
@@ -114,7 +122,13 @@ export async function POST(request: NextRequest) {
           seasonId: body.seasonId,
           membershipId: entry.membershipId,
           email: entry.email,
+          deliveryMode: qr ? "QR" : "EMAIL",
         });
+        if (qr) {
+          results.push({ membershipId: entry.membershipId, invitation: result.invitation,
+            url: `${requestSiteUrl(request)}/join/player/${result.token}` });
+          continue;
+        }
         const email = await sendPlayerInviteEmail(
           result.invitation.invited_email,
           `${requestSiteUrl(request)}/join/player/${result.token}`,
@@ -135,7 +149,7 @@ export async function POST(request: NextRequest) {
         });
       }
     }
-    return NextResponse.json({ results });
+    return NextResponse.json({ results }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return fail(error);
   }

@@ -1,0 +1,21 @@
+.qr-invites { max-width: 1100px; margin: auto; padding: 20px 16px 80px; }
+.qr-invites-header { display: flex; align-items: center; gap: 12px; }
+.qr-invites h1 { font-size: 24px; margin: 0; }
+.qr-invites p { margin: 8px 0; }
+.qr-invites-controls { margin: 16px 0 24px; }
+.qr-invites-controls > p { max-width: 720px; font-size: 14px; }
+.qr-invites .section-actions { flex-wrap: wrap; }
+.qr-invite-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: 16px; }
+.qr-invite-card { border: 1px solid var(--border, #777); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; break-inside: avoid; }
+.qr-invite-card h2 { font-size: 18px; margin: 0; overflow-wrap: anywhere; }
+.qr-invite-card svg { flex-shrink: 0; }
+.qr-invite-status { font-size: 13px; }
+.qr-card-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+@media print {
+  @page { size: auto; margin: 12mm; }
+  body, .qr-invites { background: white !important; color: black !important; }
+  .qr-invites { padding: 0; max-width: none; }
+  .qr-invites-header, .qr-invites-controls, .qr-card-actions, .qr-invite-status, .qr-invite-card:not(.qr-printable) { display: none !important; }
+  .qr-invite-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8mm; }
+  .qr-invite-card { border: 1px dashed #777; border-radius: 0; padding: 6mm; }
+}
