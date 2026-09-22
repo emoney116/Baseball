@@ -14366,7 +14366,7 @@ function WorkoutStationTargetControls({
   onUpdate: (patch: Partial<Pick<ActiveWorkoutStation, "targetSets" | "targetReps" | "targetValue" | "targetStyle" | "performanceDirection">>) => void;
 }) {
   const targetStyleOptions = targetStyleOptionsForMeasurement(station.measurementType).map((style) => ({ value: style, label: style }));
-  const usesReps = station.targetStyle === "Standard" || station.targetStyle === "Target Reps";
+  const usesReps = ["WEIGHT_REPS", "BODYWEIGHT_REPS", "REPS_ONLY", "COUNT"].includes(station.measurementType) && (station.targetStyle === "Standard" || station.targetStyle === "Target Reps");
   const usesTargetValue = station.targetStyle === "Target Time";
   const attemptLabel = stationAttemptLabel(station);
 
@@ -15160,14 +15160,16 @@ function defaultPerformanceDirection(name: string, measurementType: WorkoutMeasu
 function targetStyleOptionsForMeasurement(measurementType: WorkoutMeasurementType): WorkoutTargetStyle[] {
   if (measurementType === "TIME") return ["Max Time", "Target Time", "Best Time", "Completion"];
   if (measurementType === "DISTANCE" || measurementType === "HEIGHT") return ["Best Distance", "Completion"];
-  if (measurementType === "WEIGHT_ONLY") return ["Max Weight", "Completion"];
-  if (measurementType === "REPS_ONLY" || measurementType === "BODYWEIGHT_REPS" || measurementType === "COUNT") return ["Max Reps", "Target Reps", "Completion"];
+  if (measurementType === "WEIGHT_ONLY") return ["Standard", "Max Weight", "Completion"];
+  if (measurementType === "REPS_ONLY" || measurementType === "BODYWEIGHT_REPS" || measurementType === "COUNT") return ["Standard", "Max Reps", "Target Reps", "Completion"];
   if (measurementType === "COMPLETION") return ["Completion"];
   return ["Standard", "Target Reps", "Max Reps", "Max Weight", "Completion"];
 }
 
 function stationTargetSummary(station: ActiveWorkoutStation) {
   const count = station.targetSets ?? 1;
+  if (station.notes) return `${count} sets · ${station.notes}`;
+  if (station.targetStyle === "Standard" && station.measurementType === "WEIGHT_ONLY") return `${count} sets · load`;
   if (station.targetStyle === "Standard") return `${count} ${count === 1 ? "set" : "sets"} x ${station.targetReps ?? "target"} reps`;
   if (station.targetStyle === "Target Reps") return `${count} ${count === 1 ? "set" : "sets"} x ${station.targetReps ?? "target"} reps`;
   if (station.targetStyle === "Target Time") return `${count} ${count === 1 ? "set" : "sets"} x ${station.targetValue ? formatSecondsValue(station.targetValue) : "target time"}`;
@@ -16166,9 +16168,11 @@ function WeightRoomExerciseLibraryCard({
                           <small>{station.category}</small>
                         </span>
                         <WorkoutStationTargetControls station={station} onUpdate={(patch) => updatePresetStation(station.id, patch)} />
+                        <div className="weight-room-normal-prescription">
                         <ChoiceSelect aria-label={`${station.name} entry type`} value={station.measurementType} options={(["COMPLETION", "REPS_ONLY", "WEIGHT_ONLY", "WEIGHT_REPS", "TIME"] as const).map(type => ({value:type,label:type.replaceAll("_", " ")}))} onChange={value => updatePresetStation(station.id, { measurementType: value as WorkoutMeasurementType, unit: weightRoomUnitForType(value as WorkoutMeasurementType), targetStyle: value === "COMPLETION" ? "Completion" : "Standard", targetWeight: undefined, targetReps: undefined })} />
                         {station.measurementType === "WEIGHT_REPS" && <label>Prescribed load (lb)<input aria-label={`${station.name} prescribed load`} inputMode="decimal" value={station.targetWeight ?? ""} onChange={event => updatePresetStation(station.id, {targetWeight: optionalNumber(event.target.value)})} /></label>}
                         <label>Instructions<input aria-label={`${station.name} instructions`} value={station.notes ?? ""} onChange={event => updatePresetStation(station.id, {notes: event.target.value})} /></label>
+                        </div>
                       </div>
                     ))}
                   </div>
