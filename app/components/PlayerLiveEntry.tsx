@@ -147,7 +147,7 @@ export function PlayerLiveEntry({
     {error && <p role="alert">{error}</p>}
     {!error && sessions.filter((s, i) => sessions.findIndex(other => other.id === s.id && other.domain === s.domain) === i).map(session => <div className="player-home-live-row" key={`${session.id}:${session.domain}:${session.exercise?.id ?? ""}`}>
       <span className="player-live-badge"><Radio size={14} />Live Now</span>
-      <div><strong>{session.title}</strong><small>{session.station}{session.exercise ? ` · ${session.exercise.name}` : ""}</small></div>
+      <div><strong>{session.domain === "workout" ? "Weight Room" : session.title}</strong><small>{session.domain === "workout" ? "Your workout" : session.station}</small></div>
       <button className="primary-button" onClick={() => onEnter(session)}>{state?.capabilities[liveCapability(session.domain)] ? session.domain === "workout" ? "Continue Workout" : "Enter Practice" : "View Session"}</button>
     </div>)}
     {!error && state && !sessions.length && <p className="muted">Waiting on coach to begin a live session.</p>}
@@ -201,16 +201,15 @@ export function PlayerLiveEntry({
                   />
                 </div>
               )}
-              <h2>{active.title}</h2>
+              {active.domain !== "workout" && <h2>{active.title}</h2>}
               <p className="muted">
-                {active.station} · {state.context.teamName} ·{" "}
+                {active.domain === "workout" ? "Weight Room" : active.station} · {state.context.teamName} ·{" "}
                 {state.context.seasonName}
               </p>
               {state.capabilities[liveCapability(active.domain)] ? (
-                active.domain === "workout" ? sessions.filter(s => s.domain === "workout" && s.id === active.id).map(s => <section key={s.exercise!.id} aria-label={s.exercise!.name}>
-                  <h3>{s.exercise!.name}</h3>
-                  <p>{s.exercise!.sets} sets{s.exercise!.reps ? ` × ${s.exercise!.reps} reps` : ""}</p>
-                  <LiveEntryForm session={s} membershipId={membershipId} entries={state.entries.filter(e => e.sessionId === s.id && e.domain === "workout")} save={save} />
+                active.domain === "workout" ? sessions.filter(s => s.domain === "workout" && s.id === active.id).map(s => <section className="player-workout-exercise-row" key={s.exercise!.id} aria-label={s.exercise!.name}>
+                  <div><h3>{s.exercise!.name}</h3>{s.exercise!.testConditions && <small>{testConditionLabel(s.exercise!.testConditions)}</small>}</div>
+                  <div className="player-workout-set-list">{Array.from({length: s.exercise!.sets}, (_, i) => <LiveEntryForm key={i + 1} fixedSetNumber={i + 1} session={s} membershipId={membershipId} entries={state.entries.filter(e => e.sessionId === s.id && e.domain === "workout")} save={save} />)}</div>
                 </section>) : <LiveEntryForm
                   key={`${membershipId}:${active.id}:${active.domain}:${active.exercise?.id ?? ""}`}
                   session={active}
@@ -237,11 +236,13 @@ export function LiveEntryForm({
   membershipId,
   entries,
   save,
+  fixedSetNumber,
 }: {
   session: PlayerLiveSession;
   membershipId: string;
   entries: Entry[];
   save: (body: LiveSubmission) => Promise<{ id: string }>;
+  fixedSetNumber?: number;
 }) {
   const workout = session.domain === "workout",
     resultKey = workout
@@ -259,7 +260,7 @@ export function LiveEntryForm({
       : {},
   );
   const [setNumber, setSetNumber] = useState(1),
-    [editing, setEditing] = useState<Entry>(),
+    [selectedEditing, setEditing] = useState<Entry>(),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(""),
     [retry, setRetry] = useState(false);
@@ -271,17 +272,18 @@ export function LiveEntryForm({
   const occupied = new Set(
     stationEntries.map((e) => Number(e.payload.setNumber)),
   );
+  const editing = fixedSetNumber ? stationEntries.find(e => Number(e.payload.setNumber) === fixedSetNumber) : selectedEditing;
   const available = workout
     ? Array.from(
         { length: session.exercise?.sets ?? 1 },
         (_, i) => i + 1,
       ).filter((n) => !occupied.has(n))
     : [];
-  const nextSet = editing
+  const nextSet = fixedSetNumber ?? (editing
     ? Number(editing.payload.setNumber)
     : available.includes(setNumber)
       ? setNumber
-      : available[0];
+      : available[0]);
   const fields = workout
     ? workoutFields(session)
     : LIVE_FIELDS[session.domain].filter((f) => session.fields.includes(f.key));
@@ -358,9 +360,9 @@ export function LiveEntryForm({
   }
   return (
     <div className="player-live-form">
-      {session.exercise?.testConditions && <p className="muted">{testConditionLabel(session.exercise.testConditions)}{session.exercise.testConditions.bilateral && nextSet ? ` · ${nextSet % 2 ? 'Left' : 'Right'}` : ''}</p>}
-      <fieldset disabled={busy || retry}>
-        {workout && (
+      {!fixedSetNumber && session.exercise?.testConditions && <p className="muted">{testConditionLabel(session.exercise.testConditions)}{session.exercise.testConditions.bilateral && nextSet ? ` · ${nextSet % 2 ? 'Left' : 'Right'}` : ''}</p>}
+      <fieldset disabled={busy || retry || (!!editing && !editing.editable)}>
+        {workout && !fixedSetNumber && (
             <ChoiceSelect
               label="Set"
               aria-label="Set number"
@@ -380,11 +382,11 @@ export function LiveEntryForm({
         {workout && session.exercise && nextSet && <div className="weight-room-individual-set-row">
           <strong>Set {nextSet}</strong>
           <WeightRoomInlineSetCell
-            key={`${nextSet}:${editing?.id ?? "new"}`}
+            key={`${nextSet}:${editing?.id ?? "new"}:${JSON.stringify(editing?.payload ?? {})}`}
             cell={{ playerId: "self", exercise: session.exercise.name, setNumber: nextSet }}
             entry={editing ? { ...editing.payload, id: editing.id, sessionId: session.id, playerId: "self", exercise: session.exercise.name, kind: "Lift", createdAt: editing.createdAt } as WorkoutEntry : undefined}
             station={{ id: session.exercise.id, name: session.exercise.name, category: "Other", kind: "Lift", active: true, displayOrder: 0, targetStyle: "Standard", performanceDirection: "HIGHER_IS_BETTER", targetSets: session.exercise.sets, targetReps: session.exercise.reps, measurementType: session.exercise.testConditions ? session.exercise.testConditions.mode === 'MAX_DURATION' ? 'TIME' : 'REPS_ONLY' : session.exercise.measurement, unit: session.exercise.testConditions?.mode === 'MAX_DURATION' ? 'sec' : session.exercise.unit } as ActiveWorkoutStation}
-            disabled={busy || retry}
+            disabled={busy || retry || (!!editing && !editing.editable)}
             onSaveCell={(_cell, draft) => {
               const required = fields.filter(f => !(f.key === "weight" && session.exercise?.testConditions?.loadLb !== undefined));
               if (required.some(f => draft[f.key as keyof typeof draft] == null)) return;
@@ -403,7 +405,7 @@ export function LiveEntryForm({
           ))}
         </div>}
       </fieldset>
-      <div className="player-live-actions">
+      {(!fixedSetNumber || retry) && <div className="player-live-actions">
         {(!workout || retry) && <button
           className="primary-button"
           disabled={busy || (!retry && workout && !nextSet)}
@@ -440,13 +442,13 @@ export function LiveEntryForm({
             <Undo2 size={20} />
           </button>
         )}
-      </div>
+      </div>}
       {message && (
         <p role="status" className="player-live-message">
           {message}
         </p>
       )}
-      {!!stationEntries.length && (
+      {!fixedSetNumber && !!stationEntries.length && (
         <details className="player-live-recent">
           <summary>
             {stationEntries.length} {workout ? "set" : "rep"}

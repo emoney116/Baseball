@@ -1108,7 +1108,7 @@ const WEIGHT_ROOM_BASE_EXERCISES: WeightRoomExercise[] = [
   { name: "Broad Jump", category: "Power", measurementType: "DISTANCE", kind: "Jump", unit: "in", equipment: "Bodyweight", active: true, targetSets: 3 },
 ];
 const WEIGHT_ROOM_TEMPLATES = [
-  { name: "Lower Body Strength", exercises: ["Back Squat", "Romanian Deadlift", "Bulgarian Split Squat", "Trap Bar Deadlift", "Plank"] },
+  { name: "Lower Body", exercises: ["Back Squat", "Romanian Deadlift", "Bulgarian Split Squat", "Trap Bar Deadlift", "Plank"] },
   { name: "Upper Body Strength", exercises: ["Bench Press", "Incline Bench", "DB Row", "Pull Ups", "Plank"] },
   { name: "Full Body Power", exercises: ["Power Clean", "Front Squat", "Bench Press", "Broad Jump", "Sprint"] },
   { name: "Conditioning", exercises: ["Sprint", "Plank"] },
@@ -1241,7 +1241,7 @@ export default function MetrolinaBaseballApp() {
   const [weightForm] = useState({ exercise: "Back Squat", weight: "225", reps: "5", sets: "3", effort: "8" });
   const [weightRoomTab, setWeightRoomTab] = useState<WeightRoomTab>("Overview");
   const [weightRoomWorkoutDate, setWeightRoomWorkoutDate] = useState(todayKey());
-  const [weightRoomWorkoutTitle, setWeightRoomWorkoutTitle] = useState("Lower Body Strength");
+  const [weightRoomWorkoutTitle, setWeightRoomWorkoutTitle] = useState("Weight Room");
   const [weightRoomWorkoutStatus, setWeightRoomWorkoutStatus] = useState<WeightRoomWorkoutStatus>("Idle");
   const [weightRoomActiveWorkoutId, setWeightRoomActiveWorkoutId] = useState<ID | undefined>();
   const [weightRoomActiveEventId, setWeightRoomActiveEventId] = useState<ID | undefined>();

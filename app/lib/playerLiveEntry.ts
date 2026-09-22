@@ -151,7 +151,7 @@ export async function loadPlayerLiveSessions(
     .map((s) => ({
       id: s.workout_id,
       domain: "workout" as const,
-      title: workouts.find((w) => w.id === s.workout_id)!.title,
+      title: "Weight Room",
       station: s.exercise_name,
       startedAt: workouts.find((w) => w.id === s.workout_id)!.started_at,
       fields: [],

@@ -3024,7 +3024,7 @@ function mapWeightRoomWorkout(row: any): WeightRoomWorkout {
     teamId: row.team_id ?? undefined,
     seasonId: row.season_id ?? undefined,
     scheduleEventId: row.schedule_event_id ?? undefined,
-    title: row.title,
+    title: row.title === "Lower Body Strength" ? "Weight Room" : row.title,
     date: row.workout_date,
     status: row.status ?? "SCHEDULED",
     startedAt: row.started_at ?? undefined,

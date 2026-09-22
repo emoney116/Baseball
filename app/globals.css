@@ -37554,6 +37554,17 @@ body[data-ask-clubhouse-open="true"] .bottom-nav--persistent { display: none !im
 .player-live-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; }
 .player-live-badge { color: var(--success-ink); display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
 .player-live-form { display: grid; gap: 14px; }
+.player-workout-exercise-row { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 2fr); gap: 12px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.player-workout-exercise-row h3 { font-size: 15px; margin: 8px 0 4px; }
+.player-workout-exercise-row small { color: var(--muted); font-size: 12px; }
+.player-workout-set-list { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.player-workout-set-list > .player-live-form { flex: 1 1 160px; min-width: 0; gap: 4px; }
+.player-workout-set-list .weight-room-individual-set-row { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 6px; padding: 0; border: 0; background: none; }
+.player-workout-set-list .weight-room-inline-set-cell { padding: 0; border: 0; min-height: 0; background: none; }
+.player-workout-set-list .weight-room-inline-set-cell > small { display: none; }
+.player-workout-set-list .player-live-form input { min-height: 44px; padding: 8px; }
+.player-workout-set-list .player-live-form label { gap: 3px; font-size: 11px; }
+.player-workout-set-list .player-live-message { margin: 0; font-size: 12px; }
 .player-live-form fieldset, .coach-live-entry fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .player-live-form > fieldset { display: grid; gap: 14px; }
 .player-live-form label, .player-live-select { display: grid; gap: 7px; min-width: 0; font-size: 14px; font-weight: 600; }
