@@ -13246,7 +13246,11 @@ function WeightRoomActiveWorkout({
           onRemovePlayer={removePlayerFromGroup}
         />
       ) : activeWorkout && stations.some((station) => station.testConditions) ? (
-        <WorkoutTestingConsole key={activeWorkout.id} workoutId={activeWorkout.id} profileId={data.teamContext?.profile?.id ?? "local"} players={players} mode={entryMode} completedEdit={completed && editingCompleted} onStatus={setObservedWorkoutStatus} onEditSetup={() => setSetupOpen(true)} onRetrySetup={() => setStations(current => [...current])} />
+        <WorkoutTestingConsole key={activeWorkout.id} workoutId={activeWorkout.id} profileId={data.teamContext?.profile?.id ?? "local"} players={players} mode={entryMode} completedEdit={completed && editingCompleted} onStatus={setObservedWorkoutStatus} onEditSetup={() => setSetupOpen(true)} onRetrySetup={() => setStations(current => [...current])}
+          renderRegularStation={(stationId, assignedPlayers, disabled) => {
+            const station = stations.find(item => item.id === stationId);
+            return station ? <WeightRoomIndividualWorkout data={data} players={assignedPlayers} stations={[station]} entries={entriesForDate.filter(entry => entry.activeWorkoutId === activeWorkout.id && entry.workoutStationId === stationId)} workoutDate={workoutDate} exerciseName={station.name} disabled={disabled} onOpenExercisePicker={() => setSetupOpen(true)} onExercise={() => undefined} onSaveCell={saveCell} /> : <p role="status">Loading assigned exercise...</p>;
+          }} />
       ) : (
         <section className={`weight-room-active-workspace ${paused ? "is-paused" : ""}`}>
           {entryMode === "Groups" ? (

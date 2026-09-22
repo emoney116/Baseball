@@ -62,6 +62,14 @@ test('live testing projection preserves conditions and does not offer append-onl
   assert.equal(live.entries.find(e=>e.id===uuid(204)).editable,false);
   assert.equal(live.entries.find(e=>e.id===uuid(204)).payload.reps,107);
 });
+test('mixed coach workouts retain the shared regular entry table scoped to workout and station', () => {
+  const consoleSource=readFileSync(new URL('../app/components/WorkoutTestingConsole.tsx',import.meta.url),'utf8');
+  const workspace=readFileSync(new URL('../app/ClubhouseWorkspace.tsx',import.meta.url),'utf8');
+  assert.match(consoleSource,/station && !conditions && renderRegularStation/);
+  assert.match(workspace,/renderRegularStation=\{/);
+  assert.match(workspace,/entry\.activeWorkoutId === activeWorkout\.id && entry\.workoutStationId === stationId/);
+  assert.match(workspace,/players=\{assignedPlayers\}/);
+});
 for (const mode of ["VIEW_ONLY", "TRACK_AND_VIEW", "FULL_PLAYER"])
   for (const domain of LIVE_DOMAINS)
     test(`${mode} resolves ${domain} live capability without staff elevation`, () => {

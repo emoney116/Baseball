@@ -2,6 +2,7 @@
 
 import { RefreshCw, RotateCw, Pencil, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { createClient } from "../lib/supabase/client";
 import { formatTestResult, parseTestResult, testConditionLabel, type WorkoutTestConditions } from "../lib/workoutTesting";
 import type { Player } from "../types";
@@ -15,7 +16,7 @@ type Group = { id: string; name: string; current_station_id: string | null };
 type Result = { id: string; player_id: string; workout_station_id: string; reps: number | null; value: number | null; test_side: string | null; test_attempt: number; test_revision: number };
 type Draft = { text: string; request: string; error?: string; resultId?: string; revision?: number; original?: number };
 
-export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "Groups", completedEdit = false, onStatus, onEditSetup, onRetrySetup }: { workoutId: string; profileId: string; players: Player[]; mode?: "Groups" | "Individual"; completedEdit?: boolean; onStatus?: (status: WeightRoomWorkoutStatus) => void; onEditSetup?: () => void; onRetrySetup?: () => void }) {
+export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "Groups", completedEdit = false, onStatus, onEditSetup, onRetrySetup, renderRegularStation }: { workoutId: string; profileId: string; players: Player[]; mode?: "Groups" | "Individual"; completedEdit?: boolean; onStatus?: (status: WeightRoomWorkoutStatus) => void; onEditSetup?: () => void; onRetrySetup?: () => void; renderRegularStation?: (stationId: string, players: Player[], disabled: boolean) => ReactNode }) {
   const storageKey = `clubhouse:test-drafts:v1:${profileId}:${workoutId}`;
   const [stations, setStations] = useState<Station[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -168,7 +169,7 @@ export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "G
       {error && <p role="alert">{error} {onRetrySetup && <button type="button" onClick={onRetrySetup}>Retry setup save</button>}</p>}
       {active === null && !error && <p role="status">Loading workout...</p>}
       {active === false && <p role="status">{lifecycle === "COMPLETED" ? "Workout completed. Existing results can be corrected in Edit Workout; new attempts require a new workout." : lifecycle === "PAUSED" ? "Workout paused. Resume Workout to enter results." : "Workout is not open for new results. Saved results are preserved."}</p>}
-      <div className="weight-room-individual-box-score" role="table" aria-label={`${station?.exercise_name ?? "Workout"} athlete results`} style={{ ["--active-set-count" as string]: 1 }}>
+      {station && !conditions && renderRegularStation ? renderRegularStation(station.id, roster, !active) : <div className="weight-room-individual-box-score" role="table" aria-label={`${station?.exercise_name ?? "Workout"} athlete results`} style={{ ["--active-set-count" as string]: 1 }}>
       <div role="row"><span role="columnheader">Athlete</span><span role="columnheader">Attempt {attempt}{conditions?.bilateral ? ` - ${side}` : ""}</span></div>
       {roster.map((player) => {
         if (!conditions) return <div key={player.id} role="row"><span role="cell" className="weight-room-box-score-athlete"><strong>{player.name}</strong></span><span role="cell">Waiting for saved exercise setup</span></div>;
@@ -186,7 +187,7 @@ export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "G
           {draft?.error && <p role="alert">{draft.error} <button type="button" onClick={() => void save(player.id)}>Retry</button>{saved && <button type="button" onClick={() => {setDrafts((current)=>{const next={...current};delete next[key];return next;});void refresh();}}>Use latest</button>}</p>}
         </div></div>;
       })}
-      </div>
+      </div>}
     </div>
   </section>;
 }
