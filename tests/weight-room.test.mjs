@@ -5,7 +5,15 @@ import {
   buildWeightRoomLeaderboard,
   calculateWeightRoomScore,
   workoutEntryVolume,
+  entriesForWorkout,
 } from "../app/lib/weightRoom.ts";
+
+test('active and completed workout summaries exclude other same-day workouts and unlinked history', () => {
+  const rows=[{id:'own',activeWorkoutId:'a'},{id:'other',activeWorkoutId:'b'},{id:'legacy'}];
+  assert.deepEqual(entriesForWorkout(rows,'a'),[rows[0]]);
+  assert.deepEqual(entriesForWorkout(rows,'missing'),[]);
+  assert.deepEqual(entriesForWorkout(rows),rows);
+});
 
 test("testing volume never treats reps or held seconds as pounds", () => {
   assert.equal(workoutEntryVolume({ reps: 24, value: 24, testConditions: { key: "pull-ups", mode: "TIMED_REPS", durationSeconds: 60 } }), 0);

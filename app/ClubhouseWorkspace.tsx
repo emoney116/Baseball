@@ -185,6 +185,7 @@ import {
   buildWeightRoomScoreRows,
   estimatedOneRepMax,
   resumableWeightRoomWorkout,
+  entriesForWorkout,
   WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS,
   WEIGHT_ROOM_MIN_TRACKED_SETS,
   WEIGHT_ROOM_SCORE_COMPONENTS,
@@ -12177,7 +12178,7 @@ function WeightRoomView({
           workoutTitle={workoutTitle}
           workoutDate={workoutDate}
           workoutStatus={workoutStatus}
-          entriesForDate={entriesForDate}
+          entriesForDate={entriesForWorkout(entriesForDate, sessionWorkout?.id)}
           sessionsForDate={sessionsForDate}
           activeWorkout={sessionWorkout}
           onAsk={() => onAsk(workoutDate)}

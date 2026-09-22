@@ -1,5 +1,9 @@
 import type { Player, WeightRoomWorkout, WorkoutEntry, WorkoutSession } from "../types.ts";
 
+export function entriesForWorkout(entries: WorkoutEntry[], workoutId?: string) {
+  return workoutId ? entries.filter(entry => entry.activeWorkoutId === workoutId) : entries;
+}
+
 export function resumableWeightRoomWorkout(workouts: WeightRoomWorkout[], preferredId?: string) {
   const running = (workout: WeightRoomWorkout) => workout.status === "ACTIVE" || workout.status === "PAUSED";
   return workouts.find((workout) => workout.id === preferredId && running(workout)) ?? workouts.find(running);
