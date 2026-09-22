@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
         { mode: "staff", playerContexts: contexts },
         { headers: { "Cache-Control": "no-store" } },
       );
-    if (!teamId && !playerId) return NextResponse.json({ mode: "player", accountHome: true, profileId: user.id, contexts, data: await loadPlayerAccountHome(db, user.id, contexts) }, { headers: { "Cache-Control": "private, no-store" } });
+    if (!teamId && !playerId && (!contexts.length || q.get("accountHome") === "1")) return NextResponse.json({ mode: "player", accountHome: true, profileId: user.id, contexts, data: await loadPlayerAccountHome(db, user.id, contexts) }, { headers: { "Cache-Control": "private, no-store" } });
     const session = await loadPlayerSession(db, user.id, {
       playerId,
       teamId,

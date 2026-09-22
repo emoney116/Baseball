@@ -376,7 +376,7 @@ export function PlayerShell({
     <main className="player-beta">
       {context && <TeamWorkspaceHeader context={{ ...data?.teamContext, currentTeam: context.team, availableTeams: session.contexts.map(c => c.team) }}
         view={VIEW_ROUTES[view] === "more" ? "teamHome" : VIEW_ROUTES[view]}
-        onClubhouseHome={() => window.location.assign("/")}
+        onClubhouseHome={() => window.location.assign("/?view=home")}
         onSwitch={team => { const next = session.contexts.find(c => c.team.teamId === team.teamId && c.team.seasonId === team.seasonId); if (next) void switchContext(next); }}
       />}
       <div className="player-context-caption"><strong>{context ? `${context.jersey != null ? `#${context.jersey} ` : ""}${context.name}` : "My Clubhouse"}</strong>{session.access && <span>{PLAYER_MODE_DETAILS[session.access.mode].label}</span>}</div>

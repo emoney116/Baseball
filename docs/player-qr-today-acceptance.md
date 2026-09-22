@@ -25,6 +25,8 @@ MFA settings have been disabled. No real Fall Ball QR batch or emails were sent.
   is replaced; memberships and permissions are never removed. Root player context
   prefers the most recently pinned authorized team; explicit context still wins.
 - Pins never authorize access; revoked/unavailable contexts cannot be selected.
+- App root opens an approved player's preferred team directly. Explicit Clubhouse
+  Home navigation remains available through `?view=home`.
 
 ## Authentication Boundaries
 
@@ -57,6 +59,9 @@ fake account; this is NOT equivalent to fresh signup acceptance.
 - Workout finished. Stale valid set POST rejected with 409: session ended or entry
   disabled. Recorded results remain available. Temporary fake access restored.
 - This pass did not repeat three-player concurrent QR onboarding or physical iOS.
+- Player Home and completed Weight Room history: 390x844, 430x932, 820x1180,
+  1180x820 in dark/light passed 16 horizontal-overflow checks; representative phone
+  and iPad screenshots visually inspected. History displays two sets and 950 lbs.
 - Newly added atomic auto-pin is covered with full-schema database tests; fresh
   hosted claim with this addition remains part of the gated final acceptance.
 
@@ -99,5 +104,5 @@ invent that status from an unclaimed token.
 ## Remaining Acceptance
 
 Fresh receivable-email signup/confirmation, hosted auto-pin/default/reopen,
-three-player concurrency on the final build, phone/iPad visual coverage, and
+three-player concurrency on the final build, remaining signup/live-form phone/iPad coverage, and
 physical iOS smoke. No main merge, real invitation rollout or auth-policy bypass.

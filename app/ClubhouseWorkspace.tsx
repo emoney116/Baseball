@@ -1695,6 +1695,7 @@ export default function MetrolinaBaseballApp() {
       setLoadingLabel("Opening your Clubhouse");
       const params = new URLSearchParams(window.location.search);
       const playerParams=new URLSearchParams();
+      if (params.get('view') === 'home') playerParams.set('accountHome', '1');
       if (params.get('workspace') === 'player') playerParams.set('workspace', 'player');
       for(const key of ['player','team','season']) {const value=key === 'team' ? selectedTeamId ?? params.get(key) : key === 'season' ? selectedSeasonId ?? params.get(key) : params.get(key);if(value)playerParams.set(key,value);}
       const sessionResponse = await fetch(`/api/player/session?${playerParams}`, { cache: 'no-store' });
