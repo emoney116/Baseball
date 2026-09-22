@@ -236,6 +236,13 @@ function PlayerWorkoutWeighIn({membershipId,workoutId,value,disabled,onSaved}:{m
   const [draft,setDraft] = useState<string>();
   const [message,setMessage] = useState("");
   const [busy,setBusy] = useState(false);
+  const saveWeightRef = useRef(() => {});
+  useEffect(() => { saveWeightRef.current = () => { void saveWeight(); }; });
+  useEffect(() => {
+    if (disabled || busy || draft === undefined || !draft.trim()) return;
+    const timer = window.setTimeout(() => saveWeightRef.current(), 15000);
+    return () => window.clearTimeout(timer);
+  }, [draft, disabled, busy]);
   async function saveWeight() {
     if(disabled || busy || draft === undefined || draft.trim() === "") return;
     const pounds = Number(draft);
@@ -249,7 +256,7 @@ function PlayerWorkoutWeighIn({membershipId,workoutId,value,disabled,onSaved}:{m
     finally {setBusy(false);}
   }
   return <section className="player-workout-exercise-row" aria-label="Weigh-in"><h3>Weigh-in</h3><div>
-    <label>lb<input aria-label="Weigh-in pounds" inputMode="decimal" type="number" min={30} max={700} disabled={disabled||busy} value={draft ?? value ?? ""} onChange={e=>setDraft(e.target.value)} onBlur={()=>void saveWeight()} onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}} /></label>
+    <label className="player-weigh-in-field"><input aria-label="Weigh-in pounds" inputMode="decimal" type="number" min={30} max={700} disabled={disabled||busy} value={draft ?? value ?? ""} onChange={e=>{setDraft(e.target.value);setMessage("");}} onBlur={()=>void saveWeight()} onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}} /><span>lb</span></label>
     {message && <small role="status">{message}</small>}
   </div></section>;
 }

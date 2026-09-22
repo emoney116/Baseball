@@ -37565,6 +37565,8 @@ body[data-ask-clubhouse-open="true"] .bottom-nav--persistent { display: none !im
 .player-workout-set-list .player-live-form input { min-height: 44px; padding: 8px; }
 .player-workout-set-list .player-live-form label { gap: 3px; font-size: 11px; }
 .player-workout-set-list .player-live-message { margin: 0; font-size: 12px; }
+.player-weigh-in-field { display: inline-flex; align-items: center; gap: 10px; margin-right: 12px; }
+.player-weigh-in-field input { width: 88px; min-height: 44px; padding: 8px; }
 .player-live-form fieldset, .coach-live-entry fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .player-live-form > fieldset { display: grid; gap: 14px; }
 .player-live-form label, .player-live-select { display: grid; gap: 7px; min-width: 0; font-size: 14px; font-weight: 600; }

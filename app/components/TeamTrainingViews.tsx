@@ -333,6 +333,15 @@ export function WeightRoomInlineSetCell({
   const isCompletion = station.measurementType === "COMPLETION" || station.targetStyle === "Completion";
   const saveRef = useRef<() => void>(() => {});
   useEffect(() => { saveRef.current = save; });
+  const dirty = weight !== (entry?.weight?.toString() ?? "") || reps !== (entry?.reps?.toString() ?? "") || value !== ((station.measurementType === "RPE_ONLY" ? entry?.rpe : entry?.value)?.toString() ?? "");
+  useEffect(() => {
+    if (!autoSaveDelay || disabled || !dirty) return;
+    // Retry unsaved input independently of focus and the short typing debounce.
+    const timer = window.setInterval(() => saveRef.current(), 15000);
+    const resume = () => { if (document.visibilityState === "visible") saveRef.current(); };
+    document.addEventListener("visibilitychange", resume);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", resume); };
+  }, [autoSaveDelay, disabled, dirty]);
   useEffect(() => {
     if (!autoSaveDelay || disabled || (weight === (entry?.weight?.toString() ?? "") && reps === (entry?.reps?.toString() ?? "") && value === ((station.measurementType === "RPE_ONLY" ? entry?.rpe : entry?.value)?.toString() ?? ""))) return;
     const timer = window.setTimeout(() => saveRef.current(), autoSaveDelay);
