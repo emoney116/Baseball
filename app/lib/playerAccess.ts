@@ -182,6 +182,7 @@ export async function loadPlayerAccountHome(db: SupabaseClient, profileId: strin
 export function selectPlayerContext(
   contexts: PlayerContext[],
   requested: { playerId?: string; teamId?: string; seasonId?: string },
+  pins: { teamId: string; seasonId?: string; updatedAt: string }[] = [],
 ): PlayerContext | undefined {
   for (const value of Object.values(requested))
     if (value && !UUID.test(value))
@@ -189,7 +190,13 @@ export function selectPlayerContext(
   const explicit = Boolean(
     requested.playerId || requested.teamId || requested.seasonId,
   );
-  if (!explicit) return contexts[0];
+  if (!explicit) {
+    for (const pin of [...pins].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
+      const match = contexts.find(c => c.team.teamId === pin.teamId && c.team.seasonId === pin.seasonId);
+      if (match) return match;
+    }
+    return contexts[0];
+  }
   const matches = contexts.filter(
     (c) =>
       (!requested.playerId || c.playerId === requested.playerId) &&
@@ -210,7 +217,8 @@ export async function loadPlayerSession(
   requested: { playerId?: string; teamId?: string; seasonId?: string } = {},
 ): Promise<PlayerSession> {
   const contexts = await listPlayerContexts(db, profileId);
-  const context = selectPlayerContext(contexts, requested);
+  const pins = Object.values(requested).some(Boolean) ? [] : await loadOwnTeamPins(db, profileId);
+  const context = selectPlayerContext(contexts, requested, pins);
   if (!context) return { mode: "player", profileId, contexts };
   const access = await loadContextPlayerAccess(db, context);
   const data = await loadPlayerData(db, profileId, context);

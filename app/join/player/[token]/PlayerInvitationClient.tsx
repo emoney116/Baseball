@@ -106,7 +106,7 @@ export default function PlayerInvitationClient({ token }: { token: string }) {
             disabled={busy}
             onClick={() => void accept()}
           >
-            {busy && <BusyIndicator />} Join My Player Profile
+            {busy && <BusyIndicator />} Join Clubhouse
           </button>
           <button
             className="ghost-button"
@@ -117,7 +117,7 @@ export default function PlayerInvitationClient({ token }: { token: string }) {
           </button>
         </>
       ) : (
-        <AuthenticationForm next={`/join/player/${token}`} onSignedIn={async () => {
+        <AuthenticationForm invitedName={invite.playerName} initialStep="signup" next={`/join/player/${token}`} onSignedIn={async () => {
           const { data, error } = await createClient().auth.getUser();
           if (error) throw error;
           setAccount(data.user?.email ?? null);

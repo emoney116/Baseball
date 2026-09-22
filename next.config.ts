@@ -9,6 +9,8 @@ function buildVersion() {
 }
 
 const nextConfig: NextConfig = {
+  // Isolate local acceptance builds when OneDrive holds the normal build output.
+  distDir: process.env.CLUBHOUSE_QA_BUILD === "1" ? "build/qa-next" : ".next",
   env: {
     NEXT_PUBLIC_CLUBHOUSE_BUILD: buildVersion(),
     NEXT_PUBLIC_CLUBHOUSE_VOICE_ENABLED: String(voiceDeploymentEnabled(process.env.VERCEL_ENV, process.env.NODE_ENV, process.env.VOICE_ENABLED)),

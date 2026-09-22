@@ -3,8 +3,9 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 test("next build contains the Clubhouse 9 app shell", async () => {
-  assert.equal(existsSync(".next"), true);
-  assert.equal(existsSync(".next/server"), true);
+  const buildDir = process.env.CLUBHOUSE_QA_BUILD === '1' ? 'build/qa-next' : '.next';
+  assert.equal(existsSync(buildDir), true);
+  assert.equal(existsSync(`${buildDir}/server`), true);
 
   const layout = readFileSync("app/layout.tsx", "utf8");
   const page = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");

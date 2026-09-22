@@ -8,9 +8,9 @@ import { createClient } from "../lib/supabase/client";
 import { BusyIndicator } from "./AppLoading";
 
 type Step = "login" | "signup" | "verify" | "forgot" | "reset-sent";
-export function AuthenticationForm({ onSignedIn, initialEmail = "", lockedEmail = false, next = "/", service = emailAuth, initialStep = "login" }: {
+export function AuthenticationForm({ onSignedIn, initialEmail = "", lockedEmail = false, next = "/", service = emailAuth, initialStep = "login", invitedName }: {
   onSignedIn: () => void | Promise<void>; initialEmail?: string; lockedEmail?: boolean; next?: string;
-  service?: EmailAuthService; initialStep?: Step;
+  service?: EmailAuthService; initialStep?: Step; invitedName?: string;
 }) {
   const [step, setStep] = useState<Step>(initialStep);
   const [email, setEmail] = useState(initialEmail);
@@ -69,12 +69,13 @@ export function AuthenticationForm({ onSignedIn, initialEmail = "", lockedEmail 
     } finally { inFlight.current = false; setBusy(null); }
   }
   async function submit() {
-    if (step === "signup" && (!firstName.trim() || !lastName.trim())) { setError("First and last name are required."); return; }
+    if (step === "signup" && !invitedName && (!firstName.trim() || !lastName.trim())) { setError("First and last name are required."); return; }
     if (step === "signup" && password !== confirmPassword) { setError("Passwords do not match."); return; }
     await run(step === "verify" ? "Verifying email" : step === "forgot" ? "Sending reset email" : step === "signup" ? "Creating your account" : "Signing in", async () => {
       if (step === "login") { await service.signIn(email, password); await finish(); }
       if (step === "signup") {
-        const result = await service.signUp({ email, password, firstName, lastName, next });
+        const nameParts = invitedName?.trim().split(/\s+/);
+        const result = await service.signUp({ email, password, firstName: nameParts?.[0] ?? firstName, lastName: nameParts ? nameParts.slice(1).join(" ") : lastName, next });
         setPassword(""); setConfirmPassword("");
         if (result.status === "authenticated") await finish();
         else { setStep("verify"); cooldown(); }
@@ -98,7 +99,7 @@ export function AuthenticationForm({ onSignedIn, initialEmail = "", lockedEmail 
     {notice && <p className="account-auth__notice" role="status">{notice}</p>}
     {step !== "reset-sent" && <form onSubmit={event => { event.preventDefault(); void submit(); }} aria-busy={!!busy}>
       <fieldset disabled={!!busy}>
-        {step === "signup" && <div className="account-auth__names">
+        {step === "signup" && !invitedName && <div className="account-auth__names">
           <label>First name<input autoComplete="given-name" required value={firstName} onChange={event => setFirstName(event.target.value)} /></label>
           <label>Last name<input autoComplete="family-name" required value={lastName} onChange={event => setLastName(event.target.value)} /></label>
         </div>}

@@ -105,6 +105,10 @@ test("multi-team memberships keep exact player/team/season selection", async () 
   });
   const contexts = await listPlayerContexts(f.db, uuid(1));
   assert.equal(contexts.length, 2);
+  const pins = [{teamId:uuid(21),seasonId:uuid(31),updatedAt:'2026-09-22T12:00:00Z'}];
+  assert.equal(selectPlayerContext(contexts, {}, pins).membershipId,uuid(52));
+  assert.equal(selectPlayerContext(contexts, {teamId:uuid(20),seasonId:uuid(30)}, pins).membershipId,contexts[0].membershipId);
+  assert.equal(selectPlayerContext(contexts, {}, [{teamId:uuid(99),seasonId:uuid(98),updatedAt:'2026-09-22T12:00:00Z'}]).membershipId,contexts[0].membershipId);
   assert.throws(
     () => selectPlayerContext(contexts, { playerId: f.own }),
     (e) => e.status === 403,

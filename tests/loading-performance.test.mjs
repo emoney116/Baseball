@@ -172,10 +172,11 @@ test('entry defers workspace code, never replaces authoritative access checks', 
 });
 
 test('production entry stays within its initial JavaScript budget', () => {
-  const html = readFileSync('.next/server/app/index.html', 'utf8');
+  const buildDir = process.env.CLUBHOUSE_QA_BUILD === '1' ? 'build/qa-next' : '.next';
+  const html = readFileSync(`${buildDir}/server/app/index.html`, 'utf8');
   const scripts = [...new Set([...html.matchAll(/<script[^>]*src="([^"]+)"/g)].map(match => match[1]))];
   assert.ok(scripts.length > 0);
-  const chunks = scripts.map(path => readFileSync(`.next/${path.replace('/_next/', '')}`));
+  const chunks = scripts.map(path => readFileSync(`${buildDir}/${path.replace('/_next/', '')}`));
   const bytes = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
   const gzip = chunks.reduce((sum, chunk) => sum + gzipSync(chunk).length, 0);
   assert.ok(bytes < 1_000_000, `Initial entry JavaScript grew to ${bytes} bytes`);
