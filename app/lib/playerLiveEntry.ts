@@ -59,7 +59,7 @@ export async function loadPlayerLiveSessions(
       db
         .from("weight_room_workouts")
         .select(
-          "id,title,status,started_at,ended_at,player_entry_enabled,created_by",
+          "id,title,status,started_at,ended_at,player_entry_enabled,created_by,workout_date",
         )
         .eq("team_id", team.teamId)
         .eq("season_id", team.seasonId!)
@@ -228,8 +228,10 @@ export async function loadPlayerLiveSessions(
   }
   // Fail closed if an association was revoked while the projections were loading.
   const verified = await playerLiveContext(db, profileId, membershipId);
+  const weighIns = workouts.length ? await rows(db.from("workout_sessions").select("session_date,body_weight").eq("player_id",playerId).eq("team_id",team.teamId).eq("season_id",team.seasonId!).in("session_date",workouts.map(w=>w.workout_date))) : [];
   return {
-    sessions: [...live, ...workoutLive],
+    weighIns: Object.fromEntries(workouts.map(w=>[w.id,weighIns.find(d=>d.session_date===w.workout_date)?.body_weight ?? null])),
+    sessions: [...live, ...workoutLive, ...workouts.filter(w => !workoutLive.some(s => s.id === w.id) && !members.some(m => m.workout_id === w.id)).map(w => ({id:w.id,domain:"workout" as const,title:"Weight Room",station:"",startedAt:w.started_at,fields:[]}))],
     entries,
     capabilities: verified.access.capabilities,
     context: {

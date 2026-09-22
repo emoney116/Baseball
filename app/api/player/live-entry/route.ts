@@ -54,6 +54,13 @@ export async function POST(request: NextRequest) {
     const input = JSON.parse(text);
     if (!input || typeof input !== "object" || Array.isArray(input))
       throw new PlayerLinkError("Invalid entry.");
+    if (input.operation === "weigh-in") {
+      if (typeof input.pounds !== "number" || !Number.isFinite(input.pounds) || input.pounds < 30 || input.pounds > 700)
+        throw new PlayerLinkError("Body weight must be 30-700 lb.");
+      const {data,error} = await db.rpc("write_player_live_weigh_in", {actor:profileId,target_membership:input.membershipId,target_workout:input.sessionId,pounds:input.pounds});
+      if(error) throw new PlayerLinkError(error.code === "55000" ? "Workout ended. Your history is still available." : "Unable to save weigh-in. Check access and try again.",error.code === "55000" ? 409 : 403);
+      return response({id:data});
+    }
     return response(await writePlayerLiveEntry(db, profileId, input));
   } catch (error) {
     return failure(error);

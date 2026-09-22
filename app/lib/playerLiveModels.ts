@@ -174,6 +174,7 @@ export type PlayerLiveEntry = {
   createdAt: string;
 };
 export type PlayerLiveState = {
+  weighIns?: Record<string, number | null>;
   sessions: PlayerLiveSession[];
   entries: PlayerLiveEntry[];
   capabilities: PlayerCapabilities;

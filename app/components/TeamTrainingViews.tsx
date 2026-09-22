@@ -311,6 +311,7 @@ export function WeightRoomInlineSetCell({
   disabled,
   onSaveCell,
   explicitSave = false,
+  autoSaveDelay,
 }: {
   cell: ActiveWorkoutCell;
   station: ActiveWorkoutStation;
@@ -319,6 +320,7 @@ export function WeightRoomInlineSetCell({
   disabled: boolean;
   onSaveCell: (cell: ActiveWorkoutCell, draft: { weight?: number; reps?: number; value?: number; rpe?: number; unit?: WorkoutEntry["unit"]; status?: WorkoutEntry["status"] }) => void;
   explicitSave?: boolean;
+  autoSaveDelay?: number;
 }) {
   const [weight, setWeight] = useState(entry?.weight?.toString() ?? "");
   const [reps, setReps] = useState(entry?.reps?.toString() ?? "");
@@ -329,6 +331,13 @@ export function WeightRoomInlineSetCell({
   const isRepsOnly = (optionalLoad && !includeLoad) || station.measurementType === "BODYWEIGHT_REPS" || station.measurementType === "REPS_ONLY" || station.measurementType === "COUNT";
   const isWeightOnly = station.measurementType === "WEIGHT_ONLY";
   const isCompletion = station.measurementType === "COMPLETION" || station.targetStyle === "Completion";
+  const saveRef = useRef<() => void>(() => {});
+  useEffect(() => { saveRef.current = save; });
+  useEffect(() => {
+    if (!autoSaveDelay || disabled || (weight === (entry?.weight?.toString() ?? "") && reps === (entry?.reps?.toString() ?? "") && value === ((station.measurementType === "RPE_ONLY" ? entry?.rpe : entry?.value)?.toString() ?? ""))) return;
+    const timer = window.setTimeout(() => saveRef.current(), autoSaveDelay);
+    return () => window.clearTimeout(timer);
+  }, [autoSaveDelay, disabled, weight, reps, value, entry?.weight, entry?.reps, entry?.value, entry?.rpe, station.measurementType]);
 
   function clean(valueToClean: string) {
     return valueToClean.replace(/[^0-9.]/g, "");

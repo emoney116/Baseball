@@ -20,11 +20,11 @@
   .qr-invites-header, .qr-invites-controls, .qr-card-actions, .qr-invite-status, .qr-invite-card:not(.qr-printable) { display: none !important; }
   .qr-invite-grid { display: none !important; }
   .qr-print-sheets { display: block; }
-  .qr-print-page { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(5, 49mm); gap: 2mm; break-after: page; page-break-after: always; break-inside: avoid; }
+  .qr-print-page { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(5, 43mm); gap: 2mm; margin: 0; padding: 0; break-after: page; page-break-after: always; break-inside: avoid; }
   .qr-print-page:last-child { break-after: auto; page-break-after: auto; }
   .qr-print-ticket { box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1mm; border: .2mm dashed #999; padding: 1.5mm; min-width: 0; break-inside: avoid; page-break-inside: avoid; color: #000 !important; background: #fff !important; text-align: center; }
   .qr-print-ticket small { font-size: 7pt; line-height: 1.1; }
   .qr-print-ticket h2 { font-size: 9pt; line-height: 1.1; margin: 0; overflow-wrap: anywhere; }
-  .qr-print-ticket svg { display: block; width: 28mm; height: 28mm; flex: 0 0 28mm; }
+  .qr-print-ticket svg { display: block; width: 25mm; height: 25mm; flex: 0 0 25mm; }
   .qr-print-ticket p { font-size: 7pt; line-height: 1; margin: 0; }
 }

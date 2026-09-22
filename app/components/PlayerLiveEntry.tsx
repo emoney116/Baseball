@@ -206,8 +206,9 @@ export function PlayerLiveEntry({
                 {active.domain === "workout" ? "Weight Room" : active.station} · {state.context.teamName} ·{" "}
                 {state.context.seasonName}
               </p>
+              {active.domain === "workout" && <PlayerWorkoutWeighIn key={`${membershipId}:${active.id}`} membershipId={membershipId} workoutId={active.id} value={state.weighIns?.[active.id]} disabled={!state.capabilities[liveCapability("workout")]} onSaved={refresh} />}
               {state.capabilities[liveCapability(active.domain)] ? (
-                active.domain === "workout" ? sessions.filter(s => s.domain === "workout" && s.id === active.id).map(s => <section className="player-workout-exercise-row" key={s.exercise!.id} aria-label={s.exercise!.name}>
+                active.domain === "workout" ? sessions.filter(s => s.domain === "workout" && s.id === active.id && s.exercise).map(s => <section className="player-workout-exercise-row" key={s.exercise!.id} aria-label={s.exercise!.name}>
                   <div><h3>{s.exercise!.name}</h3>{s.exercise!.testConditions && <small>{testConditionLabel(s.exercise!.testConditions)}</small>}</div>
                   <div className="player-workout-set-list">{Array.from({length: s.exercise!.sets}, (_, i) => <LiveEntryForm key={i + 1} fixedSetNumber={i + 1} session={s} membershipId={membershipId} entries={state.entries.filter(e => e.sessionId === s.id && e.domain === "workout")} save={save} />)}</div>
                 </section>) : <LiveEntryForm
@@ -229,6 +230,28 @@ export function PlayerLiveEntry({
       )}
     </section>
   );
+}
+
+function PlayerWorkoutWeighIn({membershipId,workoutId,value,disabled,onSaved}:{membershipId:string;workoutId:string;value?:number|null;disabled:boolean;onSaved:()=>Promise<void>}) {
+  const [draft,setDraft] = useState<string>();
+  const [message,setMessage] = useState("");
+  const [busy,setBusy] = useState(false);
+  async function saveWeight() {
+    if(disabled || busy || draft === undefined || draft.trim() === "") return;
+    const pounds = Number(draft);
+    if(!Number.isFinite(pounds) || pounds < 30 || pounds > 700) { setMessage("Enter 30-700 lb."); return; }
+    if(pounds === Number(value)) {setDraft(undefined);return;}
+    setBusy(true);
+    try {
+      await decode(await fetch("/api/player/live-entry",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({operation:"weigh-in",membershipId,sessionId:workoutId,pounds})}));
+      await onSaved(); setDraft(undefined); setMessage("Saved");
+    } catch(e) {setMessage(e instanceof Error ? e.message : "Unable to save weigh-in.");}
+    finally {setBusy(false);}
+  }
+  return <section className="player-workout-exercise-row" aria-label="Weigh-in"><h3>Weigh-in</h3><div>
+    <label>lb<input aria-label="Weigh-in pounds" inputMode="decimal" type="number" min={30} max={700} disabled={disabled||busy} value={draft ?? value ?? ""} onChange={e=>setDraft(e.target.value)} onBlur={()=>void saveWeight()} onKeyDown={e=>{if(e.key==="Enter")e.currentTarget.blur();}} /></label>
+    {message && <small role="status">{message}</small>}
+  </div></section>;
 }
 
 export function LiveEntryForm({
@@ -382,6 +405,7 @@ export function LiveEntryForm({
         {workout && session.exercise && nextSet && <div className="weight-room-individual-set-row">
           <strong>Set {nextSet}</strong>
           <WeightRoomInlineSetCell
+            autoSaveDelay={1200}
             key={`${nextSet}:${editing?.id ?? "new"}:${JSON.stringify(editing?.payload ?? {})}`}
             cell={{ playerId: "self", exercise: session.exercise.name, setNumber: nextSet }}
             entry={editing ? { ...editing.payload, id: editing.id, sessionId: session.id, playerId: "self", exercise: session.exercise.name, kind: "Lift", createdAt: editing.createdAt } as WorkoutEntry : undefined}
@@ -390,6 +414,7 @@ export function LiveEntryForm({
             onSaveCell={(_cell, draft) => {
               const required = fields.filter(f => !(f.key === "weight" && session.exercise?.testConditions?.loadLb !== undefined));
               if (required.some(f => draft[f.key as keyof typeof draft] == null)) return;
+              if(editing && required.every(f => draft[f.key as keyof typeof draft] === editing.payload[f.key])) return;
               void submit(editing ? "update" : "create", editing, { ...draft, status: "Completed" });
             }}
           />

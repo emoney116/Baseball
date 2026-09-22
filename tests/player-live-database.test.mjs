@@ -321,6 +321,24 @@ test("workout pause denies live entry", async () => {
   );
   await denied(() => write("workout"), /Session ended/);
 });
+test("live weigh-in reuses canonical session and cannot cross players or outlive workout", async () => {
+  const weigh = (actor=id(1), pounds=170) => db.query('select write_player_live_weigh_in($1,$2,$3,$4) id',[actor,id(50),id(91),pounds]);
+  await denied(()=>weigh(id(3)),/approved|context|link|access/i);
+  const first=(await weigh()).rows[0].id;
+  assert.equal((await weigh(id(1),171)).rows[0].id,first);
+  assert.equal(Number((await db.query('select body_weight from workout_sessions where id=$1',[first])).rows[0].body_weight),171);
+  await db.exec(`update weight_room_workouts set status='COMPLETED',ended_at=now() where id='${id(91)}'`);
+  await denied(()=>weigh(),/ended/i);
+});
+
+test("player timed reps reach the coach testing result projection", async () => {
+  await db.exec(`update weight_room_workout_stations set measurement_type='REPS_ONLY',unit='reps',test_conditions='{"key":"pull-ups-60","mode":"TIMED_REPS","durationSeconds":60}' where id='${id(92)}'`);
+  const entry = await write('workout', {payload:{stationId:id(92),setNumber:1,reps:12,status:'Completed'}});
+  const result = (await db.query(`select reps,test_conditions,test_attempt from workout_sets where id=$1 and test_conditions is not null`,[entry])).rows[0];
+  assert.equal(result.reps,12);
+  assert.equal(result.test_attempt,1);
+});
+
 test("team-authorized player enters without per-workout opt-in or a group", async () => {
   await db.exec(
     `update weight_room_workouts set player_entry_enabled=false where id='${id(91)}'`,
