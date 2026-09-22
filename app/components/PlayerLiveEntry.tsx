@@ -18,6 +18,7 @@ import {
   type PlayerLiveState,
 } from "../lib/playerLiveModels";
 import type { WorkoutEntry, ZonePoint } from "../types";
+import { testConditionLabel } from "../lib/workoutTesting";
 
 export type LiveSubmission = {
   membershipId: string;
@@ -109,7 +110,7 @@ export function PlayerLiveEntry({
   useEffect(() => {
     const requestGeneration = generation;
     const initial = window.setTimeout(() => void refresh(), 0),
-      timer = window.setInterval(() => void refresh(), 5000);
+      timer = window.setInterval(() => { if (document.visibilityState === 'visible') void refresh(); }, 5000);
     window.addEventListener("focus", refresh);
     return () => {
       requestGeneration.current++;
@@ -298,6 +299,8 @@ export function LiveEntryForm({
             if (draft[key] != null && draft[key] !== "")
               selectedValues[key] = draft[key];
         if (workout) {
+          if (session.exercise?.testConditions?.loadLb !== undefined)
+            selectedValues.weight = session.exercise.testConditions.loadLb;
           selectedValues.stationId = session.exercise!.id;
           selectedValues.setNumber = entry ? entry.payload.setNumber : nextSet;
         }
@@ -351,6 +354,7 @@ export function LiveEntryForm({
   }
   return (
     <div className="player-live-form">
+      {session.exercise?.testConditions && <p className="muted">{testConditionLabel(session.exercise.testConditions)}{session.exercise.testConditions.bilateral && nextSet ? ` · ${nextSet % 2 ? 'Left' : 'Right'}` : ''}</p>}
       <fieldset disabled={busy || retry}>
         {workout && (
             <ChoiceSelect
@@ -375,7 +379,7 @@ export function LiveEntryForm({
             key={`${nextSet}:${editing?.id ?? "new"}`}
             cell={{ playerId: "self", exercise: session.exercise.name, setNumber: nextSet }}
             entry={editing ? { ...editing.payload, id: editing.id, sessionId: session.id, playerId: "self", exercise: session.exercise.name, kind: "Lift", createdAt: editing.createdAt } as WorkoutEntry : undefined}
-            station={{ id: session.exercise.id, name: session.exercise.name, category: "Other", kind: "Lift", active: true, displayOrder: 0, targetStyle: "Standard", performanceDirection: "HIGHER_IS_BETTER", targetSets: session.exercise.sets, targetReps: session.exercise.reps, measurementType: session.exercise.measurement, unit: session.exercise.unit } as ActiveWorkoutStation}
+            station={{ id: session.exercise.id, name: session.exercise.name, category: "Other", kind: "Lift", active: true, displayOrder: 0, targetStyle: "Standard", performanceDirection: "HIGHER_IS_BETTER", targetSets: session.exercise.sets, targetReps: session.exercise.reps, measurementType: session.exercise.testConditions ? session.exercise.testConditions.mode === 'MAX_DURATION' ? 'TIME' : 'REPS_ONLY' : session.exercise.measurement, unit: session.exercise.testConditions?.mode === 'MAX_DURATION' ? 'sec' : session.exercise.unit } as ActiveWorkoutStation}
             disabled={busy || retry}
             explicitSave
             onSaveCell={(_cell, draft) => void submit(editing ? "update" : "create", editing, { ...draft, status: "Completed" })}
@@ -451,6 +455,7 @@ export function LiveEntryForm({
                   ? ` · ${e.payload.weight} ${session.exercise?.unit ?? "lb"}`
                   : ""}
                 {e.payload.reps != null ? ` × ${e.payload.reps}` : ""}
+                {e.payload.value != null ? ` · ${e.payload.value} ${session.exercise?.unit ?? ''}` : ""}
               </span>
               {e.editable && (
                 <button

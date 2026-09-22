@@ -154,6 +154,7 @@ export type PlayerLiveSession = {
   fields: string[];
   practiceId?: string;
   exercise?: {
+    testConditions?: import('./workoutTesting').WorkoutTestConditions;
     id: string;
     name: string;
     sets: number;

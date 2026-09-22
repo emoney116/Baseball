@@ -50,6 +50,18 @@ const input = {
   requestId: uuid(100),
   payload: { action: "Miss" },
 };
+test('live testing projection preserves conditions and does not offer append-only result edits', async () => {
+  const f=fixture(),conditions={key:'bench-45-60',mode:'FIXED_LOAD_TIMED_REPS',loadLb:45,durationSeconds:60};
+  f.tables.weight_room_workouts=[{id:uuid(200),team_id:uuid(20),season_id:uuid(30),status:'ACTIVE',started_at:'2026-01-01T00:00:00Z',ended_at:null,player_entry_enabled:true,created_by:uuid(2),title:'Test'}];
+  f.tables.weight_room_workout_group_members=[{workout_id:uuid(200),group_id:uuid(201),player_id:f.own,participant_status:'ASSIGNED'}];
+  f.tables.weight_room_workout_groups=[{id:uuid(201),workout_id:uuid(200),current_station_id:uuid(202)}];
+  f.tables.weight_room_workout_stations=[{id:uuid(202),workout_id:uuid(200),exercise_id:uuid(203),exercise_name:'Bench test',target_sets:1,measurement_type:'WEIGHT_REPS',archived_at:null,test_conditions:conditions}];
+  f.tables.workout_sets=[{id:uuid(204),active_workout_id:uuid(200),workout_station_id:uuid(202),player_id:f.own,created_by:uuid(1),entry_source:'PLAYER',reps:107,weight:45,test_conditions:conditions,created_at:'2026-01-01T00:01:00Z'}];
+  const live=await loadPlayerLiveSessions(f.db,uuid(1),uuid(50));
+  assert.deepEqual(live.sessions.find(s=>s.domain==='workout').exercise.testConditions,conditions);
+  assert.equal(live.entries.find(e=>e.id===uuid(204)).editable,false);
+  assert.equal(live.entries.find(e=>e.id===uuid(204)).payload.reps,107);
+});
 for (const mode of ["VIEW_ONLY", "TRACK_AND_VIEW", "FULL_PLAYER"])
   for (const domain of LIVE_DOMAINS)
     test(`${mode} resolves ${domain} live capability without staff elevation`, () => {

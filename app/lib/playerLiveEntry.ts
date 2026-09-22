@@ -124,7 +124,7 @@ export async function loadPlayerLiveSessions(
         db
           .from("weight_room_workout_stations")
           .select(
-            "id,workout_id,exercise_id,exercise_name,target_sets,target_reps,target_weight,target_value,measurement_type,unit,archived_at",
+            "id,workout_id,exercise_id,exercise_name,target_sets,target_reps,target_weight,target_value,measurement_type,unit,archived_at,test_conditions",
           )
           .in("id", stationIds)
           .is("archived_at", null),
@@ -179,6 +179,7 @@ export async function loadPlayerLiveSessions(
         value: s.target_value,
         measurement: s.measurement_type ?? "WEIGHT_REPS",
         unit: s.unit,
+        testConditions: s.test_conditions ?? undefined,
       },
     }));
   const entries: PlayerLiveEntry[] = [];
@@ -230,6 +231,7 @@ export async function loadPlayerLiveSessions(
         payload,
         createdAt: r.created_at,
         editable:
+          !r.test_conditions &&
           r.entry_source === "PLAYER" &&
           (domain === "workout" ? r.created_by : r.created_by_profile_id) ===
             profileId &&
