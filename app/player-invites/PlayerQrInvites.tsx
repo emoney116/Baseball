@@ -84,5 +84,15 @@ export default function PlayerQrInvites() {
         </article>;
       })}
     </div>
+    <div className="qr-print-sheets" aria-hidden="true">
+      {Array.from({ length: Math.ceil(visibleLinks.length / 15) }, (_, page) => <section className="qr-print-page" key={page}>
+        {visibleLinks.slice(page * 15, (page + 1) * 15).map(player => <article className="qr-print-ticket" key={player.membershipId}>
+          <small>{data?.teamName} · Clubhouse 9</small>
+          <h2>{player.name}</h2>
+          <QRCodeSVG value={links[player.membershipId].url} size={144} level="M" marginSize={4} />
+          <p>Scan to join Clubhouse 9</p>
+        </article>)}
+      </section>)}
+    </div>
   </main>;
 }
