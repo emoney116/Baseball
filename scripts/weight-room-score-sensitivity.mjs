@@ -1,0 +1,15 @@
+import {readFileSync,writeFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {buildClubhouseWeightRoomScore,SCORE_CANDIDATES} from '../app/lib/clubhouseWeightRoomScore.ts';
+const directory=process.argv[2];
+if(!directory)throw new Error('Provide the private evidence directory.');
+const data=JSON.parse(readFileSync(join(directory,'weight-room-app-data.json'),'utf8'));
+const program=JSON.parse(readFileSync(join(directory,'weight-room-program-readonly.json'),'utf8'));
+data.weightRoomWorkouts=program.workouts.map(w=>({id:w.id,title:w.title,teamId:w.team_id,seasonId:w.season_id,date:w.workout_date,status:w.status,createdBy:w.created_by}));
+data.weightRoomWorkoutStations=program.stations.map(s=>({id:s.id,workoutId:s.workout_id,exerciseName:s.exercise_name,targetSets:s.target_sets,targetReps:s.target_reps??undefined,targetWeight:s.target_weight??undefined,testConditions:s.test_conditions??undefined,measurementType:s.measurement_type,performanceDirection:s.performance_direction,unit:s.unit,archivedAt:s.archived_at??undefined}));
+data.weightRoomWorkoutGroupMembers=(program.members??[]).map(m=>({id:m.id,workoutId:m.workout_id,playerId:m.player_id,participantStatus:m.participant_status}));
+const results=Object.fromEntries(Object.entries(SCORE_CANDIDATES).map(([name,weights])=>[name,buildClubhouseWeightRoomScore(data,weights)]));
+writeFileSync(join(directory,'clubhouse-score-sensitivity.json'),JSON.stringify(results,null,2));
+writeFileSync(join(directory,'weight-room-score-app-data.json'),JSON.stringify(data,null,2));
+const summary=Object.fromEntries(Object.entries(results).map(([name,r])=>[name,{entries:r.eligibleEntries,programs:r.programEvidence,excluded:r.exclusions,top10:r.leaders.slice(0,10).map(p=>({name:p.player.name,score:Number(p.score.toFixed(1)),performance:Number(p.dimensions.performance.toFixed(1)),work:Number(p.dimensions.work?.toFixed(1)),progress:p.dimensions.progress??null,consistency:p.dimensions.consistency??null})),unqualified:r.rows.filter(p=>!p.qualified&&data.workoutEntries.some(e=>e.playerId===p.player.id)).map(p=>p.player.name)}]));
+console.log(JSON.stringify(summary,null,2));

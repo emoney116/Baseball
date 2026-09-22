@@ -4,6 +4,7 @@ import { AppLoading, BusyIndicator } from "./components/AppLoading";
 import { createClient as createAuthClient } from "./lib/supabase/client";
 import { PracticeRecap } from "./components/PracticeRecap";
 import {WeightRoomLeaders} from './components/WeightRoomLeaders';
+import {WeightRoomLeaderCard,ClubhouseScoreDetails} from './components/WeightRoomLeaderCard';
 import {projectPracticeDefense} from './lib/practiceDefense';
 import { WorkoutTestingConsole } from "./components/WorkoutTestingConsole";
 import { BASELINE_TESTING_CIRCUIT } from "./lib/workoutTesting";
@@ -6574,7 +6575,7 @@ function HomeDashboard({
 
       <section className="home-secondary-grid">
         <AwardCard title="Player of the Week" award={weeklyMvp} onOpenPlayer={onOpenPlayer} icon={Trophy} />
-        <WeightRoomLeaders data={data} onPlayer={onOpenPlayer}/>
+        <WeightRoomLeaderCard data={data} onPlayer={onOpenPlayer} onView={()=>onView('weights')}/>
         <UpcomingScheduleCard items={nextItems} onView={onView} />
         <RecentGamesCard games={recentGames} onView={onView} />
       </section>
@@ -12302,7 +12303,7 @@ function WeightRoomView({
       )}
 
       {tab === "Leaderboard" && (
-        <><WeightRoomLeaders data={data} onPlayer={onPlayer}/><details><summary>Development score detail</summary><WeightRoomLeaderboardPanel players={players} sessions={data.workoutSessions} entries={data.workoutEntries} onPlayer={onPlayer} onTab={onTab} /></details></>
+        <><ClubhouseScoreDetails data={data} onPlayer={onPlayer}/><WeightRoomLeaders data={data} onPlayer={onPlayer}/><details><summary>Legacy development model</summary><WeightRoomLeaderboardPanel players={players} sessions={data.workoutSessions} entries={data.workoutEntries} onPlayer={onPlayer} onTab={onTab} /></details></>
       )}
 
       {weighInOpen && (
