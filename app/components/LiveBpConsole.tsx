@@ -53,7 +53,6 @@ import { LiveBpFieldRunners } from "./LiveBpFieldRunners";
 import type { BpRunnerMove } from "../lib/liveBpRunnerMove";
 import styles from "./LiveBpConsole.module.css";
 import { VoiceEntry } from "./VoiceEntry";
-import {VoiceV2Qa} from './VoiceV2Qa';
 import { voiceRosterAliases } from '../lib/voiceVocabulary';
 import { practiceActionQueue, rebasePracticeEdit } from '../lib/practiceActionQueue';
 import { formatBpRecent, type BpRecentEvidence } from "../lib/liveBpRecent";
@@ -993,7 +992,6 @@ export function LiveBpConsole({
                 <span className={styles.toolLabel}>Stats</span>
               </button>
             </div>
-            {localVisual&&<VoiceV2Qa context={{domain:'live-bp',settings,state,playerId:settings.hitterId,roster:players.map(p=>({id:p.id,aliases:voiceRosterAliases(p,players)}))}} onChange={(next,provisional,label)=>{setSettings({...next.settings});setState({...next.state});setDraft(provisional??{outcome:''});if(label)setLastPitch(label);}}/>}
             {voiceEntry}
             {bip ? (
               flow(
