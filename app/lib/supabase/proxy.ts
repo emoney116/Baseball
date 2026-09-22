@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "./admin";
 import { hasStaffAccess } from "../playerAccess";
+import { PENDING_PLAYER_INVITE_COOKIE, pendingPlayerInvitePath } from "../pendingPlayerInvite";
 
 export async function updateSession(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -32,6 +33,12 @@ export async function updateSession(request: NextRequest) {
 
   await supabase.auth.getClaims();
   const path = request.nextUrl.pathname;
+  const pendingInvite = pendingPlayerInvitePath(request.cookies.get(PENDING_PLAYER_INVITE_COOKIE)?.value);
+  if (path === "/" && pendingInvite) {
+    const redirect = NextResponse.redirect(new URL(pendingInvite, request.url));
+    response.cookies.getAll().forEach(cookie => redirect.cookies.set(cookie));
+    return redirect;
+  }
   const protectedStaffApi =
     /^\/api\/(organizations|teams|roster|internal)(\/|$)/.test(path) ||
     (/^\/api\/staff\//.test(path) &&

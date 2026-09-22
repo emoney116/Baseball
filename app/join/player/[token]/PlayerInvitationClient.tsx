@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { AuthenticationForm } from "../../../components/AuthenticationForm";
 import { BusyIndicator } from "../../../components/AppLoading";
 import { createClient } from "../../../lib/supabase/client";
@@ -55,6 +54,14 @@ export default function PlayerInvitationClient({ token }: { token: string }) {
       unsubscribe?.();
     };
   }, []);
+  async function leaveInvitation() {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/player-invitations/preview", { method: "DELETE" });
+      if (!response.ok) throw new Error("Unable to leave invitation. Please try again.");
+      window.location.assign("/");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to leave invitation."); setBusy(false); }
+  }
   async function accept() {
     setBusy(true);
     setMessage("");
@@ -91,7 +98,7 @@ export default function PlayerInvitationClient({ token }: { token: string }) {
       />
       <h1>{invite?.teamName ?? "Your Player Invitation"}</h1>
       {invite && <><p>You&apos;ve been invited to join Clubhouse 9.</p><p>Joining as <strong>{invite.playerName}</strong>{invite.jersey != null ? ` #${invite.jersey}` : ""}</p></>}
-      {unavailable ? <><p role="status">{unavailable}</p><Link className="secondary-button" href="/">Open Clubhouse / Log In</Link></> : !invite ? <BusyIndicator /> : account ? (
+      {unavailable ? <><p role="status">{unavailable}</p><button disabled={busy} className="secondary-button" onClick={() => void leaveInvitation()}>Open Clubhouse / Log In</button></> : !invite ? <BusyIndicator /> : account ? (
         <>
           <p>Signed in as {account}</p>
           <button
@@ -116,7 +123,7 @@ export default function PlayerInvitationClient({ token }: { token: string }) {
           setAccount(data.user?.email ?? null);
         }} />
       )}
-      {invite && !unavailable && <Link className="ghost-button" href="/">This isn&apos;t me</Link>}
+      {invite && !unavailable && <button disabled={busy} className="ghost-button" onClick={() => void leaveInvitation()}>This isn&apos;t me</button>}
       {message && <p role="status">{message}</p>}
     </main>
   );

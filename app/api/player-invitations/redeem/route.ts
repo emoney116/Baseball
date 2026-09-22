@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "../../../lib/supabase/server";
 import { createAdminClient } from "../../../lib/supabase/admin";
 import { hashInviteToken } from "../../../lib/invitations";
+import { PENDING_PLAYER_INVITE_COOKIE } from "../../../lib/pendingPlayerInvite";
 import {
   ensurePlayerLinkProfile,
   PlayerLinkError,
@@ -53,10 +54,12 @@ export async function POST(request: NextRequest) {
           seasonId: invitation.season_id,
         }
       : undefined;
-    return NextResponse.json(
+    const response = NextResponse.json(
       { ok: true, context },
       { headers: { "Cache-Control": "no-store" } },
     );
+    response.cookies.delete(PENDING_PLAYER_INVITE_COOKIE);
+    return response;
   } catch (error) {
     return NextResponse.json(
       {

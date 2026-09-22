@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "../../../lib/supabase/admin";
 import { hashInviteToken } from "../../../lib/invitations";
 import { assertPlayerLinkTeamManager } from "../../../lib/playerAccountLinks";
+import { PENDING_PLAYER_INVITE_COOKIE } from "../../../lib/pendingPlayerInvite";
 
 export const runtime = "nodejs";
 const headers = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" };
@@ -28,9 +29,16 @@ export async function POST(request: NextRequest) {
     const { data: team } = await db.from("teams").select("name").eq("id", invite.team_id).eq("active", true).maybeSingle();
     const { data: season } = await db.from("seasons").select("id").eq("id", invite.season_id).eq("team_id", invite.team_id).eq("active", true).maybeSingle();
     if (!membership || !player || !team || !season) throw new Error("inactive");
-    return NextResponse.json({ teamName: team.name, playerName: `${player.first_name} ${player.last_name}`,
+    const response = NextResponse.json({ teamName: team.name, playerName: `${player.first_name} ${player.last_name}`,
       jersey: membership.jersey_number }, { headers });
+    response.cookies.set(PENDING_PLAYER_INVITE_COOKIE, token, { httpOnly: true, sameSite: "lax", secure: request.nextUrl.protocol === "https:", path: "/", maxAge: Math.max(0, Math.floor((new Date(invite.expires_at).getTime() - Date.now()) / 1000)) });
+    return response;
   } catch {
     return NextResponse.json({ message: "This invitation is unavailable. Ask your coach for help." }, { status: 503, headers });
   }
+}
+export async function DELETE() {
+  const response = NextResponse.json({ ok: true }, { headers });
+  response.cookies.delete(PENDING_PLAYER_INVITE_COOKIE);
+  return response;
 }
