@@ -321,11 +321,12 @@ test("workout pause denies live entry", async () => {
   );
   await denied(() => write("workout"), /Session ended/);
 });
-test("workout disabled entry denies writes", async () => {
+test("team-authorized player enters without per-workout opt-in or a group", async () => {
   await db.exec(
     `update weight_room_workouts set player_entry_enabled=false where id='${id(91)}'`,
   );
-  await denied(() => write("workout"), /Session ended/);
+  await db.exec(`delete from weight_room_workout_group_members where workout_id='${id(91)}'`);
+  assert.ok(await write("workout"));
 });
 test("workout unassigned participant denied", async () => {
   await db.exec(
@@ -436,7 +437,7 @@ for (const domain of Object.keys(sessions))
     await denied(() => configure(id(1), id(20), true), /authority/);
     await denied(() => configure(id(2), id(21), true), /authority/);
     await configure(id(2), id(20), false);
-    await denied(() => write(domain), /read-only|unavailable/);
+    if (domain !== "workout") await denied(() => write(domain), /read-only|unavailable/);
     await configure(id(2), id(20), true);
     if (domain !== "workout")
       await db.query("select configure_player_live_entry($1,$2,$3,$4,$5,$6)", [
@@ -547,13 +548,7 @@ test("workout cannot change current assignment or overwrite coach-owned set", as
   await db.exec(
     `update weight_room_workout_groups set current_station_id=null where id='${id(93)}'`,
   );
-  await denied(
-    () =>
-      write("workout", {
-        payload: { ...defaultPayload.workout, setNumber: 2 },
-      }),
-    /Current assigned/,
-  );
+  assert.ok(await write("workout", { payload: { ...defaultPayload.workout, setNumber: 2 } }));
 });
 test("same player day in another team is never overwritten or attached", async () => {
   await db.exec(

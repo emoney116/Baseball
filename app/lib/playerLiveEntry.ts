@@ -65,8 +65,7 @@ export async function loadPlayerLiveSessions(
         .eq("season_id", team.seasonId!)
         .eq("status", "ACTIVE")
         .is("ended_at", null)
-        .lte("started_at", now)
-        .eq("player_entry_enabled", true),
+        .lte("started_at", now),
     ),
   ]);
   const practiceIds = practices.map((p) => p.id),
@@ -103,30 +102,19 @@ export async function loadPlayerLiveSessions(
             .select("workout_id,group_id,participant_status")
             .in("workout_id", workoutIds)
             .eq("player_id", playerId)
-            .in("participant_status", ["ASSIGNED", "MODIFIED"]),
+            .in("participant_status", ["NOT_PARTICIPATING", "SKIPPED"]),
         )
       : [],
   ]);
-  const groups = members.length
-    ? await rows(
-        db
-          .from("weight_room_workout_groups")
-          .select("id,workout_id,current_station_id")
-          .in(
-            "id",
-            members.map((m) => m.group_id),
-          ),
-      )
-    : [];
-  const stationIds = groups.map((g) => g.current_station_id).filter(Boolean);
-  const stations = stationIds.length
+  const stations = workoutIds.length
     ? await rows(
         db
           .from("weight_room_workout_stations")
           .select(
             "id,workout_id,exercise_id,exercise_name,target_sets,target_reps,target_weight,target_value,measurement_type,unit,archived_at,test_conditions",
           )
-          .in("id", stationIds)
+          .in("workout_id", workoutIds)
+          .order("display_order")
           .is("archived_at", null),
       )
     : [];
@@ -158,10 +146,7 @@ export async function loadPlayerLiveSessions(
   const workoutLive = stations
     .filter(
       (s) =>
-        s.exercise_id &&
-        groups.some(
-          (g) => g.current_station_id === s.id && g.workout_id === s.workout_id,
-        ),
+        s.exercise_id && !members.some(m => m.workout_id === s.workout_id),
     )
     .map((s) => ({
       id: s.workout_id,

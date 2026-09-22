@@ -13176,7 +13176,6 @@ function WeightRoomActiveWorkout({
       />
 
       <div className="weight-room-active-nav-row">
-        {activeWorkout && workoutStatus === "In Progress" && team && <CoachLiveEntrySettings key={activeWorkout.id} teamId={team.teamId} sessionId={activeWorkout.id} domain="workout" preview={isLocalDevAuthBypass()} />}
         <div className="weight-room-active-tabs" role="tablist" aria-label="Active workout sections">
           {(["Weigh-Ins", "Workout"] as ActiveWorkoutTab[]).map((item) => (
             <button key={item} type="button" className={activeTab === item ? "active" : ""} onClick={() => setActiveTab(item)}>{item}</button>

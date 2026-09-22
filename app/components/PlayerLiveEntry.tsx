@@ -145,7 +145,7 @@ export function PlayerLiveEntry({
   }
   if (onEnter) return <section className="player-home-live" aria-label="Live training">
     {error && <p role="alert">{error}</p>}
-    {!error && sessions.map(session => <div className="player-home-live-row" key={`${session.id}:${session.domain}:${session.exercise?.id ?? ""}`}>
+    {!error && sessions.filter((s, i) => sessions.findIndex(other => other.id === s.id && other.domain === s.domain) === i).map(session => <div className="player-home-live-row" key={`${session.id}:${session.domain}:${session.exercise?.id ?? ""}`}>
       <span className="player-live-badge"><Radio size={14} />Live Now</span>
       <div><strong>{session.title}</strong><small>{session.station}{session.exercise ? ` · ${session.exercise.name}` : ""}</small></div>
       <button className="primary-button" onClick={() => onEnter(session)}>{state?.capabilities[liveCapability(session.domain)] ? session.domain === "workout" ? "Continue Workout" : "Enter Practice" : "View Session"}</button>
@@ -190,7 +190,7 @@ export function PlayerLiveEntry({
                 </span>
                 <span>{state.context.name}</span>
               </div>
-              {sessions.length > 1 && (
+              {sessions.length > 1 && active.domain !== "workout" && (
                 <div className="player-live-select">
                   <ChoiceSelect
                     label="Your Station"
@@ -207,7 +207,11 @@ export function PlayerLiveEntry({
                 {state.context.seasonName}
               </p>
               {state.capabilities[liveCapability(active.domain)] ? (
-                <LiveEntryForm
+                active.domain === "workout" ? sessions.filter(s => s.domain === "workout" && s.id === active.id).map(s => <section key={s.exercise!.id} aria-label={s.exercise!.name}>
+                  <h3>{s.exercise!.name}</h3>
+                  <p>{s.exercise!.sets} sets{s.exercise!.reps ? ` × ${s.exercise!.reps} reps` : ""}</p>
+                  <LiveEntryForm session={s} membershipId={membershipId} entries={state.entries.filter(e => e.sessionId === s.id && e.domain === "workout")} save={save} />
+                </section>) : <LiveEntryForm
                   key={`${membershipId}:${active.id}:${active.domain}:${active.exercise?.id ?? ""}`}
                   session={active}
                   membershipId={membershipId}
@@ -381,8 +385,11 @@ export function LiveEntryForm({
             entry={editing ? { ...editing.payload, id: editing.id, sessionId: session.id, playerId: "self", exercise: session.exercise.name, kind: "Lift", createdAt: editing.createdAt } as WorkoutEntry : undefined}
             station={{ id: session.exercise.id, name: session.exercise.name, category: "Other", kind: "Lift", active: true, displayOrder: 0, targetStyle: "Standard", performanceDirection: "HIGHER_IS_BETTER", targetSets: session.exercise.sets, targetReps: session.exercise.reps, measurementType: session.exercise.testConditions ? session.exercise.testConditions.mode === 'MAX_DURATION' ? 'TIME' : 'REPS_ONLY' : session.exercise.measurement, unit: session.exercise.testConditions?.mode === 'MAX_DURATION' ? 'sec' : session.exercise.unit } as ActiveWorkoutStation}
             disabled={busy || retry}
-            explicitSave
-            onSaveCell={(_cell, draft) => void submit(editing ? "update" : "create", editing, { ...draft, status: "Completed" })}
+            onSaveCell={(_cell, draft) => {
+              const required = fields.filter(f => !(f.key === "weight" && session.exercise?.testConditions?.loadLb !== undefined));
+              if (required.some(f => draft[f.key as keyof typeof draft] == null)) return;
+              void submit(editing ? "update" : "create", editing, { ...draft, status: "Completed" });
+            }}
           />
         </div>}
         {!workout && <div className="player-live-fields">
