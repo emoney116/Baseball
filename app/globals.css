@@ -22282,8 +22282,6 @@ body,
   html:has(.game-workstation-page),
   body:has(.game-workstation-page),
   .ops-shell:has(.game-workstation-page) { overflow-x: clip; }
-  .ops-shell:has(.game-workstation-page) .ops-main { padding-bottom: 12px; }
-  .ops-shell:has(.game-workstation-page) .bottom-nav { bottom: auto; left: auto; margin: 2px auto calc(10px + env(safe-area-inset-bottom)); position: relative; right: auto; transform: none; }
   .game-workstation-page { padding-bottom: 0; }
   .game-workstation-page .section-header { align-items: center; }
   .game-workstation-page .games-list button { flex-basis: 184px; }

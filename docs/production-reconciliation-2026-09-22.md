@@ -44,3 +44,12 @@ Candidate production build and 1,981 tests pass. The 2,002 baseline decreased so
 Exact-SHA Preview, authenticated hosted regressions, real-Practice read-only reconciliation, data-preservation check, final main re-fetch, then production exact-SHA and smoke verification. This document does not claim those gates passed before execution.
 
 Fresh-account email delivery/verification remains an owner-device acceptance item, not a reported pass. No real Fall Ball QR invitations may be generated during promotion. Existing accounts, QA history and real Practice/workout/game history must remain intact.
+
+## Final Gate Resolution
+
+- Normal coach UI created a Varsity workout assigned only to existing fake player #99. Earlier shell setup rejection was external execution policy, not an application denial.
+- Hosted testing found a genuine duplicate-scope bug: the live-entry function rejected a first set in a second same-day workout because the exercise/set already existed in the daily session. Migration `player_live_workout_duplicate_scope` changes only that predicate to `active_workout_id=w.id`; all access, session-end, provenance, idempotency and per-workout duplicate checks remain. Applied through Supabase migration tooling after 88 database/security tests and live-function preflight. No historical rows rewritten.
+- Player UI saved 185x5; coach screen reconciled without reload to 1/3 and 925 lb-reps. Coach corrected the same record to 190x5. Authorized player readback confirmed exactly one record; cross-player read/write and settings attacks denied. Coach completed workout; stale player write returned HTTP 409 (session ended). Temporary fake-only access restored to Team Default.
+- Existing active isolated QA Practice accepted GB1B, SS-to-1B, known-position error and changed1B. Four canonical snapshots project five defensive participants with correct identities. Ended only the new QA round; no historical Practice repair.
+- Games screenshot revealed an old mobile CSS override placing shared bottom navigation in normal grid flow, allowing excessive height; removed it. Empty GameLibrary now explains no games recorded this season.
+- Final full validation: 1,984 tests PASS, including two Games regressions and one real same-day workout regression; build and TypeScript PASS; lint remains 0 errors/23 warnings. No Voice V2 restored.

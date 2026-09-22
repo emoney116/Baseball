@@ -70,6 +70,7 @@ export function GameLibrary({ games, selectedGameId, onGame }: {
   games: Game[]; selectedGameId?: ID; onGame: (id: ID) => void;
 }) {
   return <aside className="panel games-list">
+    {games.length === 0 && <p>No games recorded this season.</p>}
     {games.map(item => <button key={item.id} type="button" className={item.id === selectedGameId ? "active" : ""} onClick={() => onGame(item.id)}>
       <span>{shortDate(item.date)}</span>
       <strong>{matchupPrefix(item.homeAway).replace(".", "")} {item.opponent}</strong>

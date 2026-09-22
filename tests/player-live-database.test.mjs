@@ -101,6 +101,29 @@ async function denied(fn, pattern) {
   await assert.rejects(fn, pattern);
   await db.exec("rollback to savepoint attack");
 }
+test('same-day workouts keep distinct set slots without allowing duplicates within either workout', async () => {
+  const first = await write('workout');
+  await db.exec(`
+    update weight_room_workouts set status='COMPLETED',ended_at=now() where id='${id(91)}';
+    insert into weight_room_workouts(id,organization_id,team_id,season_id,title,workout_date,status,started_at,created_by,player_entry_enabled)
+      values('${id(191)}','${id(10)}','${id(20)}','${id(30)}','Second QA workout',current_date,'ACTIVE',now(),'${id(2)}',true);
+    insert into weight_room_workout_stations(id,workout_id,exercise_id,exercise_name,display_order,target_sets,target_reps,measurement_type,unit)
+      values('${id(192)}','${id(191)}','${id(90)}','Bench Press',0,3,5,'WEIGHT_REPS','lb');
+    insert into weight_room_workout_groups(id,workout_id,name,display_order,current_station_id)
+      values('${id(193)}','${id(191)}','Group 1',0,'${id(192)}');
+    insert into weight_room_workout_group_members(workout_id,group_id,player_id)
+      values('${id(191)}','${id(193)}','${id(40)}');
+  `);
+  const options={session:id(191),payload:{...defaultPayload.workout,stationId:id(192)}};
+  const second=await write('workout',options);
+  assert.notEqual(first,second);
+  await denied(()=>write('workout',options),/already recorded/);
+  await denied(()=>write('workout'),/ended|disabled/i);
+  const rows=(await db.query('select active_workout_id,weight,reps from workout_sets order by active_workout_id')).rows;
+  assert.equal(rows.length,2);
+  assert.equal(new Set(rows.map(r=>r.active_workout_id)).size,2);
+  assert.ok(rows.every(r=>Number(r.weight)===185&&r.reps===5));
+});
 for (const domain of Object.keys(sessions)) {
   test(`${domain}: Track & View creates own canonical row with durable provenance`, async () => {
     const entry = await write(domain);
