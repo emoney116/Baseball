@@ -111,7 +111,7 @@ export async function loadPlayerLiveSessions(
         db
           .from("weight_room_workout_stations")
           .select(
-            "id,workout_id,exercise_id,exercise_name,target_sets,target_reps,target_weight,target_value,measurement_type,unit,archived_at,test_conditions",
+            "id,workout_id,exercise_id,exercise_name,target_sets,target_reps,target_weight,target_value,measurement_type,unit,archived_at,test_conditions,notes",
           )
           .in("workout_id", workoutIds)
           .order("display_order")
@@ -161,6 +161,7 @@ export async function loadPlayerLiveSessions(
         sets: s.target_sets ?? 1,
         reps: s.target_reps,
         weight: s.target_weight,
+        notes: s.notes ?? undefined,
         value: s.target_value,
         measurement: s.measurement_type ?? "WEIGHT_REPS",
         unit: s.unit,

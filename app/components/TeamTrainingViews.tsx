@@ -50,6 +50,7 @@ export type WeightRoomExercise = {
 };
 
 export type ActiveWorkoutStation = WeightRoomExercise & {
+  targetWeight?: number;
   testConditions?: import("../lib/workoutTesting").WorkoutTestConditions;
   id: ID;
   displayOrder: number;
@@ -322,7 +323,7 @@ export function WeightRoomInlineSetCell({
   explicitSave?: boolean;
   autoSaveDelay?: number;
 }) {
-  const [weight, setWeight] = useState(entry?.weight?.toString() ?? "");
+  const [weight, setWeight] = useState(entry?.weight?.toString() ?? station.targetWeight?.toString() ?? "");
   const [reps, setReps] = useState(entry?.reps?.toString() ?? "");
   const [value, setValue] = useState((station.measurementType === "RPE_ONLY" ? entry?.rpe : entry?.value)?.toString() ?? "");
   const optionalLoad = station.targetStyle === "Max Reps" && station.testConditions?.loadLb === undefined && station.targetValue === undefined;
@@ -387,7 +388,7 @@ export function WeightRoomInlineSetCell({
         <div className="weight-room-inline-set-fields two">
           <label>
             <span>lbs</span>
-            <input disabled={disabled} inputMode="decimal" value={weight} placeholder={previousEntry?.weight?.toString() ?? "Weight"} onBlur={explicitSave ? undefined : save} onKeyDown={handleKey} onChange={(event) => setWeight(clean(event.target.value))} />
+            <input disabled={disabled} readOnly={station.targetWeight !== undefined} inputMode="decimal" value={weight} placeholder={previousEntry?.weight?.toString() ?? "Weight"} onBlur={explicitSave ? undefined : save} onKeyDown={handleKey} onChange={(event) => setWeight(clean(event.target.value))} />
           </label>
           <label>
             <span>reps</span>

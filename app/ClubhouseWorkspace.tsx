@@ -3431,6 +3431,7 @@ export default function MetrolinaBaseballApp() {
           displayOrder: index + 1,
           targetSets: station.targetSets,
           targetReps: station.targetReps,
+          targetWeight: station.targetWeight,
           targetValue: station.targetValue,
           targetStyle: station.targetStyle,
           measurementType: station.measurementType,
@@ -15040,6 +15041,7 @@ function activeStationFromPersistedStation(station: PersistedWeightRoomWorkoutSt
     displayOrder: station.displayOrder,
     targetSets: station.targetSets,
     targetReps: station.targetReps,
+    targetWeight: station.targetWeight,
     targetValue: station.targetValue,
     targetStyle,
     measurementType,
@@ -15878,7 +15880,7 @@ function WeightRoomExerciseLibraryCard({
 
   function updatePresetStation(
     stationId: ID,
-    patch: Partial<Pick<ActiveWorkoutStation, "targetSets" | "targetReps" | "targetValue" | "targetStyle" | "measurementType" | "performanceDirection" | "notes">>,
+    patch: Partial<Pick<ActiveWorkoutStation, "targetSets" | "targetReps" | "targetWeight" | "targetValue" | "targetStyle" | "measurementType" | "performanceDirection" | "notes" | "unit">>,
   ) {
     setPresetStations((current) => normalizeActiveStations(current.map((station) => (station.id === stationId ? { ...station, ...patch } : station))));
   }
@@ -16164,6 +16166,9 @@ function WeightRoomExerciseLibraryCard({
                           <small>{station.category}</small>
                         </span>
                         <WorkoutStationTargetControls station={station} onUpdate={(patch) => updatePresetStation(station.id, patch)} />
+                        <ChoiceSelect aria-label={`${station.name} entry type`} value={station.measurementType} options={(["COMPLETION", "REPS_ONLY", "WEIGHT_ONLY", "WEIGHT_REPS", "TIME"] as const).map(type => ({value:type,label:type.replaceAll("_", " ")}))} onChange={value => updatePresetStation(station.id, { measurementType: value as WorkoutMeasurementType, unit: weightRoomUnitForType(value as WorkoutMeasurementType), targetStyle: value === "COMPLETION" ? "Completion" : "Standard", targetWeight: undefined, targetReps: undefined })} />
+                        {station.measurementType === "WEIGHT_REPS" && <label>Prescribed load (lb)<input aria-label={`${station.name} prescribed load`} inputMode="decimal" value={station.targetWeight ?? ""} onChange={event => updatePresetStation(station.id, {targetWeight: optionalNumber(event.target.value)})} /></label>}
+                        <label>Instructions<input aria-label={`${station.name} instructions`} value={station.notes ?? ""} onChange={event => updatePresetStation(station.id, {notes: event.target.value})} /></label>
                       </div>
                     ))}
                   </div>
@@ -20872,6 +20877,7 @@ function applyWeightRoomSetupToData(data: AppData, payload: WeightRoomSetupPaylo
       displayOrder: index + 1,
       targetSets: station.targetSets,
       targetReps: station.targetReps,
+      targetWeight: station.targetWeight,
       targetValue: station.targetValue,
       targetStyle: station.targetStyle,
       measurementType: station.measurementType,
@@ -20936,6 +20942,7 @@ function applyWeightRoomSetupToData(data: AppData, payload: WeightRoomSetupPaylo
         displayOrder: index + 1,
         targetSets: station.targetSets,
         targetReps: station.targetReps,
+        targetWeight: station.targetWeight,
         targetValue: station.targetValue,
         targetStyle: station.targetStyle,
         measurementType: station.measurementType,

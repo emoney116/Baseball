@@ -209,7 +209,7 @@ export function PlayerLiveEntry({
               {active.domain === "workout" && <PlayerWorkoutWeighIn key={`${membershipId}:${active.id}`} membershipId={membershipId} workoutId={active.id} value={state.weighIns?.[active.id]} disabled={!state.capabilities[liveCapability("workout")]} onSaved={refresh} />}
               {state.capabilities[liveCapability(active.domain)] ? (
                 active.domain === "workout" ? sessions.filter(s => s.domain === "workout" && s.id === active.id && s.exercise).map(s => <section className="player-workout-exercise-row" key={s.exercise!.id} aria-label={s.exercise!.name}>
-                  <div><h3>{s.exercise!.name}</h3>{s.exercise!.testConditions && <small>{testConditionLabel(s.exercise!.testConditions)}</small>}</div>
+                  <div><h3>{s.exercise!.name}</h3>{s.exercise!.testConditions && <small>{testConditionLabel(s.exercise!.testConditions)}</small>}{s.exercise!.notes && <small>{s.exercise!.notes}</small>}</div>
                   <div className="player-workout-set-list">{Array.from({length: s.exercise!.sets}, (_, i) => <LiveEntryForm key={i + 1} fixedSetNumber={i + 1} session={s} membershipId={membershipId} entries={state.entries.filter(e => e.sessionId === s.id && e.domain === "workout")} save={save} />)}</div>
                 </section>) : <LiveEntryForm
                   key={`${membershipId}:${active.id}:${active.domain}:${active.exercise?.id ?? ""}`}
@@ -416,7 +416,7 @@ export function LiveEntryForm({
             key={`${nextSet}:${editing?.id ?? "new"}:${JSON.stringify(editing?.payload ?? {})}`}
             cell={{ playerId: "self", exercise: session.exercise.name, setNumber: nextSet }}
             entry={editing ? { ...editing.payload, id: editing.id, sessionId: session.id, playerId: "self", exercise: session.exercise.name, kind: "Lift", createdAt: editing.createdAt } as WorkoutEntry : undefined}
-            station={{ id: session.exercise.id, name: session.exercise.name, category: "Other", kind: "Lift", active: true, displayOrder: 0, targetStyle: "Standard", performanceDirection: "HIGHER_IS_BETTER", targetSets: session.exercise.sets, targetReps: session.exercise.reps, measurementType: session.exercise.testConditions ? session.exercise.testConditions.mode === 'MAX_DURATION' ? 'TIME' : 'REPS_ONLY' : session.exercise.measurement, unit: session.exercise.testConditions?.mode === 'MAX_DURATION' ? 'sec' : session.exercise.unit } as ActiveWorkoutStation}
+            station={{ id: session.exercise.id, name: session.exercise.name, category: "Other", kind: "Lift", active: true, displayOrder: 0, targetStyle: "Standard", performanceDirection: "HIGHER_IS_BETTER", targetSets: session.exercise.sets, targetReps: session.exercise.reps, targetWeight: session.exercise.weight, measurementType: session.exercise.testConditions ? session.exercise.testConditions.mode === 'MAX_DURATION' ? 'TIME' : 'REPS_ONLY' : session.exercise.measurement, unit: session.exercise.testConditions?.mode === 'MAX_DURATION' ? 'sec' : session.exercise.unit } as ActiveWorkoutStation}
             disabled={busy || retry || (!!editing && !editing.editable)}
             onSaveCell={(_cell, draft) => {
               const required = fields.filter(f => !(f.key === "weight" && session.exercise?.testConditions?.loadLb !== undefined));

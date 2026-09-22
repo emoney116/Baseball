@@ -160,6 +160,7 @@ export type PlayerLiveSession = {
     sets: number;
     reps?: number;
     weight?: number;
+    notes?: string;
     value?: number;
     measurement: string;
     unit?: string;
