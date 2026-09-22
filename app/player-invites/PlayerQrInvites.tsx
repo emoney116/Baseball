@@ -13,14 +13,18 @@ export default function PlayerQrInvites() {
   const [busy, setBusy] = useState(false), [message, setMessage] = useState("");
   const roster = [...(data?.roster ?? [])].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   const latest = (membershipId: string) => data?.invitations.find(i => i.membership_id === membershipId && i.delivery_mode === "QR");
-  const missing = roster.filter(p => !p.linked && !latest(p.membershipId));
-  async function update(body: object, membershipId?: string) {
+  const visibleLinks = roster.filter(p => !p.linked && links[p.membershipId]?.id === latest(p.membershipId)?.id && latest(p.membershipId)?.status === "PENDING" && new Date(latest(p.membershipId)!.expires_at) > new Date());
+  const missing = roster.filter(p => !p.linked && latest(p.membershipId)?.status !== "ACCEPTED" && !visibleLinks.some(visible => visible.membershipId === p.membershipId));
+  const regenerating = missing.some(p => latest(p.membershipId)?.status === "PENDING");
+  async function update(body: object, membershipId?: string, remaining: { body: object; membershipId: string }[] = []) {
     setBusy(true); setMessage("");
     try {
-      const response = await fetch("/api/player-invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teamId, seasonId, ...body }) });
+      const messages: string[] = [];
+      for (const job of [{ body, membershipId }, ...remaining]) {
+      const response = await fetch("/api/player-invitations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ teamId, seasonId, ...job.body }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.message ?? "Unable to update invitations.");
-      const results = result.results ?? [{ ...result, membershipId }];
+      const results = result.results ?? [{ ...result, membershipId: job.membershipId }];
       setLinks(previous => {
         const next = { ...previous };
         for (const item of results) {
@@ -29,24 +33,30 @@ export default function PlayerQrInvites() {
         }
         return next;
       });
-      setMessage(results.map((r: { message?: string }) => r.message).filter(Boolean).join(" ") || "Invitations updated. No emails were sent.");
+      messages.push(...results.map((r: { message?: string }) => r.message).filter(Boolean));
+      }
+      setMessage(messages.join(" ") || "Invitations updated. No emails were sent.");
       await reload();
     } catch (e) { setMessage(e instanceof Error ? e.message : "Unable to update invitations."); }
     finally { setBusy(false); }
   }
-  const visibleLinks = roster.filter(p => !p.linked && links[p.membershipId] && latest(p.membershipId)?.status === "PENDING" && new Date(latest(p.membershipId)!.expires_at) > new Date());
   return <main className="qr-invites">
     <header className="qr-invites-header">
       <a className="icon-button" aria-label="Back to roster" href={`/?view=roster&team=${encodeURIComponent(teamId)}&season=${encodeURIComponent(seasonId)}`}><ChevronLeft size={20} /></a>
       <div><h1>Player Invites</h1><p>{data?.teamName}</p></div>
     </header>
     <div className="qr-invites-controls">
-      <p>Each QR is a private, single-use credential. Give it only to the named player. Invites expire after 7 days. Print before leaving; regenerating invalidates the old QR.</p>
       <div className="section-actions">
         <button className="primary-button" disabled={busy || !missing.length} onClick={() => {
-          if (window.confirm(`Generate ${missing.length} individual invitations for ${data?.teamName}? No emails will be sent.`))
-            void update({ action: "generate-qr", entries: missing.map(p => ({ membershipId: p.membershipId })) });
-        }}><QrCode size={16} /> Generate Missing Invites</button>
+          if (!window.confirm(`Prepare ${missing.length} QR codes for ${data?.teamName}? ${regenerating ? "Previous codes for these players will stop working. " : ""}No emails will be sent.`)) return;
+          const jobs = missing.map(p => {
+            const invite = latest(p.membershipId);
+            return { membershipId: p.membershipId, body: invite?.status === "PENDING"
+              ? { action: "resend", id: invite.id }
+              : { action: "generate-qr", entries: [{ membershipId: p.membershipId }] } };
+          });
+          if (jobs.length) void update(jobs[0].body, jobs[0].membershipId, jobs.slice(1));
+        }}><QrCode size={16} /> {regenerating ? "Regenerate Missing QR Codes" : "Generate Missing Invites"}</button>
         <button className="secondary-button" disabled={busy || !visibleLinks.length} onClick={() => window.print()}><Printer size={16} /> Print QR Sheet</button>
         <button className="icon-button" aria-label="Refresh connection status" title="Refresh connection status" disabled={busy} onClick={() => void reload().catch(() => setMessage("Unable to refresh status."))}><RefreshCw size={16} /></button>
       </div>
