@@ -16,5 +16,6 @@ test('player normal workouts expose instructions and prescribed weight without t
   assert.match(ui,/targetWeight: session.exercise.weight/);
   assert.match(ui,/s.exercise!.notes/);
   const cell=readFileSync('app/components/TeamTrainingViews.tsx','utf8');
-  assert.match(cell,/readOnly=\{station.targetWeight !== undefined\}/);
+  assert.match(cell,/readOnly=\{typeof station.targetWeight === "number"\}/);
+  assert.match(load,/weight: s.target_weight \?\? undefined/);
 });

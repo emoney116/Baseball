@@ -160,7 +160,7 @@ export async function loadPlayerLiveSessions(
         name: s.exercise_name,
         sets: s.target_sets ?? 1,
         reps: s.target_reps,
-        weight: s.target_weight,
+        weight: s.target_weight ?? undefined,
         notes: s.notes ?? undefined,
         value: s.target_value,
         measurement: s.measurement_type ?? "WEIGHT_REPS",

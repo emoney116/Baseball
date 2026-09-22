@@ -388,7 +388,7 @@ export function WeightRoomInlineSetCell({
         <div className="weight-room-inline-set-fields two">
           <label>
             <span>lbs</span>
-            <input disabled={disabled} readOnly={station.targetWeight !== undefined} inputMode="decimal" value={weight} placeholder={previousEntry?.weight?.toString() ?? "Weight"} onBlur={explicitSave ? undefined : save} onKeyDown={handleKey} onChange={(event) => setWeight(clean(event.target.value))} />
+            <input disabled={disabled} readOnly={typeof station.targetWeight === "number"} inputMode="decimal" value={weight} placeholder={previousEntry?.weight?.toString() ?? "Weight"} onBlur={explicitSave ? undefined : save} onKeyDown={handleKey} onChange={(event) => setWeight(clean(event.target.value))} />
           </label>
           <label>
             <span>reps</span>
