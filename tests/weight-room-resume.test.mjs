@@ -1,9 +1,29 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { resumableWeightRoomWorkout } from "../app/lib/weightRoom.ts";
+import { resumableWeightRoomWorkout, completedWeightRoomWorkoutForEvent } from "../app/lib/weightRoom.ts";
 
 const workout = (id, status) => ({ id, status, title: id, date: "2026-08-15" });
+
+test("completed scheduled lifts open their saved workout rather than a duplicate", () => {
+  const completed = { ...workout("saved", "COMPLETED"), scheduleEventId: "lift" };
+  const cancelled = { ...workout("empty", "CANCELLED"), scheduleEventId: "lift" };
+  assert.equal(completedWeightRoomWorkoutForEvent([cancelled, completed], "lift"), completed);
+  assert.equal(completedWeightRoomWorkoutForEvent([completed], "another-lift"), undefined);
+  assert.equal(completedWeightRoomWorkoutForEvent([completed]), undefined);
+  assert.equal(completedWeightRoomWorkoutForEvent([cancelled], "lift"), undefined);
+  const page = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
+  const start = page.slice(page.indexOf("function startWeightRoomWorkout("), page.indexOf("function completeWeightRoomWorkout("));
+  assert.match(start, /if \(!activeWorkout && completedWorkout\)/);
+  assert.ok(start.indexOf("openCompletedWeightRoomWorkout(completedWorkout)") < start.indexOf('createId("wrw")'));
+});
+
+test("Weight Room overview shares the Home Clubhouse Score card", () => {
+  const page = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");
+  const overview = page.slice(page.indexOf('<section className="weight-room-overview-grid">'), page.indexOf('<section className="weight-room-overview-grid">') + 400);
+  assert.match(overview, /<WeightRoomLeaderCard data=\{data\} onPlayer=\{onOpenPlayer\}/);
+  assert.doesNotMatch(overview, /<WeightRoomLeaders /);
+});
 
 test("new workout and Lift share one snapshot and the referenced Lift saves first", () => {
   const page = readFileSync("app/ClubhouseWorkspace.tsx", "utf8");

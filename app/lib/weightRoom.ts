@@ -9,6 +9,10 @@ export function resumableWeightRoomWorkout(workouts: WeightRoomWorkout[], prefer
   return workouts.find((workout) => workout.id === preferredId && running(workout)) ?? workouts.find(running);
 }
 
+export function completedWeightRoomWorkoutForEvent(workouts: WeightRoomWorkout[], eventId?: string) {
+  return eventId ? workouts.find(workout => workout.scheduleEventId === eventId && workout.status === "COMPLETED") : undefined;
+}
+
 export type WeightRoomWindow = "This Week" | "This Month" | "This Season";
 
 export const WEIGHT_ROOM_SCORE_VERSION = "development-v1";

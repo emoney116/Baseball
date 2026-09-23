@@ -29,6 +29,7 @@ test('city/state-only saves do not resubmit an unchanged historical logo', () =>
 
 test('score filtering preserves optional field location without inventing one', () => {
   const game = { id: 'a', teamId: 'team', teamName: 'Team', opponent: 'Opponent', ourScore: 7, opponentScore: 4, date: '2026-09-09', result: 'W' };
-  assert.equal(recentHomeScores([{ ...game, location: 'MCA Field' }], ['team'])[0].location, 'MCA Field');
-  assert.equal(recentHomeScores([game], ['team'])[0].location, undefined);
+  const now = Date.parse('2026-09-10T12:00:00Z');
+  assert.equal(recentHomeScores([{ ...game, location: 'MCA Field' }], ['team'], now)[0].location, 'MCA Field');
+  assert.equal(recentHomeScores([game], ['team'], now)[0].location, undefined);
 });

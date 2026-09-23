@@ -185,6 +185,7 @@ import {
   buildWeightRoomScoreRows,
   estimatedOneRepMax,
   resumableWeightRoomWorkout,
+  completedWeightRoomWorkoutForEvent,
   entriesForWorkout,
   WEIGHT_ROOM_MIN_COMPLETED_WORKOUTS,
   WEIGHT_ROOM_MIN_TRACKED_SETS,
@@ -3290,6 +3291,11 @@ export default function MetrolinaBaseballApp() {
       && dateKeyFromIso(event.startAt) === input.date
       && event.status !== "Cancelled"
     );
+    const completedWorkout = completedWeightRoomWorkoutForEvent(data?.weightRoomWorkouts ?? [], input.eventId ?? existingLiftEvent?.id);
+    if (!activeWorkout && completedWorkout) {
+      openCompletedWeightRoomWorkout(completedWorkout);
+      return;
+    }
     const newEventId = activeWorkout?.scheduleEventId ?? input.eventId ?? existingLiftEvent?.id ?? createId("se");
     const activeWorkoutId = activeWorkout?.id ?? createId("wrw");
     setWeightRoomWorkoutTitle(input.title);
@@ -12226,7 +12232,7 @@ function WeightRoomView({
 
       {tab === "Overview" && (
         <section className="weight-room-overview-grid">
-          <WeightRoomLeaders data={data} onPlayer={onOpenPlayer}/>
+          <WeightRoomLeaderCard data={data} onPlayer={onOpenPlayer} onView={() => onTab("Leaderboard")}/>
           <WeightRoomWeighInCard data={data} players={players} date={workoutDate} onOpen={() => onWeighInOpen(true)} />
           <WeightRoomRecentWorkouts
             data={data}
