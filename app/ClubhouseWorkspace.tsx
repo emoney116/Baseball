@@ -14479,6 +14479,7 @@ function WeightRoomGroupStationTable({
                   station={station}
                   entry={entry}
                   previousEntry={previousEntry}
+                  firstTimedAttempt={workoutEntryForCell(entries, player.id, station.name, 1)}
                   disabled={disabled}
                   onSaveCell={onSaveCell}
                 />
@@ -14554,6 +14555,7 @@ function WeightRoomIndividualWorkout({
                   station={station}
                   entry={entry}
                   previousEntry={previousEntry}
+                  firstTimedAttempt={workoutEntryForCell(entries, player.id, station.name, 1)}
                   disabled={disabled}
                   onSaveCell={onSaveCell}
                 />

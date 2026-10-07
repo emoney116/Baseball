@@ -26884,6 +26884,12 @@ button.weight-room-athlete-table__row:hover {
   font-size: var(--text-table-row);
 }
 
+.weight-room-inline-set-cell > .weight-room-time-change {
+  color: var(--text);
+  font-weight: 600;
+  white-space: normal;
+}
+
 .weight-room-optional-load { display: flex; align-items: center; gap: 6px; min-height: 28px; font-size: 11px; color: var(--muted-strong); }
 .weight-room-optional-load input { width: 16px; height: 16px; }
 

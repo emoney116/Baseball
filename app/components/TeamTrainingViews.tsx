@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { formatTestResult, testConditionLabel } from "../lib/workoutTesting";
+import { formatTimedAttemptDropoff, timedAttemptDropoff } from "../lib/workoutTimedChange";
 import { useEffect, useRef, useState } from "react";
 import { buildScheduleItems, CompactEmpty, dateKeyFromIso, formatTime, isUpcomingScheduleItem, ScheduleItem, ScheduleTypeIcon, SegmentedControl } from "../components/TeamWorkspaceViews";
 import { deriveConcurrentPracticeTotals } from "../lib/practiceConcurrency";
@@ -309,6 +310,7 @@ export function WeightRoomInlineSetCell({
   station,
   entry,
   previousEntry,
+  firstTimedAttempt,
   disabled,
   onSaveCell,
   explicitSave = false,
@@ -318,6 +320,7 @@ export function WeightRoomInlineSetCell({
   station: ActiveWorkoutStation;
   entry?: WorkoutEntry;
   previousEntry?: WorkoutEntry;
+  firstTimedAttempt?: WorkoutEntry;
   disabled: boolean;
   onSaveCell: (cell: ActiveWorkoutCell, draft: { weight?: number; reps?: number; value?: number; rpe?: number; unit?: WorkoutEntry["unit"]; status?: WorkoutEntry["status"] }) => void;
   explicitSave?: boolean;
@@ -381,6 +384,11 @@ export function WeightRoomInlineSetCell({
   }
 
   const previousText = previousEntry ? formatWorkoutEntryValueForStation(previousEntry, station) : undefined;
+  const dropoff = cell.setNumber === 2 && station.measurementType === "TIME" && station.unit === "sec" && station.performanceDirection === "LOWER_IS_BETTER"
+    && firstTimedAttempt?.status !== "Skipped" && firstTimedAttempt?.playerId === cell.playerId && firstTimedAttempt?.exercise === cell.exercise
+    && firstTimedAttempt?.setNumber === 1 && (entry?.status !== "Skipped" || dirty)
+    ? timedAttemptDropoff(firstTimedAttempt.value, optionalTimeValue(value))
+    : undefined;
   return (
     <div className={entry ? "weight-room-inline-set-cell complete" : "weight-room-inline-set-cell"} aria-label={`${station.name} ${stationAttemptLabel(station).toLowerCase()} ${cell.setNumber}`}>
       {optionalLoad && <label className="weight-room-optional-load"><input type="checkbox" checked={includeLoad} disabled={disabled || entry?.weight !== undefined} onChange={event => setIncludeLoad(event.target.checked)} />Add load</label>}
@@ -439,6 +447,7 @@ export function WeightRoomInlineSetCell({
       )}
       {explicitSave && !isCompletion && <button type="button" className="primary-button" disabled={disabled} onClick={save}><Check size={16} />{entry ? "Save Correction" : "Save Set"}</button>}
       <small>{entry ? formatWorkoutEntryValueForStation(entry, station) : previousText && previousText !== "--" ? `Prev ${previousText}` : station.targetReps ? `${station.targetReps} target` : "Enter"}</small>
+      {dropoff !== undefined && <small className="weight-room-time-change" role="status" title="Change in elapsed time from attempt 1 to attempt 2">{formatTimedAttemptDropoff(dropoff)}</small>}
     </div>
   );
 }
