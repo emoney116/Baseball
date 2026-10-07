@@ -40,6 +40,11 @@
 .weight-room-active-weigh-table .weight-room-weigh-new,
 .weight-room-active-weigh-table .weight-room-weigh-changes { grid-area: auto !important; }
 .weight-room-active-weigh-table .weight-room-weigh-changes { grid-column: 1 / -1 !important; grid-template-columns: repeat(2,minmax(0,1fr)) 44px; align-items: center; gap: 8px; }
+.weight-room-active-weigh-table .weight-room-weigh-changes small { white-space: nowrap; }
+@media (max-width: 540px) {
+  .weight-room-active-weigh-table .weight-room-weigh-changes { container-type: inline-size; grid-template-columns: minmax(0,1fr) minmax(0,1.3fr) 44px; gap: 6px; }
+  .weight-room-active-weigh-table .weight-room-weigh-changes small { font-size: clamp(8px,3cqi,12px); }
+}
 .weight-room-active-weigh-table .weight-room-weigh-previous { grid-area: auto !important; white-space: nowrap; font-size: 12px; }
 .weight-room-weigh-previous small { color: var(--muted-strong); font-size: inherit; }
 .weight-room-active-weigh-table .weight-room-weigh-new { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; }

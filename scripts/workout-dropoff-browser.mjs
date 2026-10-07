@@ -61,6 +61,8 @@ try {
     for (const label of await weighRow.locator('.weight-room-weigh-changes small').all()) {
       const bounds = await label.boundingBox();
       assert.ok(historyBounds.x >= bounds.x + bounds.width, 'history follows both percentage labels');
+      assert.equal(await label.evaluate(el => getComputedStyle(el).whiteSpace), 'nowrap');
+      assert.ok(await label.evaluate(el => el.scrollWidth <= el.clientWidth + 1), 'percentage label fits on one line');
     }
     await weighRow.locator('input').fill('132');
     await weighRow.getByText('+20.0% vs previous', { exact: true }).waitFor();
