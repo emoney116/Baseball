@@ -6,6 +6,7 @@ import {
   writePlayerLiveEntry,
 } from "../../../lib/playerLiveEntry";
 import { PlayerLinkError } from "../../../lib/playerAccountLinks";
+import { syncMeasuredProfileWeight } from "../../../lib/playerWeightSync";
 
 async function authenticated() {
   const {
@@ -59,6 +60,7 @@ export async function POST(request: NextRequest) {
         throw new PlayerLinkError("Body weight must be 30-700 lb.");
       const {data,error} = await db.rpc("write_player_live_weigh_in", {actor:profileId,target_membership:input.membershipId,target_workout:input.sessionId,pounds:input.pounds});
       if(error) throw new PlayerLinkError(error.code === "55000" ? "Workout ended. Your history is still available." : "Unable to save weigh-in. Check access and try again.",error.code === "55000" ? 409 : 403);
+      await syncMeasuredProfileWeight(db, data);
       return response({id:data});
     }
     return response(await writePlayerLiveEntry(db, profileId, input));

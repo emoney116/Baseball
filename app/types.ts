@@ -690,6 +690,7 @@ export type DefenseEvent = {
 } & PracticeEventAudit;
 
 export interface WorkoutSession {
+  notes?: string;
   createdByProfileId?: string;
   entrySource?: string;
   id: ID;

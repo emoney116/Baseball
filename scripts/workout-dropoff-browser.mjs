@@ -68,6 +68,13 @@ try {
     assert.notEqual(await weighRow.locator('small.negative').first().evaluate(el => getComputedStyle(el).color), positiveColor);
     await weighRow.locator('input').fill('100');
     assert.equal(await weighRow.getByText('0.0% vs first weigh-in', { exact: true }).getAttribute('class'), '');
+    await page.getByRole('button', { name: 'Weigh-in history for QA Athlete 1', exact: true }).click();
+    const history = page.getByRole('dialog');
+    await history.getByText('100.0 lb', { exact: true }).first().waitFor();
+    await history.getByText('110.0 lb', { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('metrolina-fall-practice-store-v1')).players[0].weight), 100);
+    await page.screenshot({ path: `build/qa-dropoff/history-${name}.png`, fullPage: true });
+    await history.getByRole('button', { name: /close/i }).click();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.deepEqual(errors, []);
     console.log(`${name}: timed attempts and measured weigh-in comparisons passed; roster weight and zero baselines excluded`);

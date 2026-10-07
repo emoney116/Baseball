@@ -33,6 +33,10 @@
   padding: 8px;
 }
 .weight-room-active-weigh-table .weight-room-weigh-name { font-size: 13px; overflow-wrap: anywhere; }
+.weight-room-active-weigh-table .weight-room-weigh-name { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.weight-room-weigh-name .icon-button { min-width: 32px; width: 32px; min-height: 36px; padding: 4px; }
+.weight-room-weigh-history > div { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.weight-room-weigh-history small { grid-column: 1 / -1; color: var(--muted-strong); overflow-wrap: anywhere; }
 .weight-room-active-weigh-table .weight-room-weigh-name,
 .weight-room-active-weigh-table .weight-room-weigh-new,
 .weight-room-active-weigh-table .weight-room-weigh-changes { grid-area: auto !important; }

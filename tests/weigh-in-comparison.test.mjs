@@ -12,6 +12,11 @@ test('missing, zero and nonfinite measurements cannot establish a baseline', () 
   assert.deepEqual(result, { previous: undefined, first: undefined, fromPrevious: undefined, fromFirst: undefined });
   assert.equal(signedWeighInPercent(result.fromFirst), '--');
 });
+test('unverified roster copies are not weigh-in baselines', () => {
+  const result = weighInComparison([row('2026-09-15', 113.4), { ...row('2026-09-22', 100), notes: 'Unverified roster-copy: old bug' }, row('2026-10-06', 115)], 'p', '2026-10-06', 115);
+  assert.equal(result.previous, 113.4);
+  assert.ok(Math.abs(result.fromPrevious - 1.4109347442680722) < 0.00001);
+});
 test('current day is not previous, and first actual weigh-in is its own baseline', () => {
   assert.deepEqual(weighInComparison([row('2026-10-06', 150)], 'p', '2026-10-06', 150), { previous: undefined, first: 150, fromPrevious: undefined, fromFirst: 0 });
   assert.equal(signedWeighInPercent(10), '+10.0%');

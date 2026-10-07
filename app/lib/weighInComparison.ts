@@ -1,11 +1,15 @@
-type WeighIn = { playerId: string; date: string; updatedAt: string; bodyWeight?: number };
+type WeighIn = { playerId: string; date: string; updatedAt: string; bodyWeight?: number; notes?: string };
 
 export function actualWeighIn(value: number | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
+export function measuredWeighIn(row: Pick<WeighIn, "bodyWeight" | "notes">) {
+  return actualWeighIn(row.bodyWeight) && !row.notes?.includes("Unverified roster-copy");
+}
+
 export function weighInComparison(sessions: readonly WeighIn[], playerId: string, date: string, current?: number) {
-  const recorded = sessions.filter(row => row.playerId === playerId && row.date <= date && actualWeighIn(row.bodyWeight))
+  const recorded = sessions.filter(row => row.playerId === playerId && row.date <= date && measuredWeighIn(row))
     .slice().sort((a, b) => a.date.localeCompare(b.date) || a.updatedAt.localeCompare(b.updatedAt));
   const previous = recorded.filter(row => row.date < date).at(-1)?.bodyWeight;
   const first = recorded[0]?.bodyWeight;

@@ -46,6 +46,7 @@ import {
   Edit3,
   Gauge,
   Heart,
+  History,
   Home,
   Info,
   LogOut,
@@ -3255,6 +3256,7 @@ export default function MetrolinaBaseballApp() {
       usableRows.forEach((row) => {
         const existingSession = next.workoutSessions.find((item) => item.playerId === row.playerId && item.date === date);
         const session: WorkoutSession = {
+          ...existingSession,
           id: existingSession?.id ?? createId("ws"),
           playerId: row.playerId,
           date,
@@ -3268,6 +3270,10 @@ export default function MetrolinaBaseballApp() {
         };
         next = workoutRepository.upsertSession(next, session);
       });
+      next = { ...next, players: next.players.map(player => {
+        const measured = latestBodyWeight(next, player.id, todayKey());
+        return typeof measured === "number" ? { ...player, weight: measured } : player;
+      }) };
       return next;
     });
   }
@@ -13768,6 +13774,7 @@ function WeightRoomActiveWeighIns({
   onSave: (rows: Array<{ playerId: ID; weight?: number }>, date: string) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [historyPlayerId, setHistoryPlayerId] = useState<ID>();
   const [missingOnly, setMissingOnly] = useState(false);
   const [drafts, setDrafts] = useState<Record<ID, string>>(() => Object.fromEntries(players.map((player) => [player.id, latestBodyWeight(data, player.id, date, true)?.toString() ?? ""])));
   const enteredCount = players.filter((player) => typeof optionalNumber(drafts[player.id] ?? "") === "number" || sessions.some((session) => session.playerId === player.id && typeof session.bodyWeight === "number")).length;
@@ -13823,7 +13830,7 @@ function WeightRoomActiveWeighIns({
           const previous = comparison.previous;
           return (
             <div key={player.id} className="weight-room-active-weigh-table__row" role="row">
-              <strong className="weight-room-weigh-name">{player.name}</strong>
+              <span className="weight-room-weigh-name"><strong>{player.name}</strong><button type="button" className="icon-button" aria-label={`Weigh-in history for ${player.name}`} title="Weigh-in history" onClick={() => setHistoryPlayerId(player.id)}><History size={16} aria-hidden="true" /></button></span>
               <span className="weight-room-weigh-previous"><small>Prev</small> {typeof previous === "number" ? `${formatNumber(previous, 1)} lb` : "--"}</span>
               <label className="weight-room-weigh-new"><span>New</span>
               <input
@@ -13850,6 +13857,16 @@ function WeightRoomActiveWeighIns({
         })}
       </div>
       <small className="weight-room-autosave-line"><Check size={14} aria-hidden="true" />Autosaves each athlete on blur or Enter. Blank means no weigh-in.</small>
+      {historyPlayerId && <ModalFrame title={`${players.find(player => player.id === historyPlayerId)?.name} Weigh-Ins`} onClose={() => setHistoryPlayerId(undefined)}>
+        <div className="weight-room-weigh-history">
+          {data.workoutSessions.filter(session => session.playerId === historyPlayerId && (session.bodyWeight !== undefined || session.notes?.includes("Excluded roster-copy"))).sort((a, b) => b.date.localeCompare(a.date)).map(session => <div key={session.id}>
+            <strong>{shortDate(session.date)}</strong><span>{session.bodyWeight !== undefined ? `${formatNumber(session.bodyWeight, 1)} lb${session.notes?.includes("Unverified roster-copy") ? " (unverified)" : ""}` : "Excluded"}</span>
+            {session.notes?.includes("Excluded roster-copy") && <small>{session.notes.slice(session.notes.indexOf("Excluded roster-copy"))}</small>}
+            {session.notes?.includes("Unverified roster-copy") && <small>{session.notes.slice(session.notes.indexOf("Unverified roster-copy"))}</small>}
+          </div>)}
+          {!data.workoutSessions.some(session => session.playerId === historyPlayerId && session.bodyWeight !== undefined) && <CompactEmpty title="No measured weigh-ins yet." />}
+        </div>
+      </ModalFrame>}
     </section>
   );
 }
