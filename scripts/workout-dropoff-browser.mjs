@@ -59,7 +59,15 @@ try {
     await weighRow.locator('input').fill('132');
     await weighRow.getByText('+20.0% vs previous', { exact: true }).waitFor();
     await weighRow.getByText('+32.0% vs first weigh-in', { exact: true }).waitFor();
+    assert.equal(await weighRow.locator('small.positive').count(), 2);
+    const positiveColor = await weighRow.locator('small.positive').first().evaluate(el => getComputedStyle(el).color);
     await page.screenshot({ path: `build/qa-dropoff/weigh-in-${name}.png`, fullPage: true });
+    await weighRow.locator('input').fill('99');
+    await weighRow.getByText('-10.0% vs previous', { exact: true }).waitFor();
+    assert.equal(await weighRow.locator('small.negative').count(), 2);
+    assert.notEqual(await weighRow.locator('small.negative').first().evaluate(el => getComputedStyle(el).color), positiveColor);
+    await weighRow.locator('input').fill('100');
+    assert.equal(await weighRow.getByText('0.0% vs first weigh-in', { exact: true }).getAttribute('class'), '');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.deepEqual(errors, []);
     console.log(`${name}: timed attempts and measured weigh-in comparisons passed; roster weight and zero baselines excluded`);

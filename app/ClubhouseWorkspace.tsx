@@ -13842,8 +13842,8 @@ function WeightRoomActiveWeighIns({
               />
               </label>
               <span className="weight-room-weigh-changes" aria-live="polite">
-                <small>{signedWeighInPercent(comparison.fromPrevious)} vs previous</small>
-                <small>{signedWeighInPercent(comparison.fromFirst)} vs first weigh-in</small>
+                <small className={weightRoomDeltaClass(comparison.fromPrevious)}>{signedWeighInPercent(comparison.fromPrevious)} vs previous</small>
+                <small className={weightRoomDeltaClass(comparison.fromFirst)}>{signedWeighInPercent(comparison.fromFirst)} vs first weigh-in</small>
               </span>
             </div>
           );
@@ -16825,8 +16825,8 @@ function WeightRoomWeighInModal({
                 <span>{last ? `${formatNumber(last, 1)} lb` : "-"}</span>
                 <input inputMode="decimal" value={row?.value ?? ""} onChange={(event) => update(player.id, event.target.value)} />
                 <em className="weight-room-weigh-changes">
-                  <small>{signedWeighInPercent(comparison.fromPrevious)} vs previous</small>
-                  <small>{signedWeighInPercent(comparison.fromFirst)} vs first weigh-in</small>
+                  <small className={weightRoomDeltaClass(comparison.fromPrevious)}>{signedWeighInPercent(comparison.fromPrevious)} vs previous</small>
+                  <small className={weightRoomDeltaClass(comparison.fromFirst)}>{signedWeighInPercent(comparison.fromFirst)} vs first weigh-in</small>
                 </em>
               </label>
             );
