@@ -8,6 +8,7 @@ import {WeightRoomLeaderCard,ClubhouseScoreDetails} from './components/WeightRoo
 import {projectPracticeDefense} from './lib/practiceDefense';
 import { WorkoutTestingConsole } from "./components/WorkoutTestingConsole";
 import { BASELINE_TESTING_CIRCUIT } from "./lib/workoutTesting";
+import { weighInComparison, signedWeighInPercent } from "./lib/weighInComparison";
 import { workoutMvp } from "./lib/workoutMvp";
 import { buildPracticeReviewSummary, practiceReviewStandouts } from "./lib/practiceReviewSummary";
 import { LiveBpConsole } from "./components/LiveBpConsole";
@@ -3207,7 +3208,7 @@ export default function MetrolinaBaseballApp() {
       day: weekdayName(date),
       completed: true,
       effortScore: rpe || existingSession?.effortScore || 8,
-      bodyWeight: player.weight,
+      bodyWeight: existingSession?.bodyWeight,
       createdAt: existingSession?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -13815,9 +13816,11 @@ function WeightRoomActiveWeighIns({
           <span>Athlete</span>
           <span>Previous</span>
           <span>New</span>
+          <span>Change</span>
         </div>
         {filteredPlayers.map((player) => {
-          const previous = previousBodyWeight(data, player.id, date);
+          const comparison = weighInComparison(data.workoutSessions, player.id, date, optionalNumber(drafts[player.id] ?? ""));
+          const previous = comparison.previous;
           return (
             <div key={player.id} className="weight-room-active-weigh-table__row" role="row">
               <strong className="weight-room-weigh-name">{player.name}</strong>
@@ -13838,6 +13841,10 @@ function WeightRoomActiveWeighIns({
                 }}
               />
               </label>
+              <span className="weight-room-weigh-changes" aria-live="polite">
+                <small>{signedWeighInPercent(comparison.fromPrevious)} vs previous</small>
+                <small>{signedWeighInPercent(comparison.fromFirst)} vs first weigh-in</small>
+              </span>
             </div>
           );
         })}
@@ -16808,7 +16815,7 @@ function WeightRoomWeighInModal({
             const row = rows.find((item) => item.playerId === player.id);
             const last = previousBodyWeight(data, player.id, draftDate);
             const today = optionalNumber(row?.value ?? "");
-            const change = typeof today === "number" && typeof last === "number" ? today - last : undefined;
+            const comparison = weighInComparison(data.workoutSessions, player.id, draftDate, today);
             return (
               <label key={player.id}>
                 <strong className="weight-room-weigh-player">
@@ -16817,8 +16824,9 @@ function WeightRoomWeighInModal({
                 </strong>
                 <span>{last ? `${formatNumber(last, 1)} lb` : "-"}</span>
                 <input inputMode="decimal" value={row?.value ?? ""} onChange={(event) => update(player.id, event.target.value)} />
-                <em className={change && change > 0 ? "positive" : change && change < 0 ? "negative" : ""}>
-                  {typeof change === "number" ? `${change > 0 ? "+" : ""}${formatNumber(change, 1)}` : "-"}
+                <em className="weight-room-weigh-changes">
+                  <small>{signedWeighInPercent(comparison.fromPrevious)} vs previous</small>
+                  <small>{signedWeighInPercent(comparison.fromFirst)} vs first weigh-in</small>
                 </em>
               </label>
             );

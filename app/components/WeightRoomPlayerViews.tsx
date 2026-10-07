@@ -1,4 +1,5 @@
 "use client";
+import { actualWeighIn } from "../lib/weighInComparison";
 import {
   BarChart3,
   CalendarDays,
@@ -97,7 +98,7 @@ export function formatWorkoutVolume(value: number) {
 
 export function latestBodyWeight(data: AppData, playerId: ID, throughDate?: string, exactDateOnly = false) {
   const sessions = data.workoutSessions
-    .filter((session) => session.playerId === playerId && typeof session.bodyWeight === "number")
+    .filter((session) => session.playerId === playerId && actualWeighIn(session.bodyWeight))
     .filter((session) => exactDateOnly ? session.date === throughDate : !throughDate || session.date <= throughDate)
     .sort((left, right) => right.date.localeCompare(left.date) || right.updatedAt.localeCompare(left.updatedAt));
   return sessions[0]?.bodyWeight;
@@ -105,7 +106,7 @@ export function latestBodyWeight(data: AppData, playerId: ID, throughDate?: stri
 
 export function previousBodyWeight(data: AppData, playerId: ID, beforeDate: string) {
   const sessions = data.workoutSessions
-    .filter((session) => session.playerId === playerId && typeof session.bodyWeight === "number" && session.date < beforeDate)
+    .filter((session) => session.playerId === playerId && actualWeighIn(session.bodyWeight) && session.date < beforeDate)
     .sort((left, right) => right.date.localeCompare(left.date) || right.updatedAt.localeCompare(left.updatedAt));
   return sessions[0]?.bodyWeight;
 }

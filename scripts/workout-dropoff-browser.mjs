@@ -9,7 +9,8 @@ const data = structuredClone(sampleData);
 const stamp = '2026-10-06T15:00:00.000Z';
 data.players = data.players.slice(0, 2).map((player, index) => ({ ...player, name: `QA Athlete ${index + 1}` }));
 data.workoutEntries = [];
-data.workoutSessions = [];
+data.workoutSessions = [['2026-09-01', 100], ['2026-10-01', 110], ['2026-10-05', 0], ['2026-10-06', 121]].map(([date, bodyWeight]) => ({ id: `qa-weigh-${date}`, playerId: data.players[0].id, date, bodyWeight, weekOf: date, dayName: 'Tue', completed: false, createdAt: stamp, updatedAt: stamp }));
+data.players[0].weight = 999;
 data.weightRoomWorkouts = [{ id: 'qa-timed-workout', title: 'Weight Room', date: '2026-10-06', status: 'ACTIVE', createdAt: stamp, updatedAt: stamp }];
 data.weightRoomWorkoutStations = ['30-Yard Dash', '5-10-5 Shuttle', '300-Yard Shuttle'].map((exerciseName, index) => ({ id: `qa-station-${index}`, workoutId: 'qa-timed-workout', exerciseName, displayOrder: index + 1, targetSets: 2, measurementType: 'TIME', targetStyle: 'Best Time', performanceDirection: 'LOWER_IS_BETTER', unit: 'sec', createdAt: stamp, updatedAt: stamp }));
 data.weightRoomWorkoutGroups = [{ id: 'qa-group', workoutId: 'qa-timed-workout', name: 'QA Group', displayOrder: 1, currentStationId: 'qa-station-0', createdAt: stamp, updatedAt: stamp }];
@@ -50,8 +51,18 @@ try {
     await groupRow.locator('input').nth(1).fill('72');
     await groupRow.getByRole('status').filter({ hasText: 'Drop-off 20.0%' }).waitFor();
     assert.equal(await page.locator('.weight-room-group-matrix [role="row"]').filter({ hasText: 'QA Athlete 2' }).getByRole('status').count(), 0);
+    await page.getByRole('button', { name: 'Weigh-Ins', exact: true }).click();
+    const weighRow = page.locator('.weight-room-active-weigh-table__row').filter({ hasText: 'QA Athlete 1' });
+    await weighRow.getByText('110.0 lb', { exact: false }).waitFor();
+    await weighRow.getByText('+10.0% vs previous', { exact: true }).waitFor();
+    await weighRow.getByText('+21.0% vs first weigh-in', { exact: true }).waitFor();
+    await weighRow.locator('input').fill('132');
+    await weighRow.getByText('+20.0% vs previous', { exact: true }).waitFor();
+    await weighRow.getByText('+32.0% vs first weigh-in', { exact: true }).waitFor();
+    await page.screenshot({ path: `build/qa-dropoff/weigh-in-${name}.png`, fullPage: true });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.deepEqual(errors, []);
-    console.log(`${name}: Individual/Group focused-input calculation, save/reload, improvement, blank, athlete isolation and page width passed`);
+    console.log(`${name}: timed attempts and measured weigh-in comparisons passed; roster weight and zero baselines excluded`);
     await context.close();
   }
 } finally { await browser.close(); }

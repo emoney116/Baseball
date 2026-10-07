@@ -26806,6 +26806,19 @@ button.weight-room-athlete-table__row:hover {
   border-bottom: 0;
 }
 
+.weight-room-weigh-changes {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  font-style: normal;
+  color: var(--muted-strong);
+}
+
+.weight-room-weigh-changes small {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .weight-room-active-weigh-table input,
 .weight-room-set-editor input {
   width: 100%;
@@ -27541,8 +27554,24 @@ button.weight-room-athlete-table__row:hover {
     grid-template-columns: 1fr 88px;
     grid-template-areas:
       "athlete athlete"
-      "previous change"
-      "today today";
+      "previous today"
+      "changes changes";
+  }
+
+  .weight-room-active-weigh-table__row > .weight-room-weigh-name {
+    grid-area: athlete;
+  }
+
+  .weight-room-active-weigh-table__row > .weight-room-weigh-new {
+    grid-area: today;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .weight-room-active-weigh-table__row > .weight-room-weigh-changes {
+    grid-area: changes;
   }
 
   .weight-room-active-weigh-table .weight-room-active-athlete-cell {

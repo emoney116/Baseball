@@ -1,0 +1,26 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { weighInComparison, signedWeighInPercent } from '../app/lib/weighInComparison.ts';
+const row = (date, bodyWeight, playerId = 'p', updatedAt = date) => ({ date, bodyWeight, playerId, updatedAt });
+test('weigh-in comparisons use actual chronological measurements, never roster weight or future records', () => {
+  const result = weighInComparison([row('2026-09-01', 100), row('2026-10-01', 110), row('2026-10-06', 121), row('2026-10-07', 150), row('2026-10-05', 500, 'other')], 'p', '2026-10-06', 121);
+  assert.deepEqual(result, { previous: 110, first: 100, fromPrevious: 10, fromFirst: 21 });
+});
+test('missing, zero and nonfinite measurements cannot establish a baseline', () => {
+  const result = weighInComparison([row('2026-09-01', undefined), row('2026-09-02', 0), row('2026-09-03', NaN), row('2026-09-04', Infinity)], 'p', '2026-10-06', 150);
+  assert.deepEqual(result, { previous: undefined, first: undefined, fromPrevious: undefined, fromFirst: undefined });
+  assert.equal(signedWeighInPercent(result.fromFirst), '--');
+});
+test('current day is not previous, and first actual weigh-in is its own baseline', () => {
+  assert.deepEqual(weighInComparison([row('2026-10-06', 150)], 'p', '2026-10-06', 150), { previous: undefined, first: 150, fromPrevious: undefined, fromFirst: 0 });
+  assert.equal(signedWeighInPercent(10), '+10.0%');
+  assert.equal(signedWeighInPercent(-10), '-10.0%');
+  assert.equal(signedWeighInPercent(-0.001), '0.0%');
+});
+test('workout set entry preserves measured body weight without a roster-weight fallback', () => {
+  const source = readFileSync('app/ClubhouseWorkspace.tsx', 'utf8');
+  const entry = source.slice(source.indexOf('  function addWorkoutEntry('), source.indexOf('  function logWeightRoomWeighIns('));
+  assert.match(entry, /bodyWeight: existingSession\?\.bodyWeight/);
+  assert.doesNotMatch(entry, /bodyWeight: player\.weight/);
+});
