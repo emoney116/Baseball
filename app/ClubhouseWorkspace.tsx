@@ -13823,14 +13823,13 @@ function WeightRoomActiveWeighIns({
           <span>Athlete</span>
           <span>Previous</span>
           <span>New</span>
-          <span>Change</span>
         </div>
         {filteredPlayers.map((player) => {
           const comparison = weighInComparison(data.workoutSessions, player.id, date, optionalNumber(drafts[player.id] ?? ""));
           const previous = comparison.previous;
           return (
             <div key={player.id} className="weight-room-active-weigh-table__row" role="row">
-              <span className="weight-room-weigh-name"><strong>{player.name}</strong><button type="button" className="icon-button" aria-label={`Weigh-in history for ${player.name}`} title="Weigh-in history" onClick={() => setHistoryPlayerId(player.id)}><History size={16} aria-hidden="true" /></button></span>
+              <span className="weight-room-weigh-name"><strong>{player.name}</strong></span>
               <span className="weight-room-weigh-previous"><small>Prev</small> {typeof previous === "number" ? `${formatNumber(previous, 1)} lb` : "--"}</span>
               <label className="weight-room-weigh-new"><span>New</span>
               <input
@@ -13851,6 +13850,7 @@ function WeightRoomActiveWeighIns({
               <span className="weight-room-weigh-changes" aria-live="polite">
                 <small className={weightRoomDeltaClass(comparison.fromPrevious)}>{signedWeighInPercent(comparison.fromPrevious)} vs previous</small>
                 <small className={weightRoomDeltaClass(comparison.fromFirst)}>{signedWeighInPercent(comparison.fromFirst)} vs first weigh-in</small>
+                <button type="button" className="icon-button" aria-label={`Weigh-in history for ${player.name}`} title="Weigh-in history" onClick={() => setHistoryPlayerId(player.id)}><History size={16} aria-hidden="true" /></button>
               </span>
             </div>
           );

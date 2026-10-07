@@ -56,6 +56,12 @@ try {
     await weighRow.getByText('110.0 lb', { exact: false }).waitFor();
     await weighRow.getByText('+10.0% vs previous', { exact: true }).waitFor();
     await weighRow.getByText('+21.0% vs first weigh-in', { exact: true }).waitFor();
+    assert.equal(await weighRow.locator('.weight-room-weigh-name button').count(), 0);
+    const historyBounds = await weighRow.locator('.weight-room-weigh-changes button').boundingBox();
+    for (const label of await weighRow.locator('.weight-room-weigh-changes small').all()) {
+      const bounds = await label.boundingBox();
+      assert.ok(historyBounds.x >= bounds.x + bounds.width, 'history follows both percentage labels');
+    }
     await weighRow.locator('input').fill('132');
     await weighRow.getByText('+20.0% vs previous', { exact: true }).waitFor();
     await weighRow.getByText('+32.0% vs first weigh-in', { exact: true }).waitFor();

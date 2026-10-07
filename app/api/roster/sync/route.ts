@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     const [{ data: existingPlayers, error: existingPlayersError }, { data: existingMemberships, error: existingMembershipsError }] = await Promise.all([
       admin
         .from("players")
-        .select("id,first_name,last_name,graduation_year")
+        .select("id,first_name,last_name,graduation_year,metadata")
         .eq("organization_id", orgIds[0]),
       admin
         .from("player_team_memberships")
@@ -188,12 +188,12 @@ export async function POST(request: NextRequest) {
         bats: player.bats ?? "R",
         throws: player.throws ?? "R",
         height: player.height ?? null,
-        weight: player.weight ?? null,
+        weight: typeof player.weight === "number" ? Math.round(player.weight) : null,
         is_pitcher: Boolean(player.isPitcher),
         is_hitter: player.isHitter !== false,
         photo_url: player.imageUrl ?? null,
         active: !player.archived,
-        metadata: { avatarColor: player.avatarColor, notes: player.notes ?? null },
+        metadata: { ...existingPlayerById.get(player.id ?? "")?.metadata, avatarColor: player.avatarColor, notes: player.notes ?? null, weightLb: player.weight ?? null },
         created_at: player.createdAt ?? now,
         updated_at: player.updatedAt ?? now,
       };
