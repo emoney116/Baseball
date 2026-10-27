@@ -5,7 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { createClient } from "../lib/supabase/client";
 import { formatTestResult, parseTestResult, testConditionLabel, type WorkoutTestConditions } from "../lib/workoutTesting";
-import type { Player } from "../types";
+import type { Player, WorkoutEntry, WorkoutSession } from "../types";
+import { initialWorkoutResult, workoutBaselineChange } from "../lib/workoutBaseline";
+import { signedWeighInPercent } from "../lib/weighInComparison";
 import { ClubhouseSelect } from "./ClubhouseSelect";
 import type { WeightRoomWorkoutStatus } from "./TeamTrainingViews";
 import { workoutStationSelection } from "../lib/workoutStationSelection";
@@ -16,7 +18,7 @@ type Group = { id: string; name: string; current_station_id: string | null };
 type Result = { id: string; player_id: string; workout_station_id: string; reps: number | null; value: number | null; test_side: string | null; test_attempt: number; test_revision: number };
 type Draft = { text: string; request: string; error?: string; resultId?: string; revision?: number; original?: number };
 
-export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "Groups", completedEdit = false, onStatus, onEditSetup, onRetrySetup, renderRegularStation }: { workoutId: string; profileId: string; players: Player[]; mode?: "Groups" | "Individual"; completedEdit?: boolean; onStatus?: (status: WeightRoomWorkoutStatus) => void; onEditSetup?: () => void; onRetrySetup?: () => void; renderRegularStation?: (stationId: string, players: Player[], disabled: boolean) => ReactNode }) {
+export function WorkoutTestingConsole({ workoutId, profileId, players, history, mode = "Groups", completedEdit = false, onStatus, onEditSetup, onRetrySetup, renderRegularStation }: { workoutId: string; profileId: string; players: Player[]; history?: { entries: WorkoutEntry[]; sessions: WorkoutSession[]; date: string }; mode?: "Groups" | "Individual"; completedEdit?: boolean; onStatus?: (status: WeightRoomWorkoutStatus) => void; onEditSetup?: () => void; onRetrySetup?: () => void; renderRegularStation?: (stationId: string, players: Player[], disabled: boolean) => ReactNode }) {
   const storageKey = `clubhouse:test-drafts:v1:${profileId}:${workoutId}`;
   const [stations, setStations] = useState<Station[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -176,13 +178,20 @@ export function WorkoutTestingConsole({ workoutId, profileId, players, mode = "G
         const key = keyFor(player.id);
         const saved = results.find((result) => result.player_id === player.id && result.workout_station_id === station.id && result.test_attempt === Number(attempt) && result.test_side === (conditions.bilateral ? side : null));
         const draft = drafts[key];
+        const initial = history ? initialWorkoutResult(history.entries, history.sessions, player.id, history.date, conditions, conditions.bilateral ? side : undefined) : undefined;
+        let currentValue = saved?.value ?? saved?.reps ?? undefined;
+        if (draft) {
+          try { currentValue = parseTestResult(draft.text, conditions); } catch { currentValue = undefined; }
+        }
+        const change = workoutBaselineChange(initial?.value, currentValue);
         return <div key={key} role="row">
-        <span role="cell" className="weight-room-box-score-athlete"><strong>{player.name}</strong></span>
+        <span role="cell" className="weight-room-box-score-athlete"><strong>{player.name}</strong>{history && <small className={styles.baseline}>{initial ? `Initial ${initial.date.slice(5).replace("-", "/")} · ${formatTestResult(initial.value, conditions)}${conditions.mode === "MAX_DURATION" ? "" : " reps"}` : "No matching baseline"}</small>}</span>
         <div role="cell" className={styles.resultCell}>
           {saved && !draft ? <button type="button" className={styles.saved} aria-label={`Edit ${player.name} result`} title="Edit result" disabled={!canCorrect} onClick={() => editResult(saved)}>{formatTestResult(saved.value ?? saved.reps, conditions)}<Pencil size={14} /></button> : <form onSubmit={(event) => { event.preventDefault(); inputs.current[player.id]?.blur(); }}>
             <input ref={(element) => { inputs.current[player.id] = element; }} aria-label={`${player.name} result`} inputMode={conditions.mode === "MAX_DURATION" ? "decimal" : "numeric"} placeholder={conditions.mode === "MAX_DURATION" ? "Seconds" : "Reps"} value={draft?.text ?? ""} disabled={!(draft?.resultId ? canCorrect : active) || saving.current.has(key)} onBlur={() => void save(player.id)} onChange={(event) => { const text = event.target.value; setDrafts((current) => ({ ...current, [key]: { ...current[key], text, request: current[key]?.request ?? crypto.randomUUID(), error: undefined } })); }} />
             {draft?.resultId && <button type="button" aria-label={`Cancel editing ${player.name}`} title="Cancel edit" onPointerDown={(event) => event.preventDefault()} onClick={() => setDrafts((current) => {const next={...current};delete next[key];return next;})}><X size={16} /></button>}
           </form>}
+          {history && <small className={`${styles.change} ${change !== undefined && Math.abs(change) >= 0.05 ? change > 0 ? "positive" : "negative" : ""}`} aria-live="polite">{initial?.value === 0 && currentValue !== undefined ? `Initial 0 · now ${formatTestResult(currentValue, conditions)}` : `${signedWeighInPercent(change)} vs initial`}</small>}
           {saving.current.has(key) && <p role="status">Saving...</p>}
           {draft?.error && <p role="alert">{draft.error} <button type="button" onClick={() => void save(player.id)}>Retry</button>{saved && <button type="button" onClick={() => {setDrafts((current)=>{const next={...current};delete next[key];return next;});void refresh();}}>Use latest</button>}</p>}
         </div></div>;
