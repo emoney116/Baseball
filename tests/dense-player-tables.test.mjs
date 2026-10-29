@@ -51,7 +51,7 @@ const page = ["app/ClubhouseWorkspace.tsx", "app/components/TeamWorkspaceViews.t
   assert.match(page, /<AnalyticsCharts/);
   assert.match(page, /analyticsWorkspace === "insights"/);
   assert.match(page, /analyticsWorkspace === "insights" && domain !== "development"/);
-  assert.match(page, /disabled=\{domain === "development"\}/);
+  assert.match(page, /aria-pressed=\{domain === "development"\}/);
   assert.match(page, /domain === "development" \? "overview" : requestedWorkspace/);
   assert.doesNotMatch(page, /<AnalyticsSummaryStrip result=\{result\}/);
   assert.match(practiceColumns, /render: \(row\) => <DensePlayerIdentity player=\{row\.player\} \/>/);

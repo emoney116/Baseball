@@ -1,5 +1,6 @@
 import type { PitchType } from "../types.ts";
 import {PRACTICE_BATTING_METRICS} from './practiceBatting.ts';
+import { PRACTICE_PITCHING_METRICS } from './practicePitching.ts';
 import type {
   AnalyticsColumn,
   AnalyticsDomain,
@@ -95,6 +96,7 @@ export const ANALYTICS_VIEW_CATALOG: AnalyticsViewDefinition[] = [
 ];
 
 const METRIC_FULL_NAMES: Record<string, string> = {
+  loggedSets: "Recorded Workout Sets", recordedVolume: "Recorded Load-Repetition Volume", pitcherStrikeouts: "Pitcher Strikeouts",
   errorPlays: "Recorded Reached-on-Error Plays",
   situationalReps:'Completed Situational Repetitions',jobsCompleted:'Successful Evaluated Jobs',jobSuccessPct:'Evaluated Job Success Percentage',
   runnerAdvances:'Runner Advances',runnerOuts:'Runner Outs',
@@ -324,6 +326,9 @@ export const ANALYTICS_METRICS: AnalyticsMetricDefinition[] = [
   metric("accurateThrows", "Acc", "defense", "integer", ["all", "practice"], "Accurate tracked throws."),
   metric("inaccurateThrows", "Inacc", "defense", "integer", ["all", "practice"], "Inaccurate tracked throws."),
   metric("throwAcc", "Throw%", "defense", "percentage", ["all", "practice"], "Accurate throws divided by tracked throws.", ANALYTICS_SAMPLE_THRESHOLDS.defenseReps),
+  metric("loggedSets", "Sets", "development", "integer", ["all"], "Recorded sets including completion-only work."),
+  metric("recordedVolume", "Volume", "development", "integer", ["all"], "Recorded load times repetitions, excluding timed and completion-only work."),
+  metric("pitcherStrikeouts", "K", "pitching", "integer", ["games", "practice", "live-bp"], "Recorded completed plate appearances ending in a strikeout; incomplete counts do not count."),
   metric("weightScore", "Weight", "development", "integer", ["all"], "Existing Weight Room Development score.", ANALYTICS_SAMPLE_THRESHOLDS.weightRoomWorkouts),
   metric("workouts", "Workouts", "development", "integer", ["all"], "Completed workout sessions."),
   metric("workoutCompletionPct", "Workout%", "development", "percentage", ["all"], "Completed workouts divided by assigned workouts."),
@@ -389,9 +394,9 @@ export const ANALYTICS_COLUMN_PRESETS: Record<Exclude<AnalyticsColumnPreset, "cu
   standard: [
     "pa", "ab", "hits", "avg", "obp", "slg", "ops",
     "opportunities", "swings", "contacts", "bip", "swingPct", "contactPct", "hardPct", "avgEv", "maxEv",
-    "inningsPitched", "battersFaced", "strikeouts", "walksAllowed", "whip", "pitches",
+    "inningsPitched", "battersFaced", "strikeouts", "pitcherStrikeouts", "walksAllowed", "whip", "pitches", "strikePct", "avgPitchVelo", "maxPitchVelo",
     "positionWorked", "reps", "cleanPct", "errors", "throwAcc",
-    "weightScore", "workouts", "workoutCompletionPct", "attendancePct", "practiceReps",
+    "weightScore", "workouts", "loggedSets", "recordedVolume", "workoutCompletionPct", "attendancePct", "practiceReps",
   ],
   advanced: [
     "gamesPlayed", "singles", "doubles", "triples", "homeRuns", "outs", "xbh", "hrPct", "xbhPct", "tbPerAb", "runs", "rbi", "totalBases", "walks", "hitByPitch", "strikeouts", "sacrificeFlies", "sacrificeBunts", "reachedOnError", "fieldersChoice", "iso", "babip", "xbhHitPct", "hrPaPct", "tbPerPa", "strikeoutPct", "walkPct", "walkToStrikeout", "paPerStrikeout", "paPerWalk", "pitchesPerPlateAppearance",
@@ -550,6 +555,10 @@ function metric(
   if(domain==='hitting' && (PRACTICE_BATTING_METRICS as readonly string[]).includes(id)) {
     supportedSources=[...new Set([...supportedSources,'practice','live-bp'] as AnalyticsSource[])];
     definition += ' Practice/Live BP uses recorded canonical outcomes only; unrecorded outcomes and runner identities remain unknown.';
+  }
+  if (domain === "pitching" && PRACTICE_PITCHING_METRICS.includes(id)) {
+    supportedSources = [...new Set([...supportedSources, "practice", "live-bp"] as AnalyticsSource[])];
+    definition += " Practice uses recorded player-pitched terminal outcomes only; missing outcomes remain unknown.";
   }
   return {
     id,

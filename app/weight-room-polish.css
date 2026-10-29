@@ -36,6 +36,24 @@
 .weight-room-weigh-changes .icon-button { min-width: 44px; width: 44px; min-height: 44px; padding: 4px; }
 .weight-room-weigh-history > div { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .weight-room-weigh-history small { grid-column: 1 / -1; color: var(--muted-strong); overflow-wrap: anywhere; }
+.analytics-workout-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.analytics-workout-heading h2 { font-size: 18px; margin: 0; }
+.analytics-workout-scroll { overflow-x: auto; max-width: 100%; }
+.analytics-workout-scroll table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13px; }
+.analytics-workout-scroll th, .analytics-workout-scroll td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); }
+.analytics-workout-scroll th:first-child, .analytics-workout-scroll td:first-child { position: sticky; left: 0; background: var(--panel); min-width: 140px; }
+.analytics-domain-tabs { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.analytics-domain-tabs > button { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--text); }
+.analytics-domain-tabs > button.active { background: var(--burgundy); color: white; }
+.analytics-metric-key summary { cursor: pointer; min-height: 44px; padding-block: 12px; font-weight: 600; }
+@media (max-width: 640px) {
+  .analytics-page .analytics-primary-navigation { display: flex; flex-wrap: wrap; padding-right: 0; gap: 8px; }
+  .analytics-page .analytics-primary-navigation .analytics-domain-tabs { flex: 1 0 100%; width: 100%; }
+  .analytics-page .analytics-primary-navigation .analytics-source-selector.analytics-scope-select { width: 100%; min-width: 0; }
+  .analytics-page .analytics-controls__row--filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; gap: 8px; }
+  .analytics-page .analytics-controls__row--filters > * { min-width: 0; width: 100%; }
+  .analytics-page .analytics-controls__row--filters .analytics-control-trigger { width: 100%; justify-content: center; min-height: 44px; }
+}
 .weight-room-active-weigh-table .weight-room-weigh-name,
 .weight-room-active-weigh-table .weight-room-weigh-new,
 .weight-room-active-weigh-table .weight-room-weigh-changes { grid-area: auto !important; }
@@ -53,3 +71,6 @@
   .weight-room-active-weigh-table > .weight-room-active-weigh-table__row,
   .weight-room-active-weigh-table > .weight-room-active-weigh-table__head { grid-template-columns: minmax(0,1fr) 120px 140px; }
 }
+.analytics-custom-dates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px; }
+.analytics-custom-dates label { display: grid; gap: 4px; min-width: 0; }
+.analytics-custom-dates input { width: 100%; min-width: 0; min-height: 44px; }

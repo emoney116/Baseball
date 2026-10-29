@@ -22,6 +22,7 @@ import {
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnalyticsPlayerMetrics } from "../components/AnalyticsPlayerMetrics";
+import { AnalyticsWeightRoom } from "./AnalyticsWeightRoom";
 import { AskClubhouseLauncher } from "../components/AskClubhouseDrawer";
 import { ChoiceSelect, type ChoiceOption } from "../components/ChoiceSelect";
 import { ClubhouseBaseballField } from "../components/ClubhouseBaseballField";
@@ -549,7 +550,7 @@ export function AnalyticsView({
     const domain = initialQuery.domain ?? route.domain;
     const source = initialQuery.source ?? route.source;
     return { ...route, domain, source,
-      fieldSources: initialQuery.fieldSources ?? analyticsFieldSourcesForSource(domain, source),
+      fieldSources: initialQuery.fieldSources ?? (initialQuery.source ? analyticsFieldSourcesForSource(domain, source) : route.fieldSources),
       timeRange: initialQuery.timeRange ?? route.timeRange,
       customRange: initialQuery.customDateRange ?? route.customRange,
       filters: initialQuery.filters ?? route.filters,
@@ -622,6 +623,7 @@ export function AnalyticsView({
   const [chartSurface, setChartSurface] = useState<"spray" | "location">("spray");
   const [chartMode, setChartMode] = useState<PracticeChartMetricMode>("heat");
   const [chartPlayerIds, setChartPlayerIds] = useState<ID[]>([]);
+  const [selectedPlayerId, setSelectedPlayerId] = useState("");
   const context = useMemo(() => ({
     teamId: data.teamContext?.currentTeam?.teamId,
     seasonId: data.teamContext?.currentTeam?.seasonId,
@@ -639,13 +641,13 @@ export function AnalyticsView({
     customDateRange: customRange,
     eventIds,
     // Player datasets are server-projected; retain the approved identity even with altered URL filters.
-    playerIds: playerScope ? [playerScope.playerId] : analyticsWorkspace === "charts" && chartPlayerIds.length ? chartPlayerIds : undefined,
+    playerIds: playerScope ? [playerScope.playerId] : selectedPlayerId ? [selectedPlayerId] : analyticsWorkspace === "charts" && chartPlayerIds.length ? chartPlayerIds : undefined,
     filters,
     metrics: metricIds ?? defaultAnalyticsMetricIds(domain, domain === "development" ? "all" : source, domain === "development" ? undefined : fieldSources),
     groupBy: "player",
     sort,
     context,
-  }), [analyticsView, analyticsWorkspace, chartPlayerIds, context, customRange, developmentView, domain, eventIds, fieldSources, filters, metricIds, mode, sort, source, timeRange, playerScope]);
+  }), [analyticsView, analyticsWorkspace, chartPlayerIds, context, customRange, developmentView, domain, eventIds, fieldSources, filters, metricIds, mode, sort, source, timeRange, playerScope, selectedPlayerId]);
   const result = useMemo(() => executeAnalyticsQuery(data, query), [data, query]);
   const serializedAnalyticsContext = useMemo(
     () => serializeAnalyticsContext(query, result.columns.map((column) => column.metricId)),
@@ -670,7 +672,7 @@ export function AnalyticsView({
   const analyticsFieldSourceOptions = analyticsSourcesForDomain(domain === "development" ? "hitting" : domain).filter((candidate): candidate is AnalyticsFieldSource => candidate !== "all");
   const analyticsEventTriggerLabel = eventIds.length
     ? analyticsEventSummary(eventIds, result.availableEvents)
-    : timeRange === "7d" ? "Last 7 Days" : timeRange === "30d" ? "Last 30 Days" : "All Events";
+    : timeRange === "custom" ? `${customRange.start ? shortDate(customRange.start) : "Start"} - ${customRange.end ? shortDate(customRange.end) : "Today"}` : timeRange === "7d" ? "Last 7 Days" : timeRange === "30d" ? "Last 30 Days" : "All Events";
   useEffect(() => {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
@@ -744,11 +746,12 @@ export function AnalyticsView({
   function handleDomain(nextDomain: AnalyticsDomain) {
     setDomain(nextDomain);
     const supportedSources = analyticsSourcesForDomain(nextDomain).filter((candidate): candidate is AnalyticsFieldSource => candidate !== "all");
+    const practiceSources = supportedSources.filter(candidate => candidate === "practice" || candidate === "live-bp");
     const nextFieldSources = nextDomain === "development"
       ? fieldSources
       : fieldSources.filter((candidate) => supportedSources.includes(candidate)).length
         ? normalizeAnalyticsFieldSources(fieldSources.filter((candidate) => supportedSources.includes(candidate)))
-        : [supportedSources[0] ?? "practice"];
+        : practiceSources.length ? practiceSources : [supportedSources[0] ?? "practice"];
     const nextSource = nextDomain === "development" ? "all" : analyticsSourceFromFieldSources(nextFieldSources);
     setSource(nextSource);
     setFieldSources(nextFieldSources);
@@ -758,6 +761,8 @@ export function AnalyticsView({
       setAnalyticsWorkspace("overview");
     }
     setFilters({});
+    setEventIds([]);
+    setDetailPlayerId(undefined);
     setStagedFilters({});
     setMetricIds(undefined);
     setColumnPreset("standard");
@@ -929,9 +934,8 @@ export function AnalyticsView({
               values={["hitting", "pitching", "defense"] as AnalyticsDomain[]}
               active={domain === "development" ? undefined : domain}
               onChange={handleDomain}
-              disabled={domain === "development"}
-              disabledTitle="Choose a field source to view Hitting, Pitching, or Defense."
             />
+            <button type="button" className={domain === "development" ? "active" : ""} aria-pressed={domain === "development"} onClick={() => handleDomain("development")}><Dumbbell size={16} aria-hidden="true" />Weight Room</button>
           </div>
           <AnalyticsSourceSelector
             domain={domain}
@@ -956,6 +960,7 @@ export function AnalyticsView({
           ))}
         </nav>
         <div className="analytics-controls__row analytics-controls__row--filters">
+          {!playerScope && <ChoiceSelect aria-label="Analytics athlete" value={selectedPlayerId} options={[{ value: "", label: "All athletes" }, ...data.players.filter(p => !p.archived).map(p => ({ value: p.id, label: p.name }))]} onChange={setSelectedPlayerId} />}
           <div className="analytics-popover-wrap">
             <button ref={eventTriggerRef} aria-expanded={eventSelectorOpen} className="secondary-button analytics-control-trigger" type="button" onClick={() => {
               setEventSelectorOpen((open) => !open);
@@ -971,6 +976,8 @@ export function AnalyticsView({
                 events={result.availableEvents}
                 selectedIds={eventIds}
                 timeRange={timeRange}
+                customRange={customRange}
+                onCustomRangeChange={(range) => { setEventIds([]); setCustomRange(range); setTimeRange("custom"); }}
                 onToggle={toggleEvent}
                 onClear={() => setEventIds([])}
                 onTimeRangeChange={setTimeRange}
@@ -1053,6 +1060,7 @@ export function AnalyticsView({
           }}
         />
         <AnalyticsMetricKey result={result} />
+        {domain === "development" && <AnalyticsWeightRoom data={data} query={query} playerIds={result.rows.map(row => row.player.id)} />}
       </>}
 
       {analyticsWorkspace === "charts" && (
@@ -1163,8 +1171,8 @@ export function AnalyticsSourceSelector({
   const [open, setOpen] = useState(false);
   const sourceLabels: Record<AnalyticsFieldSource, string> = { games: "Games", practice: "Practice", "live-bp": "Live BP", personal: "Personal" };
   const summary = domain === "development"
-    ? "Workouts"
-    : selectedSources.length === 1 ? sourceLabels[selectedSources[0]] : `${selectedSources.length} Sources`;
+    ? "Weight Room"
+    : selectedSources.length === 2 && selectedSources.includes("practice") && selectedSources.includes("live-bp") ? "All Practice" : selectedSources.length === 1 ? sourceLabels[selectedSources[0]] : `${selectedSources.length} Sources`;
 
   return (
     <div className="analytics-source-selector analytics-scope-select">
@@ -1409,8 +1417,8 @@ export function AnalyticsInsights({
 export function AnalyticsMetricKey({ result }: { result: AnalyticsResult }) {
   if (!result.columns.length) return null;
   return (
-    <section className="analytics-metric-key" aria-label="Analytics metric key">
-      <strong>Key</strong>
+    <details className="analytics-metric-key" aria-label="Analytics metric key">
+      <summary>Metric Key</summary>
       <div>
         {result.columns.map((column) => (
           <span key={column.metricId}>
@@ -1419,7 +1427,7 @@ export function AnalyticsMetricKey({ result }: { result: AnalyticsResult }) {
           </span>
         ))}
       </div>
-    </section>
+    </details>
   );
 }
 
@@ -1483,6 +1491,8 @@ export function AnalyticsEventSelector({
   onToggle,
   onClear,
   onTimeRangeChange,
+  customRange,
+  onCustomRangeChange,
 }: {
   style?: React.CSSProperties;
   events: AnalyticsEventOption[];
@@ -1491,6 +1501,8 @@ export function AnalyticsEventSelector({
   onToggle: (eventId: ID) => void;
   onClear: () => void;
   onTimeRangeChange: (range: AnalyticsTimeRange) => void;
+  customRange?: { start?: string; end?: string };
+  onCustomRangeChange?: (range: { start?: string; end?: string }) => void;
 }) {
   const [search, setSearch] = useState("");
   const today = new Date();
@@ -1519,6 +1531,10 @@ export function AnalyticsEventSelector({
         <button type="button" className={timeRange === "7d" && !selectedIds.length ? "active" : ""} onClick={() => { onClear(); onTimeRangeChange("7d"); }}>Last 7</button>
         <button type="button" className={timeRange === "30d" && !selectedIds.length ? "active" : ""} onClick={() => { onClear(); onTimeRangeChange("30d"); }}>Last 30</button>
       </div>
+        {onCustomRangeChange && <div className="analytics-custom-dates">
+          <label>From<input aria-label="Analytics start date" type="date" value={customRange?.start ?? ""} max={customRange?.end} onChange={event => onCustomRangeChange({ ...customRange, start: event.target.value || undefined })} /></label>
+          <label>Through<input aria-label="Analytics end date" type="date" value={customRange?.end ?? ""} min={customRange?.start} onChange={event => onCustomRangeChange({ ...customRange, end: event.target.value || undefined })} /></label>
+        </div>}
       <label className="analytics-popover-search">
         <span>Search events</span>
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search games or practices..." />
@@ -1962,18 +1978,18 @@ export function readInitialAnalyticsState(): {
   workspace: "overview" | "charts" | "insights";
 } {
   if (typeof window === "undefined") {
-    return { domain: "hitting", source: "games", fieldSources: ["games"], mode: "box-score", analyticsView: "overview", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {}, filters: {}, columnPreset: "standard", workspace: "overview" };
+    return { domain: "hitting", source: "all", fieldSources: ["practice", "live-bp"], mode: "box-score", analyticsView: "overview", timeRange: "season", developmentView: "overview", eventIds: [], customRange: {}, filters: {}, columnPreset: "standard", workspace: "overview" };
   }
   const params = new URLSearchParams(window.location.search);
   const domain = parseAnalyticsParam(params.get("domain"), ["hitting", "pitching", "defense", "development"], "hitting");
-  const requestedSource = parseAnalyticsParam(params.get("source"), ["games", "practice", "live-bp", "personal", "all"], "games");
+  const requestedSource = parseAnalyticsParam(params.get("source"), ["games", "practice", "live-bp", "personal", "all"], "all");
   const supportedSources = analyticsSourcesForDomain(domain);
   const requestedFieldSources = params.get("sources")?.split(",").filter((source): source is AnalyticsFieldSource => source === "games" || source === "practice" || source === "live-bp" || source === "personal") ?? [];
   const fieldSources = domain === "development"
     ? []
     : requestedFieldSources.filter((candidate) => supportedSources.includes(candidate)).length
       ? [...new Set(requestedFieldSources.filter((candidate) => supportedSources.includes(candidate)))]
-      : analyticsFieldSourcesForSource(domain, supportedSources.includes(requestedSource) ? requestedSource : supportedSources[0]);
+      : !params.has("source") ? ["practice", "live-bp"] as AnalyticsFieldSource[] : analyticsFieldSourcesForSource(domain, supportedSources.includes(requestedSource) ? requestedSource : supportedSources[0]);
   const source = domain === "development" ? "all" : analyticsSourceFromFieldSources(fieldSources);
   const mode = parseAnalyticsParam(params.get("mode"), ["box-score", "situational"], "box-score");
   const analyticsView = normalizeAnalyticsView(domain, domain === "development" ? "all" : source, params.get("statView") ?? undefined);

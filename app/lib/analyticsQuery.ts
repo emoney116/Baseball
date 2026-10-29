@@ -1,4 +1,6 @@
 import {practiceBatting, PRACTICE_BATTING_METRICS} from './practiceBatting.ts';
+import { practicePitching } from './practicePitching.ts';
+import { weightRoomAnalyticsRecords } from './weightRoomAnalytics.ts';
 import {projectPracticeDefense,practiceDefenseRoles} from './practiceDefense.ts';
 import type {PracticeRunnerAction} from './practiceRunnerActions.ts';
 import type {
@@ -357,7 +359,7 @@ export function executeAnalyticsQuery(data: AppData, input: AnalyticsQuery, opti
   return {
     ...viewedResult,
     availableViews: analyticsViewsFor(query.domain, query.source),
-    rows: sortAnalyticsRows(viewedResult.rows, viewedResult.columns, query).slice(0, query.limit ?? viewedResult.rows.length),
+    rows: sortAnalyticsRows(viewedResult.rows.filter(row => row.rowKind === "group" || !query.playerIds?.length || query.playerIds.includes(row.player.id)), viewedResult.columns, query).slice(0, query.limit ?? viewedResult.rows.length),
   };
 }
 
@@ -679,9 +681,12 @@ function buildDevelopmentResult(
   const weightWindow = weightRoomWindowForRange(query.timeRange);
   const rowsByPlayer = buildWeightRoomScoreRows(currentRosterPlayers(data), data.workoutSessions, data.workoutEntries, weightWindow, dateRange.end ?? today);
   const weightByPlayer = new Map(rowsByPlayer.map((row) => [row.player.id, row]));
-  const rows = currentRosterPlayers(data).map((player) => {
-    const workouts = data.workoutSessions.filter((session) => session.playerId === player.id && dateInRange(session.date, dateRange));
-    const completed = workouts.filter((session) => session.completed).length;
+  const records = weightRoomAnalyticsRecords(data, { ...dateRange, playerIds: query.playerIds, eventIds: query.eventIds });
+  const rows = currentRosterPlayers(data).filter(player => !query.playerIds?.length || query.playerIds.includes(player.id)).map((player) => {
+    const own = records.filter(r => r.entry.playerId === player.id);
+    const recordedSessionIds = new Set(own.map(r => r.entry.sessionId));
+    const workouts = data.workoutSessions.filter((session) => session.playerId === player.id && dateInRange(session.date, dateRange) && (!query.eventIds?.length || recordedSessionIds.has(session.id)));
+    const completed = workouts.filter((session) => session.completed || own.some(r => r.entry.sessionId === session.id && data.weightRoomWorkouts?.some(w => w.id === r.entry.activeWorkoutId && w.status === "COMPLETED"))).length;
     const attendance = data.attendance.filter((item) => item.playerId === player.id && practiceIds.has(item.practiceId));
     const attended = attendance.filter((item) => item.status === "Present" || item.status === "Late").length;
     const hittingReps = data.hittingEvents.filter((event) => event.hitterId === player.id && practiceIds.has(event.practiceId)).length;
@@ -694,13 +699,15 @@ function buildDevelopmentResult(
         label: weight ? `${weight.completedSessions ?? 0} completed workouts` : undefined,
       }),
       workouts: countCell(completed, workouts.length),
+      loggedSets: countCell(own.length, own.length),
+      recordedVolume: countCell(own.reduce((total, r) => total + r.volume, 0), own.length),
       workoutCompletionPct: rateCell(completed, workouts.length, "workouts", ANALYTICS_SAMPLE_THRESHOLDS.weightRoomWorkouts),
       attendancePct: rateCell(attended, attendance.length || practices.length, "attendance"),
       practiceReps: countCell(hittingReps + pitches + defense, hittingReps + pitches + defense),
     });
   });
   const teamTotals = developmentTeamRow(data, rows, practices);
-  return assembleResult("Team Development", data, query, sourceLabel, rows, teamTotals, ["weightScore", "workouts", "workoutCompletionPct", "attendancePct", "practiceReps"], warnings, availableEvents, filterDefinitions, scopeLabel);
+  return assembleResult("Weight Room", data, query, sourceLabel, rows, teamTotals, ["weightScore", "workouts", "loggedSets", "recordedVolume", "workoutCompletionPct", "attendancePct", "practiceReps"], warnings, availableEvents, filterDefinitions, scopeLabel);
 }
 
 function applyAnalyticsView(data: AppData, result: AnalyticsResult, today?: string): AnalyticsResult {
@@ -888,6 +895,7 @@ function assembleResult(
   scopeLabel: string,
 ): AnalyticsResult {
   const availableColumns = metricIds
+    .concat(query.domain === "pitching" ? ["pitcherStrikeouts"] : [])
     .map((metricId) => metricById(metricId))
     .filter((metricItem): metricItem is AnalyticsMetricDefinition => Boolean(metricItem))
     .filter((metricItem) => metricItem.domain === query.domain)
@@ -1239,6 +1247,19 @@ function pitchingRow(data: AppData, player: Player, pitchEvents: PitchEvent[], g
   const hardContactAllowed = qualityTrackedBattedBalls.filter((event) => event.quality === "Hard contact").length;
   const softContactAllowed = qualityTrackedBattedBalls.filter((event) => event.quality === "Weak contact").length;
   const gameStats = gamePitchingStats(data, player, gameEvents);
+  const practiceStats = practicePitching(pitchEvents);
+  const combined = {
+    battersFaced: gameStats.battersFaced + practiceStats.battersFaced,
+    hits: gameStats.hits + practiceStats.hits, walks: gameStats.walks + practiceStats.walks,
+    hitByPitch: gameStats.hitByPitch + practiceStats.hitByPitch,
+    strikeouts: gameStats.strikeouts + practiceStats.strikeouts,
+    homeRuns: gameStats.homeRuns + practiceStats.homeRuns,
+    atBats: gameStats.atBats + practiceStats.atBats,
+    totalBases: gameStats.totalBases + practiceStats.totalBases,
+    sacrificeFlies: gameStats.sacrificeFlies + practiceStats.sacrificeFlies,
+  };
+  const obpDenominator = combined.atBats + combined.walks + combined.hitByPitch + combined.sacrificeFlies;
+  const recordedOuts = pitchEvents.length && practiceStats.outs === undefined ? undefined : gameStats.outs + (practiceStats.outs ?? 0);
   return makeRow(player, {
     pitches: countCell(pitches.length, pitches.length),
     balls: countCell(balls, pitches.length),
@@ -1278,6 +1299,30 @@ function pitchingRow(data: AppData, player: Player, pitchEvents: PitchEvent[], g
     hardContactAllowedPct: rateCell(hardContactAllowed, qualityTrackedBattedBalls.length, "hard contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     softContactAllowedPct: rateCell(softContactAllowed, qualityTrackedBattedBalls.length, "soft contact", ANALYTICS_SAMPLE_THRESHOLDS.hittingBallsInPlay),
     ...gamePitchingCells(gameStats),
+    inningsPitched: cellFromNumber(recordedOuts, "innings", recordedOuts === undefined ? "not-tracked" : "available"),
+    whip: recordedOuts === undefined ? cell("—", undefined, "not-tracked") : decimalRateCell(combined.walks + combined.hits, recordedOuts / 3, "WHIP"),
+    battersFaced: countCell(combined.battersFaced, pitches.length),
+    pitcherStrikeouts: countCell(combined.strikeouts, combined.battersFaced),
+    hitsAllowed: countCell(combined.hits, combined.battersFaced),
+    homeRunsAllowed: countCell(combined.homeRuns, combined.battersFaced),
+    walksAllowed: countCell(combined.walks, combined.battersFaced),
+    hitBatters: countCell(combined.hitByPitch, combined.battersFaced),
+    strikeoutPctAllowed: rateCell(combined.strikeouts, combined.battersFaced, "completed batters"),
+    walkPctAllowed: rateCell(combined.walks, combined.battersFaced, "completed batters"),
+    strikeoutMinusWalkPct: rateCell(combined.strikeouts - combined.walks, combined.battersFaced, "strikeouts minus walks"),
+    strikeoutsPerNine: recordedOuts === undefined ? cell("—", undefined, "not-tracked") : ratioCell(combined.strikeouts * 27, recordedOuts, "K/9"),
+    walksPerNine: recordedOuts === undefined ? cell("—", undefined, "not-tracked") : ratioCell(combined.walks * 27, recordedOuts, "BB/9"),
+    hitsPerNine: recordedOuts === undefined ? cell("—", undefined, "not-tracked") : ratioCell(combined.hits * 27, recordedOuts, "H/9"),
+    homeRunsPerNine: recordedOuts === undefined ? cell("—", undefined, "not-tracked") : ratioCell(combined.homeRuns * 27, recordedOuts, "HR/9"),
+    pitchesPerInning: recordedOuts === undefined ? cell("—", undefined, "not-tracked") : ratioCell(pitches.length * 3, recordedOuts, "P/IP"),
+    pitchesPerOut: recordedOuts === undefined ? cell("—", undefined, "not-tracked") : ratioCell(pitches.length, recordedOuts, "P/Out"),
+    pitchesPerBatterFaced: ratioCell(pitches.length, combined.battersFaced, "P/BF"),
+    strikeoutToWalk: ratioCell(combined.strikeouts, combined.walks, "K/BB"),
+    opponentAvg: decimalRateCell(combined.hits, combined.atBats, "Opp AVG"),
+    opponentObp: decimalRateCell(combined.hits + combined.walks + combined.hitByPitch, obpDenominator, "Opp OBP"),
+    opponentSlg: decimalRateCell(combined.totalBases, combined.atBats, "Opp SLG"),
+    opponentOps: sumDecimalRates(combined.hits + combined.walks + combined.hitByPitch, obpDenominator, combined.totalBases, combined.atBats, "Opp OPS"),
+    opponentBabip: decimalRateCell(combined.hits - combined.homeRuns, combined.atBats - combined.strikeouts - combined.homeRuns + combined.sacrificeFlies, "Opp BABIP"),
   });
 }
 
@@ -1411,10 +1456,10 @@ function gamePitchingCells(stats: GamePitchingSummary): Record<string, Analytics
     walkPctAllowed: rateCell(stats.walks, stats.battersFaced, "walks"),
     strikeoutMinusWalkPct: rateCell(stats.strikeouts - stats.walks, stats.battersFaced, "strikeouts minus walks"),
     strikeoutToWalk: ratioCell(stats.strikeouts, stats.walks, "K/BB"),
-    strikeoutsPerNine: ratioCell(stats.strikeouts * 3, stats.outs, "K/9"),
-    walksPerNine: ratioCell(stats.walks * 3, stats.outs, "BB/9"),
-    hitsPerNine: ratioCell(stats.hits * 3, stats.outs, "H/9"),
-    homeRunsPerNine: ratioCell(stats.homeRuns * 3, stats.outs, "HR/9"),
+    strikeoutsPerNine: ratioCell(stats.strikeouts * 27, stats.outs, "K/9"),
+    walksPerNine: ratioCell(stats.walks * 27, stats.outs, "BB/9"),
+    hitsPerNine: ratioCell(stats.hits * 27, stats.outs, "H/9"),
+    homeRunsPerNine: ratioCell(stats.homeRuns * 27, stats.outs, "HR/9"),
     opponentAvg: decimalRateCell(stats.hits, stats.atBats, "Opp AVG"),
     opponentObp: decimalRateCell(stats.hits + stats.walks + stats.hitByPitch, stats.obpDenominator, "Opp OBP"),
     opponentSlg: decimalRateCell(stats.totalBases, stats.atBats, "Opp SLG"),
@@ -1563,6 +1608,8 @@ function developmentTeamRow(data: AppData, rows: AnalyticsRow[], practices: Prac
   return makeRow(player, {
     weightScore: cellFromNumber(average(weightValues), "integer", weightValues.length ? "available" : "not-tracked"),
     workouts: countCell(workouts, workouts),
+    loggedSets: countCell(rows.reduce((sum, row) => sum + numericCell(row, "loggedSets"), 0), rows.reduce((sum, row) => sum + numericCell(row, "loggedSets"), 0)),
+    recordedVolume: countCell(rows.reduce((sum, row) => sum + numericCell(row, "recordedVolume"), 0), rows.reduce((sum, row) => sum + numericCell(row, "loggedSets"), 0)),
     workoutCompletionPct: cell("—", undefined, "not-tracked"),
     attendancePct: cellFromNumber(average(attendanceValues), "percentage", practices.length ? "available" : "not-tracked"),
     practiceReps: countCell(reps, reps),
@@ -1848,7 +1895,7 @@ type LocationOrientation = {
   pitcherThrows?: "R" | "L" | "S";
 };
 
-function resolveDateRange(_data: AppData, query: AnalyticsQuery, today?: string): AnalyticsDateRange {
+export function resolveDateRange(_data: AppData, query: AnalyticsQuery, today?: string): AnalyticsDateRange {
   if (query.timeRange === "season") return {};
   if (query.timeRange === "custom") return query.customDateRange ?? {};
   const anchor = today ?? new Date().toISOString().slice(0, 10);
@@ -1875,6 +1922,7 @@ function filterPracticesByDate(practices: Practice[], range: AnalyticsDateRange,
 }
 
 function buildEventOptions(data: AppData, domain: AnalyticsDomain, sources: AnalyticsFieldSource[]): AnalyticsEventOption[] {
+  if (domain === "development") return [...new Set(data.workoutSessions.map(s => s.date))].sort().reverse().map(date => ({ id: `workout-day:${date}`, label: `${shortDate(date)} Weight Room`, date, source: "practice" }));
   const practiceOptions = data.practices.map((practice) => ({
     id: practice.id,
     label: `${shortDate(practice.date)} Practice`,
@@ -1890,8 +1938,8 @@ function buildEventOptions(data: AppData, domain: AnalyticsDomain, sources: Anal
     source: "games" as const,
   }));
   const liveOptions = [
-    ...data.hittingSessions.filter((session) => session.type === "Live BP").map((session) => sessionEventOption(data, session.id, session.practiceId, "Live BP - Hitting")),
-    ...data.pitchingSessions.filter((session) => session.type === "Live BP").map((session) => sessionEventOption(data, session.id, session.practiceId, "Live BP - Pitching")),
+    ...(domain === "hitting" ? data.hittingSessions.filter((session) => session.type === "Live BP").map((session) => sessionEventOption(data, session.id, session.practiceId, "Live BP - Hitting")) : []),
+    ...(domain === "pitching" ? data.pitchingSessions.filter((session) => session.type === "Live BP").map((session) => sessionEventOption(data, session.id, session.practiceId, "Live BP - Pitching")) : []),
     ...(domain === "defense" ? data.defenseSessions.filter(session => data.defenseEvents.some(e => e.sessionId === session.id && e.liveBpRoundId)).map(session => sessionEventOption(data, session.id, session.practiceId, "Live BP - Defense")) : []),
   ];
   const hittingSessionOptions = domain === "hitting"

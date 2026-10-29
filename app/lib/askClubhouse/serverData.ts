@@ -425,7 +425,7 @@ function mapPlayer(row: AnyRow, membership?: AnyRow): Player {
     rosterStatus: normalizeRosterStatus(membership?.roster_status),
     programLevel: membership?.roster_status === "JV" ? "JV" : membership?.roster_status === "Varsity" ? "Varsity" : "Development",
     height: row.height ?? undefined,
-    weight: toNumber(row.weight),
+    weight: toNumber(metadata.weightLb) ?? toNumber(row.weight),
     avatarColor: metadata.avatarColor ?? "#30343b",
     imageUrl: row.photo_url ?? undefined,
     isPitcher: Boolean(row.is_pitcher),
@@ -695,6 +695,7 @@ function mapDefenseEvent(row: AnyRow): DefenseEvent {
 
 function mapWorkoutSession(row: AnyRow): WorkoutSession {
   return {
+    notes: row.notes ?? undefined,
     createdByProfileId: row.created_by_profile_id,
     entrySource: row.entry_source,
     id: row.id,

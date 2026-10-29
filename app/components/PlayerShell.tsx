@@ -267,8 +267,8 @@ export function PlayerShell({
   const analyticsScope = useMemo(() => context ? { playerId: context.playerId } : undefined, [context]);
   const analyticsSource = domain === "development" ? "all" : source;
   const initialAnalyticsQuery: Partial<AnalyticsQuery> = analyticsRevision > 0 || view === "Practice" || view === "Weight Room" || view === "Games"
-    ? { ...askQuery, domain: view === "Weight Room" ? "development" : domain === "development" && view !== "Analytics" ? "hitting" : domain, source: view === "Weight Room" ? "all" : view === "Games" ? "games" : view === "Practice" ? "practice" : analyticsSource, eventIds: view === "Games" && selectedGame ? [selectedGame.id] : eventId ? [eventId] : undefined }
-    : { source: typeof window !== "undefined" && new URLSearchParams(window.location.search).has("source") ? undefined : "practice" };
+    ? { ...askQuery, domain: view === "Weight Room" ? "development" : domain === "development" && view !== "Analytics" ? "hitting" : domain, source: view === "Weight Room" ? "all" : view === "Games" ? "games" : view === "Practice" ? "all" : analyticsSource, fieldSources: view === "Practice" ? ["practice", "live-bp"] : askQuery.fieldSources, eventIds: view === "Games" && selectedGame ? [selectedGame.id] : eventId ? [eventId] : undefined }
+    : {};
   function resetAsk() {
     askGeneration.current++;
     askAbort.current?.abort();

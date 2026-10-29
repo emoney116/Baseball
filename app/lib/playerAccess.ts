@@ -281,12 +281,24 @@ export function safePlayerRow(kind: string, r: Row): Row {
     defense: `${eventAudit},player_id,station,event_number,outcome,position_worked,drill_context,rep_type,rep_subtype,result,throw_result,difficulty,location,timing_seconds,error_type`,
     workout:
       "id,player_id,session_date,week_of,day_name,completed,effort_score,body_weight,created_at,updated_at,created_by_profile_id,entry_source",
-    set: "id,workout_session_id,player_id,exercise_id,set_number,weight,reps,sets,value,unit,rpe,status,prior_value,created_at,entry_source,created_by,updated_by,active_workout_id,workout_station_id,workout_group_id",
+    set: "id,workout_session_id,player_id,exercise_id,set_number,weight,reps,sets,value,unit,rpe,status,prior_value,created_at,entry_source,created_by,updated_by,active_workout_id,workout_station_id,workout_group_id,test_conditions,test_side,test_attempt",
     game: "id,game_date,starts_at,opponent,home_away,location,game_type,result,our_score,opponent_score,inning,half,outs,balls,strikes,created_at,updated_at",
     gameEvent:
       "id,game_id,inning,half,pitcher_id,batter_id,pitch_type,pitch_outcome,ball_in_play_outcome,event_kind,sequence_number,plate_appearance_id,plate_appearance_number,pitch_number,pitch_number_in_plate_appearance,contact_type,rbi,record_status,runner_action,runner_id,runner_base,count_before,count_after,field_location,velocity,location,outs_before,outs_after,our_runs_before,our_runs_after,opponent_runs_before,opponent_runs_after,created_at",
   };
   const safe = pick(r, fields[kind] ?? "");
+  if (kind === "player") safe.metadata = pick(r.metadata ?? {}, "weightLb");
+  if (kind === "workout" && typeof r.notes === "string" && r.notes.includes("Unverified roster-copy")) safe.notes = "Unverified roster-copy";
+  if (safe.live_bp_context) {
+    const ownId = r.hitter_id ?? r.pitcher_id ?? r.player_id;
+    const context = pick(safe.live_bp_context, "source,thrower,mode,countTracked,before,after,result,jobSuccess,runnerOutcomes,runnerReasons,battedBallType");
+    for (const phase of ["before", "after"]) {
+      const state = context[phase] as Row | undefined;
+      if (!state) continue;
+      context[phase] = { ...pick(state, "balls,strikes,outs,runners,job,pa,countKnown,situationKnown"), runnerIds: Object.fromEntries(Object.entries(state.runnerIds ?? {}).map(([base, id]) => [base, id === ownId ? ownId : `occupied-${base}`])) };
+    }
+    safe.live_bp_context = context;
+  }
   if (kind === "session")
     safe.metadata = pick(
       r.metadata ?? {},
@@ -395,6 +407,10 @@ async function loadPlayerData(
         db.from("exercises").select("id,name,kind,unit").in("id", exerciseIds),
       )
     : [];
+  const stationIds = [...new Set(sets.map(r => r.workout_station_id).filter(Boolean))];
+  const stations = stationIds.length
+    ? await rows(db.from("weight_room_workout_stations").select("id,workout_id,exercise_id,exercise_name,display_order,measurement_type,unit,created_at,updated_at").in("id", stationIds))
+    : [];
   const teamContext = {
     profile: { id: profileId, role: "PLAYER" as const },
     availableTeams: [team],
@@ -461,6 +477,12 @@ async function loadPlayerData(
         exercises.find((e) => e.id === r.exercise_id),
       ),
     ),
+    weightRoomWorkoutStations: stations.map(r => ({
+      id: r.id, workoutId: r.workout_id, exerciseId: r.exercise_id ?? undefined,
+      exerciseName: r.exercise_name, displayOrder: r.display_order ?? 0,
+      measurementType: r.measurement_type, unit: r.unit ?? undefined,
+      createdAt: r.created_at, updatedAt: r.updated_at,
+    })),
     developmentGoals: goals.map((r) => ({
       id: r.id,
       playerId,

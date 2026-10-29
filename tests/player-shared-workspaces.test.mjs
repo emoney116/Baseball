@@ -51,7 +51,7 @@ test("private coach note and another-player requests are refused before analytic
 test("shared Weight Room Analytics retains development columns and approved self rows", async () => {
   const f = playerServiceFixture(), session = await loadPlayerSession(f.db, uuid(1));
   const result = executeAnalyticsQuery(session.data, { domain: "development", source: "all", mode: "box-score", timeRange: "season", groupBy: "player", playerIds: [session.context.playerId] });
-  assert.deepEqual(result.columns.map(c => c.metricId), ["weightScore", "workouts", "workoutCompletionPct", "attendancePct", "practiceReps"]);
+  assert.deepEqual(result.columns.map(c => c.metricId), ["weightScore", "workouts", "loggedSets", "recordedVolume", "workoutCompletionPct", "attendancePct", "practiceReps"]);
   assert.deepEqual(result.rows.map(row => row.player.id), [session.context.playerId]);
 });
 
