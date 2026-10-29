@@ -1,5 +1,5 @@
 import type { PitchType } from "../types.ts";
-import {PRACTICE_BATTING_METRICS} from './practiceBatting.ts';
+import {PRACTICE_BATTING_METRICS, PRACTICE_BATTING_DERIVED_METRICS} from './practiceBatting.ts';
 import { PRACTICE_PITCHING_METRICS } from './practicePitching.ts';
 import type {
   AnalyticsColumn,
@@ -378,7 +378,7 @@ export const ANALYTICS_FILTER_CATALOG: AnalyticsFilterDefinition[] = [
   filter("battedBallTypes", "Batted Ball", "Contact", ["hitting", "pitching"], ["all", "games", "practice", "live-bp"], ["Ground ball", "Line drive", "Fly ball", "Pop up"].map(option), "multi-select", "partial", "Games use scored contact type when present."),
   filter("directions", "Spray Direction", "Contact", ["hitting"], ["all", "practice", "live-bp"], ["Pull", "Middle", "Opposite"].map(option)),
   filter("drillTypes", "Drill", "Practice", ["hitting"], ["practice", "live-bp"], ["Tee", "Front Toss", "Machine", "Hack Attack - FB", "Hack Attack - CB", "Coach BP", "Live BP", "Other"].map(option)),
-  filter("liveBpThrowerSources", "Thrower", "Practice", ["hitting", "pitching"], ["all", "live-bp"], [
+  filter("liveBpThrowerSources", "Pitching Source", "Practice", ["hitting", "pitching"], ["all", "games", "practice", "live-bp"], [
     { value: "PLAYER", label: "Player" }, { value: "COACH", label: "Coach" }, { value: "MACHINE", label: "Machine" },
   ], "multi-select", "partial"),
   filter("defenseStations", "Station", "Defense", ["defense"], ["all", "practice"], ["Infield", "Outfield", "Catching", "PFP", "Situational defense", "Team defense"].map(option)),
@@ -552,7 +552,7 @@ function metric(
 ): AnalyticsMetricDefinition {
   if (domain === "defense" && supportedSources.includes("practice")) supportedSources = [...supportedSources, "live-bp"];
   if (supportedSources.includes("practice")) supportedSources = [...supportedSources, "personal"];
-  if(domain==='hitting' && (PRACTICE_BATTING_METRICS as readonly string[]).includes(id)) {
+  if(domain==='hitting' && ([...PRACTICE_BATTING_METRICS, ...PRACTICE_BATTING_DERIVED_METRICS] as readonly string[]).includes(id)) {
     supportedSources=[...new Set([...supportedSources,'practice','live-bp'] as AnalyticsSource[])];
     definition += ' Practice/Live BP uses recorded canonical outcomes only; unrecorded outcomes and runner identities remain unknown.';
   }

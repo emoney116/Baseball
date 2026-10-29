@@ -810,8 +810,8 @@ export function AnalyticsView({
   function handleFieldSourceToggle(nextFieldSource: AnalyticsFieldSource) {
     if (domain === "development") {
       setDomain("hitting");
-      setSource(nextFieldSource);
-      setFieldSources([nextFieldSource]);
+      setSource(nextFieldSource === "practice" ? "all" : nextFieldSource);
+      setFieldSources(nextFieldSource === "practice" ? ["practice", "live-bp"] : [nextFieldSource]);
       setDevelopmentView("overview");
       setFilters({});
       setStagedFilters({});
@@ -823,7 +823,11 @@ export function AnalyticsView({
       setAnalyticsWorkspace("overview");
       return;
     }
-    const nextFieldSources = fieldSources.includes(nextFieldSource)
+    const nextFieldSources: AnalyticsFieldSource[] = nextFieldSource === "practice"
+      ? fieldSources.some(source => source === "practice" || source === "live-bp")
+        ? fieldSources.filter(source => source !== "practice" && source !== "live-bp")
+        : [...fieldSources, "practice", "live-bp"]
+      : fieldSources.includes(nextFieldSource)
       ? fieldSources.filter((sourceItem) => sourceItem !== nextFieldSource)
       : [...fieldSources, nextFieldSource];
     handleFieldSources(nextFieldSources);
@@ -1170,9 +1174,11 @@ export function AnalyticsSourceSelector({
 }) {
   const [open, setOpen] = useState(false);
   const sourceLabels: Record<AnalyticsFieldSource, string> = { games: "Games", practice: "Practice", "live-bp": "Live BP", personal: "Personal" };
+  const visibleSources = availableSources.filter(source => source !== "live-bp" || !availableSources.includes("practice"));
+  const selectedLabels = visibleSources.filter(source => selectedSources.includes(source) || source === "practice" && selectedSources.includes("live-bp")).map(source => sourceLabels[source]);
   const summary = domain === "development"
     ? "Weight Room"
-    : selectedSources.length === 2 && selectedSources.includes("practice") && selectedSources.includes("live-bp") ? "All Practice" : selectedSources.length === 1 ? sourceLabels[selectedSources[0]] : `${selectedSources.length} Sources`;
+    : selectedLabels.join(" + ");
 
   return (
     <div className="analytics-source-selector analytics-scope-select">
@@ -1184,8 +1190,8 @@ export function AnalyticsSourceSelector({
     >
       <div className="clubhouse-source-options" role="menu" aria-label="Analytics source and Workouts">
         <div className="analytics-source-selector__field-sources" role="group" aria-label="Field sources">
-          {availableSources.map((source) => {
-            const selected = domain !== "development" && selectedSources.includes(source);
+          {visibleSources.map((source) => {
+            const selected = domain !== "development" && (selectedSources.includes(source) || source === "practice" && selectedSources.includes("live-bp"));
             return <label key={source} className={selected ? "active" : ""}>
               <input type="checkbox" checked={selected} onChange={() => onToggleSource(source)} />
               <span className="analytics-source-selector__checkbox" aria-hidden="true">{selected && <Check size={13} strokeWidth={3} />}</span>

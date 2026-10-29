@@ -15,8 +15,9 @@ Voice changes, or deployment are required to validate this candidate.
 
 ## Changes
 
-- Coach and player Analytics default to Practice plus Live BP. Games and Personal
-  remain explicit sources. Domain changes clear incompatible session filters.
+- Coach and player Analytics default to one Practice source including Live BP.
+  Games can be added into the same athlete line; Personal remains a separate
+  option. Domain changes clear incompatible session filters.
 - Coach athlete selection, event selection, date range, source, pitch/contact
   filters and column presets use the same canonical query pipeline.
 - Practice pitching derives BF, K, BB, H, HBP, opponent batting rates and other
@@ -36,7 +37,7 @@ Voice changes, or deployment are required to validate this candidate.
 
 ## Acceptance
 
-Full sanitized validation: 2,023 tests passed; Next build and TypeScript passed;
+Full sanitized validation: 2,030 tests passed; Next build and TypeScript passed;
 ESLint has zero errors and 23 existing image warnings. All eight browser matrix
 cases passed, including athlete selection, filter-panel bounds and reload.
 
@@ -49,6 +50,16 @@ player components at 360x780, 390x844, 820x1180 and 1440x900. It verifies veloci
 saved workout primitives, domain switching, reload, custom dates, own-only rows,
 no page overflow and no browser exceptions. Screenshots are under
 `build/qa-analytics/` (untracked).
+
+Owner-approved release follow-up also covers mixed Practice/Live BP/Games stat
+lines and pitch-type/count splits. ISO, BABIP, K%, BB%, extra-base rates and other
+derived batting rates are recomputed from summed counts. Pitching Source filters
+apply to ordinary Practice as well as Live BP; explicit event evidence wins,
+unknown throwers stay unclassified, and Games cannot leak into coach/machine
+splits. Recorded complete Practice sequences support P/PA; matched nonterminal
+game pitches cannot import a later PA outcome. Own baserunning evidence cannot
+count another batter's PA. Browser cases additionally toggle Games into the
+single Practice line and verify the combined PA total.
 
 Browser authentication and server data are synthetic fixtures. These runs are not
 physical-device tests or a claim of live Supabase Auth/RLS acceptance. Existing

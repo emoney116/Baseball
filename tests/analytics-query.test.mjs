@@ -155,7 +155,7 @@ const baseData = {
   hittingSessions: [
     hittingSession("hit-1", "practice-aug-17", "p-jacob", "Machine"),
     hittingSession("hit-2", "practice-aug-19", "p-jacob", "Machine"),
-    hittingSession("live-hit-1", "practice-aug-19", "p-jacob", "Live BP"),
+    hittingSession("live-hit-1", "practice-aug-19", "p-jacob", "Live BP", { liveBpThrowerSource: "PLAYER" }),
   ],
   hittingEvents: [
     hittingEvent("he-1", "practice-aug-17", "hit-1", "p-jacob", "Miss"),

@@ -18,6 +18,8 @@ const live = result => ({ source:'Live BP',thrower:'PLAYER',mode:'GAME',result,b
 data.pitchEvents = results.map((result,i)=>({...data.pitchEvents[0],id:`p-${i}`,pitcherId:own,practiceId:'qa-practice',sessionId:'qa-pitch',velocity:70+i,liveBpContext:live(result),isStrike:result!=='Walk',createdAt:'2026-10-22T18:00:00Z'}));
 data.hittingEvents = results.map((result,i)=>({...data.hittingEvents[0],id:`h-${i}`,hitterId:own,practiceId:'qa-practice',sessionId:'qa-hit',isLiveBp:true,liveBpContext:live(result),action:['Single','Out','Home Run'].includes(result)?'Ball in play':result==='Strikeout'?'Miss':result==='Foul'?'Foul':'Took pitch',exitVelocityMph:result==='Single'?90:undefined}));
 data.gameEvents=[];
+data.games=[{...data.games[0],id:'qa-game',date:'2026-10-22'}];data.plateAppearances=[];
+data.gameEvents=['Double','Ground Out','Walk'].map((result,i)=>({id:`game-${i}`,gameId:'qa-game',batterId:own,pitcherId:own,plateAppearanceId:`game-pa-${i}`,sequenceNumber:i+1,inning:1,half:'Top',pitchType:'4-Seam',pitchOutcome:result==='Walk'?'Ball':'In Play',ballInPlayOutcome:result==='Walk'?undefined:result,countBefore:result==='Walk'?{balls:3,strikes:0}:{balls:0,strikes:0},outsBefore:0,outsAfter:result==='Ground Out'?1:0,metrolinaRunsBefore:0,metrolinaRunsAfter:0,opponentRunsBefore:0,opponentRunsAfter:0,velocity:80,createdAt:'2026-10-22T18:00:00Z'}));
 data.workoutSessions=[{id:'qa-workout',playerId:own,date:'2026-10-22',completed:true}];
 data.workoutEntries=[{id:'qa-set',sessionId:'qa-workout',playerId:own,exercise:'Dumbbell Bench Press',setNumber:1,weight:40,reps:20,unit:'lb',status:'Completed'}];
 data.weightRoomWorkouts=[]; data.weightRoomWorkoutStations=[];
@@ -43,6 +45,19 @@ try {
         await context.route('**/api/player/session?**',route=>route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(player)}));
       }
       await page.goto(`${origin}/?${role==='coach'?'devBypass=1':'workspace=player'}&view=analytics`);
+      await page.getByRole('button',{name:'Analytics source and Workouts',exact:true}).click();
+      assert.equal(await page.getByRole('checkbox',{name:'Live BP',exact:true}).count(),0,'Practice includes Live BP without a separate source choice');
+      await page.getByRole('group',{name:'Field sources'}).getByText('Games',{exact:true}).click();
+      assert.equal(await page.getByRole('checkbox',{name:'Games',exact:true}).isChecked(),true);
+      await page.keyboard.press('Escape');
+      const combined=page.getByRole('row',{name:'Open Alex Morgan analytics'});
+      await combined.waitFor();
+      assert.equal((await combined.getByRole('cell').nth(1).innerText()).trim(),'9','one combined batting PA total');
+      await page.screenshot({path:`build/qa-analytics/${role}-combined-${size}.png`,fullPage:true});
+      await page.getByRole('button',{name:'Analytics source and Workouts',exact:true}).click();
+      await page.getByRole('group',{name:'Field sources'}).getByText('Games',{exact:true}).click();
+      assert.equal(await page.getByRole('checkbox',{name:'Games',exact:true}).isChecked(),false);
+      await page.keyboard.press('Escape');
       await page.getByRole('button',{name:'Pitching',exact:true}).click();
       try { await page.getByRole('row',{name:'Open Alex Morgan analytics'}).waitFor({timeout:10000}); }
       catch(error) { await page.screenshot({path:`build/qa-analytics/failure-${role}-${size}.png`,fullPage:true}); console.log(await page.locator('body').innerText()); throw error; }

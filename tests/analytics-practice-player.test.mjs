@@ -21,6 +21,82 @@ function fixture() {
   d.gameEvents = [];
   return d;
 }
+
+function mixedFixture() {
+  const d=fixture(), hitter=d.players[1].id, pitcher=d.players[0].id;
+  d.games=[{...d.games[0],id:'qa-game',date:'2026-10-22'}];
+  d.plateAppearances=[];
+  d.gameEvents=['Double','Ground Out','Walk'].map((result,i)=>({id:`game-${i}`,gameId:'qa-game',batterId:hitter,pitcherId:pitcher,plateAppearanceId:`game-pa-${i}`,sequenceNumber:i+1,inning:1,half:'Top',pitchType:'4-Seam',pitchOutcome:result==='Walk'?'Ball':'In Play',ballInPlayOutcome:result==='Walk'?undefined:result,countBefore:result==='Walk'?{balls:3,strikes:0}:{balls:0,strikes:0},outsBefore:0,outsAfter:result==='Ground Out'?1:0,metrolinaRunsBefore:0,metrolinaRunsAfter:0,opponentRunsBefore:0,opponentRunsAfter:0,velocity:80,createdAt:'2026-10-22T18:00:00Z'}));
+  d.hittingEvents.forEach(e=>{e.pitchType='4-Seam';});
+  d.pitchEvents.forEach(e=>{e.pitchType='4-Seam';});
+  return d;
+}
+
+test('Practice plus Live BP and Games share one batting line with recomputed advanced rates',()=>{
+  const d=mixedFixture(), result=executeAnalyticsQuery(d,{...query('hitting'),fieldSources:['practice','live-bp','games'],playerIds:[d.players[1].id]});
+  assert.equal(result.rows.length,1);
+  const c=result.rows[0].cells;
+  for(const [id,value] of Object.entries({pa:9,ab:6,hits:3,totalBases:7,walks:2,strikeouts:1,avg:.5,slg:7/6,iso:4/6,babip:.5,strikeoutPct:100/9,walkPct:200/9})) assert.ok(Math.abs(c[id].value-value)<1e-9,`${id}: ${c[id].value}`);
+  assert.ok(Math.abs(c.ops.value-(6/9+7/6))<1e-9);
+  assert.ok(result.availableColumns.some(c=>c.metricId==='twoStrikeContactPct'));
+});
+
+test('mixed count and pitch-type splits include Games without creating a second player line',()=>{
+  const d=mixedFixture(), q={...query('hitting'),fieldSources:['practice','live-bp','games'],playerIds:[d.players[1].id]};
+  const split=executeAnalyticsQuery(d,{...q,view:'pitch-types'});
+  assert.equal(split.rows.length,1);
+  assert.equal(split.rows[0].cells.pa.value,9);
+  assert.equal(split.rows[0].cells.hits.value,3);
+  const counted=executeAnalyticsQuery(d,{...q,filters:{exactCounts:['0-0'],pitchTypes:['4-Seam']}});
+  assert.equal(counted.rows[0].cells.pa.value,8);
+  assert.equal(counted.rows[0].cells.walks.value,1);
+  assert.equal(executeAnalyticsQuery(d,{...q,filters:{pitchTypes:['Slider']}}).rows[0].sampleCount,0);
+});
+
+test('pitching sources classify ordinary Practice too, respect event evidence, and do not leak Games into coach splits',()=>{
+  const d=mixedFixture(), hitter=d.players[1].id;
+  d.hittingSessions.push({id:'coach',practiceId:'qa-practice',hitterId:hitter,type:'Coach BP'},{id:'machine',practiceId:'qa-practice',hitterId:hitter,type:'Machine'},{id:'unknown',practiceId:'qa-practice',hitterId:hitter,type:'Other'});
+  for(const id of ['coach','machine','unknown']) d.hittingEvents.push({...d.hittingEvents[0],id,sessionId:id,isLiveBp:false,liveBpContext:{...context('Single'),thrower:undefined}});
+  const q={...query('hitting'),fieldSources:['practice','live-bp','games'],playerIds:[hitter]};
+  for(const [source,count] of [['COACH',1],['MACHINE',1],['PLAYER',10]]){
+    const result=executeAnalyticsQuery(d,{...q,filters:{liveBpThrowerSources:[source]}});
+    assert.equal(result.rows[0].cells.opportunities.value,count,source);
+  }
+  const all=executeAnalyticsQuery(d,q);
+  assert.equal(all.rows[0].cells.opportunities.value,13);
+  assert.ok(all.filterDefinitions.some(f=>f.id==='liveBpThrowerSources'));
+});
+
+test('pitching combines all field sources and retains exact count and pitch-type filters',()=>{
+  const d=mixedFixture(), q={...query('pitching'),fieldSources:['practice','live-bp','games'],playerIds:[d.players[0].id]};
+  const result=executeAnalyticsQuery(d,q), c=result.rows[0].cells;
+  assert.equal(c.pitches.value,10);assert.equal(c.battersFaced.value,9);assert.equal(c.hitsAllowed.value,3);assert.equal(c.walksAllowed.value,2);
+  const narrowed=executeAnalyticsQuery(d,{...q,filters:{pitchTypes:['4-Seam'],exactCounts:['0-0']}});
+  assert.equal(narrowed.rows[0].cells.pitches.value,9);
+});
+
+test('a nonterminal pitch matching a filter cannot import the later game outcome',()=>{
+  const d=mixedFixture(), hitter=d.players[1].id;
+  d.gameEvents=[{...d.gameEvents[0],pitchOutcome:'Called Strike',ballInPlayOutcome:undefined,countBefore:{balls:0,strikes:0}}];
+  d.plateAppearances=[{id:'game-pa-0',hitterId:hitter,outcome:'Double',endedAt:'2026-10-22T18:05:00Z'}];
+  const r=executeAnalyticsQuery(d,{...query('hitting'),fieldSources:['games'],playerIds:[hitter],filters:{exactCounts:['0-0']}});
+  assert.equal(r.rows[0].cells.hits.value,undefined);
+  assert.equal(r.rows[0].cells.pa.value,undefined);
+});
+
+test('own running events cannot count another hitter plate appearance',()=>{
+  const d=mixedFixture(), hitter=d.players[1].id;
+  d.gameEvents.push({...d.gameEvents[0],id:'other-hit',plateAppearanceId:'other-pa',batterId:d.players[0].id,runnerId:hitter,runnerMovements:[{runnerId:hitter,from:'third',to:'home'}]});
+  const r=executeAnalyticsQuery(d,{...query('hitting'),fieldSources:['games'],playerIds:[hitter]}),c=r.rows[0].cells;
+  assert.equal(c.pa.value,3);assert.equal(c.hits.value,1);assert.equal(c.runs.value,1);
+});
+
+test('Practice P/PA and approach metrics use recorded complete sequences',()=>{
+  const d=fixture(), hitter=d.players[1].id;
+  d.hittingEvents=d.hittingEvents.slice(0,2).map((e,i)=>({...e,eventNumber:i+1,action:i?'Ball in play':'Took pitch',liveBpContext:{...context(i?'Single':'Called Strike'),before:{balls:0,strikes:i,outs:0,pa:1,runners:[]}}}));
+  const c=executeAnalyticsQuery(d,{...query('hitting'),playerIds:[hitter]}).rows[0].cells;
+  assert.equal(c.pitchesPerPlateAppearance.value,2);assert.equal(c.calledStrikePctHitting.value,50);assert.equal(c.firstPitchSwingPct.value,0);
+});
 test('practice pitching exposes recorded BF/K/BB/H, real innings, opponent rates and velocity', () => {
   const d = fixture(), r = executeAnalyticsQuery(d, query('pitching'));
   const row = r.rows.find(r => r.player.id === d.players[0].id);

@@ -1,4 +1,4 @@
-import {practiceBatting, PRACTICE_BATTING_METRICS} from './practiceBatting.ts';
+import {practiceBatting, PRACTICE_BATTING_METRICS, PRACTICE_BATTING_DERIVED_METRICS} from './practiceBatting.ts';
 import { practicePitching } from './practicePitching.ts';
 import { weightRoomAnalyticsRecords } from './weightRoomAnalytics.ts';
 import {projectPracticeDefense,practiceDefenseRoles} from './practiceDefense.ts';
@@ -444,8 +444,8 @@ function buildHittingResult(
 
   if (includesGames && !includesTrackedSwings) {
     warnings.push("Game hitting uses completed logged plate appearances when available. A dash means that outcome has not been recorded for the selected games.");
-    const rows = currentRosterPlayers(data).map((player) => gameHittingRow(player, gameEventsForHitter(player.id, gameEvents), data.plateAppearances));
-    const teamTotals = gameHittingTeamRow(data, gameEvents);
+    const rows = currentRosterPlayers(data).map((player) => gameHittingRow(player, gameEventsForHitter(player.id, gameEvents), data.plateAppearances, hasOutcomeFilters(query)));
+    const teamTotals = gameHittingTeamRow(data, gameEvents, hasOutcomeFilters(query));
     return {
       ...assembleResult("Team Hitting", data, query, sourceLabel, rows, teamTotals, gameMetricIds, warnings, availableEvents, filterDefinitions, scopeLabel),
       sprayChart: buildGameSprayChart(gameEvents),
@@ -453,15 +453,15 @@ function buildHittingResult(
     };
   }
 
-  trackedMetricIds.push(...PRACTICE_BATTING_METRICS);
+  trackedMetricIds.push(...PRACTICE_BATTING_METRICS, ...PRACTICE_BATTING_DERIVED_METRICS);
   const runnerEvents=includesTrackedSwings?filterHittingEvents(data,{...query,playerIds:undefined},today):[];
   const runnerActions=filterRunnerActions(data,query,runnerEvents,today);
   const trackedRows = currentRosterPlayers(data).map((player) => hittingRow(player, trackedEvents.filter((event) => event.hitterId === player.id),runnerEvents,player.id,runnerActions));
   const trackedTeamTotals = hittingTeamRow(data, trackedEvents,runnerActions,runnerEvents,query.playerIds);
   if (includesGames) {
     warnings.push("Mixed field sources combine recorded batting outcomes; swing and contact metrics retain their own measured samples.");
-    const gameRows = currentRosterPlayers(data).map((player) => gameHittingRow(player, gameEventsForHitter(player.id, gameEvents), data.plateAppearances));
-    const gameTeamTotals = gameHittingTeamRow(data, gameEvents);
+    const gameRows = currentRosterPlayers(data).map((player) => gameHittingRow(player, gameEventsForHitter(player.id, gameEvents), data.plateAppearances, hasOutcomeFilters(query)));
+    const gameTeamTotals = gameHittingTeamRow(data, gameEvents, hasOutcomeFilters(query));
     const rows = trackedRows.map((trackedRow, index) => mergeCompatibleHittingRows(trackedRow, gameRows[index]));
     const teamTotals = mergeCompatibleHittingRows(trackedTeamTotals, gameTeamTotals);
     const trackedSpray = buildHittingSprayChart(trackedEvents);
@@ -504,6 +504,8 @@ const COMBINABLE_HITTING_RATE_METRICS = new Set([
   'avg','obp','slg',
   "swingPct", "takePct", "contactPct", "swingMissPct", "foulPct", "bipPct",
   "zoneSwingPct", "zoneContactPct", "chasePct", "outZoneContactPct",
+  "calledStrikePctHitting", "swingingStrikePctHitting", "firstPitchSwingPct", "twoStrikeContactPct",
+  "pitchesPerPlateAppearance",
   "groundBallPct", "lineDrivePct", "flyBallPct", "popUpPct", "gbFbRatio", "airPct",
 ]);
 
@@ -541,7 +543,25 @@ function mergeCompatibleHittingRows(left: AnalyticsRow, right: AnalyticsRow): An
   }
   const obp=merged.cells.obp?.value,slg=merged.cells.slg?.value;
   if(typeof obp==='number'&&typeof slg==='number')merged.cells.ops=cellFromNumber(obp+slg,'decimal','available');
+  Object.assign(merged.cells, derivedBattingCells(merged.cells));
   return merged;
+}
+
+function derivedBattingCells(cells: Record<string, AnalyticsCell>): Record<string, AnalyticsCell> {
+  const value = (id: string) => typeof cells[id]?.value === "number" ? cells[id].value as number : undefined;
+  const pa = value("pa"), ab = value("ab"), hits = value("hits"), tb = value("totalBases");
+  const hr = value("homeRuns"), xbh = value("xbh"), k = value("strikeouts"), bb = value("walks"), sf = value("sacrificeFlies");
+  const difference = (a?: number, b?: number) => a === undefined || b === undefined ? undefined : a - b;
+  const divide = (n: number | undefined, d: number | undefined, label: string, percent = false) => n === undefined || d === undefined ? cell("—", undefined, "not-tracked") : percent ? rateCell(n, d, label) : decimalRateCell(n, d, label);
+  const babipDenominator = ab === undefined || k === undefined || hr === undefined || sf === undefined ? undefined : ab - k - hr + sf;
+  return {
+    iso: divide(difference(tb, hits), ab, "ISO"), babip: divide(difference(hits, hr), babipDenominator, "BABIP"),
+    hrPct: divide(hr, ab, "HR/AB", true), xbhPct: divide(xbh, ab, "XBH/AB", true), tbPerAb: divide(tb, ab, "TB/AB"),
+    strikeoutPct: divide(k, pa, "K", true), walkPct: divide(bb, pa, "BB", true), walkToStrikeout: divide(bb, k, "BB/K"),
+    paPerStrikeout: divide(pa, k, "PA/K"), paPerWalk: divide(pa, bb, "PA/BB"),
+    xbhHitPct: divide(xbh, hits, "XBH/H", true), hrPaPct: divide(hr, pa, "HR/PA", true), tbPerPa: divide(tb, pa, "TB/PA"),
+    stolenBasePct: divide(value("stolenBases"), value("stolenBaseAttempts"), "SB", true),
+  };
 }
 
 function buildHittingSprayChart(events: HittingEvent[]): AnalyticsSprayChart {
@@ -723,19 +743,19 @@ function applyAnalyticsView(data: AppData, result: AnalyticsResult, today?: stri
 
   if (result.query.domain === "hitting") {
     const sources = analyticsFieldSources(result.query);
-    if (sources.length === 1 && sources[0] === "games") {
-      const events = filterGameEvents(data, result.query, today);
-      const groups = groupItems(events, (event) => gameHittingGroup(data, event, groupBy));
-      totalEvents = events.length;
-      groupedEvents = groupSize(groups);
-      rows = [...groups.entries()].map(([key, group], index) => groupAnalyticsRow(gameHittingRow(groupPlayer(data, key, index), group.items, data.plateAppearances), key, group.label));
-    } else {
-      const events = filterHittingEvents(data, result.query, today);
-      const groups = groupItems(events, (event) => practiceHittingGroup(data, event, groupBy));
-      totalEvents = events.length;
-      groupedEvents = groupSize(groups);
-      rows = [...groups.entries()].map(([key, group], index) => groupAnalyticsRow(hittingRow(groupPlayer(data, key, index), group.items,group.items,null), key, group.label));
-    }
+    const practiceEvents = sources.some(source => source !== "games") ? filterHittingEvents(data, result.query, today) : [];
+    const gameEvents = sources.includes("games") ? filterGameEvents(data, result.query, today) : [];
+    const practiceGroups = groupItems(practiceEvents, event => practiceHittingGroup(data, event, groupBy));
+    const gameGroups = groupItems(gameEvents, event => gameHittingGroup(data, event, groupBy));
+    totalEvents = practiceEvents.length + gameEvents.length;
+    groupedEvents = groupSize(practiceGroups) + groupSize(gameGroups);
+    rows = [...new Set([...practiceGroups.keys(), ...gameGroups.keys()])].map((key, index) => {
+      const practice = practiceGroups.get(key), game = gameGroups.get(key);
+      const tracked = hittingRow(teamPlayer(data), practice?.items ?? [], practice?.items ?? [], null);
+      const scored = gameHittingRow(teamPlayer(data), game?.items ?? [], data.plateAppearances, true);
+      const combined = !practice ? scored : !game ? tracked : mergeCompatibleHittingRows(tracked, scored);
+      return groupAnalyticsRow({ ...combined, player: groupPlayer(data, key, index) }, key, practice?.label ?? game!.label);
+    });
   } else if (result.query.domain === "pitching") {
     const sources = analyticsFieldSources(result.query);
     const practiceEvents = sources.some((source) => source === "practice" || source === "live-bp") ? filterPitchEvents(data, result.query, today) : [];
@@ -949,7 +969,7 @@ function hittingRow(player: Player, events: HittingEvent[], runnerEvents: Hittin
   for(const id of PRACTICE_BATTING_METRICS) {
     if(['avg','obp','slg','ops'].includes(id))continue;
     const value=totals[id as keyof typeof totals];
-    scoring[id]=countCell(value,['runs','runnerAdvances','runnerOuts'].includes(id)?totals.runSamples:id==='rbi'?totals.rbiSamples:totals.pa);
+    scoring[id]=countCell(value,['runs','runnerAdvances','runnerOuts','stolenBases','caughtStealing','stolenBaseAttempts'].includes(id)?totals.runSamples:id==='rbi'?totals.rbiSamples:totals.pa);
   }
   scoring.avg=decimalRateCell(totals.hits,totals.ab,'AVG');
   scoring.situationalReps=countCell(totals.situationalReps,totals.situationalReps);
@@ -958,6 +978,8 @@ function hittingRow(player: Player, events: HittingEvent[], runnerEvents: Hittin
   scoring.obp=decimalRateCell(totals.hits+totals.walks+totals.hitByPitch,totals.ab+totals.walks+totals.hitByPitch+totals.sacrificeFlies,'OBP');
   scoring.slg=decimalRateCell(totals.totalBases,totals.ab,'SLG');
   scoring.ops=typeof scoring.obp.value==='number'&&typeof scoring.slg.value==='number'?cellFromNumber(scoring.obp.value+scoring.slg.value,'decimal','available'):cell('—',undefined,'not-tracked');
+  Object.assign(scoring, derivedBattingCells(scoring));
+  scoring.pitchesPerPlateAppearance=ratioCell(totals.sequencedPitches,totals.sequencedPa,"recorded P/PA");
   const swings = events.filter((event) => event.action !== "Took pitch").length;
   const takes = events.filter((event) => event.action === "Took pitch").length;
   const misses = events.filter((event) => event.action === "Miss").length;
@@ -982,8 +1004,15 @@ function hittingRow(player: Player, events: HittingEvent[], runnerEvents: Hittin
   const popUps = events.filter((event) => event.contactResult === "Pop up").length;
   const softContact = events.filter((event) => event.contactQuality === "Poor" || event.contactQuality === "Weak").length;
   const directed = events.filter((event) => event.action === "Ball in play" && event.direction);
+  const counted = events.filter(event => event.liveBpContext && (event.liveBpContext.countTracked ?? event.liveBpContext.mode !== "FREE"));
+  const firstPitches = counted.filter(event => event.liveBpContext?.before.balls === 0 && event.liveBpContext.before.strikes === 0);
+  const twoStrikeSwings = counted.filter(event => event.liveBpContext?.before.strikes === 2 && isHittingSwing(event));
   return makeRow(player, {
     ...scoring,
+    calledStrikePctHitting: rateCell(events.filter(event => event.action === "Took pitch" && event.liveBpContext?.result === "Called Strike").length, events.filter(event => event.liveBpContext?.result).length, "classified called strikes"),
+    swingingStrikePctHitting: rateCell(misses, events.length, "swinging strikes"),
+    firstPitchSwingPct: rateCell(firstPitches.filter(isHittingSwing).length, firstPitches.length, "first-pitch swings"),
+    twoStrikeContactPct: rateCell(twoStrikeSwings.filter(isHittingContact).length, twoStrikeSwings.length, "two-strike contact"),
     opportunities: countCell(events.length, events.length),
     takes: countCell(takes, events.length),
     swings: countCell(swings, events.length),
@@ -1053,13 +1082,18 @@ function gameEventsForHitter(playerId: ID, events: GameEvent[]): GameEvent[] {
   return events.filter((event) => event.batterId === playerId || event.runnerId === playerId || event.runnerMovements?.some((movement) => movement.runnerId === playerId));
 }
 
-function gameHittingRow(player: Player, events: GameEvent[], plateAppearances: PlateAppearance[]): AnalyticsRow {
+function hasOutcomeFilters(query: AnalyticsQuery): boolean {
+  return Object.values(query.filters ?? {}).some(value => Array.isArray(value) ? value.length > 0 : value !== undefined);
+}
+
+function gameHittingRow(player: Player, events: GameEvent[], plateAppearances: PlateAppearance[], requireMatchingTerminal = false): AnalyticsRow {
   const isTeamTotal = player.id === "team-total";
-  const bip = events.filter((event) => event.ballInPlayOutcome);
-  const appearanceIds = new Set(events.flatMap((event) => event.plateAppearanceId ? [event.plateAppearanceId] : []));
-  const completedAppearances = plateAppearances.filter((appearance) => (isTeamTotal || appearance.hitterId === player.id) && Boolean(appearance.endedAt) && appearanceIds.has(appearance.id));
+  const battingEvents = events.filter(event => isTeamTotal ? Boolean(event.batterId) : event.batterId === player.id);
+  const bip = battingEvents.filter((event) => event.ballInPlayOutcome);
+  const appearanceIds = new Set(battingEvents.flatMap((event) => event.plateAppearanceId ? [event.plateAppearanceId] : []));
+  const completedAppearances = plateAppearances.filter((appearance) => (isTeamTotal || appearance.hitterId === player.id) && Boolean(appearance.endedAt) && appearanceIds.has(appearance.id) && (!requireMatchingTerminal || events.some(event => event.plateAppearanceId === appearance.id && isTerminalGamePlateAppearanceEvent(event))));
   const persistedAppearanceIds = new Set(completedAppearances.map((appearance) => appearance.id));
-  const derivedAppearances = completedGamePlateAppearances(events);
+  const derivedAppearances = completedGamePlateAppearances(battingEvents);
   const derivedOnlyAppearances = derivedAppearances.filter((appearance) => !persistedAppearanceIds.has(appearance.id));
   const outcomes: string[] = [
     ...completedAppearances.flatMap((appearance) => appearance.outcome ? [appearance.outcome] : []),
@@ -1097,7 +1131,7 @@ function gameHittingRow(player: Player, events: GameEvent[], plateAppearances: P
   const caughtStealing = events.filter((event) => (isTeamTotal || event.runnerId === player.id) && event.runnerAction === "Caught Stealing").length;
   const slg = atBats ? totalBases / atBats : undefined;
   return makeRow(player, {
-    ...gameHittingTrackingCells(events),
+    ...gameHittingTrackingCells(battingEvents),
     gamesPlayed: countCell(new Set(events.map((event) => event.gameId)).size, gameSample),
     pa: plateAppearancesCount ? countCell(plateAppearancesCount, plateAppearancesCount) : cell("—", undefined, "not-tracked"),
     trackedBip: countCell(bip.length, gameSample),
@@ -1208,13 +1242,13 @@ function gameHittingTrackingCells(events: GameEvent[]): Record<string, Analytics
   };
 }
 
-function gameHittingTeamRow(data: AppData, events: GameEvent[]): AnalyticsRow {
+function gameHittingTeamRow(data: AppData, events: GameEvent[], requireMatchingTerminal = false): AnalyticsRow {
   const eligibleIds = currentRosterPlayerIdSet(data);
   return gameHittingRow(teamPlayer(data), events.filter((event) =>
     (event.batterId ? eligibleIds.has(event.batterId) : false)
     || (event.runnerId ? eligibleIds.has(event.runnerId) : false)
     || Boolean(event.runnerMovements?.some((movement) => eligibleIds.has(movement.runnerId))),
-  ), data.plateAppearances);
+  ), data.plateAppearances, requireMatchingTerminal);
 }
 
 function pitchingRow(data: AppData, player: Player, pitchEvents: PitchEvent[], gameEvents: GameEvent[]): AnalyticsRow {
@@ -1686,7 +1720,7 @@ function filterHittingEvents(data: AppData, query: AnalyticsQuery, today?: strin
     }
     if (isLive && !sources.includes("live-bp")) return false;
     if (!isLive && !sources.includes("practice")) return false;
-    if (isLive && query.filters?.liveBpThrowerSources?.length && !query.filters.liveBpThrowerSources.includes(liveBpThrowerSource(session))) return false;
+    if (query.filters?.liveBpThrowerSources?.length && !throwerMatches(query.filters.liveBpThrowerSources, event.liveBpContext?.thrower ?? practiceThrowerSource(session, event.pitcherId))) return false;
     if (query.playerIds?.length && !query.playerIds.includes(event.hitterId)) return false;
     if (!practice || !dateInRange(practice.date, dateRange)) return false;
     if (query.eventIds?.length && !query.eventIds.includes(practice.id) && !query.eventIds.includes(event.sessionId)) return false;
@@ -1710,7 +1744,7 @@ function filterPitchEvents(data: AppData, query: AnalyticsQuery, today?: string)
     }
     if (isLive && !sources.includes("live-bp")) return false;
     if (!isLive && !sources.includes("practice")) return false;
-    if (isLive && query.filters?.liveBpThrowerSources?.length && !query.filters.liveBpThrowerSources.includes(liveBpThrowerSource(session))) return false;
+    if (query.filters?.liveBpThrowerSources?.length && !throwerMatches(query.filters.liveBpThrowerSources, event.liveBpContext?.thrower ?? practiceThrowerSource(session, event.pitcherId))) return false;
     if (query.playerIds?.length && !query.playerIds.includes(event.pitcherId)) return false;
     if (!practice || !dateInRange(practice.date, dateRange)) return false;
     if (query.eventIds?.length && !query.eventIds.includes(practice.id) && !query.eventIds.includes(event.sessionId)) return false;
@@ -1749,11 +1783,14 @@ function filterGameEvents(data: AppData, query: AnalyticsQuery, today?: string):
     if ((event.recordStatus ?? "confirmed") !== "confirmed" || event.eventKind === "correction") return false;
     if (query.playerIds?.length) {
       const playerId = query.domain === "pitching" ? event.pitcherId : event.batterId;
-      if (!playerId || !query.playerIds.includes(playerId)) return false;
+      if (query.domain === "hitting") {
+        if ((!playerId || !query.playerIds.includes(playerId)) && (!event.runnerId || !query.playerIds.includes(event.runnerId)) && !event.runnerMovements?.some(m => m.runnerId && query.playerIds!.includes(m.runnerId))) return false;
+      } else if (!playerId || !query.playerIds.includes(playerId)) return false;
     }
     const game = games.get(event.gameId);
     if (!game || !dateInRange(game.date, dateRange)) return false;
     if (query.eventIds?.length && !query.eventIds.includes(game.id)) return false;
+    if (query.filters?.liveBpThrowerSources?.length && !query.filters.liveBpThrowerSources.includes("PLAYER")) return false;
     if (query.filters?.opponents?.length && !query.filters.opponents.includes(game.opponent)) return false;
     if (query.filters?.homeAway?.length && !query.filters.homeAway.includes(game.homeAway as "Home" | "Away" | "Neutral")) return false;
     if (query.filters?.innings?.length && !query.filters.innings.includes(String(event.inning))) return false;
@@ -1794,6 +1831,7 @@ function filterGameEvents(data: AppData, query: AnalyticsQuery, today?: string):
 
 function hittingEventMatchesFilters(data: AppData, event: HittingEvent, filters?: AnalyticsFilters): boolean {
   if (!filters) return true;
+  if (filters.liveBpThrowerSources?.length && !throwerMatches(filters.liveBpThrowerSources, event.liveBpContext?.thrower ?? practiceThrowerSource(data.hittingSessions.find(s => s.id === event.sessionId), event.pitcherId))) return false;
   if (!liveBpSituationMatches(event.liveBpContext, filters)) return false;
   if (filters.pitchTypes?.length && (!event.pitchType || !filters.pitchTypes.includes(event.pitchType))) return false;
   if (filters.battedBallTypes?.length && (!event.contactResult || !filters.battedBallTypes.includes(event.contactResult))) return false;
@@ -1814,21 +1852,29 @@ function hittingEventMatchesFilters(data: AppData, event: HittingEvent, filters?
   return true;
 }
 
-function liveBpThrowerSource(session?: { liveBpThrowerSource?: LiveBpThrowerSource; type?: string }): LiveBpThrowerSource {
-  if (session?.type === "Live BP") return session.liveBpThrowerSource ?? "PLAYER";
-  return session?.liveBpThrowerSource ?? "PLAYER";
+function practiceThrowerSource(session?: { liveBpThrowerSource?: LiveBpThrowerSource; type?: string }, pitcherId?: string): LiveBpThrowerSource | undefined {
+  if (session?.liveBpThrowerSource) return session.liveBpThrowerSource;
+  if (["Machine", "Hack Attack - FB", "Hack Attack - CB"].includes(session?.type ?? "")) return "MACHINE";
+  if (session?.type === "Coach BP") return "COACH";
+  return pitcherId ? "PLAYER" : undefined;
+}
+
+function throwerMatches(selected: LiveBpThrowerSource[], source?: LiveBpThrowerSource): boolean {
+  return source !== undefined && selected.includes(source);
 }
 
 function pitchEventMatchesFilters(data: AppData, event: PitchEvent, filters?: AnalyticsFilters): boolean {
   if (!filters) return true;
+  if (filters.liveBpThrowerSources?.length && !throwerMatches(filters.liveBpThrowerSources, event.liveBpContext?.thrower ?? practiceThrowerSource(data.pitchingSessions.find(s => s.id === event.sessionId), event.pitcherId))) return false;
   if (!liveBpSituationMatches(event.liveBpContext, filters)) return false;
   if (filters.pitchTypes?.length && !filters.pitchTypes.includes(event.pitchType)) return false;
   if (filters.batterHands?.length) {
     const batter = data.players.find((player) => player.id === event.hitterId);
     if (!batter || !filters.batterHands.includes(batter.bats)) return false;
   }
-  if (filters.exactCounts?.length && (!event.countBefore || !filters.exactCounts.includes(countLabel(event.countBefore)))) return false;
-  if (filters.countGroups?.length && (!event.countBefore || !filters.countGroups.some((selected) => countMatchesGroup(event.countBefore, selected)))) return false;
+  const count = practicePitchSample(event).countBefore;
+  if (filters.exactCounts?.length && (!count || !filters.exactCounts.includes(countLabel(count)))) return false;
+  if (filters.countGroups?.length && (!count || !filters.countGroups.some((selected) => countMatchesGroup(count, selected)))) return false;
   if (!velocityMatches(event.velocity, filters.pitchVelocityMin, filters.pitchVelocityMax)) return false;
   if (filters.pitchLocationRegions?.length && !filters.pitchLocationRegions.some((region) => pitchLocationMatches(event.location, region, { pitcherRelative: true, pitcherThrows: data.players.find((player) => player.id === event.pitcherId)?.throws }))) return false;
   return true;
@@ -2182,6 +2228,8 @@ function teamPlayer(data: AppData): Player {
 }
 
 function practicePitchSample(event: PitchEvent) {
+  const context = event.liveBpContext;
+  const countBefore = event.countBefore ?? (context && (context.countTracked ?? context.mode !== "FREE") && typeof context.before.balls === "number" && typeof context.before.strikes === "number" ? { balls: context.before.balls, strikes: context.before.strikes } : undefined);
   return {
     isStrike: event.isStrike,
     isBall: event.outcome === "Ball",
@@ -2192,7 +2240,7 @@ function practicePitchSample(event: PitchEvent) {
     isCalledStrike: Boolean(event.isCalledStrike || event.outcome === "Called Strike"),
     isContact: event.outcome === "Foul" || event.outcome === "Ball in play",
     velocity: event.velocity,
-    countBefore: event.countBefore,
+    countBefore,
   };
 }
 
